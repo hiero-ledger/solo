@@ -58,7 +58,7 @@ export class ConfigMapStorageBackend implements StorageBackend {
       const data: Record<string, string> = this.configMap.data;
 
       if (data && Object.keys(data).length > 0) {
-        const value: string = Object.values(data)[0];
+        const value: string = data[key];
         return Buffer.from(value, 'utf8');
       } else {
         throw new StorageBackendError(`config map is empty: ${key}`);

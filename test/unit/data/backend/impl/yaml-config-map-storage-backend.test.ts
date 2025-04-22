@@ -17,8 +17,8 @@ describe('YamlConfigMapStorageBackend', () => {
 
   describe('readObject', () => {
     it('should parse YAML from readBytes', async () => {
-      const yamlStr: string = 'foo: bar\nnum: 42\n';
-      const stub = sinon.stub(backend, 'readBytes').resolves(Buffer.from(yamlStr, 'utf8'));
+      const yamlString: string = 'foo: bar\nnum: 42\n';
+      const stub = sinon.stub(backend, 'readBytes').resolves(Buffer.from(yamlString, 'utf8'));
       const result = await backend.readObject('some-key');
       expect(result).to.deep.equal({foo: 'bar', num: 42});
       stub.restore();
