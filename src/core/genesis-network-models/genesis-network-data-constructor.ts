@@ -78,7 +78,6 @@ export class GenesisNetworkDataConstructor implements ToJSON {
         const domainName = domainNamesMapping?.[consensusNode.name];
 
         // Add service endpoints
-        // TODO: do logic to point to HaProxy load balancer IP address else fully qualified domain name
         nodeDataWrapper.addServiceEndpoint(domainName ?? networkNodeService.externalAddress, constants.GRPC_PORT);
       }
     })();
