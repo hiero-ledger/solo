@@ -53,7 +53,6 @@ describe('NetworkCommand', function networkCommand() {
   // Setup TLS certificates in a before hook
   before(async function () {
     this.timeout(Duration.ofMinutes(1).toMillis());
-
     await KeyManager.generateTls(temporaryDirectory, 'grpc');
     await KeyManager.generateTls(temporaryDirectory, 'grpcWeb');
   });
