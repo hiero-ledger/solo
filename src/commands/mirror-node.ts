@@ -687,8 +687,8 @@ export class MirrorNodeCommand extends BaseCommand {
                     const importExchangeRatesQuery = `INSERT INTO public.file_data(file_data, consensus_timestamp,
                                                                                    entity_id, transaction_type)
                                                       VALUES (decode('${exchangeRates}', 'hex'), ${
-                      timestamp + '000001'
-                    }, ${exchangeRatesFileIdNumber}, 17);`;
+                                                        timestamp + '000001'
+                                                      }, ${exchangeRatesFileIdNumber}, 17);`;
                     const sqlQuery = [importFeesQuery, importExchangeRatesQuery].join('\n');
 
                     // When useExternalDatabase flag is enabled, the query is not executed,
@@ -708,7 +708,7 @@ export class MirrorNodeCommand extends BaseCommand {
                       self.logger.showUser(
                         chalk.cyan(
                           'Please run the following SQL script against the external database ' +
-                          'to enable Mirror Node to function correctly:',
+                            'to enable Mirror Node to function correctly:',
                         ),
                         chalk.yellow(databaseSeedingQueryPath),
                       );

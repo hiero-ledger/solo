@@ -725,7 +725,7 @@ export class NetworkCommand extends BaseCommand {
     const shard: Shard = this.localConfig.getShard(config.deployment);
 
     const networkNodeVersion = new SemVer(config.releaseTag);
-    const minimumVersionForNonZeroRealms = new SemVer('0.61.0');
+    const minimumVersionForNonZeroRealms = new SemVer('0.60.0');
     if ((realm !== 0 || shard !== 0) && SemVersionLessThan(networkNodeVersion, minimumVersionForNonZeroRealms)) {
       throw new SoloError(
         `The realm and shard values must be 0 when using the ${minimumVersionForNonZeroRealms} version of the network node`,

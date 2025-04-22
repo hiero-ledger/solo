@@ -17,7 +17,7 @@ import chalk from 'chalk';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type NodeAlias} from '../types/aliases.js';
 import {Duration} from './time/duration.js';
-import {getProcessorType, sleep} from './helpers.js';
+import {requiresJavaSveFix, sleep} from './helpers.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
@@ -119,11 +119,11 @@ export class PlatformInstaller {
       const k8Containers = this.k8Factory.getK8(context).containers();
 
       const container = k8Containers.readByRef(containerReference);
-      const chipType = await getProcessorType(container);
-      this.logger.info(`chipType: ${chipType}`);
+      const useZip = await requiresJavaSveFix(container);
+      this.logger.info(`Requires JavaSVE fix: ${useZip}`);
 
       await container.execContainer(`chmod +x ${extractScript}`);
-      await container.execContainer([extractScript, tag, chipType]);
+      await container.execContainer([extractScript, tag, useZip.toString()]);
 
       return true;
     } catch (error) {
