@@ -118,7 +118,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hashgraph/solo.git"
+    "url": "git+https://github.com/hiero-ledger/solo.git"
   },
   "os": [
     "darwin",
