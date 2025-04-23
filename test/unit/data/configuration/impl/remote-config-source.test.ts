@@ -53,25 +53,23 @@ describe('RemoteConfigSource', (): void => {
     loadStub.restore();
   });
 
-  describe('edge/error cases', (): void => {
-    it('should throw if putObject called with missing key', (): void => {
-      expect((): void => source.putObject(undefined as never, {foo: 1})).to.throw('key must not be null or undefined');
-    });
+  it('should throw if putObject called with missing key', (): void => {
+    expect((): void => source.putObject(undefined as never, {foo: 1})).to.throw('key must not be null or undefined');
+  });
 
-    it('should throw if putObjectArray called with missing key', (): void => {
-      expect((): void => source.putObjectArray(undefined as never, [{foo: 1}])).to.throw(
-        'key must not be null or undefined',
-      );
-    });
+  it('should throw if putObjectArray called with missing key', (): void => {
+    expect((): void => source.putObjectArray(undefined as never, [{foo: 1}])).to.throw(
+      'key must not be null or undefined',
+    );
+  });
 
-    it('should throw if putScalar called with missing key', (): void => {
-      expect((): void => source.putScalar(undefined as never, 'val')).to.throw('key must not be null or undefined');
-    });
+  it('should throw if putScalar called with missing key', (): void => {
+    expect((): void => source.putScalar(undefined as never, 'val')).to.throw('key must not be null or undefined');
+  });
 
-    it('should throw if putScalarArray called with missing key', (): void => {
-      expect((): void => source.putScalarArray(undefined as never, ['a'])).to.throw(
-        'key must not be null or undefined',
-      );
-    });
+  it('should throw if putScalarArray called with missing key', (): void => {
+    expect((): void => source.putScalarArray(undefined as never, ['a'])).to.throw(
+      'key must not be null or undefined',
+    );
   });
 });
