@@ -49,6 +49,8 @@ export function testNodeAdd(
   argv.setArg(flags.force, true);
   argv.setArg(flags.persistentVolumeClaims, true);
   argv.setArg(flags.localBuildPath, localBuildPath);
+  argv.setArg(flags.realm, 1);
+  argv.setArg(flags.shard, 0);
 
   endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     const {

@@ -28,6 +28,8 @@ argv.setArg(flags.generateTlsKeys, true);
 argv.setArg(flags.persistentVolumeClaims, true);
 argv.setArg(flags.releaseTag, HEDERA_PLATFORM_VERSION_TAG);
 argv.setArg(flags.namespace, namespace.name);
+argv.setArg(flags.realm, 0);
+argv.setArg(flags.shard, 1);
 
 const zipFile = 'upgrade.zip';
 

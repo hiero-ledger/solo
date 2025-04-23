@@ -44,6 +44,8 @@ argv.setArg(flags.generateTlsKeys, true);
 argv.setArg(flags.releaseTag, HEDERA_PLATFORM_VERSION_TAG);
 argv.setArg(flags.namespace, namespace.name);
 argv.setArg(flags.persistentVolumeClaims, true);
+argv.setArg(flags.realm, 1);
+argv.setArg(flags.shard, 1);
 
 endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   const {
