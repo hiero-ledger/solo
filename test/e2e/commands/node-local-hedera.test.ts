@@ -27,6 +27,8 @@ argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2');
 argv.setArg(flags.generateGossipKeys, true);
 argv.setArg(flags.generateTlsKeys, true);
 argv.setArg(flags.clusterRef, getTestCluster());
+argv.setArg(flags.realm, 0);
+argv.setArg(flags.shard, 1023);
 
 console.log('Starting local build for Hedera app');
 argv.setArg(

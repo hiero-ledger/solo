@@ -38,6 +38,8 @@ export function endToEndNodeKeyRefreshTest(testName: string, mode: string, relea
   argv.setArg(flags.generateTlsKeys, true);
   argv.setArg(flags.clusterRef, getTestCluster());
   argv.setArg(flags.devMode, true);
+  argv.setArg(flags.realm, 65_535);
+  argv.setArg(flags.shard, 1023);
 
   endToEndTestSuite(testName, argv, {}, bootstrapResp => {
     const defaultTimeout = Duration.ofMinutes(2).toMillis();

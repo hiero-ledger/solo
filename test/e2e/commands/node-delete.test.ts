@@ -34,6 +34,8 @@ argv.setArg(flags.generateTlsKeys, true);
 argv.setArg(flags.persistentVolumeClaims, true);
 argv.setArg(flags.releaseTag, HEDERA_PLATFORM_VERSION_TAG);
 argv.setArg(flags.namespace, namespace.name);
+argv.setArg(flags.realm, 65_535);
+argv.setArg(flags.shard, 0);
 
 endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   describe('Node delete', async () => {

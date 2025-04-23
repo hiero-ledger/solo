@@ -29,7 +29,7 @@ import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-
 const defaultTimeout = Duration.ofMinutes(2).toMillis();
 const namespace = NamespaceName.of('node-update');
 const updateNodeId = 'node2';
-const newAccountId = '0.0.7';
+const newAccountId = '1.1.7';
 const argv = Argv.getDefaultArgv(namespace);
 
 argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
@@ -44,6 +44,8 @@ argv.setArg(flags.generateTlsKeys, true);
 argv.setArg(flags.releaseTag, HEDERA_PLATFORM_VERSION_TAG);
 argv.setArg(flags.namespace, namespace.name);
 argv.setArg(flags.persistentVolumeClaims, true);
+argv.setArg(flags.realm, 1);
+argv.setArg(flags.shard, 1);
 
 endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   const {
