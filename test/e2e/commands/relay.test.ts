@@ -36,7 +36,7 @@ argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
 argv.setArg(flags.force, true);
 argv.setArg(flags.relayReleaseTag, flags.relayReleaseTag.definition.defaultValue);
 argv.setArg(flags.realm, 1);
-argv.setArg(flags.shard, 1);
+argv.setArg(flags.shard, 0);
 
 endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void => {
   const {
