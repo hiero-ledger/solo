@@ -68,8 +68,6 @@ describe('RemoteConfigSource', (): void => {
   });
 
   it('should throw if putScalarArray called with missing key', (): void => {
-    expect((): void => source.putScalarArray(undefined as never, ['a'])).to.throw(
-      'key must not be null or undefined',
-    );
+    expect((): void => source.putScalarArray(undefined as never, ['a'])).to.throw('key must not be null or undefined');
   });
 });
