@@ -13,7 +13,6 @@ import {LocalConfigSchema} from '../../../../../../src/data/schema/migration/imp
 import {CTObjectMapper} from '../../../../../../src/data/mapper/impl/ct-object-mapper.js';
 import {ApplicationVersions} from '../../../../../../src/data/schema/model/common/application-versions.js';
 import {
-  getSoloVersion,
   HEDERA_EXPLORER_VERSION,
   HEDERA_JSON_RPC_RELAY_VERSION,
   HEDERA_PLATFORM_VERSION,
@@ -24,7 +23,8 @@ import {ConfigKeyFormatter} from '../../../../../../src/data/key/config-key-form
 
 describe('LocalConfig', () => {
   const schema: LocalConfigSchema = new LocalConfigSchema(new CTObjectMapper(ConfigKeyFormatter.instance()));
-  const localConfigPath = `test/data/v${getSoloVersion()}-local-config.yaml`;
+  const soloVersion: string = '0.35.1';
+  const localConfigPath = `test/data/v${soloVersion}-local-config.yaml`;
 
   describe('Class Transformer', () => {
     let yamlData: string;
@@ -66,7 +66,7 @@ describe('LocalConfig', () => {
       clusterReferences.set('e2e-cluster-2', 'kind-solo-e2e-c2');
 
       const versions = new ApplicationVersions(
-        new SemVer(getSoloVersion()),
+        new SemVer(soloVersion),
         new SemVer(SOLO_CHART_VERSION),
         new SemVer(HEDERA_PLATFORM_VERSION),
         new SemVer(MIRROR_NODE_VERSION),
