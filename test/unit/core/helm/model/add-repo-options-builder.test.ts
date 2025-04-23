@@ -34,7 +34,7 @@ describe('AddRepoOptions Tests', (): void => {
     const builderMock = {flag: flagStub} as unknown as HelmExecutionBuilder;
     const options: AddRepoOptions = new AddRepoOptions(true);
     options.apply(builderMock);
-    expect(flagStub.calledWith('force-update')).to.be.true;
+    expect(flagStub.calledWith('--force-update')).to.be.true;
   });
 
   it('should not apply --force-update flag when not set', (): void => {
@@ -42,6 +42,6 @@ describe('AddRepoOptions Tests', (): void => {
     const builderMock = {flag: flagStub} as unknown as HelmExecutionBuilder;
     const options: AddRepoOptions = new AddRepoOptions(false);
     options.apply(builderMock);
-    expect(flagStub.calledWith('force-update')).to.be.false;
+    expect(flagStub.calledWith('--force-update')).to.be.false;
   });
 });
