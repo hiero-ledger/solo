@@ -38,7 +38,7 @@ import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {type ClusterReference, type DeploymentName} from '../core/config/remote/types.js';
 import {KeyManager} from '../core/key-manager.js';
-import {prepareValuesFiles, showVersionBanner, requiresJavaSveFix} from '../core/helpers.js';
+import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {type AccountId} from '@hashgraph/sdk';
@@ -522,70 +522,6 @@ export class MirrorNodeCommand extends BaseCommand {
                   title: 'Deploy mirror-node',
                   task: async context_ => {
                     await self.deployMirrorNode(context_);
-                  },
-                },
-                {
-                  title: 'Apply UseSVE fix',
-                  task: async (context_, task) => {
-                    const namespace = context_.config.namespace;
-                    const importerLabels = ['app.kubernetes.io/component=importer', 'app.kubernetes.io/name=importer'];
-                    const pods: Pod[] = await this.k8Factory
-                      .getK8(context_.config.clusterContext)
-                      .pods()
-                      .list(namespace, importerLabels);
-
-                    await self.k8Factory
-                      .getK8(context_.config.clusterContext)
-                      .pods()
-                      .waitForReadyStatus(
-                        context_.config.namespace,
-                        importerLabels,
-                        constants.PODS_READY_MAX_ATTEMPTS,
-                        constants.PODS_READY_DELAY,
-                      );
-
-                    if (pods.length === 0) {
-                      throw new SoloError('importer pod not found');
-                    }
-                    const importerPodName: PodName = pods[0].podReference.name;
-                    const importerContainerName = ContainerName.of('importer');
-                    const importerPodReference = PodReference.of(namespace, importerPodName);
-                    const containerReference = ContainerReference.of(importerPodReference, importerContainerName);
-                    const container = await self.k8Factory
-                      .getK8(context_.config.clusterContext)
-                      .containers()
-                      .readByRef(containerReference);
-
-                    // Temporary fix for M4 chips running JAVA 21.
-                    // This should be changed when mirror node allows for extending JAVA_OPTS env
-                    if (await requiresJavaSveFix(container)) {
-                      context_.config.valuesArg +=
-                        ' --set "graphql.env.JDK_JAVA_OPTIONS=-XX:MaxRAMPercentage=80 -XX:UseSVE=0"';
-                      context_.config.valuesArg +=
-                        ' --set "importer.env.JDK_JAVA_OPTIONS=-XX:MaxRAMPercentage=80 -XX:UseSVE=0"';
-                      context_.config.valuesArg +=
-                        ' --set "grpc.env.JDK_JAVA_OPTIONS=-XX:MaxRAMPercentage=80 -XX:UseSVE=0"';
-                      context_.config.valuesArg +=
-                        ' --set "monitor.env.JDK_JAVA_OPTIONS=-XX:MaxRAMPercentage=80 -XX:UseSVE=0"';
-                      context_.config.valuesArg +=
-                        ' --set "restjava.env.JDK_JAVA_OPTIONS=-XX:MaxRAMPercentage=80 -XX:UseSVE=0"';
-                      context_.config.valuesArg +=
-                        ' --set "web3.env.JDK_JAVA_OPTIONS=-XX:MaxRAMPercentage=80 --enable-preview -XX:UseSVE=0"';
-
-                      await self.deployMirrorNode(context_);
-                      for (const pod of pods) {
-                        // const podReference: PodReference = pod.podReference;
-                        const pods = await this.k8Factory
-                          .getK8(context_.config.clusterContext)
-                          .pods()
-                          .list(context_.config.namespace, ['app.kubernetes.io/instance=mirror']);
-                        for (const pod of pods) {
-                          await pod.killPod();
-                        }
-                      }
-                    } else {
-                      task.title += chalk.yellow(' (Skipped)');
-                    }
                   },
                 },
               ],
