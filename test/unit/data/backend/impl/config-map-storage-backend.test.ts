@@ -36,9 +36,20 @@ describe('ConfigMapStorageBackend', (): void => {
     it('should throw if key not found', async (): Promise<void> => {
       await expect(backend.delete('notfound')).to.be.rejectedWith('key: notfound not found in config map');
     });
+    it('should trigger unexpected errors in delete', async (): Promise<void> => {
+      // Simulate configMap.data throwing an unexpected error
+      const badBackend: ConfigMapStorageBackend = new ConfigMapStorageBackend({
+        get data(): void {
+          throw new Error('unexpected');
+        },
+        name: '',
+        namespace: undefined,
+      } as never);
+      await expect(badBackend.delete('foo')).to.be.rejectedWith('error deleting config map data key: foo');
+    });
   });
 
-  describe('isSupported', () => {
+  describe('isSupported', (): void => {
     it('should return true for supported operations', (): void => {
       expect(backend.isSupported(StorageOperation.List)).to.be.true;
       expect(backend.isSupported(StorageOperation.ReadBytes)).to.be.true;
@@ -70,6 +81,24 @@ describe('ConfigMapStorageBackend', (): void => {
     it('should throw if key not found', async (): Promise<void> => {
       await expect(backend.readBytes('notfound')).to.be.rejectedWith(StorageBackendError);
     });
+    it('should throw if configMap.data is empty or undefined in readBytes', async (): Promise<void> => {
+      const emptyBackend: ConfigMapStorageBackend = new ConfigMapStorageBackend({
+        data: undefined,
+        name: '',
+        namespace: undefined,
+      });
+      await expect(emptyBackend.readBytes('foo')).to.be.rejectedWith('config map is empty: foo');
+    });
+    it('should trigger unexpected errors in readBytes', async (): Promise<void> => {
+      const badBackend: ConfigMapStorageBackend = new ConfigMapStorageBackend({
+        get data(): void {
+          throw new Error('unexpected');
+        },
+        name: '',
+        namespace: undefined,
+      } as never);
+      await expect(badBackend.readBytes('foo')).to.be.rejectedWith('error reading config map: foo');
+    });
   });
 
   describe('writeBytes', (): void => {
@@ -87,6 +116,17 @@ describe('ConfigMapStorageBackend', (): void => {
       backend = new ConfigMapStorageBackend({data: undefined, name: '', namespace: undefined});
       const buf: Buffer<ArrayBuffer> = Buffer.from('something', 'utf8');
       await expect(backend.writeBytes('foo', buf)).to.be.rejectedWith(StorageBackendError);
+    });
+    it('should trigger unexpected errors in writeBytes', async (): Promise<void> => {
+      const badBackend: ConfigMapStorageBackend = new ConfigMapStorageBackend({
+        get data(): void {
+          throw new Error('unexpected');
+        },
+        name: '',
+        namespace: undefined,
+      } as never);
+      const buf: Buffer<ArrayBuffer> = Buffer.from('fail', 'utf8');
+      await expect(badBackend.writeBytes('foo', buf)).to.be.rejectedWith('error writing config map: foo');
     });
   });
 });
