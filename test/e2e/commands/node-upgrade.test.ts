@@ -4,7 +4,12 @@ import {after, describe, it} from 'mocha';
 import {expect} from 'chai';
 
 import {Flags as flags} from '../../../src/commands/flags.js';
-import {endToEndTestSuite, getTemporaryDirectory, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
+import {
+  endToEndTestSuite,
+  getTemporaryDirectory,
+  HEDERA_PLATFORM_VERSION_TAG,
+  hederaPlatformSupportsNonZeroRealms,
+} from '../../test-utility.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {HEDERA_HAPI_PATH, ROOT_CONTAINER} from '../../../src/core/constants.js';
 import fs from 'node:fs';
@@ -29,7 +34,7 @@ argv.setArg(flags.persistentVolumeClaims, true);
 argv.setArg(flags.releaseTag, HEDERA_PLATFORM_VERSION_TAG);
 argv.setArg(flags.namespace, namespace.name);
 argv.setArg(flags.realm, 0);
-argv.setArg(flags.shard, 1);
+argv.setArg(flags.shard, hederaPlatformSupportsNonZeroRealms() ? 1 : 0);
 
 const zipFile = 'upgrade.zip';
 

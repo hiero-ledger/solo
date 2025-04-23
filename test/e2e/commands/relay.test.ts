@@ -10,6 +10,7 @@ import {
   endToEndTestSuite,
   getTestCluster,
   HEDERA_PLATFORM_VERSION_TAG,
+  hederaPlatformSupportsNonZeroRealms,
 } from '../../test-utility.js';
 import * as version from '../../../version.js';
 import {sleep} from '../../../src/core/helpers.js';
@@ -35,7 +36,8 @@ argv.setArg(flags.clusterRef, getTestCluster());
 argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
 argv.setArg(flags.force, true);
 argv.setArg(flags.relayReleaseTag, flags.relayReleaseTag.definition.defaultValue);
-argv.setArg(flags.realm, 1);
+
+argv.setArg(flags.realm, hederaPlatformSupportsNonZeroRealms() ? 1 : 0);
 argv.setArg(flags.shard, 0);
 
 endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void => {

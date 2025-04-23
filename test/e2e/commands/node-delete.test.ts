@@ -9,6 +9,7 @@ import {
   balanceQueryShouldSucceed,
   endToEndTestSuite,
   HEDERA_PLATFORM_VERSION_TAG,
+  hederaPlatformSupportsNonZeroRealms,
 } from '../../test-utility.js';
 import {HEDERA_HAPI_PATH, ROOT_CONTAINER} from '../../../src/core/constants.js';
 import {Duration} from '../../../src/core/time/duration.js';
@@ -34,7 +35,7 @@ argv.setArg(flags.generateTlsKeys, true);
 argv.setArg(flags.persistentVolumeClaims, true);
 argv.setArg(flags.releaseTag, HEDERA_PLATFORM_VERSION_TAG);
 argv.setArg(flags.namespace, namespace.name);
-argv.setArg(flags.realm, 65_535);
+argv.setArg(flags.realm, hederaPlatformSupportsNonZeroRealms() ? 65_535 : 0);
 argv.setArg(flags.shard, 0);
 
 endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
