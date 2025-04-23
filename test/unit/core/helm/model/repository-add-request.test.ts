@@ -36,7 +36,7 @@ describe('RepositoryAddRequest', () => {
     const request = new RepositoryAddRequest(mockRepository as any, options);
     request.apply(builder as any);
 
-    expect(builder.flag.calledWith('force-update')).to.be.true;
+    expect(builder.flag.calledWith('--force-update')).to.be.true;
   });
 
   it('should not apply AddRepoOptions if not provided', () => {
