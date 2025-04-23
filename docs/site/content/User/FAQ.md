@@ -33,7 +33,7 @@ If during the installation of solo-charts you see the error similar to the follo
 failed to setup chart repositories,
 repository name (hedera-json-rpc-relay) already exists
 ```
-You need to remove helm repo manually, first run command `helm repo list` to 
+You need to remove the old helm repo manually, first run command `helm repo list` to 
 see the list of helm repos, and then run `helm repo remove <repo-name>` to remove the repo. 
 For example:
 
