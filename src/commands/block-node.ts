@@ -16,9 +16,7 @@ import * as versions from '../../version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type Lock} from '../core/lock/lock.js';
 import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
-import {type BlockNodeComponent} from '../core/config/remote/components/block-node-component.js';
-import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {ComponentFactory} from '../core/config/remote/components/component-factory.js';
+import {BlockNodeComponent} from '../core/config/remote/components/block-node-component.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {Duration} from '../core/time/duration.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
@@ -133,8 +131,8 @@ export class BlockNodeCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private getReleaseName(blockNodeIndex: number): string {
-    return constants.BLOCK_NODE_RELEASE_NAME + '-' + blockNodeIndex;
+  private getReleaseName(): string {
+    return constants.BLOCK_NODE_RELEASE_NAME;
   }
 
   private async add(argv: ArgvStruct): Promise<boolean> {
@@ -183,17 +181,13 @@ export class BlockNodeCommand extends BaseCommand {
           task: async (context_): Promise<void> => {
             const config: BlockNodeDeployConfigClass = context_.config;
 
-            const newBlockNodeIndex: number = this.remoteConfigManager.components.getNewComponentIndex(
-              ComponentTypes.BlockNode,
-            );
+            config.releaseName = this.getReleaseName();
 
-            config.newBlockNodeComponent = ComponentFactory.createNewBlockNodeComponent(
-              this.remoteConfigManager,
+            config.newBlockNodeComponent = new BlockNodeComponent(
+              config.releaseName,
               config.clusterRef,
-              config.namespace,
+              config.namespace.name,
             );
-
-            config.releaseName = this.getReleaseName(newBlockNodeIndex);
           },
         },
         {
@@ -392,7 +386,7 @@ export class BlockNodeCommand extends BaseCommand {
         await this.remoteConfigManager.modify(async remoteConfig => {
           const config: BlockNodeDeployConfigClass = context_.config;
 
-          remoteConfig.components.addNewComponent(config.newBlockNodeComponent);
+          remoteConfig.components.add(config.newBlockNodeComponent);
         });
       },
     };

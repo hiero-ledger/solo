@@ -8,22 +8,25 @@ import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
-import {INGRESS_CONTROLLER_NAME} from '../core/constants.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand, type Options} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import * as helpers from '../core/helpers.js';
-import {showVersionBanner} from '../core/helpers.js';
 import {type AnyYargs, type ArgvStruct} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
-import {type MirrorNodeComponent} from '../core/config/remote/components/mirror-node-component.js';
+import {MirrorNodeComponent} from '../core/config/remote/components/mirror-node-component.js';
 import * as fs from 'node:fs';
 import {type CommandDefinition, type Optional, type SoloListrTask} from '../types/index.js';
 import * as Base64 from 'js-base64';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
+import {
+  INGRESS_CONTROLLER_PREFIX,
+  MIRROR_INGRESS_TLS_SECRET_NAME,
+  MIRROR_INGRESS_CONTROLLER,
+} from '../core/constants.js';
 import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
@@ -33,17 +36,20 @@ import {type CommandFlag} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {type ClusterReference, type DeploymentName} from '../core/config/remote/types.js';
+import {KeyManager} from '../core/key-manager.js';
+import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {ComponentFactory} from '../core/config/remote/components/component-factory.js';
 
 interface MirrorNodeDeployConfigClass {
+  cacheDir: string;
   chartDirectory: string;
   clusterContext: string;
   clusterRef: ClusterReference;
   namespace: NamespaceName;
   enableIngress: boolean;
+  ingressControllerValueFile: string;
   mirrorStaticIp: string;
   profileFile: string;
   profileName: string;
@@ -113,6 +119,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.chartDirectory,
       flags.deployment,
       flags.enableIngress,
+      flags.ingressControllerValueFile,
       flags.mirrorStaticIp,
       flags.profileFile,
       flags.profileName,
@@ -427,7 +434,11 @@ export class MirrorNodeCommand extends BaseCommand {
                     if (config.mirrorStaticIp !== '') {
                       mirrorIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${context_.config.mirrorStaticIp}`;
                     }
-                    mirrorIngressControllerValuesArgument += ` --set fullnameOverride=${constants.MIRROR_INGRESS_CONTROLLER}`;
+                    mirrorIngressControllerValuesArgument += ` --set fullnameOverride=${MIRROR_INGRESS_CONTROLLER}`;
+                    mirrorIngressControllerValuesArgument += ` --set controller.ingressClass=${constants.MIRROR_INGRESS_CLASS_NAME}`;
+                    mirrorIngressControllerValuesArgument += ` --set controller.extraArgs.controller-class=${constants.MIRROR_INGRESS_CONTROLLER}`;
+
+                    mirrorIngressControllerValuesArgument += prepareValuesFiles(config.ingressControllerValueFile);
 
                     await self.chartManager.install(
                       config.namespace,
@@ -466,28 +477,50 @@ export class MirrorNodeCommand extends BaseCommand {
                     );
 
                     if (context_.config.enableIngress) {
+                      await KeyManager.createTlsSecret(
+                        this.k8Factory,
+                        context_.config.namespace,
+                        context_.config.domainName,
+                        context_.config.cacheDir,
+                        MIRROR_INGRESS_TLS_SECRET_NAME,
+                      );
                       // patch ingressClassName of mirror ingress so it can be recognized by haproxy ingress controller
+                      const updated: object = {
+                        metadata: {
+                          annotations: {
+                            'haproxy-ingress.github.io/backend-protocol': 'h1',
+                          },
+                        },
+                        spec: {
+                          ingressClassName: `${constants.MIRROR_INGRESS_CLASS_NAME}`,
+                          tls: [
+                            {
+                              hosts: [context_.config.domainName || 'localhost'],
+                              secretName: MIRROR_INGRESS_TLS_SECRET_NAME,
+                            },
+                          ],
+                        },
+                      };
                       await this.k8Factory
                         .getK8(context_.config.clusterContext)
                         .ingresses()
-                        .update(context_.config.namespace, constants.MIRROR_NODE_RELEASE_NAME, {
-                          spec: {
-                            ingressClassName: `${constants.MIRROR_INGRESS_CLASS_NAME}`,
-                          },
-                        });
+                        .update(context_.config.namespace, constants.MIRROR_NODE_RELEASE_NAME, updated);
 
                       // to support GRPC over HTTP/2
                       await this.k8Factory
                         .getK8(context_.config.clusterContext)
                         .configMaps()
-                        .update(context_.config.namespace, constants.MIRROR_INGRESS_CONTROLLER, {
+                        .update(context_.config.namespace, MIRROR_INGRESS_CONTROLLER, {
                           'backend-protocol': 'h2',
                         });
 
                       await this.k8Factory
                         .getK8(context_.config.clusterContext)
                         .ingressClasses()
-                        .create(constants.MIRROR_INGRESS_CLASS_NAME, INGRESS_CONTROLLER_NAME);
+                        .create(
+                          constants.MIRROR_INGRESS_CLASS_NAME,
+                          INGRESS_CONTROLLER_PREFIX + MIRROR_INGRESS_CONTROLLER,
+                        );
                     }
                   },
                 },
@@ -797,7 +830,7 @@ export class MirrorNodeCommand extends BaseCommand {
             });
           },
         },
-        this.disableMirrorNodeComponents(),
+        this.removeMirrorNodeComponents(),
       ],
       {
         concurrent: false,
@@ -884,23 +917,13 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   /** Removes the mirror node components from remote config. */
-  public disableMirrorNodeComponents(): SoloListrTask<MirrorNodeDestroyContext> {
+  public removeMirrorNodeComponents(): SoloListrTask<MirrorNodeDestroyContext> {
     return {
       title: 'Remove mirror node from remote config',
       skip: (): boolean => !this.remoteConfigManager.isLoaded(),
-      task: async (context_): Promise<void> => {
-        const clusterReference: ClusterReference = context_.config.clusterRef;
-
+      task: async (): Promise<void> => {
         await this.remoteConfigManager.modify(async remoteConfig => {
-          const mirrorNodeComponents: MirrorNodeComponent[] =
-            remoteConfig.components.getComponentsByClusterReference<MirrorNodeComponent>(
-              ComponentTypes.MirrorNode,
-              clusterReference,
-            );
-
-          for (const mirrorNodeComponent of mirrorNodeComponents) {
-            remoteConfig.components.disableComponent(mirrorNodeComponent.name, ComponentTypes.MirrorNode);
-          }
+          remoteConfig.components.remove('mirrorNode', ComponentTypes.MirrorNode);
         });
       },
     };
@@ -913,11 +936,11 @@ export class MirrorNodeCommand extends BaseCommand {
       skip: (): boolean => !this.remoteConfigManager.isLoaded(),
       task: async (context_): Promise<void> => {
         await this.remoteConfigManager.modify(async remoteConfig => {
-          const {namespace, clusterRef} = context_.config;
+          const {
+            config: {namespace, clusterRef},
+          } = context_;
 
-          remoteConfig.components.addNewComponent(
-            ComponentFactory.createNewMirrorNodeComponent(this.remoteConfigManager, clusterRef, namespace),
-          );
+          remoteConfig.components.add(new MirrorNodeComponent('mirrorNode', clusterRef, namespace.name));
         });
       },
     };

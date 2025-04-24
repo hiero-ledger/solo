@@ -35,29 +35,9 @@ main:
       external: true
     - name: Contributing to Solo
       ref: "/Developer/DEV.md"
-  - name: Design Documentation
-    ref: "/Developer/DesignDocs/_index.md"
-    sub:
-    - name: Project Overview and High-Level Documentation
-      ref: "/Developer/DesignDocs/ProjectOverviewAndHighLevelDocumentation.md"
-    - name: Architecture and System Design
-      ref: "/Developer/DesignDocs/ArchitectureAndSystemDesign.md"
-    - name: Infrastructure and Deployment
-      ref: "/Developer/DesignDocs/InfrastructureAndDeployment.md"
-    - name: CLI Design and Interaction
-      ref: "/Developer/DesignDocs/CLIDesignAndInteraction.md"
-    - name: Codebase and Module Documentation
-      ref: "/Developer/DesignDocs/CodebaseAndModuleDocumentation.md"
-      sub:
-      - name: API Reference
-        ref: "/solo/static/Classes/index.html"
-        external: true
-    - name: Error Handling and Logging
-      ref: "/Developer/DesignDocs/ErrorHandlingAndLogging.md"
-    - name: Security and Permissions
-      ref: "/Developer/DesignDocs/SecurityAndPermissions.md"
-    - name: Testing and Quality Assurance
-      ref: "/Developer/DesignDocs/TestingAndQualityAssurance.md"
+  - name: API Reference
+    ref: "/static/Classes/index.html"
+    external: true
   - name: Development
     ref: "/Developer/Development/_index.md"
     sub:

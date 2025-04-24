@@ -242,19 +242,23 @@ export class Templates {
     }
   }
 
+  public static renderEnvoyProxyName(nodeAlias: NodeAlias): string {
+    return `envoy-proxy-${nodeAlias}`;
+  }
+
+  public static renderHaProxyName(nodeAlias: NodeAlias): string {
+    return `haproxy-${nodeAlias}`;
+  }
+
+  public static renderFullyQualifiedHaProxyName(nodeAlias: NodeAlias, namespace: NamespaceName): string {
+    return `${Templates.renderHaProxyName(nodeAlias)}-svc.${namespace}.svc.cluster.local`;
+  }
+
   public static parseNodeAliasToIpMapping(unparsed: string): Record<NodeAlias, IP> {
     const mapping: Record<NodeAlias, IP> = {};
 
     for (const data of unparsed.split(',')) {
       const [nodeAlias, ip] = data.split('=') as [NodeAlias, IP];
-
-      if (!nodeAlias || typeof nodeAlias !== 'string') {
-        throw new SoloError(`Can't parse node alias: ${data}`);
-      }
-      if (!ip || typeof ip !== 'string') {
-        throw new SoloError(`Can't parse ip: ${data}`);
-      }
-
       mapping[nodeAlias] = ip;
     }
 
