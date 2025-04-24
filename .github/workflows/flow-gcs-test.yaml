@@ -36,14 +36,14 @@ permissions:
 jobs:
   gcs-storage-test:
     timeout-minutes: 20
-    runs-on: solo-linux-large
+    runs-on: hiero-solo-linux-large
     strategy:
       fail-fast: false
       matrix:
         storageType: ["gcs_only", "minio_only", "aws_only"]
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c6295a65d1254861815972266d5933fd6e532bdf # v2.11.1
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
         with:
           egress-policy: audit
 
@@ -127,7 +127,8 @@ jobs:
           .github/workflows/script/gcs_test.sh
 
       - name: Delete Test Directory after Test
-        if: matrix.storageType == 'gcs_only' || matrix.storageType == 'aws_only'
+        # add always() to make sure bucket is deleted even if the test failed
+        if: always() && (matrix.storageType == 'gcs_only' || matrix.storageType == 'aws_only')
         run: |
           gcloud storage rm --recursive gs://${BUCKET_NAME}/${{ steps.jobs.outputs.job_id }} --project=${{ vars.GCP_S3_PROJECT_ID }}
           gcloud storage rm --recursive gs://${BACKUP_BUCKET_NAME}/${{ steps.jobs.outputs.job_id }} --project=${{ vars.GCP_S3_PROJECT_ID }}

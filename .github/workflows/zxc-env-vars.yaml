@@ -145,7 +145,7 @@ permissions:
 jobs:
   env-vars:
     name: ${{ inputs.custom-job-label || 'Set Environment Variables' }}
-    runs-on: solo-linux-medium
+    runs-on: hiero-solo-linux-medium
     outputs:
       e2e_integration_test_subdir: e2e-integration
       e2e_dual_cluster_full_test_subdir: e2e-dual-cluster-full
@@ -186,7 +186,7 @@ jobs:
       e2e_block_node_coverage_report: "E2E Block Node Tests Coverage Report"
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c6295a65d1254861815972266d5933fd6e532bdf # v2.11.1
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
         with:
           egress-policy: audit
 
