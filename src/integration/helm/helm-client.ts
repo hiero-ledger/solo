@@ -9,6 +9,7 @@ import {type Repository} from './model/repository.js';
 import {type ReleaseItem} from './model/release/release-item.js';
 import {type TestChartOptions} from './model/test/test-chart-options.js';
 import {type UnInstallChartOptions} from './model/install/un-install-chart-options.js';
+import {type AddRepoOptions} from './model/add/add-repo-options.js';
 
 /**
  * The HelmClient is a bridge between TypeScript and the Helm CLI. The client is highly dependent on specific features
@@ -34,11 +35,12 @@ export interface HelmClient {
    * Executes the Helm CLI repo add sub-command and adds a new repository.
    *
    * @param repository the repository to add.
+   * @param options the options to pass to the Helm CLI command.
    * @throws Error if name or url is null or blank.
    * @throws HelmExecutionException if the Helm CLI command fails.
    * @throws HelmParserException if the output of the Helm CLI command cannot be parsed.
    */
-  addRepository(repository: Repository): Promise<void>;
+  addRepository(repository: Repository, options?: AddRepoOptions): Promise<void>;
 
   /**
    * Executes the Helm CLI repo remove sub-command and removes a repository.
