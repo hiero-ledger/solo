@@ -31,6 +31,7 @@ import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {type ClusterReference, type Context} from '../core/config/remote/types.js';
 import * as helpers from '../core/helpers.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
+import {ListrRemoteConfig} from '../core/config/remote/listr-config-tasks.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
