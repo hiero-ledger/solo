@@ -63,7 +63,13 @@ import {SOLO_DEPLOYMENT_CHART} from '../core/constants.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {ConsensusNodeStates} from '../core/config/remote/enumerations/consensus-node-states.js';
-import {CommandFlags} from '../types/flag-types.js';
+import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
+import {type BlockNodeComponent} from '../core/config/remote/components/block-node-component.js';
+import {type K8} from '../integration/kube/k8.js';
+import {BlockNodesJsonWrapper} from '../core/block-nodes-json-wrapper.js';
+import {type Lock} from '../core/lock/lock.js';
+import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
+import {type Service} from '../integration/kube/resources/service/service.js';
 
 export interface NetworkDeployConfigClass {
   applicationEnv: string;
@@ -729,9 +735,7 @@ export class NetworkCommand extends BaseCommand {
     config.nodeAliases = parseNodeAliases(config.nodeAliasesUnparsed, config.consensusNodes, this.configManager);
     argv[flags.nodeAliasesUnparsed.name] = config.nodeAliases.join(',');
 
-    config.activeBlockNodeComponents = this.remoteConfigManager.components.getActiveComponents(
-      ComponentTypes.BlockNode,
-    );
+    config.activeBlockNodeComponents = Object.values(this.remoteConfigManager.components.blockNodes);
 
     config.valuesArgMap = await this.prepareValuesArgMap(config);
 

@@ -33,6 +33,7 @@ import {Argv} from '../../helpers/argv-wrapper.js';
 import {type DefaultHelmClient} from '../../../src/integration/helm/impl/default-helm-client.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {ComponentsDataWrapper} from '../../../src/core/config/remote/components-data-wrapper.js';
+import {ROOT_DIR} from '../../../src/core/constants.js';
 
 const testName = 'network-cmd-unit';
 const namespace = NamespaceName.of(testName);
@@ -163,6 +164,7 @@ describe('NetworkCommand unit tests', () => {
         options.remoteConfigManager.getContexts = sinon.stub().returns(['context1']);
         options.remoteConfigManager.getClusterRefs = sinon.stub().returns({['solo-e2e']: 'context1'});
 
+        // @ts-expect-error - TS2341: to access private property
         await networkCommand.deploy(argv.build());
 
         expect(options.chartManager.install.args[0][0].name).to.equal('solo-e2e');
@@ -184,6 +186,7 @@ describe('NetworkCommand unit tests', () => {
         options.remoteConfigManager.getContexts = sinon.stub().returns(['context1']);
         options.remoteConfigManager.getClusterRefs = sinon.stub().returns({['solo-e2e']: 'context1'});
 
+        // @ts-expect-error - TS2341: to access private property
         await networkCommand.deploy(argv.build());
         expect(options.chartManager.install.args[0][0].name).to.equal('solo-e2e');
         expect(options.chartManager.install.args[0][1]).to.equal(constants.SOLO_DEPLOYMENT_CHART);

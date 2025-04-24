@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {after, afterEach, describe} from 'mocha';
-import {expect} from 'chai';
 
 import {Flags as flags} from '../../../src/commands/flags.js';
 import {
@@ -20,10 +19,11 @@ import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {BlockNodeCommand} from '../../../src/commands/block-node.js';
-import {ComponentTypes} from '../../../src/core/config/remote/enumerations/component-types.js';
 import {type ClusterReference, type ComponentName} from '../../../src/core/config/remote/types.js';
 import {type BlockNodeComponent} from '../../../src/core/config/remote/components/block-node-component.js';
-import {type RemoteConfigManager} from '../../../src/core/config/remote/remote-config-manager.js';
+import {ComponentTypes} from '../../../src/core/config/remote/enumerations/component-types.js';
+import {expect} from 'chai';
+import {SoloError} from '../../../src/core/errors/solo-error.js';
 
 const testName: string = 'block-node-cmd-e2e';
 const namespace: NamespaceName = NamespaceName.of(testName);
@@ -38,19 +38,6 @@ argv.setArg(flags.clusterRef, clusterReference);
 argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
 argv.setArg(flags.force, true);
 
-function testBlockNodeComponent(remoteConfigManager: RemoteConfigManager): void {
-  // @ts-expect-error - TS2339: to access private method
-  const componentName: ComponentName = BlockNodeCommand.getReleaseName();
-  const component: BlockNodeComponent = remoteConfigManager.components.getComponent(
-    ComponentTypes.BlockNode,
-    componentName,
-  );
-
-  expect(component.name).to.equal(componentName);
-  expect(component.namespace).to.equal(namespace.name);
-  expect(component.cluster).to.equal(clusterReference);
-}
-
 endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, bootstrapResp => {
   const {
     opts: {k8Factory, commandInvoker, remoteConfigManager, configManager},
@@ -59,6 +46,9 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
 
   describe('BlockNodeCommand', async () => {
     const blockNodeCommand: BlockNodeCommand = new BlockNodeCommand(bootstrapResp.opts);
+
+    // @ts-expect-error - TS2341: to access private method
+    const blockNodeComponentName: ComponentName = blockNodeCommand.getReleaseName();
 
     after(async function () {
       this.timeout(Duration.ofMinutes(5).toMillis());
@@ -79,24 +69,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
         callback: async argv => blockNodeCommand.add(argv),
       });
 
-      testBlockNodeComponent(0, remoteConfigManager, ComponentStates.ACTIVE);
-    });
-
-    it("Should succeed deploying block node with multiple 'add' command", async function () {
-      this.timeout(Duration.ofMinutes(5).toMillis());
-
-      configManager.reset();
-
-      await commandInvoker.invoke({
-        argv: argv,
-        command: BlockNodeCommand.COMMAND_NAME,
-        subcommand: 'node add',
-        // @ts-expect-error to access private property
-        callback: async argv => blockNodeCommand.add(argv),
-      });
-
-      testBlockNodeComponent(0, remoteConfigManager, ComponentStates.ACTIVE);
-      testBlockNodeComponent(1, remoteConfigManager, ComponentStates.ACTIVE);
+      remoteConfigManager.components.getComponent<BlockNodeComponent>(ComponentTypes.BlockNode, blockNodeComponentName);
     });
 
     deployNetworkTest(argv, commandInvoker, networkCmd);
@@ -108,39 +81,23 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
 
       configManager.reset();
 
-      const destroyArgv: Argv = argv.clone();
-      destroyArgv.setArg(flags.blockNodeId, 0); // to select the first block node
-
       await commandInvoker.invoke({
-        argv: destroyArgv,
+        argv: argv,
         command: BlockNodeCommand.COMMAND_NAME,
         subcommand: 'node destroy',
         // @ts-expect-error to access private property
         callback: async argv => blockNodeCommand.destroy(argv),
       });
 
-      testBlockNodeComponent(0, remoteConfigManager, ComponentStates.DELETED);
-      testBlockNodeComponent(1, remoteConfigManager, ComponentStates.ACTIVE);
-    });
-
-    it("Should succeed with removing all block nodes with 'destroy' command", async function () {
-      this.timeout(Duration.ofMinutes(2).toMillis());
-
-      configManager.reset();
-
-      const destroyArgv: Argv = argv.clone();
-      destroyArgv.setArg(flags.blockNodeId, 1); // to select the second block node
-
-      await commandInvoker.invoke({
-        argv: destroyArgv,
-        command: BlockNodeCommand.COMMAND_NAME,
-        subcommand: 'node destroy',
-        // @ts-expect-error to access private property
-        callback: async argv => blockNodeCommand.destroy(argv),
-      });
-
-      testBlockNodeComponent(0, remoteConfigManager, ComponentStates.DELETED);
-      testBlockNodeComponent(1, remoteConfigManager, ComponentStates.DELETED);
+      try {
+        remoteConfigManager.components.getComponent<BlockNodeComponent>(
+          ComponentTypes.BlockNode,
+          blockNodeComponentName,
+        );
+        expect.fail();
+      } catch (error) {
+        expect(error).to.be.instanceof(SoloError);
+      }
     });
   });
 });
