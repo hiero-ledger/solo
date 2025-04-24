@@ -43,57 +43,67 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   /* -------- Modifiers -------- */
 
   /** Used to add new component to their respective group. */
-  public addNewComponent(component: BaseComponent): void {
-    const componentName: string = component.name;
+  public add(component: BaseComponent): void {
+    const self = this;
 
-    if (!componentName || typeof componentName !== 'string') {
-      throw new SoloError(`Component name is required ${componentName}`);
+    const serviceName = component.name;
+
+    if (!serviceName || typeof serviceName !== 'string') {
+      throw new SoloError(`Service name is required ${serviceName}`);
     }
 
     if (!(component instanceof BaseComponent)) {
-      throw new SoloError('Component must be instance of BaseComponent', undefined, BaseComponent);
+      throw new SoloError('Component must be instance of BaseComponent', null, BaseComponent);
     }
 
-    const addComponentCallback: (components: Record<ComponentName, BaseComponent>) => void = components => {
-      if (this.checkComponentExists(components, component)) {
-        throw new SoloError('Component exists', undefined, component.toObject());
+    function addComponentCallback(components: Record<ComponentName, BaseComponent>): void {
+      if (self.exists(components, component)) {
+        throw new SoloError('Component exists', null, component.toObject());
       }
-      components[componentName] = component;
-    };
+      components[serviceName] = component;
+    }
 
-    this.applyCallbackToComponentGroup(component.type, addComponentCallback, componentName);
+    self.applyCallbackToComponentGroup(component.type, serviceName, addComponentCallback);
   }
 
-  public changeNodeState(componentName: ComponentName, nodeState: ConsensusNodeStates): void {
-    if (!this.consensusNodes[componentName]) {
-      throw new SoloError(`Consensus node ${componentName} doesn't exist`);
+  /** Used to edit an existing component from their respective group. */
+  public edit(component: BaseComponent): void {
+    const serviceName: ComponentName = component.name;
+
+    if (!serviceName || typeof serviceName !== 'string') {
+      throw new SoloError(`Service name is required ${serviceName}`);
+    }
+    if (!(component instanceof BaseComponent)) {
+      throw new SoloError('Component must be instance of BaseComponent', null, BaseComponent);
     }
 
-    if (!isValidEnum(nodeState, ConsensusNodeStates)) {
-      throw new SoloError(`Invalid node state ${nodeState}`);
+    function editComponentCallback(components: Record<ComponentName, BaseComponent>): void {
+      if (!components[serviceName]) {
+        throw new SoloError(`Component doesn't exist, name: ${serviceName}`, null, {component});
+      }
+      components[serviceName] = component;
     }
 
-    this.consensusNodes[componentName].changeNodeState(nodeState);
+    this.applyCallbackToComponentGroup(component.type, editComponentCallback, serviceName);
   }
 
   /** Used to remove specific component from their respective group. */
-  public disableComponent(componentName: ComponentName, type: ComponentTypes): void {
-    if (!componentName || typeof componentName !== 'string') {
-      throw new SoloError(`Component name is required ${componentName}`);
+  public remove(serviceName: ComponentName, type: ComponentTypes): void {
+    if (!serviceName || typeof serviceName !== 'string') {
+      throw new SoloError(`Service name is required ${serviceName}`);
     }
-
-    if (!isValidEnum(type, ComponentTypes)) {
+    if (!Object.values(ComponentTypes).includes(type)) {
       throw new SoloError(`Invalid component type ${type}`);
     }
 
-    const disableComponentCallback: (components: Record<ComponentName, BaseComponent>) => void = components => {
-      if (!components[componentName]) {
-        throw new SoloError(`Component ${componentName} of type ${type} not found while attempting to remove`);
+    function deleteComponentCallback(components: Record<ComponentName, BaseComponent>): void {
+      if (!components[serviceName]) {
+        throw new SoloError(`Component ${serviceName} of type ${type} not found while attempting to remove`);
       }
-      components[componentName].state = ComponentStates.DELETED;
-    };
+      delete components[serviceName];
+    }
 
-    this.applyCallbackToComponentGroup(type, disableComponentCallback, componentName);
+    this.applyCallbackToComponentGroup(type, deleteComponentCallback, serviceName);
   }
 
   /* -------- Utilities -------- */
@@ -111,21 +121,6 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     this.applyCallbackToComponentGroup(type, getComponentCallback, componentName);
 
     return component;
-  }
-
-  public getComponentsByClusterReference<T extends BaseComponent>(
-    type: ComponentTypes,
-    clusterReference: ClusterReference,
-  ): T[] {
-    let filteredComponents: T[] = [];
-
-    const getComponentsByClusterReferenceCallback: (components: Record<ComponentName, T>) => void = components => {
-      filteredComponents = Object.values(components).filter(component => component.cluster === clusterReference);
-    };
-
-    this.applyCallbackToComponentGroup(type, getComponentsByClusterReferenceCallback);
-
-    return filteredComponents;
   }
 
   /**
@@ -271,64 +266,54 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   }
 
   public static initializeWithNodes(
-    consensusNodeComponents: Record<ComponentName, ConsensusNodeComponent>,
+    nodeAliases: NodeAliases,
+    clusterReference: ClusterReference,
+    namespace: NamespaceNameAsString,
   ): ComponentsDataWrapper {
-    return new ComponentsDataWrapper(undefined, undefined, undefined, undefined, consensusNodeComponents);
+    const consensusNodeComponents: Record<ComponentName, ConsensusNodeComponent> = {};
+
+    for (const nodeAlias of nodeAliases) {
+      consensusNodeComponents[nodeAlias] = new ConsensusNodeComponent(
+        nodeAlias,
+        clusterReference,
+        namespace,
+        ConsensusNodeStates.NON_DEPLOYED,
+        Templates.nodeIdFromNodeAlias(nodeAlias),
+      );
+    }
+
+    return new ComponentsDataWrapper(undefined, undefined, undefined, undefined, consensusNodeComponents, undefined);
   }
 
   /** checks if component exists in the respective group */
-  private checkComponentExists(components: Record<ComponentName, BaseComponent>, newComponent: BaseComponent): boolean {
-    return Object.values(components).some((component): boolean => BaseComponent.compare(component, newComponent));
-  }
-
-  /**
-   * Checks all existing components of specified type and gives you a new unique index
-   */
-  public getNewComponentIndex(componentType: ComponentTypes): number {
-    let newComponentIndex: number = 0;
-
-    const calculateNewComponentIndexCallback: (
-      components: Record<ComponentName, BaseComponent>,
-    ) => void = components => {
-      for (const componentName of Object.keys(components)) {
-        const componentIndex: number = ComponentNameTemplates.parseComponentName(componentName);
-        if (newComponentIndex <= componentIndex) {
-          newComponentIndex = componentIndex + 1;
-        }
-      }
-    };
-
-    this.applyCallbackToComponentGroup(componentType, calculateNewComponentIndexCallback);
-
-    return newComponentIndex;
-  }
-
-  /** Validates that the component group mapping has only components from the expected instance */
-  private validateComponentTypes(components: Record<ComponentName, BaseComponent>, expectedInstance: any): void {
-    for (const [componentName, component] of Object.entries(components)) {
-      if (!componentName || typeof componentName !== 'string') {
-        throw new SoloError(`Invalid component name ${{[componentName]: component?.constructor?.name}}`);
-      }
-
-      if (!(component instanceof expectedInstance)) {
-        throw new SoloError(
-          `Invalid component type, component name: ${componentName}, ` +
-            `expected ${expectedInstance?.name}, actual: ${component?.constructor?.name}`,
-          undefined,
-          {component},
-        );
-      }
-    }
+  private exists(components: Record<ComponentName, BaseComponent>, newComponent: BaseComponent): boolean {
+    return Object.values(components).some(component => BaseComponent.compare(component, newComponent));
   }
 
   public validate(): void {
-    this.validateComponentTypes(this.relays, RelayComponent);
-    this.validateComponentTypes(this.haProxies, HaProxyComponent);
-    this.validateComponentTypes(this.mirrorNodes, MirrorNodeComponent);
-    this.validateComponentTypes(this.envoyProxies, EnvoyProxyComponent);
-    this.validateComponentTypes(this.consensusNodes, ConsensusNodeComponent);
-    this.validateComponentTypes(this.mirrorNodeExplorers, MirrorNodeExplorerComponent);
-    this.validateComponentTypes(this.blockNodes, BlockNodeComponent);
+    function testComponentsObject(components: Record<ComponentName, BaseComponent>, expectedInstance: any): void {
+      for (const [name, component] of Object.entries(components)) {
+        if (!name || typeof name !== 'string') {
+          throw new SoloError(`Invalid component service name ${{[name]: component?.constructor?.name}}`);
+        }
+
+        if (!(component instanceof expectedInstance)) {
+          throw new SoloError(
+            `Invalid component type, service name: ${name}, ` +
+              `expected ${expectedInstance?.name}, actual: ${component?.constructor?.name}`,
+            null,
+            {component},
+          );
+        }
+      }
+    }
+
+    testComponentsObject(this.relays, RelayComponent);
+    testComponentsObject(this.haProxies, HaProxyComponent);
+    testComponentsObject(this.mirrorNodes, MirrorNodeComponent);
+    testComponentsObject(this.envoyProxies, EnvoyProxyComponent);
+    testComponentsObject(this.consensusNodes, ConsensusNodeComponent);
+    testComponentsObject(this.mirrorNodeExplorers, MirrorNodeExplorerComponent);
   }
 
   private transformComponentGroupToObject(

@@ -5,5 +5,5 @@ import {type ConsensusNodeStates} from '../../enumerations/consensus-node-states
 
 export interface ConsensusNodeComponentStruct extends BaseComponentStruct {
   nodeId: number;
-  nodeState: ConsensusNodeStates;
+  state: ConsensusNodeStates;
 }

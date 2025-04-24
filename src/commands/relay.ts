@@ -14,7 +14,7 @@ import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {type AnyYargs, type ArgvStruct, type NodeAliases} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
-import {type RelayComponent} from '../core/config/remote/components/relay-component.js';
+import {RelayComponent} from '../core/config/remote/components/relay-component.js';
 import * as Base64 from 'js-base64';
 import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
 import {type ClusterReference, type DeploymentName} from '../core/config/remote/types.js';
@@ -469,7 +469,7 @@ export class RelayCommand extends BaseCommand {
           },
           skip: context_ => !context_.config.isChartInstalled,
         },
-        this.disableRelayComponent(),
+        this.removeRelayComponent(),
       ],
       {
         concurrent: false,
@@ -546,34 +546,25 @@ export class RelayCommand extends BaseCommand {
       skip: (): boolean => !this.remoteConfigManager.isLoaded(),
       task: async (context_): Promise<void> => {
         await this.remoteConfigManager.modify(async remoteConfig => {
-          const {namespace, nodeAliases, clusterRef} = context_.config;
+          const {
+            config: {namespace, nodeAliases},
+          } = context_;
+          const cluster = this.remoteConfigManager.currentCluster;
 
-          remoteConfig.components.addNewComponent(
-            ComponentFactory.createNewRelayComponent(this.remoteConfigManager, clusterRef, namespace, nodeAliases),
-          );
+          remoteConfig.components.add(new RelayComponent('relay', cluster, namespace.name, nodeAliases));
         });
       },
     };
   }
 
   /** Remove the relay component from remote config. */
-  public disableRelayComponent(): SoloListrTask<RelayDestroyContext> {
+  public removeRelayComponent(): SoloListrTask<RelayDestroyContext> {
     return {
       title: 'Remove relay component from remote config',
       skip: (): boolean => !this.remoteConfigManager.isLoaded(),
-      task: async (context_): Promise<void> => {
-        const clusterReference: ClusterReference = context_.config.clusterRef;
-
+      task: async (): Promise<void> => {
         await this.remoteConfigManager.modify(async remoteConfig => {
-          const relayComponents: RelayComponent[] =
-            remoteConfig.components.getComponentsByClusterReference<RelayComponent>(
-              ComponentTypes.Relay,
-              clusterReference,
-            );
-
-          for (const relayComponent of relayComponents) {
-            remoteConfig.components.disableComponent(relayComponent.name, ComponentTypes.Relay);
-          }
+          remoteConfig.components.remove('relay', ComponentType.Relay);
         });
       },
     };

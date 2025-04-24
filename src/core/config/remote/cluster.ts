@@ -16,7 +16,6 @@ export class Cluster implements ClusterStruct, ToObject<ClusterStruct> {
     if (!name) {
       throw new SoloError('name is required');
     }
-
     if (typeof name !== 'string') {
       throw new SoloError(`Invalid type for name: ${typeof name}`);
     }
@@ -24,7 +23,6 @@ export class Cluster implements ClusterStruct, ToObject<ClusterStruct> {
     if (!namespace) {
       throw new SoloError('namespace is required');
     }
-
     if (typeof namespace !== 'string') {
       throw new SoloError(`Invalid type for namespace: ${typeof namespace}`);
     }
@@ -32,7 +30,6 @@ export class Cluster implements ClusterStruct, ToObject<ClusterStruct> {
     if (!deployment) {
       throw new SoloError('deployment is required');
     }
-
     if (typeof deployment !== 'string') {
       throw new SoloError(`Invalid type for deployment: ${typeof deployment}`);
     }

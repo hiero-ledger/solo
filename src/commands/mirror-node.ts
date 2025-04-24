@@ -17,7 +17,7 @@ import * as helpers from '../core/helpers.js';
 import {type AnyYargs, type ArgvStruct} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
-import {type MirrorNodeComponent} from '../core/config/remote/components/mirror-node-component.js';
+import {MirrorNodeComponent} from '../core/config/remote/components/mirror-node-component.js';
 import * as fs from 'node:fs';
 import {type CommandDefinition, type Optional, type SoloListrTask} from '../types/index.js';
 import * as Base64 from 'js-base64';
@@ -41,7 +41,6 @@ import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {ComponentFactory} from '../core/config/remote/components/component-factory.js';
 
 interface MirrorNodeDeployConfigClass {
   cacheDir: string;
@@ -831,7 +830,7 @@ export class MirrorNodeCommand extends BaseCommand {
             });
           },
         },
-        this.disableMirrorNodeComponents(),
+        this.removeMirrorNodeComponents(),
       ],
       {
         concurrent: false,
@@ -918,23 +917,13 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   /** Removes the mirror node components from remote config. */
-  public disableMirrorNodeComponents(): SoloListrTask<MirrorNodeDestroyContext> {
+  public removeMirrorNodeComponents(): SoloListrTask<MirrorNodeDestroyContext> {
     return {
       title: 'Remove mirror node from remote config',
       skip: (): boolean => !this.remoteConfigManager.isLoaded(),
-      task: async (context_): Promise<void> => {
-        const clusterReference: ClusterReference = context_.config.clusterRef;
-
+      task: async (): Promise<void> => {
         await this.remoteConfigManager.modify(async remoteConfig => {
-          const mirrorNodeComponents: MirrorNodeComponent[] =
-            remoteConfig.components.getComponentsByClusterReference<MirrorNodeComponent>(
-              ComponentTypes.MirrorNode,
-              clusterReference,
-            );
-
-          for (const mirrorNodeComponent of mirrorNodeComponents) {
-            remoteConfig.components.disableComponent(mirrorNodeComponent.name, ComponentTypes.MirrorNode);
-          }
+          remoteConfig.components.remove('mirrorNode', ComponentType.MirrorNode);
         });
       },
     };
@@ -947,11 +936,11 @@ export class MirrorNodeCommand extends BaseCommand {
       skip: (): boolean => !this.remoteConfigManager.isLoaded(),
       task: async (context_): Promise<void> => {
         await this.remoteConfigManager.modify(async remoteConfig => {
-          const {namespace, clusterRef} = context_.config;
+          const {
+            config: {namespace, clusterRef},
+          } = context_;
 
-          remoteConfig.components.addNewComponent(
-            ComponentFactory.createNewMirrorNodeComponent(this.remoteConfigManager, clusterRef, namespace),
-          );
+          remoteConfig.components.add(new MirrorNodeComponent('mirrorNode', clusterRef, namespace.name));
         });
       },
     };
