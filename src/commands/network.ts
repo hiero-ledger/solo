@@ -63,6 +63,7 @@ import {SOLO_DEPLOYMENT_CHART} from '../core/constants.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {ConsensusNodeStates} from '../core/config/remote/enumerations/consensus-node-states.js';
+import {CommandFlags} from '../types/flag-types.js';
 
 export interface NetworkDeployConfigClass {
   applicationEnv: string;

@@ -21,10 +21,8 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {BlockNodeCommand} from '../../../src/commands/block-node.js';
 import {ComponentTypes} from '../../../src/core/config/remote/enumerations/component-types.js';
-import {ComponentNameTemplates} from '../../../src/core/config/remote/components/component-name-templates.js';
 import {type ClusterReference, type ComponentName} from '../../../src/core/config/remote/types.js';
 import {type BlockNodeComponent} from '../../../src/core/config/remote/components/block-node-component.js';
-import {ComponentStates} from '../../../src/core/config/remote/enumerations/component-states.js';
 import {type RemoteConfigManager} from '../../../src/core/config/remote/remote-config-manager.js';
 
 const testName: string = 'block-node-cmd-e2e';
@@ -40,19 +38,15 @@ argv.setArg(flags.clusterRef, clusterReference);
 argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
 argv.setArg(flags.force, true);
 
-function testBlockNodeComponent(
-  index: number,
-  remoteConfigManager: RemoteConfigManager,
-  expectedState: ComponentStates,
-): void {
-  const componentName: ComponentName = ComponentNameTemplates.renderBlockNodeName(index);
+function testBlockNodeComponent(remoteConfigManager: RemoteConfigManager): void {
+  // @ts-expect-error - TS2339: to access private method
+  const componentName: ComponentName = BlockNodeCommand.getReleaseName();
   const component: BlockNodeComponent = remoteConfigManager.components.getComponent(
     ComponentTypes.BlockNode,
     componentName,
   );
 
   expect(component.name).to.equal(componentName);
-  expect(component.state).to.equal(expectedState);
   expect(component.namespace).to.equal(namespace.name);
   expect(component.cluster).to.equal(clusterReference);
 }

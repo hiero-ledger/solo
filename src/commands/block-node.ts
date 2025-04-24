@@ -22,7 +22,7 @@ import {Duration} from '../core/time/duration.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import chalk from 'chalk';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
-import {ComponentStates} from '../core/config/remote/enumerations/component-states.js';
+import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -47,7 +47,6 @@ interface BlockNodeDeployContext {
 }
 
 interface BlockNodeDestroyConfigClass {
-  blockNodeId: number;
   chartDirectory: string;
   clusterRef: ClusterReference;
   deployment: DeploymentName;
@@ -57,7 +56,6 @@ interface BlockNodeDestroyConfigClass {
   context: string;
   isChartInstalled: boolean;
   valuesArg: string;
-  blockNodeComponent: BlockNodeComponent;
   releaseName: string;
 }
 
@@ -88,7 +86,7 @@ export class BlockNodeCommand extends BaseCommand {
   };
 
   private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.blockNodeId],
+    required: [],
     optional: [flags.chartDirectory, flags.clusterRef, flags.deployment, flags.devMode, flags.force, flags.quiet],
   };
 
@@ -319,7 +317,7 @@ export class BlockNodeCommand extends BaseCommand {
 
             context_.config.context = this.remoteConfigManager.getClusterRefs()[context_.config.clusterRef];
 
-            context_.config.releaseName = this.getReleaseName(context_.config.blockNodeId);
+            context_.config.releaseName = this.getReleaseName();
 
             context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
               context_.config.namespace,
@@ -336,16 +334,13 @@ export class BlockNodeCommand extends BaseCommand {
           title: 'Look-up block node',
           task: async (context_): Promise<void> => {
             const config: BlockNodeDestroyConfigClass = context_.config;
-
-            config.blockNodeComponent = this.remoteConfigManager.components.getComponentById<BlockNodeComponent>(
-              ComponentTypes.BlockNode,
-              config.blockNodeId,
-            );
-
-            if (config.blockNodeComponent.state === ComponentStates.DELETED) {
-              throw new SoloError(
-                `Block node ${config.blockNodeComponent.name} with id ${config.blockNodeId} is already deleted`,
+            try {
+              this.remoteConfigManager.components.getComponent<BlockNodeComponent>(
+                ComponentTypes.BlockNode,
+                config.releaseName,
               );
+            } catch (error) {
+              throw new SoloError(`Block node ${config.releaseName} was not found`, error);
             }
           },
         },
@@ -358,7 +353,7 @@ export class BlockNodeCommand extends BaseCommand {
           },
           skip: (context_): boolean => !context_.config.isChartInstalled,
         },
-        this.disableBlockNodeComponent(),
+        this.removeBlockNodeComponent(),
       ],
       {
         concurrent: false,
@@ -393,7 +388,7 @@ export class BlockNodeCommand extends BaseCommand {
   }
 
   /** Adds the block node component to remote config. */
-  private disableBlockNodeComponent(): SoloListrTask<BlockNodeDestroyContext> {
+  private removeBlockNodeComponent(): SoloListrTask<BlockNodeDestroyContext> {
     return {
       title: 'Disable block node component in remote config',
       skip: (): boolean => !this.remoteConfigManager.isLoaded(),
@@ -401,12 +396,7 @@ export class BlockNodeCommand extends BaseCommand {
         await this.remoteConfigManager.modify(async remoteConfig => {
           const config: BlockNodeDestroyConfigClass = context_.config;
 
-          const component: BlockNodeComponent = remoteConfig.components.getComponentById<BlockNodeComponent>(
-            ComponentTypes.BlockNode,
-            config.blockNodeId,
-          );
-
-          remoteConfig.components.disableComponent(component.name, ComponentTypes.BlockNode);
+          remoteConfig.components.remove(config.releaseName, ComponentTypes.BlockNode);
         });
       },
     };

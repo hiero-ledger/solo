@@ -156,6 +156,44 @@ describe('NetworkCommand unit tests', () => {
       sinon.restore();
     });
 
+    it('Install function is called with expected parameters', async () => {
+      try {
+        const networkCommand = new NetworkCommand(options);
+        options.remoteConfigManager.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
+        options.remoteConfigManager.getContexts = sinon.stub().returns(['context1']);
+        options.remoteConfigManager.getClusterRefs = sinon.stub().returns({['solo-e2e']: 'context1'});
+
+        await networkCommand.deploy(argv.build());
+
+        expect(options.chartManager.install.args[0][0].name).to.equal('solo-e2e');
+        expect(options.chartManager.install.args[0][1]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
+        expect(options.chartManager.install.args[0][2]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
+        expect(options.chartManager.install.args[0][3]).to.equal(constants.SOLO_TESTING_CHART_URL);
+      } finally {
+        sinon.restore();
+      }
+    });
+
+    it('Should use local chart directory', async () => {
+      try {
+        argv.setArg(flags.chartDirectory, 'test-directory');
+        argv.setArg(flags.force, true);
+        const networkCommand = new NetworkCommand(options);
+
+        options.remoteConfigManager.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
+        options.remoteConfigManager.getContexts = sinon.stub().returns(['context1']);
+        options.remoteConfigManager.getClusterRefs = sinon.stub().returns({['solo-e2e']: 'context1'});
+
+        await networkCommand.deploy(argv.build());
+        expect(options.chartManager.install.args[0][0].name).to.equal('solo-e2e');
+        expect(options.chartManager.install.args[0][1]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
+        expect(options.chartManager.install.args[0][2]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
+        expect(options.chartManager.install.args[0][3]).to.equal(PathEx.join(ROOT_DIR, 'test-directory'));
+      } finally {
+        sinon.restore();
+      }
+    });
+
     it('Should use prepare config correctly for all clusters', async () => {
       try {
         const common = PathEx.join('test', 'data', 'test-values.yaml');
