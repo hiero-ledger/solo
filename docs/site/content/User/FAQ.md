@@ -25,6 +25,7 @@ The output would be similar to the following:
  "balance": 100
 }
 ```
+
 ### How to handle error "failed to setup chart repositories"
 
 If during the installation of solo-charts you see the error similar to the following:
@@ -33,8 +34,9 @@ If during the installation of solo-charts you see the error similar to the follo
 failed to setup chart repositories,
 repository name (hedera-json-rpc-relay) already exists
 ```
-You need to remove the old helm repo manually, first run command `helm repo list` to 
-see the list of helm repos, and then run `helm repo remove <repo-name>` to remove the repo. 
+
+You need to remove the old helm repo manually, first run command `helm repo list` to
+see the list of helm repos, and then run `helm repo remove <repo-name>` to remove the repo.
 For example:
 
 ```bash
@@ -54,4 +56,3 @@ Next run the command to remove the repo:
 ```bash
 helm repo remove hedera-json-rpc-relay
 ```
-
