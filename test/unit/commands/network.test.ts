@@ -163,6 +163,8 @@ describe('NetworkCommand unit tests', () => {
         options.remoteConfigManager.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
         options.remoteConfigManager.getContexts = sinon.stub().returns(['context1']);
         options.remoteConfigManager.getClusterRefs = sinon.stub().returns({['solo-e2e']: 'context1'});
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([]);
 
         // @ts-expect-error - TS2341: to access private property
         await networkCommand.deploy(argv.build());
@@ -185,6 +187,8 @@ describe('NetworkCommand unit tests', () => {
         options.remoteConfigManager.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
         options.remoteConfigManager.getContexts = sinon.stub().returns(['context1']);
         options.remoteConfigManager.getClusterRefs = sinon.stub().returns({['solo-e2e']: 'context1'});
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([]);
 
         // @ts-expect-error - TS2341: to access private property
         await networkCommand.deploy(argv.build());

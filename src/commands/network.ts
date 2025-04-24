@@ -123,7 +123,7 @@ export interface NetworkDeployConfigClass {
   clusterRefs: ClusterReferences;
   domainNames?: string;
   domainNamesMapping?: Record<NodeAlias, string>;
-  activeBlockNodeComponents: BlockNodeComponent[];
+  blockNodeComponents: BlockNodeComponent[];
   debugNodeAlias: NodeAlias;
   app: string;
 }
@@ -575,10 +575,10 @@ export class NetworkCommand extends BaseCommand {
       }
     }
 
-    if (config.activeBlockNodeComponents.length > 0) {
+    if (config.blockNodeComponents.length > 0) {
       for (const clusterReference of clusterReferences) {
         const blockNodesJsonData: string = new BlockNodesJsonWrapper(
-          config.activeBlockNodeComponents,
+          config.blockNodeComponents,
           this.remoteConfigManager.clusters,
         ).toJSON();
 
@@ -735,7 +735,7 @@ export class NetworkCommand extends BaseCommand {
     config.nodeAliases = parseNodeAliases(config.nodeAliasesUnparsed, config.consensusNodes, this.configManager);
     argv[flags.nodeAliasesUnparsed.name] = config.nodeAliases.join(',');
 
-    config.activeBlockNodeComponents = Object.values(this.remoteConfigManager.components.blockNodes);
+    config.blockNodeComponents = this.getBlockNodes();
 
     config.valuesArgMap = await this.prepareValuesArgMap(config);
 
@@ -1366,6 +1366,10 @@ export class NetworkCommand extends BaseCommand {
         });
       },
     };
+  }
+
+  private getBlockNodes(): BlockNodeComponent[] {
+    return Object.values(this.remoteConfigManager.components.blockNodes);
   }
 
   public async close(): Promise<void> {} // no-op
