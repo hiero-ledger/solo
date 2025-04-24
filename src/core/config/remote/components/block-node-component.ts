@@ -6,11 +6,7 @@ import {ComponentTypes} from '../enumerations/component-types.js';
 import {type BaseComponentStruct} from './interfaces/base-component-struct.js';
 
 export class BlockNodeComponent extends BaseComponent {
-  public constructor(
-    name: ComponentName,
-    cluster: ClusterReference,
-    namespace: NamespaceNameAsString,
-  ) {
+  public constructor(name: ComponentName, cluster: ClusterReference, namespace: NamespaceNameAsString) {
     super(ComponentTypes.BlockNode, name, cluster, namespace);
     this.validate();
   }

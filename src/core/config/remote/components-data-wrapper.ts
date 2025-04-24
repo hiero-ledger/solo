@@ -12,14 +12,11 @@ import {MirrorNodeExplorerComponent} from './components/mirror-node-explorer-com
 import {type ClusterReference, type ComponentName} from './types.js';
 import {ComponentTypes} from './enumerations/component-types.js';
 import {ConsensusNodeStates} from './enumerations/consensus-node-states.js';
-import {ComponentStates} from './enumerations/component-states.js';
-import {isValidEnum} from '../../util/validation-helpers.js';
 import {type BaseComponentStruct} from './components/interfaces/base-component-struct.js';
 import {type RelayComponentStruct} from './components/interfaces/relay-component-struct.js';
 import {type ConsensusNodeComponentStruct} from './components/interfaces/consensus-node-component-struct.js';
 import {type ComponentsDataWrapperApi} from './api/components-data-wrapper-api.js';
 import {type ComponentsDataStruct} from './interfaces/components-data-struct.js';
-import {ComponentNameTemplates} from './components/component-name-templates.js';
 
 /**
  * Represent the components in the remote config and handles:

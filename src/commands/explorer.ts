@@ -631,7 +631,9 @@ export class ExplorerCommand extends BaseCommand {
           const {
             config: {namespace, clusterRef},
           } = context_;
-          remoteConfig.components.add(new MirrorNodeExplorerComponent('mirrorNodeExplorer', clusterRef, namespace.name));
+          remoteConfig.components.add(
+            new MirrorNodeExplorerComponent('mirrorNodeExplorer', clusterRef, namespace.name),
+          );
         });
       },
     };
