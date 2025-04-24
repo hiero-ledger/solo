@@ -41,6 +41,7 @@ import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
+import {type AccountId} from '@hashgraph/sdk';
 
 interface MirrorNodeDeployConfigClass {
   cacheDir: string;
@@ -248,6 +249,64 @@ export class MirrorNodeCommand extends BaseCommand {
     return valuesArgument;
   }
 
+  private async deployMirrorNode(context_: MirrorNodeDeployContext): Promise<void> {
+    await this.chartManager.install(
+      context_.config.namespace,
+      constants.MIRROR_NODE_RELEASE_NAME,
+      constants.MIRROR_NODE_CHART,
+      constants.MIRROR_NODE_RELEASE_NAME,
+      context_.config.mirrorNodeVersion,
+      context_.config.valuesArg,
+      context_.config.clusterContext,
+    );
+
+    showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, context_.config.mirrorNodeVersion);
+
+    if (context_.config.enableIngress) {
+      await KeyManager.createTlsSecret(
+        this.k8Factory,
+        context_.config.namespace,
+        context_.config.domainName,
+        context_.config.cacheDir,
+        MIRROR_INGRESS_TLS_SECRET_NAME,
+      );
+      // patch ingressClassName of mirror ingress so it can be recognized by haproxy ingress controller
+      const updated: object = {
+        metadata: {
+          annotations: {
+            'haproxy-ingress.github.io/backend-protocol': 'h1',
+          },
+        },
+        spec: {
+          ingressClassName: `${constants.MIRROR_INGRESS_CLASS_NAME}`,
+          tls: [
+            {
+              hosts: [context_.config.domainName || 'localhost'],
+              secretName: MIRROR_INGRESS_TLS_SECRET_NAME,
+            },
+          ],
+        },
+      };
+      await this.k8Factory
+        .getK8(context_.config.clusterContext)
+        .ingresses()
+        .update(context_.config.namespace, constants.MIRROR_NODE_RELEASE_NAME, updated);
+
+      // to support GRPC over HTTP/2
+      await this.k8Factory
+        .getK8(context_.config.clusterContext)
+        .configMaps()
+        .update(context_.config.namespace, MIRROR_INGRESS_CONTROLLER, {
+          'backend-protocol': 'h2',
+        });
+
+      await this.k8Factory
+        .getK8(context_.config.clusterContext)
+        .ingressClasses()
+        .create(constants.MIRROR_INGRESS_CLASS_NAME, INGRESS_CONTROLLER_PREFIX + MIRROR_INGRESS_CONTROLLER);
+    }
+  }
+
   private async deploy(argv: ArgvStruct): Promise<boolean> {
     const self = this;
     const lease = await self.leaseManager.create();
@@ -301,14 +360,15 @@ export class MirrorNodeCommand extends BaseCommand {
               ? this.localConfig.clusterRefs[context_.config.clusterRef]
               : this.k8Factory.default().contexts().readCurrent();
 
+            const deploymentName: DeploymentName = self.configManager.getFlag<DeploymentName>(flags.deployment);
             await self.accountManager.loadNodeClient(
               context_.config.namespace,
               self.remoteConfigManager.getClusterRefs(),
-              self.configManager.getFlag<DeploymentName>(flags.deployment),
+              deploymentName,
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
             if (context_.config.pinger) {
-              const startAccumulatorId = constants.HEDERA_NODE_ACCOUNT_ID_START;
+              const startAccumulatorId: AccountId = this.accountManager.getStartAccountId(deploymentName);
               const networkPods: Pod[] = await this.k8Factory
                 .getK8(context_.config.clusterContext)
                 .pods()
@@ -320,7 +380,8 @@ export class MirrorNodeCommand extends BaseCommand {
                 context_.config.valuesArg += ` --set monitor.config.hedera.mirror.monitor.nodes.0.host=${pod.podIp}`;
                 context_.config.valuesArg += ' --set monitor.config.hedera.mirror.monitor.nodes.0.nodeId=0';
 
-                const operatorId = context_.config.operatorId || constants.OPERATOR_ID;
+                const operatorId: string =
+                  context_.config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
                 context_.config.valuesArg += ` --set monitor.config.hedera.mirror.monitor.operator.accountId=${operatorId}`;
 
                 if (context_.config.operatorKey) {
@@ -460,68 +521,7 @@ export class MirrorNodeCommand extends BaseCommand {
                 {
                   title: 'Deploy mirror-node',
                   task: async context_ => {
-                    await self.chartManager.install(
-                      context_.config.namespace,
-                      constants.MIRROR_NODE_RELEASE_NAME,
-                      constants.MIRROR_NODE_CHART,
-                      constants.MIRROR_NODE_RELEASE_NAME,
-                      context_.config.mirrorNodeVersion,
-                      context_.config.valuesArg,
-                      context_.config.clusterContext,
-                    );
-
-                    showVersionBanner(
-                      self.logger,
-                      constants.MIRROR_NODE_RELEASE_NAME,
-                      context_.config.mirrorNodeVersion,
-                    );
-
-                    if (context_.config.enableIngress) {
-                      await KeyManager.createTlsSecret(
-                        this.k8Factory,
-                        context_.config.namespace,
-                        context_.config.domainName,
-                        context_.config.cacheDir,
-                        MIRROR_INGRESS_TLS_SECRET_NAME,
-                      );
-                      // patch ingressClassName of mirror ingress so it can be recognized by haproxy ingress controller
-                      const updated: object = {
-                        metadata: {
-                          annotations: {
-                            'haproxy-ingress.github.io/backend-protocol': 'h1',
-                          },
-                        },
-                        spec: {
-                          ingressClassName: `${constants.MIRROR_INGRESS_CLASS_NAME}`,
-                          tls: [
-                            {
-                              hosts: [context_.config.domainName || 'localhost'],
-                              secretName: MIRROR_INGRESS_TLS_SECRET_NAME,
-                            },
-                          ],
-                        },
-                      };
-                      await this.k8Factory
-                        .getK8(context_.config.clusterContext)
-                        .ingresses()
-                        .update(context_.config.namespace, constants.MIRROR_NODE_RELEASE_NAME, updated);
-
-                      // to support GRPC over HTTP/2
-                      await this.k8Factory
-                        .getK8(context_.config.clusterContext)
-                        .configMaps()
-                        .update(context_.config.namespace, MIRROR_INGRESS_CONTROLLER, {
-                          'backend-protocol': 'h2',
-                        });
-
-                      await this.k8Factory
-                        .getK8(context_.config.clusterContext)
-                        .ingressClasses()
-                        .create(
-                          constants.MIRROR_INGRESS_CLASS_NAME,
-                          INGRESS_CONTROLLER_PREFIX + MIRROR_INGRESS_CONTROLLER,
-                        );
-                    }
+                    await self.deployMirrorNode(context_);
                   },
                 },
               ],

@@ -2442,6 +2442,28 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly realm: CommandFlag = {
+    constName: 'realm',
+    name: 'realm',
+    definition: {
+      describe: 'Realm number. Requires network-node > v61.0 for non-zero values',
+      type: 'number',
+      defaultValue: 0,
+    },
+    prompt: undefined,
+  };
+
+  public static readonly shard: CommandFlag = {
+    constName: 'shard',
+    name: 'shard',
+    definition: {
+      describe: 'Shard number. Requires network-node > v61.0 for non-zero values',
+      type: 'number',
+      defaultValue: 0,
+    },
+    prompt: undefined,
+  };
+
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.adminKey,
@@ -2571,6 +2593,8 @@ export class Flags {
     Flags.domainNames,
     Flags.blockNodeChartVersion,
     Flags.blockNodeVersion,
+    Flags.realm,
+    Flags.shard,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

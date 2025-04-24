@@ -4,13 +4,12 @@ import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import * as helpers from '../core/helpers.js';
-import {getNodeAccountMap, showVersionBanner} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
-import {JSON_RPC_RELAY_CHART} from '../core/constants.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand, type Options} from './base.js';
 import {Flags as flags} from './flags.js';
+import {showVersionBanner} from '../core/helpers.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {type AnyYargs, type ArgvStruct, type NodeAliases} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
@@ -145,7 +144,8 @@ export class RelayCommand extends BaseCommand {
       valuesArgument += ` --set replicaCount=${replicaCount}`;
     }
 
-    const operatorIdUsing = operatorID || constants.OPERATOR_ID;
+    const deploymentName: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+    const operatorIdUsing: string = operatorID || this.accountManager.getOperatorAccountId(deploymentName).toString();
     valuesArgument += ` --set config.OPERATOR_ID_MAIN=${operatorIdUsing}`;
 
     if (operatorKey) {
@@ -153,7 +153,6 @@ export class RelayCommand extends BaseCommand {
       valuesArgument += ` --set config.OPERATOR_KEY_MAIN=${operatorKey}`;
     } else {
       try {
-        const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
         const namespace = NamespaceName.of(this.localConfig.deployments[deploymentName].namespace);
 
         const k8 = this.k8Factory.getK8(context);
@@ -205,8 +204,8 @@ export class RelayCommand extends BaseCommand {
 
     const networkIds = {};
 
-    const accountMap = getNodeAccountMap(nodeAliases);
     const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+    const accountMap = this.accountManager.getNodeAccountMap(nodeAliases, deploymentName);
     const networkNodeServicesMap = await this.accountManager.getNodeServiceMap(
       namespace,
       this.remoteConfigManager.getClusterRefs(),
@@ -334,8 +333,8 @@ export class RelayCommand extends BaseCommand {
             await self.chartManager.install(
               config.namespace,
               config.releaseName,
-              JSON_RPC_RELAY_CHART,
-              JSON_RPC_RELAY_CHART,
+              constants.JSON_RPC_RELAY_CHART,
+              constants.JSON_RPC_RELAY_CHART,
               '',
               config.valuesArg,
               config.context,

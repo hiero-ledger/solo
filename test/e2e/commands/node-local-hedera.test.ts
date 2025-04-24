@@ -3,7 +3,7 @@
 import {describe} from 'mocha';
 
 import {Flags as flags} from '../../../src/commands/flags.js';
-import {endToEndTestSuite, getTestCluster} from '../../test-utility.js';
+import {endToEndTestSuite, getTestCluster, localHederaPlatformSupportsNonZeroRealms} from '../../test-utility.js';
 import {sleep} from '../../../src/core/helpers.js';
 import {SOLO_LOGS_DIR} from '../../../src/core/constants.js';
 import {expect} from 'chai';
@@ -27,6 +27,8 @@ argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2');
 argv.setArg(flags.generateGossipKeys, true);
 argv.setArg(flags.generateTlsKeys, true);
 argv.setArg(flags.clusterRef, getTestCluster());
+argv.setArg(flags.realm, 0);
+argv.setArg(flags.shard, localHederaPlatformSupportsNonZeroRealms() ? 1023 : 0);
 
 console.log('Starting local build for Hedera app');
 argv.setArg(
