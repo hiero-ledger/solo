@@ -9,14 +9,15 @@ import {MirrorNodeComponent} from './components/mirror-node-component.js';
 import {EnvoyProxyComponent} from './components/envoy-proxy-component.js';
 import {ConsensusNodeComponent} from './components/consensus-node-component.js';
 import {MirrorNodeExplorerComponent} from './components/mirror-node-explorer-component.js';
-import {type ClusterReference, type ComponentName} from './types.js';
+import {type ClusterReference, type ComponentName, type NamespaceNameAsString} from './types.js';
 import {ComponentTypes} from './enumerations/component-types.js';
 import {ConsensusNodeStates} from './enumerations/consensus-node-states.js';
 import {type BaseComponentStruct} from './components/interfaces/base-component-struct.js';
 import {type RelayComponentStruct} from './components/interfaces/relay-component-struct.js';
 import {type ConsensusNodeComponentStruct} from './components/interfaces/consensus-node-component-struct.js';
-import {type ComponentsDataWrapperApi} from './api/components-data-wrapper-api.js';
 import {type ComponentsDataStruct} from './interfaces/components-data-struct.js';
+import {Templates} from '../../templates.js';
+import {type NodeAliases} from '../../../types/aliases.js';
 
 /**
  * Represent the components in the remote config and handles:
@@ -24,7 +25,7 @@ import {type ComponentsDataStruct} from './interfaces/components-data-struct.js'
  * - Validation.
  * - Conversion FROM and TO plain object.
  */
-export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
+export class ComponentsDataWrapper {
   private constructor(
     public readonly relays: Record<ComponentName, RelayComponent> = {},
     public readonly haProxies: Record<ComponentName, HaProxyComponent> = {},
@@ -60,7 +61,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
       components[serviceName] = component;
     }
 
-    self.applyCallbackToComponentGroup(component.type, serviceName, addComponentCallback);
+    self.applyCallbackToComponentGroup(component.type, addComponentCallback, serviceName);
   }
 
   /** Used to edit an existing component from their respective group. */

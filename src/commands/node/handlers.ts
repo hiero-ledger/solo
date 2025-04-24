@@ -906,9 +906,9 @@ export class NodeCommandHandlers extends CommandHandler {
       title: 'Remove node and proxies from remote config',
       task: async (): Promise<void> => {
         await this.remoteConfigManager.modify(async remoteConfig => {
-          remoteConfig.components.remove('Consensus node name', ComponentType.ConsensusNode);
-          remoteConfig.components.remove('Envoy proxy name', ComponentType.EnvoyProxy);
-          remoteConfig.components.remove('HaProxy name', ComponentType.HaProxy);
+          remoteConfig.components.remove('Consensus node name', ComponentTypes.ConsensusNode);
+          remoteConfig.components.remove('Envoy proxy name', ComponentTypes.EnvoyProxy);
+          remoteConfig.components.remove('HaProxy name', ComponentTypes.HaProxy);
         });
       },
     };

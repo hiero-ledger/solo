@@ -20,6 +20,7 @@ import {NamespaceName} from '../integration/kube/resources/namespace/namespace-n
 import {type ClusterReference, type DeploymentName} from '../core/config/remote/types.js';
 import {type CommandDefinition, type Optional, type SoloListrTask} from '../types/index.js';
 import {HEDERA_JSON_RPC_RELAY_VERSION} from '../../version.js';
+import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -562,7 +563,7 @@ export class RelayCommand extends BaseCommand {
       skip: (): boolean => !this.remoteConfigManager.isLoaded(),
       task: async (): Promise<void> => {
         await this.remoteConfigManager.modify(async remoteConfig => {
-          remoteConfig.components.remove('relay', ComponentType.Relay);
+          remoteConfig.components.remove('relay', ComponentTypes.Relay);
         });
       },
     };

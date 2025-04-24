@@ -24,7 +24,6 @@ import {type Lock} from '../core/lock/lock.js';
 import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
 import {type BlockNodeComponent} from '../core/config/remote/components/block-node-component.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {ComponentFactory} from '../core/config/remote/components/component-factory.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {Duration} from '../core/time/duration.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
@@ -167,10 +166,12 @@ export class BlockNodeCommand extends BaseCommand {
           task: async (context_): Promise<void> => {
             const config: BlockNodeDeployConfigClass = context_.config;
 
+            // TODO
             const newBlockNodeIndex: number = this.remoteConfigManager.components.getNewComponentIndex(
               ComponentTypes.BlockNode,
             );
 
+            // TODO
             config.newBlockNodeComponent = ComponentFactory.createNewBlockNodeComponent(
               this.remoteConfigManager,
               config.clusterRef,
