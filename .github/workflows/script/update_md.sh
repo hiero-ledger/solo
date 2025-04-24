@@ -11,9 +11,9 @@ else
   SOLO_CLUSTER_NAME=${SOLO_TEST_CLUSTER}
 fi
 
-export SOLO_NAMESPACE=solo
+export SOLO_NAMESPACE=solo-e2e
+export SOLO_CLUSTER_SETUP_NAMESPACE=solo-cluster-setup
 export SOLO_DEPLOYMENT=solo-deployment
-export SOLO_CLUSTER_SETUP_NAMESPACE=solo-cluster
 export SOLO_EMAIL=john@doe.com
 
 echo "Perform the following kind and solo commands and save output to environment variables"
@@ -54,7 +54,7 @@ export SOLO_MIRROR_NODE_DEPLOY_OUTPUT=$( cat mirror-node-deploy.log | tee test.l
 solo relay deploy -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}" | tee relay-deploy.log
 export SOLO_RELAY_DEPLOY_OUTPUT=$( cat relay-deploy.log | tee test.log )
 
-solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" -q | tee explorer-deploy.log
+solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q | tee explorer-deploy.log
 export SOLO_EXPLORER_DEPLOY_OUTPUT=$( cat explorer-deploy.log | tee test.log )
 
 solo relay destroy -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}" | tee relay-destroy.log

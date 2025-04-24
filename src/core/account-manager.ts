@@ -1075,17 +1075,11 @@ export class AccountManager {
   }
 
   public getOperatorAccountId(deployment: DeploymentName): AccountId {
-    return this.getAccountIdByNumber(
-      deployment,
-      Number.parseInt(process.env.SOLO_OPERATOR_ID || constants.DEFAULT_OPERATOR_ID_NUMBER.toString()),
-    );
+    return this.getAccountIdByNumber(deployment, Number.parseInt(constants.DEFAULT_OPERATOR_ID_NUMBER.toString()));
   }
 
   public getFreezeAccountId(deployment: DeploymentName): AccountId {
-    return this.getAccountIdByNumber(
-      deployment,
-      Number.parseInt(process.env.FREEZE_ADMIN_ACCOUNT || constants.DEFAULT_FREEZE_ID_NUMBER.toString()),
-    );
+    return this.getAccountIdByNumber(deployment, Number.parseInt(constants.DEFAULT_FREEZE_ID_NUMBER.toString()));
   }
 
   public getTreasuryAccountId(deployment: DeploymentName): AccountId {
@@ -1093,10 +1087,7 @@ export class AccountManager {
   }
 
   public getStartAccountId(deployment: DeploymentName): AccountId {
-    return this.getAccountIdByNumber(
-      deployment,
-      Number.parseInt(process.env.SOLO_NODE_ACCOUNT_ID_START || constants.DEFAULT_START_ID_NUMBER.toString()),
-    );
+    return this.getAccountIdByNumber(deployment, Number.parseInt(constants.DEFAULT_START_ID_NUMBER.toString()));
   }
 
   /**
