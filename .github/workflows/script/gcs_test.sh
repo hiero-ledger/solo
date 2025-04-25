@@ -122,6 +122,12 @@ if [ "${storageType}" == "minio_only" ]; then
   SOLO_DEPLOYMENT=solo-deployment
   task default-with-mirror
   cd -
+
+  # Testing node update, add, delete test
+  npm run solo-test -- node add --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys --pvcs
+  #npm run solo-test -- node update --deployment "${SOLO_DEPLOYMENT}" --node-alias node2 --new-account-number 0.0.7
+  npm run solo-test -- node delete --deployment "${SOLO_DEPLOYMENT}" -i node2
+
 else
   # get current script base directory
   script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -184,11 +190,6 @@ fi
 grpcurl -plaintext -d '{"file_id": {"fileNum": 102}, "limit": 0}' localhost:5600 com.hedera.mirror.api.proto.NetworkService/getNodes
 
 node examples/create-topic.js
-
-# section node update, add, delete test
-npm run solo-test -- node add --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys --pvcs
-npm run solo-test -- node update --deployment "${SOLO_DEPLOYMENT}" --node-alias node2 --new-account-number 0.0.7
-npm run solo-test -- node delete --deployment "${SOLO_DEPLOYMENT}" -i node2
 
 npm run solo-test -- node stop -i node1 --deployment "${SOLO_DEPLOYMENT}"
 
