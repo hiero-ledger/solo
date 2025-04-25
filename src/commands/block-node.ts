@@ -28,9 +28,9 @@ import {Duration} from '../core/time/duration.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import chalk from 'chalk';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
-import {Containers} from '../integration/kube/resources/container/containers.js';
-import {Container} from '../integration/kube/resources/container/container.js';
-import {Pod} from '../integration/kube/resources/pod/pod.js';
+import {type Containers} from '../integration/kube/resources/container/containers.js';
+import {type Container} from '../integration/kube/resources/container/container.js';
+import {type Pod} from '../integration/kube/resources/pod/pod.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -45,7 +45,6 @@ interface BlockNodeDeployConfigClass {
   namespace: NamespaceName;
   nodeAliases: NodeAliases; // from remote config
   context: string;
-  isChartInstalled: boolean;
   valuesArg: string;
   newBlockNodeComponent: BlockNodeComponent;
   releaseName: string;
@@ -158,18 +157,6 @@ export class BlockNodeCommand extends BaseCommand {
               config.releaseName,
               config.clusterRef,
               config.namespace.name,
-            );
-          },
-        },
-        {
-          title: 'Check chart is installed',
-          task: async (context_): Promise<void> => {
-            const config: BlockNodeDeployConfigClass = context_.config;
-
-            config.isChartInstalled = await this.chartManager.isChartInstalled(
-              config.namespace,
-              config.releaseName,
-              config.context,
             );
           },
         },
@@ -319,7 +306,7 @@ export class BlockNodeCommand extends BaseCommand {
     };
   }
 
-  private displayHealthcheckData(
+  private displayHealthCheckData(
     task: SoloListrTaskWrapper<BlockNodeDeployContext>,
   ): (attempt: number, maxAttempt: number, color?: 'yellow' | 'green' | 'red', additionalData?: string) => void {
     const baseTitle: string = task.title;
@@ -345,7 +332,7 @@ export class BlockNodeCommand extends BaseCommand {
           maxAttempt: number,
           color?: 'yellow' | 'green' | 'red',
           additionalData?: string,
-        ) => void = this.displayHealthcheckData(task);
+        ) => void = this.displayHealthCheckData(task);
 
         const blockNodePodReference: PodReference = await this.k8Factory
           .getK8(config.context)
