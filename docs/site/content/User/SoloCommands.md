@@ -126,7 +126,7 @@
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js --help
 
 Select a command
@@ -157,7 +157,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js init --help
 
  init
@@ -180,7 +180,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js account --help
 
 Select an account command
@@ -208,7 +208,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js account init --help
 
  account init
@@ -241,7 +241,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js account create --help
 
  account create
@@ -284,7 +284,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js account update --help
 
  account update
@@ -323,7 +323,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js account get --help
 
  account get
@@ -357,7 +357,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js cluster-ref --help
 
 Select a context command
@@ -386,7 +386,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js cluster-ref connect --help
 
 Missing required argument: cluster-ref
@@ -421,7 +421,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js cluster-ref disconnect --help
 
 Missing required argument: cluster-ref
@@ -452,7 +452,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js cluster-ref list --help
 
  cluster-ref list
@@ -474,7 +474,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js cluster-ref info --help
 
 Missing required argument: cluster-ref
@@ -505,7 +505,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js cluster-ref setup --help
 
  cluster-ref setup
@@ -532,7 +532,7 @@ Options:
      --prometheus-stack         Deploy prometheus stack         [boolean] [default: false]      
 -q,  --quiet-mode               Quiet mode, do not prompt for   [boolean] [default: false]      
                                 confirmation                                                    
-     --solo-chart-version       Solo testing chart version      [string] [default: "0.49.1"]    
+     --solo-chart-version       Solo testing chart version      [string] [default: "0.50.0"]    
 -v,  --version                  Show version number             [boolean]                       
 
 ```
@@ -541,7 +541,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js cluster-ref reset --help
 
  cluster-ref reset
@@ -574,7 +574,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js network --help
 
 Select a chart command
@@ -599,7 +599,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js network deploy --help
 
  network deploy
@@ -629,7 +629,9 @@ Options:
      --backup-bucket              name of bucket for backing up   [string]                                                 
                                   state files                                                                              
      --backup-endpoint            backup storage endpoint URL     [string]                                                 
-     --backup-region              backup storage region           [string] [default: "***"]                                
+     --backup-provider            backup storage service          [string] [default: "GCS"]                                
+                                  provider, GCS or AWS                                                                     
+     --backup-region              backup storage region           [string] [default: "us-central1"]                        
      --backup-write-access-key    backup storage access key for   [string]                                                 
                                   write access                                                                             
      --backup-write-secrets       backup storage secret key for   [string]                                                 
@@ -705,7 +707,7 @@ Options:
 -t,  --release-tag                Release tag to be used (e.g.    [string] [default: "v0.59.5"]                            
                                   v0.59.5)                                                                                 
      --settings-txt               settings.txt file for node      [string] [default: "templates/settings.txt"]             
-     --solo-chart-version         Solo testing chart version      [string] [default: "0.49.1"]                             
+     --solo-chart-version         Solo testing chart version      [string] [default: "0.50.0"]                             
      --storage-type               storage type for saving stream  [default: "minio_only"]                                  
                                   files, available options are                                                             
                                   minio_only, aws_only,                                                                    
@@ -722,7 +724,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js network destroy --help
 
  network destroy
@@ -761,7 +763,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node --help
 
 Select a node command
@@ -812,7 +814,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node setup --help
 
 Missing required argument: deployment
@@ -857,7 +859,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node start --help
 
 Missing required argument: deployment
@@ -896,7 +898,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node stop --help
 
 Missing required argument: deployment
@@ -924,7 +926,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node freeze --help
 
 Missing required argument: deployment
@@ -950,7 +952,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node restart --help
 
 Missing required argument: deployment
@@ -976,7 +978,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node keys --help
 
 Missing required argument: deployment
@@ -1009,7 +1011,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node refresh --help
 
 Missing required argument: deployment
@@ -1048,7 +1050,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node logs --help
 
 Missing required arguments: deployment, node-aliases
@@ -1076,7 +1078,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node states --help
 
 Missing required arguments: deployment, node-aliases
@@ -1104,7 +1106,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node add --help
 
 Missing required argument: deployment
@@ -1182,7 +1184,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.49.1"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
      --tls-keys            Generate gRPC TLS keys for      [boolean] [default: false]                   
                            nodes                                                                        
 -v,  --version             Show version number             [boolean]                                    
@@ -1193,7 +1195,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node add-prepare --help
 
 Missing required arguments: deployment, output-dir
@@ -1264,7 +1266,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.49.1"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
      --tls-keys            Generate gRPC TLS keys for      [boolean] [default: false]                   
                            nodes                                                                        
 -v,  --version             Show version number             [boolean]                                    
@@ -1275,7 +1277,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node add-submit-transactions --help
 
 Missing required arguments: deployment, input-dir
@@ -1345,7 +1347,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.49.1"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
      --tls-keys            Generate gRPC TLS keys for      [boolean] [default: false]                   
                            nodes                                                                        
 -v,  --version             Show version number             [boolean]                                    
@@ -1356,7 +1358,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node add-execute --help
 
 Missing required arguments: deployment, input-dir
@@ -1436,7 +1438,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.49.1"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
      --tls-keys            Generate gRPC TLS keys for      [boolean] [default: false]                   
                            nodes                                                                        
 -v,  --version             Show version number             [boolean]                                    
@@ -1447,7 +1449,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node update --help
 
 Missing required arguments: deployment, release-tag, node-alias
@@ -1500,7 +1502,7 @@ Options:
                            account                                                                      
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.49.1"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
      --tls-private-key     path and file name of the       [string]                                     
                            private TLS key to be used                                                   
      --tls-public-key      path and file name of the       [string]                                     
@@ -1513,7 +1515,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node update-prepare --help
 
 Missing required arguments: deployment, release-tag, output-dir, node-alias
@@ -1569,7 +1571,7 @@ Options:
                            account                                                                      
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.49.1"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
      --tls-private-key     path and file name of the       [string]                                     
                            private TLS key to be used                                                   
      --tls-public-key      path and file name of the       [string]                                     
@@ -1582,7 +1584,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node update-submit-transactions --help
 
 Missing required arguments: deployment, release-tag, input-dir
@@ -1627,7 +1629,7 @@ Options:
      --local-build-path    path of hedera local repo       [string]                                     
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.49.1"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -1636,7 +1638,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node update-execute --help
 
 Missing required arguments: deployment, release-tag, input-dir
@@ -1681,7 +1683,7 @@ Options:
      --local-build-path    path of hedera local repo       [string]                                     
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.49.1"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -1690,7 +1692,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node delete --help
 
 Missing required arguments: deployment, node-alias
@@ -1728,7 +1730,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.49.1"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -1737,7 +1739,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node delete-prepare --help
 
 Missing required arguments: deployment, node-alias, output-dir
@@ -1778,7 +1780,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.49.1"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -1787,7 +1789,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node delete-submit-transactions --help
 
 Missing required arguments: deployment, node-alias, input-dir
@@ -1828,7 +1830,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.49.1"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -1837,7 +1839,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node delete-execute --help
 
 Missing required arguments: deployment, node-alias, input-dir
@@ -1878,7 +1880,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.49.1"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -1887,7 +1889,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node prepare-upgrade --help
 
 Missing required argument: deployment
@@ -1916,7 +1918,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node freeze-upgrade --help
 
 Missing required argument: deployment
@@ -1945,7 +1947,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node upgrade --help
 
 Missing required arguments: deployment, release-tag, upgrade-zip-file
@@ -1978,7 +1980,7 @@ Options:
                            (empty means all nodes)                                                      
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.49.1"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -1987,7 +1989,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node upgrade-prepare --help
 
 Missing required arguments: deployment, release-tag, upgrade-zip-file, output-dir
@@ -2023,7 +2025,7 @@ Options:
                            (empty means all nodes)                                                      
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.49.1"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -2032,7 +2034,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node upgrade-submit-transactions --help
 
 Missing required arguments: deployment, release-tag, input-dir
@@ -2066,7 +2068,7 @@ Options:
                            (empty means all nodes)                                                      
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.49.1"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -2075,7 +2077,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node upgrade-execute --help
 
 Missing required arguments: deployment, release-tag, input-dir
@@ -2109,7 +2111,7 @@ Options:
                            (empty means all nodes)                                                      
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.49.1"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -2118,7 +2120,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node download-generated-files --help
 
 Missing required argument: deployment
@@ -2147,7 +2149,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js relay --help
 
 Select a relay command
@@ -2172,7 +2174,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js relay deploy --help
 
  relay deploy
@@ -2209,7 +2211,7 @@ Options:
                            (e.g. custom-spec.yaml)                                                        
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                     
                            confirmation                                                                   
-     --relay-release       Relay release tag to be used    [string] [default: "v0.66.0"]                  
+     --relay-release       Relay release tag to be used    [string] [default: "v0.67.0"]                  
                            (e.g. v0.48.0)                                                                 
      --replica-count       Replica count                   [number] [default: 1]                          
 -f,  --values-file         Comma separated chart values    [string]                                       
@@ -2222,7 +2224,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js relay destroy --help
 
  relay destroy
@@ -2259,7 +2261,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js mirror-node --help
 
 Select a mirror-node command
@@ -2284,7 +2286,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js mirror-node deploy --help
 
  mirror-node deploy
@@ -2335,6 +2337,9 @@ Options:
                                          passed                                                                         
      --force-port-forward                Force port forward to access    [boolean] [default: true]                      
                                          the network services                                                           
+     --ingress-controller-value-file     The value file to use for       [string]                                       
+                                         ingress controller, defaults                                                   
+                                         to ""                                                                          
      --mirror-node-version               Mirror node chart version       [string] [default: "v0.126.0"]                 
      --mirror-static-ip                  static IP address for the       [string]                                       
                                          mirror node                                                                    
@@ -2351,6 +2356,8 @@ Options:
      --storage-bucket                    name of storage bucket for      [string]                                       
                                          mirror node importer                                                           
      --storage-bucket-prefix             path prefix of storage bucket   [string]                                       
+                                         mirror node importer                                                           
+     --storage-bucket-region             region of storage bucket        [string]                                       
                                          mirror node importer                                                           
      --storage-endpoint                  storage endpoint URL for        [string]                                       
                                          mirror node importer                                                           
@@ -2377,7 +2384,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js mirror-node destroy --help
 
  mirror-node destroy
@@ -2414,7 +2421,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js explorer --help
 
 Select a explorer command
@@ -2439,7 +2446,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js explorer deploy --help
 
  explorer deploy
@@ -2483,6 +2490,9 @@ Options:
                                       Hedera Explorer TLS, defaults                                                  
                                       to "explorer.solo.local"                                                       
      --hedera-explorer-version        Hedera explorer chart version   [string] [default: "24.12.1"]                  
+     --ingress-controller-value-file  The value file to use for       [string]                                       
+                                      ingress controller, defaults                                                   
+                                      to ""                                                                          
      --mirror-namespace               Namespace to use for the        [string]                                       
                                       Mirror Node deployment, a new                                                  
                                       one will be created if it does                                                 
@@ -2494,7 +2504,7 @@ Options:
                                       (e.g. custom-spec.yaml)                                                        
 -q,  --quiet-mode                     Quiet mode, do not prompt for   [boolean] [default: false]                     
                                       confirmation                                                                   
-     --solo-chart-version             Solo testing chart version      [string] [default: "0.49.1"]                   
+     --solo-chart-version             Solo testing chart version      [string] [default: "0.50.0"]                   
      --tls-cluster-issuer-type        The TLS cluster issuer type to  [string] [default: "self-signed"]              
                                       use for hedera explorer,                                                       
                                       defaults to "self-signed", the                                                 
@@ -2511,7 +2521,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js explorer destroy --help
 
  explorer destroy
@@ -2548,7 +2558,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js deployment --help
 
 Select a chart command
@@ -2575,7 +2585,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js deployment create --help
 
  deployment create
@@ -2593,6 +2603,12 @@ Options:
 -n,  --namespace           Namespace                       [string]                  
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]
                            confirmation                                              
+     --realm               Realm number. Requires          [number] [default: 0]     
+                           network-node > v61.0 for                                  
+                           non-zero values                                           
+     --shard               Shard number. Requires          [number] [default: 0]     
+                           network-node > v61.0 for                                  
+                           non-zero values                                           
 -v,  --version             Show version number             [boolean]                 
 
 ```
@@ -2601,7 +2617,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js deployment delete --help
 
  deployment delete
@@ -2626,7 +2642,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js deployment list --help
 
  deployment list
@@ -2656,7 +2672,7 @@ Options:
 
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js deployment add-cluster --help
 
  deployment add-cluster

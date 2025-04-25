@@ -32,6 +32,7 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
+import {AddRepoOptions} from '../model/add/add-repo-options.js';
 
 @injectable()
 /**
@@ -68,8 +69,8 @@ export class DefaultHelmClient implements HelmClient {
     return this.executeAsList(new RepositoryListRequest(), Repository);
   }
 
-  public async addRepository(repository: Repository): Promise<void> {
-    await this.executeAsync(new RepositoryAddRequest(repository));
+  public async addRepository(repository: Repository, options?: AddRepoOptions): Promise<void> {
+    await this.executeAsync(new RepositoryAddRequest(repository, options));
   }
 
   public async removeRepository(repository: Repository): Promise<void> {
