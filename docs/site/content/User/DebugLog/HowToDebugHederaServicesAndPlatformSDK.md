@@ -125,23 +125,50 @@ solo node add --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys --debug
 Example 3: attach jvm debugger with node update operation
 
 ```bash
-./test/e2e/setup-e2e.sh
-solo node keys --gossip-keys --tls-keys -i node1,node2,node3
-solo network deploy -i node1,node2,node3 -n "${SOLO_NAMESPACE}"
-solo node setup -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data -n "${SOLO_NAMESPACE}"
-solo node start -i node1,node2,node3 -n "${SOLO_NAMESPACE}"
-solo node update --node-alias node2  --debug-node-alias node2 --local-build-path ../hiero-consensus-node/hedera-node/data --new-account-number 0.0.7 --gossip-public-key ./s-public-node2.pem --gossip-private-key ./s-private-node2.pem  -n "${SOLO_NAMESPACE}"
+SOLO_CLUSTER_NAME=solo-cluster
+SOLO_NAMESPACE=solo-e2e
+SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
+SOLO_DEPLOYMENT=solo-deployment
+
+kind delete cluster -n "${SOLO_CLUSTER_NAME}" 
+kind create cluster -n "${SOLO_CLUSTER_NAME}"
+solo init
+solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+
+solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} --email john@doe.com
+solo deployment create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
+solo node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
+
+solo network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
+solo node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data
+
+solo node update --deployment "${SOLO_DEPLOYMENT}" --node-alias node2  --debug-node-alias node2 --local-build-path ../hiero-consensus-node/hedera-node/data --new-account-number 0.0.7 --gossip-public-key ./s-public-node2.pem --gossip-private-key ./s-private-node2.pem --release-tag v0.59.5
 ```
 
 Example 4: attach jvm debugger with node delete operation
 
 ```bash
-./test/e2e/setup-e2e.sh
-solo node keys --gossip-keys --tls-keys -i node1,node2,node3
-solo network deploy -i node1,node2,node3,node4 -n "${SOLO_NAMESPACE}"
-solo node setup -i node1,node2,node3,node4 --local-build-path ../hiero-consensus-node/hedera-node/data -n "${SOLO_NAMESPACE}"
-solo node start -i node1,node2,node3,node4 -n "${SOLO_NAMESPACE}"
-solo node delete --node-alias node2  --debug-node-alias node3 -n "${SOLO_NAMESPACE}"
+SOLO_CLUSTER_NAME=solo-cluster
+SOLO_NAMESPACE=solo-e2e
+SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
+SOLO_DEPLOYMENT=solo-deployment
+
+kind delete cluster -n "${SOLO_CLUSTER_NAME}" 
+kind create cluster -n "${SOLO_CLUSTER_NAME}"
+solo init
+solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+
+solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} --email john@doe.com
+solo deployment create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
+solo node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
+
+solo network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
+solo node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data
+solo node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
+
+solo node delete --deployment "${SOLO_DEPLOYMENT}" --node-alias node2  --debug-node-alias node3 --local-build-path ../hiero-consensus-node/hedera-node/data
 ```
 
 ### 3. Save and reuse network state files
@@ -150,10 +177,10 @@ With the following command you can save the network state to a file.
 
 ```bash
 # must stop hedera node operation first
-solo node stop -i node1,node2 -n solo-e2e
+solo node stop --deployment "${SOLO_DEPLOYMENT}"
 
 # download state file to default location at ~/.solo/logs/<namespace>
-solo node states -i node1,node2 -n solo-e2e
+solo node states -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 By default, the state files are saved under `~/solo` directory
@@ -169,11 +196,28 @@ By default, the state files are saved under `~/solo` directory
 Later, user can use the following command to upload the state files to the network and restart hedera nodes.
 
 ```bash
-./test/e2e/setup-e2e.sh
-solo node keys --gossip-keys --tls-keys -i node1,node2,node3
-solo network deploy -i node1,node2,node3 -n "${SOLO_NAMESPACE}"
-solo node setup -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data -n "${SOLO_NAMESPACE}"
+SOLO_CLUSTER_NAME=solo-cluster
+SOLO_NAMESPACE=solo-e2e
+SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
+SOLO_DEPLOYMENT=solo-deployment
+
+kind delete cluster -n "${SOLO_CLUSTER_NAME}" 
+kind create cluster -n "${SOLO_CLUSTER_NAME}"
+solo init
+solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+
+solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} --email john@doe.com
+solo deployment create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
+solo node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
+
+solo network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
+solo node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data
+solo node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
+solo node stop --deployment "${SOLO_DEPLOYMENT}"
+
+solo node states -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
 
 # start network with pre-existing state files
-solo node start -i node1,node2 -n solo-e2e --state-file network-node1-0-state.zip
+solo node start --deployment "${SOLO_DEPLOYMENT}" --state-file network-node1-0-state.zip
 ```
