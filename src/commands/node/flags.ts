@@ -21,7 +21,7 @@ const COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS = [
   flags.force,
 ];
 
-const COMMON_UPDATE_FLAGS_REQUIRED_FLAGS = [flags.deployment, flags.releaseTag];
+const COMMON_UPDATE_FLAGS_REQUIRED_FLAGS = [flags.deployment];
 const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS = [
   flags.app,
   flags.cacheDir,
@@ -137,7 +137,6 @@ const COMMON_ADD_OPTIONAL_FLAGS = [
   flags.generateGossipKeys,
   flags.generateTlsKeys,
   flags.releaseTag,
-  flags.clusterRef,
 ];
 
 export const DELETE_FLAGS = {
