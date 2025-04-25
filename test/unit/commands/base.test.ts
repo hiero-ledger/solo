@@ -5,7 +5,6 @@ import {expect} from 'chai';
 import {type DependencyManager} from '../../../src/core/dependency-managers/index.js';
 import {type ChartManager} from '../../../src/core/chart-manager.js';
 import {type ConfigManager} from '../../../src/core/config-manager.js';
-import {type LocalConfig} from '../../../src/core/config/local/local-config.js';
 import {RemoteConfigManager} from '../../../src/core/config/remote/remote-config-manager.js';
 import {K8Client} from '../../../src/integration/kube/k8-client/k8-client.js';
 import {BaseCommand} from '../../../src/commands/base.js';
@@ -23,13 +22,14 @@ import {ConsensusNode} from '../../../src/core/model/consensus-node.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
 import {type HelmClient} from '../../../src/integration/helm/helm-client.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
 
 describe('BaseCommand', () => {
   let helm: HelmClient;
   let chartManager: ChartManager;
   let configManager: ConfigManager;
   let depManager: DependencyManager;
-  let localConfig: LocalConfig;
+  let localConfig: LocalConfigRuntimeState;
   let remoteConfigManager: RemoteConfigManager;
   let sandbox = sinon.createSandbox();
   let testLogger: SoloLogger;
@@ -149,7 +149,7 @@ describe('BaseCommand', () => {
       const chartManager = sinon.stub();
       const configManager = sinon.stub();
       const depManager = sinon.stub();
-      const localConfig = sinon.stub() as unknown as LocalConfig;
+      const localConfig = sinon.stub() as unknown as LocalConfigRuntimeState;
 
       // @ts-expect-error - TS2540: to mock
       localConfig.clusterRefs = sandbox.stub().returns({cluster: 'context1', cluster2: 'context2'});

@@ -5,11 +5,12 @@ import {describe, it} from 'mocha';
 import {Migration} from '../../../../../src/core/config/remote/migration.js';
 import {type EmailAddress, type Version} from '../../../../../src/core/config/remote/types.js';
 import {SoloError} from '../../../../../src/core/errors/solo-error.js';
+import {UserIdentity} from '../../../../../src/data/schema/model/common/user-identity.js';
 
 function createMigration() {
-  const migratedAt = new Date();
-  const migratedBy = 'test@test.test' as EmailAddress;
-  const fromVersion = '1.0.0' as Version;
+  const migratedAt: Date = new Date();
+  const migratedBy: UserIdentity = new UserIdentity('test');
+  const fromVersion: Version = '1.0.0' as Version;
 
   return {
     migration: new Migration(migratedAt, migratedBy, fromVersion),

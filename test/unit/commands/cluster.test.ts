@@ -13,7 +13,6 @@ import {ConfigManager} from '../../../src/core/config-manager.js';
 import {ChartManager} from '../../../src/core/chart-manager.js';
 import {container} from 'tsyringe-neo';
 import {resetForTest} from '../../test-container.js';
-import {LocalConfig} from '../../../src/core/config/local/local-config.js';
 import {K8Client} from '../../../src/integration/kube/k8-client/k8-client.js';
 import {K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
 import {DependencyManager} from '../../../src/core/dependency-managers/index.js';
@@ -21,11 +20,10 @@ import {NamespaceName} from '../../../src/integration/kube/resources/namespace/n
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {DefaultHelmClient} from '../../../src/integration/helm/impl/default-helm-client.js';
-import {LocalConfigDataWrapper} from '../../../src/core/config/local/local-config-data-wrapper.js';
-import {type EmailAddress} from '../../../src/core/config/remote/types.js';
 import {SoloWinstonLogger} from '../../../src/core/logging/solo-winston-logger.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {getSoloVersion} from '../../../version.js';
+import {LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
 
 const getBaseCommandOptions = (context: string) => {
   const options = {
@@ -35,7 +33,7 @@ const getBaseCommandOptions = (context: string) => {
     chartManager: sandbox.createStubInstance(ChartManager),
     configManager: sandbox.createStubInstance(ConfigManager),
     depManager: sandbox.createStubInstance(DependencyManager),
-    localConfig: sandbox.createStubInstance(LocalConfig),
+    localConfig: sandbox.createStubInstance(LocalConfigRuntimeState),
   };
   options.k8Factory.default.returns(new K8Client(context));
   return options;
@@ -85,12 +83,12 @@ describe('ClusterCommand unit tests', () => {
       options.remoteConfigManager = sandbox.stub();
 
       options.remoteConfigManager.currentCluster = 'solo-e2e';
-      options.localConfig.localConfigData = new LocalConfigDataWrapper(
-        'test@test.com' as EmailAddress,
-        getSoloVersion(),
-        {},
-        {'solo-e2e': 'context-1'},
-      );
+      // options.localConfig.localConfigData = new LocalConfigDataWrapper(
+      //   'test@test.com' as EmailAddress,
+      //   getSoloVersion(),
+      //   {},
+      //   {'solo-e2e': 'context-1'},
+      // );
     });
 
     it('Install function is called with expected parameters', async () => {

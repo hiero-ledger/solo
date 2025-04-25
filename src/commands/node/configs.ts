@@ -18,7 +18,6 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {type ConfigManager} from '../../core/config-manager.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
-import {type LocalConfig} from '../../core/config/local/local-config.js';
 import {type AccountManager} from '../../core/account-manager.js';
 import {type RemoteConfigManager} from '../../core/config/remote/remote-config-manager.js';
 import {PathEx} from '../../business/utils/path-ex.js';
@@ -52,6 +51,7 @@ import {type NodeRestartConfigClass} from './config-interfaces/node-restart-conf
 import {type NodeRestartContext} from './config-interfaces/node-restart-context.js';
 import {type NodeSetupContext} from './config-interfaces/node-setup-context.js';
 import {type NodePrepareUpgradeContext} from './config-interfaces/node-prepare-upgrade-context.js';
+import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
 
 const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
 const DOWNLOAD_GENERATED_FILES_CONFIGS_NAME = 'downloadGeneratedFilesConfig';
@@ -68,7 +68,7 @@ const START_CONFIGS_NAME = 'startConfigs';
 export class NodeCommandConfigs {
   public constructor(
     @inject(InjectTokens.ConfigManager) private readonly configManager: ConfigManager,
-    @inject(InjectTokens.LocalConfig) private readonly localConfig: LocalConfig,
+    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.RemoteConfigManager) private readonly remoteConfigManager: RemoteConfigManager,
     @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,

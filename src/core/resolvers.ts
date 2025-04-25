@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type LocalConfig} from './config/local/local-config.js';
 import {type DeploymentName} from './config/remote/types.js';
 import {type ConfigManager} from './config-manager.js';
 import {Flags as flags} from '../commands/flags.js';
@@ -9,9 +8,10 @@ import {type SoloListrTaskWrapper} from '../types/index.js';
 import {input as inputPrompt} from '@inquirer/prompts';
 import {SoloError} from './errors/solo-error.js';
 import {type AnyListrContext} from '../types/aliases.js';
+import {type LocalConfigRuntimeState} from '../business/runtime-state/local-config-runtime-state.js';
 
 export async function resolveNamespaceFromDeployment(
-  localConfig: LocalConfig,
+  localConfig: LocalConfigRuntimeState,
   configManager: ConfigManager,
   task?: SoloListrTaskWrapper<AnyListrContext>,
 ): Promise<NamespaceName> {

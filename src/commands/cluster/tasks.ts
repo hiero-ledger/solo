@@ -12,7 +12,6 @@ import {UserBreak} from '../../core/errors/user-break.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type SoloListrTask} from '../../types/index.js';
 import {type ClusterReference} from '../../core/config/remote/types.js';
-import {type LocalConfig} from '../../core/config/local/local-config.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type NamespaceName} from '../../integration/kube/resources/namespace/namespace-name.js';
@@ -30,6 +29,7 @@ import {type ClusterReferenceDefaultContext} from './config-interfaces/cluster-r
 import {type ClusterReferenceSetupContext} from './config-interfaces/cluster-reference-setup-context.js';
 import {type ClusterReferenceResetContext} from './config-interfaces/cluster-reference-reset-context.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
 
 @injectable()
 export class ClusterCommandTasks {
@@ -37,7 +37,7 @@ export class ClusterCommandTasks {
 
   constructor(
     @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
-    @inject(InjectTokens.LocalConfig) private readonly localConfig: LocalConfig,
+    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
     @inject(InjectTokens.ChartManager) private readonly chartManager: ChartManager,
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,

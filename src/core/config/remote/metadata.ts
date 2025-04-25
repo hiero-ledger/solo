@@ -11,6 +11,8 @@ import {
 } from './types.js';
 import {type Optional, type ToObject, type Validate} from '../../../types/index.js';
 import {DeploymentStates} from './enumerations.js';
+import {User} from '@kubernetes/client-node';
+import {UserIdentity} from '../../../data/schema/model/common/user-identity.js';
 
 /**
  * Represent the remote config metadata object and handles:
@@ -29,7 +31,7 @@ export class RemoteConfigMetadata
     public readonly deploymentName: DeploymentName,
     public readonly state: DeploymentStates,
     public readonly lastUpdatedAt: Date,
-    public readonly lastUpdateBy: EmailAddress,
+    public readonly lastUpdateBy: UserIdentity,
     public readonly soloVersion: Version,
     public soloChartVersion: Version = '',
     public hederaPlatformVersion: Version = '',
@@ -45,8 +47,8 @@ export class RemoteConfigMetadata
   /* -------- Modifiers -------- */
 
   /** Simplifies making a migration */
-  public makeMigration(email: EmailAddress, fromVersion: Version): void {
-    this._migration = new Migration(new Date(), email, fromVersion);
+  public makeMigration(userIdentity: UserIdentity, fromVersion: Version): void {
+    this._migration = new Migration(new Date(), userIdentity, fromVersion);
   }
 
   /* -------- Getters -------- */

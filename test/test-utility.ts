@@ -27,7 +27,6 @@ import {type PlatformInstaller} from '../src/core/platform-installer.js';
 import {type ProfileManager} from '../src/core/profile-manager.js';
 import {type LockManager} from '../src/core/lock/lock-manager.js';
 import {type CertificateManager} from '../src/core/certificate-manager.js';
-import {type LocalConfig} from '../src/core/config/local/local-config.js';
 import {type RemoteConfigManager} from '../src/core/config/remote/remote-config-manager.js';
 import * as constants from '../src/core/constants.js';
 import {Templates} from '../src/core/templates.js';
@@ -55,6 +54,7 @@ import {CommandInvoker} from './helpers/command-invoker.js';
 import {PathEx} from '../src/business/utils/path-ex.js';
 import {type HelmClient} from '../src/integration/helm/helm-client.js';
 import {type NodeServiceMapping} from '../src/types/mappings/node-service-mapping.js';
+import {type LocalConfigRuntimeState} from '../src/business/runtime-state/local-config-runtime-state.js';
 
 export const BASE_TEST_DIR = PathEx.join('test', 'data', 'tmp');
 
@@ -100,7 +100,7 @@ interface TestOptions {
   leaseManager: LockManager;
   certificateManager: CertificateManager;
   remoteConfigManager: RemoteConfigManager;
-  localConfig: LocalConfig;
+  localConfig: LocalConfigRuntimeState;
   commandInvoker: CommandInvoker;
 }
 
@@ -158,7 +158,7 @@ export function bootstrapTestVariables(
   const profileManager: ProfileManager = container.resolve(InjectTokens.ProfileManager);
   const leaseManager: LockManager = container.resolve(InjectTokens.LockManager);
   const certificateManager: CertificateManager = container.resolve(InjectTokens.CertificateManager);
-  const localConfig: LocalConfig = container.resolve(InjectTokens.LocalConfig);
+  const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
   const remoteConfigManager: RemoteConfigManager = container.resolve(InjectTokens.RemoteConfigManager);
   const testLogger: SoloLogger = getTestLogger();
   const commandInvoker = new CommandInvoker({configManager, remoteConfigManager, k8Factory, logger: testLogger});

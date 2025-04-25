@@ -7,9 +7,7 @@ import * as constants from '../core/constants.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {Flags as flags} from './flags.js';
 import chalk from 'chalk';
-import {type EmailAddress} from '../core/config/remote/types.js';
 import {PathEx} from '../business/utils/path-ex.js';
-import {getSoloVersion} from '../../version.js';
 
 /**
  * Defines the core functionalities of 'init' command
@@ -26,14 +24,9 @@ export class InitCommand extends BaseCommand {
       cacheDirectory = constants.SOLO_CACHE_DIR as string;
     }
 
-    interface Config {
-      userEmailAddress: EmailAddress;
-    }
-
     interface Context {
       repoURLs: string[];
       dirs: string[];
-      config: Config;
     }
 
     const tasks = new Listr<Context>(
@@ -44,11 +37,6 @@ export class InitCommand extends BaseCommand {
             self.configManager.update(argv);
             context_.dirs = this.setupHomeDirectory();
 
-            context_.config = {
-              userEmailAddress:
-                self.configManager.getFlag<EmailAddress>(flags.userEmailAddress) ||
-                flags.userEmailAddress.definition.defaultValue,
-            } as Config;
           },
         },
         {
@@ -71,8 +59,7 @@ export class InitCommand extends BaseCommand {
           title: 'Create local configuration',
           skip: () => this.localConfig.configFileExists(),
           task: async (context_, task): Promise<void> => {
-            const config = context_.config;
-            await this.localConfig.create(config.userEmailAddress, getSoloVersion());
+            await this.localConfig.create();
           },
         },
         {

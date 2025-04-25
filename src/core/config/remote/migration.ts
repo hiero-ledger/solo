@@ -2,13 +2,14 @@
 
 import {SoloError} from '../../errors/solo-error.js';
 import {type EmailAddress, type IMigration, type Version} from './types.js';
+import {UserIdentity} from '../../../data/schema/model/common/user-identity.js';
 
 export class Migration implements IMigration {
   private readonly _migratedAt: Date;
-  private readonly _migratedBy: EmailAddress;
+  private readonly _migratedBy: UserIdentity;
   private readonly _fromVersion: Version;
 
-  public constructor(migratedAt: Date, migratedBy: EmailAddress, fromVersion: Version) {
+  public constructor(migratedAt: Date, migratedBy: UserIdentity, fromVersion: Version) {
     this._migratedAt = migratedAt;
     this._migratedBy = migratedBy;
     this._fromVersion = fromVersion;
@@ -20,7 +21,7 @@ export class Migration implements IMigration {
   public get migratedAt(): Date {
     return this._migratedAt;
   }
-  public get migratedBy(): EmailAddress {
+  public get migratedBy(): UserIdentity {
     return this._migratedBy;
   }
   public get fromVersion(): Version {

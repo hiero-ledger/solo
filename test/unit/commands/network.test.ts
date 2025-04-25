@@ -22,7 +22,6 @@ import {container} from 'tsyringe-neo';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {type DependencyManager} from '../../../src/core/dependency-managers/index.js';
-import {type LocalConfig} from '../../../src/core/config/local/local-config.js';
 import {resetForTest} from '../../test-container.js';
 import {type ClusterChecks} from '../../../src/core/cluster-checks.js';
 import {type K8ClientConfigMaps} from '../../../src/integration/kube/k8-client/resources/config-map/k8-client-config-maps.js';
@@ -33,6 +32,7 @@ import {NamespaceName} from '../../../src/integration/kube/resources/namespace/n
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type DefaultHelmClient} from '../../../src/integration/helm/impl/default-helm-client.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
 
 const testName = 'network-cmd-unit';
 const namespace = NamespaceName.of(testName);
@@ -113,7 +113,7 @@ describe('NetworkCommand unit tests', () => {
 
       options.depManager = sinon.stub() as unknown as DependencyManager;
       container.registerInstance<DependencyManager>(InjectTokens.DependencyManager, options.depManager);
-      options.localConfig = container.resolve<LocalConfig>(InjectTokens.LocalConfig);
+      options.localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
       options.helm = container.resolve<DefaultHelmClient>(InjectTokens.Helm);
       options.helm.dependency = sinon.stub();
 

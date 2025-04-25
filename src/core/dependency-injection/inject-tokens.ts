@@ -11,7 +11,6 @@ export const InjectTokens = {
   HelmInstallationDir: Symbol.for('HelmInstallationDir'),
   HelmVersion: Symbol.for('HelmVersion'),
   CacheDir: Symbol.for('CacheDir'),
-  LocalConfigFilePath: Symbol.for('LocalConfigFilePath'),
   LockRenewalService: Symbol.for('LockRenewalService'),
   LockManager: Symbol.for('LockManager'),
   K8Factory: Symbol.for('K8Factory'),
@@ -45,4 +44,8 @@ export const InjectTokens = {
   Middlewares: Symbol.for('Middlewares'),
   KeyFormatter: Symbol.for('KeyFormatter'),
   ConfigProvider: Symbol.for('ConfigProvider'),
+  LocalConfigFileName: Symbol.for('LocalConfigFileName'),
+  LocalConfigSource: Symbol.for('LocalConfigSource'),
+  LocalConfigRuntimeState: Symbol.for('LocalConfigRuntimeState'),
+  HomeDirectory: Symbol.for('HomeDirectory'),
 };

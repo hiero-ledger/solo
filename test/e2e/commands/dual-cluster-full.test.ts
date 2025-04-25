@@ -21,7 +21,6 @@ import {type RemoteConfigManager} from '../../../src/core/config/remote/remote-c
 import {expect} from 'chai';
 import fs from 'node:fs';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
-import {type LocalConfig} from '../../../src/core/config/local/local-config.js';
 import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
 import {type K8} from '../../../src/integration/kube/k8.js';
 import {
@@ -53,6 +52,7 @@ import {
   type TransactionResponse,
 } from '@hashgraph/sdk';
 import {type PackageDownloader} from '../../../src/core/package-downloader.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
 
 const testName: string = 'dual-cluster-full';
 
@@ -114,8 +114,10 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
     for (const [index, element] of testClusterArray.entries()) {
       await main(soloClusterReferenceConnectArgv(element, contexts[index]));
     }
-    const localConfig: LocalConfig = container.resolve<LocalConfig>(InjectTokens.LocalConfig);
-    const clusterReferences: ClusterReferences = localConfig.clusterRefs;
+    const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
+      InjectTokens.LocalConfigRuntimeState,
+    );
+    const clusterReferences: Map<string, string> = localConfig.clusterRefs;
     expect(clusterReferences[testClusterArray[0]]).to.equal(contexts[0]);
     expect(clusterReferences[testClusterArray[1]]).to.equal(contexts[1]);
     testLogger.info(`${testName}: finished solo cluster-ref connect`);

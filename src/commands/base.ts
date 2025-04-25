@@ -3,7 +3,6 @@
 import {SoloError} from '../core/errors/solo-error.js';
 import {ShellRunner} from '../core/shell-runner.js';
 import {type LockManager} from '../core/lock/lock-manager.js';
-import {type LocalConfig} from '../core/config/local/local-config.js';
 import {type RemoteConfigManager} from '../core/config/remote/remote-config-manager.js';
 import {type ChartManager} from '../core/chart-manager.js';
 import {type ConfigManager} from '../core/config-manager.js';
@@ -22,6 +21,7 @@ import {type CertificateManager} from '../core/certificate-manager.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {type HelmClient} from '../integration/helm/helm-client.js';
+import {type LocalConfigRuntimeState} from '../business/runtime-state/local-config-runtime-state.js';
 
 export interface Options {
   logger: SoloLogger;
@@ -37,7 +37,7 @@ export interface Options {
   profileManager: ProfileManager;
   leaseManager: LockManager;
   certificateManager: CertificateManager;
-  localConfig: LocalConfig;
+  localConfig: LocalConfigRuntimeState;
   remoteConfigManager: RemoteConfigManager;
 }
 
@@ -48,7 +48,7 @@ export abstract class BaseCommand extends ShellRunner {
   public readonly configManager: ConfigManager;
   protected readonly depManager: DependencyManager;
   protected readonly leaseManager: LockManager;
-  public readonly localConfig: LocalConfig;
+  public readonly localConfig: LocalConfigRuntimeState;
   protected readonly remoteConfigManager: RemoteConfigManager;
 
   constructor(options: Options) {

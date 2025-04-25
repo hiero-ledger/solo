@@ -10,13 +10,13 @@ import {type SoloLogger} from './logging/solo-logger.js';
 import {type AnyObject} from '../types/aliases.js';
 import {type RemoteConfigManager} from './config/remote/remote-config-manager.js';
 import {type ClusterReference} from './config/remote/types.js';
-import {type LocalConfig} from './config/local/local-config.js';
 import {SoloError} from './errors/solo-error.js';
 import {SilentBreak} from './errors/silent-break.js';
 import {type HelpRenderer} from './help-renderer.js';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {inject, injectable} from 'tsyringe-neo';
+import {LocalConfigRuntimeState} from '../business/runtime-state/local-config-runtime-state.js';
 
 @injectable()
 export class Middlewares {
@@ -25,7 +25,7 @@ export class Middlewares {
     @inject(InjectTokens.RemoteConfigManager) private readonly remoteConfigManager: RemoteConfigManager,
     @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
-    @inject(InjectTokens.LocalConfig) private readonly localConfig: LocalConfig,
+    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.HelpRenderer) private readonly helpRenderer: HelpRenderer,
   ) {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);

@@ -8,16 +8,16 @@ import {SoloError} from '../../core/errors/solo-error.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {CommandHandler} from '../../core/command-handler.js';
-import {type LocalConfig} from '../../core/config/local/local-config.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {type ClusterCommandConfigs} from './configs.js';
 import {type ArgvStruct} from '../../types/aliases.js';
+import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
 
 @injectable()
 export class ClusterCommandHandlers extends CommandHandler {
   constructor(
     @inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks,
-    @inject(InjectTokens.LocalConfig) private readonly localConfig: LocalConfig,
+    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.ClusterCommandConfigs) private readonly configs: ClusterCommandConfigs,
   ) {
     super();

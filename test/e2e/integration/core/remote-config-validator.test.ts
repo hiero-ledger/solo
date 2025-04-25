@@ -26,26 +26,24 @@ import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.j
 import {ContainerName} from '../../../../src/integration/kube/resources/container/container-name.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
-import {LocalConfig} from '../../../../src/core/config/local/local-config.js';
 import {getTestCacheDirectory} from '../../../test-utility.js';
 import {Duration} from '../../../../src/core/time/duration.js';
-import {LocalConfigDataWrapper} from '../../../../src/core/config/local/local-config-data-wrapper.js';
+import {LocalConfigRuntimeState} from '../../../../src/business/runtime-state/local-config-runtime-state.js';
 
 describe('RemoteConfigValidator', () => {
   const namespace = NamespaceName.of('remote-config-validator');
 
   let configManager: ConfigManager;
   let k8Factory: K8Factory;
-  let localConfig: LocalConfig;
-  const filePath = `${getTestCacheDirectory('LocalConfig')}/localConfig.yaml`;
+  let localConfig: LocalConfigRuntimeState;
 
   before(async () => {
     configManager = container.resolve(InjectTokens.ConfigManager);
     configManager.update({[flags.namespace.name]: namespace} as ArgvStruct);
     k8Factory = container.resolve(InjectTokens.K8Factory);
-    localConfig = new LocalConfig(filePath);
-    // @ts-expect-error - TS2341: to mock
-    localConfig.localConfigData = new LocalConfigDataWrapper('test@test.com', '0.0.1', {}, {});
+    localConfig = new LocalConfigRuntimeState(`${getTestCacheDirectory('LocalConfig')}`, 'localConfig.yaml');
+    // // @ts-expect-error - TS2341: to mock
+    // localConfig.localConfigData = new LocalConfigDataWrapper('test@test.com', '0.0.1', {}, {});
     await k8Factory.default().namespaces().create(namespace);
   });
 

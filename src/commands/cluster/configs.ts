@@ -13,7 +13,6 @@ import {type NamespaceName} from '../../integration/kube/resources/namespace/nam
 import {type ConfigManager} from '../../core/config-manager.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {type ChartManager} from '../../core/chart-manager.js';
-import {type LocalConfig} from '../../core/config/local/local-config.js';
 import {type ArgvStruct} from '../../types/aliases.js';
 import {type SoloListrTaskWrapper} from '../../types/index.js';
 import {type ClusterReferenceDefaultConfigClass} from './config-interfaces/cluster-reference-default-config-class.js';
@@ -26,6 +25,7 @@ import {type ClusterReferenceSetupContext} from './config-interfaces/cluster-ref
 import {type ClusterReferenceSetupConfigClass} from './config-interfaces/cluster-reference-setup-config-class.js';
 import {type ClusterReferenceResetConfigClass} from './config-interfaces/cluster-reference-reset-config-class.js';
 import {type ClusterReference} from '../../core/config/remote/types.js';
+import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
 
 @injectable()
 export class ClusterCommandConfigs {
@@ -36,7 +36,7 @@ export class ClusterCommandConfigs {
     @inject(InjectTokens.ConfigManager) private readonly configManager: ConfigManager,
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
     @inject(InjectTokens.ChartManager) private readonly chartManager: ChartManager,
-    @inject(InjectTokens.LocalConfig) private readonly localConfig: LocalConfig,
+    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
   ) {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);

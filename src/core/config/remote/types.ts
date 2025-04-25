@@ -2,6 +2,8 @@
 
 import {type NodeAliases} from '../../../types/aliases.js';
 import {type ComponentType, type ConsensusNodeStates, type DeploymentStates} from './enumerations.js';
+import {User} from '@kubernetes/client-node';
+import {UserIdentity} from '../../../data/schema/model/common/user-identity.js';
 
 export type EmailAddress = `${string}@${string}.${string}`;
 export type Version = string;
@@ -16,7 +18,7 @@ export type ClusterReferences = Record<ClusterReference, Context>;
 
 export interface IMigration {
   migratedAt: Date;
-  migratedBy: EmailAddress;
+  migratedBy: UserIdentity;
   fromVersion: Version;
 }
 
@@ -70,7 +72,7 @@ export interface RemoteConfigMetadataStructure {
   state: DeploymentStates;
   deploymentName: DeploymentName;
   lastUpdatedAt: Date;
-  lastUpdateBy: EmailAddress;
+  lastUpdateBy: UserIdentity;
   soloVersion: Version;
   soloChartVersion: Version;
   hederaPlatformVersion: Version;

@@ -11,13 +11,14 @@ import {
   type Version,
 } from '../../../../../src/core/config/remote/types.js';
 import {DeploymentStates} from '../../../../../src/core/config/remote/enumerations.js';
+import {UserIdentity} from '../../../../../src/data/schema/model/common/user-identity.js';
 
 export function createMetadata() {
   const namespace: NamespaceNameAsString = 'namespace';
   const deploymentName = 'kind-namespace';
   const state = DeploymentStates.PRE_GENESIS;
   const lastUpdatedAt: Date = new Date();
-  const lastUpdateBy: EmailAddress = 'test@test.test';
+  const lastUpdateBy: UserIdentity = new UserIdentity('test');
   const soloVersion: Version = '0.0.1';
   const migration = new Migration(lastUpdatedAt, lastUpdateBy, '0.0.0');
   const soloChartVersion = '';

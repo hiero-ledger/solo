@@ -88,7 +88,6 @@ import {type K8} from '../../integration/kube/k8.js';
 import {Base64} from 'js-base64';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {type RemoteConfigManager} from '../../core/config/remote/remote-config-manager.js';
-import {type LocalConfig} from '../../core/config/local/local-config.js';
 import {BaseCommand} from '../base.js';
 import {ConsensusNodeComponent} from '../../core/config/remote/components/consensus-node-component.js';
 import {ConsensusNodeStates} from '../../core/config/remote/enumerations.js';
@@ -117,6 +116,7 @@ import {type NodeKeysConfigClass} from './config-interfaces/node-keys-config-cla
 import {type NodeStartConfigClass} from './config-interfaces/node-start-config-class.js';
 import {type CheckedNodesConfigClass, type CheckedNodesContext} from './config-interfaces/node-common-config-class.js';
 import {type NetworkNodeServices} from '../../core/network-node-services.js';
+import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
 
 @injectable()
 export class NodeCommandTasks {
@@ -131,7 +131,7 @@ export class NodeCommandTasks {
     @inject(InjectTokens.ChartManager) private readonly chartManager: ChartManager,
     @inject(InjectTokens.CertificateManager) private readonly certificateManager: CertificateManager,
     @inject(InjectTokens.RemoteConfigManager) private readonly remoteConfigManager: RemoteConfigManager,
-    @inject(InjectTokens.LocalConfig) private readonly localConfig: LocalConfig,
+    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);

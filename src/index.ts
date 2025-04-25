@@ -22,7 +22,6 @@ import {type KeyManager} from './core/key-manager.js';
 import {type ProfileManager} from './core/profile-manager.js';
 import {type LockManager} from './core/lock/lock-manager.js';
 import {type CertificateManager} from './core/certificate-manager.js';
-import {type LocalConfig} from './core/config/local/local-config.js';
 import {type RemoteConfigManager} from './core/config/remote/remote-config-manager.js';
 import {type K8Factory} from './integration/kube/k8-factory.js';
 import {CustomProcessOutput} from './core/process-output.js';
@@ -36,6 +35,7 @@ import {UserBreak} from './core/errors/user-break.js';
 import {type HelpRenderer} from './core/help-renderer.js';
 import {type HelmClient} from './integration/helm/helm-client.js';
 import {getSoloVersion} from '../version.js';
+import {type LocalConfigRuntimeState} from './business/runtime-state/local-config-runtime-state.js';
 
 export async function main(argv: string[], context?: {logger: SoloLogger}) {
   try {
@@ -85,7 +85,7 @@ export async function main(argv: string[], context?: {logger: SoloLogger}) {
   const profileManager: ProfileManager = container.resolve(InjectTokens.ProfileManager);
   const leaseManager: LockManager = container.resolve(InjectTokens.LockManager);
   const certificateManager: CertificateManager = container.resolve(InjectTokens.CertificateManager);
-  const localConfig: LocalConfig = container.resolve(InjectTokens.LocalConfig);
+  const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
   const remoteConfigManager: RemoteConfigManager = container.resolve(InjectTokens.RemoteConfigManager);
   const helpRenderer: HelpRenderer = container.resolve(InjectTokens.HelpRenderer);
 

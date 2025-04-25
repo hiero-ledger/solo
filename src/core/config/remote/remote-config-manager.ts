@@ -12,7 +12,6 @@ import {type K8Factory} from '../../../integration/kube/k8-factory.js';
 import {type ClusterReference, type ClusterReferences, type DeploymentName, type Version} from './types.js';
 import {type SoloLogger} from '../../logging/solo-logger.js';
 import {type ConfigManager} from '../../config-manager.js';
-import {type LocalConfig} from '../local/local-config.js';
 import {type Optional} from '../../../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../dependency-injection/container-helper.js';
@@ -28,6 +27,7 @@ import {promptTheUserForDeployment, resolveNamespaceFromDeployment} from '../../
 import {type DeploymentStates} from './enumerations.js';
 import {type ConfigMap} from '../../../integration/kube/resources/config-map/config-map.js';
 import {getSoloVersion} from '../../../../version.js';
+import {LocalConfigRuntimeState} from '../../../business/runtime-state/local-config-runtime-state.js';
 
 /**
  * Uses Kubernetes ConfigMaps to manage the remote configuration data by creating, loading, modifying,
@@ -47,12 +47,12 @@ export class RemoteConfigManager {
   public constructor(
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
-    @inject(InjectTokens.LocalConfig) private readonly localConfig?: LocalConfig,
+    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
     @inject(InjectTokens.ConfigManager) private readonly configManager?: ConfigManager,
   ) {
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
-    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfig, this.constructor.name);
+    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
   }
 
@@ -122,13 +122,20 @@ export class RemoteConfigManager {
     };
 
     const lastUpdatedAt = new Date();
-    const email = this.localConfig.userEmailAddress;
+    const userIdentity = this.localConfig.userIdentity;
     const soloVersion = getSoloVersion();
     const currentCommand = argv._.join(' ');
 
     this.remoteConfig = new RemoteConfigDataWrapper({
       clusters,
-      metadata: new RemoteConfigMetadata(namespace.name, deployment, state, lastUpdatedAt, email, soloVersion),
+      metadata: new RemoteConfigMetadata(
+        namespace.name,
+        deployment,
+        state,
+        lastUpdatedAt,
+        userIdentity,
+        soloVersion,
+      ),
       commandHistory: [currentCommand],
       lastExecutedCommand: currentCommand,
       components: ComponentsDataWrapper.initializeWithNodes(nodeAliases, clusterReference, namespace.name),
@@ -253,7 +260,7 @@ export class RemoteConfigManager {
     const commandArguments = flags.stringifyArgv(argv);
 
     this.remoteConfig!.addCommandToHistory(
-      `Executed by ${this.localConfig.userEmailAddress}: ${currentCommand} ${commandArguments}`.trim(),
+      `Executed by ${this.localConfig.userIdentity.name}: ${currentCommand} ${commandArguments}`.trim(),
     );
 
     this.populateVersionsInMetadata(argv);
