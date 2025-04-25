@@ -3,7 +3,7 @@
 import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import * as helpers from '../core/helpers.js';
-import {showVersionBanner, sleep} from '../core/helpers.js';
+import {requiresJavaSveFix, showVersionBanner, sleep} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -28,6 +28,9 @@ import {Duration} from '../core/time/duration.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import chalk from 'chalk';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
+import {Containers} from '../integration/kube/resources/container/containers.js';
+import {Container} from '../integration/kube/resources/container/container.js';
+import {Pod} from '../integration/kube/resources/pod/pod.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -89,22 +92,6 @@ export class BlockNodeCommand extends BaseCommand {
         'ingress.hosts[0].host': config.domainName,
         'ingress.hosts[0].paths[0].path': '/',
         'ingress.hosts[0].paths[0].pathType': 'ImplementationSpecific',
-      });
-    }
-
-    // Fix for M4 chips (ARM64)
-
-    const chipType: string[] = await helpers.getAppleSiliconChipset(this.logger);
-    let isAppleM4SeriesChip: boolean = false;
-    for (const chip of chipType) {
-      if (chip.includes('M4')) {
-        isAppleM4SeriesChip = true;
-      }
-    }
-
-    if (isAppleM4SeriesChip) {
-      valuesArgument += helpers.populateHelmArguments({
-        'blockNode.config.JAVA_OPTS': '"-Xms8G -Xmx8G -XX:UseSVE=0"',
       });
     }
 
@@ -226,6 +213,56 @@ export class BlockNodeCommand extends BaseCommand {
                 constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS,
                 constants.BLOCK_NODE_PODS_RUNNING_DELAY,
               );
+          },
+        },
+        {
+          title: 'Check software',
+          task: async (context_, task): Promise<void> => {
+            const config: BlockNodeDeployConfigClass = context_.config;
+
+            const labels: string[] = [`app.kubernetes.io/instance=${config.releaseName}`];
+
+            const blockNodePods: Pod[] = await this.k8Factory
+              .getK8(config.context)
+              .pods()
+              .list(config.namespace, labels);
+
+            if (blockNodePods.length === 0) {
+              throw new SoloError('Failed to list block node pod');
+            }
+
+            const podReference: PodReference = blockNodePods[0].podReference;
+
+            const containerReference: ContainerReference = ContainerReference.of(
+              podReference,
+              constants.BLOCK_NODE_CONTAINER_NAME,
+            );
+
+            const k8Containers: Containers = this.k8Factory.getK8(config.context).containers();
+
+            const container: Container = k8Containers.readByRef(containerReference);
+
+            const shouldApplyJavaSveFix: boolean = await requiresJavaSveFix(container);
+
+            if (!shouldApplyJavaSveFix) {
+              return;
+            }
+
+            task.title += ` - ${chalk.grey('applying Java SVE fix')}`;
+
+            const upgradeValuesArgument: string = helpers.populateHelmArguments({
+              'blockNode.config.JAVA_OPTS': '"-Xms8G -Xmx8G -XX:UseSVE=0"',
+            });
+
+            await this.chartManager.upgrade(
+              config.namespace,
+              config.releaseName,
+              constants.BLOCK_NODE_CHART,
+              constants.BLOCK_NODE_CHART_URL,
+              config.chartVersion,
+              upgradeValuesArgument,
+              config.context,
+            );
           },
         },
         {
