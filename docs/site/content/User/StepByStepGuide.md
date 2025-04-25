@@ -274,7 +274,9 @@ Current Command		: node keys --gossip-keys --tls-keys --node-aliases node1,node2
 ❯ Finalize
 ✔ Finalize
 ```
+
 PEM key files are generated in `~/.solo/cache/keys` directory.
+
 ```
 hedera-node1.crt    hedera-node3.crt    s-private-node1.pem s-public-node1.pem  unused-gossip-pem
 hedera-node1.key    hedera-node3.key    s-private-node2.pem s-public-node2.pem  unused-tls

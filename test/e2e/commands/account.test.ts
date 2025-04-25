@@ -110,10 +110,10 @@ endToEndTestSuite(
           });
         }).timeout(Duration.ofMinutes(3).toMillis());
 
-      describe('special accounts should have new keys', () => {
-        const genesisKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
-        const realm: Realm = argv.getArg(flags.realm);
-        const shard: Shard = argv.getArg(flags.shard);
+        describe('special accounts should have new keys', () => {
+          const genesisKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
+          const realm: Realm = argv.getArg(flags.realm);
+          const shard: Shard = argv.getArg(flags.shard);
 
           before(async function () {
             this.timeout(Duration.ofSeconds(20).toMillis());
