@@ -51,12 +51,12 @@ Certainly, someone will need some working knowledge about Kubernetes cluster to 
 Since `solo` leverages existing Helm charts, it is reasonably easy to seek help from respective teams that are maintaining those Helm charts:
 
 * <https://github.com/hashgraph/full-stack-testing> (Release Engineering Team, @Nathan Klick)
-* <https://github.com/hashgraph/hedera-json-rpc-relay> (Smart Contract Team, @Nana)
-* <https://github.com/hashgraph/hedera-mirror-node> ( Mirror Node Team, @Steven Sheehy )
+* <https://github.com/hiero-ledger/hiero-json-rpc-relay> (Smart Contract Team, @Nana)
+* <https://github.com/hiero-ledger/hiero-mirror-node> ( Mirror Node Team, @Steven Sheehy )
 
 ### Showcasing existing tests and how to run them.
 
-Check: <https://github.com/hashgraph/solo/blob/main/DEV.md>
+Check: <https://github.com/hiero-ledger/solo/blob/main/DEV.md>
 
 ### What documentation exists and where does it live currently.
 

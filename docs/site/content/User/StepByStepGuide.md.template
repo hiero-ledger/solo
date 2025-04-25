@@ -148,7 +148,7 @@ solo node keys --gossip-keys --tls-keys -i node1,node2,node3 --deployment "${SOL
 ```
 $SOLO_NODE_KEY_PEM_OUTPUT
 ```
-PEM key files are generated in `~/.solo/keys` directory.
+PEM key files are generated in `~/.solo/cache/keys` directory.
 ```
 hedera-node1.crt    hedera-node3.crt    s-private-node1.pem s-public-node1.pem  unused-gossip-pem
 hedera-node1.key    hedera-node3.key    s-private-node2.pem s-public-node2.pem  unused-tls
@@ -248,7 +248,7 @@ solo relay deploy -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
 $SOLO_RELAY_DEPLOY_OUTPUT
 ```
 
-#### Access Hedera Services 
+#### Access Hedera Services
 Next: [Access Hedera Services](https://solo.hiero.org/User/AccessHederaServices/)
 
 #### Destroy relay node
@@ -280,7 +280,7 @@ solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
 $SOLO_EXPLORER_DESTROY_OUTPUT
 ```
 
-#### Destroy network 
+#### Destroy network
 ```
 solo network destroy --deployment "${SOLO_DEPLOYMENT}" --force
 ```

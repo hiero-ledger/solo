@@ -1,4 +1,4 @@
-# https://github.com/hashgraph/hedera-json-rpc-relay/blob/main/charts/hedera-json-rpc-relay/values.yaml#L125
+# https://github.com/hiero-ledger/hiero-json-rpc-relay/blob/main/charts/hedera-json-rpc-relay/values.yaml#L125
 
 ingress:
   enabled: true
