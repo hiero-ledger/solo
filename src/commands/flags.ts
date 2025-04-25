@@ -722,7 +722,7 @@ export class Flags {
     name: 'ledger-id',
     definition: {
       describe: 'Ledger ID (a.k.a. Chain ID)',
-      defaultValue: constants.HEDERA_CHAIN_ID, // Ref: https://github.com/hashgraph/hedera-json-rpc-relay#configuration
+      defaultValue: constants.HEDERA_CHAIN_ID, // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay#configuration
       alias: 'l',
       type: 'string',
     },
@@ -738,7 +738,7 @@ export class Flags {
     },
   };
 
-  // Ref: https://github.com/hashgraph/hedera-json-rpc-relay/blob/main/docs/configuration.md
+  // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay/blob/main/docs/configuration.md
   public static readonly operatorId: CommandFlag = {
     constName: 'operatorId',
     name: 'operator-id',
@@ -762,7 +762,7 @@ export class Flags {
     },
   };
 
-  // Ref: https://github.com/hashgraph/hedera-json-rpc-relay/blob/main/docs/configuration.md
+  // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay/blob/main/docs/configuration.md
   public static readonly operatorKey: CommandFlag = {
     constName: 'operatorKey',
     name: 'operator-key',

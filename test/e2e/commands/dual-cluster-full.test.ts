@@ -2,7 +2,6 @@
 
 import {describe} from 'mocha';
 
-import * as semver from 'semver';
 import {Flags} from '../../../src/commands/flags.js';
 import {getTestCacheDirectory, getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
 import {main} from '../../../src/index.js';
@@ -491,15 +490,10 @@ async function verifyMirrorNodeDeployWasSuccessful(
               "expect there to be two nodes in the mirror node's copy of the address book",
             ).to.equal(2);
 
-            if (
-              (enableLocalBuildPathTesting && semver.gte(localBuildReleaseTag.slice(1), '0.62.0')) ||
-              semver.gte(HEDERA_PLATFORM_VERSION_TAG, '0.62.0')
-            ) {
-              expect(
-                object.nodes[0].service_endpoints?.length,
-                'expect there to be at least one service endpoint',
-              ).to.be.greaterThan(0);
-            }
+            expect(
+              object.nodes[0].service_endpoints?.length,
+              'expect there to be at least one service endpoint',
+            ).to.be.greaterThan(0);
 
             received = true;
           });
