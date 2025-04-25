@@ -1,6 +1,6 @@
 {
   "name": "@hashgraph/solo",
-  "version": "0.35.1",
+  "version": "0.36.0",
   "description": "An opinionated CLI tool to deploy and manage private Hedera Networks.",
   "main": "./dist/src/index.js",
   "type": "module",
@@ -24,7 +24,7 @@
   "license": "Apache2.0",
   "dependencies": {
     "@hashgraph/sdk": "^2.63.0",
-    "@inquirer/prompts": "^7.4.1",
+    "@inquirer/prompts": "^7.5.0",
     "@kubernetes/client-node": "^0.22.3",
     "@listr2/prompt-adapter-inquirer": "^2.0.21",
     "@peculiar/x509": "^1.12.3",
@@ -118,7 +118,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hashgraph/solo.git"
+    "url": "git+https://github.com/hiero-ledger/solo.git"
   },
   "os": [
     "darwin",

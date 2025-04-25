@@ -55,6 +55,9 @@ import {CommandInvoker} from './helpers/command-invoker.js';
 import {PathEx} from '../src/business/utils/path-ex.js';
 import {type HelmClient} from '../src/integration/helm/helm-client.js';
 import {type NodeServiceMapping} from '../src/types/mappings/node-service-mapping.js';
+import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../version-test.js';
+import {HEDERA_PLATFORM_VERSION} from '../version.js';
+import {gte as semVersionGte} from 'semver';
 
 export const BASE_TEST_DIR = PathEx.join('test', 'data', 'tmp');
 
@@ -529,14 +532,20 @@ export const testLocalConfigData = {
     deployment: {
       clusters: ['cluster-1'],
       namespace: 'solo-e2e',
+      realm: 0,
+      shard: 0,
     },
     'deployment-2': {
       clusters: ['cluster-2'],
       namespace: 'solo-2',
+      realm: 0,
+      shard: 0,
     },
     'deployment-3': {
       clusters: ['cluster-3'],
       namespace: 'solo-3',
+      realm: 0,
+      shard: 0,
     },
   },
   clusterRefs: {
@@ -546,3 +555,11 @@ export const testLocalConfigData = {
 };
 
 export {HEDERA_PLATFORM_VERSION as HEDERA_PLATFORM_VERSION_TAG} from '../version.js';
+
+export function hederaPlatformSupportsNonZeroRealms() {
+  return semVersionGte(HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
+}
+
+export function localHederaPlatformSupportsNonZeroRealms() {
+  return semVersionGte(TEST_LOCAL_HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
+}

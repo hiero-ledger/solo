@@ -10,6 +10,7 @@ import {
   endToEndTestSuite,
   getTestCluster,
   HEDERA_PLATFORM_VERSION_TAG,
+  hederaPlatformSupportsNonZeroRealms,
 } from '../test-utility.js';
 import {sleep} from '../../src/core/helpers.js';
 import {type NodeAlias} from '../../src/types/aliases.js';
@@ -38,6 +39,8 @@ export function endToEndNodeKeyRefreshTest(testName: string, mode: string, relea
   argv.setArg(flags.generateTlsKeys, true);
   argv.setArg(flags.clusterRef, getTestCluster());
   argv.setArg(flags.devMode, true);
+  argv.setArg(flags.realm, hederaPlatformSupportsNonZeroRealms() ? 65_535 : 0);
+  argv.setArg(flags.shard, hederaPlatformSupportsNonZeroRealms() ? 1023 : 0);
 
   endToEndTestSuite(testName, argv, {}, bootstrapResp => {
     const defaultTimeout = Duration.ofMinutes(2).toMillis();

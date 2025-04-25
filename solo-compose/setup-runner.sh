@@ -5,7 +5,7 @@ BRANCH_NAME="main"
 # Clone repository
 echo "***** Setting up Solo Repository *****"
 
-git clone https://github.com/hashgraph/solo.git solo
+git clone https://github.com/hiero-ledger/solo.git solo
 cd ./solo || exit
 git checkout "${BRANCH_NAME}"
 
