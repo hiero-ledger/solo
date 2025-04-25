@@ -1625,20 +1625,17 @@ export class Flags {
     name: 'block-node-version',
     definition: {
       describe: 'Block nodes chart version',
-      defaultValue: version.MIRROR_NODE_VERSION,
+      defaultValue: version.BLOCK_NODE_VERSION,
       type: 'string',
     },
-    prompt: async function promptMirrorNodeVersion(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: boolean,
-    ): Promise<boolean> {
+    prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: boolean): Promise<boolean> {
       return await Flags.promptToggle(
         task,
         input,
-        Flags.mirrorNodeVersion.definition.defaultValue as boolean,
+        Flags.blockNodeVersion.definition.defaultValue as boolean,
         'Would you like to choose mirror node version? ',
         null,
-        Flags.mirrorNodeVersion.name,
+        Flags.blockNodeVersion.name,
       );
     },
   };
