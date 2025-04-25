@@ -1333,7 +1333,7 @@ export class NodeCommandTasks {
             title: 'Copy gRPC TLS keys to staging',
             task: async () => {
               for (const nodeAlias of nodeAliases) {
-                const tlsKeyFiles = this.keyManager.prepareTLSKeyFilePaths(nodeAlias, config.keysDir);
+                const tlsKeyFiles = this.keyManager.prepareTlsKeyFilePaths(nodeAlias, config.keysDir);
                 this.keyManager.copyNodeKeysToStaging(tlsKeyFiles, config.stagingKeysDir);
               }
             },

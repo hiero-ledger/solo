@@ -923,7 +923,7 @@ export class NetworkCommand extends BaseCommand {
                   task: (context_): void => {
                     const config: NetworkDeployConfigClass = context_.config;
                     for (const nodeAlias of config.nodeAliases) {
-                      const tlsKeyFiles: PrivateKeyAndCertificateObject = this.keyManager.prepareTLSKeyFilePaths(
+                      const tlsKeyFiles: PrivateKeyAndCertificateObject = this.keyManager.prepareTlsKeyFilePaths(
                         nodeAlias,
                         config.keysDir,
                       );
