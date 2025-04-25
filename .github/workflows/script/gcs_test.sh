@@ -126,7 +126,7 @@ if [ "${storageType}" == "minio_only" ]; then
   # Testing node update, add, delete test
   npm run solo-test -- node add --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys --pvcs
   #npm run solo-test -- node update --deployment "${SOLO_DEPLOYMENT}" --node-alias node2 --new-account-number 0.0.7
-  npm run solo-test -- node delete --deployment "${SOLO_DEPLOYMENT}" -i node2
+  npm run solo-test -- node delete --deployment "${SOLO_DEPLOYMENT}" --node-alias node2
 
 else
   # get current script base directory
