@@ -122,19 +122,20 @@ if [ "${storageType}" == "node_add_delete" ]; then
   SOLO_DEPLOYMENT=solo-deployment
   task default
   cd -
-  # Testing node add in CLI
+  # Testing node add in CLI and test transaction to make sure consensus node is working
   npm run solo-test -- node add --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys --pvcs
-  # Send test transaction to make sure consensus node is working
   npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
-  # Testing node delete in CLI
+  # Testing node delete in CLI and test transaction to make sure consensus node is working
   npm run solo-test -- node delete --deployment "${SOLO_DEPLOYMENT}" --node-alias node1
-  # Send test transaction to make sure consensus node is working
   npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
-  # Testing node update in CLI
+  # Testing node update in CLI and test transaction to make sure consensus node is working
   npm run solo-test -- node update --deployment "${SOLO_DEPLOYMENT}" --node-alias node2 --new-account-number 0.0.7
-  # Send test transaction to make sure consensus node is working
+  npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
+
+  # Testing node add in CLI and test transaction to make sure consensus node is working
+  npm run solo-test -- node add --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys --pvcs
   npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
   exit

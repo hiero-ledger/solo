@@ -1063,6 +1063,9 @@ export class NodeCommandTasks {
           config.deployment,
         );
         for (const networkNodeServices of config.serviceMap.values()) {
+          if (networkNodeServices.accountId === constants.IGNORED_NODE_ACCOUNT_ID) {
+            continue;
+          }
           config.existingNodeAliases.push(networkNodeServices.nodeAlias);
         }
         config.allNodeAliases = [...config.existingNodeAliases];
