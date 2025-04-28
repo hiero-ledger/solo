@@ -42,7 +42,7 @@ export class ClusterCommandConfigs {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
-    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfig, this.constructor.name);
+    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
   }
 

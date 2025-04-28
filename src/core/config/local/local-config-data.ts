@@ -4,12 +4,12 @@ import {
   type ClusterReference,
   type ClusterReferences,
   type DeploymentName,
-  type EmailAddress,
   type NamespaceNameAsString,
   type Version,
   type Realm,
   type Shard,
 } from '../remote/types.js';
+import {type UserIdentity} from '../../../data/schema/model/common/user-identity.js';
 
 export interface DeploymentStructure {
   // A list of clusters on which the deployment is deployed
@@ -23,7 +23,7 @@ export type Deployments = Record<DeploymentName, DeploymentStructure>;
 
 export interface LocalConfigData {
   // Only used to differentiate the current user. Not actually used to send emails
-  userEmailAddress: EmailAddress;
+  userIdentity: UserIdentity;
 
   // A list of all deployments
   deployments: Deployments;

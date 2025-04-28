@@ -22,8 +22,8 @@ describe('Certificate Manager', () => {
 
   let certificateManager: CertificateManager;
 
-  before(() => {
-    resetForTest();
+  before(async () => {
+    await resetForTest();
     sinon.stub(K8Client.prototype, 'init').returns(k8InitSpy);
     sinon.stub(K8ClientSecrets.prototype, 'create').resolves(true);
     argv.setArg(flags.namespace, 'namespace');

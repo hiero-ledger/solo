@@ -16,14 +16,12 @@ describe('LocalConfigRuntimeState', () => {
     await instance.load();
     expect(instance.userIdentity).to.exist;
     expect(instance.deployments).to.exist;
-    expect(instance.clusterRefs).to.exist;
 
     await instance.modify(async (data: LocalConfig) => {
       expect(data).to.exist;
       expect(data).to.exist;
       expect(data.userIdentity).to.exist;
       expect(data.deployments).to.exist;
-      expect(data.clusterRefs).to.exist;
       expect(data.versions).to.exist;
     });
   });

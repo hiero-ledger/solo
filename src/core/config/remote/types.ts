@@ -2,10 +2,8 @@
 
 import {type NodeAliases} from '../../../types/aliases.js';
 import {type ComponentType, type ConsensusNodeStates, type DeploymentStates} from './enumerations.js';
-import {User} from '@kubernetes/client-node';
-import {UserIdentity} from '../../../data/schema/model/common/user-identity.js';
+import {type UserIdentity} from '../../../data/schema/model/common/user-identity.js';
 
-export type EmailAddress = `${string}@${string}.${string}`;
 export type Version = string;
 /// TODO - see if we can use NamespaceName and use some annotations and overrides to covert to strings
 export type NamespaceNameAsString = string;

@@ -36,7 +36,7 @@ export class Middlewares {
     );
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
-    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfig, this.constructor.name);
+    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.helpRenderer = patchInject(helpRenderer, InjectTokens.HelpRenderer, this.constructor.name);
   }
 
@@ -177,6 +177,19 @@ export class Middlewares {
         await remoteConfigManager.loadAndValidate(argv, validateRemoteConfig, skipConsensusNodeValidation);
       }
 
+      return argv;
+    };
+  }
+
+  /**
+   * Handles loading local config
+   *
+   * @returns callback function to be executed from listr
+   */
+  public loadLocalConfig() {
+    return async (argv: any): Promise<AnyObject> => {
+      this.logger.debug('Loading local config');
+      await this.localConfig.load();
       return argv;
     };
   }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {SoloError} from '../../errors/solo-error.js';
-import {type EmailAddress, type IMigration, type Version} from './types.js';
-import {UserIdentity} from '../../../data/schema/model/common/user-identity.js';
+import {type IMigration, type Version} from './types.js';
+import {type UserIdentity} from '../../../data/schema/model/common/user-identity.js';
 
 export class Migration implements IMigration {
   private readonly _migratedAt: Date;
@@ -35,7 +35,13 @@ export class Migration implements IMigration {
       throw new SoloError(`Invalid migratedAt: ${this.migratedAt}`);
     }
 
-    if (!this.migratedBy || typeof this.migratedBy !== 'string') {
+    if (
+      !this.migratedBy ||
+      !this.migratedBy.name ||
+      !this.migratedBy.hostname ||
+      typeof this.migratedBy.name !== 'string' ||
+      typeof this.migratedBy.hostname !== 'string'
+    ) {
       throw new SoloError(`Invalid migratedBy: ${this.migratedBy}`);
     }
 

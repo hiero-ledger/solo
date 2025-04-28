@@ -5,8 +5,13 @@ import {Deployment} from './deployment.js';
 import {UserIdentity} from '../common/user-identity.js';
 import {Version} from '../../../../business/utils/version.js';
 import {ApplicationVersions} from '../common/application-versions.js';
-import type {ClusterReference, DeploymentName} from '../../../../core/config/remote/types.js';
-import type {NamespaceName} from '../../../../integration/kube/resources/namespace/namespace-name.js';
+import {
+  type ClusterReference,
+  type DeploymentName,
+  type Realm,
+  type Shard,
+} from '../../../../core/config/remote/types.js';
+import {type NamespaceName} from '../../../../integration/kube/resources/namespace/namespace-name.js';
 
 @Exclude()
 export class LocalConfig {
@@ -53,8 +58,8 @@ export class LocalConfig {
     delete this.clusterRefs[clusterReference];
   }
 
-  public addDeployment(deployment: DeploymentName, namespace: NamespaceName): void {
-    this.deployments[deployment] = {clusters: [], namespace: namespace.name};
+  public addDeployment(deployment: DeploymentName, namespace: NamespaceName, realm: Realm, shard: Shard): void {
+    this.deployments[deployment] = {clusters: [], namespace: namespace.name, realm, shard};
   }
 
   public removeDeployment(deployment: DeploymentName): void {

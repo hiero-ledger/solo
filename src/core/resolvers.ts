@@ -16,14 +16,7 @@ export async function resolveNamespaceFromDeployment(
   task?: SoloListrTaskWrapper<AnyListrContext>,
 ): Promise<NamespaceName> {
   const deploymentName: DeploymentName = await promptTheUserForDeployment(configManager, task);
-
-  if (!localConfig.deployments.hasOwnProperty(deploymentName)) {
-    throw new SoloError(
-      `deployment ${deploymentName}, is missing from deployments: ${JSON.stringify(localConfig.deployments)}`,
-    );
-  }
-
-  return NamespaceName.of(localConfig.deployments[deploymentName].namespace);
+  return NamespaceName.of(localConfig.getDeployment(deploymentName).namespace);
 }
 
 export async function promptTheUserForDeployment(

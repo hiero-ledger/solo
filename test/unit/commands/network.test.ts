@@ -36,6 +36,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {SemVer, lt as SemVersionLessThan} from 'semver';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
+import {LocalConfig} from '../../../src/data/schema/model/local/local-config.js';
 
 const testName = 'network-cmd-unit';
 const namespace = NamespaceName.of(testName);
@@ -73,8 +74,8 @@ describe('NetworkCommand unit tests', () => {
   describe('Chart Install Function is called correctly', () => {
     let options: any;
 
-    beforeEach(() => {
-      resetForTest();
+    beforeEach(async () => {
+      await resetForTest();
       options = {};
 
       options.logger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
@@ -164,7 +165,9 @@ describe('NetworkCommand unit tests', () => {
       options.remoteConfigManager = container.resolve<RemoteConfigManager>(InjectTokens.RemoteConfigManager);
       options.remoteConfigManager.getConfigMap = sinon.stub().returns(null);
 
-      options.localConfig.localConfigData._clusterRefs = {'solo-e2e': 'context-1'};
+      options.localConfig.modify((modelData: LocalConfig): void => {
+        modelData.addClusterRef('solo-e2e', 'context-1');
+      });
 
       options.leaseManager = container.resolve<LockManager>(InjectTokens.LockManager);
       options.leaseManager.currentNamespace = sinon.stub().returns(testName);

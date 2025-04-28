@@ -146,7 +146,6 @@ describe('ClusterCommand', () => {
     argv.setArg(flags.clusterRef, clusterReference);
     argv.setArg(flags.quiet, true);
     argv.setArg(flags.context, contextName);
-    argv.setArg(flags.userEmailAddress, 'test@test.com');
     return {argv, clusterRef: clusterReference, contextName};
   }
 

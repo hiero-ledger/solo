@@ -3,7 +3,7 @@
 import {expect} from 'chai';
 import {describe, it} from 'mocha';
 import {Migration} from '../../../../../src/core/config/remote/migration.js';
-import {type EmailAddress, type Version} from '../../../../../src/core/config/remote/types.js';
+import {type Version} from '../../../../../src/core/config/remote/types.js';
 import {SoloError} from '../../../../../src/core/errors/solo-error.js';
 import {UserIdentity} from '../../../../../src/data/schema/model/common/user-identity.js';
 
@@ -30,7 +30,7 @@ describe('Migration', () => {
 
   describe('Values', () => {
     const migratedAt = new Date();
-    const migratedBy = 'test@test.test' as EmailAddress;
+    const migratedBy = new UserIdentity('test', 'host');
     const fromVersion = '1.0.0' as Version;
 
     it('should not be able to create new instance of the class with invalid migratedAt', () => {

@@ -37,14 +37,14 @@ describe('BaseCommand', () => {
   let baseCmd: BaseCommand;
 
   describe('runShell', () => {
-    before(() => {
-      resetForTest();
+    before( async () => {
+      await resetForTest();
       testLogger = container.resolve(InjectTokens.SoloLogger);
       helm = container.resolve(InjectTokens.Helm);
       chartManager = container.resolve(InjectTokens.ChartManager);
       configManager = container.resolve(InjectTokens.ConfigManager);
       depManager = container.resolve(InjectTokens.DependencyManager);
-      localConfig = container.resolve(InjectTokens.LocalConfig);
+      localConfig = container.resolve(InjectTokens.LocalConfigRuntimeState);
       remoteConfigManager = container.resolve(InjectTokens.RemoteConfigManager);
 
       sandbox = sinon.createSandbox();

@@ -28,7 +28,6 @@ export const InjectTokens = {
   KeyManager: Symbol.for('KeyManager'),
   ProfileManager: Symbol.for('ProfileManager'),
   CertificateManager: Symbol.for('CertificateManager'),
-  LocalConfig: Symbol.for('LocalConfig'),
   RemoteConfigManager: Symbol.for('RemoteConfigManager'),
   ClusterChecks: Symbol.for('ClusterChecks'),
   NetworkNodes: Symbol.for('NetworkNodes'),

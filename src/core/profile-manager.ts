@@ -30,7 +30,7 @@ import {type RemoteConfigManager} from './config/remote/remote-config-manager.js
 import {type ClusterReference, DeploymentName, Realm, Shard} from './config/remote/types.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {AccountManager} from './account-manager.js';
-import {type LocalConfig} from './config/local/local-config.js';
+import {LocalConfigRuntimeState} from '../business/runtime-state/local-config-runtime-state.js';
 
 @injectable()
 export class ProfileManager {
@@ -40,7 +40,7 @@ export class ProfileManager {
   private readonly k8Factory: K8Factory;
   private readonly remoteConfigManager: RemoteConfigManager;
   private readonly accountManager: AccountManager;
-  private readonly localConfig: LocalConfig;
+  private readonly localConfig: LocalConfigRuntimeState;
 
   private profiles: Map<string, AnyObject>;
   private profileFile: Optional<string>;
@@ -52,7 +52,7 @@ export class ProfileManager {
     @inject(InjectTokens.K8Factory) k8Factory?: K8Factory,
     @inject(InjectTokens.RemoteConfigManager) remoteConfigManager?: RemoteConfigManager,
     @inject(InjectTokens.AccountManager) accountManager?: AccountManager,
-    @inject(InjectTokens.LocalConfig) localConfig?: LocalConfig,
+    @inject(InjectTokens.LocalConfigRuntimeState) localConfig?: LocalConfigRuntimeState,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
@@ -64,7 +64,7 @@ export class ProfileManager {
       this.constructor.name,
     );
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
-    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfig, this.constructor.name);
+    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
 
     this.profiles = new Map();
   }

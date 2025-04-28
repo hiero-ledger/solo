@@ -4,15 +4,13 @@ import {Migration} from './migration.js';
 import {SoloError} from '../../errors/solo-error.js';
 import {
   type DeploymentName,
-  type EmailAddress,
   type NamespaceNameAsString,
   type RemoteConfigMetadataStructure,
   type Version,
 } from './types.js';
 import {type Optional, type ToObject, type Validate} from '../../../types/index.js';
 import {DeploymentStates} from './enumerations.js';
-import {User} from '@kubernetes/client-node';
-import {UserIdentity} from '../../../data/schema/model/common/user-identity.js';
+import {type UserIdentity} from '../../../data/schema/model/common/user-identity.js';
 
 /**
  * Represent the remote config metadata object and handles:
@@ -104,7 +102,13 @@ export class RemoteConfigMetadata
       throw new SoloError(`Invalid lastUpdatedAt: ${this.lastUpdatedAt}`);
     }
 
-    if (!this.lastUpdateBy || typeof this.lastUpdateBy !== 'string') {
+    if (
+      !this.lastUpdateBy ||
+      !this.lastUpdateBy.name ||
+      !this.lastUpdateBy.hostname ||
+      typeof this.lastUpdateBy.name !== 'string' ||
+      typeof this.lastUpdateBy.hostname !== 'string'
+    ) {
       throw new SoloError(`Invalid lastUpdateBy: ${this.lastUpdateBy}`);
     }
 

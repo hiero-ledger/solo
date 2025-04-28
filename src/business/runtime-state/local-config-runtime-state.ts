@@ -15,6 +15,8 @@ import {ErrorMessages} from '../../core/error-messages.js';
 import {Deployment} from '../../data/schema/model/local/deployment.js';
 import {ApplicationVersions} from '../../data/schema/model/common/application-versions.js';
 import {LocalConfig} from '../../data/schema/model/local/local-config.js';
+import {DeploymentName, Realm, Shard} from '../../core/config/remote/types.js';
+import {DeploymentNotFoundError} from '../errors/deployment-not-found-error.js';
 
 @injectable()
 export class LocalConfigRuntimeState {
@@ -71,7 +73,24 @@ export class LocalConfigRuntimeState {
     return this.source.modelData.clusterRefs;
   }
 
-  public async modify(callback: (source: LocalConfig) => Promise<void>): Promise<void> {
+  public getDeployment(deploymentName: DeploymentName): Deployment {
+    this.failIfNotLoaded();
+    const deployment = this.deployments.find(d => d.name === deploymentName);
+    if (!deployment) {
+      throw new DeploymentNotFoundError(`Deployment ${deploymentName} not found in local config`);
+    }
+    return deployment;
+  }
+
+  public getRealm(deploymentName: DeploymentName): Realm {
+    return this.getDeployment(deploymentName).realm;
+  }
+
+  public getShard(deploymentName: DeploymentName): Shard {
+    return this.getDeployment(deploymentName).shard;
+  }
+
+  public async modify(callback: (modelData: LocalConfig) => Promise<void>): Promise<void> {
     this.failIfNotLoaded();
     await callback(this.source.modelData);
     return this.write();

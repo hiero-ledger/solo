@@ -286,7 +286,6 @@ function soloClusterReferenceConnectArgv(clusterReference: ClusterReference, con
     clusterReference,
     optionFromFlag(Flags.context),
     context,
-    optionFromFlag(Flags.userEmailAddress),
     'dual.full.cluster.test@host.com',
   );
   argvPushGlobalFlags(argv);

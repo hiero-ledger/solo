@@ -51,7 +51,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {type NodeServiceMapping} from '../types/mappings/node-service-mapping.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {NetworkNodeServicesBuilder} from './network-node-services-builder.js';
-import {LocalConfig} from './config/local/local-config.js';
+import {LocalConfigRuntimeState} from '../business/runtime-state/local-config-runtime-state.js';
 
 const REASON_FAILED_TO_GET_KEYS = 'failed to get keys for accountId';
 const REASON_SKIPPED = 'skipped since it does not have a genesis key';
@@ -70,7 +70,7 @@ export class AccountManager {
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
     @inject(InjectTokens.RemoteConfigManager) private readonly remoteConfigManager?: RemoteConfigManager,
-    @inject(InjectTokens.LocalConfig) private readonly localConfig?: LocalConfig,
+    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
@@ -79,7 +79,7 @@ export class AccountManager {
       InjectTokens.RemoteConfigManager,
       this.constructor.name,
     );
-    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfig, this.constructor.name);
+    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
 
     this._portForwards = [];
     this._nodeClient = null;

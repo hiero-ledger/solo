@@ -144,13 +144,13 @@ export class NodeCommandTasks {
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
     this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
     this.certificateManager = patchInject(certificateManager, InjectTokens.CertificateManager, this.constructor.name);
-    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfig, this.constructor.name);
+    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfigManager = patchInject(
       remoteConfigManager,
       InjectTokens.RemoteConfigManager,
       this.constructor.name,
     );
-    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfig, this.constructor.name);
+    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {

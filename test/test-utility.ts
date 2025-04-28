@@ -511,7 +511,10 @@ async function addKeyHashToMap(
 }
 
 export const testLocalConfigData = {
-  userEmailAddress: 'john.doe@example.com',
+  userIdentity: {
+    name: 'john',
+    host: 'doe',
+  },
   soloVersion: '1.0.0',
   deployments: {
     deployment: {

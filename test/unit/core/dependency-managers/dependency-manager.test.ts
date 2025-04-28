@@ -11,8 +11,8 @@ import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tok
 describe('DependencyManager', () => {
   let depManager: DependencyManager;
 
-  before(() => {
-    resetForTest();
+  before(async () => {
+    await resetForTest();
     depManager = container.resolve(InjectTokens.DependencyManager);
   });
 
