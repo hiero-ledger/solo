@@ -24,6 +24,12 @@ import {type BlockNodeComponent} from '../../../src/core/config/remote/component
 import {ComponentTypes} from '../../../src/core/config/remote/enumerations/component-types.js';
 import {expect} from 'chai';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
+import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
+import {type ExtendedNetServer} from '../../../src/types/index.js';
+import {exec} from 'node:child_process';
+import {promisify} from 'node:util';
+
+const execAsync = promisify(exec);
 
 const testName: string = 'block-node-cmd-e2e';
 const namespace: NamespaceName = NamespaceName.of(testName);
@@ -40,7 +46,7 @@ argv.setArg(flags.force, true);
 
 endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, bootstrapResp => {
   const {
-    opts: {k8Factory, commandInvoker, remoteConfigManager, configManager},
+    opts: {k8Factory, commandInvoker, remoteConfigManager, configManager, logger},
     cmd: {nodeCmd, networkCmd},
   } = bootstrapResp;
 
@@ -76,7 +82,40 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
 
     startNodesTest(argv, commandInvoker, nodeCmd);
 
-    it("Should succeed with removing block node with 'destroy' command", async function () {
+    it('Should be able to use the getSingleBlock Method to validate block node connectivity', async (): Promise<void> => {
+      console.log('SLEEEEEPING');
+      await sleep(Duration.ofSeconds(10));
+      console.log('SLEEEEEPING FINISH');
+
+      const pod: Pod = await k8Factory
+        .default()
+        .pods()
+        .list(namespace, ['solo.hedera.com/type=network-node'])
+        .then((pods: Pod[]): Pod => pods[0]);
+
+      const srv: ExtendedNetServer = await pod.portForward(8080, 8080);
+
+      try {
+        console.log('-------------- 111 --------------');
+        {
+          const {stdout, stderr} = await execAsync('chmod +x ./../../data/get-block.sh');
+          console.log('stdout:', stdout);
+          console.log('stderr:', stderr);
+        }
+
+        console.log('-------------- 222 --------------');
+        {
+          const {stdout, stderr} = await execAsync('./../../data/get-block.sh 1');
+          console.log('stdout:', stdout);
+          console.log('stderr:', stderr);
+        }
+        console.log('-------------- 333 --------------');
+      } finally {
+        await pod.stopPortForward(srv);
+      }
+    });
+
+    it("Should succeed with removing block node with 'destroy' command", async function (): Promise<void> {
       this.timeout(Duration.ofMinutes(2).toMillis());
 
       configManager.reset();
