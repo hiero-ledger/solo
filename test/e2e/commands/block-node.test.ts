@@ -99,14 +99,14 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
         console.log('-------------- 111 --------------');
 
         {
-          const {stdout, stderr} = await execAsync('chmod +x ./get-block.sh', { cwd: './test/data' });
+          const {stdout, stderr} = await execAsync('chmod +x ./get-block.sh', {cwd: './test/data'});
           console.log('stdout:', stdout);
           console.log('stderr:', stderr);
         }
 
         console.log('-------------- 222 --------------');
         {
-          const {stdout, stderr} = await execAsync('./get-block.sh 1', { cwd: './test/data' });
+          const {stdout, stderr} = await execAsync('sh ./get-block.sh 1', {cwd: './test/data'}).catch(console.error);
           console.log('stdout:', stdout);
           console.log('stderr:', stderr);
         }
