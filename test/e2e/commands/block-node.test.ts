@@ -97,36 +97,16 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
 
       try {
         console.log('-------------- 111 --------------');
-        {
-          console.log('pwd');
-          const {stdout, stderr} = await execAsync('pwd');
-          console.log('stdout:', stdout);
-          console.log('stderr:', stderr);
-        }
 
         {
-          console.log('ls ../../')
-          const {stdout, stderr} = await execAsync('ls ../../');
-          console.log('stdout:', stdout);
-          console.log('stderr:', stderr);
-        }
-
-        {
-          console.log('ls ../../data')
-          const {stdout, stderr} = await execAsync('ls ../../data');
-          console.log('stdout:', stdout);
-          console.log('stderr:', stderr);
-        }
-
-        {
-          const {stdout, stderr} = await execAsync('chmod +x ./../../data/get-block.sh');
+          const {stdout, stderr} = await execAsync('chmod +x ./get-block.sh', { cwd: './test/data' });
           console.log('stdout:', stdout);
           console.log('stderr:', stderr);
         }
 
         console.log('-------------- 222 --------------');
         {
-          const {stdout, stderr} = await execAsync('./../../data/get-block.sh 1');
+          const {stdout, stderr} = await execAsync('./get-block.sh 1', { cwd: './test/data' });
           console.log('stdout:', stdout);
           console.log('stderr:', stderr);
         }

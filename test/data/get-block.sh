@@ -14,7 +14,7 @@ fi
 echo "Param is: $1"
 
 # Use environment variables or default values
-GRPC_SERVER=${GRPC_SERVER:-"block-node:8080"}
+GRPC_SERVER=${GRPC_SERVER:-"localhost:8080"}
 GRPC_METHOD=${GRPC_METHOD:-"com.hedera.hapi.block.BlockAccessService/singleBlock"}
 PATH_TO_PROTO="./block_service.proto"
 
