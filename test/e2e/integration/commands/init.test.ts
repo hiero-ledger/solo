@@ -18,7 +18,6 @@ import {Duration} from '../../../../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 import {DEFAULT_LOCAL_CONFIG_FILE} from '../../../../src/core/constants.js';
-import {PathEx} from '../../../../src/business/utils/path-ex.js';
 import {type HelmClient} from '../../../../src/integration/helm/helm-client.js';
 import {SoloWinstonLogger} from '../../../../src/core/logging/solo-winston-logger.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';

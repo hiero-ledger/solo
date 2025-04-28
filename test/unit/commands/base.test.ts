@@ -37,7 +37,7 @@ describe('BaseCommand', () => {
   let baseCmd: BaseCommand;
 
   describe('runShell', () => {
-    before( async () => {
+    before(async () => {
       await resetForTest();
       testLogger = container.resolve(InjectTokens.SoloLogger);
       helm = container.resolve(InjectTokens.Helm);

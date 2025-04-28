@@ -128,14 +128,7 @@ export class RemoteConfigManager {
 
     this.remoteConfig = new RemoteConfigDataWrapper({
       clusters,
-      metadata: new RemoteConfigMetadata(
-        namespace.name,
-        deployment,
-        state,
-        lastUpdatedAt,
-        userIdentity,
-        soloVersion,
-      ),
+      metadata: new RemoteConfigMetadata(namespace.name, deployment, state, lastUpdatedAt, userIdentity, soloVersion),
       commandHistory: [currentCommand],
       lastExecutedCommand: currentCommand,
       components: ComponentsDataWrapper.initializeWithNodes(nodeAliases, clusterReference, namespace.name),

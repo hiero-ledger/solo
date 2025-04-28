@@ -9,7 +9,7 @@ import {type SoloLogger} from '../src/core/logging/solo-logger.js';
 import {PathEx} from '../src/business/utils/path-ex.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../src/core/dependency-injection/inject-tokens.js';
-import {LocalConfigRuntimeState} from '../src/business/runtime-state/local-config-runtime-state.js';
+import {type LocalConfigRuntimeState} from '../src/business/runtime-state/local-config-runtime-state.js';
 
 const CACHE_DIRECTORY = PathEx.join('test', 'data', 'tmp');
 

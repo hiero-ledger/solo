@@ -13,7 +13,6 @@ import {
   number as numberPrompt,
   confirm as confirmPrompt,
 } from '@inquirer/prompts';
-import validator from 'validator';
 import {type AnyListrContext, type AnyObject, type AnyYargs} from '../types/aliases.js';
 import {type ClusterReference} from '../core/config/remote/types.js';
 import {type Optional, type SoloListrTaskWrapper} from '../types/index.js';

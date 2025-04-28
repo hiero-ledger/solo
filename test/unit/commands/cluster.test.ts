@@ -22,7 +22,6 @@ import {Argv} from '../../helpers/argv-wrapper.js';
 import {DefaultHelmClient} from '../../../src/integration/helm/impl/default-helm-client.js';
 import {SoloWinstonLogger} from '../../../src/core/logging/solo-winston-logger.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
-import {getSoloVersion} from '../../../version.js';
 import {LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
 
 const getBaseCommandOptions = (context: string) => {

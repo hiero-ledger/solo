@@ -10,13 +10,13 @@ import {type ObjectMapper} from '../../data/mapper/api/object-mapper.js';
 import {CTObjectMapper} from '../../data/mapper/impl/ct-object-mapper.js';
 import {ConfigKeyFormatter} from '../../data/key/config-key-formatter.js';
 import {UserIdentity} from '../../data/schema/model/common/user-identity.js';
-import {SoloError} from '../../core/errors/solo-error.js';
-import {ErrorMessages} from '../../core/error-messages.js';
 import {Deployment} from '../../data/schema/model/local/deployment.js';
 import {ApplicationVersions} from '../../data/schema/model/common/application-versions.js';
 import {LocalConfig} from '../../data/schema/model/local/local-config.js';
 import {DeploymentName, Realm, Shard} from '../../core/config/remote/types.js';
 import {DeploymentNotFoundError} from '../errors/deployment-not-found-error.js';
+import {ReadLocalConfigBeforeLoadError} from '../errors/read-local-config-before-load-error.js';
+import {WriteLocalConfigBeforeLoadError} from '../errors/write-local-config-before-load-error.js';
 
 @injectable()
 export class LocalConfigRuntimeState {
@@ -49,7 +49,7 @@ export class LocalConfigRuntimeState {
 
   private failIfNotLoaded(): void {
     if (!this.isLoaded()) {
-      throw new SoloError(ErrorMessages.LOCAL_CONFIG_READING_BEFORE_LOADING);
+      throw new ReadLocalConfigBeforeLoadError('Attempting to read from local config before loading it');
     }
   }
 
@@ -91,7 +91,9 @@ export class LocalConfigRuntimeState {
   }
 
   public async modify(callback: (modelData: LocalConfig) => Promise<void>): Promise<void> {
-    this.failIfNotLoaded();
+    if (!this.isLoaded()) {
+      throw new WriteLocalConfigBeforeLoadError('Attempting to modify local config before loading it');
+    }
     await callback(this.source.modelData);
     return this.write();
   }
@@ -110,11 +112,7 @@ export class LocalConfigRuntimeState {
 
   // Loads the source data and writes it back in case of migrations
   public async load(): Promise<void> {
-    if (await this.configFileExists()) {
-      await this.source.refresh();
-    } else {
-      await this.create();
-    }
+    await ((await this.configFileExists()) ? this.source.refresh() : this.create());
 
     return this.write();
   }

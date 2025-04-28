@@ -36,7 +36,6 @@ export class InitCommand extends BaseCommand {
           task: context_ => {
             self.configManager.update(argv);
             context_.dirs = this.setupHomeDirectory();
-
           },
         },
         {

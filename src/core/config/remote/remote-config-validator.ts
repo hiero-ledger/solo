@@ -9,7 +9,7 @@ import {type ComponentsDataWrapper} from './components-data-wrapper.js';
 import {type BaseComponent} from './components/base-component.js';
 import {type NamespaceName} from '../../../integration/kube/resources/namespace/namespace-name.js';
 import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
-import {LocalConfigRuntimeState} from '../../../business/runtime-state/local-config-runtime-state.js';
+import {type LocalConfigRuntimeState} from '../../../business/runtime-state/local-config-runtime-state.js';
 
 /**
  * Static class is used to validate that components in the remote config
