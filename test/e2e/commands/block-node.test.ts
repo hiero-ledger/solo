@@ -98,6 +98,27 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
       try {
         console.log('-------------- 111 --------------');
         {
+          console.log('pwd');
+          const {stdout, stderr} = await execAsync('pwd');
+          console.log('stdout:', stdout);
+          console.log('stderr:', stderr);
+        }
+
+        {
+          console.log('ls ../../')
+          const {stdout, stderr} = await execAsync('ls ../../');
+          console.log('stdout:', stdout);
+          console.log('stderr:', stderr);
+        }
+
+        {
+          console.log('ls ../../data')
+          const {stdout, stderr} = await execAsync('ls ../../data');
+          console.log('stdout:', stdout);
+          console.log('stderr:', stderr);
+        }
+
+        {
           const {stdout, stderr} = await execAsync('chmod +x ./../../data/get-block.sh');
           console.log('stdout:', stdout);
           console.log('stderr:', stderr);
