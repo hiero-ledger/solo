@@ -117,17 +117,33 @@ SOLO_DEPLOYMENT=solo-e2e
 
 kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 
+if [ "${storageType}" == "node_add_delete" ]; then
+  cd examples
+  SOLO_DEPLOYMENT=solo-deployment
+  task default
+  cd -
+  # Testing node add
+  npm run solo-test -- node add --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys --pvcs
+  # Send test transaction to make sure consensus node is working
+  npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
+
+  # Testing node delete
+  npm run solo-test -- node delete --deployment "${SOLO_DEPLOYMENT}" --node-alias node3
+  # Send test transaction to make sure consensus node is working
+  npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
+
+  # Testing node update
+  npm run solo-test -- node update --deployment "${SOLO_DEPLOYMENT}" --node-alias node2 --new-account-number 0.0.7
+  # Send test transaction to make sure consensus node is working
+  npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
+  exit
+fi
+
 if [ "${storageType}" == "minio_only" ]; then
   cd examples
   SOLO_DEPLOYMENT=solo-deployment
   task default-with-mirror
   cd -
-
-  # Testing node update, add, delete test
-  npm run solo-test -- node add --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys --pvcs
-  #npm run solo-test -- node update --deployment "${SOLO_DEPLOYMENT}" --node-alias node2 --new-account-number 0.0.7
-  npm run solo-test -- node delete --deployment "${SOLO_DEPLOYMENT}" --node-alias node2
-
 else
   # get current script base directory
   script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

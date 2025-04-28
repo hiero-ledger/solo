@@ -40,7 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        storageType: ["gcs_only", "minio_only", "aws_only"]
+        storageType: ["gcs_only", "minio_only", "aws_only", "node_add_delete"]
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0

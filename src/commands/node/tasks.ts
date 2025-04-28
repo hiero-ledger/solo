@@ -91,7 +91,7 @@ import {type RemoteConfigManager} from '../../core/config/remote/remote-config-m
 import {type LocalConfig} from '../../core/config/local/local-config.js';
 import {BaseCommand} from '../base.js';
 import {ConsensusNodeComponent} from '../../core/config/remote/components/consensus-node-component.js';
-import {ConsensusNodeStates} from '../../core/config/remote/enumerations.js';
+import {ComponentType, ConsensusNodeStates} from '../../core/config/remote/enumerations.js';
 import {EnvoyProxyComponent} from '../../core/config/remote/components/envoy-proxy-component.js';
 import {HaProxyComponent} from '../../core/config/remote/components/ha-proxy-component.js';
 import {HEDERA_PLATFORM_VERSION} from '../../../version.js';
@@ -1971,7 +1971,6 @@ export class NodeCommandTasks {
             this.prepareValuesArgForNodeDelete(
               consensusNodes,
               valuesArgumentMap,
-              nodeId,
               config.nodeAlias,
               config.serviceMap,
               clusterNodeIndexMap,
@@ -2152,7 +2151,6 @@ export class NodeCommandTasks {
   private prepareValuesArgForNodeDelete(
     consensusNodes: ConsensusNode[],
     valuesArgumentMap: Record<ClusterReference, string>,
-    nodeId: NodeId,
     nodeAlias: NodeAlias,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
     clusterNodeIndexMap: Record<ClusterReference, Record<NodeId, /* index in the chart -> */ number>>,
@@ -2162,21 +2160,13 @@ export class NodeCommandTasks {
 
       // The index inside the chart
       const index = clusterNodeIndexMap[clusterReference][consensusNode.nodeId];
-
+      const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
       // For nodes that are not being deleted
       if (consensusNode.nodeId !== nodeId) {
         valuesArgumentMap[clusterReference] +=
           ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(consensusNode.name).accountId}"` +
           ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
           ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
-      }
-
-      // When deleting node
-      else if (consensusNode.nodeId === nodeId) {
-        valuesArgumentMap[clusterReference] +=
-          ` --set "hedera.nodes[${index}].accountId=${IGNORED_NODE_ACCOUNT_ID}"` +
-          ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
-          ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}" `;
       }
     }
 
@@ -2556,6 +2546,32 @@ export class NodeCommandTasks {
             ),
           );
         }
+      },
+    };
+  }
+
+  public deleteConsensusNodeToRemoteConfig(): SoloListrTask<NodeDeleteContext> {
+    return {
+      title: 'Delete node from remote config',
+      task: async (context_, task) => {
+        const nodeAlias = context_.config.nodeAlias;
+        const namespace: NamespaceNameAsString = context_.config.namespace.name;
+
+        task.title += `: ${nodeAlias}`;
+
+        await this.remoteConfigManager.modify(async remoteConfig => {
+          // Remove the consensus node component
+          remoteConfig.components.remove(nodeAlias, ComponentType.ConsensusNode);
+
+          // Remove the envoy proxy component
+          remoteConfig.components.remove(`envoy-proxy-${nodeAlias}`, ComponentType.EnvoyProxy);
+
+          // Remove the haproxy component
+          remoteConfig.components.remove(`haproxy-${nodeAlias}`, ComponentType.HaProxy);
+        });
+
+        // Update the consensus nodes list
+        context_.config.consensusNodes = this.remoteConfigManager.getConsensusNodes();
       },
     };
   }
