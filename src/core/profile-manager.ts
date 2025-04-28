@@ -255,10 +255,7 @@ export class ProfileManager {
       this.localConfig.getShard(deploymentName),
     );
 
-    const hasDeployedBlockNodes: boolean = Object.keys(this.remoteConfigManager.components.blockNodes).length > 0;
-    if (hasDeployedBlockNodes) {
-      await this.updateApplicationPropertiesForBlockNode(applicationPropertiesPath);
-    }
+    await this.updateApplicationPropertiesForBlockNode(applicationPropertiesPath);
 
     for (const flag of flags.nodeConfigFileFlags.values()) {
       const filePath = this.configManager.getFlagFile(flag);
@@ -438,6 +435,11 @@ export class ProfileManager {
   }
 
   private async updateApplicationPropertiesForBlockNode(applicationPropertiesPath: string): Promise<void> {
+    const hasDeployedBlockNodes: boolean = Object.keys(this.remoteConfigManager.components.blockNodes).length > 0;
+    if (!hasDeployedBlockNodes) {
+      return;
+    }
+
     const lines: string[] = (await readFile(applicationPropertiesPath, 'utf-8')).split('\n');
 
     const streamMode: string = 'BOTH';

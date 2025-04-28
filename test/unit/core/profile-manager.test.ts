@@ -93,6 +93,8 @@ describe('ProfileManager', () => {
 
     // @ts-expect-error - TS2339: to mock
     profileManager.remoteConfigManager.getConsensusNodes = sinon.stub().returns(consensusNodes);
+    // @ts-expect-error - TS2339: to mock
+    profileManager.updateApplicationPropertiesForBlockNode = sinon.stub();
   });
 
   after(() => {

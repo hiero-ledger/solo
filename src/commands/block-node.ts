@@ -8,13 +8,7 @@ import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {
-  type AnyListrContext,
-  type AnyYargs,
-  type ArgvStruct,
-  type NodeAlias,
-  type NodeAliases,
-} from '../types/aliases.js';
+import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {type ClusterReference, type DeploymentName} from '../core/config/remote/types.js';
 import {type CommandDefinition, type Optional, type SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
