@@ -2168,6 +2168,14 @@ export class NodeCommandTasks {
           ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
           ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
       }
+
+      // When deleting node
+      else if (consensusNode.nodeId === nodeId) {
+        valuesArgumentMap[clusterReference] +=
+          ` --set "hedera.nodes[${index}].accountId=${IGNORED_NODE_ACCOUNT_ID}"` +
+          ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
+          ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}" `;
+      }
     }
 
     // now remove the deleted node from the serviceMap
@@ -2546,32 +2554,6 @@ export class NodeCommandTasks {
             ),
           );
         }
-      },
-    };
-  }
-
-  public deleteConsensusNodeToRemoteConfig(): SoloListrTask<NodeDeleteContext> {
-    return {
-      title: 'Delete node from remote config',
-      task: async (context_, task) => {
-        const nodeAlias = context_.config.nodeAlias;
-        const namespace: NamespaceNameAsString = context_.config.namespace.name;
-
-        task.title += `: ${nodeAlias}`;
-
-        await this.remoteConfigManager.modify(async remoteConfig => {
-          // Remove the consensus node component
-          remoteConfig.components.remove(nodeAlias, ComponentType.ConsensusNode);
-
-          // Remove the envoy proxy component
-          remoteConfig.components.remove(`envoy-proxy-${nodeAlias}`, ComponentType.EnvoyProxy);
-
-          // Remove the haproxy component
-          remoteConfig.components.remove(`haproxy-${nodeAlias}`, ComponentType.HaProxy);
-        });
-
-        // Update the consensus nodes list
-        context_.config.consensusNodes = this.remoteConfigManager.getConsensusNodes();
       },
     };
   }

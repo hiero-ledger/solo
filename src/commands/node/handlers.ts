@@ -92,7 +92,6 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.copyNodeKeysToSecrets('refreshedConsensusNodes'),
       this.tasks.getNodeLogsAndConfigs(),
       this.tasks.updateChartWithConfigMap('Delete network node and update configMaps', NodeSubcommandType.DELETE),
-      this.tasks.deleteConsensusNodeToRemoteConfig(),
       this.tasks.sleep('Give time for the delated pod to be terminated', 20_000),
       this.tasks.killNodesAndUpdateConfigMap(),
       this.tasks.checkNodePodsAreRunning(),
