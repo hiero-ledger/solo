@@ -13,7 +13,6 @@ import {LocalConfigSchema} from '../../../../../../src/data/schema/migration/imp
 import {CTObjectMapper} from '../../../../../../src/data/mapper/impl/ct-object-mapper.js';
 import {ApplicationVersions} from '../../../../../../src/data/schema/model/common/application-versions.js';
 import {
-  getSoloVersion,
   HEDERA_EXPLORER_VERSION,
   HEDERA_JSON_RPC_RELAY_VERSION,
   HEDERA_PLATFORM_VERSION,
@@ -24,7 +23,8 @@ import {ConfigKeyFormatter} from '../../../../../../src/data/key/config-key-form
 
 describe('LocalConfig', () => {
   const schema: LocalConfigSchema = new LocalConfigSchema(new CTObjectMapper(ConfigKeyFormatter.instance()));
-  const localConfigPath = `test/data/v${getSoloVersion()}-local-config.yaml`;
+  const soloVersion: string = '0.35.1';
+  const localConfigPath = `test/data/v${soloVersion}-local-config.yaml`;
 
   describe('Class Transformer', () => {
     let yamlData: string;
@@ -46,7 +46,11 @@ describe('LocalConfig', () => {
       expect(lc.versions.cli).to.deep.equal(new SemVer('0.35.1'));
       expect(lc.deployments).to.have.lengthOf(2);
       expect(lc.deployments[0].name).to.equal('dual-cluster-full-deployment');
+      expect(lc.deployments[0].realm).to.equal(0);
+      expect(lc.deployments[0].shard).to.equal(0);
       expect(lc.deployments[1].name).to.equal('deployment');
+      expect(lc.deployments[1].realm).to.equal(0);
+      expect(lc.deployments[1].shard).to.equal(0);
       expect(lc.clusterRefs).to.be.instanceOf(Map);
       expect(lc.clusterRefs).to.have.lengthOf(4);
       expect(lc.userIdentity).to.not.be.undefined.and.to.not.be.null;
@@ -55,8 +59,8 @@ describe('LocalConfig', () => {
 
     it('should transform class to plain', async () => {
       const deployments: Deployment[] = [
-        new Deployment('dual-cluster-full-deployment', 'dual-cluster-full', ['e2e-cluster-1', 'e2e-cluster-2']),
-        new Deployment('deployment', 'solo-e2e', ['cluster-1']),
+        new Deployment('dual-cluster-full-deployment', 'dual-cluster-full', ['e2e-cluster-1', 'e2e-cluster-2'], 0, 0),
+        new Deployment('deployment', 'solo-e2e', ['cluster-1'], 0, 0),
       ];
 
       const clusterReferences: Map<string, string> = new Map<string, string>();
@@ -66,14 +70,14 @@ describe('LocalConfig', () => {
       clusterReferences.set('e2e-cluster-2', 'kind-solo-e2e-c2');
 
       const versions = new ApplicationVersions(
-        new SemVer(getSoloVersion()),
+        new SemVer(soloVersion),
         new SemVer(SOLO_CHART_VERSION),
         new SemVer(HEDERA_PLATFORM_VERSION),
         new SemVer(MIRROR_NODE_VERSION),
         new SemVer(HEDERA_EXPLORER_VERSION),
         new SemVer(HEDERA_JSON_RPC_RELAY_VERSION),
       );
-      const lc = new LocalConfig(1, versions, deployments, clusterReferences);
+      const lc = new LocalConfig(2, versions, deployments, clusterReferences);
       const newPlainObject: object = instanceToPlain(lc);
 
       expect(newPlainObject).to.not.be.undefined.and.to.not.be.null;

@@ -722,7 +722,7 @@ export class Flags {
     name: 'ledger-id',
     definition: {
       describe: 'Ledger ID (a.k.a. Chain ID)',
-      defaultValue: constants.HEDERA_CHAIN_ID, // Ref: https://github.com/hashgraph/hedera-json-rpc-relay#configuration
+      defaultValue: constants.HEDERA_CHAIN_ID, // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay#configuration
       alias: 'l',
       type: 'string',
     },
@@ -738,7 +738,7 @@ export class Flags {
     },
   };
 
-  // Ref: https://github.com/hashgraph/hedera-json-rpc-relay/blob/main/docs/configuration.md
+  // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay/blob/main/docs/configuration.md
   public static readonly operatorId: CommandFlag = {
     constName: 'operatorId',
     name: 'operator-id',
@@ -762,7 +762,7 @@ export class Flags {
     },
   };
 
-  // Ref: https://github.com/hashgraph/hedera-json-rpc-relay/blob/main/docs/configuration.md
+  // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay/blob/main/docs/configuration.md
   public static readonly operatorKey: CommandFlag = {
     constName: 'operatorKey',
     name: 'operator-key',
@@ -2408,6 +2408,28 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly realm: CommandFlag = {
+    constName: 'realm',
+    name: 'realm',
+    definition: {
+      describe: 'Realm number. Requires network-node > v61.0 for non-zero values',
+      type: 'number',
+      defaultValue: 0,
+    },
+    prompt: undefined,
+  };
+
+  public static readonly shard: CommandFlag = {
+    constName: 'shard',
+    name: 'shard',
+    definition: {
+      describe: 'Shard number. Requires network-node > v61.0 for non-zero values',
+      type: 'number',
+      defaultValue: 0,
+    },
+    prompt: undefined,
+  };
+
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.adminKey,
@@ -2535,6 +2557,8 @@ export class Flags {
     Flags.dnsConsensusNodePattern,
     Flags.domainName,
     Flags.domainNames,
+    Flags.realm,
+    Flags.shard,
   ];
 
   /** Resets the definition.disablePrompt for all flags */
