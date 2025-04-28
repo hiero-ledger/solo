@@ -28,6 +28,7 @@ import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type ExtendedNetServer} from '../../../src/types/index.js';
 import {exec} from 'node:child_process';
 import {promisify} from 'node:util';
+import * as constants from '../../../src/core/constants.js';
 
 const execAsync = promisify(exec);
 
@@ -83,34 +84,23 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
     startNodesTest(argv, commandInvoker, nodeCmd);
 
     it('Should be able to use the getSingleBlock Method to validate block node connectivity', async (): Promise<void> => {
-      console.log('SLEEEEEPING');
-      await sleep(Duration.ofSeconds(10));
-      console.log('SLEEEEEPING FINISH');
-
       const pod: Pod = await k8Factory
         .default()
         .pods()
-        .list(namespace, ['solo.hedera.com/type=network-node'])
+        .list(namespace, [`app.kubernetes.io/instance=${constants.BLOCK_NODE_RELEASE_NAME}`])
         .then((pods: Pod[]): Pod => pods[0]);
 
       const srv: ExtendedNetServer = await pod.portForward(8080, 8080);
-
       try {
-        console.log('-------------- 111 --------------');
+        const commandOptions: {cwd: string} = {cwd: './test/data'};
 
-        {
-          const {stdout, stderr} = await execAsync('chmod +x ./get-block.sh', {cwd: './test/data'});
-          console.log('stdout:', stdout);
-          console.log('stderr:', stderr);
-        }
+        // Make script executable
+        await execAsync('chmod +x ./get-block.sh', commandOptions);
 
-        console.log('-------------- 222 --------------');
-        {
-          const {stdout, stderr} = await execAsync('sh ./get-block.sh 1', {cwd: './test/data'}).catch(console.error);
-          console.log('stdout:', stdout);
-          console.log('stderr:', stderr);
-        }
-        console.log('-------------- 333 --------------');
+        // Execute script
+        const scriptStd: {stdout: string; stderr: string} = await execAsync('sh ./get-block.sh 1', commandOptions);
+
+        logger.showUserError(scriptStd);
       } finally {
         await pod.stopPortForward(srv);
       }
