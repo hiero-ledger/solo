@@ -36,6 +36,7 @@ const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS = [
   flags.gossipEndpoints,
   flags.grpcEndpoints,
   flags.domainNames,
+  flags.releaseTag,
 ];
 
 export const UPGRADE_FLAGS = {
