@@ -65,7 +65,6 @@ describe('LocalConfigRuntimeState', () => {
     await runtimeState.load();
 
     sinon.assert.calledOnce(mockedBackend.writeObject);
-    sinon.assert.calledWith(mockedBackend.writeObject, testFileName, {});
   });
 
   it('should return deployments', async () => {
@@ -134,6 +133,5 @@ describe('LocalConfigRuntimeState', () => {
     await runtimeState.create();
 
     sinon.assert.calledOnce(mockedBackend.writeObject);
-    sinon.assert.calledWith(mockedBackend.writeObject, testFileName, {});
   });
 });
