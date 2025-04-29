@@ -7,7 +7,7 @@ import {Flags as flags} from '../../../src/commands/flags.js';
 import {
   accountCreationShouldSucceed,
   balanceQueryShouldSucceed,
-  endToEndTestSuite,
+  endToEndTestSuite, getTemporaryDirectory,
   HEDERA_PLATFORM_VERSION_TAG,
 } from '../../test-utility.js';
 import {HEDERA_HAPI_PATH, ROOT_CONTAINER} from '../../../src/core/constants.js';
@@ -67,6 +67,28 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
 
       await accountManager.close();
     }).timeout(Duration.ofMinutes(10).toMillis());
+
+    it('should be able to create account after a node delete', async () => {
+      await commandInvoker.invoke({
+        argv: argv,
+        command: AccountCommand.COMMAND_NAME,
+        subcommand: 'create',
+        callback: async argv => accountCmd.create(argv),
+      });
+    });
+
+    it('should be able to update a node after node delete', async () => {
+      argv.setArg(flags.newAccountNumber, '0.0.7');
+
+      await commandInvoker.invoke({
+        argv: argv,
+        command: NodeCommand.COMMAND_NAME,
+        subcommand: 'update',
+        callback: async argv => nodeCmd.handlers.update(argv),
+      });
+
+      await accountManager.close();
+    }).timeout(Duration.ofMinutes(30).toMillis());
 
     balanceQueryShouldSucceed(accountManager, namespace, remoteConfigManager, logger, deleteNodeAlias);
 

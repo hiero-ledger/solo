@@ -115,6 +115,15 @@ export function testNodeAdd(
         await accountManager.close();
       }).timeout(Duration.ofMinutes(12).toMillis());
 
+      it('should be able to create account after a node add', async () => {
+        await commandInvoker.invoke({
+          argv: argv,
+          command: AccountCommand.COMMAND_NAME,
+          subcommand: 'create',
+          callback: async argv => accountCmd.create(argv),
+        });
+      });
+
       balanceQueryShouldSucceed(accountManager, namespace, remoteConfigManager, logger);
 
       accountCreationShouldSucceed(accountManager, namespace, remoteConfigManager, logger);
