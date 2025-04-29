@@ -26,7 +26,7 @@ import {Templates} from '../core/templates.js';
 import {ConsensusNodeComponent} from '../core/config/remote/components/consensus-node-component.js';
 import {Cluster} from '../core/config/remote/cluster.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {Deployment} from '../data/schema/model/local/deployment.js';
+import {type Deployment} from '../data/schema/model/local/deployment.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -210,7 +210,7 @@ export class DeploymentCommand extends BaseCommand {
           title: 'Check for existing remote resources',
           task: async (context_, task) => {
             const {deployment} = context_.config;
-            const clusterReferences = self.localConfig.getDeployment(deployment). clusters;
+            const clusterReferences = self.localConfig.getDeployment(deployment).clusters;
             for (const clusterReference of clusterReferences) {
               const context = self.localConfig.clusterRefs.get(clusterReference);
               const namespace = NamespaceName.of(self.localConfig.getDeployment(deployment).namespace);

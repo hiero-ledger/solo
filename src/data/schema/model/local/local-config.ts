@@ -12,7 +12,6 @@ import {
   type Shard,
 } from '../../../../core/config/remote/types.js';
 import {type NamespaceName} from '../../../../integration/kube/resources/namespace/namespace-name.js';
-import {DeploymentCommand} from '../../../../commands/deployment.js';
 
 @Exclude()
 export class LocalConfig {
