@@ -74,6 +74,8 @@ import {type Lock} from '../core/lock/lock.js';
 import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
 import {type Service} from '../integration/kube/resources/service/service.js';
 import {SemVer, lt as SemVersionLessThan} from 'semver';
+import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
+import {type Container} from '../integration/kube/resources/container/container.js';
 
 export interface NetworkDeployConfigClass {
   applicationEnv: string;
@@ -1182,6 +1184,40 @@ export class NetworkCommand extends BaseCommand {
           },
         },
         this.addNodesAndProxies(),
+        {
+          title: 'Copy block-nodes.json',
+          skip: (context_): boolean => context_.config.blockNodeComponents.length === 0,
+          task: async (context_, task): Promise<void> => {
+            const config: NetworkDeployConfigClass = context_.config;
+
+            const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'block-nodes.json');
+            const targetDirectory: string = '/opt/hgcapp/data/config';
+
+            for (const consensusNode of config.consensusNodes) {
+              const podReference: PodReference = await this.k8Factory
+                .getK8(consensusNode.cluster)
+                .pods()
+                .list(config.namespace, [
+                  `solo.hedera.com/node-name=${consensusNode.name}`,
+                  'solo.hedera.com/type=network-node',
+                ])
+                .then((pods: Pod[]): PodReference => pods[0].podReference);
+
+              const rootContainer: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+
+              const container: Container = this.k8Factory
+                .getK8(consensusNode.context)
+                .containers()
+                .readByRef(rootContainer);
+
+              await container.execContainer('pwd');
+
+              await container.execContainer(`mkdir -p ${targetDirectory}`);
+
+              await container.copyTo(blockNodesJsonPath, targetDirectory);
+            }
+          },
+        },
       ],
       {
         concurrent: false,

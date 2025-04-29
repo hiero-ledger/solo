@@ -100,6 +100,12 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
         // Execute script
         const scriptStd: {stdout: string; stderr: string} = await execAsync('sh ./get-block.sh 1', commandOptions);
 
+        expect(scriptStd.stderr).to.equal('');
+
+        const getBlockResponse: {status: string} = JSON.parse(scriptStd.stdout);
+
+        expect(getBlockResponse.status).to.equal('READ_BLOCK_SUCCESS');
+
         logger.showUserError(scriptStd);
       } finally {
         await pod.stopPortForward(srv);
