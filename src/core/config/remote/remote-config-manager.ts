@@ -390,13 +390,13 @@ export class RemoteConfigManager {
       throw new SoloError('Failed to get deployment');
     }
 
-    const clusterReferences: ClusterReference[] = this.localConfig.deployments[deploymentName]?.clusters;
+    const clusterReferences: ClusterReference[] = this.localConfig.getDeployment(deploymentName).clusters;
 
     if (!clusterReferences) {
       throw new SoloError(`Failed to get get cluster refs from local config for deployment ${deploymentName}`);
     }
 
-    const contexts = clusterReferences.map(clusterReference => this.localConfig.clusterRefs[clusterReference]);
+    const contexts = clusterReferences.map(clusterReference => this.localConfig.clusterRefs.get(clusterReference));
 
     await Promise.all(
       contexts.map(context => this.k8Factory.getK8(context).configMaps().replace(namespace, name, labels, data)),
@@ -410,11 +410,11 @@ export class RemoteConfigManager {
 
     // TODO: Current quick fix for commands where namespace is not passed
     let deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
-    let currentDeployment = this.localConfig.deployments[deploymentName];
+    let currentDeployment = this.localConfig.getDeployment(deploymentName);
 
     if (!deploymentName) {
       deploymentName = await promptTheUserForDeployment(this.configManager);
-      currentDeployment = this.localConfig.deployments[deploymentName];
+      currentDeployment = this.localConfig.getDeployment(deploymentName);
       // TODO: Fix once we have the DataManager,
       //       without this the user will be prompted a second time for the deployment
       // TODO: we should not be mutating argv
@@ -474,7 +474,7 @@ export class RemoteConfigManager {
 
     for (const node of Object.values(this.components.consensusNodes)) {
       const cluster = this.clusters[node.cluster];
-      const context = this.localConfig.clusterRefs[node.cluster];
+      const context = this.localConfig.clusterRefs.get(node.cluster);
 
       consensusNodes.push(
         new ConsensusNode(
@@ -527,9 +527,9 @@ export class RemoteConfigManager {
   private getContextForFirstCluster(): string {
     const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
 
-    const clusterReference: ClusterReference = this.localConfig.deployments[deploymentName].clusters[0];
+    const clusterReference: ClusterReference = this.localConfig.getDeployment(deploymentName).clusters[0];
 
-    const context = this.localConfig.clusterRefs[clusterReference];
+    const context = this.localConfig.clusterRefs.get(clusterReference);
 
     this.logger.debug(`Using context ${context} for cluster ${clusterReference} for deployment ${deploymentName}`);
 

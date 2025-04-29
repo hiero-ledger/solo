@@ -357,7 +357,7 @@ export class MirrorNodeCommand extends BaseCommand {
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
 
             context_.config.clusterContext = context_.config.clusterRef
-              ? this.localConfig.clusterRefs[context_.config.clusterRef]
+              ? this.localConfig.clusterRefs.get(context_.config.clusterRef)
               : this.k8Factory.default().contexts().readCurrent();
 
             const deploymentName: DeploymentName = self.configManager.getFlag<DeploymentName>(flags.deployment);
@@ -747,7 +747,7 @@ export class MirrorNodeCommand extends BaseCommand {
             const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
             const clusterReference = this.configManager.getFlag<string>(flags.clusterRef) as string;
             const clusterContext = clusterReference
-              ? this.localConfig.clusterRefs[clusterReference]
+              ? this.localConfig.clusterRefs.get(clusterReference)
               : this.k8Factory.default().contexts().readCurrent();
 
             if (!(await self.k8Factory.getK8(clusterContext).namespaces().has(namespace))) {

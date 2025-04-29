@@ -154,7 +154,7 @@ export class RelayCommand extends BaseCommand {
       valuesArgument += ` --set config.OPERATOR_KEY_MAIN=${operatorKey}`;
     } else {
       try {
-        const namespace = NamespaceName.of(this.localConfig.deployments[deploymentName].namespace);
+        const namespace = NamespaceName.of(this.localConfig.getDeployment(deploymentName).namespace);
 
         const k8 = this.k8Factory.getK8(context);
         const secrets = await k8.secrets().list(namespace, [`solo.hedera.com/account-id=${operatorIdUsing}`]);

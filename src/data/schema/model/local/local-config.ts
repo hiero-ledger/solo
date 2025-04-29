@@ -12,6 +12,7 @@ import {
   type Shard,
 } from '../../../../core/config/remote/types.js';
 import {type NamespaceName} from '../../../../integration/kube/resources/namespace/namespace-name.js';
+import {DeploymentCommand} from '../../../../commands/deployment.js';
 
 @Exclude()
 export class LocalConfig {
@@ -51,22 +52,25 @@ export class LocalConfig {
   }
 
   public addClusterRef(clusterReference: ClusterReference, context: string): void {
-    this.clusterRefs[clusterReference] = context;
+    this.clusterRefs.set(clusterReference, context);
   }
 
   public removeClusterRef(clusterReference: ClusterReference): void {
-    delete this.clusterRefs[clusterReference];
+    this.clusterRefs.delete(clusterReference);
   }
 
   public addDeployment(deployment: DeploymentName, namespace: NamespaceName, realm: Realm, shard: Shard): void {
-    this.deployments[deployment] = {clusters: [], namespace: namespace.name, realm, shard};
+    this.deployments.push(new Deployment(deployment, namespace.name, [], realm, shard));
   }
 
   public removeDeployment(deployment: DeploymentName): void {
-    delete this.deployments[deployment];
+    this.deployments = this.deployments.filter((d): boolean => d.name !== deployment);
   }
 
   public addClusterRefToDeployment(clusterReference: ClusterReference, deployment: DeploymentName): void {
-    this.deployments[deployment].clusters.push(clusterReference);
+    const deploymentObject: Deployment = this.deployments.find(d => d.name === deployment);
+    if (deploymentObject) {
+      deploymentObject.clusters.push(clusterReference);
+    }
   }
 }

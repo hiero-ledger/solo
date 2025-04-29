@@ -119,7 +119,7 @@ export class ClusterCommandConfigs {
     );
 
     context_.config.context =
-      this.localConfig.clusterRefs[context_.config.clusterRef] ?? this.k8Factory.default().contexts().readCurrent();
+      this.localConfig.clusterRefs.get(context_.config.clusterRef) ?? this.k8Factory.default().contexts().readCurrent();
 
     return context_.config;
   }

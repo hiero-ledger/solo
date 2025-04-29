@@ -2055,7 +2055,7 @@ export class NodeCommandTasks {
         await Promise.all(
           Object.keys(clusterReferences).map(async clusterReference => {
             const valuesArguments = valuesArgumentMap[clusterReference];
-            const context = this.localConfig.clusterRefs[clusterReference];
+            const context = this.localConfig.clusterRefs.get(clusterReference);
 
             await self.chartManager.upgrade(
               config.namespace,
@@ -2541,7 +2541,7 @@ export class NodeCommandTasks {
         const nodeAlias = context_.config.nodeAlias;
         const namespace: NamespaceNameAsString = context_.config.namespace.name;
         const clusterReference = context_.config.clusterRef;
-        const context = this.localConfig.clusterRefs[clusterReference];
+        const context = this.localConfig.clusterRefs.get(clusterReference);
 
         task.title += `: ${nodeAlias}`;
 

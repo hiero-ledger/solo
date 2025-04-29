@@ -101,7 +101,7 @@ export class ClusterCommandTasks {
         const {clusterRef} = context_.config;
         task.title = clusterRef;
 
-        if (self.localConfig.clusterRefs.hasOwnProperty(clusterRef)) {
+        if (self.localConfig.clusterRefs.get(clusterRef)) {
           throw new SoloError(`Cluster ref ${clusterRef} already exists inside local config`);
         }
       },

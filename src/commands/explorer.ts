@@ -246,7 +246,7 @@ export class ExplorerCommand extends BaseCommand {
 
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
             context_.config.clusterContext = context_.config.clusterRef
-              ? this.localConfig.clusterRefs[context_.config.clusterRef]
+              ? this.localConfig.clusterRefs.get(context_.config.clusterRef)
               : this.k8Factory.default().contexts().readCurrent();
 
             if (
@@ -471,7 +471,7 @@ export class ExplorerCommand extends BaseCommand {
 
             const clusterReference = this.configManager.getFlag<string>(flags.clusterRef) as string;
             const clusterContext = clusterReference
-              ? this.localConfig.clusterRefs[clusterReference]
+              ? this.localConfig.clusterRefs.get(clusterReference)
               : this.k8Factory.default().contexts().readCurrent();
 
             context_.config = {

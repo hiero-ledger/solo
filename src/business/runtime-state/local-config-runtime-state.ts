@@ -22,6 +22,7 @@ import {WriteLocalConfigBeforeLoadError} from '../errors/write-local-config-befo
 export class LocalConfigRuntimeState {
   private readonly source: LocalConfigSource;
   private readonly backend: YamlFileStorageBackend;
+  private readonly objectMapper: ObjectMapper;
 
   public constructor(
     @inject(InjectTokens.HomeDirectory) private readonly basePath: string,
@@ -31,8 +32,13 @@ export class LocalConfigRuntimeState {
     this.basePath = patchInject(basePath, InjectTokens.HomeDirectory, this.constructor.name);
 
     this.backend = new YamlFileStorageBackend(basePath);
-    const objectMapper: ObjectMapper = new CTObjectMapper(ConfigKeyFormatter.instance());
-    this.source = new LocalConfigSource(fileName, new LocalConfigSchema(objectMapper), objectMapper, this.backend);
+    this.objectMapper = new CTObjectMapper(ConfigKeyFormatter.instance());
+    this.source = new LocalConfigSource(
+      fileName,
+      new LocalConfigSchema(this.objectMapper),
+      this.objectMapper,
+      this.backend,
+    );
   }
 
   private async write(): Promise<void> {
@@ -107,13 +113,16 @@ export class LocalConfigRuntimeState {
   }
 
   public async create(): Promise<void> {
-    return this.backend.writeObject(this.fileName, {});
+    return this.backend.writeObject(this.fileName, this.objectMapper.toObject(new LocalConfig()));
   }
 
   // Loads the source data and writes it back in case of migrations
+  // If the source data does not exist, an empty file is created
   public async load(): Promise<void> {
-    await ((await this.configFileExists()) ? this.source.refresh() : this.create());
-
-    return this.write();
+    if (!(await this.configFileExists())) {
+      await this.create();
+    }
+    await this.source.refresh();
+    await this.write();
   }
 }

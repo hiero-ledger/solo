@@ -257,7 +257,7 @@ export class AccountCommand extends BaseCommand {
             } as Config;
 
             config.contextName =
-              this.localConfig.clusterRefs[config.clusterRef] ?? self.k8Factory.default().contexts().readCurrent();
+              this.localConfig.clusterRefs.get(config.clusterRef) ?? self.k8Factory.default().contexts().readCurrent();
 
             if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
               throw new SoloError(`namespace ${config.namespace.name} does not exist`);
@@ -492,7 +492,7 @@ export class AccountCommand extends BaseCommand {
             } as Config;
 
             config.contextName =
-              this.localConfig.clusterRefs[config.clusterRef] ?? self.k8Factory.default().contexts().readCurrent();
+              this.localConfig.clusterRefs.get(config.clusterRef) ?? self.k8Factory.default().contexts().readCurrent();
 
             if (!config.amount) {
               config.amount = flags.amount.definition.defaultValue as number;
@@ -587,7 +587,7 @@ export class AccountCommand extends BaseCommand {
             } as UpdateAccountConfig;
 
             config.contextName =
-              this.localConfig.clusterRefs[config.clusterRef] ?? self.k8Factory.default().contexts().readCurrent();
+              this.localConfig.clusterRefs.get(config.clusterRef) ?? self.k8Factory.default().contexts().readCurrent();
 
             if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
               throw new SoloError(`namespace ${config.namespace} does not exist`);
@@ -688,7 +688,7 @@ export class AccountCommand extends BaseCommand {
             } as Config;
 
             config.contextName =
-              this.localConfig.clusterRefs[config.clusterRef] ?? self.k8Factory.default().contexts().readCurrent();
+              this.localConfig.clusterRefs.get(config.clusterRef) ?? self.k8Factory.default().contexts().readCurrent();
 
             if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
               throw new SoloError(`namespace ${config.namespace} does not exist`);

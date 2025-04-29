@@ -103,7 +103,7 @@ describe('ClusterCommand', () => {
     const localConfigData = yaml.parse(localConfigYaml);
 
     expect(localConfigData.clusterRefs).to.have.own.property(clusterRef);
-    expect(localConfigData.clusterRefs[clusterRef]).to.equal(contextName);
+    expect(localConfigData.clusterRefs.get(clusterRef)).to.equal(contextName);
   });
 
   it('solo cluster info should work', () => {
