@@ -117,30 +117,6 @@ SOLO_DEPLOYMENT=solo-e2e
 
 kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 
-if [ "${storageType}" == "node_add_delete" ]; then
-  cd examples
-  SOLO_DEPLOYMENT=solo-deployment
-  task default
-  cd -
-  # Testing node add in CLI and test transaction to make sure consensus node is working
-  npm run solo-test -- node add --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys --pvcs
-  npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
-
-  # Testing node delete in CLI and test transaction to make sure consensus node is working
-  npm run solo-test -- node delete --deployment "${SOLO_DEPLOYMENT}" --node-alias node1
-  npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
-
-  # Testing node update in CLI and test transaction to make sure consensus node is working
-  npm run solo-test -- node update --deployment "${SOLO_DEPLOYMENT}" --node-alias node2 --new-account-number 0.0.7
-  npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
-
-  # Testing node add in CLI and test transaction to make sure consensus node is working
-  npm run solo-test -- node add --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys --pvcs
-  npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
-
-  exit
-fi
-
 if [ "${storageType}" == "minio_only" ]; then
   cd examples
   SOLO_DEPLOYMENT=solo-deployment
@@ -163,7 +139,7 @@ else
 
   npm run solo-test -- node keys --gossip-keys --tls-keys -i node1 --deployment "${SOLO_DEPLOYMENT}"
 
-  npm run solo-test -- network deploy --deployment "${SOLO_DEPLOYMENT}" --pvcs -i node1 \
+  npm run solo-test -- network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1 \
     --storage-type "${storageType}" \
     "${STORAGE_OPTIONS[@]}"
 
