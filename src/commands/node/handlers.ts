@@ -854,7 +854,7 @@ export class NodeCommandHandlers extends CommandHandler {
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.freezeConfigBuilder.bind(this), lease),
+        this.tasks.initialize(argv, this.configs.freezeConfigBuilder.bind(this.configs), lease),
         this.tasks.identifyExistingNodes(),
         this.tasks.sendFreezeTransaction(),
         this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
@@ -879,7 +879,7 @@ export class NodeCommandHandlers extends CommandHandler {
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.restartConfigBuilder.bind(this), lease),
+        this.tasks.initialize(argv, this.configs.restartConfigBuilder.bind(this.configs), lease),
         this.tasks.identifyExistingNodes(),
         this.tasks.startNodes('existingNodeAliases'),
         this.tasks.enablePortForwarding(),

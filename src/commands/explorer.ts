@@ -7,7 +7,6 @@ import {SoloError} from '../core/errors/solo-error.js';
 import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
-import {HEDERA_EXPLORER_CHART_URL, INGRESS_CONTROLLER_NAME} from '../core/constants.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand, type Options} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -22,17 +21,26 @@ import {NamespaceName} from '../integration/kube/resources/namespace/namespace-n
 import {type ClusterChecks} from '../core/cluster-checks.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {KeyManager} from '../core/key-manager.js';
+import {
+  EXPLORER_INGRESS_CONTROLLER,
+  EXPLORER_INGRESS_TLS_SECRET_NAME,
+  HEDERA_EXPLORER_CHART_URL,
+  INGRESS_CONTROLLER_PREFIX,
+} from '../core/constants.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {type ClusterReference, type Context} from '../core/config/remote/types.js';
 import {ComponentFactory} from '../core/config/remote/components/component-factory.js';
 
 interface ExplorerDeployConfigClass {
+  cacheDir: string;
   chartDirectory: string;
   clusterRef: ClusterReference;
   clusterContext: string;
   enableIngress: boolean;
   enableHederaExplorerTls: boolean;
+  ingressControllerValueFile: string;
   hederaExplorerTlsHostName: string;
   hederaExplorerStaticIp: string | '';
   hederaExplorerVersion: string;
@@ -86,6 +94,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.chartDirectory,
       flags.clusterRef,
       flags.enableIngress,
+      flags.ingressControllerValueFile,
       flags.enableHederaExplorerTls,
       flags.hederaExplorerTlsHostName,
       flags.hederaExplorerStaticIp,
@@ -113,10 +122,10 @@ export class ExplorerCommand extends BaseCommand {
    * @param config - the configuration object
    */
   private async prepareHederaExplorerValuesArg(config: ExplorerDeployConfigClass): Promise<string> {
-    let valuesArgument = '';
+    let valuesArgument: string = '';
 
-    const profileName = this.configManager.getFlag<string>(flags.profileName) as string;
-    const profileValuesFile = await this.profileManager.prepareValuesHederaExplorerChart(profileName);
+    const profileName: string = this.configManager.getFlag<string>(flags.profileName) as string;
+    const profileValuesFile: string = await this.profileManager.prepareValuesHederaExplorerChart(profileName);
     if (profileValuesFile) {
       valuesArgument += prepareValuesFiles(profileValuesFile);
     }
@@ -143,8 +152,22 @@ export class ExplorerCommand extends BaseCommand {
         'ingress.enabled': true,
         'ingress.hosts[0].host': config.domainName,
       });
-    }
 
+      if (config.tlsClusterIssuerType === 'self-signed') {
+        // Create TLS secret for Explorer
+        await KeyManager.createTlsSecret(
+          this.k8Factory,
+          config.namespace,
+          config.domainName,
+          config.cacheDir,
+          EXPLORER_INGRESS_TLS_SECRET_NAME,
+        );
+
+        if (config.enableIngress) {
+          valuesArgument += ` --set ingress.tls[0].hosts[0]=${config.domainName}`;
+        }
+      }
+    }
     return valuesArgument;
   }
 
@@ -204,6 +227,7 @@ export class ExplorerCommand extends BaseCommand {
             flags.disablePrompts([
               flags.enableHederaExplorerTls,
               flags.hederaExplorerTlsHostName,
+              flags.ingressControllerValueFile,
               flags.hederaExplorerStaticIp,
               flags.hederaExplorerVersion,
               flags.mirrorNamespace,
@@ -326,23 +350,32 @@ export class ExplorerCommand extends BaseCommand {
           task: async context_ => {
             const config = context_.config;
 
-            let explorerIngressControllerValuesArgument = '';
+            let explorerIngressControllerValuesArgument: string = '';
 
             if (config.hederaExplorerStaticIp !== '') {
               explorerIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${config.hederaExplorerStaticIp}`;
             }
-            explorerIngressControllerValuesArgument += ` --set fullnameOverride=${constants.EXPLORER_INGRESS_CONTROLLER}`;
+            explorerIngressControllerValuesArgument += ` --set fullnameOverride=${EXPLORER_INGRESS_CONTROLLER}`;
+            explorerIngressControllerValuesArgument += ` --set controller.ingressClass=${constants.EXPLORER_INGRESS_CLASS_NAME}`;
+            explorerIngressControllerValuesArgument += ` --set controller.extraArgs.controller-class=${constants.EXPLORER_INGRESS_CONTROLLER}`;
+            if (config.tlsClusterIssuerType === 'self-signed') {
+              explorerIngressControllerValuesArgument += prepareValuesFiles(config.ingressControllerValueFile);
+            }
 
             await self.chartManager.install(
               config.namespace,
-              constants.INGRESS_CONTROLLER_RELEASE_NAME,
+              constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME,
               constants.INGRESS_CONTROLLER_RELEASE_NAME,
               constants.INGRESS_CONTROLLER_RELEASE_NAME,
               INGRESS_CONTROLLER_VERSION,
               explorerIngressControllerValuesArgument,
               context_.config.clusterContext,
             );
-            showVersionBanner(self.logger, constants.INGRESS_CONTROLLER_RELEASE_NAME, INGRESS_CONTROLLER_VERSION);
+            showVersionBanner(
+              self.logger,
+              constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME,
+              INGRESS_CONTROLLER_VERSION,
+            );
 
             // patch explorer ingress to use h1 protocol, haproxy ingress controller default backend protocol is h2
             // to support grpc over http/2
@@ -359,7 +392,7 @@ export class ExplorerCommand extends BaseCommand {
             await this.k8Factory
               .getK8(context_.config.clusterContext)
               .ingressClasses()
-              .create(constants.EXPLORER_INGRESS_CLASS_NAME, INGRESS_CONTROLLER_NAME);
+              .create(constants.EXPLORER_INGRESS_CLASS_NAME, INGRESS_CONTROLLER_PREFIX + EXPLORER_INGRESS_CONTROLLER);
           },
           skip: context_ => !context_.config.enableIngress,
         },
@@ -387,7 +420,7 @@ export class ExplorerCommand extends BaseCommand {
                 context_.config.namespace,
                 [
                   `app.kubernetes.io/name=${constants.INGRESS_CONTROLLER_RELEASE_NAME}`,
-                  `app.kubernetes.io/instance=${constants.INGRESS_CONTROLLER_RELEASE_NAME}`,
+                  `app.kubernetes.io/instance=${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}`,
                 ],
                 constants.PODS_READY_MAX_ATTEMPTS,
                 constants.PODS_READY_DELAY,
@@ -477,7 +510,10 @@ export class ExplorerCommand extends BaseCommand {
         {
           title: 'Uninstall explorer ingress controller',
           task: async context_ => {
-            await this.chartManager.uninstall(context_.config.namespace, constants.INGRESS_CONTROLLER_RELEASE_NAME);
+            await this.chartManager.uninstall(
+              context_.config.namespace,
+              constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME,
+            );
             // delete ingress class if found one
             const existingIngressClasses = await this.k8Factory
               .getK8(context_.config.clusterContext)

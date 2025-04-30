@@ -147,7 +147,8 @@ export class RelayCommand extends BaseCommand {
       valuesArgument += ` --set replicaCount=${replicaCount}`;
     }
 
-    const operatorIdUsing = operatorID || constants.OPERATOR_ID;
+    const deploymentName: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+    const operatorIdUsing: string = operatorID || this.accountManager.getOperatorAccountId(deploymentName).toString();
     valuesArgument += ` --set config.OPERATOR_ID_MAIN=${operatorIdUsing}`;
 
     if (operatorKey) {
@@ -155,7 +156,6 @@ export class RelayCommand extends BaseCommand {
       valuesArgument += ` --set config.OPERATOR_KEY_MAIN=${operatorKey}`;
     } else {
       try {
-        const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
         const namespace = NamespaceName.of(this.localConfig.deployments[deploymentName].namespace);
 
         const k8 = this.k8Factory.getK8(context);
@@ -207,8 +207,8 @@ export class RelayCommand extends BaseCommand {
 
     const networkIds = {};
 
-    const accountMap = getNodeAccountMap(nodeAliases);
     const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+    const accountMap = this.accountManager.getNodeAccountMap(nodeAliases, deploymentName);
     const networkNodeServicesMap = await this.accountManager.getNodeServiceMap(
       namespace,
       this.remoteConfigManager.getClusterRefs(),
