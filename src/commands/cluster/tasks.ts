@@ -169,12 +169,12 @@ export class ClusterCommandTasks {
         const clusterReference = context_.config.clusterRef;
         const clusterReferences = this.localConfig.clusterRefs;
         const deployments = this.localConfig.deployments;
+        const context = clusterReferences.get(clusterReference);
 
-        if (!clusterReferences[clusterReference]) {
+        if (context) {
           throw new Error(`Cluster "${clusterReference}" not found in the LocalConfig`);
         }
 
-        const context = clusterReferences[clusterReference];
         const deploymentsWithSelectedCluster = Object.entries(deployments)
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           .filter(([_, deployment]) => deployment.clusters.includes(clusterReference))

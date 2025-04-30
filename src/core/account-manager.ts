@@ -522,7 +522,7 @@ export class AccountManager {
           );
           serviceBuilder.withNamespace(namespace);
           serviceBuilder.withClusterRef(clusterReference);
-          serviceBuilder.withContext(clusterReferences[clusterReference]);
+          serviceBuilder.withContext(clusterReferences.get(clusterReference));
           serviceBuilder.withDeployment(deployment);
         }
 

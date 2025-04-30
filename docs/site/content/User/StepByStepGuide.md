@@ -155,7 +155,7 @@ If a full reset is needed, delete the directory or relevant sub-directories befo
 * Associates a cluster reference to a k8s context
 
 ```
-solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_SETUP_NAMESPACE} --context kind-${SOLO_CLUSTER_NAME} --email "${SOLO_EMAIL}"
+solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_SETUP_NAMESPACE} --context kind-${SOLO_CLUSTER_NAME}
 ```
 
 * Example output
