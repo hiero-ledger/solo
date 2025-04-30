@@ -44,7 +44,7 @@ argv.setArg(flags.releaseTag, HEDERA_PLATFORM_VERSION_TAG);
 argv.setArg(flags.namespace, namespace.name);
 argv.setArg(flags.persistentVolumeClaims, true);
 
-endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
+await endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   const {
     opts: {k8Factory, logger, remoteConfigManager, commandInvoker, accountManager, keyManager},
     cmd: {nodeCmd, accountCmd},

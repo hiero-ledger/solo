@@ -22,7 +22,7 @@ import {NetworkCommand} from '../../../src/commands/network.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import os from 'node:os';
 
-describe('NetworkCommand', function networkCommand() {
+describe('NetworkCommand', async function networkCommand(): Promise<void> {
   this.bail(true);
   const testName = 'network-cmd-e2e';
   const namespace = NamespaceName.of(testName);
@@ -46,10 +46,10 @@ describe('NetworkCommand', function networkCommand() {
   const {
     opts: {k8Factory, accountManager, configManager, chartManager, commandInvoker, logger},
     cmd: {networkCmd, clusterCmd, initCmd, nodeCmd, deploymentCmd},
-  } = bootstrapTestVariables(testName, argv, {});
+  } = await bootstrapTestVariables(testName, argv, {});
 
   // Setup TLS certificates in a before hook
-  before(async function () {
+  before(async function (): Promise<void> {
     this.timeout(Duration.ofMinutes(1).toMillis());
     await KeyManager.generateTls(temporaryDirectory, 'grpc');
     await KeyManager.generateTls(temporaryDirectory, 'grpcWeb');

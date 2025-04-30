@@ -28,11 +28,11 @@ import {type NodeServiceMapping} from '../src/types/mappings/node-service-mappin
 
 const defaultTimeout = Duration.ofMinutes(2).toMillis();
 
-export function testNodeAdd(
+export async function testNodeAdd(
   localBuildPath: string,
   testDescription = 'Node add should success',
   timeout: number = defaultTimeout,
-): void {
+): Promise<void> {
   const suffix = localBuildPath.slice(0, 5);
   const namespace = NamespaceName.of(`node-add${suffix}`);
   const argv = Argv.getDefaultArgv(namespace);
@@ -52,7 +52,7 @@ export function testNodeAdd(
   argv.setArg(flags.realm, 0);
   argv.setArg(flags.shard, 0);
 
-  endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
+  await endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     const {
       opts: {k8Factory, accountManager, remoteConfigManager, logger, commandInvoker},
       cmd: {nodeCmd, accountCmd, networkCmd},

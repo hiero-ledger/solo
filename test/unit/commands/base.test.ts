@@ -16,7 +16,7 @@ import {resetForTest} from '../../test-container.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {ComponentsDataWrapper} from '../../../src/core/config/remote/components-data-wrapper.js';
 import {createComponentsDataWrapper} from '../core/config/remote/components-data-wrapper.test.js';
-import {type ClusterReferences} from '../../../src/core/config/remote/types.js';
+import {ClusterReference, type ClusterReferences} from '../../../src/core/config/remote/types.js';
 import {Cluster} from '../../../src/core/config/remote/cluster.js';
 import {ConsensusNode} from '../../../src/core/model/consensus-node.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
@@ -185,7 +185,10 @@ describe('BaseCommand', () => {
 
       remoteConfigManager.getConsensusNodes.returns(mockConsensusNodes);
       remoteConfigManager.getContexts.returns(mockConsensusNodes.map(node => node.context));
-      remoteConfigManager.getClusterRefs.returns({cluster: 'context1', cluster2: 'context2'});
+      const mockedClusterReferenceMap: ClusterReferences = new Map<string, string>();
+      mockedClusterReferenceMap.set('cluster', 'context1');
+      mockedClusterReferenceMap.set('cluster2', 'context2');
+      remoteConfigManager.getClusterRefs.returns(mockedClusterReferenceMap);
 
       Object.defineProperty(remoteConfigManager, 'components', {
         get: () => newComponentsDataWrapper,

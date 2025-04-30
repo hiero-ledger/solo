@@ -22,14 +22,14 @@ import * as yaml from 'yaml';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {SoloWinstonLogger} from '../../../src/core/logging/solo-winston-logger.js';
 
-describe('ClusterCommand', () => {
+describe('ClusterCommand', async (): Promise<void> => {
   // mock showUser and showJSON to silent logging during tests
-  before(() => {
+  before(async (): Promise<void> => {
     sinon.stub(SoloWinstonLogger.prototype, 'showUser');
     sinon.stub(SoloWinstonLogger.prototype, 'showJSON');
   });
 
-  after(() => {
+  after(async () => {
     // @ts-expect-error: TS2339 - to restore
     SoloWinstonLogger.prototype.showUser.restore();
     // @ts-expect-error: TS2339 - to restore
@@ -54,7 +54,7 @@ describe('ClusterCommand', () => {
   const {
     opts: {k8Factory, configManager, chartManager, commandInvoker},
     cmd: {clusterCmd},
-  } = bootstrapTestVariables(testName, argv, {});
+  } = await bootstrapTestVariables(testName, argv, {});
 
   after(async function () {
     this.timeout(Duration.ofMinutes(3).toMillis());

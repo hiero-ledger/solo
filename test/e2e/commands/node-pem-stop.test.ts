@@ -2,4 +2,4 @@
 
 import {endToEndNodeKeyRefreshTest} from '../end-to-end-node-utility.js';
 
-endToEndNodeKeyRefreshTest('node-cmd-e2e-pem-stop', 'stop');
+await endToEndNodeKeyRefreshTest('node-cmd-e2e-pem-stop', 'stop');

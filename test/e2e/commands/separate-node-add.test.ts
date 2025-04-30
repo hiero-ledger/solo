@@ -47,7 +47,7 @@ const argvExecute = Argv.getDefaultArgv(namespace);
 argvExecute.setArg(flags.inputDir, temporaryDirectory);
 argvExecute.setArg(flags.inputDir, temporaryDirectory);
 
-endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
+await endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   const {
     opts: {k8Factory, commandInvoker, accountManager, remoteConfigManager, logger},
     cmd: {nodeCmd, accountCmd, networkCmd},

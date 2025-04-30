@@ -515,7 +515,7 @@ export class RemoteConfigManager {
    */
   public getClusterRefs(): ClusterReferences {
     const nodes = this.getConsensusNodes();
-    const accumulator: ClusterReferences = {};
+    const accumulator: ClusterReferences = new Map<string, string>();
 
     for (const node of nodes) {
       accumulator[node.cluster] ||= node.context;

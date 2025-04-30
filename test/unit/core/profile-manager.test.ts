@@ -68,8 +68,8 @@ describe('ProfileManager', () => {
 
   let stagingDirectory = '';
 
-  before(() => {
-    resetForTest(namespace.name);
+  before(async () => {
+    await resetForTest(namespace.name);
     temporaryDirectory = getTemporaryDirectory();
     configManager = container.resolve(InjectTokens.ConfigManager);
     profileManager = new ProfileManager(undefined, undefined, temporaryDirectory);

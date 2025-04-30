@@ -38,7 +38,7 @@ argv.setArg(
 argv.setArg(flags.namespace, namespace.name);
 argv.setArg(flags.releaseTag, TEST_LOCAL_HEDERA_PLATFORM_VERSION);
 
-endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
+await endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   describe('Node for hedera app should have started successfully', () => {
     const {
       opts: {k8Factory, commandInvoker, remoteConfigManager},

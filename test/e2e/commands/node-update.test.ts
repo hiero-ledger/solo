@@ -48,7 +48,7 @@ argv.setArg(flags.persistentVolumeClaims, true);
 argv.setArg(flags.realm, hederaPlatformSupportsNonZeroRealms() ? 1 : 0);
 argv.setArg(flags.shard, hederaPlatformSupportsNonZeroRealms() ? 1 : 0);
 
-endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
+await endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   const {
     opts: {k8Factory, commandInvoker, accountManager, remoteConfigManager, logger, keyManager},
     cmd: {nodeCmd, accountCmd},

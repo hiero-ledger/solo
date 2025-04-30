@@ -55,8 +55,8 @@ argv.setArg(flags.force, true);
 argv.setArg(flags.clusterSetupNamespace, constants.SOLO_SETUP_NAMESPACE.name);
 
 describe('ClusterCommand unit tests', () => {
-  before(() => {
-    resetForTest(namespace.name);
+  before(async () => {
+    await resetForTest(namespace.name);
   });
 
   describe('Chart Install Function is called correctly', () => {

@@ -40,7 +40,7 @@ argv.setArg(flags.relayReleaseTag, flags.relayReleaseTag.definition.defaultValue
 argv.setArg(flags.realm, hederaPlatformSupportsNonZeroRealms() ? 1 : 0);
 argv.setArg(flags.shard, 0);
 
-endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void => {
+await endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void => {
   const {
     opts: {k8Factory, logger, commandInvoker},
   } = bootstrapResp;

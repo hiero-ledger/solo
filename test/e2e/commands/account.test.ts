@@ -55,7 +55,7 @@ argv.setArg(flags.shard, 0);
 // enable load balancer for e2e tests
 // argv.setArg(flags.loadBalancerEnabled, true);
 
-endToEndTestSuite(testName, argv, {}, bootstrapResp => {
+await endToEndTestSuite(testName, argv, {}, bootstrapResp => {
   describe('AccountCommand', async () => {
     let accountCmd: AccountCommand;
     let testLogger: SoloLogger;

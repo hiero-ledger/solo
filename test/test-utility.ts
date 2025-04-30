@@ -135,18 +135,18 @@ interface Cmd {
 }
 
 /** Initialize common test variables */
-export function bootstrapTestVariables(
+export async function bootstrapTestVariables(
   testName: string,
   argv: Argv,
   {k8FactoryArg, initCmdArg, clusterCmdArg, networkCmdArg, nodeCmdArg, accountCmdArg, deploymentCmdArg}: Cmd,
-): BootstrapResponse {
+): Promise<BootstrapResponse> {
   const namespace: NamespaceName = NamespaceName.of(
     argv.getArg<NamespaceNameAsString>(flags.namespace) || 'bootstrap-ns',
   );
 
   const deployment: string = argv.getArg<DeploymentName>(flags.deployment) || `${namespace.name}-deployment`;
   const cacheDirectory: string = argv.getArg<string>(flags.cacheDir) || getTestCacheDirectory(testName);
-  resetForTest(namespace.name, cacheDirectory);
+  await resetForTest(namespace.name, cacheDirectory);
   const configManager: ConfigManager = container.resolve(InjectTokens.ConfigManager);
   configManager.update(argv.build());
 
@@ -205,7 +205,7 @@ export function bootstrapTestVariables(
 }
 
 /** Bootstrap network in a given namespace, then run the test call back providing the bootstrap response */
-export function endToEndTestSuite(
+export async function endToEndTestSuite(
   testName: string,
   argv: Argv,
   {
@@ -218,12 +218,12 @@ export function endToEndTestSuite(
     startNodes,
   }: Cmd & {startNodes?: boolean},
   testsCallBack: (bootstrapResp: BootstrapResponse) => void = () => {},
-): void {
+): Promise<void> {
   if (typeof startNodes !== 'boolean') {
     startNodes = true;
   }
 
-  const bootstrapResp = bootstrapTestVariables(testName, argv, {
+  const bootstrapResp = await bootstrapTestVariables(testName, argv, {
     k8FactoryArg,
     initCmdArg,
     clusterCmdArg,

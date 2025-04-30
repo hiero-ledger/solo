@@ -67,9 +67,9 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
     `${testCluster}`,
     `${testCluster.replace(soloTestCluster.includes('-c1') ? '-c1' : '-c2', soloTestCluster.includes('-c1') ? '-c2' : '-c1')}`,
   ];
-  const testClusterReferences: ClusterReferences = {};
-  testClusterReferences[testClusterArray[0]] = contexts[0];
-  testClusterReferences[testClusterArray[1]] = contexts[1];
+  const testClusterReferences: ClusterReferences = new Map<string, string>();
+  testClusterReferences.set(testClusterArray[0], contexts[0]);
+  testClusterReferences.set(testClusterArray[1], contexts[1]);
   const testCacheDirectory: string = getTestCacheDirectory(testName);
   let testLogger: SoloWinstonLogger;
   const createdAccountIds: string[] = [];
@@ -80,12 +80,13 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
   // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
   before(async (): Promise<void> => {
     fs.rmSync(testCacheDirectory, {recursive: true, force: true});
+    fs.mkdirSync(testCacheDirectory, {recursive: true});
     try {
       fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {force: true});
     } catch {
       // allowed to fail if the file doesn't exist
     }
-    resetForTest(namespace.name, testCacheDirectory, testLogger, false);
+    await resetForTest(namespace.name, testCacheDirectory, testLogger, false);
     testLogger = container.resolve<SoloWinstonLogger>(InjectTokens.SoloLogger);
     for (const item of contexts) {
       const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
@@ -96,7 +97,7 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
 
   beforeEach(async (): Promise<void> => {
     testLogger.info(`${testName}: resetting containers for each test`);
-    resetForTest(namespace.name, testCacheDirectory, testLogger, false);
+    await resetForTest(namespace.name, testCacheDirectory, testLogger, false);
     testLogger.info(`${testName}: finished resetting containers for each test`);
   });
 
@@ -117,8 +118,8 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
       InjectTokens.LocalConfigRuntimeState,
     );
     const clusterReferences: Map<string, string> = localConfig.clusterRefs;
-    expect(clusterReferences[testClusterArray[0]]).to.equal(contexts[0]);
-    expect(clusterReferences[testClusterArray[1]]).to.equal(contexts[1]);
+    expect(clusterReferences.get(testClusterArray[0])).to.equal(contexts[0]);
+    expect(clusterReferences.get(testClusterArray[1])).to.equal(contexts[1]);
     testLogger.info(`${testName}: finished solo cluster-ref connect`);
   });
 
@@ -286,7 +287,6 @@ function soloClusterReferenceConnectArgv(clusterReference: ClusterReference, con
     clusterReference,
     optionFromFlag(Flags.context),
     context,
-    'dual.full.cluster.test@host.com',
   );
   argvPushGlobalFlags(argv);
   return argv;

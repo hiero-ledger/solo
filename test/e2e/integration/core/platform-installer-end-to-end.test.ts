@@ -32,7 +32,7 @@ argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
 argv.setArg(flags.generateGossipKeys, true);
 argv.setArg(flags.generateTlsKeys, true);
 
-endToEndTestSuite(namespace.name, argv, {startNodes: false}, bootstrapResp => {
+await endToEndTestSuite(namespace.name, argv, {startNodes: false}, bootstrapResp => {
   describe('Platform Installer E2E', async () => {
     let k8Factory: K8Factory;
     let accountManager: AccountManager;

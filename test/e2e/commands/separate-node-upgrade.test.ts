@@ -33,7 +33,7 @@ const zipFile = 'upgrade.zip';
 
 const TEST_VERSION_STRING = '0.100.0';
 
-endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
+await endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   const {
     opts: {k8Factory, logger, commandInvoker},
     cmd: {nodeCmd, accountCmd},

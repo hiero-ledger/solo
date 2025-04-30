@@ -14,7 +14,7 @@ export type Realm = number | Long;
 export type Shard = number | Long;
 
 export type ClusterReference = string;
-export type ClusterReferences = Record<ClusterReference, Context>;
+export type ClusterReferences = Map<string, string>;
 
 export interface IMigration {
   migratedAt: Date;
