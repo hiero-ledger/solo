@@ -154,9 +154,10 @@ export class ClusterCommandTasks {
       title: 'List all available clusters',
       task: async () => {
         const clusterReferences = this.localConfig.clusterRefs;
-        const clusterList = Object.entries(clusterReferences).map(
-          ([clusterName, clusterContext]) => `${clusterName}:${clusterContext}`,
-        );
+        const clusterList = [];
+        for (const [clusterName, clusterContext] of clusterReferences) {
+          clusterList.push(`${clusterName}:${clusterContext}`);
+        }
         this.logger.showList('Cluster references and the respective contexts', clusterList);
       },
     };

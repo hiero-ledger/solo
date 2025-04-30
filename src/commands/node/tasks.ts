@@ -1947,7 +1947,7 @@ export class NodeCommandTasks {
 
         // Make sure valuesArgMap is initialized with empty strings
         const valuesArgumentMap: Record<ClusterReference, string> = {};
-        for (const clusterReference of Object.keys(clusterReferences)) {
+        for (const [clusterReference, context] of clusterReferences) {
           valuesArgumentMap[clusterReference] = '';
         }
 
@@ -1969,7 +1969,7 @@ export class NodeCommandTasks {
 
         const clusterNodeIndexMap: Record<ClusterReference, Record<NodeId, /* index in the chart -> */ number>> = {};
 
-        for (const clusterReference of Object.keys(clusterReferences)) {
+        for (const [clusterReference, context] of clusterReferences) {
           clusterNodeIndexMap[clusterReference] = {};
 
           for (const [index, node] of consensusNodes
@@ -2051,9 +2051,9 @@ export class NodeCommandTasks {
           config.debugNodeAlias,
         );
 
-        // Update all charts
-        await Promise.all(
-          Object.keys(clusterReferences).map(async clusterReference => {
+        const promises = [];
+        for (const [clusterReference, context] of clusterReferences) {
+          promises.push(async () => {
             const valuesArguments = valuesArgumentMap[clusterReference];
             const context = this.localConfig.clusterRefs.get(clusterReference);
 
@@ -2067,8 +2067,11 @@ export class NodeCommandTasks {
               context,
             );
             showVersionBanner(self.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
-          }),
-        );
+          });
+        }
+
+        // Update all charts
+        await Promise.all(promises);
       },
       skip,
     };

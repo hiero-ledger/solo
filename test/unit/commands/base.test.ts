@@ -16,7 +16,7 @@ import {resetForTest} from '../../test-container.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {ComponentsDataWrapper} from '../../../src/core/config/remote/components-data-wrapper.js';
 import {createComponentsDataWrapper} from '../core/config/remote/components-data-wrapper.test.js';
-import {ClusterReference, type ClusterReferences} from '../../../src/core/config/remote/types.js';
+import {type ClusterReferences} from '../../../src/core/config/remote/types.js';
 import {Cluster} from '../../../src/core/config/remote/cluster.js';
 import {ConsensusNode} from '../../../src/core/model/consensus-node.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
@@ -246,7 +246,7 @@ describe('BaseCommand', () => {
       const expectedClusterReferences = {cluster: 'context1', cluster2: 'context2'};
       // @ts-expect-error - TS2445: to access private property
       const clusterReferences: ClusterReferences = baseCmd.remoteConfigManager.getClusterRefs();
-      for (const clusterReference of Object.keys(clusterReferences)) {
+      for (const [clusterReference, context] of clusterReferences) {
         expect(clusterReferences[clusterReference]).to.equal(expectedClusterReferences[clusterReference]);
       }
     });

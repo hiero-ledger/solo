@@ -497,7 +497,7 @@ export class AccountManager {
 
     try {
       const services: SoloService[] = [];
-      for (const [clusterReference, context] of Object.entries(clusterReferences)) {
+      for (const [clusterReference, context] of clusterReferences) {
         const serviceList: Service[] = await this.k8Factory.getK8(context).services().list(namespace, [labelSelector]);
         services.push(
           ...serviceList.map(service => SoloService.getFromK8Service(service, clusterReference, context, deployment)),
@@ -603,7 +603,7 @@ export class AccountManager {
         serviceBuilder.withHaProxyPodName(podList[0].podReference.name);
       }
 
-      for (const [_, context] of Object.entries(clusterReferences)) {
+      for (const [_, context] of clusterReferences) {
         // get the pod name of the network node
         const pods: Pod[] = await this.k8Factory
           .getK8(context)
