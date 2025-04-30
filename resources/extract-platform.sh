@@ -5,7 +5,7 @@
 set -o pipefail
 
 readonly tag="${1}"
-readonly chipType="${2}"
+readonly useZip="${2}"
 if [[ -z "${tag}" ]]; then
     echo "Release tag is required (e.g. v0.42.5)";
     exit 1
@@ -44,12 +44,12 @@ cd ${HAPI_DIR}
 pwd | tee -a ${LOG_FILE}
 ls -al | tee -a ${LOG_FILE}
 
-if [[ "$chipType" =~ "M4" ]]; then
-    echo "Running on an M4 chip"
+if [[ "$useZip" == "true" ]]; then
+    echo "Using unzip to extract files"
     dnf install unzip -y | tee -a ${LOG_FILE}
     unzip -o "${BUILD_ZIP_FILE}" -d "${HAPI_DIR}" | tee -a ${LOG_FILE}
 else
-    echo "Running on other OS or chip. CPU info: $cpu_info"
+    echo "Using jar to extract files"
     jar xvf "${BUILD_ZIP_FILE}" | tee -a ${LOG_FILE}
 fi
 

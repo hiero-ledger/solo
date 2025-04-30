@@ -3,12 +3,16 @@
 import {type HelmExecutionBuilder} from '../../execution/helm-execution-builder.js';
 import {type HelmRequest} from '../helm-request.js';
 import {type Repository} from '../../model/repository.js';
+import {type AddRepoOptions} from '../../model/add/add-repo-options.js';
 
 /**
  * A request to add a new Helm repository.
  */
 export class RepositoryAddRequest implements HelmRequest {
-  constructor(private readonly repository: Repository) {
+  constructor(
+    private readonly repository: Repository,
+    private readonly options?: AddRepoOptions,
+  ) {
     if (!repository) {
       throw new Error('repository must not be null');
     }
@@ -22,5 +26,9 @@ export class RepositoryAddRequest implements HelmRequest {
 
   apply(builder: HelmExecutionBuilder): void {
     builder.subcommands('repo', 'add').positional(this.repository.name).positional(this.repository.url);
+    // Apply options if provided
+    if (this.options) {
+      this.options.apply(builder);
+    }
   }
 }

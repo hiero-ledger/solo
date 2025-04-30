@@ -12,6 +12,7 @@ import {
   getNodeAliasesPrivateKeysHash,
   getTemporaryDirectory,
   HEDERA_PLATFORM_VERSION_TAG,
+  hederaPlatformSupportsNonZeroRealms,
 } from '../../test-utility.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
@@ -29,7 +30,7 @@ import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-
 const defaultTimeout = Duration.ofMinutes(2).toMillis();
 const namespace = NamespaceName.of('node-update');
 const updateNodeId = 'node2';
-const newAccountId = '0.0.7';
+const newAccountId = hederaPlatformSupportsNonZeroRealms() ? '1.1.7' : '0.0.7';
 const argv = Argv.getDefaultArgv(namespace);
 
 argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
@@ -44,6 +45,8 @@ argv.setArg(flags.generateTlsKeys, true);
 argv.setArg(flags.releaseTag, HEDERA_PLATFORM_VERSION_TAG);
 argv.setArg(flags.namespace, namespace.name);
 argv.setArg(flags.persistentVolumeClaims, true);
+argv.setArg(flags.realm, hederaPlatformSupportsNonZeroRealms() ? 1 : 0);
+argv.setArg(flags.shard, hederaPlatformSupportsNonZeroRealms() ? 1 : 0);
 
 endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   const {

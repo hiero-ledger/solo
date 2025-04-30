@@ -20,6 +20,7 @@ import {type K8Factory} from '../../../../../src/integration/kube/k8-factory.js'
 import {container} from 'tsyringe-neo';
 import {type K8} from '../../../../../src/integration/kube/k8.js';
 import {Duration} from '../../../../../src/core/time/duration.js';
+import {AddRepoOptionsBuilder} from '../../../../../src/integration/helm/model/add/add-repo-options-builder.js';
 
 const exec = promisify(execCallback);
 
@@ -102,11 +103,30 @@ describe('HelmClient Tests', () => {
     await removeRepoIfPresent(helmClient, INCUBATOR_REPOSITORY);
 
     try {
+      // Basic add
       await expect(helmClient.addRepository(INCUBATOR_REPOSITORY)).to.not.be.rejected;
-      const repositories = await helmClient.listRepositories();
+      let repositories = await helmClient.listRepositories();
       expect(repositories).to.not.be.null.and.to.not.be.empty;
       expect(repositories).to.deep.include(INCUBATOR_REPOSITORY);
       expect(repositories).to.have.lengthOf(originalRepoListSize + 1);
+
+      // Remove again for clean test
+      await expect(helmClient.removeRepository(INCUBATOR_REPOSITORY)).to.not.be.rejected;
+
+      // Add with forceUpdate = true
+      const optionsTrue = new AddRepoOptionsBuilder().forceUpdate(true).build();
+      await expect(helmClient.addRepository(INCUBATOR_REPOSITORY, optionsTrue)).to.not.be.rejected;
+      repositories = await helmClient.listRepositories();
+      expect(repositories).to.deep.include(INCUBATOR_REPOSITORY);
+
+      // Remove again
+      await expect(helmClient.removeRepository(INCUBATOR_REPOSITORY)).to.not.be.rejected;
+
+      // Add with forceUpdate = false (should be same as default)
+      const optionsFalse = new AddRepoOptionsBuilder().forceUpdate(false).build();
+      await expect(helmClient.addRepository(INCUBATOR_REPOSITORY, optionsFalse)).to.not.be.rejected;
+      repositories = await helmClient.listRepositories();
+      expect(repositories).to.deep.include(INCUBATOR_REPOSITORY);
     } finally {
       await expect(helmClient.removeRepository(INCUBATOR_REPOSITORY)).to.not.be.rejected;
       const repositories = await helmClient.listRepositories();
