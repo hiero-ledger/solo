@@ -3,17 +3,23 @@
 import {Exclude, Expose, Transform} from 'class-transformer';
 import {Transformations} from '../../utils/transformations.js';
 import {type DeploymentPhase} from '../deployment-phase.js';
+import {
+  type ClusterReference,
+  type ComponentId,
+  type NamespaceNameAsString,
+} from '../../../../../core/config/remote/types.js';
+import {type NodeId} from '../../../../../types/aliases.js';
 
 @Exclude()
 export class RelayNodeState {
   @Expose()
-  public name: string;
+  public id: ComponentId;
 
   @Expose()
-  public namespace: string;
+  public namespace: NamespaceNameAsString;
 
   @Expose()
-  public cluster: string;
+  public cluster: ClusterReference;
 
   @Expose()
   @Transform(Transformations.DeploymentPhase)
@@ -23,13 +29,13 @@ export class RelayNodeState {
   public consensusNodeIds: number[];
 
   public constructor(
-    name?: string,
-    namespace?: string,
-    cluster?: string,
+    id?: ComponentId,
+    namespace?: NamespaceNameAsString,
+    cluster?: ClusterReference,
     phase?: DeploymentPhase,
-    consensusNodeIds?: number[],
+    consensusNodeIds?: NodeId[],
   ) {
-    this.name = name;
+    this.id = id;
     this.namespace = namespace;
     this.cluster = cluster;
     this.phase = phase;

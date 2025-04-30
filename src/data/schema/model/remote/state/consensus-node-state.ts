@@ -3,30 +3,36 @@
 import {Exclude, Expose, Transform} from 'class-transformer';
 import {type DeploymentPhase} from '../deployment-phase.js';
 import {Transformations} from '../../utils/transformations.js';
+import {
+  type ComponentId,
+  type ClusterReference,
+  type NamespaceNameAsString,
+} from '../../../../../core/config/remote/types.js';
 
 @Exclude()
 export class ConsensusNodeState {
   @Expose()
-  public name: string;
+  public id: ComponentId;
 
   @Expose()
-  public namespace: string;
+  public namespace: NamespaceNameAsString;
 
   @Expose()
-  public cluster: string;
+  public cluster: ClusterReference;
 
   @Expose()
   @Transform(Transformations.DeploymentPhase)
   public phase: DeploymentPhase;
 
-  @Expose()
-  public id: number;
-
-  public constructor(name?: string, namespace?: string, cluster?: string, phase?: DeploymentPhase, id?: number) {
-    this.name = name;
+  public constructor(
+    id?: ComponentId,
+    namespace?: NamespaceNameAsString,
+    cluster?: ClusterReference,
+    phase?: DeploymentPhase,
+  ) {
+    this.id = id;
     this.namespace = namespace;
     this.cluster = cluster;
     this.phase = phase;
-    this.id = id;
   }
 }
