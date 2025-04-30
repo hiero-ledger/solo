@@ -79,6 +79,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
 
     it('should be able to update a node after node delete', async () => {
       argv.setArg(flags.newAccountNumber, '0.0.7');
+      argv.setArg(flags.nodeAlias, 'node2');
 
       await commandInvoker.invoke({
         argv: argv,
