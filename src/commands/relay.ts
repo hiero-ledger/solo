@@ -4,7 +4,7 @@ import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import * as helpers from '../core/helpers.js';
-import {getNodeAccountMap, showVersionBanner} from '../core/helpers.js';
+import {showVersionBanner} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
 import {JSON_RPC_RELAY_CHART} from '../core/constants.js';
 import {type ProfileManager} from '../core/profile-manager.js';

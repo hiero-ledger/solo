@@ -57,6 +57,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {ComponentFactory} from '../core/config/remote/components/component-factory.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {SemVer, lt as SemVersionLessThan} from 'semver';
+import {SOLO_DEPLOYMENT_CHART} from '../core/constants.js';
 
 export interface NetworkDeployConfigClass {
   applicationEnv: string;
@@ -930,7 +931,7 @@ export class NetworkCommand extends BaseCommand {
                 config.valuesArgMap[clusterReference],
                 config.clusterRefs[clusterReference],
               );
-              showVersionBanner(self.logger, SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
+              showVersionBanner(self.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
             }
           },
         },
