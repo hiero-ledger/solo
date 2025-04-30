@@ -10,7 +10,7 @@ import {Version} from '../../../../business/utils/version.js';
 
 @Exclude()
 export class RemoteConfig {
-  public static readonly SCHEMA_VERSION: Version<number> = new Version(0);
+  public static readonly SCHEMA_VERSION: Version<number> = new Version(1);
 
   @Expose()
   public schemaVersion: number;

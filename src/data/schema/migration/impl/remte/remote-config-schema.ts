@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SchemaBase} from '../../api/schema-base.js';
 import {type Schema} from '../../api/schema.js';
 import {RemoteConfig} from '../../../model/remote/remote-config.js';
-import {type Version} from '../../../../../business/utils/version.js';
 import {type ClassConstructor} from '../../../../../business/utils/class-constructor.type.js';
 import {type SchemaMigration} from '../../api/schema-migration.js';
-import {inject, injectable} from 'tsyringe-neo';
+import {type Version} from '../../../../../business/utils/version.js';
 import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
 import {type ObjectMapper} from '../../../../mapper/api/object-mapper.js';
-import {SchemaBase} from '../../api/schema-base.js';
+import {RemoteConfigV1Migration} from './remote-config-v1-migration.js';
+import {inject, injectable} from 'tsyringe-neo';
 
 @injectable()
 export class RemoteConfigSchema extends SchemaBase<RemoteConfig> implements Schema<RemoteConfig> {
@@ -29,6 +30,6 @@ export class RemoteConfigSchema extends SchemaBase<RemoteConfig> implements Sche
   }
 
   public get migrations(): SchemaMigration[] {
-    return []; // TODO: Migrations might need to be added
+    return [new RemoteConfigV1Migration()];
   }
 }
