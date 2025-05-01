@@ -391,7 +391,7 @@ export class ProfileManager {
 
     const filesMapping: Record<ClusterReference, string> = {};
 
-    for (const clusterReference of Object.keys(this.remoteConfigManager.getClusterRefs())) {
+    for (const [clusterReference] of this.remoteConfigManager.getClusterRefs()) {
       const nodeAliases: NodeAliases = consensusNodes
         .filter(consensusNode => consensusNode.cluster === clusterReference)
         .map(consensusNode => consensusNode.name);

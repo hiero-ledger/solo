@@ -7,6 +7,7 @@ import {Version} from '../../../../business/utils/version.js';
 import {ApplicationVersions} from '../common/application-versions.js';
 import {
   type ClusterReference,
+  type ClusterReferences,
   type DeploymentName,
   type Realm,
   type Shard,
@@ -34,13 +35,13 @@ export class LocalConfig {
 
   @Expose()
   @Type(() => Map)
-  public clusterRefs: Map<string, string>;
+  public clusterRefs: ClusterReferences;
 
   constructor(
     schemaVersion?: number,
     versions?: ApplicationVersions,
     deployments?: Deployment[],
-    clusterReferences?: Map<string, string>,
+    clusterReferences?: ClusterReferences,
     userIdentity?: UserIdentity,
   ) {
     this.schemaVersion = schemaVersion ?? 1;

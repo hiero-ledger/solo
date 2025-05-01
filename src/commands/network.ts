@@ -951,7 +951,7 @@ export class NetworkCommand extends BaseCommand {
           title: `Install chart '${constants.SOLO_DEPLOYMENT_CHART}'`,
           task: async context_ => {
             const config = context_.config;
-            for (const clusterReference of Object.keys(config.clusterRefs)) {
+            for (const [clusterReference] of config.clusterRefs) {
               if (
                 await self.chartManager.isChartInstalled(
                   config.namespace,
@@ -1047,7 +1047,7 @@ export class NetworkCommand extends BaseCommand {
             // Perform a helm upgrade for each cluster
             const subTasks: SoloListrTask<Context>[] = [];
             const config = context_.config;
-            for (const clusterReference of Object.keys(config.clusterRefs)) {
+            for (const [clusterReference] of config.clusterRefs) {
               subTasks.push({
                 title: `Upgrade chart for cluster: ${chalk.yellow(clusterReference)}`,
                 task: async () => {

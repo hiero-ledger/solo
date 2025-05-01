@@ -117,7 +117,7 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
     const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
       InjectTokens.LocalConfigRuntimeState,
     );
-    const clusterReferences: Map<string, string> = localConfig.clusterRefs;
+    const clusterReferences: ClusterReferences = localConfig.clusterRefs;
     expect(clusterReferences.get(testClusterArray[0])).to.equal(contexts[0]);
     expect(clusterReferences.get(testClusterArray[1])).to.equal(contexts[1]);
     testLogger.info(`${testName}: finished solo cluster-ref connect`);

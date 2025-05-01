@@ -20,6 +20,7 @@ import {
   SOLO_CHART_VERSION,
 } from '../../../../../../version.js';
 import {ConfigKeyFormatter} from '../../../../../../src/data/key/config-key-formatter.js';
+import {type ClusterReferences} from '../../../../../../src/core/config/remote/types.js';
 
 describe('LocalConfig', () => {
   const schema: LocalConfigSchema = new LocalConfigSchema(new CTObjectMapper(ConfigKeyFormatter.instance()));
@@ -63,7 +64,7 @@ describe('LocalConfig', () => {
         new Deployment('deployment', 'solo-e2e', ['cluster-1'], 0, 0),
       ];
 
-      const clusterReferences: Map<string, string> = new Map<string, string>();
+      const clusterReferences: ClusterReferences = new Map<string, string>();
       clusterReferences.set('cluster-1', 'context-1');
       clusterReferences.set('cluster-2', 'context-2');
       clusterReferences.set('e2e-cluster-1', 'kind-solo-e2e-c1');

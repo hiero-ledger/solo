@@ -1947,7 +1947,7 @@ export class NodeCommandTasks {
 
         // Make sure valuesArgMap is initialized with empty strings
         const valuesArgumentMap: Record<ClusterReference, string> = {};
-        for (const [clusterReference, context] of clusterReferences) {
+        for (const [clusterReference] of clusterReferences) {
           valuesArgumentMap[clusterReference] = '';
         }
 
@@ -1969,7 +1969,7 @@ export class NodeCommandTasks {
 
         const clusterNodeIndexMap: Record<ClusterReference, Record<NodeId, /* index in the chart -> */ number>> = {};
 
-        for (const [clusterReference, context] of clusterReferences) {
+        for (const [clusterReference] of clusterReferences) {
           clusterNodeIndexMap[clusterReference] = {};
 
           for (const [index, node] of consensusNodes
@@ -2052,7 +2052,7 @@ export class NodeCommandTasks {
         );
 
         const promises = [];
-        for (const [clusterReference, context] of clusterReferences) {
+        for (const [clusterReference] of clusterReferences) {
           promises.push(async () => {
             const valuesArguments = valuesArgumentMap[clusterReference];
             const context = this.localConfig.clusterRefs.get(clusterReference);

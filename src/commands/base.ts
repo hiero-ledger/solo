@@ -105,7 +105,7 @@ export abstract class BaseCommand extends ShellRunner {
   ): Record<ClusterReference, string> {
     // initialize the map with an empty array for each cluster-ref
     const valuesFiles: Record<ClusterReference, string> = {[Flags.KEY_COMMON]: ''};
-    for (const [clusterReference, context] of clusterReferences) {
+    for (const [clusterReference] of clusterReferences) {
       valuesFiles[clusterReference] = '';
     }
 
@@ -180,7 +180,7 @@ export abstract class BaseCommand extends ShellRunner {
     const valuesFiles: Record<ClusterReference, string> = {
       [Flags.KEY_COMMON]: '',
     };
-    for (const [clusterReference, context] of clusterReferences) {
+    for (const [clusterReference] of clusterReferences) {
       valuesFiles[clusterReference] = '';
     }
 
