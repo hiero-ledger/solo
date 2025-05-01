@@ -47,13 +47,13 @@ const argvExecute = Argv.getDefaultArgv(namespace);
 argvExecute.setArg(flags.inputDir, temporaryDirectory);
 argvExecute.setArg(flags.inputDir, temporaryDirectory);
 
-await endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
+endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   const {
     opts: {k8Factory, commandInvoker, accountManager, remoteConfigManager, logger},
     cmd: {nodeCmd, accountCmd, networkCmd},
   } = bootstrapResp;
 
-  describe('Node add via separated commands should success', async () => {
+  describe('Node add via separated commands should success', () => {
     let existingServiceMap: NodeServiceMapping;
     let existingNodeIdsPrivateKeysHash: Map<NodeAlias, Map<string, string>>;
 

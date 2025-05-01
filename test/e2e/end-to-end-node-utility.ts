@@ -46,7 +46,7 @@ export async function endToEndNodeKeyRefreshTest(
   argv.setArg(flags.realm, hederaPlatformSupportsNonZeroRealms() ? 65_535 : 0);
   argv.setArg(flags.shard, hederaPlatformSupportsNonZeroRealms() ? 1023 : 0);
 
-  await endToEndTestSuite(testName, argv, {}, bootstrapResp => {
+  endToEndTestSuite(testName, argv, {}, bootstrapResp => {
     const defaultTimeout = Duration.ofMinutes(2).toMillis();
 
     const {
@@ -54,7 +54,7 @@ export async function endToEndNodeKeyRefreshTest(
       cmd: {nodeCmd},
     } = bootstrapResp;
 
-    describe(`NodeCommand [testName ${testName}, mode ${mode}, release ${releaseTag}]`, async () => {
+    describe(`NodeCommand [testName ${testName}, mode ${mode}, release ${releaseTag}]`, () => {
       afterEach(async function () {
         this.timeout(defaultTimeout);
 

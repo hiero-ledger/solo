@@ -16,7 +16,7 @@ import {LockRelinquishmentError} from '../../../../src/core/lock/lock-relinquish
 const defaultTimeout = Duration.ofMinutes(2).toMillis();
 const leaseDuration = 4;
 
-describe('Lease', async () => {
+describe('Lease', () => {
   const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
   const testNamespace = NamespaceName.of('lease-e2e');
   const renewalService = new NoopLeaseRenewalService();
@@ -36,7 +36,7 @@ describe('Lease', async () => {
     await k8Factory.default().namespaces().delete(testNamespace);
   });
 
-  describe('acquire and release', async function () {
+  describe('acquire and release', function () {
     this.timeout(defaultTimeout);
 
     it('non-expired lease', async () => {
@@ -141,7 +141,7 @@ describe('Lease', async () => {
     });
   });
 
-  describe('tryAcquire and tryRelease', async function () {
+  describe('tryAcquire and tryRelease', function () {
     this.timeout(defaultTimeout);
 
     it('non-expired lease', async () => {

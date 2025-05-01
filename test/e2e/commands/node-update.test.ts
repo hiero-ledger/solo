@@ -48,13 +48,13 @@ argv.setArg(flags.persistentVolumeClaims, true);
 argv.setArg(flags.realm, hederaPlatformSupportsNonZeroRealms() ? 1 : 0);
 argv.setArg(flags.shard, hederaPlatformSupportsNonZeroRealms() ? 1 : 0);
 
-await endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
+endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   const {
     opts: {k8Factory, commandInvoker, accountManager, remoteConfigManager, logger, keyManager},
     cmd: {nodeCmd, accountCmd},
   } = bootstrapResp;
 
-  describe('Node update', async () => {
+  describe('Node update', () => {
     let existingServiceMap: NodeServiceMapping;
     let existingNodeIdsPrivateKeysHash: Map<NodeAlias, Map<string, string>>;
 

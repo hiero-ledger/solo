@@ -43,13 +43,13 @@ argvPrepare.setArg(flags.outputDir, temporaryDirectory);
 const argvExecute = Argv.getDefaultArgv(namespace);
 argvExecute.setArg(flags.inputDir, temporaryDirectory);
 
-await endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
+endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   const {
     opts: {k8Factory, accountManager, remoteConfigManager, logger, commandInvoker},
     cmd: {nodeCmd, accountCmd},
   } = bootstrapResp;
 
-  describe('Node delete via separated commands', async () => {
+  describe('Node delete via separated commands', () => {
     after(async function () {
       this.timeout(Duration.ofMinutes(10).toMillis());
 

@@ -40,13 +40,13 @@ const zipFile = 'upgrade.zip';
 
 const TEST_VERSION_STRING = '0.100.0';
 
-await endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
+endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   const {
     opts: {k8Factory, commandInvoker, logger},
     cmd: {nodeCmd, accountCmd},
   } = bootstrapResp;
 
-  describe('Node upgrade', async () => {
+  describe('Node upgrade', () => {
     after(async function () {
       this.timeout(Duration.ofMinutes(10).toMillis());
 

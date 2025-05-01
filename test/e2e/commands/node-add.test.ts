@@ -4,4 +4,4 @@ import {testNodeAdd} from '../../test-add.js';
 import {Duration} from '../../../src/core/time/duration.js';
 
 const localBuildPath = '';
-await testNodeAdd(localBuildPath, 'Node add with released hedera', Duration.ofMinutes(3).toMillis());
+testNodeAdd(localBuildPath, 'Node add with released hedera', Duration.ofMinutes(3).toMillis());

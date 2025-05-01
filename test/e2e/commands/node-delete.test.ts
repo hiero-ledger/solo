@@ -38,8 +38,8 @@ argv.setArg(flags.namespace, namespace.name);
 argv.setArg(flags.realm, hederaPlatformSupportsNonZeroRealms() ? 65_535 : 0);
 argv.setArg(flags.shard, 0);
 
-await endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
-  describe('Node delete', async () => {
+endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
+  describe('Node delete', () => {
     const {
       opts: {k8Factory, commandInvoker, accountManager, remoteConfigManager, logger},
       cmd: {nodeCmd, accountCmd},

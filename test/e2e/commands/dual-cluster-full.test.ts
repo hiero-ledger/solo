@@ -55,7 +55,7 @@ import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/
 
 const testName: string = 'dual-cluster-full';
 
-describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTest(): Promise<void> {
+describe('Dual Cluster Full E2E Test', function dualClusterFullEndToEndTest() {
   this.bail(true);
   const namespace: NamespaceName = NamespaceName.of(testName);
   const deployment: DeploymentName = `${testName}-deployment`;

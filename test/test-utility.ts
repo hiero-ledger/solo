@@ -204,8 +204,8 @@ export async function bootstrapTestVariables(
   };
 }
 
-/** Bootstrap network in a given namespace, then run the test call back providing the bootstrap response */
-export async function endToEndTestSuite(
+/** Bootstrap network in a given bootstrap.namespace, then run the test call back providing the bootstrap response */
+export function endToEndTestSuite(
   testName: string,
   argv: Argv,
   {
@@ -218,34 +218,32 @@ export async function endToEndTestSuite(
     startNodes,
   }: Cmd & {startNodes?: boolean},
   testsCallBack: (bootstrapResp: BootstrapResponse) => void = () => {},
-): Promise<void> {
+): void {
   if (typeof startNodes !== 'boolean') {
     startNodes = true;
   }
 
-  const bootstrapResp = await bootstrapTestVariables(testName, argv, {
-    k8FactoryArg,
-    initCmdArg,
-    clusterCmdArg,
-    networkCmdArg,
-    nodeCmdArg,
-    accountCmdArg,
-  });
-
-  const {
-    namespace,
-    cmd: {initCmd, clusterCmd, networkCmd, nodeCmd, deploymentCmd},
-    opts: {k8Factory, chartManager, commandInvoker},
-  } = bootstrapResp;
+  let bootstrap: BootstrapResponse;
 
   const testLogger: SoloLogger = getTestLogger();
 
   describe(`E2E Test Suite for '${testName}'`, function () {
+    before(async (): Promise<void> => {
+      bootstrap = await bootstrapTestVariables(testName, argv, {
+        k8FactoryArg,
+        initCmdArg,
+        clusterCmdArg,
+        networkCmdArg,
+        nodeCmdArg,
+        accountCmdArg,
+      });
+    });
+
     this.bail(true); // stop on first failure, nothing else will matter if network doesn't come up correctly
 
     describe(`Bootstrap network for test [release ${argv.getArg<string>(flags.releaseTag)}]`, () => {
       before(() => {
-        bootstrapResp.opts.logger.showUser(
+        bootstrap.opts.logger.showUser(
           `------------------------- START: bootstrap (${testName}) ----------------------------`,
         );
       });
@@ -254,111 +252,114 @@ export async function endToEndTestSuite(
 
       after(async function () {
         this.timeout(Duration.ofMinutes(5).toMillis());
-        await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
-        bootstrapResp.opts.logger.showUser(
+        await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(bootstrap.namespace);
+        bootstrap.opts.logger.showUser(
           `------------------------- END: bootstrap (${testName}) ----------------------------`,
         );
       });
 
       it('should cleanup previous deployment', async () => {
-        await commandInvoker.invoke({
+        await bootstrap.opts.commandInvoker.invoke({
           argv: argv,
           command: InitCommand.COMMAND_NAME,
-          callback: async argv => initCmd.init(argv),
+          callback: async argv => bootstrap.cmd.initCmd.init(argv),
         });
 
-        if (await k8Factory.default().namespaces().has(namespace)) {
-          await k8Factory.default().namespaces().delete(namespace);
+        if (await bootstrap.opts.k8Factory.default().namespaces().has(bootstrap.namespace)) {
+          await bootstrap.opts.k8Factory.default().namespaces().delete(bootstrap.namespace);
 
-          while (await k8Factory.default().namespaces().has(namespace)) {
-            testLogger.debug(`Namespace ${namespace} still exist. Waiting...`);
+          while (await bootstrap.opts.k8Factory.default().namespaces().has(bootstrap.namespace)) {
+            testLogger.debug(`bootstrap.namespace ${bootstrap.namespace} still exist. Waiting...`);
             await sleep(Duration.ofSeconds(2));
           }
         }
 
         if (
-          !(await chartManager.isChartInstalled(constants.SOLO_SETUP_NAMESPACE, constants.SOLO_CLUSTER_SETUP_CHART))
+          !(await bootstrap.opts.chartManager.isChartInstalled(
+            constants.SOLO_SETUP_NAMESPACE,
+            constants.SOLO_CLUSTER_SETUP_CHART,
+          ))
         ) {
-          await commandInvoker.invoke({
+          await bootstrap.opts.commandInvoker.invoke({
             argv: argv,
             command: ClusterCommand.COMMAND_NAME,
             subcommand: 'setup',
-            callback: async argv => clusterCmd.handlers.setup(argv),
+            callback: async argv => bootstrap.cmd.clusterCmd.handlers.setup(argv),
           });
         }
       }).timeout(Duration.ofMinutes(2).toMillis());
 
       it("should success with 'cluster-ref connect'", async () => {
-        await commandInvoker.invoke({
+        await bootstrap.opts.commandInvoker.invoke({
           argv: argv,
           command: ClusterCommand.COMMAND_NAME,
           subcommand: 'connect',
-          callback: async argv => clusterCmd.handlers.connect(argv),
+          callback: async argv => bootstrap.cmd.clusterCmd.handlers.connect(argv),
         });
       });
 
       it('should succeed with deployment create', async () => {
-        await commandInvoker.invoke({
+        await bootstrap.opts.commandInvoker.invoke({
           argv: argv,
           command: DeploymentCommand.COMMAND_NAME,
           subcommand: 'create',
-          callback: async argv => deploymentCmd.create(argv),
+          callback: async argv => bootstrap.cmd.deploymentCmd.create(argv),
         });
       });
 
       it("should succeed with 'deployment add-cluster'", async () => {
-        await commandInvoker.invoke({
+        await bootstrap.opts.commandInvoker.invoke({
           argv: argv,
           command: DeploymentCommand.COMMAND_NAME,
           subcommand: 'add-cluster',
-          callback: async argv => deploymentCmd.addCluster(argv),
+          callback: async argv => bootstrap.cmd.deploymentCmd.addCluster(argv),
         });
       });
 
       it('generate key files', async () => {
-        await commandInvoker.invoke({
+        await bootstrap.opts.commandInvoker.invoke({
           argv: argv,
           command: NodeCommand.COMMAND_NAME,
           subcommand: 'keys',
-          callback: async argv => nodeCmd.handlers.keys(argv),
+          callback: async argv => bootstrap.cmd.nodeCmd.handlers.keys(argv),
         });
       }).timeout(Duration.ofMinutes(2).toMillis());
 
       it('should succeed with network deploy', async () => {
-        await commandInvoker.invoke({
+        await bootstrap.opts.commandInvoker.invoke({
           argv: argv,
           command: NetworkCommand.COMMAND_NAME,
           subcommand: 'deploy',
-          callback: async argv => networkCmd.deploy(argv),
+          callback: async argv => bootstrap.cmd.networkCmd.deploy(argv),
         });
       }).timeout(Duration.ofMinutes(5).toMillis());
 
       if (startNodes) {
         it('should succeed with node setup command', async () => {
           // cache this, because `solo node setup.finalize()` will reset it to false
-          await commandInvoker.invoke({
+          await bootstrap.opts.commandInvoker.invoke({
             argv: argv,
             command: NodeCommand.COMMAND_NAME,
             subcommand: 'setup',
-            callback: async argv => nodeCmd.handlers.setup(argv),
+            callback: async argv => bootstrap.cmd.nodeCmd.handlers.setup(argv),
           });
         }).timeout(Duration.ofMinutes(4).toMillis());
 
         it('should succeed with node start command', async () => {
-          await commandInvoker.invoke({
+          await bootstrap.opts.commandInvoker.invoke({
             argv: argv,
             command: NodeCommand.COMMAND_NAME,
             subcommand: 'start',
-            callback: async argv => nodeCmd.handlers.start(argv),
+            callback: async argv => bootstrap.cmd.nodeCmd.handlers.start(argv),
           });
         }).timeout(Duration.ofMinutes(30).toMillis());
 
         it('node log command should work', async () => {
-          await commandInvoker.invoke({
+          await bootstrap.opts.commandInvoker.invoke({
             argv: argv,
             command: NodeCommand.COMMAND_NAME,
             subcommand: 'logs',
-            callback: async argv => nodeCmd.handlers.logs(argv),
+            callback: async argv => bootstrap.cmd.nodeCmd.handlers.logs(argv),
           });
 
           const soloLogPath = PathEx.joinWithRealPath(SOLO_LOGS_DIR, 'solo.log');
@@ -370,7 +371,7 @@ export async function endToEndTestSuite(
     });
 
     describe(testName, () => {
-      testsCallBack(bootstrapResp);
+      testsCallBack(bootstrap);
     });
   });
 }

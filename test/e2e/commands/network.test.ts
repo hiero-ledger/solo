@@ -173,7 +173,10 @@ describe('NetworkCommand', function networkCommand(): void {
         callback: async argv => bootstrap.cmd.networkCmd.destroy(argv),
       });
 
-      while ((await bootstrap.opts.k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node'])).length > 0) {
+      while (
+        (await bootstrap.opts.k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']))
+          .length > 0
+      ) {
         bootstrap.opts.logger.debug('Pods are still running. Waiting...');
         await sleep(Duration.ofSeconds(3));
       }
@@ -184,7 +187,10 @@ describe('NetworkCommand', function networkCommand(): void {
       }
 
       // check if chart is uninstalled
-      const chartInstalledStatus = await bootstrap.opts.chartManager.isChartInstalled(namespace, constants.SOLO_DEPLOYMENT_CHART);
+      const chartInstalledStatus = await bootstrap.opts.chartManager.isChartInstalled(
+        namespace,
+        constants.SOLO_DEPLOYMENT_CHART,
+      );
       expect(chartInstalledStatus).to.be.false;
 
       // check if pvc are deleted
