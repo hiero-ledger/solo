@@ -37,6 +37,7 @@ import path from 'node:path';
 import {SemVer, lt as SemVersionLessThan} from 'semver';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
 import {type LocalConfig} from '../../../src/data/schema/model/local/local-config.js';
+import {type ClusterReferences} from '../../../src/core/config/remote/types.js';
 
 const testName = 'network-cmd-unit';
 const namespace = NamespaceName.of(testName);
@@ -184,7 +185,8 @@ describe('NetworkCommand unit tests', () => {
         const networkCommand = new NetworkCommand(options);
         options.remoteConfigManager.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
         options.remoteConfigManager.getContexts = sinon.stub().returns(['context1']);
-        options.remoteConfigManager.getClusterRefs = sinon.stub().returns({['solo-e2e']: 'context1'});
+        const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['solo-e2e', 'context1']]);
+        options.remoteConfigManager.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
         await networkCommand.deploy(argv.build());
 
@@ -205,7 +207,8 @@ describe('NetworkCommand unit tests', () => {
 
         options.remoteConfigManager.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
         options.remoteConfigManager.getContexts = sinon.stub().returns(['context1']);
-        options.remoteConfigManager.getClusterRefs = sinon.stub().returns({['solo-e2e']: 'context1'});
+        const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['solo-e2e', 'context1']]);
+        options.remoteConfigManager.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
         await networkCommand.deploy(argv.build());
         expect(options.chartManager.install.args[0][0].name).to.equal('solo-e2e');
@@ -232,7 +235,8 @@ describe('NetworkCommand unit tests', () => {
           .stub()
           .returns([new ConsensusNode('node1', 0, 'solo-e2e', 'cluster', 'context-1', 'base', 'pattern', 'fqdn')]);
         options.remoteConfigManager.getContexts = sinon.stub().returns(['context-1']);
-        options.remoteConfigManager.getClusterRefs = sinon.stub().returns({['cluster']: 'context-1'});
+        const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['cluster', 'context1']]);
+        options.remoteConfigManager.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
         const networkCommand = new NetworkCommand(options);
         const config = await networkCommand.prepareConfig(task, argv.build());
