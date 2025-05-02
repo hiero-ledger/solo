@@ -134,6 +134,8 @@ interface Cmd {
   deploymentCmdArg?: DeploymentCommand;
 }
 
+let resetDone: boolean = false;
+
 /** Initialize common test variables */
 export function bootstrapTestVariables(
   testName: string,
@@ -146,7 +148,15 @@ export function bootstrapTestVariables(
 
   const deployment: string = argv.getArg<DeploymentName>(flags.deployment) || `${namespace.name}-deployment`;
   const cacheDirectory: string = argv.getArg<string>(flags.cacheDir) || getTestCacheDirectory(testName);
-  resetForTest(namespace.name, cacheDirectory);
+
+  // Make sure the container is reset only once per CI run.
+  // When multiple test suites are loaded simultaniously, as is the case with `task test-e2e-standard`
+  // the container will be reset multiple times, which causes issues with the loading of LocalConfigRuntimeState.
+  // A better solution would be to run bootstraping during the before hook of the test suite.
+  if (!resetDone) {
+    resetForTest(namespace.name, cacheDirectory);
+    resetDone = true;
+  }
   const configManager: ConfigManager = container.resolve(InjectTokens.ConfigManager);
   configManager.update(argv.build());
 
@@ -294,6 +304,8 @@ export function endToEndTestSuite(
       }).timeout(Duration.ofMinutes(2).toMillis());
 
       it("should success with 'cluster-ref connect'", async () => {
+        const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+        await localConfig.load();
         await commandInvoker.invoke({
           argv: argv,
           command: ClusterCommand.COMMAND_NAME,

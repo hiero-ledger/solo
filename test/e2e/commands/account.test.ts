@@ -34,6 +34,7 @@ import {Argv} from '../../helpers/argv-wrapper.js';
 import {type DeploymentName, type Realm, type Shard} from '../../../src/core/config/remote/types.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {entityId} from '../../../src/core/helpers.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
 
 const defaultTimeout = Duration.ofSeconds(20).toMillis();
 
@@ -65,9 +66,11 @@ endToEndTestSuite(testName, argv, {}, bootstrapResp => {
       cmd: {nodeCmd},
     } = bootstrapResp;
 
-    before(() => {
+    before(async () => {
       accountCmd = new AccountCommand(bootstrapResp.opts, testSystemAccounts);
       bootstrapResp.cmd.accountCmd = accountCmd;
+      const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+      await localConfig.load();
       testLogger = getTestLogger();
     });
 

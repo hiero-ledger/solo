@@ -38,7 +38,7 @@ describe('BaseCommand', () => {
 
   describe('runShell', () => {
     before(async () => {
-      await resetForTest();
+      resetForTest();
       testLogger = container.resolve(InjectTokens.SoloLogger);
       helm = container.resolve(InjectTokens.Helm);
       chartManager = container.resolve(InjectTokens.ChartManager);
@@ -62,6 +62,8 @@ describe('BaseCommand', () => {
         localConfig,
         remoteConfigManager,
       });
+
+      await localConfig.load();
     });
 
     after(() => {

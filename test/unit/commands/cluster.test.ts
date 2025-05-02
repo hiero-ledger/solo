@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import sinon from 'sinon';
-import {beforeEach, describe, it} from 'mocha';
+import {before, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
 
 import {ClusterCommand} from '../../../src/commands/cluster/index.js';
@@ -56,7 +56,9 @@ argv.setArg(flags.clusterSetupNamespace, constants.SOLO_SETUP_NAMESPACE.name);
 
 describe('ClusterCommand unit tests', () => {
   before(async () => {
-    await resetForTest(namespace.name);
+    resetForTest(namespace.name);
+    const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+    await localConfig.load();
   });
 
   describe('Chart Install Function is called correctly', () => {

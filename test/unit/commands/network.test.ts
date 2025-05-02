@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import sinon from 'sinon';
-import {beforeEach, describe, it} from 'mocha';
+import {before, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
 
 import {getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
@@ -76,7 +76,7 @@ describe('NetworkCommand unit tests', () => {
     let options: any;
 
     beforeEach(async () => {
-      await resetForTest();
+      resetForTest();
       options = {};
 
       options.logger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
@@ -174,6 +174,9 @@ describe('NetworkCommand unit tests', () => {
       options.leaseManager.currentNamespace = sinon.stub().returns(testName);
 
       GenesisNetworkDataConstructor.initialize = sinon.stub().returns(null);
+
+      const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+      await localConfig.load();
     });
 
     afterEach(() => {

@@ -21,12 +21,17 @@ import * as fs from 'node:fs';
 import * as yaml from 'yaml';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {SoloWinstonLogger} from '../../../src/core/logging/solo-winston-logger.js';
+import {container} from 'tsyringe-neo';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
+import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 
 describe('ClusterCommand', () => {
   // mock showUser and showJSON to silent logging during tests
-  before(() => {
+  before(async (): Promise<void> => {
     sinon.stub(SoloWinstonLogger.prototype, 'showUser');
     sinon.stub(SoloWinstonLogger.prototype, 'showJSON');
+    const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+    await localConfig.load();
   });
 
   after(() => {

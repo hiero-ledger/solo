@@ -7,7 +7,7 @@ import chaiAsPromised from 'chai-as-promised';
 import sinonChai from 'sinon-chai';
 import {resetForTest} from './test-container.js';
 
-await resetForTest();
+resetForTest();
 
 chai.use(chaiAsPromised);
 chai.use(sinonChai);

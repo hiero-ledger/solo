@@ -21,6 +21,9 @@ import {DeploymentCommand} from '../../../src/commands/deployment.js';
 import {NetworkCommand} from '../../../src/commands/network.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import os from 'node:os';
+import {container} from 'tsyringe-neo';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
+import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 
 describe('NetworkCommand', function networkCommand() {
   this.bail(true);
@@ -53,6 +56,8 @@ describe('NetworkCommand', function networkCommand() {
     this.timeout(Duration.ofMinutes(1).toMillis());
     await KeyManager.generateTls(temporaryDirectory, 'grpc');
     await KeyManager.generateTls(temporaryDirectory, 'grpcWeb');
+    const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+    await localConfig.load();
   });
 
   argv.setArg(flags.grpcTlsCertificatePath, 'node1=' + PathEx.join(temporaryDirectory, 'grpc.crt'));
