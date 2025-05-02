@@ -7,21 +7,15 @@ import * as yaml from 'yaml';
 import {DEFAULT_LOCAL_CONFIG_FILE} from '../src/core/constants.js';
 import {type SoloLogger} from '../src/core/logging/solo-logger.js';
 import {PathEx} from '../src/business/utils/path-ex.js';
-import {container} from 'tsyringe-neo';
-import {InjectTokens} from '../src/core/dependency-injection/inject-tokens.js';
-import {type LocalConfigRuntimeState} from '../src/business/runtime-state/local-config-runtime-state.js';
 
 const CACHE_DIRECTORY = PathEx.join('test', 'data', 'tmp');
 
-export async function resetTestContainer(cacheDirectory: string = CACHE_DIRECTORY, testLogger?: SoloLogger) {
+export function resetTestContainer(cacheDirectory: string = CACHE_DIRECTORY, testLogger?: SoloLogger) {
   // For the test suites cacheDirectory === homeDir is acceptable because the data is temporary
   Container.getInstance().reset(cacheDirectory, cacheDirectory, 'debug', true, testLogger);
-
-  const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
-  await localConfig.load();
 }
 
-export async function resetForTest(
+export function resetForTest(
   namespace?: NamespaceNameAsString,
   cacheDirectory: string = CACHE_DIRECTORY,
   testLogger?: SoloLogger,
@@ -38,5 +32,5 @@ export async function resetForTest(
     fs.writeFileSync(PathEx.join(CACHE_DIRECTORY, localConfigFile), yaml.stringify(parsedData));
   }
   // need to init the container prior to using K8Client for dependency injection to work
-  await resetTestContainer(cacheDirectory, testLogger);
+  resetTestContainer(cacheDirectory, testLogger);
 }
