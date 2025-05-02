@@ -150,7 +150,6 @@ export class NodeCommandTasks {
       InjectTokens.RemoteConfigManager,
       this.constructor.name,
     );
-    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
@@ -2051,9 +2050,14 @@ export class NodeCommandTasks {
           config.debugNodeAlias,
         );
 
-        const promises = [];
+        const clusterReverencesList: ClusterReference[] = [];
         for (const [clusterReference] of clusterReferences) {
-          promises.push(async () => {
+          clusterReverencesList.push(clusterReference);
+        }
+
+        // Update all charts
+        await Promise.all(
+          clusterReverencesList.map(async clusterReference => {
             const valuesArguments = valuesArgumentMap[clusterReference];
             const context = this.localConfig.clusterRefs.get(clusterReference);
 
@@ -2067,11 +2071,8 @@ export class NodeCommandTasks {
               context,
             );
             showVersionBanner(self.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
-          });
-        }
-
-        // Update all charts
-        await Promise.all(promises);
+          }),
+        );
       },
       skip,
     };
