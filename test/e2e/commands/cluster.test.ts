@@ -144,7 +144,7 @@ describe('ClusterCommand', () => {
 
   // 'solo cluster-ref connect' tests
   function getClusterConnectDefaultArgv(): {argv: Argv; clusterRef: string; contextName: string} {
-    const clusterReference = TEST_CLUSTER;
+    const clusterReference = `${TEST_CLUSTER}-ref`;
     const contextName = TEST_CONTEXT;
 
     const argv = Argv.initializeEmpty();

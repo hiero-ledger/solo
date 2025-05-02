@@ -114,7 +114,7 @@ describe('NetworkCommand', function networkCommand() {
     configManager.update(argv.build());
   });
 
-  it('deployment create should succeed', async () => {
+  it('cluster-ref add-cluster should succeed', async () => {
     await commandInvoker.invoke({
       argv: argv,
       command: DeploymentCommand.COMMAND_NAME,
