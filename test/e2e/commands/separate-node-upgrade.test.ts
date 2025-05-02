@@ -39,7 +39,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     cmd: {nodeCmd, accountCmd},
   } = bootstrapResp;
 
-  describe('Node upgrade', () => {
+  describe('Node upgrade', async () => {
     after(async function () {
       this.timeout(Duration.ofMinutes(10).toMillis());
 

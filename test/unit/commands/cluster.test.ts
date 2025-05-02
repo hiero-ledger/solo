@@ -84,12 +84,6 @@ describe('ClusterCommand unit tests', () => {
       options.remoteConfigManager = sandbox.stub();
 
       options.remoteConfigManager.currentCluster = 'solo-e2e';
-      // options.localConfig.localConfigData = new LocalConfigDataWrapper(
-      //   'test@test.com' as EmailAddress,
-      //   getSoloVersion(),
-      //   {},
-      //   {'solo-e2e': 'context-1'},
-      // );
     });
 
     it('Install function is called with expected parameters', async () => {

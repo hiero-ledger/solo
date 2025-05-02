@@ -49,7 +49,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     cmd: {nodeCmd, accountCmd},
   } = bootstrapResp;
 
-  describe('Node delete via separated commands', () => {
+  describe('Node delete via separated commands', async () => {
     after(async function () {
       this.timeout(Duration.ofMinutes(10).toMillis());
 

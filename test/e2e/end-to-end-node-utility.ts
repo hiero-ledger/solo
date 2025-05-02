@@ -29,11 +29,7 @@ import {Argv} from '../helpers/argv-wrapper.js';
 import {type SoloListrTaskWrapper} from '../../src/types/index.js';
 import {type Pod} from '../../src/integration/kube/resources/pod/pod.js';
 
-export async function endToEndNodeKeyRefreshTest(
-  testName: string,
-  mode: string,
-  releaseTag = HEDERA_PLATFORM_VERSION_TAG,
-): Promise<void> {
+export function endToEndNodeKeyRefreshTest(testName: string, mode: string, releaseTag = HEDERA_PLATFORM_VERSION_TAG) {
   const namespace = NamespaceName.of(testName);
   const argv = Argv.getDefaultArgv(namespace);
   argv.setArg(flags.namespace, namespace.name);
@@ -54,7 +50,7 @@ export async function endToEndNodeKeyRefreshTest(
       cmd: {nodeCmd},
     } = bootstrapResp;
 
-    describe(`NodeCommand [testName ${testName}, mode ${mode}, release ${releaseTag}]`, () => {
+    describe(`NodeCommand [testName ${testName}, mode ${mode}, release ${releaseTag}]`, async () => {
       afterEach(async function () {
         this.timeout(defaultTimeout);
 

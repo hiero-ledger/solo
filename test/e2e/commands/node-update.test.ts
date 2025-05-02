@@ -54,7 +54,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     cmd: {nodeCmd, accountCmd},
   } = bootstrapResp;
 
-  describe('Node update', () => {
+  describe('Node update', async () => {
     let existingServiceMap: NodeServiceMapping;
     let existingNodeIdsPrivateKeysHash: Map<NodeAlias, Map<string, string>>;
 

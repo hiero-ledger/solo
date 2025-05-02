@@ -50,7 +50,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     cmd: {nodeCmd, accountCmd},
   } = bootstrapResp;
 
-  describe('Node update via separated commands', () => {
+  describe('Node update via separated commands', async () => {
     let existingServiceMap: NodeServiceMapping;
     let existingNodeIdsPrivateKeysHash: Map<NodeAlias, Map<string, string>>;
 

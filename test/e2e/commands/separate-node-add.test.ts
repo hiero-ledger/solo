@@ -53,7 +53,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     cmd: {nodeCmd, accountCmd, networkCmd},
   } = bootstrapResp;
 
-  describe('Node add via separated commands should success', () => {
+  describe('Node add via separated commands should success', async () => {
     let existingServiceMap: NodeServiceMapping;
     let existingNodeIdsPrivateKeysHash: Map<NodeAlias, Map<string, string>>;
 

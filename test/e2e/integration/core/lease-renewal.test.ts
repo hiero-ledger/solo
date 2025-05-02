@@ -16,7 +16,7 @@ import {type LockRenewalService} from '../../../../src/core/lock/lock.js';
 const defaultTimeout = Duration.ofMinutes(2).toMillis();
 const leaseDuration = 4;
 
-describe('LeaseRenewalService', () => {
+describe('LeaseRenewalService', async () => {
   const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory) as K8Factory;
   const renewalService: LockRenewalService = container.resolve(InjectTokens.LockRenewalService);
   const testNamespace = NamespaceName.of('lease-renewal-e2e');

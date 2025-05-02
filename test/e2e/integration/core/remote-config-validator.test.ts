@@ -43,8 +43,6 @@ describe('RemoteConfigValidator', () => {
     k8Factory = container.resolve(InjectTokens.K8Factory);
     localConfig = new LocalConfigRuntimeState(`${getTestCacheDirectory('LocalConfig')}`, 'localConfig.yaml');
     await localConfig.load();
-    // // @ts-expect-error - TS2341: to mock
-    // localConfig.localConfigData = new LocalConfigDataWrapper('test@test.com', '0.0.1', {}, {});
     await k8Factory.default().namespaces().create(namespace);
   });
 

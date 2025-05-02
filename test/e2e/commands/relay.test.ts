@@ -45,7 +45,7 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
     opts: {k8Factory, logger, commandInvoker},
   } = bootstrapResp;
 
-  describe('RelayCommand', () => {
+  describe('RelayCommand', async (): Promise<void> => {
     const relayCmd: RelayCommand = new RelayCommand(bootstrapResp.opts);
     const testLogger: SoloLogger = container.resolve(InjectTokens.SoloLogger);
 
