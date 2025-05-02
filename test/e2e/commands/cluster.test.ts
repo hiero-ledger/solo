@@ -52,7 +52,7 @@ describe('ClusterCommand', () => {
   argv.setArg(flags.nodeAliasesUnparsed, 'node1');
   argv.setArg(flags.generateGossipKeys, true);
   argv.setArg(flags.generateTlsKeys, true);
-  argv.setArg(flags.clusterRef, TEST_CLUSTER);
+  argv.setArg(flags.clusterRef, `${TEST_CLUSTER}-ref`);
   argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
   argv.setArg(flags.force, true);
 
