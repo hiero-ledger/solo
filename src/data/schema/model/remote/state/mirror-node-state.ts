@@ -1,38 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {Exclude, Expose, Transform} from 'class-transformer';
-import {Transformations} from '../../utils/transformations.js';
-import {type DeploymentPhase} from '../deployment-phase.js';
-import {
-  type ClusterReference,
-  type ComponentId,
-  type NamespaceNameAsString,
-} from '../../../../../core/config/remote/types.js';
+import {Exclude, Expose} from 'class-transformer';
+import {ComponentStateMetadata} from './component-state-metadata.js';
 
 @Exclude()
 export class MirrorNodeState {
   @Expose()
-  public id: ComponentId;
+  public metadata: ComponentStateMetadata;
 
-  @Expose()
-  public namespace: NamespaceNameAsString;
-
-  @Expose()
-  public cluster: ClusterReference;
-
-  @Expose()
-  @Transform(Transformations.DeploymentPhase)
-  public phase: DeploymentPhase;
-
-  public constructor(
-    id?: ComponentId,
-    namespace?: NamespaceNameAsString,
-    cluster?: ClusterReference,
-    phase?: DeploymentPhase,
-  ) {
-    this.id = id;
-    this.namespace = namespace;
-    this.cluster = cluster;
-    this.phase = phase;
+  public constructor(metadata?: ComponentStateMetadata) {
+    this.metadata = metadata;
   }
 }

@@ -8,7 +8,7 @@ import {ApplicationVersions} from '../../data/schema/model/common/application-ve
 import {ReadRemoteConfigBeforeLoadError} from '../errors/read-remote-config-before-load-error.js';
 import {WriteRemoteConfigBeforeLoadError} from '../errors/write-remote-config-before-load-error.js';
 import {RemoteConfigSource} from '../../data/configuration/impl/remote-config-source.js';
-import {RemoteConfigSchema} from '../../data/schema/migration/impl/remte/remote-config-schema.js';
+import {RemoteConfigSchema} from '../../data/schema/migration/impl/remote/remote-config-schema.js';
 import {YamlConfigMapStorageBackend} from '../../data/backend/impl/yaml-config-map-storage-backend.js';
 import {type ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 import {RemoteConfigMetadata} from '../../data/schema/model/remote/remote-config-metadata.js';

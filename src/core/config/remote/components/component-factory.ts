@@ -12,6 +12,7 @@ import {type RemoteConfigManagerApi} from '../api/remote-config-manager-api.js';
 import {type ClusterReference, type ComponentId} from '../types.js';
 import {type NamespaceName} from '../../../../integration/kube/resources/namespace/namespace-name.js';
 import {type NodeId} from '../../../../types/aliases.js';
+import {ComponentMetadata} from './component-metadata.js';
 
 export class ComponentFactory {
   public static createNewRelayComponent(
@@ -21,8 +22,10 @@ export class ComponentFactory {
     nodeIds: NodeId[],
   ): RelayComponent {
     const id: ComponentId = remoteConfigManager.components.getNewComponentId(ComponentTypes.Relay);
+    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
+    const metadata: ComponentMetadata = new ComponentMetadata(id, clusterReference, namespace.name, phase);
 
-    return new RelayComponent(id, clusterReference, namespace.name, DeploymentPhase.DEPLOYED, nodeIds);
+    return new RelayComponent(metadata, nodeIds);
   }
 
   public static createNewExplorerComponent(
@@ -31,8 +34,10 @@ export class ComponentFactory {
     namespace: NamespaceName,
   ): MirrorNodeExplorerComponent {
     const id: ComponentId = remoteConfigManager.components.getNewComponentId(ComponentTypes.MirrorNodeExplorer);
+    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
+    const metadata: ComponentMetadata = new ComponentMetadata(id, clusterReference, namespace.name, phase);
 
-    return new MirrorNodeExplorerComponent(id, clusterReference, namespace.name, DeploymentPhase.DEPLOYED);
+    return new MirrorNodeExplorerComponent(metadata);
   }
 
   public static createNewMirrorNodeComponent(
@@ -41,8 +46,10 @@ export class ComponentFactory {
     namespace: NamespaceName,
   ): MirrorNodeComponent {
     const id: ComponentId = remoteConfigManager.components.getNewComponentId(ComponentTypes.MirrorNode);
+    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
+    const metadata: ComponentMetadata = new ComponentMetadata(id, clusterReference, namespace.name, phase);
 
-    return new MirrorNodeComponent(id, clusterReference, namespace.name, DeploymentPhase.DEPLOYED);
+    return new MirrorNodeComponent(metadata);
   }
 
   public static createNewHaProxyComponent(
@@ -51,8 +58,10 @@ export class ComponentFactory {
     namespace: NamespaceName,
   ): HaProxyComponent {
     const id: ComponentId = remoteConfigManager.components.getNewComponentId(ComponentTypes.HaProxy);
+    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
+    const metadata: ComponentMetadata = new ComponentMetadata(id, clusterReference, namespace.name, phase);
 
-    return new HaProxyComponent(id, clusterReference, namespace.name, DeploymentPhase.DEPLOYED);
+    return new HaProxyComponent(metadata);
   }
 
   public static createNewEnvoyProxyComponent(
@@ -61,8 +70,10 @@ export class ComponentFactory {
     namespace: NamespaceName,
   ): EnvoyProxyComponent {
     const id: ComponentId = remoteConfigManager.components.getNewComponentId(ComponentTypes.EnvoyProxy);
+    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
+    const metadata: ComponentMetadata = new ComponentMetadata(id, clusterReference, namespace.name, phase);
 
-    return new EnvoyProxyComponent(id, clusterReference, namespace.name, DeploymentPhase.DEPLOYED);
+    return new EnvoyProxyComponent(metadata);
   }
 
   public static createNewConsensusNodeComponent(
@@ -71,7 +82,9 @@ export class ComponentFactory {
     namespace: NamespaceName,
     phase: DeploymentPhase.REQUESTED | DeploymentPhase.STARTED,
   ): ConsensusNodeComponent {
-    return new ConsensusNodeComponent(nodeId, clusterReference, namespace.name, phase);
+    const metadata: ComponentMetadata = new ComponentMetadata(nodeId, clusterReference, namespace.name, phase);
+
+    return new ConsensusNodeComponent(metadata);
   }
 
   public static createConsensusNodeComponentsFromNodeIds(

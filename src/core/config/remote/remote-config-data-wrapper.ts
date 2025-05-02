@@ -15,7 +15,7 @@ import {type ConfigMap} from '../../../integration/kube/resources/config-map/con
 import {type RemoteConfigDataStruct} from './interfaces/remote-config-data-struct.js';
 
 export class RemoteConfigDataWrapper implements Validate, ToObject<RemoteConfigDataStruct> {
-  private readonly _version: Version = '1.0.0';
+  private _schemaVersion: Version = '1.0.0';
   private _metadata: RemoteConfigMetadata;
   private readonly _clusters: Record<ClusterReference, Cluster>;
   private _components: ComponentsDataWrapper;
@@ -24,6 +24,9 @@ export class RemoteConfigDataWrapper implements Validate, ToObject<RemoteConfigD
   private readonly _flags: CommonFlagsDataWrapper;
 
   public constructor(data: RemoteConfigData) {
+    _schemaVersion
+
+
     this._metadata = data.metadata;
     this._clusters = Cluster.fromClustersMapObject(data.clusters);
     this._components = data.components;
