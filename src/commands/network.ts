@@ -956,13 +956,13 @@ export class NetworkCommand extends BaseCommand {
                 await self.chartManager.isChartInstalled(
                   config.namespace,
                   constants.SOLO_DEPLOYMENT_CHART,
-                  config.clusterRefs[clusterReference],
+                  config.clusterRefs.get(clusterReference),
                 )
               ) {
                 await self.chartManager.uninstall(
                   config.namespace,
                   constants.SOLO_DEPLOYMENT_CHART,
-                  config.clusterRefs[clusterReference],
+                  config.clusterRefs.get(clusterReference),
                 );
               }
 
@@ -973,7 +973,7 @@ export class NetworkCommand extends BaseCommand {
                 context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
                 config.soloChartVersion,
                 config.valuesArgMap[clusterReference],
-                config.clusterRefs[clusterReference],
+                config.clusterRefs.get(clusterReference),
               );
               showVersionBanner(self.logger, SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
             }
@@ -1058,12 +1058,12 @@ export class NetworkCommand extends BaseCommand {
                     context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
                     config.soloChartVersion,
                     config.valuesArgMap[clusterReference],
-                    config.clusterRefs[clusterReference],
+                    config.clusterRefs.get(clusterReference),
                   );
                   showVersionBanner(self.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
 
                   // TODO: Remove this code now that we have made the config dynamic and can update it without redeploying
-                  const context = config.clusterRefs[clusterReference];
+                  const context = config.clusterRefs.get(clusterReference);
                   const pods: Pod[] = await this.k8Factory
                     .getK8(context)
                     .pods()
