@@ -30,7 +30,7 @@ check_service_health() {
 }
 
 if [ -z "${STORAGE_TYPE}" ]; then
-  storageType="minio_only"
+  storageType="gcs_only"
 else
   storageType=${STORAGE_TYPE}
 fi
@@ -165,8 +165,8 @@ else
   kubectl port-forward -n "${SOLO_NAMESPACE}" svc/"${explorer_svc}" 8080:80 > /dev/null 2>&1 &
 
   # Check Explorer endpoints
-  check_service_health "https://localhost:31001" "Hedera Mirror Node Explorer" "Explorer" "https" || exit 1
-  check_service_health "http://localhost:31000" "Hedera Mirror Node Explorer" "Explorer" "http" || exit 1
+  check_service_health "https://localhost:31001" "SPDX-License" "Explorer" "https" || exit 1
+  check_service_health "http://localhost:31000" "SPDX-License" "Explorer" "http" || exit 1
 
   # Check Mirror API endpoints
   check_service_health "https://localhost:32001/api/v1/accounts" "accounts" "Mirror" "https" || exit 1
