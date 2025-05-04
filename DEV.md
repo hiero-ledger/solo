@@ -20,14 +20,8 @@ Below we describe how you can set up a local environment and contribute to `solo
 
 ## E2E tests
 
-* In order to run E2E test, we need to set up cluster and install the chart.
-  * Run `./test/e2e/setup-e2e.sh`
+* In order to run E2E test, we need to set up a cluster and install the chart.
+  * Run `SOLO_CLUSTER_DUALITY=1 ./test/e2e/dual-cluster/setup-dual-e2e.sh ; SOLO_TEST_CLUSTER=solo-e2e-c1`
   * Run `task test-e2e-standard`, NOTE: this excludes some E2E tests that have their own command
-  * You can check the section `scripts` in file `package.json` for more other test commands available.
+  * You can check the command `task --list-all` for more other test commands available.
 
-* Tests are run in random order. The random seed value is shown as message such as:
-  `Using timestamp seed 1711414247085 for random test order`
-
-* If you like to rerun tests with the same seed, use environment variable `RANDOM_SEED=<integer_number>` with `task test-e2e-standard` command.
-  * Example: `RANDOM_SEED=20 task test-e2e-standard`,
-    and you should see an output like: `Using preset seed 20 for random test order`
