@@ -21,6 +21,10 @@ An opinionated CLI tool to deploy and manage standalone test networks.
 | 0.34.0       | >= 20.18.0 (lts/iron)     | >= v1.29.1 | v0.42.10   | v0.58.1+             | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
 | 0.35.0       | >= 20.18.0 (lts/iron)     | >= v1.29.1 | v0.44.0    | v0.58.1+             | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
 
+### Known Issues
+
+**Apple M3/M4 Chipsets**: Any version of Solo prior to `v0.35.0` will fail on Apple M3/M4 chipsets due to a known issue with Java 21 and these chipsets.
+
 ### Hardware Requirements
 
 To run a three-node network, you will need to set up Docker Desktop with at least 8GB of memory and 4 CPUs.
