@@ -555,20 +555,6 @@ export function ipv4ToBase64(ipv4: string): string {
   return btoa(String.fromCodePoint(...uint8Array));
 }
 
-/** Get the Apple Silicon chip type */
-export async function getProcessorType(container: Container): Promise<string> {
-  try {
-    return container.execContainer('uname -p');
-  } catch {
-    return 'unknown';
-  }
-}
-
-export async function requiresJavaSveFix(container: Container) {
-  const chipSet = await getProcessorType(container);
-  return chipSet.includes('aarch') || chipSet.includes('arm');
-}
-
 export function entityId(shard: Shard, realm: Realm, number: Long | number | string): string {
   return `${shard}.${realm}.${number}`;
 }
