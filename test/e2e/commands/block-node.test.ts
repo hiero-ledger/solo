@@ -23,7 +23,6 @@ import {BlockNodeCommand} from '../../../src/commands/block-node.js';
 import {type ClusterReference, type ComponentName} from '../../../src/core/config/remote/types.js';
 import {type BlockNodeComponent} from '../../../src/core/config/remote/components/block-node-component.js';
 import {ComponentTypes} from '../../../src/core/config/remote/enumerations/component-types.js';
-import {expect} from 'chai';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type ExtendedNetServer} from '../../../src/types/index.js';
