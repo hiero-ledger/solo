@@ -2050,14 +2050,14 @@ export class NodeCommandTasks {
           config.debugNodeAlias,
         );
 
-        const clusterReverencesList: ClusterReference[] = [];
+        const clusterReferencesList: ClusterReference[] = [];
         for (const [clusterReference] of clusterReferences) {
-          clusterReverencesList.push(clusterReference);
+          clusterReferencesList.push(clusterReference);
         }
 
         // Update all charts
         await Promise.all(
-          clusterReverencesList.map(async clusterReference => {
+          clusterReferencesList.map(async clusterReference => {
             const valuesArguments = valuesArgumentMap[clusterReference];
             const context = this.localConfig.clusterRefs.get(clusterReference);
 
