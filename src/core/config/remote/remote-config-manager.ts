@@ -9,7 +9,8 @@ import {
   type ClusterReference,
   type ClusterReferences,
   type Context,
-  type DeploymentName, EmailAddress,
+  type DeploymentName,
+  type EmailAddress,
   type NamespaceNameAsString,
 } from './types.js';
 import {type SoloLogger} from '../../logging/solo-logger.js';
