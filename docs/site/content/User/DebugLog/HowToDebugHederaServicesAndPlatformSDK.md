@@ -142,6 +142,7 @@ solo node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i nod
 
 solo network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
 solo node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data
+solo node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
 
 solo node update --deployment "${SOLO_DEPLOYMENT}" --node-alias node2  --debug-node-alias node2 --local-build-path ../hiero-consensus-node/hedera-node/data --new-account-number 0.0.7 --gossip-public-key ./s-public-node2.pem --gossip-private-key ./s-private-node2.pem --release-tag v0.59.5
 ```
