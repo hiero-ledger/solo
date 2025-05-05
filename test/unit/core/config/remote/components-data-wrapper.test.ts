@@ -195,7 +195,7 @@ describe('ComponentsDataWrapper', () => {
       componentId,
     } = createComponentsDataWrapper();
 
-    componentsDataWrapper.removeComponent(componentId, ComponentTypes.Relay);
+    componentsDataWrapper.removeComponent(componentId, ComponentTypes.RelayNodes);
 
     expect(relays).to.not.have.own.property(componentId.toString());
   });
@@ -207,9 +207,9 @@ describe('ComponentsDataWrapper', () => {
 
     const notFoundComponentId: ComponentId = 9;
 
-    expect(() => componentsDataWrapper.removeComponent(notFoundComponentId, ComponentTypes.Relay)).to.throw(
+    expect(() => componentsDataWrapper.removeComponent(notFoundComponentId, ComponentTypes.RelayNodes)).to.throw(
       SoloError,
-      `Component ${notFoundComponentId} of type ${ComponentTypes.Relay} not found while attempting to remove`,
+      `Component ${notFoundComponentId} of type ${ComponentTypes.RelayNodes} not found while attempting to remove`,
     );
   });
 

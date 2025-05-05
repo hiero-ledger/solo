@@ -7,7 +7,7 @@ import {type BaseComponentStruct} from './interfaces/base-component-struct.js';
 
 export class MirrorNodeExplorerComponent extends BaseComponent {
   public constructor(metadata: ComponentMetadata) {
-    super(ComponentTypes.MirrorNodeExplorer, metadata);
+    super(ComponentTypes.Explorers, metadata);
     this.validate();
   }
 

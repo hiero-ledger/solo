@@ -13,7 +13,7 @@ export class RelayComponent extends BaseComponent implements RelayComponentStruc
     metadata: ComponentMetadata,
     public readonly consensusNodeIds: NodeId[] = [],
   ) {
-    super(ComponentTypes.Relay, metadata);
+    super(ComponentTypes.RelayNodes, metadata);
     this.validate();
   }
 

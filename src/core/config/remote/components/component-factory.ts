@@ -20,7 +20,7 @@ export class ComponentFactory {
     namespace: NamespaceName,
     nodeIds: NodeId[],
   ): RelayComponent {
-    const id: ComponentId = remoteConfigManager.components.getNewComponentId(ComponentTypes.Relay);
+    const id: ComponentId = remoteConfigManager.components.getNewComponentId(ComponentTypes.RelayNodes);
     const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
     const metadata: ComponentMetadata = new ComponentMetadata(id, clusterReference, namespace.name, phase);
 
@@ -32,7 +32,7 @@ export class ComponentFactory {
     clusterReference: ClusterReference,
     namespace: NamespaceName,
   ): MirrorNodeExplorerComponent {
-    const id: ComponentId = remoteConfigManager.components.getNewComponentId(ComponentTypes.MirrorNodeExplorer);
+    const id: ComponentId = remoteConfigManager.components.getNewComponentId(ComponentTypes.Explorers);
     const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
     const metadata: ComponentMetadata = new ComponentMetadata(id, clusterReference, namespace.name, phase);
 

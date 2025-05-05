@@ -629,12 +629,12 @@ export class ExplorerCommand extends BaseCommand {
         await this.remoteConfigManager.modify(async remoteConfig => {
           const explorerComponents: MirrorNodeExplorerComponent[] =
             remoteConfig.components.getComponentsByClusterReference<MirrorNodeExplorerComponent>(
-              ComponentTypes.MirrorNodeExplorer,
+              ComponentTypes.Explorers,
               clusterReference,
             );
 
           for (const explorerComponent of explorerComponents) {
-            remoteConfig.components.removeComponent(explorerComponent.id, ComponentTypes.MirrorNodeExplorer);
+            remoteConfig.components.removeComponent(explorerComponent.id, ComponentTypes.Explorers);
           }
         });
       },

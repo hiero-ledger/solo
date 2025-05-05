@@ -570,12 +570,12 @@ export class RelayCommand extends BaseCommand {
         await this.remoteConfigManager.modify(async remoteConfig => {
           const relayComponents: RelayComponent[] =
             remoteConfig.components.getComponentsByClusterReference<RelayComponent>(
-              ComponentTypes.Relay,
+              ComponentTypes.RelayNodes,
               clusterReference,
             );
 
           for (const relayComponent of relayComponents) {
-            remoteConfig.components.removeComponent(relayComponent.id, ComponentTypes.Relay);
+            remoteConfig.components.removeComponent(relayComponent.id, ComponentTypes.RelayNodes);
           }
         });
       },
