@@ -2,7 +2,6 @@
 
 import * as constants from '../../constants.js';
 import {SoloError} from '../../errors/solo-error.js';
-import {type ConsensusNodeComponent} from './components/consensus-node-component.js';
 import {type NamespaceName} from '../../../integration/kube/resources/namespace/namespace-name.js';
 import {type LocalConfig} from '../local/local-config.js';
 import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
@@ -13,6 +12,7 @@ import {Templates} from '../../templates.js';
 import {type NodeAlias} from '../../../types/aliases.js';
 import {type DeploymentState} from '../../../data/schema/model/remote/deployment-state.js';
 import {type BaseState} from '../../../data/schema/model/remote/state/base-state.js';
+import {type ConsensusNodeState} from '../../../data/schema/model/remote/state/consensus-node-state.js';
 
 /**
  * Static class is used to validate that components in the remote config
@@ -57,7 +57,7 @@ export class RemoteConfigValidator {
     return [`app=network-${Templates.renderNodeAliasFromNumber(component.metadata.id + 1)}`];
   }
 
-  private static consensusNodeSkipConditionCallback(nodeComponent: ConsensusNodeComponent): boolean {
+  private static consensusNodeSkipConditionCallback(nodeComponent: ConsensusNodeState): boolean {
     return (
       nodeComponent.metadata.phase === DeploymentPhase.REQUESTED ||
       nodeComponent.metadata.phase === DeploymentPhase.STOPPED

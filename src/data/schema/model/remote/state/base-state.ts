@@ -8,7 +8,7 @@ export class BaseState {
   @Expose()
   public metadata: ComponentStateMetadata;
 
-  protected constructor(metadata?: ComponentStateMetadata) {
+  public constructor(metadata?: ComponentStateMetadata) {
     this.metadata = metadata;
   }
 }
