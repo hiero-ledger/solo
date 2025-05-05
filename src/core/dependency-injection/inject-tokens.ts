@@ -45,4 +45,5 @@ export const InjectTokens = {
   Middlewares: Symbol.for('Middlewares'),
   KeyFormatter: Symbol.for('KeyFormatter'),
   ConfigProvider: Symbol.for('ConfigProvider'),
+  RemoteConfigRuntimeState: Symbol.for('RemoteConfigRuntimeState'),
 };

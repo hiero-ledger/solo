@@ -12,7 +12,6 @@ import {type RemoteConfigManagerApi} from '../api/remote-config-manager-api.js';
 import {type ClusterReference, type ComponentId} from '../types.js';
 import {type NamespaceName} from '../../../../integration/kube/resources/namespace/namespace-name.js';
 import {type NodeId} from '../../../../types/aliases.js';
-import {ComponentMetadata} from './component-metadata.js';
 
 export class ComponentFactory {
   public static createNewRelayComponent(

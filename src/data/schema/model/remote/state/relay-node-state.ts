@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Exclude, Expose} from 'class-transformer';
-import {type NodeId} from '../../../../../types/aliases.js';
 import {ComponentStateMetadata} from './component-state-metadata.js';
+import {BaseState} from './base-state.js';
+import {NodeId} from '../../../../../types/aliases.js';
 
 @Exclude()
-export class RelayNodeState {
-  @Expose()
-  public metadata: ComponentStateMetadata;
-
+export class RelayNodeState extends BaseState {
   @Expose()
   public consensusNodeIds: number[];
 
   public constructor(metadata?: ComponentStateMetadata, consensusNodeIds?: NodeId[]) {
-    this.metadata = metadata;
+    super(metadata);
     this.consensusNodeIds = consensusNodeIds;
   }
 }

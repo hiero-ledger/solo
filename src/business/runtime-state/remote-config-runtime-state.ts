@@ -33,7 +33,7 @@ export class RemoteConfigRuntimeState {
     return this.source.persist();
   }
 
-  private isLoaded(): boolean {
+  public isLoaded(): boolean {
     try {
       return !!this.source.properties();
     } catch {
@@ -77,7 +77,7 @@ export class RemoteConfigRuntimeState {
     return this.source.modelData.history;
   }
 
-  public async modify(callback: (modelData: RemoteConfig) => Promise<void>): Promise<void> {
+  public async modify(callback: (remoteConfig: RemoteConfig) => Promise<void>): Promise<void> {
     if (!this.isLoaded()) {
       throw new WriteRemoteConfigBeforeLoadError('Attempting to modify remote config before loading it');
     }

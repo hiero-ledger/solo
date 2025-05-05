@@ -8,7 +8,6 @@ import {RemoteConfigDataWrapper} from '../../../../../src/core/config/remote/rem
 import {createMetadata} from './metadata.test.js';
 import {createComponentsDataWrapper} from './components-data-wrapper.test.js';
 import * as constants from '../../../../../src/core/constants.js';
-import {CommonFlagsDataWrapper} from '../../../../../src/core/config/remote/common-flags-data-wrapper.js';
 import {type RemoteConfigData} from '../../../../../src/core/config/remote/remote-config-data.js';
 import {type RemoteConfigDataStruct} from '../../../../../src/core/config/remote/interfaces/remote-config-data-struct.js';
 
@@ -34,7 +33,6 @@ async function createRemoteConfigDataWrapper(): Promise<{
     components: componentsDataWrapper,
     lastExecutedCommand: 'lastExecutedCommand',
     commandHistory: [],
-    flags: await CommonFlagsDataWrapper.initialize(configManagerMock, {}),
   };
 
   return {

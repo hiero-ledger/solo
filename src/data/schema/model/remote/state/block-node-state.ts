@@ -1,14 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {Exclude, Expose} from 'class-transformer';
-import {ComponentStateMetadata} from './component-state-metadata.js';
+import {Exclude} from 'class-transformer';
+import {BaseState} from './base-state.js';
 
 @Exclude()
-export class BlockNodeState {
-  @Expose()
-  public metadata: ComponentStateMetadata;
-
-  public constructor(metadata?: ComponentStateMetadata) {
-    this.metadata = metadata;
-  }
-}
+export class BlockNodeState extends BaseState {}

@@ -3,12 +3,11 @@
 import {type RemoteConfigDataWrapper} from '../remote-config-data-wrapper.js';
 import {type ClusterReference, type ClusterReferences, type Context, type DeploymentName} from '../types.js';
 import {type ComponentsDataWrapper} from '../components-data-wrapper.js';
-import {type Cluster} from '../cluster.js';
 import {type AnyObject, type ArgvStruct, type NodeAliases} from '../../../../types/aliases.js';
 import {type DeploymentStates} from '../enumerations/deployment-states.js';
 import {type NamespaceName} from '../../../../integration/kube/resources/namespace/namespace-name.js';
 import {type ConsensusNode} from '../../../model/consensus-node.js';
-import {type ConfigMap} from '../../../../integration/kube/resources/config-map/config-map.js';
+import {type Cluster} from '../../../../data/schema/model/common/cluster.js';
 
 export interface RemoteConfigManagerApi {
   /** @returns the default cluster from kubectl */
@@ -49,15 +48,6 @@ export interface RemoteConfigManagerApi {
   ): Promise<void>;
 
   /**
-   * Loads the remote configuration, performs a validation and returns it
-   * @returns RemoteConfigDataWrapper
-   */
-  get(context?: Context): Promise<RemoteConfigDataWrapper>;
-
-  /** Unload the remote config from the remote config manager. */
-  unload(): void;
-
-  /**
    * Performs the loading of the remote configuration.
    * Checks if the configuration is already loaded, otherwise loads and adds the command to history.
    *
@@ -70,27 +60,6 @@ export interface RemoteConfigManagerApi {
     validate: boolean,
     skipConsensusNodesValidation: boolean,
   ): Promise<void>;
-
-  /** Empties the component data inside the remote config */
-  deleteComponents(): Promise<void>;
-
-  /** @returns if the remote config is already loaded */
-  isLoaded(): boolean;
-
-  /**
-   * Retrieves the ConfigMap containing the remote configuration from the Kubernetes cluster.
-   *
-   * @param namespace - The namespace to search for the ConfigMap.
-   * @param context - The context to use for the Kubernetes client.
-   * @returns the remote configuration data.
-   * @throws if the ConfigMap could not be read and the error is not a 404 status, will throw a SoloError {@link SoloError}
-   */
-  getConfigMap(namespace?: NamespaceName, context?: Context): Promise<ConfigMap>;
-
-  /**
-   * Creates a new ConfigMap entry in the Kubernetes cluster with the remote configuration data.
-   */
-  createConfigMap(context?: Context): Promise<void>;
 
   /**
    * Get the consensus nodes from the remoteConfigManager and use the localConfig to get the context

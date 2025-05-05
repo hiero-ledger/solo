@@ -1,17 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type ToObject, type Validate} from '../../../../types/index.js';
 import {type ClusterReference, type ComponentId} from '../types.js';
-import {type CloneTrait} from '../../../../types/traits/clone-trait.js';
-import {type ComponentsDataStruct} from '../interfaces/components-data-struct.js';
 import {type BaseComponent} from '../components/base-component.js';
 import {type ComponentTypes} from '../enumerations/component-types.js';
 import {type DeploymentPhase} from '../../../../data/schema/model/remote/deployment-phase.js';
 
-export interface ComponentsDataWrapperApi
-  extends Validate,
-    ToObject<ComponentsDataStruct>,
-    CloneTrait<ComponentsDataWrapperApi> {
+export interface ComponentsDataWrapperApi {
   /** Used to add new component to their respective group. */
   addNewComponent(component: BaseComponent): void;
 

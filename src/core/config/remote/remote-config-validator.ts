@@ -3,8 +3,6 @@
 import * as constants from '../../constants.js';
 import {SoloError} from '../../errors/solo-error.js';
 import {type ConsensusNodeComponent} from './components/consensus-node-component.js';
-import {type ComponentsDataWrapper} from './components-data-wrapper.js';
-import {type BaseComponent} from './components/base-component.js';
 import {type NamespaceName} from '../../../integration/kube/resources/namespace/namespace-name.js';
 import {type LocalConfig} from '../local/local-config.js';
 import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
@@ -13,6 +11,8 @@ import {type K8Factory} from '../../../integration/kube/k8-factory.js';
 import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
 import {Templates} from '../../templates.js';
 import {type NodeAlias} from '../../../types/aliases.js';
+import {type DeploymentState} from '../../../data/schema/model/remote/deployment-state.js';
+import {type BaseState} from '../../../data/schema/model/remote/state/base-state.js';
 
 /**
  * Static class is used to validate that components in the remote config
@@ -27,8 +27,8 @@ export class RemoteConfigValidator {
     return [constants.SOLO_RELAY_LABEL];
   }
 
-  private static getHaProxyLabels(component: BaseComponent): string[] {
-    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(component.id + 1);
+  private static getHaProxyLabels(component: BaseState): string[] {
+    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(component.metadata.id + 1);
     return [`app=haproxy-${nodeAlias}`, 'solo.hedera.com/type=haproxy'];
   }
 
@@ -40,8 +40,8 @@ export class RemoteConfigValidator {
     return constants.SOLO_HEDERA_MIRROR_IMPORTER;
   }
 
-  private static getEnvoyProxyLabels(component: BaseComponent): string[] {
-    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(component.id + 1);
+  private static getEnvoyProxyLabels(component: BaseState): string[] {
+    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(component.metadata.id + 1);
     return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=envoy-proxy'];
   }
 
@@ -53,20 +53,23 @@ export class RemoteConfigValidator {
     return [constants.SOLO_HEDERA_EXPLORER_LABEL];
   }
 
-  private static getConsensusNodeLabels(component: BaseComponent): string[] {
-    return [`app=network-${Templates.renderNodeAliasFromNumber(component.id + 1)}`];
+  private static getConsensusNodeLabels(component: BaseState): string[] {
+    return [`app=network-${Templates.renderNodeAliasFromNumber(component.metadata.id + 1)}`];
   }
 
   private static consensusNodeSkipConditionCallback(nodeComponent: ConsensusNodeComponent): boolean {
-    return nodeComponent.phase === DeploymentPhase.REQUESTED || nodeComponent.phase === DeploymentPhase.STOPPED;
+    return (
+      nodeComponent.metadata.phase === DeploymentPhase.REQUESTED ||
+      nodeComponent.metadata.phase === DeploymentPhase.STOPPED
+    );
   }
 
   private static componentValidationsMapping: Record<
     string,
     {
-      getLabelsCallback: (component: BaseComponent) => string[];
+      getLabelsCallback: (component: BaseState) => string[];
       displayName: string;
-      skipCondition?: (component: BaseComponent) => boolean;
+      skipCondition?: (component: BaseState) => boolean;
     }
   > = {
     relays: {
@@ -98,7 +101,7 @@ export class RemoteConfigValidator {
 
   public static async validateComponents(
     namespace: NamespaceName,
-    components: ComponentsDataWrapper,
+    components: DeploymentState,
     k8Factory: K8Factory,
     localConfig: LocalConfig,
     skipConsensusNodes: boolean,
@@ -122,19 +125,19 @@ export class RemoteConfigValidator {
 
   private static validateComponentGroup(
     namespace: NamespaceName,
-    components: Record<string, BaseComponent>,
+    components: Record<string, BaseState>,
     k8Factory: K8Factory,
     localConfig: LocalConfig,
-    getLabelsCallback: (component: BaseComponent) => string[],
+    getLabelsCallback: (component: BaseState) => string[],
     displayName: string,
-    skipCondition?: (component: BaseComponent) => boolean,
+    skipCondition?: (component: BaseState) => boolean,
   ): Promise<void>[] {
     return Object.values(components).map(async (component): Promise<void> => {
       if (skipCondition?.(component)) {
         return;
       }
 
-      const context: Context = localConfig.clusterRefs[component.cluster];
+      const context: Context = localConfig.clusterRefs[component.metadata.cluster];
       const labels: string[] = getLabelsCallback(component);
 
       try {
@@ -156,23 +159,15 @@ export class RemoteConfigValidator {
    * @param component - component which is not found in the cluster
    * @param error - original error for the kube client
    */
-  private static buildValidationError(
-    displayName: string,
-    component: BaseComponent,
-    error: Error | unknown,
-  ): SoloError {
-    return new SoloError(
-      RemoteConfigValidator.buildValidationErrorMessage(displayName, component),
-      error,
-      component.toObject(),
-    );
+  private static buildValidationError(displayName: string, component: BaseState, error: Error | unknown): SoloError {
+    return new SoloError(RemoteConfigValidator.buildValidationErrorMessage(displayName, component), error, component);
   }
 
-  public static buildValidationErrorMessage(displayName: string, component: BaseComponent): string {
+  public static buildValidationErrorMessage(displayName: string, component: BaseState): string {
     return (
-      `${displayName} in remote config with id ${component.id} was not found in ` +
-      `namespace: ${component.namespace}, ` +
-      `cluster: ${component.cluster}`
+      `${displayName} in remote config with id ${component.metadata.id} was not found in ` +
+      `namespace: ${component.metadata.namespace}, ` +
+      `cluster: ${component.metadata.cluster}`
     );
   }
 }
