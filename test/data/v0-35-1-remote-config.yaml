@@ -2,7 +2,7 @@ metadata:
   namespace: solo-alpha-prod
   deploymentName: alpha-prod
   lastUpdatedAt: 2025-02-17T02:25:26.149000Z
-  lastUpdateBy: nathan@swirldslabs.com
+  lastUpdateBy: john.doe@email.com
   soloChartVersion: 0.44.0
   hederaPlatformVersion: v0.58.10
   hederaMirrorNodeChartVersion: v0.122
@@ -96,32 +96,27 @@ components:
       namespace: solo-alpha-prod
 commandHistory:
   - deployment create
-  - "Executed by nathan@swirldslabs.com: network deploy --deployment alpha-prod
+  - "Executed by john.doe@email.com: network deploy --deployment alpha-prod
       --values-file
-      /Users/nathan.klick/Git/swirldslabs/hashsphere-infrastructure/deployments/p\
-      roduction/google/hashsphere-production/sphere-alpha-prod/assets/solo/init-c\
+      /Users/user/solo-dir/assets/solo/init-c\
       ontainers-values.yaml --settings-txt
-      /Users/nathan.klick/Git/swirldslabs/hashsphere-infrastructure/deployments/p\
-      roduction/google/hashsphere-production/sphere-alpha-prod/assets/solo/settin\
+      /Users/user/solo-dir/solo/settin\
       gs.txt --log4j2-xml
-      /Users/nathan.klick/Git/swirldslabs/hashsphere-infrastructure/deployments/p\
-      roduction/google/hashsphere-production/sphere-alpha-prod/assets/solo/log4j2\
+      /Users/user/solo-dir/assets/solo/log4j2\
       .xml --application-properties
-      /Users/nathan.klick/Git/swirldslabs/hashsphere-infrastructure/deployments/p\
-      roduction/google/hashsphere-production/sphere-alpha-prod/assets/solo/applic\
+      /Users/user/solo-dir/assets/solo/applic\
       ation.properties --genesis-throttles-file
-      /Users/nathan.klick/Git/swirldslabs/hashsphere-infrastructure/deployments/p\
-      roduction/google/hashsphere-production/sphere-alpha-prod/assets/solo/thrott\
+      /Users/user/solo-dir/assets/solo/thrott\
       les.json --pvcs --storage-type gcs_only --gcs-endpoint *** --gcs-bucket ***
       --gcs-access-key *** --gcs-secrets *** --backup-bucket ***
       --google-credential *** --load-balancer --quiet-mode --dev"
-  - "Executed by nathan@swirldslabs.com: node setup --deployment alpha-prod
+  - "Executed by john.doe@email.com: node setup --deployment alpha-prod
       --node-aliases node1,node2,node3,node4 --quiet-mode --dev"
-  - "Executed by nathan@swirldslabs.com: node start --deployment alpha-prod
+  - "Executed by john.doe@email.com: node start --deployment alpha-prod
       --node-aliases node1,node2,node3,node4 --quiet-mode --dev"
-  - "Executed by nathan@swirldslabs.com: account init --dev --deployment
+  - "Executed by john.doe@email.com: account init --dev --deployment
       alpha-prod"
-  - "Executed by nathan@swirldslabs.com: mirror-node deploy --deployment
+  - "Executed by john.doe@email.com: mirror-node deploy --deployment
       alpha-prod --operator-id 0.0.2 --operator-key *** --storage-type gcs_only
       --storage-endpoint *** --storage-bucket *** --storage-access-key ***
       --storage-secrets *** --values-file
@@ -130,23 +125,21 @@ commandHistory:
       --external-database-owner-username mirror_provisioner
       --external-database-owner-password *** --external-database-read-username
       mirror_node --external-database-read-password *** --quiet-mode --dev"
-  - "Executed by nathan@swirldslabs.com: explorer deploy --namespace
+  - "Executed by john.doe@email.com: explorer deploy --namespace
       solo-alpha-prod --deployment alpha-prod --values-file
       /var/folders/pr/l0t3xfzx1cscm1kmy63mq24m0000gp/T/tmp.gSbIiYI8ip.yaml
       --quiet-mode --dev"
-  - "Executed by nathan@swirldslabs.com: explorer deploy --namespace
+  - "Executed by john.doe@email.com: explorer deploy --namespace
       solo-alpha-prod --deployment alpha-prod --values-file
       /var/folders/pr/l0t3xfzx1cscm1kmy63mq24m0000gp/T/tmp.gSbIiYI8ip.yaml
       --quiet-mode --dev"
-  - "Executed by nathan@swirldslabs.com: relay deploy --deployment alpha-prod
+  - "Executed by john.doe@email.com: relay deploy --deployment alpha-prod
       --node-aliases node1 --values-file
-      /Users/nathan.klick/Git/swirldslabs/hashsphere-infrastructure/deployments/p\
-      roduction/google/hashsphere-production/sphere-alpha-prod/assets/solo/relay-\
+      /Users/user/solo-dir/assets/solo/relay-\
       values.yaml --operator-id 0.0.2 --operator-key *** --quiet-mode --dev"
-lastExecutedCommand: "Executed by nathan@swirldslabs.com: relay deploy
+lastExecutedCommand: "Executed by john.doe@email.com: relay deploy
     --deployment alpha-prod --node-aliases node1 --values-file
-    /Users/nathan.klick/Git/swirldslabs/hashsphere-infrastructure/deployments/pro\
-    duction/google/hashsphere-production/sphere-alpha-prod/assets/solo/relay-valu\
+    /Users/user/solo-dir/assets/solo/relay-valu\
     es.yaml --operator-id 0.0.2 --operator-key *** --quiet-mode --dev"
 flags:
   nodeAliasesUnparsed: node1,node2,node3,node4
