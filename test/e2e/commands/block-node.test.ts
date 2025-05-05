@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {after, afterEach, describe} from 'mocha';
+import {expect} from 'chai';
 
 import {Flags as flags} from '../../../src/commands/flags.js';
 import {
