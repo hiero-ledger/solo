@@ -77,7 +77,6 @@ describe('NetworkCommand', function networkCommand() {
 
   before(async () => {
     this.timeout(Duration.ofMinutes(1).toMillis());
-    resetForTest(namespace.name);
     await k8Factory.default().namespaces().delete(namespace);
 
     await commandInvoker.invoke({

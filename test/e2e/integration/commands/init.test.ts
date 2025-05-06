@@ -18,7 +18,6 @@ describe('InitCommand', () => {
   before(() => {
     sandbox = sinon.createSandbox();
     sandbox.stub(K8Client.prototype, 'init').callsFake(() => this);
-    resetTestContainer();
     initCmd = container.resolve(InjectTokens.InitCommand);
   });
 
