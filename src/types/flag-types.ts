@@ -9,6 +9,7 @@ export interface CommandFlag {
   name: string;
   definition: Definition;
   prompt: PromptFunction;
+  validate?: (input: any) => boolean;
 }
 
 export interface Definition {

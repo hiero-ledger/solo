@@ -15,7 +15,7 @@ import {MirrorNodeExplorerComponent} from '../core/config/remote/components/mirr
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {type CommandDefinition, type Optional, type SoloListrTask} from '../types/index.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterChecks} from '../core/cluster-checks.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -28,7 +28,7 @@ import {
 } from '../core/constants.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {type ClusterReference, type Context} from '../core/config/remote/types.js';
+import {type ClusterReference, type Context} from '../types/index.js';
 import * as helpers from '../core/helpers.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {ListrRemoteConfig} from '../core/config/remote/listr-config-tasks.js';
@@ -246,7 +246,7 @@ export class ExplorerCommand extends BaseCommand {
 
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
             context_.config.clusterContext = context_.config.clusterRef
-              ? this.localConfig.clusterRefs[context_.config.clusterRef]
+              ? this.localConfig.clusterRefs.get(context_.config.clusterRef)
               : this.k8Factory.default().contexts().readCurrent();
 
             if (
@@ -473,7 +473,7 @@ export class ExplorerCommand extends BaseCommand {
               ? this.configManager.getFlag(flags.clusterRef)
               : this.remoteConfigManager.currentCluster;
 
-            const clusterContext: Context = this.localConfig.clusterRefs[clusterReference];
+            const clusterContext: Context = this.localConfig.clusterRefs.get(clusterReference);
 
             context_.config = {
               namespace,

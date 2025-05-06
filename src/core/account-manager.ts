@@ -38,12 +38,12 @@ import {entityId, getExternalAddress, isNumeric, sleep} from './helpers.js';
 import {Duration} from './time/duration.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
-import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
-import {type ClusterReferences, type DeploymentName, Realm, Shard} from './config/remote/types.js';
+import {type ClusterReferences, type DeploymentName, Realm, Shard} from './../types/index.js';
 import {type Service} from '../integration/kube/resources/service/service.js';
 import {SoloService} from './model/solo-service.js';
 import {type RemoteConfigManager} from './config/remote/remote-config-manager.js';
@@ -51,7 +51,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {type NodeServiceMapping} from '../types/mappings/node-service-mapping.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {NetworkNodeServicesBuilder} from './network-node-services-builder.js';
-import {LocalConfig} from './config/local/local-config.js';
+import {LocalConfigRuntimeState} from '../business/runtime-state/local-config-runtime-state.js';
 
 const REASON_FAILED_TO_GET_KEYS = 'failed to get keys for accountId';
 const REASON_SKIPPED = 'skipped since it does not have a genesis key';
@@ -70,7 +70,7 @@ export class AccountManager {
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
     @inject(InjectTokens.RemoteConfigManager) private readonly remoteConfigManager?: RemoteConfigManager,
-    @inject(InjectTokens.LocalConfig) private readonly localConfig?: LocalConfig,
+    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
@@ -79,7 +79,7 @@ export class AccountManager {
       InjectTokens.RemoteConfigManager,
       this.constructor.name,
     );
-    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfig, this.constructor.name);
+    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
 
     this._portForwards = [];
     this._nodeClient = null;
@@ -497,7 +497,7 @@ export class AccountManager {
 
     try {
       const services: SoloService[] = [];
-      for (const [clusterReference, context] of Object.entries(clusterReferences)) {
+      for (const [clusterReference, context] of clusterReferences) {
         const serviceList: Service[] = await this.k8Factory.getK8(context).services().list(namespace, [labelSelector]);
         services.push(
           ...serviceList.map(service => SoloService.getFromK8Service(service, clusterReference, context, deployment)),
@@ -522,7 +522,7 @@ export class AccountManager {
           );
           serviceBuilder.withNamespace(namespace);
           serviceBuilder.withClusterRef(clusterReference);
-          serviceBuilder.withContext(clusterReferences[clusterReference]);
+          serviceBuilder.withContext(clusterReferences.get(clusterReference));
           serviceBuilder.withDeployment(deployment);
         }
 
@@ -603,7 +603,7 @@ export class AccountManager {
         serviceBuilder.withHaProxyPodName(podList[0].podReference.name);
       }
 
-      for (const [_, context] of Object.entries(clusterReferences)) {
+      for (const [_, context] of clusterReferences) {
         // get the pod name of the network node
         const pods: Pod[] = await this.k8Factory
           .getK8(context)

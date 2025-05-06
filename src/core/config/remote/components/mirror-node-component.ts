@@ -2,7 +2,7 @@
 
 import {BaseComponent} from './base-component.js';
 import {ComponentTypes} from '../enumerations/component-types.js';
-import {type ClusterReference, type ComponentName, type NamespaceNameAsString} from '../types.js';
+import {type ClusterReference, type ComponentName, type NamespaceNameAsString} from '../../../../types/index.js';
 import {type BaseComponentStruct} from './interfaces/base-component-struct.js';
 
 export class MirrorNodeComponent extends BaseComponent {

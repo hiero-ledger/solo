@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {BaseComponent} from './base-component.js';
-import {type ClusterReference, type ComponentName, type NamespaceNameAsString} from '../types.js';
+import {type ClusterReference, type ComponentName, type NamespaceNameAsString} from '../../../../types/index.js';
 import {ComponentTypes} from '../enumerations/component-types.js';
 import {type BaseComponentStruct} from './interfaces/base-component-struct.js';
 

@@ -14,6 +14,7 @@ import {resetForTest} from '../../test-container.js';
 import {K8ClientSecrets} from '../../../src/integration/kube/k8-client/resources/secret/k8-client-secrets.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
 
 describe('Certificate Manager', () => {
   const argv = Argv.initializeEmpty();
@@ -22,7 +23,7 @@ describe('Certificate Manager', () => {
 
   let certificateManager: CertificateManager;
 
-  before(() => {
+  before(async () => {
     resetForTest();
     sinon.stub(K8Client.prototype, 'init').returns(k8InitSpy);
     sinon.stub(K8ClientSecrets.prototype, 'create').resolves(true);
@@ -30,6 +31,10 @@ describe('Certificate Manager', () => {
     const configManager: ConfigManager = container.resolve(InjectTokens.ConfigManager);
     configManager.update(argv.build());
     certificateManager = container.resolve(InjectTokens.CertificateManager);
+    const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
+      InjectTokens.LocalConfigRuntimeState,
+    );
+    await localConfig.load();
   });
 
   after(() => {

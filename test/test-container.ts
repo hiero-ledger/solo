@@ -2,7 +2,7 @@
 
 import {Container, type InstanceOverrides} from '../src/core/dependency-injection/container-init.js';
 import fs from 'node:fs';
-import {type NamespaceNameAsString} from '../src/core/config/remote/types.js';
+import {type NamespaceNameAsString} from '../src/types/index.js';
 import * as yaml from 'yaml';
 import {DEFAULT_LOCAL_CONFIG_FILE} from '../src/core/constants.js';
 import {PathEx} from '../src/business/utils/path-ex.js';

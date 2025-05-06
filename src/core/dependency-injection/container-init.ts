@@ -16,7 +16,6 @@ import {ProfileManager} from '../profile-manager.js';
 import {IntervalLockRenewalService} from '../lock/interval-lock-renewal.js';
 import {LockManager} from '../lock/lock-manager.js';
 import {CertificateManager} from '../certificate-manager.js';
-import {LocalConfig} from '../config/local/local-config.js';
 import {RemoteConfigManager} from '../config/remote/remote-config-manager.js';
 import os from 'node:os';
 import * as version from '../../../version.js';
@@ -53,6 +52,8 @@ import {ValueContainer} from './value-container.js';
 import {BlockNodeCommand} from '../../commands/block-node.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
+import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
+import {LocalConfigSource} from '../../data/configuration/impl/local-config-source.js';
 
 /**
  * Container class to manage the dependency injection container
@@ -112,7 +113,8 @@ export class Container {
       new SingletonContainer(InjectTokens.KeyManager, KeyManager),
       new SingletonContainer(InjectTokens.ProfileManager, ProfileManager),
       new SingletonContainer(InjectTokens.CertificateManager, CertificateManager),
-      new SingletonContainer(InjectTokens.LocalConfig, LocalConfig),
+      new SingletonContainer(InjectTokens.LocalConfigRuntimeState, LocalConfigRuntimeState),
+      new SingletonContainer(InjectTokens.LocalConfigSource, LocalConfigSource),
       new SingletonContainer(InjectTokens.RemoteConfigManager, RemoteConfigManager),
       new SingletonContainer(InjectTokens.ClusterChecks, ClusterChecks),
       new SingletonContainer(InjectTokens.NetworkNodes, NetworkNodes),
@@ -149,8 +151,8 @@ export class Container {
       new ValueContainer(InjectTokens.SystemAccounts, constants.SYSTEM_ACCOUNTS),
       new ValueContainer(InjectTokens.CacheDir, cacheDirectory),
       new ValueContainer(
-        InjectTokens.LocalConfigFilePath,
-        PathEx.join(homeDirectory, constants.DEFAULT_LOCAL_CONFIG_FILE),
+        InjectTokens.LocalConfigFileName,
+        constants.DEFAULT_LOCAL_CONFIG_FILE,
       ),
       new ValueContainer(InjectTokens.KeyFormatter, ConfigKeyFormatter.instance()),
     ];

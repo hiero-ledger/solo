@@ -2,7 +2,12 @@
 
 import {after, before, describe, it} from 'mocha';
 import {expect} from 'chai';
-import {bootstrapTestVariables, getTemporaryDirectory, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
+import {
+  bootstrapTestVariables,
+  getTemporaryDirectory,
+  getTestCluster,
+  HEDERA_PLATFORM_VERSION_TAG,
+} from '../../test-utility.js';
 import * as constants from '../../../src/core/constants.js';
 import * as version from '../../../version.js';
 import {sleep} from '../../../src/core/helpers.js';
@@ -10,7 +15,7 @@ import fs from 'node:fs';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import {KeyManager} from '../../../src/core/key-manager.js';
 import {Duration} from '../../../src/core/time/duration.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {PodName} from '../../../src/integration/kube/resources/pod/pod-name.js';
 import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
@@ -22,6 +27,9 @@ import {NetworkCommand} from '../../../src/commands/network.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import os from 'node:os';
 import {resetForTest} from '../../test-container.js';
+import {container} from 'tsyringe-neo';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
+import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 
 describe('NetworkCommand', function networkCommand() {
   this.bail(true);
@@ -55,6 +63,8 @@ describe('NetworkCommand', function networkCommand() {
     this.timeout(Duration.ofMinutes(1).toMillis());
     await KeyManager.generateTls(temporaryDirectory, 'grpc');
     await KeyManager.generateTls(temporaryDirectory, 'grpcWeb');
+    const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+    await localConfig.load();
   });
 
   argv.setArg(flags.grpcTlsCertificatePath, 'node1=' + PathEx.join(temporaryDirectory, 'grpc.crt'));
@@ -113,7 +123,7 @@ describe('NetworkCommand', function networkCommand() {
     configManager.update(argv.build());
   });
 
-  it('deployment add-cluster should succeed', async () => {
+  it('cluster-ref add-cluster should succeed', async () => {
     await commandInvoker.invoke({
       argv: argv,
       command: DeploymentCommand.COMMAND_NAME,

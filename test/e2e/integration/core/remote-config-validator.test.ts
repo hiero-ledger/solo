@@ -19,16 +19,15 @@ import {EnvoyProxyComponent} from '../../../../src/core/config/remote/components
 
 import {type ArgvStruct, type NodeAlias, type NodeAliases} from '../../../../src/types/aliases.js';
 import {container} from 'tsyringe-neo';
-import {NamespaceName} from '../../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
 import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
 import {ContainerName} from '../../../../src/integration/kube/resources/container/container-name.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
-import {LocalConfig} from '../../../../src/core/config/local/local-config.js';
 import {getTestCacheDirectory} from '../../../test-utility.js';
 import {Duration} from '../../../../src/core/time/duration.js';
-import {LocalConfigDataWrapper} from '../../../../src/core/config/local/local-config-data-wrapper.js';
+import {LocalConfigRuntimeState} from '../../../../src/business/runtime-state/local-config-runtime-state.js';
 import {ConsensusNodeStates} from '../../../../src/core/config/remote/enumerations/consensus-node-states.js';
 
 describe('RemoteConfigValidator', () => {
@@ -36,16 +35,14 @@ describe('RemoteConfigValidator', () => {
 
   let configManager: ConfigManager;
   let k8Factory: K8Factory;
-  let localConfig: LocalConfig;
-  const filePath = `${getTestCacheDirectory('LocalConfig')}/localConfig.yaml`;
+  let localConfig: LocalConfigRuntimeState;
 
   before(async () => {
     configManager = container.resolve(InjectTokens.ConfigManager);
     configManager.update({[flags.namespace.name]: namespace} as ArgvStruct);
     k8Factory = container.resolve(InjectTokens.K8Factory);
-    localConfig = new LocalConfig(filePath);
-    // @ts-expect-error - TS2341: to mock
-    localConfig.localConfigData = new LocalConfigDataWrapper('test@test.com', '0.0.1', {}, {});
+    localConfig = new LocalConfigRuntimeState(`${getTestCacheDirectory('LocalConfig')}`, 'localConfig.yaml');
+    await localConfig.load();
     await k8Factory.default().namespaces().create(namespace);
   });
 

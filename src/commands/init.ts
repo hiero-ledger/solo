@@ -7,11 +7,11 @@ import * as constants from '../core/constants.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {Flags as flags} from './flags.js';
 import chalk from 'chalk';
-import {type EmailAddress} from '../core/config/remote/types.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {injectable} from 'tsyringe-neo';
 import {getSoloVersion} from '../../version.js';
 import {type CommandDefinition} from '../types/index.js';
+import validator from 'validator';
 
 /**
  * Defines the core functionalities of 'init' command
@@ -35,7 +35,7 @@ export class InitCommand extends BaseCommand {
     }
 
     interface Config {
-      userEmailAddress: EmailAddress;
+      username: string;
     }
 
     interface Context {
@@ -48,15 +48,14 @@ export class InitCommand extends BaseCommand {
       [
         {
           title: 'Setup home directory and cache',
-          task: context_ => {
+          task: async (context_, task) => {
             self.configManager.update(argv);
             context_.dirs = this.setupHomeDirectory();
-
-            context_.config = {
-              userEmailAddress:
-                self.configManager.getFlag<EmailAddress>(flags.userEmailAddress) ||
-                flags.userEmailAddress.definition.defaultValue,
-            } as Config;
+            let username: string = self.configManager.getFlag<string>(flags.username);
+            if (username && !flags.username.validate(username)) {
+              username = await flags.username.prompt(task, username);
+            }
+            context_.config = {username} as Config;
           },
         },
         {
@@ -79,8 +78,8 @@ export class InitCommand extends BaseCommand {
           title: 'Create local configuration',
           skip: () => this.localConfig.configFileExists(),
           task: async (context_, task): Promise<void> => {
-            const config = context_.config;
-            await this.localConfig.create(config.userEmailAddress, getSoloVersion());
+            await this.localConfig.create(context_.config.username);
+            await this.localConfig.load();
           },
         },
         {
@@ -157,7 +156,7 @@ export class InitCommand extends BaseCommand {
       desc: 'Initialize local environment',
       builder: (y: any) => {
         // set the quiet flag even though it isn't used for consistency across all commands
-        flags.setOptionalCommandFlags(y, flags.cacheDir, flags.quiet);
+        flags.setOptionalCommandFlags(y, flags.cacheDir, flags.quiet, flags.username);
       },
       handler: async (argv: any) => {
         await self

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type ObjectMeta} from '../../resources/object-meta.js';
-import {type NamespaceName} from '../../resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../../../types/namespace/namespace-name.js';
 
 export class K8ClientObjectMeta implements ObjectMeta {
   constructor(

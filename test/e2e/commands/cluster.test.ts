@@ -15,7 +15,7 @@ import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
 import * as version from '../../../version.js';
 import {Duration} from '../../../src/core/time/duration.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import * as fs from 'node:fs';
 import * as yaml from 'yaml';
@@ -25,12 +25,17 @@ import {resetForTest} from '../../test-container.js';
 import {container} from 'tsyringe-neo';
 import {ClusterCommandHandlers} from '../../../src/commands/cluster/handlers.js';
 import {ClusterCommandTasks} from '../../../src/commands/cluster/tasks.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
+import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
+
 
 describe('ClusterCommand', () => {
   // mock showUser and showJSON to silent logging during tests
-  before(() => {
+  before(async (): Promise<void> => {
     sinon.stub(SoloWinstonLogger.prototype, 'showUser');
     sinon.stub(SoloWinstonLogger.prototype, 'showJSON');
+    const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+    await localConfig.load();
   });
 
   const TEST_CONTEXT = getTestCluster();
@@ -46,7 +51,7 @@ describe('ClusterCommand', () => {
   argv.setArg(flags.nodeAliasesUnparsed, 'node1');
   argv.setArg(flags.generateGossipKeys, true);
   argv.setArg(flags.generateTlsKeys, true);
-  argv.setArg(flags.clusterRef, TEST_CLUSTER_REFERENCE);
+  argv.setArg(flags.clusterRef, `${TEST_CLUSTER_REFERENCE}-ref`);
   argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
   argv.setArg(flags.force, true);
   const {
@@ -145,7 +150,7 @@ describe('ClusterCommand', () => {
 
   // 'solo cluster-ref connect' tests
   function getClusterConnectDefaultArgv(): {argv: Argv; clusterRef: string; contextName: string} {
-    const clusterReference = TEST_CLUSTER_REFERENCE;
+    const clusterReference = `${TEST_CLUSTER_REFERENCE}-ref`;
     const contextName = TEST_CONTEXT;
 
     const argv = Argv.initializeEmpty();
@@ -155,7 +160,6 @@ describe('ClusterCommand', () => {
     argv.setArg(flags.clusterRef, clusterReference);
     argv.setArg(flags.quiet, true);
     argv.setArg(flags.context, contextName);
-    argv.setArg(flags.userEmailAddress, 'test@test.com');
     return {argv, clusterRef: clusterReference, contextName};
   }
 

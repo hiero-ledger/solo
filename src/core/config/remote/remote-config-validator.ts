@@ -5,11 +5,11 @@ import {SoloError} from '../../errors/solo-error.js';
 import {type K8Factory} from '../../../integration/kube/k8-factory.js';
 import {type ComponentsDataWrapper} from './components-data-wrapper.js';
 import {type BaseComponent} from './components/base-component.js';
-import {type NamespaceName} from '../../../integration/kube/resources/namespace/namespace-name.js';
-import {type LocalConfig} from '../local/local-config.js';
+import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
-import {type Context} from './types.js';
+import {type LocalConfigRuntimeState} from '../../../business/runtime-state/local-config-runtime-state.js';
 import {ConsensusNodeStates} from './enumerations/consensus-node-states.js';
+import {type Context} from '../../../types/index.js';
 
 /**
  * Static class is used to validate that components in the remote config
@@ -29,7 +29,7 @@ export class RemoteConfigValidator {
     namespace: NamespaceName,
     components: ComponentsDataWrapper,
     k8Factory: K8Factory,
-    localConfig: LocalConfig,
+    localConfig: LocalConfigRuntimeState,
     skipConsensusNodes: boolean,
   ): Promise<void> {
     await Promise.all([
@@ -49,10 +49,10 @@ export class RemoteConfigValidator {
     namespace: NamespaceName,
     components: ComponentsDataWrapper,
     k8Factory: K8Factory,
-    localConfig: LocalConfig,
+    localConfig: LocalConfigRuntimeState,
   ): Promise<void>[] {
     return Object.values(components.relays).map(async component => {
-      const context: Context = localConfig.clusterRefs[component.cluster];
+      const context: Context = localConfig.clusterRefs.get(component.cluster);
       const labels: string[] = [constants.SOLO_RELAY_LABEL];
       try {
         const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
@@ -70,10 +70,10 @@ export class RemoteConfigValidator {
     namespace: NamespaceName,
     components: ComponentsDataWrapper,
     k8Factory: K8Factory,
-    localConfig: LocalConfig,
+    localConfig: LocalConfigRuntimeState,
   ): Promise<void>[] {
     return Object.values(components.haProxies).map(async component => {
-      const context: Context = localConfig.clusterRefs[component.cluster];
+      const context: Context = localConfig.clusterRefs.get(component.cluster);
       const labels: string[] = [`app=${component.name}`];
       try {
         const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
@@ -91,10 +91,10 @@ export class RemoteConfigValidator {
     namespace: NamespaceName,
     components: ComponentsDataWrapper,
     k8Factory: K8Factory,
-    localConfig: LocalConfig,
+    localConfig: LocalConfigRuntimeState,
   ): Promise<void>[] {
     return Object.values(components.mirrorNodes).map(async component => {
-      const context: Context = localConfig.clusterRefs[component.cluster];
+      const context: Context = localConfig.clusterRefs.get(component.cluster);
       const labels: string[] = constants.SOLO_HEDERA_MIRROR_IMPORTER;
       try {
         const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
@@ -112,10 +112,10 @@ export class RemoteConfigValidator {
     namespace: NamespaceName,
     components: ComponentsDataWrapper,
     k8Factory: K8Factory,
-    localConfig: LocalConfig,
+    localConfig: LocalConfigRuntimeState,
   ): Promise<void>[] {
     return Object.values(components.envoyProxies).map(async component => {
-      const context: Context = localConfig.clusterRefs[component.cluster];
+      const context: Context = localConfig.clusterRefs.get(component.cluster);
       const labels: string[] = [`app=${component.name}`];
       try {
         const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
@@ -133,14 +133,14 @@ export class RemoteConfigValidator {
     namespace: NamespaceName,
     components: ComponentsDataWrapper,
     k8Factory: K8Factory,
-    localConfig: LocalConfig,
+    localConfig: LocalConfigRuntimeState,
   ): Promise<void>[] {
     return Object.values(components.consensusNodes).map(async component => {
       if (component.state === ConsensusNodeStates.REQUESTED || component.state === ConsensusNodeStates.NON_DEPLOYED) {
         return;
       }
 
-      const context: Context = localConfig.clusterRefs[component.cluster];
+      const context: Context = localConfig.clusterRefs.get(component.cluster);
       const labels: string[] = [`app=network-${component.name}`];
       try {
         const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
@@ -158,10 +158,10 @@ export class RemoteConfigValidator {
     namespace: NamespaceName,
     components: ComponentsDataWrapper,
     k8Factory: K8Factory,
-    localConfig: LocalConfig,
+    localConfig: LocalConfigRuntimeState,
   ): Promise<void>[] {
     return Object.values(components.mirrorNodeExplorers).map(async component => {
-      const context: Context = localConfig.clusterRefs[component.cluster];
+      const context: Context = localConfig.clusterRefs.get(component.cluster);
       const labels: string[] = [constants.SOLO_HEDERA_EXPLORER_LABEL];
       try {
         const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
@@ -179,7 +179,7 @@ export class RemoteConfigValidator {
     namespace: NamespaceName,
     components: ComponentsDataWrapper,
     k8Factory: K8Factory,
-    localConfig: LocalConfig,
+    localConfig: LocalConfigRuntimeState,
   ): Promise<void>[] {
     return Object.values(components.blockNodes).map(async component => {
       const context: Context = localConfig.clusterRefs[component.cluster];

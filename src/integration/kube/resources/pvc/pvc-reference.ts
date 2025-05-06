@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {ResourceReference} from '../resource-reference.js';
-import {type NamespaceName} from '../namespace/namespace-name.js';
+import {type NamespaceName} from '../../../../types/namespace/namespace-name.js';
 import {type PvcName} from './pvc-name.js';
 
 /**
