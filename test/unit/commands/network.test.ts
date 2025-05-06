@@ -37,6 +37,8 @@ import {type PlatformInstaller} from '../../../src/core/platform-installer.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import {SemVer, lt as SemVersionLessThan} from 'semver';
+import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
+import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
 
 const testName = 'network-cmd-unit';
 const namespace = NamespaceName.of(testName);
@@ -84,21 +86,24 @@ describe('NetworkCommand unit tests', () => {
     const keyManagerStub = sinon.stub() as unknown as KeyManager;
     const depManagerStub = sinon.stub() as unknown as DependencyManager;
     const helmStub = sinon.stub() as unknown as DefaultHelmClient;
-    let containerOverrides: any;
+    let containerOverrides: InstanceOverrides;
 
     beforeEach(() => {
-      containerOverrides = {
-        K8Factory: [{useValue: k8SFactoryStub}],
-        ClusterChecks: [{useValue: clusterChecksStub}],
-        RemoteConfigManager: [{useValue: remoteConfigManagerStub}],
-        ChartManager: [{useValue: chartManagerStub}],
-        CertificateManager: [{useValue: certificateManagerStub}],
-        ProfileManager: [{useValue: profileManagerStub}],
-        PlatformInstaller: [{useValue: platformInstallerStub}],
-        KeyManager: [{useValue: keyManagerStub}],
-        DependencyManager: [{useValue: depManagerStub}],
-        Helm: [{useValue: helmStub}],
-      };
+      containerOverrides = new Map<symbol, ValueContainer>([
+        [InjectTokens.K8Factory, new ValueContainer(InjectTokens.K8Factory, k8SFactoryStub)],
+        [InjectTokens.ClusterChecks, new ValueContainer(InjectTokens.ClusterChecks, clusterChecksStub)],
+        [
+          InjectTokens.RemoteConfigManager,
+          new ValueContainer(InjectTokens.RemoteConfigManager, remoteConfigManagerStub),
+        ],
+        [InjectTokens.ChartManager, new ValueContainer(InjectTokens.ChartManager, chartManagerStub)],
+        [InjectTokens.CertificateManager, new ValueContainer(InjectTokens.CertificateManager, certificateManagerStub)],
+        [InjectTokens.ProfileManager, new ValueContainer(InjectTokens.ProfileManager, profileManagerStub)],
+        [InjectTokens.PlatformInstaller, new ValueContainer(InjectTokens.PlatformInstaller, platformInstallerStub)],
+        [InjectTokens.KeyManager, new ValueContainer(InjectTokens.KeyManager, keyManagerStub)],
+        [InjectTokens.DependencyManager, new ValueContainer(InjectTokens.DependencyManager, depManagerStub)],
+        [InjectTokens.Helm, new ValueContainer(InjectTokens.Helm, helmStub)],
+      ]);
 
       resetForTest(undefined, undefined, true, containerOverrides);
 

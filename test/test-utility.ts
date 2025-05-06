@@ -58,6 +58,7 @@ import {type NodeServiceMapping} from '../src/types/mappings/node-service-mappin
 import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../version-test.js';
 import {HEDERA_PLATFORM_VERSION} from '../version.js';
 import {gte as semVersionGte} from 'semver';
+import {type InstanceOverrides} from '../src/core/dependency-injection/container-init.js';
 
 export const BASE_TEST_DIR = PathEx.join('test', 'data', 'tmp');
 
@@ -132,7 +133,7 @@ interface Cmd {
   nodeCmdArg?: NodeCommand;
   accountCmdArg?: AccountCommand;
   deploymentCmdArg?: DeploymentCommand;
-  containerOverrides?: Record<string, object[]>;
+  containerOverrides?: InstanceOverrides;
 }
 
 function getTestNamespace(argv: Argv): NamespaceName {

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {container, Lifecycle} from 'tsyringe-neo';
+import {container} from 'tsyringe-neo';
 import {type SoloLogger} from '../logging/solo-logger.js';
 import {PackageDownloader} from '../package-downloader.js';
 import {Zippy} from '../zippy.js';
@@ -48,6 +48,10 @@ import {NodeCommand} from '../../commands/node/index.js';
 import {ClusterCommand} from '../../commands/cluster/index.js';
 import {Middlewares} from '../middlewares.js';
 import {SoloWinstonLogger} from '../logging/solo-winston-logger.js';
+import {SingletonContainer} from './singleton-container.js';
+import {ValueContainer} from './value-container.js';
+
+export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
 /**
  * Container class to manage the dependency injection container
@@ -75,92 +79,97 @@ export class Container {
    * @param cacheDirectory - the cache directory to use, defaults to constants.SOLO_CACHE_DIR
    * @param logLevel - the log level to use, defaults to 'debug'
    * @param developmentMode - if true, show full stack traces in error messages
-   * @param overrides - mocked instances to use instead of the default implementations
+   * @param overrides - instances to use instead of the default implementations
    */
   public init(
     homeDirectory: string = constants.SOLO_HOME_DIR,
     cacheDirectory: string = constants.SOLO_CACHE_DIR,
     logLevel: string = 'debug',
     developmentMode: boolean = false,
-    overrides = {},
+    overrides?: InstanceOverrides,
   ) {
     if (Container.isInitialized) {
       container.resolve<SoloLogger>(InjectTokens.SoloLogger).debug('Container already initialized');
       return;
     }
 
-    const defaults = {
-      LogLevel: [{useValue: logLevel}],
-      DevelopmentMode: [{useValue: developmentMode}],
-      OsPlatform: [{useValue: os.platform()}],
-      OsArch: [{useValue: os.arch()}],
-      HelmInstallationDir: [{useValue: PathEx.join(constants.SOLO_HOME_DIR, 'bin')}],
-      HelmVersion: [{useValue: version.HELM_VERSION}],
-      SystemAccounts: [{useValue: constants.SYSTEM_ACCOUNTS}],
-      CacheDir: [{useValue: cacheDirectory}],
-      LocalConfigFilePath: [{useValue: PathEx.join(homeDirectory, constants.DEFAULT_LOCAL_CONFIG_FILE)}],
-      LockRenewalService: [{useClass: IntervalLockRenewalService}, {lifecycle: Lifecycle.Singleton}],
-      LockManager: [{useClass: LockManager}, {lifecycle: Lifecycle.Singleton}],
-      K8Factory: [{useClass: K8ClientFactory}, {lifecycle: Lifecycle.Singleton}],
-      SoloLogger: [{useClass: SoloWinstonLogger}, {lifecycle: Lifecycle.Singleton}],
-      PackageDownloader: [{useClass: PackageDownloader}, {lifecycle: Lifecycle.Singleton}],
-      Zippy: [{useClass: Zippy}, {lifecycle: Lifecycle.Singleton}],
-      DependencyManager: [{useClass: DependencyManager}, {lifecycle: Lifecycle.Singleton}],
-      Helm: [{useClass: DefaultHelmClient}, {lifecycle: Lifecycle.Singleton}],
-      HelmExecutionBuilder: [{useClass: HelmExecutionBuilder}, {lifecycle: Lifecycle.Singleton}],
-      HelmDependencyManager: [{useClass: HelmDependencyManager}, {lifecycle: Lifecycle.Singleton}],
-      ChartManager: [{useClass: ChartManager}, {lifecycle: Lifecycle.Singleton}],
-      ConfigManager: [{useClass: ConfigManager}, {lifecycle: Lifecycle.Singleton}],
-      AccountManager: [{useClass: AccountManager}, {lifecycle: Lifecycle.Singleton}],
-      PlatformInstaller: [{useClass: PlatformInstaller}, {lifecycle: Lifecycle.Singleton}],
-      KeyManager: [{useClass: KeyManager}, {lifecycle: Lifecycle.Singleton}],
-      ProfileManager: [{useClass: ProfileManager}, {lifecycle: Lifecycle.Singleton}],
-      CertificateManager: [{useClass: CertificateManager}, {lifecycle: Lifecycle.Singleton}],
-      LocalConfig: [{useClass: LocalConfig}, {lifecycle: Lifecycle.Singleton}],
-      RemoteConfigManager: [{useClass: RemoteConfigManager}, {lifecycle: Lifecycle.Singleton}],
-      ClusterChecks: [{useClass: ClusterChecks}, {lifecycle: Lifecycle.Singleton}],
-      NetworkNodes: [{useClass: NetworkNodes}, {lifecycle: Lifecycle.Singleton}],
-      AccountCommand: [{useClass: AccountCommand}, {lifecycle: Lifecycle.Singleton}],
-      ClusterCommand: [{useClass: ClusterCommand}, {lifecycle: Lifecycle.Singleton}],
-      NodeCommand: [{useClass: NodeCommand}, {lifecycle: Lifecycle.Singleton}],
-      DeploymentCommand: [{useClass: DeploymentCommand}, {lifecycle: Lifecycle.Singleton}],
-      ExplorerCommand: [{useClass: ExplorerCommand}, {lifecycle: Lifecycle.Singleton}],
-      InitCommand: [{useClass: InitCommand}, {lifecycle: Lifecycle.Singleton}],
-      MirrorNodeCommand: [{useClass: MirrorNodeCommand}, {lifecycle: Lifecycle.Singleton}],
-      NetworkCommand: [{useClass: NetworkCommand}, {lifecycle: Lifecycle.Singleton}],
-      RelayCommand: [{useClass: RelayCommand}, {lifecycle: Lifecycle.Singleton}],
-      ClusterCommandTasks: [{useClass: ClusterCommandTasks}, {lifecycle: Lifecycle.Singleton}],
-      ClusterCommandHandlers: [{useClass: ClusterCommandHandlers}, {lifecycle: Lifecycle.Singleton}],
-      NodeCommandTasks: [{useClass: NodeCommandTasks}, {lifecycle: Lifecycle.Singleton}],
-      NodeCommandHandlers: [{useClass: NodeCommandHandlers}, {lifecycle: Lifecycle.Singleton}],
-      ClusterCommandConfigs: [{useClass: ClusterCommandConfigs}, {lifecycle: Lifecycle.Singleton}],
-      NodeCommandConfigs: [{useClass: NodeCommandConfigs}, {lifecycle: Lifecycle.Singleton}],
-      ErrorHandler: [{useClass: ErrorHandler}, {lifecycle: Lifecycle.Singleton}],
-      ObjectMapper: [{useClass: CTObjectMapper}, {lifecycle: Lifecycle.Singleton}],
-      KeyFormatter: [{useValue: ConfigKeyFormatter.instance()}],
-      Middlewares: [{useClass: Middlewares}, {lifecycle: Lifecycle.Singleton}],
-      HelpRenderer: [{useClass: HelpRenderer}, {lifecycle: Lifecycle.Singleton}],
-      ConfigProvider: [{useClass: LayeredConfigProvider}, {lifecycle: Lifecycle.Singleton}],
-    };
+    const singletonContainers: SingletonContainer[] = [
+      new SingletonContainer(InjectTokens.SoloLogger, SoloWinstonLogger),
+      new SingletonContainer(InjectTokens.LockRenewalService, IntervalLockRenewalService),
+      new SingletonContainer(InjectTokens.LockManager, LockManager),
+      new SingletonContainer(InjectTokens.K8Factory, K8ClientFactory),
+      new SingletonContainer(InjectTokens.PackageDownloader, PackageDownloader),
+      new SingletonContainer(InjectTokens.Zippy, Zippy),
+      new SingletonContainer(InjectTokens.DependencyManager, DependencyManager),
+      new SingletonContainer(InjectTokens.Helm, DefaultHelmClient),
+      new SingletonContainer(InjectTokens.HelmExecutionBuilder, HelmExecutionBuilder),
+      new SingletonContainer(InjectTokens.HelmDependencyManager, HelmDependencyManager),
+      new SingletonContainer(InjectTokens.ChartManager, ChartManager),
+      new SingletonContainer(InjectTokens.ConfigManager, ConfigManager),
+      new SingletonContainer(InjectTokens.AccountManager, AccountManager),
+      new SingletonContainer(InjectTokens.PlatformInstaller, PlatformInstaller),
+      new SingletonContainer(InjectTokens.KeyManager, KeyManager),
+      new SingletonContainer(InjectTokens.ProfileManager, ProfileManager),
+      new SingletonContainer(InjectTokens.CertificateManager, CertificateManager),
+      new SingletonContainer(InjectTokens.LocalConfig, LocalConfig),
+      new SingletonContainer(InjectTokens.RemoteConfigManager, RemoteConfigManager),
+      new SingletonContainer(InjectTokens.ClusterChecks, ClusterChecks),
+      new SingletonContainer(InjectTokens.NetworkNodes, NetworkNodes),
+      new SingletonContainer(InjectTokens.Middlewares, Middlewares),
+      new SingletonContainer(InjectTokens.HelpRenderer, HelpRenderer),
+      new SingletonContainer(InjectTokens.ConfigProvider, LayeredConfigProvider),
+      new SingletonContainer(InjectTokens.AccountCommand, AccountCommand),
+      new SingletonContainer(InjectTokens.ClusterCommand, ClusterCommand),
+      new SingletonContainer(InjectTokens.NodeCommand, NodeCommand),
+      new SingletonContainer(InjectTokens.DeploymentCommand, DeploymentCommand),
+      new SingletonContainer(InjectTokens.ExplorerCommand, ExplorerCommand),
+      new SingletonContainer(InjectTokens.InitCommand, InitCommand),
+      new SingletonContainer(InjectTokens.MirrorNodeCommand, MirrorNodeCommand),
+      new SingletonContainer(InjectTokens.NetworkCommand, NetworkCommand),
+      new SingletonContainer(InjectTokens.RelayCommand, RelayCommand),
+      new SingletonContainer(InjectTokens.ClusterCommandTasks, ClusterCommandTasks),
+      new SingletonContainer(InjectTokens.ClusterCommandHandlers, ClusterCommandHandlers),
+      new SingletonContainer(InjectTokens.NodeCommandTasks, NodeCommandTasks),
+      new SingletonContainer(InjectTokens.NodeCommandHandlers, NodeCommandHandlers),
+      new SingletonContainer(InjectTokens.ClusterCommandConfigs, ClusterCommandConfigs),
+      new SingletonContainer(InjectTokens.NodeCommandConfigs, NodeCommandConfigs),
+      new SingletonContainer(InjectTokens.ErrorHandler, ErrorHandler),
+      new SingletonContainer(InjectTokens.ObjectMapper, CTObjectMapper),
+    ];
 
-    const dependencies = {...defaults, ...overrides};
+    const valueContainers: ValueContainer[] = [
+      new ValueContainer(InjectTokens.LogLevel, logLevel),
+      new ValueContainer(InjectTokens.DevelopmentMode, developmentMode),
+      new ValueContainer(InjectTokens.OsPlatform, os.platform()),
+      new ValueContainer(InjectTokens.OsArch, os.arch()),
+      new ValueContainer(InjectTokens.HelmInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
+      new ValueContainer(InjectTokens.HelmVersion, version.HELM_VERSION),
+      new ValueContainer(InjectTokens.SystemAccounts, constants.SYSTEM_ACCOUNTS),
+      new ValueContainer(InjectTokens.CacheDir, cacheDirectory),
+      new ValueContainer(
+        InjectTokens.LocalConfigFilePath,
+        PathEx.join(homeDirectory, constants.DEFAULT_LOCAL_CONFIG_FILE),
+      ),
+      new ValueContainer(InjectTokens.KeyFormatter, ConfigKeyFormatter.instance()),
+    ];
 
-    const orderedKeys: string[] = Object.keys(InjectTokens).sort((a: string, b: string) => {
-      // SoloLogger should be first
-      if (a === 'SoloLogger') {
-        return -1;
+    for (const [token, override] of overrides) {
+      if (override instanceof SingletonContainer) {
+        container.register(token, {useClass: override.useClass}, {lifecycle: override.lifecycle});
+      } else if (override instanceof ValueContainer) {
+        container.register(override.token, {useValue: override.useValue});
       }
-      return 0;
-    });
+    }
 
-    for (const tokenName of orderedKeys) {
-      if (dependencies[tokenName]) {
-        // @ts-ignore
-        container.register(InjectTokens[tokenName], ...dependencies[tokenName]);
+    for (const value of valueContainers) {
+      if (!overrides.get(value.token)) {
+        container.register(value.token, {useValue: value.useValue});
+      }
+    }
 
-        if (overrides[tokenName]) {
-          container.resolve<SoloLogger>(InjectTokens.SoloLogger).debug('Using overridden dependency for %s', tokenName);
-        }
+    for (const singleton of singletonContainers) {
+      if (!overrides.get(singleton.token)) {
+        container.register(singleton.token, {useClass: singleton.useClass}, {lifecycle: singleton.lifecycle});
       }
     }
 
@@ -174,14 +183,14 @@ export class Container {
    * @param cacheDirectory - the cache directory to use, defaults to constants.SOLO_CACHE_DIR
    * @param logLevel - the log level to use, defaults to 'debug'
    * @param developmentMode - if true, show full stack traces in error messages
-   * @param overrides - mocked instances to use instead of the default implementations
+   * @param overrides - instances to use instead of the default implementations
    */
   public reset(
     homeDirectory?: string,
     cacheDirectory?: string,
     logLevel?: string,
     developmentMode?: boolean,
-    overrides = {},
+    overrides?: InstanceOverrides,
   ) {
     if (Container.instance && Container.isInitialized) {
       container.resolve<SoloLogger>(InjectTokens.SoloLogger).debug('Resetting container');
@@ -197,14 +206,14 @@ export class Container {
    * @param cacheDirectory - the cache directory to use, defaults to constants.SOLO_CACHE_DIR
    * @param logLevel - the log level to use, defaults to 'debug'
    * @param developmentMode - if true, show full stack traces in error messages
-   * @param overrides - mocked instances to use instead of the default implementations
+   * @param overrides - instances to use instead of the default implementations
    */
   public clearInstances(
     homeDirectory?: string,
     cacheDirectory?: string,
     logLevel?: string,
     developmentMode?: boolean,
-    overrides = {},
+    overrides?: InstanceOverrides,
   ) {
     if (Container.instance && Container.isInitialized) {
       container.clearInstances();
