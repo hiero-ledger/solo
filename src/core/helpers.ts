@@ -572,3 +572,16 @@ export async function requiresJavaSveFix(container: Container) {
 export function entityId(shard: Shard, realm: Realm, number: Long | number | string): string {
   return `${shard}.${realm}.${number}`;
 }
+
+export async function withTimeout<T>(
+  promise: Promise<T>,
+  duration: Duration,
+  errorMessage: string = 'Timeout',
+): Promise<T> {
+  return Promise.race([promise, throwAfter(duration, errorMessage)]);
+}
+
+async function throwAfter(duration: Duration, message: string = 'Timeout'): Promise<never> {
+  await sleep(duration);
+  throw new SoloError(message);
+}
