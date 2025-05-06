@@ -79,11 +79,7 @@ import {ContainerReference} from '../../integration/kube/resources/container/con
 import {NetworkNodes} from '../../core/network-nodes.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import {type Optional, type SoloListr, type SoloListrTask, type SoloListrTaskWrapper} from '../../types/index.js';
-import {
-  type ClusterReference,
-  type DeploymentName,
-  type NamespaceNameAsString,
-} from '../../core/config/remote/types.js';
+import {type ClusterReference, type DeploymentName, type NamespaceNameAsString} from '../../types/index.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {ConsensusNode} from '../../core/model/consensus-node.js';
 import {type K8} from '../../integration/kube/k8.js';

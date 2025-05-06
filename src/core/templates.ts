@@ -13,7 +13,7 @@ import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {GrpcProxyTlsEnums} from './enumerations.js';
 import {HEDERA_PLATFORM_VERSION} from '../../version.js';
 import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
-import {type ClusterReference, type NamespaceNameAsString} from './config/remote/types.js';
+import {type ClusterReference, type NamespaceNameAsString} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 
 export class Templates {

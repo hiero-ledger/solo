@@ -13,7 +13,7 @@ import {UserIdentity} from '../../data/schema/model/common/user-identity.js';
 import {Deployment} from '../../data/schema/model/local/deployment.js';
 import {ApplicationVersions} from '../../data/schema/model/common/application-versions.js';
 import {LocalConfig} from '../../data/schema/model/local/local-config.js';
-import {type ClusterReferences, DeploymentName, Realm, Shard} from '../../core/config/remote/types.js';
+import {type ClusterReferences, DeploymentName, Realm, Shard} from '../../types/index.js';
 import {DeploymentNotFoundError} from '../errors/deployment-not-found-error.js';
 import {ReadLocalConfigBeforeLoadError} from '../errors/read-local-config-before-load-error.js';
 import {WriteLocalConfigBeforeLoadError} from '../errors/write-local-config-before-load-error.js';

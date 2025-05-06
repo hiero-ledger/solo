@@ -11,7 +11,7 @@ import {SoloError} from '../../core/errors/solo-error.js';
 import {UserBreak} from '../../core/errors/user-break.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type SoloListrTask} from '../../types/index.js';
-import {type ClusterReference} from '../../core/config/remote/types.js';
+import {type ClusterReference} from '../../types/index.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type NamespaceName} from '../../integration/kube/resources/namespace/namespace-name.js';

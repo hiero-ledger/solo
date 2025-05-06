@@ -9,7 +9,7 @@ import {type ConfigManager} from '../core/config-manager.js';
 import {type DependencyManager} from '../core/dependency-managers/index.js';
 import * as constants from '../core/constants.js';
 import fs from 'node:fs';
-import {type ClusterReference, type ClusterReferences} from '../core/config/remote/types.js';
+import {type ClusterReference, type ClusterReferences} from '../types/index.js';
 import {Flags} from './flags.js';
 import {type SoloLogger} from '../core/logging/solo-logger.js';
 import {type PackageDownloader} from '../core/package-downloader.js';

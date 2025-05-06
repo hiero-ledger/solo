@@ -6,11 +6,7 @@ import {Flags} from '../../../src/commands/flags.js';
 import {getTestCacheDirectory, getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
 import {main} from '../../../src/index.js';
 import {resetForTest} from '../../test-container.js';
-import {
-  type ClusterReference,
-  type ClusterReferences,
-  type DeploymentName,
-} from '../../../src/core/config/remote/types.js';
+import {type ClusterReference, type ClusterReferences, type DeploymentName} from '../../../src/types/index.js';
 import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {container} from 'tsyringe-neo';

@@ -43,7 +43,7 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
-import {type ClusterReferences, type DeploymentName, Realm, Shard} from './config/remote/types.js';
+import {type ClusterReferences, type DeploymentName, Realm, Shard} from './../types/index.js';
 import {type Service} from '../integration/kube/resources/service/service.js';
 import {SoloService} from './model/solo-service.js';
 import {type RemoteConfigManager} from './config/remote/remote-config-manager.js';

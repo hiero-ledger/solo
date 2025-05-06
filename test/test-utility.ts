@@ -45,11 +45,7 @@ import {type NetworkNodes} from '../src/core/network-nodes.js';
 import {InjectTokens} from '../src/core/dependency-injection/inject-tokens.js';
 import {DeploymentCommand} from '../src/commands/deployment.js';
 import {Argv} from './helpers/argv-wrapper.js';
-import {
-  type ClusterReference,
-  type DeploymentName,
-  type NamespaceNameAsString,
-} from '../src/core/config/remote/types.js';
+import {type ClusterReference, type DeploymentName, type NamespaceNameAsString} from '../src/types/index.js';
 import {CommandInvoker} from './helpers/command-invoker.js';
 import {PathEx} from '../src/business/utils/path-ex.js';
 import {type HelmClient} from '../src/integration/helm/helm-client.js';

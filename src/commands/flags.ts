@@ -14,7 +14,7 @@ import {
   confirm as confirmPrompt,
 } from '@inquirer/prompts';
 import {type AnyListrContext, type AnyObject, type AnyYargs} from '../types/aliases.js';
-import {type ClusterReference} from '../core/config/remote/types.js';
+import {type ClusterReference} from '../types/index.js';
 import {type Optional, type SoloListrTaskWrapper} from '../types/index.js';
 import chalk from 'chalk';
 import {PathEx} from '../business/utils/path-ex.js';

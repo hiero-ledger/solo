@@ -20,7 +20,7 @@ import {type NetworkNodes} from '../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from './helpers/argv-wrapper.js';
-import {type DeploymentName} from '../src/core/config/remote/types.js';
+import {type DeploymentName} from '../src/types/index.js';
 import {NodeCommand} from '../src/commands/node/index.js';
 import {NetworkCommand} from '../src/commands/network.js';
 import {AccountCommand} from '../src/commands/account.js';

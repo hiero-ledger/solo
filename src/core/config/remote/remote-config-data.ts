@@ -3,8 +3,8 @@
 import {type RemoteConfigMetadata} from './metadata.js';
 import {type ComponentsDataWrapper} from './components-data-wrapper.js';
 import {type CommonFlagsDataWrapper} from './common-flags-data-wrapper.js';
-import {type ClusterReference} from './types.js';
 import {type Cluster} from './cluster.js';
+import {type ClusterReference} from '../../../types/index.js';
 
 export interface RemoteConfigData {
   metadata: RemoteConfigMetadata;

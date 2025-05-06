@@ -24,7 +24,7 @@ import {type ClusterReferenceDefaultContext} from './config-interfaces/cluster-r
 import {type ClusterReferenceSetupContext} from './config-interfaces/cluster-reference-setup-context.js';
 import {type ClusterReferenceSetupConfigClass} from './config-interfaces/cluster-reference-setup-config-class.js';
 import {type ClusterReferenceResetConfigClass} from './config-interfaces/cluster-reference-reset-config-class.js';
-import {type ClusterReference} from '../../core/config/remote/types.js';
+import {type ClusterReference} from '../../types/index.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
 
 @injectable()

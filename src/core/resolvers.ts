@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type DeploymentName} from './config/remote/types.js';
+import {type DeploymentName} from './../types/index.js';
 import {type ConfigManager} from './config-manager.js';
 import {Flags as flags} from '../commands/flags.js';
 import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';

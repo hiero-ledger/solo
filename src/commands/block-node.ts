@@ -16,7 +16,7 @@ import {
   type NodeAliases,
 } from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
-import {type ClusterReference, type DeploymentName} from '../core/config/remote/types.js';
+import {type ClusterReference, type DeploymentName} from '../types/index.js';
 import {type CommandDefinition, type Optional, type SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
 import * as versions from '../../version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';

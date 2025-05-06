@@ -28,7 +28,7 @@ import {
   INGRESS_CONTROLLER_PREFIX,
 } from '../core/constants.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
-import {type ClusterReference, type Context} from '../core/config/remote/types.js';
+import {type ClusterReference, type Context} from '../types/index.js';
 import * as helpers from '../core/helpers.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {ListrRemoteConfig} from '../core/config/remote/listr-config-tasks.js';

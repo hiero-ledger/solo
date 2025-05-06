@@ -8,8 +8,8 @@ import {type BaseComponent} from './components/base-component.js';
 import {type NamespaceName} from '../../../integration/kube/resources/namespace/namespace-name.js';
 import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
 import {type LocalConfigRuntimeState} from '../../../business/runtime-state/local-config-runtime-state.js';
-import {type Context} from './types.js';
 import {ConsensusNodeStates} from './enumerations/consensus-node-states.js';
+import {type Context} from '../../../types/index.js';
 
 /**
  * Static class is used to validate that components in the remote config

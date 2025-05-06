@@ -16,10 +16,10 @@ import {
   type DeploymentName,
   type NamespaceNameAsString,
   type Version,
-} from './types.js';
+  type Optional,
+} from '../../../types/index.js';
 import {type SoloLogger} from '../../logging/solo-logger.js';
 import {type ConfigManager} from '../../config-manager.js';
-import {type Optional} from '../../../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../dependency-injection/container-helper.js';
 import {ErrorMessages} from '../../error-messages.js';

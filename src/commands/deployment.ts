@@ -13,7 +13,7 @@ import {
   type NamespaceNameAsString,
   type Realm,
   type Shard,
-} from '../core/config/remote/types.js';
+} from '../types/index.js';
 import {type CommandDefinition, type SoloListrTask} from '../types/index.js';
 import {ErrorMessages} from '../core/error-messages.js';
 import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';

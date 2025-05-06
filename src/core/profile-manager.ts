@@ -27,7 +27,7 @@ import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {type RemoteConfigManager} from './config/remote/remote-config-manager.js';
-import {type ClusterReference, DeploymentName, Realm, Shard} from './config/remote/types.js';
+import {type ClusterReference, DeploymentName, Realm, Shard} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {AccountManager} from './account-manager.js';
 import {LocalConfigRuntimeState} from '../business/runtime-state/local-config-runtime-state.js';

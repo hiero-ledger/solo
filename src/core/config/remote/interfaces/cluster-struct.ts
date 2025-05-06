@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type DeploymentName} from '../types.js';
+import {type DeploymentName} from '../../../../types/index.js';
 
 export interface ClusterStruct {
   name: string;

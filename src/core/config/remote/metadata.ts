@@ -2,7 +2,7 @@
 
 import {Migration} from './migration.js';
 import {SoloError} from '../../errors/solo-error.js';
-import {type DeploymentName, type NamespaceNameAsString, type Version} from './types.js';
+import {type DeploymentName, type NamespaceNameAsString, type Version} from '../../../types/index.js';
 import {type Optional, type ToObject, type Validate} from '../../../types/index.js';
 import {type UserIdentity} from '../../../data/schema/model/common/user-identity.js';
 import {DeploymentStates} from './enumerations/deployment-states.js';

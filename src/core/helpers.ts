@@ -23,7 +23,7 @@ import chalk from 'chalk';
 import {PathEx} from '../business/utils/path-ex.js';
 import {type ConfigManager} from './config-manager.js';
 import {Flags as flags} from '../commands/flags.js';
-import {type Realm, type Shard} from './config/remote/types.js';
+import {type Realm, type Shard} from './../types/index.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 
 export function getInternalAddress(

@@ -3,7 +3,7 @@
 import {expect} from 'chai';
 import {describe, it} from 'mocha';
 import {Migration} from '../../../../../src/core/config/remote/migration.js';
-import {type Version} from '../../../../../src/core/config/remote/types.js';
+import {type Version} from '../../../../../src/types/index.js';
 import {SoloError} from '../../../../../src/core/errors/solo-error.js';
 import {UserIdentity} from '../../../../../src/data/schema/model/common/user-identity.js';
 

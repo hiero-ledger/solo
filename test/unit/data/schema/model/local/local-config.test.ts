@@ -20,7 +20,7 @@ import {
   SOLO_CHART_VERSION,
 } from '../../../../../../version.js';
 import {ConfigKeyFormatter} from '../../../../../../src/data/key/config-key-formatter.js';
-import {type ClusterReferences} from '../../../../../../src/core/config/remote/types.js';
+import {type ClusterReferences} from '../../../../../../src/types/index.js';
 
 describe('LocalConfig', () => {
   const schema: LocalConfigSchema = new LocalConfigSchema(new CTObjectMapper(ConfigKeyFormatter.instance()));

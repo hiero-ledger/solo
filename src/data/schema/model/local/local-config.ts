@@ -11,7 +11,7 @@ import {
   type DeploymentName,
   type Realm,
   type Shard,
-} from '../../../../core/config/remote/types.js';
+} from '../../../../types/index.js';
 import {type NamespaceName} from '../../../../integration/kube/resources/namespace/namespace-name.js';
 
 @Exclude()

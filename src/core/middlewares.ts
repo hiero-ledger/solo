@@ -9,7 +9,7 @@ import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type AnyObject} from '../types/aliases.js';
 import {type RemoteConfigManager} from './config/remote/remote-config-manager.js';
-import {type ClusterReference} from './config/remote/types.js';
+import {type ClusterReference} from './../types/index.js';
 import {SoloError} from './errors/solo-error.js';
 import {SilentBreak} from './errors/silent-break.js';
 import {type HelpRenderer} from './help-renderer.js';

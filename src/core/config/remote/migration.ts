@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {SoloError} from '../../errors/solo-error.js';
-import {type Version} from './types.js';
+import {type Version} from '../../../types/index.js';
 import {type MigrationStruct} from './interfaces/migration-struct.js';
 import {type UserIdentity} from '../../../data/schema/model/common/user-identity.js';
 

@@ -42,7 +42,7 @@ import {
   type DeploymentName,
   type Realm,
   type Shard,
-} from '../core/config/remote/types.js';
+} from '../types/index.js';
 import {Base64} from 'js-base64';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Duration} from '../core/time/duration.js';

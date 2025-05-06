@@ -9,7 +9,7 @@ import {MirrorNodeComponent} from './components/mirror-node-component.js';
 import {EnvoyProxyComponent} from './components/envoy-proxy-component.js';
 import {ConsensusNodeComponent} from './components/consensus-node-component.js';
 import {MirrorNodeExplorerComponent} from './components/mirror-node-explorer-component.js';
-import {type ClusterReference, type ComponentName, type NamespaceNameAsString} from './types.js';
+import {type ClusterReference, type ComponentName, type NamespaceNameAsString} from '../../../types/index.js';
 import {ComponentTypes} from './enumerations/component-types.js';
 import {ConsensusNodeStates} from './enumerations/consensus-node-states.js';
 import {type BaseComponentStruct} from './components/interfaces/base-component-struct.js';
