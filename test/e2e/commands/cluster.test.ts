@@ -21,7 +21,6 @@ import * as fs from 'node:fs';
 import * as yaml from 'yaml';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {SoloWinstonLogger} from '../../../src/core/logging/solo-winston-logger.js';
-import {resetForTest} from '../../test-container.js';
 import {container} from 'tsyringe-neo';
 import {ClusterCommandHandlers} from '../../../src/commands/cluster/handlers.js';
 import {ClusterCommandTasks} from '../../../src/commands/cluster/tasks.js';
@@ -77,7 +76,6 @@ describe('ClusterCommand', () => {
   });
 
   beforeEach(() => {
-    resetForTest(namespace.name);
     clusterCmdHandlers = container.resolve<ClusterCommandHandlers>(ClusterCommandHandlers);
     clusterCmdTasks = container.resolve<ClusterCommandTasks>(ClusterCommandTasks);
     configManager.reset();
