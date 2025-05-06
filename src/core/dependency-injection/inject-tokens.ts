@@ -56,4 +56,5 @@ export const InjectTokens = {
   KeyFormatter: Symbol.for('KeyFormatter'),
   CommandInvoker: Symbol.for('CommandInvoker'),
   ConfigProvider: Symbol.for('ConfigProvider'),
+  BlockNodeCommand: Symbol.for('BlockNodeCommand'),
 };
