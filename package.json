@@ -26,7 +26,7 @@
     "@hashgraph/sdk": "^2.63.0",
     "@inquirer/prompts": "^7.5.0",
     "@kubernetes/client-node": "^0.22.3",
-    "@listr2/prompt-adapter-inquirer": "^2.0.21",
+    "@listr2/prompt-adapter-inquirer": "^2.0.22",
     "@peculiar/x509": "^1.12.3",
     "adm-zip": "^0.5.16",
     "chalk": "^5.4.1",
