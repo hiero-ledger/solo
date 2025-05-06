@@ -71,10 +71,14 @@ interface ExplorerDestroyContext {
 
 @injectable()
 export class ExplorerCommand extends BaseCommand {
-  constructor(@inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager) {
+  public constructor(
+    @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
+    @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
+  ) {
     super();
 
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
+    this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
   }
 
   public static readonly COMMAND_NAME = 'explorer';
@@ -179,9 +183,7 @@ export class ExplorerCommand extends BaseCommand {
       );
     }
 
-    const clusterChecks: ClusterChecks = container.resolve(InjectTokens.ClusterChecks);
-
-    if (!(await clusterChecks.isCertManagerInstalled())) {
+    if (!(await this.clusterChecks.isCertManagerInstalled())) {
       valuesArgument += ' --set cert-manager.installCRDs=true';
     }
 
