@@ -75,7 +75,6 @@ export class Container {
    * @param cacheDirectory - the cache directory to use, defaults to constants.SOLO_CACHE_DIR
    * @param logLevel - the log level to use, defaults to 'debug'
    * @param developmentMode - if true, show full stack traces in error messages
-   * @param testLogger - a test logger to use, if provided
    * @param overrides - mocked instances to use instead of the default implementations
    */
   public init(
@@ -83,7 +82,6 @@ export class Container {
     cacheDirectory: string = constants.SOLO_CACHE_DIR,
     logLevel: string = 'debug',
     developmentMode: boolean = false,
-    testLogger?: SoloLogger,
     overrides = {},
   ) {
     if (Container.isInitialized) {
@@ -176,7 +174,6 @@ export class Container {
    * @param cacheDirectory - the cache directory to use, defaults to constants.SOLO_CACHE_DIR
    * @param logLevel - the log level to use, defaults to 'debug'
    * @param developmentMode - if true, show full stack traces in error messages
-   * @param testLogger - a test logger to use, if provided
    * @param overrides - mocked instances to use instead of the default implementations
    */
   public reset(
@@ -184,7 +181,6 @@ export class Container {
     cacheDirectory?: string,
     logLevel?: string,
     developmentMode?: boolean,
-    testLogger?: SoloLogger,
     overrides = {},
   ) {
     if (Container.instance && Container.isInitialized) {
@@ -192,7 +188,7 @@ export class Container {
       container.reset();
       Container.isInitialized = false;
     }
-    Container.getInstance().init(homeDirectory, cacheDirectory, logLevel, developmentMode, testLogger, overrides);
+    Container.getInstance().init(homeDirectory, cacheDirectory, logLevel, developmentMode, overrides);
   }
 
   /**
@@ -201,7 +197,6 @@ export class Container {
    * @param cacheDirectory - the cache directory to use, defaults to constants.SOLO_CACHE_DIR
    * @param logLevel - the log level to use, defaults to 'debug'
    * @param developmentMode - if true, show full stack traces in error messages
-   * @param testLogger - a test logger to use, if provided
    * @param overrides - mocked instances to use instead of the default implementations
    */
   public clearInstances(
@@ -209,14 +204,13 @@ export class Container {
     cacheDirectory?: string,
     logLevel?: string,
     developmentMode?: boolean,
-    testLogger?: SoloLogger,
     overrides = {},
   ) {
     if (Container.instance && Container.isInitialized) {
       container.clearInstances();
       Container.isInitialized = false;
     } else {
-      Container.getInstance().init(homeDirectory, cacheDirectory, logLevel, developmentMode, testLogger, overrides);
+      Container.getInstance().init(homeDirectory, cacheDirectory, logLevel, developmentMode, overrides);
     }
   }
 

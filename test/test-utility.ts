@@ -224,7 +224,7 @@ export function endToEndTestSuite(
 ): void {
   const testLogger: SoloLogger = getTestLogger();
   const testNamespace: NamespaceName = getTestNamespace(argv);
-  resetForTest(testNamespace.name, undefined, testLogger, false, containerOverrides);
+  resetForTest(testNamespace.name, undefined, false, containerOverrides);
   if (typeof startNodes !== 'boolean') {
     startNodes = true;
   }

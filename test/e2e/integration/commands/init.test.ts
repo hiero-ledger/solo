@@ -25,7 +25,7 @@ describe('InitCommand', () => {
   before(() => {
     sandbox = sinon.createSandbox();
     sandbox.stub(K8Client.prototype, 'init').callsFake(() => this);
-    resetTestContainer(undefined, undefined, {
+    resetTestContainer(undefined, {
       LocalConfig: [{useValue: new LocalConfig(PathEx.join(BASE_TEST_DIR, DEFAULT_LOCAL_CONFIG_FILE))}],
     });
     initCmd = container.resolve(InjectTokens.InitCommand);

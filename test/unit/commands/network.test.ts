@@ -4,7 +4,7 @@ import sinon from 'sinon';
 import {beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
 
-import {getTestCluster, getTestLogger, HEDERA_PLATFORM_VERSION_TAG, testLocalConfigData} from '../../test-utility.js';
+import {getTestCluster, HEDERA_PLATFORM_VERSION_TAG, testLocalConfigData} from '../../test-utility.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import * as version from '../../../version.js';
 import * as constants from '../../../src/core/constants.js';
@@ -100,7 +100,7 @@ describe('NetworkCommand unit tests', () => {
         Helm: [{useValue: helmStub}],
       };
 
-      resetForTest(undefined, undefined, getTestLogger(), true, containerOverrides);
+      resetForTest(undefined, undefined, true, containerOverrides);
 
       options = {};
       options.logger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);

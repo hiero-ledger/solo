@@ -86,7 +86,7 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
       // allowed to fail if the file doesn't exist
     }
     testLogger = container.resolve<SoloWinstonLogger>(InjectTokens.SoloLogger);
-    resetForTest(namespace.name, testCacheDirectory, testLogger, false);
+    resetForTest(namespace.name, testCacheDirectory, false);
     for (const item of contexts) {
       const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
       await k8Client.namespaces().delete(namespace);
@@ -96,7 +96,7 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
 
   beforeEach(async (): Promise<void> => {
     testLogger.info(`${testName}: resetting containers for each test`);
-    resetForTest(namespace.name, testCacheDirectory, testLogger, false);
+    resetForTest(namespace.name, testCacheDirectory, false);
     testLogger.info(`${testName}: finished resetting containers for each test`);
   });
 
