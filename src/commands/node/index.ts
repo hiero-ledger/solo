@@ -8,6 +8,7 @@ import {type NodeCommandHandlers} from './handlers.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {inject, injectable} from 'tsyringe-neo';
+import {type CommandDefinition, type ExtendedNetServer} from '../../types/index.js';
 import {type AnyYargs} from '../../types/aliases.js';
 
 /**
@@ -51,8 +52,8 @@ export class NodeCommand extends BaseCommand {
     return this.handlers.getUnusedConfigs(configName);
   }
 
-  public getCommandDefinition() {
-    const self = this;
+  public getCommandDefinition(): CommandDefinition {
+    const self: this = this;
     return {
       command: NodeCommand.COMMAND_NAME,
       desc: 'Manage Hedera platform node in solo network',

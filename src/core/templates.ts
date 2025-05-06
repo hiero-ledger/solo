@@ -25,10 +25,6 @@ export class Templates {
     return `network-${nodeAlias}-svc`;
   }
 
-  private static nodeAliasFromNetworkSvcName(svcName: string): NodeAlias {
-    return svcName.split('-').slice(1, -1).join('-') as NodeAlias;
-  }
-
   public static renderNetworkHeadlessSvcName(nodeAlias: NodeAlias): string {
     return `network-${nodeAlias}`;
   }
@@ -182,11 +178,6 @@ export class Templates {
 
   public static renderFullyQualifiedNetworkSvcName(namespace: NamespaceName, nodeAlias: NodeAlias): string {
     return `${Templates.renderNetworkSvcName(nodeAlias)}.${namespace.name}.svc.cluster.local`;
-  }
-
-  private static nodeAliasFromFullyQualifiedNetworkSvcName(svcName: string): NodeAlias {
-    const parts = svcName.split('.');
-    return this.nodeAliasFromNetworkSvcName(parts[0]);
   }
 
   public static nodeIdFromNodeAlias(nodeAlias: NodeAlias): NodeId {

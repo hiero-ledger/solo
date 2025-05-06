@@ -14,16 +14,15 @@ import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {type AnyYargs, type ArgvStruct, type NodeAliases} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {RelayComponent} from '../core/config/remote/components/relay-component.js';
-import {ComponentType} from '../core/config/remote/enumerations.js';
 import * as Base64 from 'js-base64';
 import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
 import {type ClusterReference, type DeploymentName} from '../core/config/remote/types.js';
-import {type Optional, type SoloListrTask} from '../types/index.js';
+import {type CommandDefinition, type Optional, type SoloListrTask} from '../types/index.js';
 import {HEDERA_JSON_RPC_RELAY_VERSION} from '../../version.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {JSON_RPC_RELAY_CHART} from '../core/constants.js';
+import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -331,16 +330,14 @@ export class RelayCommand extends BaseCommand {
           task: async context_ => {
             const config = context_.config;
 
-            const kubeContext = self.k8Factory.getK8(config.context).contexts().readCurrent();
-
             await self.chartManager.install(
               config.namespace,
               config.releaseName,
-              JSON_RPC_RELAY_CHART,
-              JSON_RPC_RELAY_CHART,
+              constants.JSON_RPC_RELAY_CHART,
+              constants.JSON_RPC_RELAY_CHART,
               '',
               config.valuesArg,
-              kubeContext,
+              config.context,
             );
 
             showVersionBanner(self.logger, config.releaseName, HEDERA_JSON_RPC_RELAY_VERSION);
@@ -489,8 +486,8 @@ export class RelayCommand extends BaseCommand {
     return true;
   }
 
-  public getCommandDefinition() {
-    const self = this;
+  public getCommandDefinition(): CommandDefinition {
+    const self: this = this;
     return {
       command: RelayCommand.COMMAND_NAME,
       desc: 'Manage JSON RPC relays in solo network',
@@ -565,7 +562,7 @@ export class RelayCommand extends BaseCommand {
       skip: (): boolean => !this.remoteConfigManager.isLoaded(),
       task: async (): Promise<void> => {
         await this.remoteConfigManager.modify(async remoteConfig => {
-          remoteConfig.components.remove('relay', ComponentType.Relay);
+          remoteConfig.components.remove('relay', ComponentTypes.Relay);
         });
       },
     };

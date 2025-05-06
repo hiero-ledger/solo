@@ -9,6 +9,7 @@ import {type RelayCommand} from './relay.js';
 import {type AccountCommand} from './account.js';
 import {type DeploymentCommand} from './deployment.js';
 import {type ExplorerCommand} from './explorer.js';
+import {type BlockNodeCommand} from './block-node.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 
@@ -26,6 +27,7 @@ export function Initialize() {
   const mirrorNodeCmd = container.resolve(InjectTokens.MirrorNodeCommand) as MirrorNodeCommand;
   const explorerCommand = container.resolve(InjectTokens.ExplorerCommand) as ExplorerCommand;
   const deploymentCommand = container.resolve(InjectTokens.DeploymentCommand) as DeploymentCommand;
+  const blockNodeCommand = container.resolve(InjectTokens.BlockNodeCommand) as BlockNodeCommand;
 
   return [
     initCmd.getCommandDefinition(),
@@ -37,5 +39,6 @@ export function Initialize() {
     mirrorNodeCmd.getCommandDefinition(),
     explorerCommand.getCommandDefinition(),
     deploymentCommand.getCommandDefinition(),
+    blockNodeCommand.getCommandDefinition(),
   ];
 }

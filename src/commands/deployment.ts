@@ -14,19 +14,20 @@ import {
   type Realm,
   type Shard,
 } from '../core/config/remote/types.js';
-import {type SoloListrTask} from '../types/index.js';
+import {type CommandDefinition, type SoloListrTask} from '../types/index.js';
 import {ErrorMessages} from '../core/error-messages.js';
 import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
 import {type ClusterChecks} from '../core/cluster-checks.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type ArgvStruct, type AnyYargs, type NodeAliases} from '../types/aliases.js';
-import {ConsensusNodeStates, DeploymentStates} from '../core/config/remote/enumerations.js';
 import {Templates} from '../core/templates.js';
-import {ConsensusNodeComponent} from '../core/config/remote/components/consensus-node-component.js';
 import {Cluster} from '../core/config/remote/cluster.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {ConsensusNodeStates} from '../core/config/remote/enumerations/consensus-node-states.js';
+import {DeploymentStates} from '../core/config/remote/enumerations/deployment-states.js';
+import {ConsensusNodeComponent} from '../core/config/remote/components/consensus-node-component.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -342,8 +343,8 @@ export class DeploymentCommand extends BaseCommand {
     return true;
   }
 
-  public getCommandDefinition() {
-    const self = this;
+  public getCommandDefinition(): CommandDefinition {
+    const self: this = this;
     return {
       command: DeploymentCommand.COMMAND_NAME,
       desc: 'Manage solo network deployment',

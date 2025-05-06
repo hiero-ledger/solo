@@ -12,10 +12,10 @@ import * as constants from '../core/constants.js';
 import {Templates} from '../core/templates.js';
 import {
   addDebugOptions,
-  resolveValidJsonFilePath,
-  sleep,
   parseNodeAliases,
+  resolveValidJsonFilePath,
   showVersionBanner,
+  sleep,
 } from '../core/helpers.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import fs from 'node:fs';
@@ -26,11 +26,10 @@ import {type CertificateManager} from '../core/certificate-manager.js';
 import {type AnyYargs, type IP, type NodeAlias, type NodeAliases} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {ConsensusNodeComponent} from '../core/config/remote/components/consensus-node-component.js';
-import {ConsensusNodeStates} from '../core/config/remote/enumerations.js';
 import {EnvoyProxyComponent} from '../core/config/remote/components/envoy-proxy-component.js';
 import {HaProxyComponent} from '../core/config/remote/components/ha-proxy-component.js';
 import {v4 as uuidv4} from 'uuid';
-import {type SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
+import {type CommandDefinition, type SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
 import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
@@ -52,6 +51,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {ConsensusNodeStates} from '../core/config/remote/enumerations/consensus-node-states.js';
 import {SemVer, lt as SemVersionLessThan} from 'semver';
 
 export interface NetworkDeployConfigClass {
@@ -1274,8 +1274,8 @@ export class NetworkCommand extends BaseCommand {
     return networkDestroySuccess;
   }
 
-  getCommandDefinition() {
-    const self = this;
+  public getCommandDefinition(): CommandDefinition {
+    const self: this = this;
     return {
       command: NetworkCommand.COMMAND_NAME,
       desc: 'Manage solo network deployment',
