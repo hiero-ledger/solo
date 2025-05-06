@@ -2,7 +2,7 @@
 
 import * as constants from '../core/constants.js';
 import * as version from '../../version.js';
-import {type CommandFlag} from '../types/flag-types.js';
+import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import fs from 'node:fs';
 import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
 import {SoloError} from '../core/errors/solo-error.js';
@@ -13,12 +13,12 @@ import {
   number as numberPrompt,
   confirm as confirmPrompt,
 } from '@inquirer/prompts';
-import validator from 'validator';
 import {type AnyListrContext, type AnyObject, type AnyYargs} from '../types/aliases.js';
-import {type ClusterReference} from '../core/config/remote/types.js';
+import {type ClusterReference} from '../types/index.js';
 import {type Optional, type SoloListrTaskWrapper} from '../types/index.js';
 import chalk from 'chalk';
 import {PathEx} from '../business/utils/path-ex.js';
+import validator from 'validator';
 
 export class Flags {
   public static KEY_COMMON = '_COMMON_';
@@ -721,7 +721,7 @@ export class Flags {
     name: 'ledger-id',
     definition: {
       describe: 'Ledger ID (a.k.a. Chain ID)',
-      defaultValue: constants.HEDERA_CHAIN_ID, // Ref: https://github.com/hashgraph/hedera-json-rpc-relay#configuration
+      defaultValue: constants.HEDERA_CHAIN_ID, // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay#configuration
       alias: 'l',
       type: 'string',
     },
@@ -737,7 +737,7 @@ export class Flags {
     },
   };
 
-  // Ref: https://github.com/hashgraph/hedera-json-rpc-relay/blob/main/docs/configuration.md
+  // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay/blob/main/docs/configuration.md
   public static readonly operatorId: CommandFlag = {
     constName: 'operatorId',
     name: 'operator-id',
@@ -761,7 +761,7 @@ export class Flags {
     },
   };
 
-  // Ref: https://github.com/hashgraph/hedera-json-rpc-relay/blob/main/docs/configuration.md
+  // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay/blob/main/docs/configuration.md
   public static readonly operatorKey: CommandFlag = {
     constName: 'operatorKey',
     name: 'operator-key',
@@ -1036,6 +1036,17 @@ export class Flags {
         Flags.soloChartVersion.name,
       );
     },
+  };
+
+  public static readonly blockNodeChartVersion: CommandFlag = {
+    constName: 'chartVersion',
+    name: 'chart-version',
+    definition: {
+      describe: 'Block nodes chart version',
+      defaultValue: version.BLOCK_NODE_VERSION,
+      type: 'string',
+    },
+    prompt: undefined,
   };
 
   public static readonly applicationProperties: CommandFlag = {
@@ -1608,6 +1619,26 @@ export class Flags {
     },
   };
 
+  public static readonly blockNodeVersion: CommandFlag = {
+    constName: 'blockNodeVersion',
+    name: 'block-node-version',
+    definition: {
+      describe: 'Block nodes chart version',
+      defaultValue: version.BLOCK_NODE_VERSION,
+      type: 'string',
+    },
+    prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: boolean): Promise<boolean> {
+      return await Flags.promptToggle(
+        task,
+        input,
+        Flags.blockNodeVersion.definition.defaultValue as boolean,
+        'Would you like to choose mirror node version? ',
+        null,
+        Flags.blockNodeVersion.name,
+      );
+    },
+  };
+
   public static readonly enableIngress: CommandFlag = {
     constName: 'enableIngress',
     name: 'enable-ingress',
@@ -1650,37 +1681,6 @@ export class Flags {
         null,
         Flags.hederaExplorerVersion.name,
       );
-    },
-  };
-
-  public static readonly userEmailAddress: CommandFlag = {
-    constName: 'userEmailAddress',
-    name: 'email',
-    definition: {
-      defaultValue: 'john@doe.com',
-      describe: 'User email address used for local configuration',
-      type: 'string',
-    },
-    prompt: async function promptUserEmailAddress(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: string,
-    ): Promise<string> {
-      if (input?.length) {
-        return input;
-      }
-
-      const promptForInput = async () => {
-        return await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
-          message: 'Please enter your email address:',
-        });
-      };
-
-      input = await promptForInput();
-      while (!validator.isEmail(input)) {
-        input = await promptForInput();
-      }
-
-      return input;
     },
   };
 
@@ -1947,6 +1947,36 @@ export class Flags {
   };
 
   //* ------------------------------------------------------------------------------------------- *//
+
+  public static readonly username: CommandFlag = {
+    constName: 'username',
+    name: 'user',
+    definition: {
+      describe:
+        'Optional user name used for local configuration. Only accepts letters and numbers. Defaults to the username provided by the OS',
+      type: 'string',
+      alias: 'u',
+    },
+    prompt: async function promptUsername(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
+      const promptForInput = async () => {
+        return await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
+          message: 'Please enter your username. Can only contain letters and numbers:',
+        });
+      };
+
+      input = await promptForInput();
+
+      while (!Flags.username.validate(input)) {
+        input = await promptForInput();
+      }
+
+      return input;
+    },
+    validate: (input: string): boolean => {
+      // only allow letters and numbers
+      return validator.isAlphanumeric(input);
+    },
+  };
 
   public static readonly grpcTlsKeyPath: CommandFlag = {
     constName: 'grpcTlsKeyPath',
@@ -2407,6 +2437,28 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly realm: CommandFlag = {
+    constName: 'realm',
+    name: 'realm',
+    definition: {
+      describe: 'Realm number. Requires network-node > v61.0 for non-zero values',
+      type: 'number',
+      defaultValue: 0,
+    },
+    prompt: undefined,
+  };
+
+  public static readonly shard: CommandFlag = {
+    constName: 'shard',
+    name: 'shard',
+    definition: {
+      describe: 'Shard number. Requires network-node > v61.0 for non-zero values',
+      type: 'number',
+      defaultValue: 0,
+    },
+    prompt: undefined,
+  };
+
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.adminKey,
@@ -2520,7 +2572,6 @@ export class Flags {
     Flags.tlsPublicKey,
     Flags.updateAccountKeys,
     Flags.upgradeZipFile,
-    Flags.userEmailAddress,
     Flags.valuesFile,
     Flags.useExternalDatabase,
     Flags.externalDatabaseHost,
@@ -2534,6 +2585,11 @@ export class Flags {
     Flags.dnsConsensusNodePattern,
     Flags.domainName,
     Flags.domainNames,
+    Flags.blockNodeChartVersion,
+    Flags.blockNodeVersion,
+    Flags.realm,
+    Flags.shard,
+    Flags.username,
   ];
 
   /** Resets the definition.disablePrompt for all flags */
@@ -2560,7 +2616,7 @@ export class Flags {
 
   public static readonly integerFlags = new Map([Flags.replicaCount].map(f => [f.name, f]));
 
-  public static readonly DEFAULT_FLAGS = {
+  public static readonly DEFAULT_FLAGS: CommandFlags = {
     required: [],
     optional: [Flags.namespace, Flags.cacheDir, Flags.releaseTag, Flags.devMode, Flags.quiet],
   };

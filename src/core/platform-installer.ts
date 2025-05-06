@@ -17,10 +17,10 @@ import chalk from 'chalk';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type NodeAlias} from '../types/aliases.js';
 import {Duration} from './time/duration.js';
-import {getAppleSiliconChipset, sleep} from './helpers.js';
+import {requiresJavaSveFix, sleep} from './helpers.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
@@ -106,8 +106,6 @@ export class PlatformInstaller {
     }
 
     try {
-      const chipType = (await getAppleSiliconChipset(this.logger)).join('');
-      this.logger.info(`chipType: ${chipType}`);
       const scriptName = 'extract-platform.sh';
       const sourcePath = PathEx.joinWithRealPath(constants.RESOURCES_DIR, scriptName); // script source path
       await this.copyFiles(podReference, [sourcePath], constants.HEDERA_USER_HOME_DIR, undefined, context);
@@ -120,8 +118,12 @@ export class PlatformInstaller {
 
       const k8Containers = this.k8Factory.getK8(context).containers();
 
-      await k8Containers.readByRef(containerReference).execContainer(`chmod +x ${extractScript}`);
-      await k8Containers.readByRef(containerReference).execContainer([extractScript, tag, chipType]);
+      const container = k8Containers.readByRef(containerReference);
+      const useZip = await requiresJavaSveFix(container);
+      this.logger.info(`Requires JavaSVE fix: ${useZip}`);
+
+      await container.execContainer(`chmod +x ${extractScript}`);
+      await container.execContainer([extractScript, tag, useZip.toString()]);
 
       return true;
     } catch (error) {

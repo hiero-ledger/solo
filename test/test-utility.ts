@@ -27,7 +27,6 @@ import {type PlatformInstaller} from '../src/core/platform-installer.js';
 import {type ProfileManager} from '../src/core/profile-manager.js';
 import {type LockManager} from '../src/core/lock/lock-manager.js';
 import {type CertificateManager} from '../src/core/certificate-manager.js';
-import {type LocalConfig} from '../src/core/config/local/local-config.js';
 import {type RemoteConfigManager} from '../src/core/config/remote/remote-config-manager.js';
 import * as constants from '../src/core/constants.js';
 import {Templates} from '../src/core/templates.js';
@@ -39,22 +38,22 @@ import {type KeyManager} from '../src/core/key-manager.js';
 import {Duration} from '../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';
 import {resetForTest} from './test-container.js';
-import {NamespaceName} from '../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../src/types/namespace/namespace-name.js';
 import {PodReference} from '../src/integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../src/integration/kube/resources/container/container-reference.js';
 import {type NetworkNodes} from '../src/core/network-nodes.js';
 import {InjectTokens} from '../src/core/dependency-injection/inject-tokens.js';
 import {DeploymentCommand} from '../src/commands/deployment.js';
 import {Argv} from './helpers/argv-wrapper.js';
-import {
-  type ClusterReference,
-  type DeploymentName,
-  type NamespaceNameAsString,
-} from '../src/core/config/remote/types.js';
+import {type ClusterReference, type DeploymentName, type NamespaceNameAsString} from '../src/types/index.js';
 import {CommandInvoker} from './helpers/command-invoker.js';
 import {PathEx} from '../src/business/utils/path-ex.js';
 import {type HelmClient} from '../src/integration/helm/helm-client.js';
 import {type NodeServiceMapping} from '../src/types/mappings/node-service-mapping.js';
+import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../version-test.js';
+import {HEDERA_PLATFORM_VERSION} from '../version.js';
+import {gte as semVersionGte} from 'semver';
+import {type LocalConfigRuntimeState} from '../src/business/runtime-state/local-config-runtime-state.js';
 
 export const BASE_TEST_DIR = PathEx.join('test', 'data', 'tmp');
 
@@ -100,7 +99,7 @@ interface TestOptions {
   leaseManager: LockManager;
   certificateManager: CertificateManager;
   remoteConfigManager: RemoteConfigManager;
-  localConfig: LocalConfig;
+  localConfig: LocalConfigRuntimeState;
   commandInvoker: CommandInvoker;
 }
 
@@ -131,6 +130,8 @@ interface Cmd {
   deploymentCmdArg?: DeploymentCommand;
 }
 
+let shouldReset: boolean = true;
+
 /** Initialize common test variables */
 export function bootstrapTestVariables(
   testName: string,
@@ -143,7 +144,15 @@ export function bootstrapTestVariables(
 
   const deployment: string = argv.getArg<DeploymentName>(flags.deployment) || `${namespace.name}-deployment`;
   const cacheDirectory: string = argv.getArg<string>(flags.cacheDir) || getTestCacheDirectory(testName);
-  resetForTest(namespace.name, cacheDirectory);
+
+  // Make sure the container is reset only once per CI run.
+  // When multiple test suites are loaded simultaniously, as is the case with `task test-e2e-standard`
+  // the container will be reset multiple times, which causes issues with the loading of LocalConfigRuntimeState.
+  // A better solution would be to run bootstraping during the before hook of the test suite.
+  if (shouldReset) {
+    resetForTest(namespace.name, cacheDirectory);
+    shouldReset = false;
+  }
   const configManager: ConfigManager = container.resolve(InjectTokens.ConfigManager);
   configManager.update(argv.build());
 
@@ -158,7 +167,7 @@ export function bootstrapTestVariables(
   const profileManager: ProfileManager = container.resolve(InjectTokens.ProfileManager);
   const leaseManager: LockManager = container.resolve(InjectTokens.LockManager);
   const certificateManager: CertificateManager = container.resolve(InjectTokens.CertificateManager);
-  const localConfig: LocalConfig = container.resolve(InjectTokens.LocalConfig);
+  const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
   const remoteConfigManager: RemoteConfigManager = container.resolve(InjectTokens.RemoteConfigManager);
   const testLogger: SoloLogger = getTestLogger();
   const commandInvoker = new CommandInvoker({configManager, remoteConfigManager, k8Factory, logger: testLogger});
@@ -238,6 +247,11 @@ export function endToEndTestSuite(
   const testLogger: SoloLogger = getTestLogger();
 
   describe(`E2E Test Suite for '${testName}'`, function () {
+    before(async (): Promise<void> => {
+      const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+      await localConfig.load();
+    });
+
     this.bail(true); // stop on first failure, nothing else will matter if network doesn't come up correctly
 
     describe(`Bootstrap network for test [release ${argv.getArg<string>(flags.releaseTag)}]`, () => {
@@ -286,6 +300,8 @@ export function endToEndTestSuite(
       }).timeout(Duration.ofMinutes(2).toMillis());
 
       it("should success with 'cluster-ref connect'", async () => {
+        const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+        await localConfig.load();
         await commandInvoker.invoke({
           argv: argv,
           command: ClusterCommand.COMMAND_NAME,
@@ -508,20 +524,29 @@ async function addKeyHashToMap(
 }
 
 export const testLocalConfigData = {
-  userEmailAddress: 'john.doe@example.com',
+  userIdentity: {
+    name: 'john',
+    host: 'doe',
+  },
   soloVersion: '1.0.0',
   deployments: {
     deployment: {
       clusters: ['cluster-1'],
       namespace: 'solo-e2e',
+      realm: 0,
+      shard: 0,
     },
     'deployment-2': {
       clusters: ['cluster-2'],
       namespace: 'solo-2',
+      realm: 0,
+      shard: 0,
     },
     'deployment-3': {
       clusters: ['cluster-3'],
       namespace: 'solo-3',
+      realm: 0,
+      shard: 0,
     },
   },
   clusterRefs: {
@@ -531,3 +556,11 @@ export const testLocalConfigData = {
 };
 
 export {HEDERA_PLATFORM_VERSION as HEDERA_PLATFORM_VERSION_TAG} from '../version.js';
+
+export function hederaPlatformSupportsNonZeroRealms() {
+  return semVersionGte(HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
+}
+
+export function localHederaPlatformSupportsNonZeroRealms() {
+  return semVersionGte(TEST_LOCAL_HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
+}

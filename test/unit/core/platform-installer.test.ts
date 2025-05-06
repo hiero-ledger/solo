@@ -12,7 +12,7 @@ import {MissingArgumentError} from '../../../src/core/errors/missing-argument-er
 import {PodName} from '../../../src/integration/kube/resources/pod/pod-name.js';
 import {container} from 'tsyringe-neo';
 import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 

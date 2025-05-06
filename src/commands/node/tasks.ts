@@ -12,10 +12,8 @@ import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
 import {
   DEFAULT_NETWORK_NODE_NAME,
-  FREEZE_ADMIN_ACCOUNT,
   HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
   IGNORED_NODE_ACCOUNT_ID,
-  TREASURY_ACCOUNT_ID,
 } from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
@@ -24,6 +22,7 @@ import {
   AccountUpdateTransaction,
   type Client,
   FileAppendTransaction,
+  FileId,
   FileUpdateTransaction,
   FreezeTransaction,
   FreezeType,
@@ -33,6 +32,8 @@ import {
   NodeUpdateTransaction,
   PrivateKey,
   Timestamp,
+  TransactionReceipt,
+  TransactionResponse,
 } from '@hashgraph/sdk';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {MissingArgumentError} from '../../core/errors/missing-argument-error.js';
@@ -42,9 +43,10 @@ import crypto from 'node:crypto';
 import * as helpers from '../../core/helpers.js';
 import {
   addDebugOptions,
-  getNodeAccountMap,
+  entityId,
   prepareEndpoints,
   renameAndCopyFile,
+  requiresJavaSveFix,
   showVersionBanner,
   sleep,
   splitFlagInput,
@@ -71,27 +73,21 @@ import {Duration} from '../../core/time/duration.js';
 import {type NodeAddConfigClass} from './config-interfaces/node-add-config-class.js';
 import {GenesisNetworkDataConstructor} from '../../core/genesis-network-models/genesis-network-data-constructor.js';
 import {NodeOverridesModel} from '../../core/node-overrides-model.js';
-import {type NamespaceName} from '../../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {PodReference} from '../../integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../../integration/kube/resources/container/container-reference.js';
 import {NetworkNodes} from '../../core/network-nodes.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import {type Optional, type SoloListr, type SoloListrTask, type SoloListrTaskWrapper} from '../../types/index.js';
-import {
-  type ClusterReference,
-  type DeploymentName,
-  type NamespaceNameAsString,
-} from '../../core/config/remote/types.js';
+import {type ClusterReference, type DeploymentName, type NamespaceNameAsString} from '../../types/index.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {ConsensusNode} from '../../core/model/consensus-node.js';
 import {type K8} from '../../integration/kube/k8.js';
 import {Base64} from 'js-base64';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {type RemoteConfigManager} from '../../core/config/remote/remote-config-manager.js';
-import {type LocalConfig} from '../../core/config/local/local-config.js';
 import {BaseCommand} from '../base.js';
 import {ConsensusNodeComponent} from '../../core/config/remote/components/consensus-node-component.js';
-import {ComponentType, ConsensusNodeStates} from '../../core/config/remote/enumerations.js';
 import {EnvoyProxyComponent} from '../../core/config/remote/components/envoy-proxy-component.js';
 import {HaProxyComponent} from '../../core/config/remote/components/ha-proxy-component.js';
 import {HEDERA_PLATFORM_VERSION} from '../../../version.js';
@@ -117,6 +113,8 @@ import {type NodeKeysConfigClass} from './config-interfaces/node-keys-config-cla
 import {type NodeStartConfigClass} from './config-interfaces/node-start-config-class.js';
 import {type CheckedNodesConfigClass, type CheckedNodesContext} from './config-interfaces/node-common-config-class.js';
 import {type NetworkNodeServices} from '../../core/network-node-services.js';
+import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
+import {ConsensusNodeStates} from '../../core/config/remote/enumerations/consensus-node-states.js';
 
 @injectable()
 export class NodeCommandTasks {
@@ -131,7 +129,7 @@ export class NodeCommandTasks {
     @inject(InjectTokens.ChartManager) private readonly chartManager: ChartManager,
     @inject(InjectTokens.CertificateManager) private readonly certificateManager: CertificateManager,
     @inject(InjectTokens.RemoteConfigManager) private readonly remoteConfigManager: RemoteConfigManager,
-    @inject(InjectTokens.LocalConfig) private readonly localConfig: LocalConfig,
+    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
@@ -142,13 +140,18 @@ export class NodeCommandTasks {
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
     this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
     this.certificateManager = patchInject(certificateManager, InjectTokens.CertificateManager, this.constructor.name);
-    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfig, this.constructor.name);
+    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfigManager = patchInject(
       remoteConfigManager,
       InjectTokens.RemoteConfigManager,
       this.constructor.name,
     );
-    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfig, this.constructor.name);
+  }
+
+  private getFileUpgradeId(deploymentName: DeploymentName): FileId {
+    const realm = this.localConfig.getRealm(deploymentName);
+    const shard = this.localConfig.getShard(deploymentName);
+    return FileId.fromString(entityId(shard, realm, constants.UPGRADE_FILE_ID_NUM));
   }
 
   private async _prepareUpgradeZip(stagingDirectory: string): Promise<string> {
@@ -185,7 +188,11 @@ export class NodeCommandTasks {
     );
   }
 
-  private async _uploadUpgradeZip(upgradeZipFile: string, nodeClient: Client): Promise<string> {
+  private async _uploadUpgradeZip(
+    upgradeZipFile: string,
+    nodeClient: Client,
+    deploymentName: DeploymentName,
+  ): Promise<string> {
     // get byte value of the zip file
     const zipBytes = fs.readFileSync(upgradeZipFile);
     const zipHash = crypto.createHash('sha384').update(zipBytes).digest('hex');
@@ -203,12 +210,12 @@ export class NodeCommandTasks {
 
         fileTransaction =
           start === 0
-            ? new FileUpdateTransaction().setFileId(constants.UPGRADE_FILE_ID).setContents(zipBytesChunk)
-            : new FileAppendTransaction().setFileId(constants.UPGRADE_FILE_ID).setContents(zipBytesChunk);
+            ? new FileUpdateTransaction().setFileId(this.getFileUpgradeId(deploymentName)).setContents(zipBytesChunk)
+            : new FileAppendTransaction().setFileId(this.getFileUpgradeId(deploymentName)).setContents(zipBytesChunk);
         const resp = await fileTransaction.execute(nodeClient);
         const receipt = await resp.getReceipt(nodeClient);
         this.logger.debug(
-          `updated file ${constants.UPGRADE_FILE_ID} [chunkSize= ${zipBytesChunk.length}, txReceipt = ${receipt.toString()}]`,
+          `updated file ${this.getFileUpgradeId(deploymentName)} [chunkSize= ${zipBytesChunk.length}, txReceipt = ${receipt.toString()}]`,
         );
 
         start += constants.UPGRADE_FILE_CHUNK_SIZE;
@@ -630,16 +637,17 @@ export class NodeCommandTasks {
         this.configManager.getFlag<boolean>(flags.forcePortForward),
       );
       const client = this.accountManager._nodeClient;
-      const treasuryKey = await this.accountManager.getTreasuryAccountKeys(namespace);
+      const treasuryKey = await this.accountManager.getTreasuryAccountKeys(namespace, deploymentName);
       const treasuryPrivateKey = PrivateKey.fromStringED25519(treasuryKey.privateKey);
-      client.setOperator(TREASURY_ACCOUNT_ID, treasuryPrivateKey);
+      const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deploymentName);
+      client.setOperator(treasuryAccountId, treasuryPrivateKey);
 
       // check balance
-      const treasuryBalance = await new AccountBalanceQuery().setAccountId(TREASURY_ACCOUNT_ID).execute(client);
-      this.logger.debug(`Account ${TREASURY_ACCOUNT_ID} balance: ${treasuryBalance.hbars}`);
+      const treasuryBalance = await new AccountBalanceQuery().setAccountId(treasuryAccountId).execute(client);
+      this.logger.debug(`Account ${treasuryAccountId} balance: ${treasuryBalance.hbars}`);
 
       // get some initial balance
-      await this.accountManager.transferAmount(constants.TREASURY_ACCOUNT_ID, accountId, stakeAmount);
+      await this.accountManager.transferAmount(treasuryAccountId, accountId, stakeAmount);
 
       // check balance
       const balance = await new AccountBalanceQuery().setAccountId(accountId).execute(client);
@@ -674,14 +682,14 @@ export class NodeCommandTasks {
       title: 'Prepare upgrade zip file for node upgrade process',
       task: async context_ => {
         const config = context_.config;
-        const {upgradeZipFile} = context_.config;
+        const {upgradeZipFile, deployment} = context_.config;
         if (upgradeZipFile) {
           this.logger.debug(`Using upgrade zip file: ${context_.upgradeZipFile}`);
           context_.upgradeZipFile = upgradeZipFile;
         } else {
           context_.upgradeZipFile = await self._prepareUpgradeZip(config.stagingDir);
         }
-        context_.upgradeZipHash = await self._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient);
+        context_.upgradeZipHash = await self._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
       },
     };
   }
@@ -729,10 +737,12 @@ export class NodeCommandTasks {
         const config = context_.config;
 
         // Transfer some hbar to the node for staking purpose
-        const accountMap = getNodeAccountMap(config.existingNodeAliases);
+        const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+        const accountMap = this.accountManager.getNodeAccountMap(config.existingNodeAliases, deploymentName);
+        const treasuryAccountId = this.accountManager.getTreasuryAccountId(deploymentName);
         for (const nodeAlias of config.existingNodeAliases) {
           const accountId = accountMap.get(nodeAlias);
-          await self.accountManager.transferAmount(constants.TREASURY_ACCOUNT_ID, accountId, 1);
+          await self.accountManager.transferAmount(treasuryAccountId, accountId, 1);
         }
       },
     };
@@ -746,26 +756,29 @@ export class NodeCommandTasks {
       title: 'Send prepare upgrade transaction',
       task: async context_ => {
         const {upgradeZipHash} = context_;
-        const {nodeClient, freezeAdminPrivateKey} = context_.config;
+        const {nodeClient, freezeAdminPrivateKey, deployment} = context_.config;
         try {
+          const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
+          const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
+
           // query the balance
-          const balance = await new AccountBalanceQuery().setAccountId(FREEZE_ADMIN_ACCOUNT).execute(nodeClient);
+          const balance = await new AccountBalanceQuery().setAccountId(freezeAccountId).execute(nodeClient);
           self.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
 
           // transfer some tiny amount to the freeze admin account
-          await self.accountManager.transferAmount(constants.TREASURY_ACCOUNT_ID, FREEZE_ADMIN_ACCOUNT, 100_000);
+          await self.accountManager.transferAmount(treasuryAccountId, freezeAccountId, 100_000);
 
           // set operator of freeze transaction as freeze admin account
-          nodeClient.setOperator(FREEZE_ADMIN_ACCOUNT, freezeAdminPrivateKey);
+          nodeClient.setOperator(freezeAccountId, freezeAdminPrivateKey);
 
-          const prepareUpgradeTx = await new FreezeTransaction()
+          const prepareUpgradeTx: TransactionResponse = await new FreezeTransaction()
             .setFreezeType(FreezeType.PrepareUpgrade)
-            .setFileId(constants.UPGRADE_FILE_ID)
+            .setFileId(this.getFileUpgradeId(deployment))
             .setFileHash(upgradeZipHash)
             .freezeWith(nodeClient)
             .execute(nodeClient);
 
-          const prepareUpgradeReceipt = await prepareUpgradeTx.getReceipt(nodeClient);
+          const prepareUpgradeReceipt: TransactionReceipt = await prepareUpgradeTx.getReceipt(nodeClient);
 
           self.logger.debug(
             `sent prepare upgrade transaction [id: ${prepareUpgradeTx.transactionId.toString()}]`,
@@ -786,7 +799,7 @@ export class NodeCommandTasks {
       title: 'Send freeze upgrade transaction',
       task: async context_ => {
         const {upgradeZipHash} = context_;
-        const {freezeAdminPrivateKey, nodeClient} = context_.config;
+        const {freezeAdminPrivateKey, nodeClient, deployment} = context_.config;
         try {
           const futureDate = new Date();
           self.logger.debug(`Current time: ${futureDate}`);
@@ -794,15 +807,17 @@ export class NodeCommandTasks {
           futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
           self.logger.debug(`Freeze time: ${futureDate}`);
 
+          const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
+
           // query the balance
-          const balance = await new AccountBalanceQuery().setAccountId(FREEZE_ADMIN_ACCOUNT).execute(nodeClient);
+          const balance = await new AccountBalanceQuery().setAccountId(freezeAdminAccountId).execute(nodeClient);
           self.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
 
-          nodeClient.setOperator(FREEZE_ADMIN_ACCOUNT, freezeAdminPrivateKey);
+          nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
           const freezeUpgradeTx = await new FreezeTransaction()
             .setFreezeType(FreezeType.FreezeUpgrade)
             .setStartTimestamp(Timestamp.fromDate(futureDate))
-            .setFileId(constants.UPGRADE_FILE_ID)
+            .setFileId(this.getFileUpgradeId(deployment))
             .setFileHash(upgradeZipHash)
             .freezeWith(nodeClient)
             .execute(nodeClient);
@@ -824,12 +839,12 @@ export class NodeCommandTasks {
     return {
       title: 'Send freeze only transaction',
       task: async context_ => {
-        const {freezeAdminPrivateKey} = context_.config;
+        const {freezeAdminPrivateKey, deployment, namespace} = context_.config;
         try {
           const nodeClient = await this.accountManager.loadNodeClient(
-            context_.config.namespace,
+            namespace,
             this.remoteConfigManager.getClusterRefs(),
-            context_.config.deployment,
+            deployment,
           );
           const futureDate = new Date();
           self.logger.debug(`Current time: ${futureDate}`);
@@ -837,7 +852,8 @@ export class NodeCommandTasks {
           futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
           self.logger.debug(`Freeze time: ${futureDate}`);
 
-          nodeClient.setOperator(FREEZE_ADMIN_ACCOUNT, freezeAdminPrivateKey);
+          const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
+          nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
           const freezeOnlyTransaction = await new FreezeTransaction()
             .setFreezeType(FreezeType.FreezeOnly)
             .setStartTimestamp(Timestamp.fromDate(futureDate))
@@ -1451,7 +1467,8 @@ export class NodeCommandTasks {
           'sleep 60 seconds for the handler to be able to trigger the network node stake weight recalculate',
         );
         await sleep(Duration.ofSeconds(60));
-        const accountMap = getNodeAccountMap(config.allNodeAliases);
+        const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+        const accountMap = this.accountManager.getNodeAccountMap(config.allNodeAliases, deploymentName);
         let skipNodeAlias: NodeAlias;
 
         switch (transactionType) {
@@ -1482,10 +1499,11 @@ export class NodeCommandTasks {
         );
 
         // send some write transactions to invoke the handler that will trigger the stake weight recalculate
+        const treasuryAccountId = this.accountManager.getTreasuryAccountId(deploymentName);
         for (const nodeAlias of accountMap.keys()) {
           const accountId = accountMap.get(nodeAlias);
-          config.nodeClient.setOperator(TREASURY_ACCOUNT_ID, config.treasuryKey);
-          await self.accountManager.transferAmount(constants.TREASURY_ACCOUNT_ID, accountId, 1);
+          config.nodeClient.setOperator(treasuryAccountId, config.treasuryKey);
+          await self.accountManager.transferAmount(treasuryAccountId, accountId, 1);
         }
       },
     };
@@ -1499,7 +1517,8 @@ export class NodeCommandTasks {
         if (context_.config.app === '' || context_.config.app === constants.HEDERA_APP_NAME) {
           const subTasks: SoloListrTask<NodeStartContext>[] = [];
 
-          const accountMap = getNodeAccountMap(context_.config.nodeAliases);
+          const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+          const accountMap = this.accountManager.getNodeAccountMap(context_.config.nodeAliases, deploymentName);
           // @ts-expect-error - TS2339: Property stakeAmount does not exist on type NodeStartConfigClass
           // TODO: 'ctx.config.stakeAmount' is never initialized in the config
           const stakeAmountParsed = context_.config.stakeAmount ? splitFlagInput(context_.config.stakeAmount) : [];
@@ -1694,9 +1713,10 @@ export class NodeCommandTasks {
           lastNodeAlias = lastNodeAlias.replace(/\d+$/, incremented.toString()) as NodeAlias;
         }
 
+        const deploymentName: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
         context_.maxNum = maxNumber.add(1);
         context_.newNode = {
-          accountId: `${constants.HEDERA_NODE_ACCOUNT_ID_START.realm}.${constants.HEDERA_NODE_ACCOUNT_ID_START.shard}.${context_.maxNum}`,
+          accountId: this.accountManager.getAccountIdByNumber(deploymentName, context_.maxNum).toString(),
           name: lastNodeAlias,
         };
         config.nodeAlias = lastNodeAlias as NodeAlias;
@@ -1925,7 +1945,7 @@ export class NodeCommandTasks {
 
         // Make sure valuesArgMap is initialized with empty strings
         const valuesArgumentMap: Record<ClusterReference, string> = {};
-        for (const clusterReference of Object.keys(clusterReferences)) {
+        for (const [clusterReference] of clusterReferences) {
           valuesArgumentMap[clusterReference] = '';
         }
 
@@ -1947,7 +1967,7 @@ export class NodeCommandTasks {
 
         const clusterNodeIndexMap: Record<ClusterReference, Record<NodeId, /* index in the chart -> */ number>> = {};
 
-        for (const clusterReference of Object.keys(clusterReferences)) {
+        for (const [clusterReference] of clusterReferences) {
           clusterNodeIndexMap[clusterReference] = {};
 
           for (const [index, node] of consensusNodes
@@ -2028,11 +2048,16 @@ export class NodeCommandTasks {
           config.debugNodeAlias,
         );
 
+        const clusterReferencesList: ClusterReference[] = [];
+        for (const [clusterReference] of clusterReferences) {
+          clusterReferencesList.push(clusterReference);
+        }
+
         // Update all charts
         await Promise.all(
-          Object.keys(clusterReferences).map(async clusterReference => {
+          clusterReferencesList.map(async clusterReference => {
             const valuesArguments = valuesArgumentMap[clusterReference];
-            const context = this.localConfig.clusterRefs[clusterReference];
+            const context = this.localConfig.clusterRefs.get(clusterReference);
 
             await self.chartManager.upgrade(
               config.namespace,
@@ -2341,16 +2366,18 @@ export class NodeCommandTasks {
         );
 
         const k8 = this.k8Factory.getK8(context);
+        const container = await k8.containers().readByRef(containerReference);
+
+        const archiveCommand = (await requiresJavaSveFix(container))
+          ? 'dnf install zip -y && cd "${states[0]}" && zip -r "${states[0]}.zip" . && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"'
+          : 'jar cf "${states[0]}.zip" -C "${states[0]}" .';
 
         // zip the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
-        const zipFileName = await k8
-          .containers()
-          .readByRef(containerReference)
-          .execContainer([
-            'bash',
-            '-c',
-            `cd ${upgradeDirectory} && mapfile -t states < <(ls -1t .) && jar cf "\${states[0]}.zip" -C "\${states[0]}" . && echo -n \${states[0]}.zip`,
-          ]);
+        const zipFileName = await container.execContainer([
+          'bash',
+          '-c',
+          `cd ${upgradeDirectory} && mapfile -t states < <(ls -1t .) && ${archiveCommand} && echo -n \${states[0]}.zip`,
+        ]);
 
         await k8
           .containers()
@@ -2376,10 +2403,9 @@ export class NodeCommandTasks {
         const context = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
         const k8 = this.k8Factory.getK8(context);
 
-        await k8
-          .containers()
-          .readByRef(containerReference)
-          .execContainer(['bash', '-c', `mkdir -p ${savedStatePath}`]);
+        const container = k8.containers().readByRef(containerReference);
+
+        await container.execContainer(['bash', '-c', `mkdir -p ${savedStatePath}`]);
         await k8.containers().readByRef(containerReference).copyTo(config.lastStateZipPath, savedStatePath);
 
         await this.platformInstaller.setPathPermission(
@@ -2391,13 +2417,17 @@ export class NodeCommandTasks {
           context,
         );
 
+        const extractCommand = (await requiresJavaSveFix(container))
+          ? `unzip ${path.basename(config.lastStateZipPath)}`
+          : `jar xf ${path.basename(config.lastStateZipPath)}`;
+
         await k8
           .containers()
           .readByRef(containerReference)
           .execContainer([
             'bash',
             '-c',
-            `cd ${savedStatePath} && jar xf ${path.basename(config.lastStateZipPath)} && rm -f ${path.basename(config.lastStateZipPath)}`,
+            `cd ${savedStatePath} && ${extractCommand} && rm -f ${path.basename(config.lastStateZipPath)}`,
           ]);
       },
     };
@@ -2410,7 +2440,8 @@ export class NodeCommandTasks {
         const config: NodeDeleteConfigClass = context_.config;
 
         try {
-          const accountMap = getNodeAccountMap(config.existingNodeAliases);
+          const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+          const accountMap = this.accountManager.getNodeAccountMap(config.existingNodeAliases, deploymentName);
           const deleteAccountId = accountMap.get(config.nodeAlias);
           this.logger.debug(`Deleting node: ${config.nodeAlias} with account: ${deleteAccountId}`);
           const nodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
@@ -2511,7 +2542,7 @@ export class NodeCommandTasks {
         const nodeAlias = context_.config.nodeAlias;
         const namespace: NamespaceNameAsString = context_.config.namespace.name;
         const clusterReference = context_.config.clusterRef;
-        const context = this.localConfig.clusterRefs[clusterReference];
+        const context = this.localConfig.clusterRefs.get(clusterReference);
 
         task.title += `: ${nodeAlias}`;
 

@@ -1,130 +1,132 @@
 # Solo Command Reference
+
 ## Table of Contents
 
-- [Root Help Output](#root-help-output)
+* [Root Help Output](#root-help-output)
 
-- [init](#init)
+* [init](#init)
 
-- [account](#account)
+* [account](#account)
 
-  - [account init](#account-init)
+  * [account init](#account-init)
 
-  - [account create](#account-create)
+  * [account create](#account-create)
 
-  - [account update](#account-update)
+  * [account update](#account-update)
 
-  - [account get](#account-get)
+  * [account get](#account-get)
 
-- [cluster-ref](#cluster-ref)
+* [cluster-ref](#cluster-ref)
 
-  - [cluster-ref connect](#cluster-ref-connect)
+  * [cluster-ref connect](#cluster-ref-connect)
 
-  - [cluster-ref disconnect](#cluster-ref-disconnect)
+  * [cluster-ref disconnect](#cluster-ref-disconnect)
 
-  - [cluster-ref list](#cluster-ref-list)
+  * [cluster-ref list](#cluster-ref-list)
 
-  - [cluster-ref info](#cluster-ref-info)
+  * [cluster-ref info](#cluster-ref-info)
 
-  - [cluster-ref setup](#cluster-ref-setup)
+  * [cluster-ref setup](#cluster-ref-setup)
 
-  - [cluster-ref reset](#cluster-ref-reset)
+  * [cluster-ref reset](#cluster-ref-reset)
 
-- [network](#network)
+* [network](#network)
 
-  - [network deploy](#network-deploy)
+  * [network deploy](#network-deploy)
 
-  - [network destroy](#network-destroy)
+  * [network destroy](#network-destroy)
 
-- [node](#node)
+* [node](#node)
 
-  - [node setup](#node-setup)
+  * [node setup](#node-setup)
 
-  - [node start](#node-start)
+  * [node start](#node-start)
 
-  - [node stop](#node-stop)
+  * [node stop](#node-stop)
 
-  - [node freeze](#node-freeze)
+  * [node freeze](#node-freeze)
 
-  - [node restart](#node-restart)
+  * [node restart](#node-restart)
 
-  - [node keys](#node-keys)
+  * [node keys](#node-keys)
 
-  - [node refresh](#node-refresh)
+  * [node refresh](#node-refresh)
 
-  - [node logs](#node-logs)
+  * [node logs](#node-logs)
 
-  - [node states](#node-states)
+  * [node states](#node-states)
 
-  - [node add](#node-add)
+  * [node add](#node-add)
 
-  - [node add-prepare](#node-add-prepare)
+  * [node add-prepare](#node-add-prepare)
 
-  - [node add-submit-transactions](#node-add-submit-transactions)
+  * [node add-submit-transactions](#node-add-submit-transactions)
 
-  - [node add-execute](#node-add-execute)
+  * [node add-execute](#node-add-execute)
 
-  - [node update](#node-update)
+  * [node update](#node-update)
 
-  - [node update-prepare](#node-update-prepare)
+  * [node update-prepare](#node-update-prepare)
 
-  - [node update-submit-transactions](#node-update-submit-transactions)
+  * [node update-submit-transactions](#node-update-submit-transactions)
 
-  - [node update-execute](#node-update-execute)
+  * [node update-execute](#node-update-execute)
 
-  - [node delete](#node-delete)
+  * [node delete](#node-delete)
 
-  - [node delete-prepare](#node-delete-prepare)
+  * [node delete-prepare](#node-delete-prepare)
 
-  - [node delete-submit-transactions](#node-delete-submit-transactions)
+  * [node delete-submit-transactions](#node-delete-submit-transactions)
 
-  - [node delete-execute](#node-delete-execute)
+  * [node delete-execute](#node-delete-execute)
 
-  - [node prepare-upgrade](#node-prepare-upgrade)
+  * [node prepare-upgrade](#node-prepare-upgrade)
 
-  - [node freeze-upgrade](#node-freeze-upgrade)
+  * [node freeze-upgrade](#node-freeze-upgrade)
 
-  - [node upgrade](#node-upgrade)
+  * [node upgrade](#node-upgrade)
 
-  - [node upgrade-prepare](#node-upgrade-prepare)
+  * [node upgrade-prepare](#node-upgrade-prepare)
 
-  - [node upgrade-submit-transactions](#node-upgrade-submit-transactions)
+  * [node upgrade-submit-transactions](#node-upgrade-submit-transactions)
 
-  - [node upgrade-execute](#node-upgrade-execute)
+  * [node upgrade-execute](#node-upgrade-execute)
 
-  - [node download-generated-files](#node-download-generated-files)
+  * [node download-generated-files](#node-download-generated-files)
 
-- [relay](#relay)
+* [relay](#relay)
 
-  - [relay deploy](#relay-deploy)
+  * [relay deploy](#relay-deploy)
 
-  - [relay destroy](#relay-destroy)
+  * [relay destroy](#relay-destroy)
 
-- [mirror-node](#mirror-node)
+* [mirror-node](#mirror-node)
 
-  - [mirror-node deploy](#mirror-node-deploy)
+  * [mirror-node deploy](#mirror-node-deploy)
 
-  - [mirror-node destroy](#mirror-node-destroy)
+  * [mirror-node destroy](#mirror-node-destroy)
 
-- [explorer](#explorer)
+* [explorer](#explorer)
 
-  - [explorer deploy](#explorer-deploy)
+  * [explorer deploy](#explorer-deploy)
 
-  - [explorer destroy](#explorer-destroy)
+  * [explorer destroy](#explorer-destroy)
 
-- [deployment](#deployment)
+* [deployment](#deployment)
 
-  - [deployment create](#deployment-create)
+  * [deployment create](#deployment-create)
 
-  - [deployment delete](#deployment-delete)
+  * [deployment delete](#deployment-delete)
 
-  - [deployment list](#deployment-list)
+  * [deployment list](#deployment-list)
 
-  - [deployment add-cluster](#deployment-add-cluster)
+  * [deployment add-cluster](#deployment-add-cluster)
 
 ## Root Help Output
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js --help
 
 Select a command
@@ -152,9 +154,10 @@ Options:
 ```
 
 ## init
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js init --help
 
  init
@@ -174,9 +177,10 @@ Options:
 ```
 
 ## account
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js account --help
 
 Select an account command
@@ -201,9 +205,10 @@ Options:
 ```
 
 ### account init
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js account init --help
 
  account init
@@ -233,9 +238,10 @@ Options:
 ```
 
 ### account create
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js account create --help
 
  account create
@@ -275,9 +281,10 @@ Options:
 ```
 
 ### account update
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js account update --help
 
  account update
@@ -313,9 +320,10 @@ Options:
 ```
 
 ### account get
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js account get --help
 
  account get
@@ -346,9 +354,10 @@ Options:
 ```
 
 ## cluster-ref
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js cluster-ref --help
 
 Select a context command
@@ -374,9 +383,10 @@ Options:
 ```
 
 ### cluster-ref connect
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js cluster-ref connect --help
 
 Missing required argument: cluster-ref
@@ -408,9 +418,10 @@ Options:
 ```
 
 ### cluster-ref disconnect
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js cluster-ref disconnect --help
 
 Missing required argument: cluster-ref
@@ -438,9 +449,10 @@ Options:
 ```
 
 ### cluster-ref list
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js cluster-ref list --help
 
  cluster-ref list
@@ -459,9 +471,10 @@ Options:
 ```
 
 ### cluster-ref info
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js cluster-ref info --help
 
 Missing required argument: cluster-ref
@@ -489,9 +502,10 @@ Options:
 ```
 
 ### cluster-ref setup
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js cluster-ref setup --help
 
  cluster-ref setup
@@ -524,9 +538,10 @@ Options:
 ```
 
 ### cluster-ref reset
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js cluster-ref reset --help
 
  cluster-ref reset
@@ -556,9 +571,10 @@ Options:
 ```
 
 ## network
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js network --help
 
 Select a chart command
@@ -580,9 +596,10 @@ Options:
 ```
 
 ### network deploy
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js network deploy --help
 
  network deploy
@@ -704,9 +721,10 @@ Options:
 ```
 
 ### network destroy
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js network destroy --help
 
  network destroy
@@ -742,9 +760,10 @@ Options:
 ```
 
 ## node
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node --help
 
 Select a node command
@@ -792,9 +811,10 @@ Options:
 ```
 
 ### node setup
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node setup --help
 
 Missing required argument: deployment
@@ -836,9 +856,10 @@ Options:
 ```
 
 ### node start
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node start --help
 
 Missing required argument: deployment
@@ -874,9 +895,10 @@ Options:
 ```
 
 ### node stop
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node stop --help
 
 Missing required argument: deployment
@@ -901,9 +923,10 @@ Options:
 ```
 
 ### node freeze
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node freeze --help
 
 Missing required argument: deployment
@@ -926,9 +949,10 @@ Options:
 ```
 
 ### node restart
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node restart --help
 
 Missing required argument: deployment
@@ -951,9 +975,10 @@ Options:
 ```
 
 ### node keys
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node keys --help
 
 Missing required argument: deployment
@@ -983,9 +1008,10 @@ Options:
 ```
 
 ### node refresh
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node refresh --help
 
 Missing required argument: deployment
@@ -1021,9 +1047,10 @@ Options:
 ```
 
 ### node logs
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node logs --help
 
 Missing required arguments: deployment, node-aliases
@@ -1048,9 +1075,10 @@ Options:
 ```
 
 ### node states
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node states --help
 
 Missing required arguments: deployment, node-aliases
@@ -1075,9 +1103,10 @@ Options:
 ```
 
 ### node add
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node add --help
 
 Missing required argument: deployment
@@ -1163,9 +1192,10 @@ Options:
 ```
 
 ### node add-prepare
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node add-prepare --help
 
 Missing required arguments: deployment, output-dir
@@ -1244,9 +1274,10 @@ Options:
 ```
 
 ### node add-submit-transactions
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node add-submit-transactions --help
 
 Missing required arguments: deployment, input-dir
@@ -1324,9 +1355,10 @@ Options:
 ```
 
 ### node add-execute
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node add-execute --help
 
 Missing required arguments: deployment, input-dir
@@ -1414,9 +1446,10 @@ Options:
 ```
 
 ### node update
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node update --help
 
 Missing required arguments: deployment, release-tag, node-alias
@@ -1479,9 +1512,10 @@ Options:
 ```
 
 ### node update-prepare
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node update-prepare --help
 
 Missing required arguments: deployment, release-tag, output-dir, node-alias
@@ -1547,9 +1581,10 @@ Options:
 ```
 
 ### node update-submit-transactions
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node update-submit-transactions --help
 
 Missing required arguments: deployment, release-tag, input-dir
@@ -1600,9 +1635,10 @@ Options:
 ```
 
 ### node update-execute
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node update-execute --help
 
 Missing required arguments: deployment, release-tag, input-dir
@@ -1653,9 +1689,10 @@ Options:
 ```
 
 ### node delete
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node delete --help
 
 Missing required arguments: deployment, node-alias
@@ -1699,9 +1736,10 @@ Options:
 ```
 
 ### node delete-prepare
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node delete-prepare --help
 
 Missing required arguments: deployment, node-alias, output-dir
@@ -1748,9 +1786,10 @@ Options:
 ```
 
 ### node delete-submit-transactions
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node delete-submit-transactions --help
 
 Missing required arguments: deployment, node-alias, input-dir
@@ -1797,9 +1836,10 @@ Options:
 ```
 
 ### node delete-execute
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node delete-execute --help
 
 Missing required arguments: deployment, node-alias, input-dir
@@ -1846,9 +1886,10 @@ Options:
 ```
 
 ### node prepare-upgrade
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node prepare-upgrade --help
 
 Missing required argument: deployment
@@ -1874,9 +1915,10 @@ Options:
 ```
 
 ### node freeze-upgrade
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node freeze-upgrade --help
 
 Missing required argument: deployment
@@ -1902,9 +1944,10 @@ Options:
 ```
 
 ### node upgrade
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node upgrade --help
 
 Missing required arguments: deployment, release-tag, upgrade-zip-file
@@ -1943,9 +1986,10 @@ Options:
 ```
 
 ### node upgrade-prepare
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node upgrade-prepare --help
 
 Missing required arguments: deployment, release-tag, upgrade-zip-file, output-dir
@@ -1987,9 +2031,10 @@ Options:
 ```
 
 ### node upgrade-submit-transactions
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node upgrade-submit-transactions --help
 
 Missing required arguments: deployment, release-tag, input-dir
@@ -2029,9 +2074,10 @@ Options:
 ```
 
 ### node upgrade-execute
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node upgrade-execute --help
 
 Missing required arguments: deployment, release-tag, input-dir
@@ -2071,9 +2117,10 @@ Options:
 ```
 
 ### node download-generated-files
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node download-generated-files --help
 
 Missing required argument: deployment
@@ -2099,9 +2146,10 @@ Options:
 ```
 
 ## relay
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js relay --help
 
 Select a relay command
@@ -2123,9 +2171,10 @@ Options:
 ```
 
 ### relay deploy
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js relay deploy --help
 
  relay deploy
@@ -2172,9 +2221,10 @@ Options:
 ```
 
 ### relay destroy
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js relay destroy --help
 
  relay destroy
@@ -2208,9 +2258,10 @@ Options:
 ```
 
 ## mirror-node
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js mirror-node --help
 
 Select a mirror-node command
@@ -2232,9 +2283,10 @@ Options:
 ```
 
 ### mirror-node deploy
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js mirror-node deploy --help
 
  mirror-node deploy
@@ -2329,9 +2381,10 @@ Options:
 ```
 
 ### mirror-node destroy
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js mirror-node destroy --help
 
  mirror-node destroy
@@ -2365,9 +2418,10 @@ Options:
 ```
 
 ## explorer
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js explorer --help
 
 Select a explorer command
@@ -2389,9 +2443,10 @@ Options:
 ```
 
 ### explorer deploy
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js explorer deploy --help
 
  explorer deploy
@@ -2463,9 +2518,10 @@ Options:
 ```
 
 ### explorer destroy
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js explorer destroy --help
 
  explorer destroy
@@ -2499,9 +2555,10 @@ Options:
 ```
 
 ## deployment
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js deployment --help
 
 Select a chart command
@@ -2525,9 +2582,10 @@ Options:
 ```
 
 ### deployment create
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js deployment create --help
 
  deployment create
@@ -2545,14 +2603,21 @@ Options:
 -n,  --namespace           Namespace                       [string]                  
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]
                            confirmation                                              
+     --realm               Realm number. Requires          [number] [default: 0]     
+                           network-node > v61.0 for                                  
+                           non-zero values                                           
+     --shard               Shard number. Requires          [number] [default: 0]     
+                           network-node > v61.0 for                                  
+                           non-zero values                                           
 -v,  --version             Show version number             [boolean]                 
 
 ```
 
 ### deployment delete
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js deployment delete --help
 
  deployment delete
@@ -2574,9 +2639,10 @@ Options:
 ```
 
 ### deployment list
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js deployment list --help
 
  deployment list
@@ -2603,9 +2669,10 @@ Options:
 ```
 
 ### deployment add-cluster
+
 ```
 
-> @hashgraph/solo@0.35.1 solo
+> @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js deployment add-cluster --help
 
  deployment add-cluster

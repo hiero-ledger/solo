@@ -3,7 +3,7 @@
 import * as k8s from '@kubernetes/client-node';
 import {SoloError} from '../../../core/errors/solo-error.js';
 import {type K8} from '../k8.js';
-import {type Namespaces} from '../resources/namespace/namespaces.js';
+import {type Namespaces} from '../../../types/namespace/namespaces.js';
 import {K8ClientClusters} from './resources/cluster/k8-client-clusters.js';
 import {type Clusters} from '../resources/cluster/clusters.js';
 import {type ConfigMaps} from '../resources/config-map/config-maps.js';

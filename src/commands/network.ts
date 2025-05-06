@@ -14,10 +14,10 @@ import * as constants from '../core/constants.js';
 import {Templates} from '../core/templates.js';
 import {
   addDebugOptions,
-  resolveValidJsonFilePath,
-  sleep,
   parseNodeAliases,
+  resolveValidJsonFilePath,
   showVersionBanner,
+  sleep,
 } from '../core/helpers.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import fs from 'node:fs';
@@ -28,16 +28,21 @@ import {type CertificateManager} from '../core/certificate-manager.js';
 import {type AnyYargs, type IP, type NodeAlias, type NodeAliases} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {ConsensusNodeComponent} from '../core/config/remote/components/consensus-node-component.js';
-import {ConsensusNodeStates} from '../core/config/remote/enumerations.js';
 import {EnvoyProxyComponent} from '../core/config/remote/components/envoy-proxy-component.js';
 import {HaProxyComponent} from '../core/config/remote/components/ha-proxy-component.js';
 import {v4 as uuidv4} from 'uuid';
-import {type SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {type CommandDefinition, type SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {type ConsensusNode} from '../core/model/consensus-node.js';
-import {type ClusterReference, type ClusterReferences} from '../core/config/remote/types.js';
+import {
+  type ClusterReference,
+  type ClusterReferences,
+  type DeploymentName,
+  type Realm,
+  type Shard,
+} from '../types/index.js';
 import {Base64} from 'js-base64';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Duration} from '../core/time/duration.js';
@@ -45,6 +50,8 @@ import {type PodReference} from '../integration/kube/resources/pod/pod-reference
 import {SOLO_DEPLOYMENT_CHART} from '../core/constants.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {ConsensusNodeStates} from '../core/config/remote/enumerations/consensus-node-states.js';
+import {SemVer, lt as SemVersionLessThan} from 'semver';
 
 export interface NetworkDeployConfigClass {
   applicationEnv: string;
@@ -390,17 +397,26 @@ export class NetworkCommand extends BaseCommand {
     clusterRefs: ClusterReferences;
     consensusNodes: ConsensusNode[];
     domainNamesMapping?: Record<NodeAlias, string>;
+    cacheDir: string;
   }): Promise<Record<ClusterReference, string>> {
     const valuesArguments: Record<ClusterReference, string> = this.prepareValuesArg(config);
 
     // prepare values files for each cluster
     const valuesArgumentMap: Record<ClusterReference, string> = {};
-    const profileName = this.configManager.getFlag(flags.profileName);
+    const profileName: string = this.configManager.getFlag(flags.profileName);
+    const deploymentName: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+    const applicationPropertiesPath: string = PathEx.joinWithRealPath(
+      config.cacheDir,
+      'templates',
+      'application.properties',
+    );
 
     this.profileValuesFile = await this.profileManager.prepareValuesForSoloChart(
       profileName,
       config.consensusNodes,
       config.domainNamesMapping,
+      deploymentName,
+      applicationPropertiesPath,
     );
 
     const valuesFiles: Record<ClusterReference, string> = BaseCommand.prepareValuesFilesMapMulticluster(
@@ -705,6 +721,17 @@ export class NetworkCommand extends BaseCommand {
       ],
     ) as NetworkDeployConfigClass;
 
+    const realm: Realm = this.localConfig.getRealm(config.deployment);
+    const shard: Shard = this.localConfig.getShard(config.deployment);
+
+    const networkNodeVersion = new SemVer(config.releaseTag);
+    const minimumVersionForNonZeroRealms = new SemVer('0.60.0');
+    if ((realm !== 0 || shard !== 0) && SemVersionLessThan(networkNodeVersion, minimumVersionForNonZeroRealms)) {
+      throw new SoloError(
+        `The realm and shard values must be 0 when using the ${minimumVersionForNonZeroRealms} version of the network node`,
+      );
+    }
+
     if (config.haproxyIps) {
       config.haproxyIpsParsed = Templates.parseNodeAliasToIpMapping(config.haproxyIps);
     }
@@ -924,18 +951,18 @@ export class NetworkCommand extends BaseCommand {
           title: `Install chart '${constants.SOLO_DEPLOYMENT_CHART}'`,
           task: async context_ => {
             const config = context_.config;
-            for (const clusterReference of Object.keys(config.clusterRefs)) {
+            for (const [clusterReference] of config.clusterRefs) {
               if (
                 await self.chartManager.isChartInstalled(
                   config.namespace,
                   constants.SOLO_DEPLOYMENT_CHART,
-                  config.clusterRefs[clusterReference],
+                  config.clusterRefs.get(clusterReference),
                 )
               ) {
                 await self.chartManager.uninstall(
                   config.namespace,
                   constants.SOLO_DEPLOYMENT_CHART,
-                  config.clusterRefs[clusterReference],
+                  config.clusterRefs.get(clusterReference),
                 );
               }
 
@@ -946,7 +973,7 @@ export class NetworkCommand extends BaseCommand {
                 context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
                 config.soloChartVersion,
                 config.valuesArgMap[clusterReference],
-                config.clusterRefs[clusterReference],
+                config.clusterRefs.get(clusterReference),
               );
               showVersionBanner(self.logger, SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
             }
@@ -1020,7 +1047,7 @@ export class NetworkCommand extends BaseCommand {
             // Perform a helm upgrade for each cluster
             const subTasks: SoloListrTask<Context>[] = [];
             const config = context_.config;
-            for (const clusterReference of Object.keys(config.clusterRefs)) {
+            for (const [clusterReference] of config.clusterRefs) {
               subTasks.push({
                 title: `Upgrade chart for cluster: ${chalk.yellow(clusterReference)}`,
                 task: async () => {
@@ -1031,12 +1058,12 @@ export class NetworkCommand extends BaseCommand {
                     context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
                     config.soloChartVersion,
                     config.valuesArgMap[clusterReference],
-                    config.clusterRefs[clusterReference],
+                    config.clusterRefs.get(clusterReference),
                   );
                   showVersionBanner(self.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
 
                   // TODO: Remove this code now that we have made the config dynamic and can update it without redeploying
-                  const context = config.clusterRefs[clusterReference];
+                  const context = config.clusterRefs.get(clusterReference);
                   const pods: Pod[] = await this.k8Factory
                     .getK8(context)
                     .pods()
@@ -1260,8 +1287,8 @@ export class NetworkCommand extends BaseCommand {
     return networkDestroySuccess;
   }
 
-  getCommandDefinition() {
-    const self = this;
+  public getCommandDefinition(): CommandDefinition {
+    const self: this = this;
     return {
       command: NetworkCommand.COMMAND_NAME,
       desc: 'Manage solo network deployment',

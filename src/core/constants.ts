@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {AccountId, FileId} from '@hashgraph/sdk';
 import {color, type ListrLogger, PRESET_TIMER} from 'listr2';
 import {dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {PathEx} from '../business/utils/path-ex.js';
 
@@ -38,7 +37,6 @@ export const HEDERA_DATA_LIB_DIR = 'data/lib';
 export const HEDERA_USER_HOME_DIR = '/home/hedera';
 export const HEDERA_APP_NAME = 'HederaNode.jar';
 export const HEDERA_BUILDS_URL = 'https://builds.hedera.com';
-export const HEDERA_NODE_ACCOUNT_ID_START = AccountId.fromString(process.env.SOLO_NODE_ACCOUNT_ID_START || '0.0.3');
 export const HEDERA_NODE_INTERNAL_GOSSIP_PORT = process.env.SOLO_NODE_INTERNAL_GOSSIP_PORT || '50111';
 export const HEDERA_NODE_EXTERNAL_GOSSIP_PORT = process.env.SOLO_NODE_EXTERNAL_GOSSIP_PORT || '50111';
 export const HEDERA_NODE_DEFAULT_STAKE_AMOUNT = +process.env.SOLO_NODE_DEFAULT_STAKE_AMOUNT || 500;
@@ -81,6 +79,11 @@ export const INGRESS_CONTROLLER_RELEASE_NAME = 'haproxy-ingress';
 export const EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME = 'explorer-haproxy-ingress';
 export const INGRESS_CONTROLLER_PREFIX = 'haproxy-ingress.github.io/controller/';
 
+export const BLOCK_NODE_CHART_URL = process.env.BLOCK_NODE_CHART_URL ?? 'oci://ghcr.io/hiero-ledger/hiero-block-node';
+export const BLOCK_NODE_CHART = 'block-node-helm-chart';
+export const BLOCK_NODE_RELEASE_NAME = 'block-node';
+export const BLOCK_NODE_CONTAINER_NAME: ContainerName = ContainerName.of('block-node-helm-chart');
+
 export const CERT_MANAGER_NAME_SPACE = 'cert-manager';
 export const SOLO_HEDERA_MIRROR_IMPORTER = [
   'app.kubernetes.io/component=importer',
@@ -97,16 +100,18 @@ export const MIRROR_INGRESS_CONTROLLER = 'mirror-ingress-controller';
 export const EXPLORER_INGRESS_CLASS_NAME = 'explorer-ingress-class';
 export const EXPLORER_INGRESS_CONTROLLER = 'explorer-ingress-controller';
 // ------------------- Hedera Account related ---------------------------------------------------------------------------------
-export const OPERATOR_ID = process.env.SOLO_OPERATOR_ID || '0.0.2';
+export const DEFAULT_OPERATOR_ID_NUMBER = 2;
 export const OPERATOR_KEY =
   process.env.SOLO_OPERATOR_KEY ||
   '302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137';
 export const OPERATOR_PUBLIC_KEY =
   process.env.SOLO_OPERATOR_PUBLIC_KEY ||
   '302a300506032b65700321000aa8e21064c61eab86e2a9c164565b4e7a9a4146106e0a6cd03a8c395a110e92';
-export const FREEZE_ADMIN_ACCOUNT =
-  process.env.FREEZE_ADMIN_ACCOUNT || `${HEDERA_NODE_ACCOUNT_ID_START.realm}.${HEDERA_NODE_ACCOUNT_ID_START.shard}.58`;
-export const TREASURY_ACCOUNT_ID = `${HEDERA_NODE_ACCOUNT_ID_START.realm}.${HEDERA_NODE_ACCOUNT_ID_START.shard}.2`;
+
+export const DEFAULT_FREEZE_ID_NUMBER = 58;
+export const DEFAULT_TREASURY_ID_NUMBER = 2;
+export const DEFAULT_START_ID_NUMBER = 3;
+
 export const GENESIS_KEY =
   process.env.GENESIS_KEY ||
   '302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137';
@@ -131,6 +136,7 @@ export const POD_CONDITION_STATUS_TRUE = 'True';
 
 export const EXPLORER_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'hedera-explorer-values.yaml');
 export const MIRROR_NODE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values.yaml');
+export const BLOCK_NODE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
 export const NODE_LOG_FAILURE_MSG = 'failed to download logs from pod';
 
 /**
@@ -200,7 +206,7 @@ export const DEFAULT_NETWORK_NODE_NAME = 'node1';
 
 // file-id must be between 0.0.150 and 0.0.159
 // file must be uploaded using FileUpdateTransaction in maximum of 5Kb chunks
-export const UPGRADE_FILE_ID = FileId.fromString('0.0.150');
+export const UPGRADE_FILE_ID_NUM = 150;
 export const UPGRADE_FILE_CHUNK_SIZE = 1024 * 5; // 5Kb
 
 export const JVM_DEBUG_PORT = 5005;
@@ -218,6 +224,12 @@ export const RELAY_PODS_RUNNING_MAX_ATTEMPTS = +process.env.RELAY_PODS_RUNNING_M
 export const RELAY_PODS_RUNNING_DELAY = +process.env.RELAY_PODS_RUNNING_DELAY || 1000;
 export const RELAY_PODS_READY_MAX_ATTEMPTS = +process.env.RELAY_PODS_READY_MAX_ATTEMPTS || 100;
 export const RELAY_PODS_READY_DELAY = +process.env.RELAY_PODS_READY_DELAY || 1000;
+export const BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS: number = +process.env.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS || 900;
+export const BLOCK_NODE_PODS_RUNNING_DELAY: number = +process.env.BLOCK_NODE_PODS_RUNNING_DELAY || 1000;
+export const BLOCK_NODE_ACTIVE_MAX_ATTEMPTS: number = +process.env.NETWORK_NODE_ACTIVE_MAX_ATTEMPTS || 100;
+export const BLOCK_NODE_ACTIVE_DELAY: number = +process.env.NETWORK_NODE_ACTIVE_DELAY || 1000;
+export const BLOCK_NODE_ACTIVE_TIMEOUT: number = +process.env.NETWORK_NODE_ACTIVE_TIMEOUT || 1000;
+
 export const GRPC_PORT = +process.env.GRPC_PORT || 50_211;
 export const LOCAL_BUILD_COPY_RETRY = +process.env.LOCAL_BUILD_COPY_RETRY || 3;
 

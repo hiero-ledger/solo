@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {HEDERA_HAPI_PATH, ROOT_CONTAINER, SOLO_LOGS_DIR} from './constants.js';
 import fs from 'node:fs';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import * as constants from './constants.js';
-import {getAppleSiliconChipset, sleep} from './helpers.js';
+import {requiresJavaSveFix, sleep} from './helpers.js';
 import {Duration} from './time/duration.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type SoloLogger} from './logging/solo-logger.js';
@@ -76,9 +76,10 @@ export class NetworkNodes {
       const scriptName = 'support-zip.sh';
       const sourcePath = PathEx.joinWithRealPath(constants.RESOURCES_DIR, scriptName); // script source path
       const k8 = this.k8Factory.getK8(context);
-      const chipType = (await getAppleSiliconChipset(this.logger)).join('');
+      const container = k8.containers().readByRef(containerReference);
 
-      await k8.containers().readByRef(containerReference).copyTo(sourcePath, `${HEDERA_HAPI_PATH}`);
+      const useZip = await requiresJavaSveFix(container);
+      await container.copyTo(sourcePath, `${HEDERA_HAPI_PATH}`);
 
       await sleep(Duration.ofSeconds(3)); // wait for the script to sync to the file system
 
@@ -94,10 +95,7 @@ export class NetworkNodes {
         .containers()
         .readByRef(containerReference)
         .execContainer(['bash', '-c', `sudo chmod 0755 ${HEDERA_HAPI_PATH}/${scriptName}`]);
-      await k8
-        .containers()
-        .readByRef(containerReference)
-        .execContainer(`${HEDERA_HAPI_PATH}/${scriptName} ${chipType}`);
+      await k8.containers().readByRef(containerReference).execContainer(`${HEDERA_HAPI_PATH}/${scriptName} ${useZip}`);
       await k8
         .containers()
         .readByRef(containerReference)

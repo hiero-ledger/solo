@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {FREEZE_ADMIN_ACCOUNT} from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import * as constants from '../../core/constants.js';
-import {PrivateKey} from '@hashgraph/sdk';
+import {AccountId, PrivateKey} from '@hashgraph/sdk';
 import {SoloError} from '../../core/errors/solo-error.js';
 import * as helpers from '../../core/helpers.js';
 import fs from 'node:fs';
@@ -18,7 +17,6 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {type ConfigManager} from '../../core/config-manager.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
-import {type LocalConfig} from '../../core/config/local/local-config.js';
 import {type AccountManager} from '../../core/account-manager.js';
 import {type RemoteConfigManager} from '../../core/config/remote/remote-config-manager.js';
 import {PathEx} from '../../business/utils/path-ex.js';
@@ -52,6 +50,7 @@ import {type NodeRestartConfigClass} from './config-interfaces/node-restart-conf
 import {type NodeRestartContext} from './config-interfaces/node-restart-context.js';
 import {type NodeSetupContext} from './config-interfaces/node-setup-context.js';
 import {type NodePrepareUpgradeContext} from './config-interfaces/node-prepare-upgrade-context.js';
+import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
 
 const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
 const DOWNLOAD_GENERATED_FILES_CONFIGS_NAME = 'downloadGeneratedFilesConfig';
@@ -68,13 +67,13 @@ const START_CONFIGS_NAME = 'startConfigs';
 export class NodeCommandConfigs {
   public constructor(
     @inject(InjectTokens.ConfigManager) private readonly configManager: ConfigManager,
-    @inject(InjectTokens.LocalConfig) private readonly localConfig: LocalConfig,
+    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.RemoteConfigManager) private readonly remoteConfigManager: RemoteConfigManager,
     @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
   ) {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
-    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfig, this.constructor.name);
+    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
     this.remoteConfigManager = patchInject(
@@ -127,8 +126,9 @@ export class NodeCommandConfigs {
       context_.config.deployment,
     );
 
+    const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
     const accountKeys = await this.accountManager.getAccountKeysFromSecret(
-      FREEZE_ADMIN_ACCOUNT,
+      freezeAdminAccountId.toString(),
       context_.config.namespace,
     );
     context_.config.freezeAdminPrivateKey = accountKeys.privateKey;
@@ -195,8 +195,9 @@ export class NodeCommandConfigs {
       );
     }
 
+    const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
     const accountKeys = await this.accountManager.getAccountKeysFromSecret(
-      FREEZE_ADMIN_ACCOUNT,
+      freezeAdminAccountId.toString(),
       context_.config.namespace,
     );
     context_.config.freezeAdminPrivateKey = accountKeys.privateKey;
@@ -239,13 +240,17 @@ export class NodeCommandConfigs {
       );
     }
 
+    const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
     const accountKeys = await this.accountManager.getAccountKeysFromSecret(
-      FREEZE_ADMIN_ACCOUNT,
+      freezeAdminAccountId.toString(),
       context_.config.namespace,
     );
     context_.config.freezeAdminPrivateKey = accountKeys.privateKey;
 
-    const treasuryAccount = await this.accountManager.getTreasuryAccountKeys(context_.config.namespace);
+    const treasuryAccount = await this.accountManager.getTreasuryAccountKeys(
+      context_.config.namespace,
+      context_.config.deployment,
+    );
     const treasuryAccountPrivateKey = treasuryAccount.privateKey;
     context_.config.treasuryKey = PrivateKey.fromStringED25519(treasuryAccountPrivateKey);
 
@@ -293,13 +298,17 @@ export class NodeCommandConfigs {
       );
     }
 
+    const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
     const accountKeys = await this.accountManager.getAccountKeysFromSecret(
-      FREEZE_ADMIN_ACCOUNT,
+      freezeAdminAccountId.toString(),
       context_.config.namespace,
     );
     context_.config.freezeAdminPrivateKey = accountKeys.privateKey;
 
-    const treasuryAccount = await this.accountManager.getTreasuryAccountKeys(context_.config.namespace);
+    const treasuryAccount = await this.accountManager.getTreasuryAccountKeys(
+      context_.config.namespace,
+      context_.config.deployment,
+    );
     const treasuryAccountPrivateKey = treasuryAccount.privateKey;
     context_.config.treasuryKey = PrivateKey.fromStringED25519(treasuryAccountPrivateKey);
 
@@ -352,13 +361,17 @@ export class NodeCommandConfigs {
       );
     }
 
+    const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
     const accountKeys = await this.accountManager.getAccountKeysFromSecret(
-      FREEZE_ADMIN_ACCOUNT,
+      freezeAdminAccountId.toString(),
       context_.config.namespace,
     );
     context_.config.freezeAdminPrivateKey = accountKeys.privateKey;
 
-    const treasuryAccount = await this.accountManager.getTreasuryAccountKeys(context_.config.namespace);
+    const treasuryAccount = await this.accountManager.getTreasuryAccountKeys(
+      context_.config.namespace,
+      context_.config.deployment,
+    );
     const treasuryAccountPrivateKey = treasuryAccount.privateKey;
     context_.config.treasuryKey = PrivateKey.fromStringED25519(treasuryAccountPrivateKey);
 
@@ -515,8 +528,9 @@ export class NodeCommandConfigs {
 
     await checkNamespace(context_.config.consensusNodes, this.k8Factory, context_.config.namespace);
 
+    const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
     const accountKeys = await this.accountManager.getAccountKeysFromSecret(
-      FREEZE_ADMIN_ACCOUNT,
+      freezeAdminAccountId.toString(),
       context_.config.namespace,
     );
     context_.config.freezeAdminPrivateKey = accountKeys.privateKey;

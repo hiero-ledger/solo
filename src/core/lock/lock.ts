@@ -2,7 +2,7 @@
 
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type LockHolder} from './lock-holder.js';
-import {type NamespaceName} from '../../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {type Duration} from '../time/duration.js';
 
 export interface Lock {

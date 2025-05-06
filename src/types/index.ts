@@ -6,7 +6,7 @@ import type * as WebSocket from 'ws';
 import type crypto from 'node:crypto';
 import {type ListrTask, type ListrTaskWrapper} from 'listr2';
 import {type PublicKey} from '@hashgraph/sdk';
-import {type JsonString} from './aliases.js';
+import {type AnyYargs, type ArgvStruct, type JsonString} from './aliases.js';
 import {type Listr} from 'listr2';
 
 // NOTE: DO NOT add any Solo imports in this file to avoid circular dependencies
@@ -92,6 +92,8 @@ export interface ServiceEndpoint {
 
 export interface NodeAccountId {
   accountId: {
+    realm: string;
+    shard: string;
     accountNum: string;
   };
 }
@@ -121,3 +123,21 @@ export interface GossipEndpoint {
   hostname: string;
   port: number;
 }
+
+export interface CommandDefinition {
+  command: string;
+  desc: string;
+  builder?: (yargs: AnyYargs) => any;
+  handler?: (argv: ArgvStruct) => Promise<void>;
+}
+
+export type Version = string;
+/// TODO - see if we can use NamespaceName and use some annotations and overrides to covert to strings
+export type NamespaceNameAsString = string;
+export type Context = string;
+export type ComponentName = string;
+export type DeploymentName = string;
+export type Realm = number | Long;
+export type Shard = number | Long;
+export type ClusterReference = string;
+export type ClusterReferences = Map<string, string>;

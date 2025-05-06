@@ -12,8 +12,8 @@ import {type IP, type NodeAlias, type NodeAliases, type NodeId} from '../types/a
 import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {GrpcProxyTlsEnums} from './enumerations.js';
 import {HEDERA_PLATFORM_VERSION} from '../../version.js';
-import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
-import {type ClusterReference, type NamespaceNameAsString} from './config/remote/types.js';
+import {type NamespaceName} from '../types/namespace/namespace-name.js';
+import {type ClusterReference, type NamespaceNameAsString} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 
 export class Templates {
@@ -23,10 +23,6 @@ export class Templates {
 
   private static renderNetworkSvcName(nodeAlias: NodeAlias): string {
     return `network-${nodeAlias}-svc`;
-  }
-
-  private static nodeAliasFromNetworkSvcName(svcName: string): NodeAlias {
-    return svcName.split('-').slice(1, -1).join('-') as NodeAlias;
   }
 
   public static renderNetworkHeadlessSvcName(nodeAlias: NodeAlias): string {
@@ -182,11 +178,6 @@ export class Templates {
 
   public static renderFullyQualifiedNetworkSvcName(namespace: NamespaceName, nodeAlias: NodeAlias): string {
     return `${Templates.renderNetworkSvcName(nodeAlias)}.${namespace.name}.svc.cluster.local`;
-  }
-
-  private static nodeAliasFromFullyQualifiedNetworkSvcName(svcName: string): NodeAlias {
-    const parts = svcName.split('.');
-    return this.nodeAliasFromNetworkSvcName(parts[0]);
   }
 
   public static nodeIdFromNodeAlias(nodeAlias: NodeAlias): NodeId {

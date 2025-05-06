@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {expect} from 'chai';
-import {after, describe, it} from 'mocha';
+import {after, before, describe, it} from 'mocha';
 
 import fs from 'node:fs';
 import * as yaml from 'yaml';
@@ -15,17 +15,22 @@ import {type NodeAlias} from '../../../src/types/aliases.js';
 import {container} from 'tsyringe-neo';
 import {resetForTest} from '../../test-container.js';
 import {Templates} from '../../../src/core/templates.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from '../../../src/core/model/consensus-node.js';
 import {KubeConfig} from '@kubernetes/client-node';
 import {MissingArgumentError} from '../../../src/core/errors/missing-argument-error.js';
 import sinon from 'sinon';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
+import {entityId} from '../../../src/core/helpers.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
 
 describe('ProfileManager', () => {
   let temporaryDirectory: string, configManager: ConfigManager, profileManager: ProfileManager, cacheDirectory: string;
   const namespace = NamespaceName.of('test-namespace');
+  const deploymentName = 'deployment';
+  const realm = 1;
+  const shard = 2;
   const testProfileFile = PathEx.join('test', 'data', 'test-profiles.yaml');
   const kubeConfig = new KubeConfig();
   kubeConfig.loadFromDefault();
@@ -64,7 +69,7 @@ describe('ProfileManager', () => {
 
   let stagingDirectory = '';
 
-  before(() => {
+  before(async () => {
     resetForTest(namespace.name);
     temporaryDirectory = getTemporaryDirectory();
     configManager = container.resolve(InjectTokens.ConfigManager);
@@ -89,6 +94,9 @@ describe('ProfileManager', () => {
 
     // @ts-expect-error - TS2339: to mock
     profileManager.remoteConfigManager.getConsensusNodes = sinon.stub().returns(consensusNodes);
+
+    const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+    await localConfig.load();
   });
 
   after(() => {
@@ -142,7 +150,14 @@ describe('ProfileManager', () => {
         }
 
         profileManager.loadProfiles(true);
-        const valuesFileMapping = await profileManager.prepareValuesForSoloChart(input.profileName, consensusNodes, {});
+        const applicationPropertiesFile: string = PathEx.join(cacheDirectory, 'templates', 'application.properties');
+        const valuesFileMapping = await profileManager.prepareValuesForSoloChart(
+          input.profileName,
+          consensusNodes,
+          {},
+          deploymentName,
+          applicationPropertiesFile,
+        );
         const valuesFile = Object.values(valuesFileMapping)[0];
 
         expect(valuesFile).not.to.be.null;
@@ -180,9 +195,16 @@ describe('ProfileManager', () => {
         const fileContents = '# row 1\n# row 2\n# row 3';
         fs.writeFileSync(file, fileContents);
         configManager.setFlag(flags.applicationEnv, file);
-        const destinationFile = PathEx.join(stagingDirectory, 'templates', 'application.env');
+        const destinationFile: string = PathEx.join(stagingDirectory, 'templates', 'application.env');
+        const applicationPropertiesFile: string = PathEx.join(stagingDirectory, 'templates', 'application.properties');
         fs.cpSync(file, destinationFile, {force: true});
-        const cachedValuesFileMapping = await profileManager.prepareValuesForSoloChart('test', consensusNodes, {});
+        const cachedValuesFileMapping = await profileManager.prepareValuesForSoloChart(
+          'test',
+          consensusNodes,
+          {},
+          deploymentName,
+          applicationPropertiesFile,
+        );
         const cachedValuesFile = Object.values(cachedValuesFileMapping)[0];
         const valuesYaml: any = yaml.parse(fs.readFileSync(cachedValuesFile).toString());
         expect(valuesYaml.hedera.configMaps.applicationEnv).to.equal(fileContents);
@@ -239,9 +261,9 @@ describe('ProfileManager', () => {
   describe('prepareConfigText', () => {
     it('should write and return the path to the config.txt file', async () => {
       const nodeAccountMap = new Map<NodeAlias, string>();
-      nodeAccountMap.set('node1', '0.0.3');
-      nodeAccountMap.set('node2', '0.0.4');
-      nodeAccountMap.set('node3', '0.0.5');
+      nodeAccountMap.set('node1', entityId(shard, realm, 3));
+      nodeAccountMap.set('node2', entityId(shard, realm, 4));
+      nodeAccountMap.set('node3', entityId(shard, realm, 5));
       const destinationPath = PathEx.join(temporaryDirectory, 'staging');
       fs.mkdirSync(destinationPath, {recursive: true});
       const renderedConfigFile = await profileManager.prepareConfigTxt(
@@ -262,9 +284,9 @@ describe('ProfileManager', () => {
       // expect that the config.txt file contains the namespace
       expect(configText).to.include(namespace);
       // expect that the config.txt file contains the node account IDs
-      expect(configText).to.include('0.0.3');
-      expect(configText).to.include('0.0.4');
-      expect(configText).to.include('0.0.5');
+      expect(configText).to.include(entityId(shard, realm, 3));
+      expect(configText).to.include(entityId(shard, realm, 4));
+      expect(configText).to.include(entityId(shard, realm, 5));
       // expect the config.txt file to contain the node IDs
       expect(configText).to.include('node1');
       expect(configText).to.include('node2');
@@ -283,7 +305,7 @@ describe('ProfileManager', () => {
 
     it('should fail when destPath does not exist', async () => {
       const nodeAccountMap = new Map<NodeAlias, string>();
-      nodeAccountMap.set('node1', '0.0.3');
+      nodeAccountMap.set('node1', entityId(shard, realm, 3));
       const destinationPath = PathEx.join(temporaryDirectory, 'missing-directory');
       try {
         await profileManager.prepareConfigTxt(

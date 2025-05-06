@@ -10,6 +10,7 @@ import {
   endToEndTestSuite,
   getTestCluster,
   HEDERA_PLATFORM_VERSION_TAG,
+  hederaPlatformSupportsNonZeroRealms,
 } from '../test-utility.js';
 import {sleep} from '../../src/core/helpers.js';
 import {type NodeAlias} from '../../src/types/aliases.js';
@@ -19,7 +20,7 @@ import {NodeCommand} from '../../src/commands/node/index.js';
 import {NodeCommandTasks} from '../../src/commands/node/tasks.js';
 import {Duration} from '../../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';
-import {NamespaceName} from '../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../src/types/namespace/namespace-name.js';
 import {type PodName} from '../../src/integration/kube/resources/pod/pod-name.js';
 import {PodReference} from '../../src/integration/kube/resources/pod/pod-reference.js';
 import {type NetworkNodes} from '../../src/core/network-nodes.js';
@@ -38,6 +39,8 @@ export function endToEndNodeKeyRefreshTest(testName: string, mode: string, relea
   argv.setArg(flags.generateTlsKeys, true);
   argv.setArg(flags.clusterRef, getTestCluster());
   argv.setArg(flags.devMode, true);
+  argv.setArg(flags.realm, hederaPlatformSupportsNonZeroRealms() ? 65_535 : 0);
+  argv.setArg(flags.shard, hederaPlatformSupportsNonZeroRealms() ? 1023 : 0);
 
   endToEndTestSuite(testName, argv, {}, bootstrapResp => {
     const defaultTimeout = Duration.ofMinutes(2).toMillis();

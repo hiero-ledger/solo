@@ -131,7 +131,7 @@ else
   npm run solo-test -- init
   npm run solo-test -- cluster-ref setup \
     -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
-  npm run solo-test -- cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} --email john@doe.com
+  npm run solo-test -- cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
 
   npm run solo-test -- deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 

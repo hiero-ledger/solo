@@ -6,7 +6,7 @@ import {SoloError} from './errors/solo-error.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
-import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {Repository} from '../integration/helm/model/repository.js';
 import {type ReleaseItem} from '../integration/helm/model/release/release-item.js';
@@ -16,6 +16,7 @@ import {type InstallChartOptions} from '../integration/helm/model/install/instal
 import {InstallChartOptionsBuilder} from '../integration/helm/model/install/install-chart-options-builder.js';
 import {type HelmClient} from '../integration/helm/helm-client.js';
 import {UnInstallChartOptionsBuilder} from '../integration/helm/model/install/un-install-chart-options-builder.js';
+import {AddRepoOptionsBuilder} from '../integration/helm/model/add/add-repo-options-builder.js';
 
 @injectable()
 export class ChartManager {
@@ -36,13 +37,12 @@ export class ChartManager {
    * @param force - whether or not to update the repo
    * @returns the urls
    */
-  async setup(repoURLs: Map<string, string> = constants.DEFAULT_CHART_REPO, force = true) {
+  async setup(repoURLs: Map<string, string> = constants.DEFAULT_CHART_REPO, force: boolean = true) {
     try {
-      const forceUpdateArgument = force ? '--force-update' : '';
-
       const promises: Promise<string>[] = [];
       for (const [name, url] of repoURLs.entries()) {
-        promises.push(this.addRepo(name, url, forceUpdateArgument));
+        console.log(`push repo ${name} -> ${url}`);
+        promises.push(this.addRepo(name, url, force));
       }
 
       return await Promise.all(promises); // urls
@@ -51,9 +51,10 @@ export class ChartManager {
     }
   }
 
-  async addRepo(name: string, url: string, forceUpdateArgument: string) {
+  async addRepo(name: string, url: string, force: boolean) {
     this.logger.debug(`Adding repo ${name} -> ${url}`, {repoName: name, repoURL: url});
-    await this.helm.addRepository(new Repository(name, url));
+    const options = new AddRepoOptionsBuilder().forceUpdate(force).build();
+    await this.helm.addRepository(new Repository(name, url), options);
     return url;
   }
 

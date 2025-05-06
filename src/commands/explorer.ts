@@ -10,15 +10,13 @@ import * as constants from '../core/constants.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand, type Options} from './base.js';
 import {Flags as flags} from './flags.js';
-import {ListrRemoteConfig} from '../core/config/remote/listr-config-tasks.js';
 import {type AnyYargs, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
-import {ComponentType} from '../core/config/remote/enumerations.js';
 import {MirrorNodeExplorerComponent} from '../core/config/remote/components/mirror-node-explorer-component.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
-import {type Optional, type SoloListrTask} from '../types/index.js';
+import {type CommandDefinition, type Optional, type SoloListrTask} from '../types/index.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterChecks} from '../core/cluster-checks.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -30,12 +28,15 @@ import {
   INGRESS_CONTROLLER_PREFIX,
 } from '../core/constants.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
+import {type ClusterReference, type Context} from '../types/index.js';
 import * as helpers from '../core/helpers.js';
+import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
+import {ListrRemoteConfig} from '../core/config/remote/listr-config-tasks.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
   chartDirectory: string;
-  clusterRef: string;
+  clusterRef: ClusterReference;
   clusterContext: string;
   enableIngress: boolean;
   enableHederaExplorerTls: boolean;
@@ -64,6 +65,7 @@ interface ExplorerDeployContext {
 interface ExplorerDestroyContext {
   config: {
     clusterContext: string;
+    clusterReference: ClusterReference;
     namespace: NamespaceName;
     isChartInstalled: boolean;
   };
@@ -246,7 +248,7 @@ export class ExplorerCommand extends BaseCommand {
 
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
             context_.config.clusterContext = context_.config.clusterRef
-              ? this.localConfig.clusterRefs[context_.config.clusterRef]
+              ? this.localConfig.clusterRefs.get(context_.config.clusterRef)
               : this.k8Factory.default().contexts().readCurrent();
 
             if (
@@ -469,14 +471,16 @@ export class ExplorerCommand extends BaseCommand {
             self.configManager.update(argv);
             const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
 
-            const clusterReference = this.configManager.getFlag<string>(flags.clusterRef) as string;
-            const clusterContext = clusterReference
-              ? this.localConfig.clusterRefs[clusterReference]
-              : this.k8Factory.default().contexts().readCurrent();
+            const clusterReference: ClusterReference = this.configManager.hasFlag(flags.clusterRef)
+              ? this.configManager.getFlag(flags.clusterRef)
+              : this.remoteConfigManager.currentCluster;
+
+            const clusterContext: Context = this.localConfig.clusterRefs.get(clusterReference);
 
             context_.config = {
               namespace,
               clusterContext,
+              clusterReference,
               isChartInstalled: await this.chartManager.isChartInstalled(
                 namespace,
                 constants.HEDERA_EXPLORER_RELEASE_NAME,
@@ -545,8 +549,8 @@ export class ExplorerCommand extends BaseCommand {
     return true;
   }
 
-  public getCommandDefinition() {
-    const self = this;
+  public getCommandDefinition(): CommandDefinition {
+    const self: this = this;
     return {
       command: ExplorerCommand.COMMAND_NAME,
       desc: 'Manage Explorer in solo network',
@@ -612,7 +616,7 @@ export class ExplorerCommand extends BaseCommand {
       skip: (): boolean => !this.remoteConfigManager.isLoaded(),
       task: async (): Promise<void> => {
         await this.remoteConfigManager.modify(async remoteConfig => {
-          remoteConfig.components.remove('mirrorNodeExplorer', ComponentType.MirrorNodeExplorer);
+          remoteConfig.components.remove('mirrorNodeExplorer', ComponentTypes.MirrorNodeExplorer);
         });
       },
     };
@@ -626,10 +630,11 @@ export class ExplorerCommand extends BaseCommand {
       task: async (context_): Promise<void> => {
         await this.remoteConfigManager.modify(async remoteConfig => {
           const {
-            config: {namespace},
+            config: {namespace, clusterRef},
           } = context_;
-          const cluster = this.remoteConfigManager.currentCluster;
-          remoteConfig.components.add(new MirrorNodeExplorerComponent('mirrorNodeExplorer', cluster, namespace.name));
+          remoteConfig.components.add(
+            new MirrorNodeExplorerComponent('mirrorNodeExplorer', clusterRef, namespace.name),
+          );
         });
       },
     };

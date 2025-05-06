@@ -2,7 +2,7 @@
 
 # Objective
 
-* Run a network (1~3 nodes) locally on the laptop using [**Solo**](https://github.com/hashgraph/solo)
+* Run a network (1~3 nodes) locally on the laptop using [**Solo**](https://github.com/hiero-ledger/solo)
 * Option 1: Use v0.54.0-alpha.4
 * Option 2: Use local Hedera build (develop?)
 * Optional: deploy Mirror Node & Explorer
