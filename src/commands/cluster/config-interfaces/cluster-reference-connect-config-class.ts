@@ -7,7 +7,7 @@ export interface ClusterReferenceConnectConfigClass {
   cacheDir: string;
   devMode: boolean;
   quiet: boolean;
-  useIdentity: UserIdentity;
+  userIdentity: UserIdentity;
   clusterRef: ClusterReference;
   context: string;
 }
