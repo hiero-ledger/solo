@@ -63,7 +63,7 @@ const overrides: InstanceOverrides = new Map<symbol, ValueContainer>([
 ]);
 
 endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp => {
-  describe('AccountCommand', async () => {
+  describe('AccountCommand', () => {
     let accountCmd: AccountCommand;
     let testLogger: SoloLogger;
 
