@@ -24,7 +24,7 @@ export KIND_CREATE_CLUSTER_OUTPUT=$( cat create-cluster.log | tee test.log )
 solo init | tee init.log
 export SOLO_INIT_OUTPUT=$( cat init.log | tee test.log )
 
-solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} --email "${SOLO_EMAIL}" | tee cluster-ref-connect.log
+solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} | tee cluster-ref-connect.log
 export SOLO_CLUSTER_REF_CONNECT_OUTPUT=$( cat cluster-ref-connect.log | tee test.log )
 
 solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" | tee deployment-create.log

@@ -8,7 +8,7 @@ import {LockHolder} from '../../../../src/core/lock/lock-holder.js';
 import {sleep} from '../../../../src/core/helpers.js';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';
-import {NamespaceName} from '../../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 import {type Lease} from '../../../../src/integration/kube/resources/lease/lease.js';
 import {type LockRenewalService} from '../../../../src/core/lock/lock.js';

@@ -6,7 +6,7 @@ import {SoloError} from '../../../core/errors/solo-error.js';
 import {type V1ObjectMeta} from '@kubernetes/client-node';
 import {type ObjectMeta} from '../resources/object-meta.js';
 import {K8ClientObjectMeta} from './resources/k8-client-object-meta.js';
-import {NamespaceName} from '../resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../types/namespace/namespace-name.js';
 
 /**
  * The abstract K8 Client Filter adds the `filterItem` method to the class that extends it.

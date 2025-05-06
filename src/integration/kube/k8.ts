@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type Namespaces} from './resources/namespace/namespaces.js';
+import {type Namespaces} from '../../types/namespace/namespaces.js';
 import {type Containers} from './resources/container/containers.js';
 import {type Clusters} from './resources/cluster/clusters.js';
 import {type ConfigMaps} from './resources/config-map/config-maps.js';

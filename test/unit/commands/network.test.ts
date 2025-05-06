@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import sinon from 'sinon';
-import {beforeEach, describe, it} from 'mocha';
+import {before, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
 
 import {getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
@@ -22,20 +22,22 @@ import {container} from 'tsyringe-neo';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {type DependencyManager} from '../../../src/core/dependency-managers/index.js';
-import {type LocalConfig} from '../../../src/core/config/local/local-config.js';
 import {resetForTest} from '../../test-container.js';
 import {type ClusterChecks} from '../../../src/core/cluster-checks.js';
 import {type K8ClientConfigMaps} from '../../../src/integration/kube/k8-client/resources/config-map/k8-client-config-maps.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {K8Client} from '../../../src/integration/kube/k8-client/k8-client.js';
 import {ConsensusNode} from '../../../src/core/model/consensus-node.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type DefaultHelmClient} from '../../../src/integration/helm/impl/default-helm-client.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import {SemVer, lt as SemVersionLessThan} from 'semver';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
+import {type LocalConfig} from '../../../src/data/schema/model/local/local-config.js';
+import {type ClusterReferences} from '../../../src/types/index.js';
 
 const testName = 'network-cmd-unit';
 const namespace = NamespaceName.of(testName);
@@ -73,7 +75,7 @@ describe('NetworkCommand unit tests', () => {
   describe('Chart Install Function is called correctly', () => {
     let options: any;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       resetForTest();
       options = {};
 
@@ -133,7 +135,7 @@ describe('NetworkCommand unit tests', () => {
 
       options.depManager = sinon.stub() as unknown as DependencyManager;
       container.registerInstance<DependencyManager>(InjectTokens.DependencyManager, options.depManager);
-      options.localConfig = container.resolve<LocalConfig>(InjectTokens.LocalConfig);
+      options.localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
       options.helm = container.resolve<DefaultHelmClient>(InjectTokens.Helm);
       options.helm.dependency = sinon.stub();
 
@@ -164,12 +166,17 @@ describe('NetworkCommand unit tests', () => {
       options.remoteConfigManager = container.resolve<RemoteConfigManager>(InjectTokens.RemoteConfigManager);
       options.remoteConfigManager.getConfigMap = sinon.stub().returns(null);
 
-      options.localConfig.localConfigData._clusterRefs = {'solo-e2e': 'context-1'};
+      options.localConfig.modify((modelData: LocalConfig): void => {
+        modelData.addClusterRef('solo-e2e', 'context-1');
+      });
 
       options.leaseManager = container.resolve<LockManager>(InjectTokens.LockManager);
       options.leaseManager.currentNamespace = sinon.stub().returns(testName);
 
       GenesisNetworkDataConstructor.initialize = sinon.stub().returns(null);
+
+      const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+      await localConfig.load();
     });
 
     afterEach(() => {
@@ -181,7 +188,8 @@ describe('NetworkCommand unit tests', () => {
         const networkCommand = new NetworkCommand(options);
         options.remoteConfigManager.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
         options.remoteConfigManager.getContexts = sinon.stub().returns(['context1']);
-        options.remoteConfigManager.getClusterRefs = sinon.stub().returns({['solo-e2e']: 'context1'});
+        const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['solo-e2e', 'context1']]);
+        options.remoteConfigManager.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
         await networkCommand.deploy(argv.build());
 
@@ -202,7 +210,8 @@ describe('NetworkCommand unit tests', () => {
 
         options.remoteConfigManager.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
         options.remoteConfigManager.getContexts = sinon.stub().returns(['context1']);
-        options.remoteConfigManager.getClusterRefs = sinon.stub().returns({['solo-e2e']: 'context1'});
+        const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['solo-e2e', 'context1']]);
+        options.remoteConfigManager.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
         await networkCommand.deploy(argv.build());
         expect(options.chartManager.install.args[0][0].name).to.equal('solo-e2e');
@@ -229,7 +238,8 @@ describe('NetworkCommand unit tests', () => {
           .stub()
           .returns([new ConsensusNode('node1', 0, 'solo-e2e', 'cluster', 'context-1', 'base', 'pattern', 'fqdn')]);
         options.remoteConfigManager.getContexts = sinon.stub().returns(['context-1']);
-        options.remoteConfigManager.getClusterRefs = sinon.stub().returns({['cluster']: 'context-1'});
+        const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['cluster', 'context1']]);
+        options.remoteConfigManager.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
         const networkCommand = new NetworkCommand(options);
         const config = await networkCommand.prepareConfig(task, argv.build());

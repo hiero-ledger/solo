@@ -11,11 +11,11 @@ import {AccountBalanceQuery, AccountCreateTransaction, Hbar, HbarUnit, PrivateKe
 import {Duration} from '../../../src/core/time/duration.js';
 import {AccountCommand} from '../../../src/commands/account.js';
 import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../../../version-test.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
-import {type DeploymentName} from '../../../src/core/config/remote/types.js';
+import {type DeploymentName} from '../../../src/types/index.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {NodeCommand} from '../../../src/commands/node/index.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';

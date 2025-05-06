@@ -2,11 +2,13 @@
 
 import {Container} from '../src/core/dependency-injection/container-init.js';
 import fs from 'node:fs';
-import {type NamespaceNameAsString} from '../src/core/config/remote/types.js';
+import {type NamespaceNameAsString} from '../src/types/index.js';
 import * as yaml from 'yaml';
 import {DEFAULT_LOCAL_CONFIG_FILE} from '../src/core/constants.js';
 import {type SoloLogger} from '../src/core/logging/solo-logger.js';
 import {PathEx} from '../src/business/utils/path-ex.js';
+import {container} from 'tsyringe-neo';
+import {InjectTokens} from '../src/core/dependency-injection/inject-tokens.js';
 
 const CACHE_DIRECTORY = PathEx.join('test', 'data', 'tmp');
 
@@ -33,4 +35,7 @@ export function resetForTest(
   }
   // need to init the container prior to using K8Client for dependency injection to work
   resetTestContainer(cacheDirectory, testLogger);
+
+  const logger = testLogger ?? container.resolve(InjectTokens.SoloLogger);
+  logger.info('Resetting test container');
 }

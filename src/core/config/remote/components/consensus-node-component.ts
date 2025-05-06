@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {ComponentType, ConsensusNodeStates} from '../enumerations.js';
 import {BaseComponent} from './base-component.js';
 import {SoloError} from '../../../errors/solo-error.js';
-import {
-  type ClusterReference,
-  type ComponentName,
-  type IConsensusNodeComponent,
-  type NamespaceNameAsString,
-} from '../types.js';
+import {ComponentTypes} from '../enumerations/component-types.js';
+import {ConsensusNodeStates} from '../enumerations/consensus-node-states.js';
+import {isValidEnum} from '../../../util/validation-helpers.js';
+import {type ClusterReference, type ComponentName, type NamespaceNameAsString} from '../../../../types/index.js';
 import {type ToObject} from '../../../../types/index.js';
+import {type ConsensusNodeComponentStruct} from './interfaces/consensus-node-component-struct.js';
 
 /**
  * Represents a consensus node component within the system.
@@ -19,7 +17,7 @@ import {type ToObject} from '../../../../types/index.js';
  */
 export class ConsensusNodeComponent
   extends BaseComponent
-  implements IConsensusNodeComponent, ToObject<IConsensusNodeComponent>
+  implements ConsensusNodeComponentStruct, ToObject<ConsensusNodeComponentStruct>
 {
   /**
    * @param name - the name to distinguish components.
@@ -35,7 +33,7 @@ export class ConsensusNodeComponent
     public readonly state: ConsensusNodeStates,
     public readonly nodeId: number,
   ) {
-    super(ComponentType.ConsensusNode, name, cluster, namespace);
+    super(ComponentTypes.ConsensusNode, name, cluster, namespace);
 
     this.validate();
   }
@@ -43,7 +41,7 @@ export class ConsensusNodeComponent
   /* -------- Utilities -------- */
 
   /** Handles creating instance of the class from plain object. */
-  public static fromObject(component: IConsensusNodeComponent): ConsensusNodeComponent {
+  public static fromObject(component: ConsensusNodeComponentStruct): ConsensusNodeComponent {
     const {name, cluster, namespace, state, nodeId} = component;
     return new ConsensusNodeComponent(name, cluster, namespace, state, nodeId);
   }
@@ -51,7 +49,7 @@ export class ConsensusNodeComponent
   public override validate(): void {
     super.validate();
 
-    if (!Object.values(ConsensusNodeStates).includes(this.state)) {
+    if (!isValidEnum(this.state, ConsensusNodeStates)) {
       throw new SoloError(`Invalid consensus node state: ${this.state}`);
     }
 
@@ -64,7 +62,7 @@ export class ConsensusNodeComponent
     }
   }
 
-  public override toObject(): IConsensusNodeComponent {
+  public override toObject(): ConsensusNodeComponentStruct {
     return {
       ...super.toObject(),
       state: this.state,
