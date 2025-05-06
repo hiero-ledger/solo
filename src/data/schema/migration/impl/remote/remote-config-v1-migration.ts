@@ -80,8 +80,6 @@ export class RemoteConfigV1Migration implements SchemaMigration {
       });
     }
 
-    // TODO finish out the other components once we get the updated remote config from a deployed cluster
-
     // overlay the old cluster references with the new cluster references structure
     clone.clusters = clusters;
 
@@ -112,6 +110,86 @@ export class RemoteConfigV1Migration implements SchemaMigration {
 
       clone.state.consensusNodes.push({
         id: component.nodeId,
+        name: component.name,
+        namespace: component.namespace,
+        cluster: component.cluster,
+        phase: 'started',
+      });
+    }
+
+    //migrate haproxies
+    for (const haproxy of Object.keys(clone.components.haproxies)) {
+      const component: {
+        name: string;
+        namespace: string;
+        cluster: string;
+      } = clone.components.haproxies[haproxy];
+
+      clone.state.haProxies.push({
+        name: component.name,
+        namespace: component.namespace,
+        cluster: component.cluster,
+        phase: 'started',
+      });
+    }
+
+    // migrate envoy proxies
+    for (const envoyProxy of Object.keys(clone.components.envoyProxies)) {
+      const component: {
+        name: string;
+        namespace: string;
+        cluster: string;
+      } = clone.components.envoyProxies[envoyProxy];
+
+      clone.state.envoyProxies.push({
+        name: component.name,
+        namespace: component.namespace,
+        cluster: component.cluster,
+        phase: 'started',
+      });
+    }
+
+    // migrate explorers
+    for (const explorer of Object.keys(clone.components.explorers)) {
+      const component: {
+        name: string;
+        namespace: string;
+        cluster: string;
+      } = clone.components.explorers[explorer];
+
+      clone.state.explorers.push({
+        name: component.name,
+        namespace: component.namespace,
+        cluster: component.cluster,
+        phase: 'started',
+      });
+    }
+
+    // migrate mirror nodes
+    for (const mirrorNode of Object.keys(clone.components.mirrorNodes)) {
+      const component: {
+        name: string;
+        namespace: string;
+        cluster: string;
+      } = clone.components.mirrorNodes[mirrorNode];
+
+      clone.state.mirrorNodes.push({
+        name: component.name,
+        namespace: component.namespace,
+        cluster: component.cluster,
+        phase: 'started',
+      });
+    }
+
+    // migrate relay nodes
+    for (const relayNode of Object.keys(clone.components.relayNodes)) {
+      const component: {
+        name: string;
+        namespace: string;
+        cluster: string;
+      } = clone.components.relayNodes[relayNode];
+
+      clone.state.relayNodes.push({
         name: component.name,
         namespace: component.namespace,
         cluster: component.cluster,
