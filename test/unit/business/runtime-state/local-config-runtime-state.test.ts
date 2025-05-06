@@ -134,4 +134,15 @@ describe('LocalConfigRuntimeState', () => {
 
     sinon.assert.calledOnce(mockedBackend.writeObject);
   });
+
+  it('should create a new configuration file with the provided username', async () => {
+    mockedBackend.writeObject.resolves();
+
+    const username = 'test-user';
+    await runtimeState.create(username);
+
+    sinon.assert.calledOnce(mockedBackend.writeObject);
+    const writtenConfig: any = mockedBackend.writeObject.getCall(0).args[1];
+    expect(writtenConfig.userIdentity.name).to.equal(username);
+  });
 });
