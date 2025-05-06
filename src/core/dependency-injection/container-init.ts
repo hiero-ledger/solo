@@ -50,6 +50,7 @@ import {Middlewares} from '../middlewares.js';
 import {SoloWinstonLogger} from '../logging/solo-winston-logger.js';
 import {SingletonContainer} from './singleton-container.js';
 import {ValueContainer} from './value-container.js';
+import {BlockNodeCommand} from '../../commands/block-node.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -127,6 +128,7 @@ export class Container {
       new SingletonContainer(InjectTokens.MirrorNodeCommand, MirrorNodeCommand),
       new SingletonContainer(InjectTokens.NetworkCommand, NetworkCommand),
       new SingletonContainer(InjectTokens.RelayCommand, RelayCommand),
+      new SingletonContainer(InjectTokens.BlockNodeCommand, BlockNodeCommand),
       new SingletonContainer(InjectTokens.ClusterCommandTasks, ClusterCommandTasks),
       new SingletonContainer(InjectTokens.ClusterCommandHandlers, ClusterCommandHandlers),
       new SingletonContainer(InjectTokens.NodeCommandTasks, NodeCommandTasks),
