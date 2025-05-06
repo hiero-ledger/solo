@@ -86,7 +86,7 @@ export class Container {
     cacheDirectory: string = constants.SOLO_CACHE_DIR,
     logLevel: string = 'debug',
     developmentMode: boolean = false,
-    overrides?: InstanceOverrides,
+    overrides: InstanceOverrides = new Map<symbol, SingletonContainer | ValueContainer>(),
   ) {
     if (Container.isInitialized) {
       container.resolve<SoloLogger>(InjectTokens.SoloLogger).debug('Container already initialized');
