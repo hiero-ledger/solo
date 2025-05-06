@@ -412,7 +412,7 @@ jobs:
           path: 'coverage/${{ inputs.e2e-relay-test-subdir }}'
 
       - name: Download E2E Block Node Coverage Report
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
         with:
           name: ${{ inputs.e2e-block-node-coverage-report }}
