@@ -46,11 +46,11 @@ solo node logs -i node1 -n solo-e2e
 NOTE: the hiero-consensus-node path referenced '../hiero-consensus-node/hedera-node/data' may
 need to be updated based on what directory you are currently in.  This also assumes that you have done an assemble/build and the directory contents are up-to-date.
 
-Setup a Intellij run/debug configuration for remote JVM Debug as shown in the below screenshot:
+Setup an Intellij run/debug configuration for remote JVM Debug as shown in the below screenshot:
 
 ![alt text](jvm-hedera-app.png)
 
-If you are working on platform testing application, you should use the following configuration
+If you are working on a platform testing application, you should use the following configuration
 in intellij:
 
 ![alt text](jvm-platform-app.png)
@@ -68,14 +68,15 @@ SOLO_NAMESPACE=solo-e2e
 SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 SOLO_DEPLOYMENT=solo-deployment
 
+rm -Rf ~/.solo # to avoid name collision issues if you ran previously with the same deployment name
 kind delete cluster -n "${SOLO_CLUSTER_NAME}" 
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 solo init
 solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 
-solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} --email john@doe.com
+solo cluster-ref connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} --email john@doe.com
 solo deployment create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
+solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
 solo node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
 
 solo network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --debug-node-alias node2
@@ -105,14 +106,15 @@ SOLO_NAMESPACE=solo-e2e
 SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 SOLO_DEPLOYMENT=solo-deployment
 
+rm -Rf ~/.solo
 kind delete cluster -n "${SOLO_CLUSTER_NAME}" 
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 solo init
 solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 
-solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} --email john@doe.com
+solo cluster-ref connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} --email john@doe.com
 solo deployment create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
+solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
 solo node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
 
 solo network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
@@ -130,14 +132,15 @@ SOLO_NAMESPACE=solo-e2e
 SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 SOLO_DEPLOYMENT=solo-deployment
 
+rm -Rf ~/.solo
 kind delete cluster -n "${SOLO_CLUSTER_NAME}" 
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 solo init
 solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 
-solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} --email john@doe.com
+solo cluster-ref connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} --email john@doe.com
 solo deployment create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
+solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
 solo node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
 
 solo network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
@@ -155,14 +158,15 @@ SOLO_NAMESPACE=solo-e2e
 SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 SOLO_DEPLOYMENT=solo-deployment
 
+rm -Rf ~/.solo
 kind delete cluster -n "${SOLO_CLUSTER_NAME}" 
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 solo init
 solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 
-solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} --email john@doe.com
+solo cluster-ref connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} --email john@doe.com
 solo deployment create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
+solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
 solo node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
 
 solo network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
@@ -184,7 +188,7 @@ solo node stop --deployment "${SOLO_DEPLOYMENT}"
 solo node states -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-By default, the state files are saved under `~/solo` directory
+By default, the state files are saved under `~/.solo` directory
 
 ```bash
 └── logs
@@ -207,9 +211,9 @@ kind create cluster -n "${SOLO_CLUSTER_NAME}"
 solo init
 solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 
-solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} --email john@doe.com
+solo cluster-ref connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} --email john@doe.com
 solo deployment create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
+solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
 solo node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
 
 solo network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3

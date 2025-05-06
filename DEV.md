@@ -21,7 +21,7 @@ Below we describe how you can set up a local environment and contribute to `solo
 ## E2E tests
 
 * In order to run E2E test, we need to set up a cluster and install the chart.
-  * Run `SOLO_CLUSTER_DUALITY=1 ./test/e2e/dual-cluster/setup-dual-e2e.sh ; SOLO_TEST_CLUSTER=solo-e2e-c1`
+  * Run `task test-setup`
   * Run `task test-e2e-standard`, NOTE: this excludes some E2E tests that have their own command
   * You can check the command `task --list-all` for more other test commands available.
 
