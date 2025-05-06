@@ -1,4 +1,4 @@
-> [!WARNING]
+> \[!WARNING]
 >
 > Any version of Solo prior to `v0.35.3` will fail on Apple M3/M4 chipsets due to a known issue with Java 21 and these chipsets.
 
