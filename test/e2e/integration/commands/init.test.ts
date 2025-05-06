@@ -6,19 +6,11 @@ import {expect} from 'chai';
 import {type InitCommand} from '../../../../src/commands/init.js';
 import {K8Client} from '../../../../src/integration/kube/k8-client/k8-client.js';
 import sinon from 'sinon';
-import {BASE_TEST_DIR} from '../../../test-utility.js';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
-import {DEFAULT_LOCAL_CONFIG_FILE} from '../../../../src/core/constants.js';
-import {PathEx} from '../../../../src/business/utils/path-ex.js';
 import {resetTestContainer} from '../../../test-container.js';
-import {SoloWinstonLogger} from '../../../../src/core/logging/solo-winston-logger.js';
-import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
-import {ValueContainer} from '../../../../src/core/dependency-injection/value-container.js';
-import {type InstanceOverrides} from '../../../../src/core/dependency-injection/container-init.js';
 
-const testLogger: SoloLogger = new SoloWinstonLogger('debug', true);
 describe('InitCommand', () => {
   let sandbox = sinon.createSandbox();
   let initCmd: InitCommand;
@@ -26,13 +18,7 @@ describe('InitCommand', () => {
   before(() => {
     sandbox = sinon.createSandbox();
     sandbox.stub(K8Client.prototype, 'init').callsFake(() => this);
-    const overrides: InstanceOverrides = new Map<symbol, ValueContainer>([
-      [
-        InjectTokens.LocalConfigFileName,
-        new ValueContainer(InjectTokens.LocalConfigFileName, PathEx.join(BASE_TEST_DIR, DEFAULT_LOCAL_CONFIG_FILE)),
-      ],
-    ]);
-    resetTestContainer(undefined, overrides);
+    resetTestContainer();
     initCmd = container.resolve(InjectTokens.InitCommand);
   });
 
