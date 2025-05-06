@@ -21,7 +21,6 @@ import {SoloError} from './core/errors/solo-error.js';
 import {UserBreak} from './core/errors/user-break.js';
 import {type HelpRenderer} from './core/help-renderer.js';
 import {getSoloVersion} from '../version.js';
-import {type LocalConfigRuntimeState} from './business/runtime-state/local-config-runtime-state.js';
 
 export async function main(argv: string[], context?: {logger: SoloLogger}) {
   try {

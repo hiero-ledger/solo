@@ -28,7 +28,6 @@ import {ClusterCommandTasks} from '../../../src/commands/cluster/tasks.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 
-
 describe('ClusterCommand', () => {
   // mock showUser and showJSON to silent logging during tests
   before(async (): Promise<void> => {

@@ -150,10 +150,7 @@ export class Container {
       new ValueContainer(InjectTokens.HelmVersion, version.HELM_VERSION),
       new ValueContainer(InjectTokens.SystemAccounts, constants.SYSTEM_ACCOUNTS),
       new ValueContainer(InjectTokens.CacheDir, cacheDirectory),
-      new ValueContainer(
-        InjectTokens.LocalConfigFileName,
-        constants.DEFAULT_LOCAL_CONFIG_FILE,
-      ),
+      new ValueContainer(InjectTokens.LocalConfigFileName, constants.DEFAULT_LOCAL_CONFIG_FILE),
       new ValueContainer(InjectTokens.KeyFormatter, ConfigKeyFormatter.instance()),
     ];
 

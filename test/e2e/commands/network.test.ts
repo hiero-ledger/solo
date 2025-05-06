@@ -2,12 +2,7 @@
 
 import {after, before, describe, it} from 'mocha';
 import {expect} from 'chai';
-import {
-  bootstrapTestVariables,
-  getTemporaryDirectory,
-  getTestCluster,
-  HEDERA_PLATFORM_VERSION_TAG,
-} from '../../test-utility.js';
+import {bootstrapTestVariables, getTemporaryDirectory, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
 import * as constants from '../../../src/core/constants.js';
 import * as version from '../../../version.js';
 import {sleep} from '../../../src/core/helpers.js';

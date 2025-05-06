@@ -15,7 +15,6 @@ import {type CommandFlag} from '../../../src/types/flag-types.js';
 import {type RemoteConfigManager} from '../../../src/core/config/remote/remote-config-manager.js';
 import {expect} from 'chai';
 import fs from 'node:fs';
-import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
 import {type K8} from '../../../src/integration/kube/k8.js';
 import {
