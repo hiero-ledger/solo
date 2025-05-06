@@ -1,3 +1,7 @@
+> [!WARNING]
+>
+> Any version of Solo prior to `v0.35.3` will fail on Apple M3/M4 chipsets due to a known issue with Java 21 and these chipsets.
+
 # Solo
 
 [![NPM Version](https://img.shields.io/npm/v/%40hashgraph%2Fsolo?logo=npm)](https://www.npmjs.com/package/@hashgraph/solo)
@@ -20,10 +24,6 @@ An opinionated CLI tool to deploy and manage standalone test networks.
 | 0.33.0       | >= 20.18.0 (lts/iron)     | >= v1.29.1 | v0.38.2    | v0.58.1 - <= v0.59.0 | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
 | 0.34.0       | >= 20.18.0 (lts/iron)     | >= v1.29.1 | v0.42.10   | v0.58.1+             | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
 | 0.35.0       | >= 20.18.0 (lts/iron)     | >= v1.29.1 | v0.44.0    | v0.58.1+             | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
-
-### Known Issues
-
-**Apple M3/M4 Chipsets**: Any version of Solo prior to `v0.35.0` will fail on Apple M3/M4 chipsets due to a known issue with Java 21 and these chipsets.
 
 ### Hardware Requirements
 
