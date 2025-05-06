@@ -341,6 +341,7 @@ export class NodeCommandConfigs {
       'namespace',
       'consensusNodes',
       'contexts',
+      'clusterRef',
     ]) as NodeAddConfigClass;
 
     context_.adminKey = argv[flags.adminKey.name]
