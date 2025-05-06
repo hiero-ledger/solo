@@ -18,7 +18,6 @@ import {DeploymentNotFoundError} from '../errors/deployment-not-found-error.js';
 import {ReadLocalConfigBeforeLoadError} from '../errors/read-local-config-before-load-error.js';
 import {WriteLocalConfigBeforeLoadError} from '../errors/write-local-config-before-load-error.js';
 import {ModifyLocalConfigError} from '../errors/modify-local-config-error.js';
-import {LoadLocalConfigError} from '../errors/load-local-config-error.js';
 import {CreateLocalConfigFileError} from '../errors/create-local-config-file-error.js';
 import {RefreshLocalConfigSourceError} from '../errors/refresh-local-config-source-error.js';
 import {WriteLocalConfigFileError} from '../errors/write-local-config-file-error.js';

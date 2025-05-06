@@ -403,8 +403,8 @@ export class RemoteConfigManager {
       throw new SoloError(`Failed to get get cluster refs from local config for deployment ${deploymentName}`);
     }
 
-    const contexts: Context[] = clusterReferences.map(
-      (clusterReference): string => this.localConfig.clusterRefs.get(clusterReference),
+    const contexts: Context[] = clusterReferences.map((clusterReference): string =>
+      this.localConfig.clusterRefs.get(clusterReference),
     );
 
     await Promise.all(

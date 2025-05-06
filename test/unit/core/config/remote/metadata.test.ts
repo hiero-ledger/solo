@@ -6,8 +6,8 @@ import {Migration} from '../../../../../src/core/config/remote/migration.js';
 import {SoloError} from '../../../../../src/core/errors/solo-error.js';
 import {RemoteConfigMetadata} from '../../../../../src/core/config/remote/metadata.js';
 import {type NamespaceNameAsString, type Version} from '../../../../../src/core/config/remote/types.js';
-import {DeploymentStates} from '../../../../../src/core/config/remote/enumerations.js';
 import {UserIdentity} from '../../../../../src/data/schema/model/common/user-identity.js';
+import {DeploymentStates} from '../../../../../src/core/config/remote/enumerations/deployment-states.js';
 
 export function createMetadata() {
   const namespace: NamespaceNameAsString = 'namespace';
