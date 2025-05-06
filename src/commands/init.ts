@@ -9,6 +9,7 @@ import {Flags as flags} from './flags.js';
 import chalk from 'chalk';
 import {PathEx} from '../business/utils/path-ex.js';
 import {type CommandDefinition} from '../types/index.js';
+import validator from 'validator';
 
 /**
  * Defines the core functionalities of 'init' command
@@ -25,18 +26,28 @@ export class InitCommand extends BaseCommand {
       cacheDirectory = constants.SOLO_CACHE_DIR as string;
     }
 
+    interface Config {
+      username: string;
+    }
+
     interface Context {
       repoURLs: string[];
       dirs: string[];
+      config: Config;
     }
 
     const tasks = new Listr<Context>(
       [
         {
           title: 'Setup home directory and cache',
-          task: context_ => {
+          task: async (context_, task) => {
             self.configManager.update(argv);
             context_.dirs = this.setupHomeDirectory();
+            let username: string = self.configManager.getFlag<string>(flags.username);
+            if (username && !flags.username.validate(username)) {
+              username = await flags.username.prompt(task, username);
+            }
+            context_.config = {username} as Config;
           },
         },
         {
@@ -59,7 +70,8 @@ export class InitCommand extends BaseCommand {
           title: 'Create local configuration',
           skip: () => this.localConfig.configFileExists(),
           task: async (context_, task): Promise<void> => {
-            await this.localConfig.create();
+            await this.localConfig.create(context_.config.username);
+            await this.localConfig.load();
           },
         },
         {
@@ -136,7 +148,7 @@ export class InitCommand extends BaseCommand {
       desc: 'Initialize local environment',
       builder: (y: any) => {
         // set the quiet flag even though it isn't used for consistency across all commands
-        flags.setOptionalCommandFlags(y, flags.cacheDir, flags.quiet);
+        flags.setOptionalCommandFlags(y, flags.cacheDir, flags.quiet, flags.username);
       },
       handler: async (argv: any) => {
         await self

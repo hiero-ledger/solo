@@ -21,6 +21,7 @@ import {ModifyLocalConfigError} from '../errors/modify-local-config-error.js';
 import {CreateLocalConfigFileError} from '../errors/create-local-config-file-error.js';
 import {RefreshLocalConfigSourceError} from '../errors/refresh-local-config-source-error.js';
 import {WriteLocalConfigFileError} from '../errors/write-local-config-file-error.js';
+import {User} from '@kubernetes/client-node';
 
 @injectable()
 export class LocalConfigRuntimeState {
@@ -120,8 +121,10 @@ export class LocalConfigRuntimeState {
     }
   }
 
-  public async create(): Promise<void> {
-    return this.backend.writeObject(this.fileName, this.objectMapper.toObject(new LocalConfig()));
+  public async create(username?: string): Promise<void> {
+    const userIdentity: UserIdentity = new UserIdentity(username);
+    const newLocalConfig: LocalConfig = new LocalConfig(undefined, undefined, undefined, undefined, userIdentity);
+    return this.backend.writeObject(this.fileName, this.objectMapper.toObject(newLocalConfig));
   }
 
   // Loads the source data and writes it back in case of migrations

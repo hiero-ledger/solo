@@ -188,8 +188,13 @@ export class Middlewares {
    */
   public loadLocalConfig() {
     return async (argv: any): Promise<AnyObject> => {
-      this.logger.debug('Loading local config');
-      await this.localConfig.load();
+      const command: string = argv._[0];
+      const runMiddleware: boolean = command !== 'init';
+
+      if (runMiddleware) {
+        this.logger.debug('Loading local config');
+        await this.localConfig.load();
+      }
       return argv;
     };
   }

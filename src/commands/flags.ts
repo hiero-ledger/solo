@@ -18,6 +18,7 @@ import {type ClusterReference} from '../types/index.js';
 import {type Optional, type SoloListrTaskWrapper} from '../types/index.js';
 import chalk from 'chalk';
 import {PathEx} from '../business/utils/path-ex.js';
+import validator, {isAlpha} from 'validator';
 
 export class Flags {
   public static KEY_COMMON = '_COMMON_';
@@ -1948,6 +1949,35 @@ export class Flags {
 
   //* ------------------------------------------------------------------------------------------- *//
 
+  public static readonly username: CommandFlag = {
+    constName: 'username',
+    name: 'user',
+    definition: {
+      describe: 'Optional user name used for local configuration. Only accepts letters and numbers. Defaults to the username provided by the OS',
+      type: 'string',
+      alias: 'u',
+    },
+    prompt: async function promptUsername(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
+      const promptForInput = async () => {
+        return await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
+          message: 'Please enter your username. Can only contain letters and numbers:',
+        });
+      };
+
+      input = await promptForInput();
+
+      while (!Flags.username.validate(input)) {
+        input = await promptForInput();
+      }
+
+      return input;
+    },
+    validate: (input: string): boolean => {
+      // only allow letters and numbers
+      return validator.isAlphanumeric(input);
+    },
+  };
+
   public static readonly grpcTlsKeyPath: CommandFlag = {
     constName: 'grpcTlsKeyPath',
     name: 'grpc-tls-key',
@@ -2559,6 +2589,7 @@ export class Flags {
     Flags.blockNodeVersion,
     Flags.realm,
     Flags.shard,
+    Flags.username,
   ];
 
   /** Resets the definition.disablePrompt for all flags */
