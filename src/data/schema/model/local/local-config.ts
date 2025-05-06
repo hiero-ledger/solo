@@ -12,7 +12,7 @@ import {
   type Realm,
   type Shard,
 } from '../../../../types/index.js';
-import {type NamespaceName} from '../../../../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../../../types/namespace/namespace-name.js';
 
 @Exclude()
 export class LocalConfig {

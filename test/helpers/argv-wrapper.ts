@@ -3,7 +3,7 @@
 import {Flags as flags} from '../../src/commands/flags.js';
 import {getTestCacheDirectory, getTestCluster} from '../test-utility.js';
 import {K8Client} from '../../src/integration/kube/k8-client/k8-client.js';
-import {type NamespaceName} from '../../src/integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../src/types/namespace/namespace-name.js';
 import {type CommandFlag} from '../../src/types/flag-types.js';
 import {type ArgvStruct} from '../../src/types/aliases.js';
 import * as helpers from '../../src/core/helpers.js';

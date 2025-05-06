@@ -13,7 +13,7 @@ import {
 import {HEDERA_HAPI_PATH, ROOT_CONTAINER} from '../../../src/core/constants.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
 import {Duration} from '../../../src/core/time/duration.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../../../src/integration/kube/resources/container/container-reference.js';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';

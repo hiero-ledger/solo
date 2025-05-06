@@ -22,7 +22,7 @@ import {type Optional} from '../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
 import * as versions from '../../version.js';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';

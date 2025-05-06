@@ -7,7 +7,7 @@ import {getTestCacheDirectory, getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from
 import {main} from '../../../src/index.js';
 import {resetForTest} from '../../test-container.js';
 import {type ClusterReference, type ClusterReferences, type DeploymentName} from '../../../src/types/index.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';

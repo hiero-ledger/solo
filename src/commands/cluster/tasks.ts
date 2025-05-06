@@ -14,7 +14,7 @@ import {type SoloListrTask} from '../../types/index.js';
 import {type ClusterReference} from '../../types/index.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
-import {type NamespaceName} from '../../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';

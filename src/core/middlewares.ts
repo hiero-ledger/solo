@@ -3,7 +3,7 @@
 import {Flags as flags} from '../commands/flags.js';
 import chalk from 'chalk';
 
-import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ConfigManager} from './config-manager.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {type SoloLogger} from './logging/solo-logger.js';

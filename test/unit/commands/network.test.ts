@@ -28,7 +28,7 @@ import {type K8ClientConfigMaps} from '../../../src/integration/kube/k8-client/r
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {K8Client} from '../../../src/integration/kube/k8-client/k8-client.js';
 import {ConsensusNode} from '../../../src/core/model/consensus-node.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type DefaultHelmClient} from '../../../src/integration/helm/impl/default-helm-client.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';

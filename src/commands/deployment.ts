@@ -16,7 +16,7 @@ import {
 } from '../types/index.js';
 import {type CommandDefinition, type SoloListrTask} from '../types/index.js';
 import {ErrorMessages} from '../core/error-messages.js';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterChecks} from '../core/cluster-checks.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';

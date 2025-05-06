@@ -13,7 +13,7 @@ import {Duration} from '../../../../src/core/time/duration.js';
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {type AccountManager} from '../../../../src/core/account-manager.js';
 import {type PlatformInstaller} from '../../../../src/core/platform-installer.js';
-import {NamespaceName} from '../../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
 import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../../../../src/integration/kube/resources/container/container-reference.js';

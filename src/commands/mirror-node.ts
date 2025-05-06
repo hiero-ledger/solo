@@ -27,7 +27,7 @@ import {
   MIRROR_INGRESS_TLS_SECRET_NAME,
   MIRROR_INGRESS_CONTROLLER,
 } from '../core/constants.js';
-import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';

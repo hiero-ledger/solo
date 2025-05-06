@@ -25,7 +25,7 @@ import {patchInject} from '../../dependency-injection/container-helper.js';
 import {ErrorMessages} from '../../error-messages.js';
 import {CommonFlagsDataWrapper} from './common-flags-data-wrapper.js';
 import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases} from '../../../types/aliases.js';
-import {type NamespaceName} from '../../../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
 import {Cluster} from './cluster.js';
 import {ConsensusNode} from '../../model/consensus-node.js';

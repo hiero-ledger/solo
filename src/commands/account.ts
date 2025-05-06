@@ -13,7 +13,7 @@ import {type AccountId, AccountInfo, HbarUnit, Long, NodeUpdateTransaction, Priv
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {type ArgvStruct, type AnyYargs, type NodeAliases} from '../types/aliases.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterReference, type DeploymentName, type Realm, type Shard} from '../types/index.js';
 import {type CommandDefinition, type SoloListrTask} from '../types/index.js';
 import {Templates} from '../core/templates.js';

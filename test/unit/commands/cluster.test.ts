@@ -16,7 +16,7 @@ import {resetForTest} from '../../test-container.js';
 import {K8Client} from '../../../src/integration/kube/k8-client/k8-client.js';
 import {K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
 import {DependencyManager} from '../../../src/core/dependency-managers/index.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {DefaultHelmClient} from '../../../src/integration/helm/impl/default-helm-client.js';

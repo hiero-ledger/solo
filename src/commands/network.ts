@@ -32,7 +32,7 @@ import {EnvoyProxyComponent} from '../core/config/remote/components/envoy-proxy-
 import {HaProxyComponent} from '../core/config/remote/components/ha-proxy-component.js';
 import {v4 as uuidv4} from 'uuid';
 import {type CommandDefinition, type SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {type ConsensusNode} from '../core/model/consensus-node.js';

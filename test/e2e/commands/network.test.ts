@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import {KeyManager} from '../../../src/core/key-manager.js';
 import {Duration} from '../../../src/core/time/duration.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {PodName} from '../../../src/integration/kube/resources/pod/pod-name.js';
 import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
 import {Argv} from '../../helpers/argv-wrapper.js';

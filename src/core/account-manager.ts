@@ -38,7 +38,7 @@ import {entityId, getExternalAddress, isNumeric, sleep} from './helpers.js';
 import {Duration} from './time/duration.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
-import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';

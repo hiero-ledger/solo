@@ -5,7 +5,7 @@ import {SoloError} from '../../errors/solo-error.js';
 import {type K8Factory} from '../../../integration/kube/k8-factory.js';
 import {type ComponentsDataWrapper} from './components-data-wrapper.js';
 import {type BaseComponent} from './components/base-component.js';
-import {type NamespaceName} from '../../../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
 import {type LocalConfigRuntimeState} from '../../../business/runtime-state/local-config-runtime-state.js';
 import {ConsensusNodeStates} from './enumerations/consensus-node-states.js';

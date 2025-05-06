@@ -12,7 +12,7 @@ import {type IP, type NodeAlias, type NodeAliases, type NodeId} from '../types/a
 import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {GrpcProxyTlsEnums} from './enumerations.js';
 import {HEDERA_PLATFORM_VERSION} from '../../version.js';
-import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterReference, type NamespaceNameAsString} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 

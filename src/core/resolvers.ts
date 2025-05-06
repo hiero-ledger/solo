@@ -3,7 +3,7 @@
 import {type DeploymentName} from './../types/index.js';
 import {type ConfigManager} from './config-manager.js';
 import {Flags as flags} from '../commands/flags.js';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type SoloListrTaskWrapper} from '../types/index.js';
 import {input as inputPrompt} from '@inquirer/prompts';
 import {SoloError} from './errors/solo-error.js';

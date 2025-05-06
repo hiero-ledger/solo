@@ -38,7 +38,7 @@ import {type KeyManager} from '../src/core/key-manager.js';
 import {Duration} from '../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';
 import {resetForTest} from './test-container.js';
-import {NamespaceName} from '../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../src/types/namespace/namespace-name.js';
 import {PodReference} from '../src/integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../src/integration/kube/resources/container/container-reference.js';
 import {type NetworkNodes} from '../src/core/network-nodes.js';
