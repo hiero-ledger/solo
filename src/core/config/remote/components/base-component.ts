@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {SoloError} from '../../../errors/solo-error.js';
-import {type ClusterReference, type ComponentName, type NamespaceNameAsString} from '../types.js';
+import {type ClusterReference, type ComponentName, type NamespaceNameAsString} from '../../../../types/index.js';
 import {type ToObject, type Validate} from '../../../../types/index.js';
 import {ComponentTypes} from '../enumerations/component-types.js';
 import {isValidEnum} from '../../../util/validation-helpers.js';

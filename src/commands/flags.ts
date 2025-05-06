@@ -13,12 +13,12 @@ import {
   number as numberPrompt,
   confirm as confirmPrompt,
 } from '@inquirer/prompts';
-import validator from 'validator';
 import {type AnyListrContext, type AnyObject, type AnyYargs} from '../types/aliases.js';
-import {type ClusterReference} from '../core/config/remote/types.js';
+import {type ClusterReference} from '../types/index.js';
 import {type Optional, type SoloListrTaskWrapper} from '../types/index.js';
 import chalk from 'chalk';
 import {PathEx} from '../business/utils/path-ex.js';
+import validator, {isAlpha} from 'validator';
 
 export class Flags {
   public static KEY_COMMON = '_COMMON_';
@@ -1685,37 +1685,6 @@ export class Flags {
     },
   };
 
-  public static readonly userEmailAddress: CommandFlag = {
-    constName: 'userEmailAddress',
-    name: 'email',
-    definition: {
-      defaultValue: 'john@doe.com',
-      describe: 'User email address used for local configuration',
-      type: 'string',
-    },
-    prompt: async function promptUserEmailAddress(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: string,
-    ): Promise<string> {
-      if (input?.length) {
-        return input;
-      }
-
-      const promptForInput = async () => {
-        return await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
-          message: 'Please enter your email address:',
-        });
-      };
-
-      input = await promptForInput();
-      while (!validator.isEmail(input)) {
-        input = await promptForInput();
-      }
-
-      return input;
-    },
-  };
-
   public static readonly context: CommandFlag = {
     constName: 'context',
     name: 'context',
@@ -1979,6 +1948,35 @@ export class Flags {
   };
 
   //* ------------------------------------------------------------------------------------------- *//
+
+  public static readonly username: CommandFlag = {
+    constName: 'username',
+    name: 'user',
+    definition: {
+      describe: 'Optional user name used for local configuration. Only accepts letters and numbers. Defaults to the username provided by the OS',
+      type: 'string',
+      alias: 'u',
+    },
+    prompt: async function promptUsername(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
+      const promptForInput = async () => {
+        return await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
+          message: 'Please enter your username. Can only contain letters and numbers:',
+        });
+      };
+
+      input = await promptForInput();
+
+      while (!Flags.username.validate(input)) {
+        input = await promptForInput();
+      }
+
+      return input;
+    },
+    validate: (input: string): boolean => {
+      // only allow letters and numbers
+      return validator.isAlphanumeric(input);
+    },
+  };
 
   public static readonly grpcTlsKeyPath: CommandFlag = {
     constName: 'grpcTlsKeyPath',
@@ -2574,7 +2572,6 @@ export class Flags {
     Flags.tlsPublicKey,
     Flags.updateAccountKeys,
     Flags.upgradeZipFile,
-    Flags.userEmailAddress,
     Flags.valuesFile,
     Flags.useExternalDatabase,
     Flags.externalDatabaseHost,
@@ -2592,6 +2589,7 @@ export class Flags {
     Flags.blockNodeVersion,
     Flags.realm,
     Flags.shard,
+    Flags.username,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

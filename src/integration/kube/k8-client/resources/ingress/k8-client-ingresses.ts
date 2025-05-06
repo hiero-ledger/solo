@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type Ingresses} from '../../../resources/ingress/ingresses.js';
-import {type NamespaceName} from '../../../resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
 import {type V1IngressList, type NetworkingV1Api, type V1Ingress} from '@kubernetes/client-node';
 import {container} from 'tsyringe-neo';

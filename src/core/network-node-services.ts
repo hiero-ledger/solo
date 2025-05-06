@@ -2,8 +2,8 @@
 
 import {type NodeAlias} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
-import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
-import {type ClusterReference, type Context, type DeploymentName} from './config/remote/types.js';
+import {type NamespaceName} from '../types/namespace/namespace-name.js';
+import {type ClusterReference, type Context, type DeploymentName} from './../types/index.js';
 
 export class NetworkNodeServices {
   public constructor(

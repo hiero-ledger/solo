@@ -16,7 +16,6 @@ import {ProfileManager} from '../profile-manager.js';
 import {IntervalLockRenewalService} from '../lock/interval-lock-renewal.js';
 import {LockManager} from '../lock/lock-manager.js';
 import {CertificateManager} from '../certificate-manager.js';
-import {LocalConfig} from '../config/local/local-config.js';
 import {RemoteConfigManager} from '../config/remote/remote-config-manager.js';
 import os from 'node:os';
 import * as version from '../../../version.js';
@@ -39,6 +38,8 @@ import {Middlewares} from '../middlewares.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {ConfigKeyFormatter} from '../../data/key/config-key-formatter.js';
 import {SoloWinstonLogger} from '../logging/solo-winston-logger.js';
+import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
+import {LocalConfigSource} from '../../data/configuration/impl/local-config-source.js';
 
 /**
  * Container class to manage the dependency injection container
@@ -90,6 +91,8 @@ export class Container {
       container.register(InjectTokens.SoloLogger, {useClass: SoloWinstonLogger}, {lifecycle: Lifecycle.Singleton});
       container.resolve<SoloLogger>(InjectTokens.SoloLogger).debug('Using default logger');
     }
+
+    container.register(InjectTokens.HomeDirectory, {useValue: homeDirectory});
 
     // Data Layer ObjectMapper
     container.register(InjectTokens.ObjectMapper, {useClass: CTObjectMapper}, {lifecycle: Lifecycle.Singleton});
@@ -152,9 +155,13 @@ export class Container {
     );
 
     // LocalConfig
-    const localConfigPath = PathEx.join(homeDirectory, constants.DEFAULT_LOCAL_CONFIG_FILE);
-    container.register(InjectTokens.LocalConfigFilePath, {useValue: localConfigPath});
-    container.register(InjectTokens.LocalConfig, {useClass: LocalConfig}, {lifecycle: Lifecycle.Singleton});
+    container.register(InjectTokens.LocalConfigFileName, {useValue: constants.DEFAULT_LOCAL_CONFIG_FILE});
+    container.register(InjectTokens.LocalConfigSource, {useClass: LocalConfigSource}, {lifecycle: Lifecycle.Singleton});
+    container.register(
+      InjectTokens.LocalConfigRuntimeState,
+      {useClass: LocalConfigRuntimeState},
+      {lifecycle: Lifecycle.Singleton},
+    );
 
     container.register(
       InjectTokens.RemoteConfigManager,

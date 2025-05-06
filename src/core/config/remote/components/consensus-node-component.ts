@@ -5,7 +5,7 @@ import {SoloError} from '../../../errors/solo-error.js';
 import {ComponentTypes} from '../enumerations/component-types.js';
 import {ConsensusNodeStates} from '../enumerations/consensus-node-states.js';
 import {isValidEnum} from '../../../util/validation-helpers.js';
-import {type ClusterReference, type ComponentName, type NamespaceNameAsString} from '../types.js';
+import {type ClusterReference, type ComponentName, type NamespaceNameAsString} from '../../../../types/index.js';
 import {type ToObject} from '../../../../types/index.js';
 import {type ConsensusNodeComponentStruct} from './interfaces/consensus-node-component-struct.js';
 

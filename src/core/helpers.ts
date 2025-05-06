@@ -16,14 +16,14 @@ import {type Duration} from './time/duration.js';
 import {type NodeAddConfigClass} from '../commands/node/config-interfaces/node-add-config-class.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {type Optional} from '../types/index.js';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type K8} from '../integration/kube/k8.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import chalk from 'chalk';
 import {PathEx} from '../business/utils/path-ex.js';
 import {type ConfigManager} from './config-manager.js';
 import {Flags as flags} from '../commands/flags.js';
-import {type Realm, type Shard} from './config/remote/types.js';
+import {type Realm, type Shard} from './../types/index.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 
 export function getInternalAddress(
