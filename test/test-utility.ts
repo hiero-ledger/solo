@@ -134,7 +134,7 @@ interface Cmd {
   deploymentCmdArg?: DeploymentCommand;
 }
 
-let resetDone: boolean = false;
+let shouldReset: boolean = true;
 
 /** Initialize common test variables */
 export function bootstrapTestVariables(
@@ -153,9 +153,9 @@ export function bootstrapTestVariables(
   // When multiple test suites are loaded simultaniously, as is the case with `task test-e2e-standard`
   // the container will be reset multiple times, which causes issues with the loading of LocalConfigRuntimeState.
   // A better solution would be to run bootstraping during the before hook of the test suite.
-  if (!resetDone) {
+  if (shouldReset) {
     resetForTest(namespace.name, cacheDirectory);
-    resetDone = true;
+    shouldReset = false;
   }
   const configManager: ConfigManager = container.resolve(InjectTokens.ConfigManager);
   configManager.update(argv.build());

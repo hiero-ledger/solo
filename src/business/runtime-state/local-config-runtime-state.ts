@@ -17,6 +17,11 @@ import {type ClusterReferences, DeploymentName, Realm, Shard} from '../../core/c
 import {DeploymentNotFoundError} from '../errors/deployment-not-found-error.js';
 import {ReadLocalConfigBeforeLoadError} from '../errors/read-local-config-before-load-error.js';
 import {WriteLocalConfigBeforeLoadError} from '../errors/write-local-config-before-load-error.js';
+import {ModifyLocalConfigError} from '../errors/modify-local-config-error.js';
+import {LoadLocalConfigError} from '../errors/load-local-config-error.js';
+import {CreateLocalConfigFileError} from '../errors/create-local-config-file-error.js';
+import {RefreshLocalConfigSourceError} from '../errors/refresh-local-config-source-error.js';
+import {WriteLocalConfigFileError} from '../errors/write-local-config-file-error.js';
 
 @injectable()
 export class LocalConfigRuntimeState {
@@ -31,7 +36,7 @@ export class LocalConfigRuntimeState {
     this.fileName = patchInject(fileName, InjectTokens.LocalConfigFileName, this.constructor.name);
     this.basePath = patchInject(basePath, InjectTokens.HomeDirectory, this.constructor.name);
 
-    this.backend = new YamlFileStorageBackend(basePath);
+    this.backend = new YamlFileStorageBackend(this.basePath);
     this.objectMapper = new CTObjectMapper(ConfigKeyFormatter.instance());
     this.source = new LocalConfigSource(
       fileName,
@@ -100,7 +105,11 @@ export class LocalConfigRuntimeState {
     if (!this.isLoaded()) {
       throw new WriteLocalConfigBeforeLoadError('Attempting to modify local config before loading it');
     }
-    await callback(this.source.modelData);
+    try {
+      await callback(this.source.modelData);
+    } catch (error) {
+      throw new ModifyLocalConfigError('Failed to modify local config', error);
+    }
     return this.write();
   }
 
@@ -120,9 +129,21 @@ export class LocalConfigRuntimeState {
   // If the source data does not exist, an empty file is created
   public async load(): Promise<void> {
     if (!(await this.configFileExists())) {
-      await this.create();
+      try {
+        await this.create();
+      } catch (error) {
+        throw new CreateLocalConfigFileError('Failed to create local config file', error);
+      }
     }
-    await this.source.refresh();
-    await this.write();
+    try {
+      await this.source.refresh();
+    } catch (error) {
+      throw new RefreshLocalConfigSourceError('Failed to refresh local config source', error);
+    }
+    try {
+      await this.write();
+    } catch (error) {
+      throw new WriteLocalConfigFileError('Failed to write local config file', error);
+    }
   }
 }

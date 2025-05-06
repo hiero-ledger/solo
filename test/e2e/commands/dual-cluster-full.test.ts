@@ -80,7 +80,6 @@ describe('Dual Cluster Full E2E Test', function dualClusterFullEndToEndTest() {
   // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
   before(async (): Promise<void> => {
     fs.rmSync(testCacheDirectory, {recursive: true, force: true});
-    fs.mkdirSync(testCacheDirectory, {recursive: true});
     try {
       fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {force: true});
     } catch {
@@ -98,10 +97,6 @@ describe('Dual Cluster Full E2E Test', function dualClusterFullEndToEndTest() {
   beforeEach(async (): Promise<void> => {
     testLogger.info(`${testName}: resetting containers for each test`);
     resetForTest(namespace.name, testCacheDirectory, testLogger, false);
-    const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
-      InjectTokens.LocalConfigRuntimeState,
-    );
-    await localConfig.load();
     testLogger.info(`${testName}: finished resetting containers for each test`);
   });
 
