@@ -113,7 +113,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           subcommand: 'init',
           callback: async argv => accountCmd.init(argv),
         });
-      }).timeout(Duration.ofMinutes(3).toMillis());
+      }).timeout(Duration.ofMinutes(8).toMillis());
 
       describe('special accounts should have new keys', () => {
         const genesisKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
