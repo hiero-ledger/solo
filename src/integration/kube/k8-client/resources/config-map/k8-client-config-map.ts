@@ -2,7 +2,7 @@
 
 import {V1ConfigMap, V1ObjectMeta} from '@kubernetes/client-node';
 import {type ConfigMap} from '../../../resources/config-map/config-map.js';
-import {NamespaceName} from '../../../resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 
 export class K8ClientConfigMap implements ConfigMap {
   public constructor(

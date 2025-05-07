@@ -2,15 +2,12 @@
 
 import {Migration} from './migration.js';
 import {SoloError} from '../../errors/solo-error.js';
-import {
-  type DeploymentName,
-  type EmailAddress,
-  type NamespaceNameAsString,
-  type RemoteConfigMetadataStructure,
-  type Version,
-} from './types.js';
+import {type DeploymentName, type NamespaceNameAsString, type Version} from '../../../types/index.js';
 import {type Optional, type ToObject, type Validate} from '../../../types/index.js';
-import {DeploymentStates} from './enumerations.js';
+import {type UserIdentity} from '../../../data/schema/model/common/user-identity.js';
+import {DeploymentStates} from './enumerations/deployment-states.js';
+import {isValidEnum} from '../../util/validation-helpers.js';
+import {type RemoteConfigMetadataStruct} from './interfaces/remote-config-metadata-struct.js';
 
 /**
  * Represent the remote config metadata object and handles:
@@ -20,7 +17,7 @@ import {DeploymentStates} from './enumerations.js';
  * - Converting from and to plain object
  */
 export class RemoteConfigMetadata
-  implements RemoteConfigMetadataStructure, Validate, ToObject<RemoteConfigMetadataStructure>
+  implements RemoteConfigMetadataStruct, Validate, ToObject<RemoteConfigMetadataStruct>
 {
   private _migration?: Migration;
 
@@ -29,7 +26,7 @@ export class RemoteConfigMetadata
     public readonly deploymentName: DeploymentName,
     public readonly state: DeploymentStates,
     public readonly lastUpdatedAt: Date,
-    public readonly lastUpdateBy: EmailAddress,
+    public readonly lastUpdateBy: UserIdentity,
     public readonly soloVersion: Version,
     public soloChartVersion: Version = '',
     public hederaPlatformVersion: Version = '',
@@ -45,8 +42,8 @@ export class RemoteConfigMetadata
   /* -------- Modifiers -------- */
 
   /** Simplifies making a migration */
-  public makeMigration(email: EmailAddress, fromVersion: Version): void {
-    this._migration = new Migration(new Date(), email, fromVersion);
+  public makeMigration(userIdentity: UserIdentity, fromVersion: Version): void {
+    this._migration = new Migration(new Date(), userIdentity, fromVersion);
   }
 
   /* -------- Getters -------- */
@@ -59,7 +56,7 @@ export class RemoteConfigMetadata
   /* -------- Utilities -------- */
 
   /** Handles conversion from a plain object to instance */
-  public static fromObject(metadata: RemoteConfigMetadataStructure): RemoteConfigMetadata {
+  public static fromObject(metadata: RemoteConfigMetadataStruct): RemoteConfigMetadata {
     let migration: Optional<Migration> = undefined;
 
     if (metadata.migration) {
@@ -102,7 +99,13 @@ export class RemoteConfigMetadata
       throw new SoloError(`Invalid lastUpdatedAt: ${this.lastUpdatedAt}`);
     }
 
-    if (!this.lastUpdateBy || typeof this.lastUpdateBy !== 'string') {
+    if (
+      !this.lastUpdateBy ||
+      !this.lastUpdateBy.name ||
+      !this.lastUpdateBy.hostname ||
+      typeof this.lastUpdateBy.name !== 'string' ||
+      typeof this.lastUpdateBy.hostname !== 'string'
+    ) {
       throw new SoloError(`Invalid lastUpdateBy: ${this.lastUpdateBy}`);
     }
 
@@ -110,7 +113,7 @@ export class RemoteConfigMetadata
       throw new SoloError(`Invalid soloVersion: ${this.soloVersion}`);
     }
 
-    if (!Object.values(DeploymentStates).includes(this.state)) {
+    if (!isValidEnum(this.state, DeploymentStates)) {
       throw new SoloError(`Invalid cluster state: ${this.state}`);
     }
 
@@ -119,8 +122,8 @@ export class RemoteConfigMetadata
     }
   }
 
-  public toObject(): RemoteConfigMetadataStructure {
-    const data = {
+  public toObject(): RemoteConfigMetadataStruct {
+    const data: RemoteConfigMetadataStruct = {
       namespace: this.namespace,
       deploymentName: this.deploymentName,
       state: this.state,
@@ -132,7 +135,7 @@ export class RemoteConfigMetadata
       hederaExplorerChartVersion: this.hederaExplorerChartVersion,
       hederaJsonRpcRelayChartVersion: this.hederaJsonRpcRelayChartVersion,
       soloVersion: this.soloVersion,
-    } as RemoteConfigMetadataStructure;
+    } as RemoteConfigMetadataStruct;
 
     if (this.migration) {
       data.migration = this.migration.toObject();

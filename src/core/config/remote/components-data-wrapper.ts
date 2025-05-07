@@ -1,27 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {ComponentType, ConsensusNodeStates} from './enumerations.js';
 import {SoloError} from '../../errors/solo-error.js';
 import {BaseComponent} from './components/base-component.js';
 import {RelayComponent} from './components/relay-component.js';
 import {HaProxyComponent} from './components/ha-proxy-component.js';
+import {BlockNodeComponent} from './components/block-node-component.js';
 import {MirrorNodeComponent} from './components/mirror-node-component.js';
 import {EnvoyProxyComponent} from './components/envoy-proxy-component.js';
 import {ConsensusNodeComponent} from './components/consensus-node-component.js';
 import {MirrorNodeExplorerComponent} from './components/mirror-node-explorer-component.js';
-import {
-  type ClusterReference,
-  type Component,
-  type ComponentName,
-  type ComponentsDataStructure,
-  type IConsensusNodeComponent,
-  type IRelayComponent,
-  type NamespaceNameAsString,
-} from './types.js';
-import {type ToObject, type Validate} from '../../../types/index.js';
+import {type ClusterReference, type ComponentName, type NamespaceNameAsString} from '../../../types/index.js';
+import {ComponentTypes} from './enumerations/component-types.js';
+import {ConsensusNodeStates} from './enumerations/consensus-node-states.js';
+import {type BaseComponentStruct} from './components/interfaces/base-component-struct.js';
+import {type RelayComponentStruct} from './components/interfaces/relay-component-struct.js';
+import {type ConsensusNodeComponentStruct} from './components/interfaces/consensus-node-component-struct.js';
+import {type ComponentsDataStruct} from './interfaces/components-data-struct.js';
 import {Templates} from '../../templates.js';
 import {type NodeAliases} from '../../../types/aliases.js';
-import {type CloneTrait} from '../../../types/traits/clone-trait.js';
 
 /**
  * Represent the components in the remote config and handles:
@@ -29,17 +25,7 @@ import {type CloneTrait} from '../../../types/traits/clone-trait.js';
  * - Validation.
  * - Conversion FROM and TO plain object.
  */
-export class ComponentsDataWrapper
-  implements Validate, ToObject<ComponentsDataStructure>, CloneTrait<ComponentsDataWrapper>
-{
-  /**
-   * @param relays - Relay record mapping service name to relay components
-   * @param haProxies - HA Proxies record mapping service name to ha proxies components
-   * @param mirrorNodes - Mirror Nodes record mapping service name to mirror nodes components
-   * @param envoyProxies - Envoy Proxies record mapping service name to envoy proxies components
-   * @param consensusNodes - Consensus Nodes record mapping service name to consensus nodes components
-   * @param mirrorNodeExplorers - Mirror Node Explorers record mapping service name to mirror node explorers components
-   */
+export class ComponentsDataWrapper {
   private constructor(
     public readonly relays: Record<ComponentName, RelayComponent> = {},
     public readonly haProxies: Record<ComponentName, HaProxyComponent> = {},
@@ -47,6 +33,7 @@ export class ComponentsDataWrapper
     public readonly envoyProxies: Record<ComponentName, EnvoyProxyComponent> = {},
     public readonly consensusNodes: Record<ComponentName, ConsensusNodeComponent> = {},
     public readonly mirrorNodeExplorers: Record<ComponentName, MirrorNodeExplorerComponent> = {},
+    public readonly blockNodes: Record<ComponentName, BlockNodeComponent> = {},
   ) {
     this.validate();
   }
@@ -74,14 +61,12 @@ export class ComponentsDataWrapper
       components[serviceName] = component;
     }
 
-    self.applyCallbackToComponentGroup(component.type, serviceName, addComponentCallback);
+    self.applyCallbackToComponentGroup(component.type, addComponentCallback, serviceName);
   }
 
   /** Used to edit an existing component from their respective group. */
   public edit(component: BaseComponent): void {
-    const self = this;
-
-    const serviceName = component.name;
+    const serviceName: ComponentName = component.name;
 
     if (!serviceName || typeof serviceName !== 'string') {
       throw new SoloError(`Service name is required ${serviceName}`);
@@ -97,17 +82,15 @@ export class ComponentsDataWrapper
       components[serviceName] = component;
     }
 
-    self.applyCallbackToComponentGroup(component.type, serviceName, editComponentCallback);
+    this.applyCallbackToComponentGroup(component.type, editComponentCallback, serviceName);
   }
 
   /** Used to remove specific component from their respective group. */
-  public remove(serviceName: ComponentName, type: ComponentType): void {
-    const self = this;
-
+  public remove(serviceName: ComponentName, type: ComponentTypes): void {
     if (!serviceName || typeof serviceName !== 'string') {
       throw new SoloError(`Service name is required ${serviceName}`);
     }
-    if (!Object.values(ComponentType).includes(type)) {
+    if (!Object.values(ComponentTypes).includes(type)) {
       throw new SoloError(`Invalid component type ${type}`);
     }
 
@@ -118,23 +101,22 @@ export class ComponentsDataWrapper
       delete components[serviceName];
     }
 
-    self.applyCallbackToComponentGroup(type, serviceName, deleteComponentCallback);
+    this.applyCallbackToComponentGroup(type, deleteComponentCallback, serviceName);
   }
 
   /* -------- Utilities -------- */
 
-  public getComponent<T extends BaseComponent>(type: ComponentType, serviceName: ComponentName): T {
+  public getComponent<T extends BaseComponent>(type: ComponentTypes, componentName: ComponentName): T {
     let component: T;
 
-    function getComponentCallback(components: Record<ComponentName, BaseComponent>): void {
-      if (!components[serviceName]) {
-        throw new SoloError(`Component ${serviceName} of type ${type} not found while attempting to read`);
+    const getComponentCallback: (components: Record<ComponentName, BaseComponent>) => void = components => {
+      if (!components[componentName]) {
+        throw new SoloError(`Component ${componentName} of type ${type} not found while attempting to read`);
       }
+      component = components[componentName] as T;
+    };
 
-      component = components[serviceName] as T;
-    }
-
-    this.applyCallbackToComponentGroup(type, serviceName, getComponentCallback);
+    this.applyCallbackToComponentGroup(type, getComponentCallback, componentName);
 
     return component;
   }
@@ -144,37 +126,48 @@ export class ComponentsDataWrapper
    * and pass it to a callback to apply modifications
    */
   private applyCallbackToComponentGroup(
-    type: ComponentType,
-    serviceName: ComponentName,
+    componentType: ComponentTypes,
     callback: (components: Record<ComponentName, BaseComponent>) => void,
+    componentName?: ComponentName,
   ): void {
-    switch (type) {
-      case ComponentType.Relay: {
+    switch (componentType) {
+      case ComponentTypes.Relay: {
         callback(this.relays);
         break;
       }
-      case ComponentType.HaProxy: {
+
+      case ComponentTypes.HaProxy: {
         callback(this.haProxies);
         break;
       }
-      case ComponentType.MirrorNode: {
+
+      case ComponentTypes.MirrorNode: {
         callback(this.mirrorNodes);
         break;
       }
-      case ComponentType.EnvoyProxy: {
+
+      case ComponentTypes.EnvoyProxy: {
         callback(this.envoyProxies);
         break;
       }
-      case ComponentType.ConsensusNode: {
+
+      case ComponentTypes.ConsensusNode: {
         callback(this.consensusNodes);
         break;
       }
-      case ComponentType.MirrorNodeExplorer: {
+
+      case ComponentTypes.MirrorNodeExplorer: {
         callback(this.mirrorNodeExplorers);
         break;
       }
+
+      case ComponentTypes.BlockNode: {
+        callback(this.blockNodes);
+        break;
+      }
+
       default: {
-        throw new SoloError(`Unknown component type ${type}, service name: ${serviceName}`);
+        throw new SoloError(`Unknown component type ${componentType}, component name: ${componentName}`);
       }
     }
 
@@ -186,65 +179,83 @@ export class ComponentsDataWrapper
    *
    * @param components - component groups distinguished by their type.
    */
-  public static fromObject(components: ComponentsDataStructure): ComponentsDataWrapper {
+  public static fromObject(components: ComponentsDataStruct): ComponentsDataWrapper {
     const relays: Record<ComponentName, RelayComponent> = {};
     const haProxies: Record<ComponentName, HaProxyComponent> = {};
     const mirrorNodes: Record<ComponentName, MirrorNodeComponent> = {};
     const envoyProxies: Record<ComponentName, EnvoyProxyComponent> = {};
     const consensusNodes: Record<ComponentName, ConsensusNodeComponent> = {};
     const mirrorNodeExplorers: Record<ComponentName, MirrorNodeExplorerComponent> = {};
+    const blockNodes: Record<ComponentName, BlockNodeComponent> = {};
 
-    for (const [type, subComponents] of Object.entries(components)) {
-      switch (type) {
-        case ComponentType.Relay: {
-          for (const [name, component] of Object.entries(subComponents)) {
-            relays[name] = RelayComponent.fromObject(component as IRelayComponent);
+    for (const [componentType, subComponents] of Object.entries(components)) {
+      switch (componentType) {
+        case ComponentTypes.Relay: {
+          for (const [componentName, component] of Object.entries(subComponents)) {
+            relays[componentName] = RelayComponent.fromObject(component as RelayComponentStruct);
           }
           break;
         }
 
-        case ComponentType.HaProxy: {
-          for (const [name, component] of Object.entries(subComponents)) {
-            haProxies[name] = HaProxyComponent.fromObject(component);
+        case ComponentTypes.HaProxy: {
+          for (const [componentName, component] of Object.entries(subComponents)) {
+            haProxies[componentName] = HaProxyComponent.fromObject(component);
           }
           break;
         }
 
-        case ComponentType.MirrorNode: {
-          for (const [name, component] of Object.entries(subComponents)) {
-            mirrorNodes[name] = MirrorNodeComponent.fromObject(component);
+        case ComponentTypes.MirrorNode: {
+          for (const [componentName, component] of Object.entries(subComponents)) {
+            mirrorNodes[componentName] = MirrorNodeComponent.fromObject(component);
           }
           break;
         }
 
-        case ComponentType.EnvoyProxy: {
-          for (const [name, component] of Object.entries(subComponents)) {
-            envoyProxies[name] = EnvoyProxyComponent.fromObject(component);
+        case ComponentTypes.EnvoyProxy: {
+          for (const [componentName, component] of Object.entries(subComponents)) {
+            envoyProxies[componentName] = EnvoyProxyComponent.fromObject(component);
           }
           break;
         }
 
-        case ComponentType.ConsensusNode: {
-          for (const [name, component] of Object.entries(subComponents)) {
-            consensusNodes[name] = ConsensusNodeComponent.fromObject(component as IConsensusNodeComponent);
+        case ComponentTypes.ConsensusNode: {
+          for (const [componentName, component] of Object.entries(subComponents)) {
+            consensusNodes[componentName] = ConsensusNodeComponent.fromObject(
+              component as ConsensusNodeComponentStruct,
+            );
           }
           break;
         }
 
-        case ComponentType.MirrorNodeExplorer: {
-          for (const [name, component] of Object.entries(subComponents)) {
-            mirrorNodeExplorers[name] = MirrorNodeExplorerComponent.fromObject(component);
+        case ComponentTypes.MirrorNodeExplorer: {
+          for (const [componentName, component] of Object.entries(subComponents)) {
+            mirrorNodeExplorers[componentName] = MirrorNodeExplorerComponent.fromObject(component);
+          }
+          break;
+        }
+
+        case ComponentTypes.BlockNode: {
+          for (const [componentName, component] of Object.entries(subComponents)) {
+            blockNodes[componentName] = BlockNodeComponent.fromObject(component);
           }
           break;
         }
 
         default: {
-          throw new SoloError(`Unknown component type ${type}`);
+          throw new SoloError(`Unknown component type ${componentType}`);
         }
       }
     }
 
-    return new ComponentsDataWrapper(relays, haProxies, mirrorNodes, envoyProxies, consensusNodes, mirrorNodeExplorers);
+    return new ComponentsDataWrapper(
+      relays,
+      haProxies,
+      mirrorNodes,
+      envoyProxies,
+      consensusNodes,
+      mirrorNodeExplorers,
+      blockNodes,
+    );
   }
 
   /** Used to create an empty instance used to keep the constructor private */
@@ -303,29 +314,32 @@ export class ComponentsDataWrapper
     testComponentsObject(this.mirrorNodeExplorers, MirrorNodeExplorerComponent);
   }
 
-  public toObject(): ComponentsDataStructure {
-    function transform(components: Record<ComponentName, BaseComponent>): Record<ComponentName, Component> {
-      const transformedComponents: Record<ComponentName, Component> = {};
+  private transformComponentGroupToObject(
+    components: Record<ComponentName, BaseComponent>,
+  ): Record<ComponentName, BaseComponentStruct> {
+    const transformedComponents: Record<ComponentName, BaseComponentStruct> = {};
 
-      for (const [name, component] of Object.entries(components)) {
-        transformedComponents[name] = component.toObject() as Component;
-      }
-
-      return transformedComponents;
+    for (const [componentName, component] of Object.entries(components)) {
+      transformedComponents[componentName] = component.toObject() as BaseComponentStruct;
     }
 
+    return transformedComponents;
+  }
+
+  public toObject(): ComponentsDataStruct {
     return {
-      [ComponentType.Relay]: transform(this.relays),
-      [ComponentType.HaProxy]: transform(this.haProxies),
-      [ComponentType.MirrorNode]: transform(this.mirrorNodes),
-      [ComponentType.EnvoyProxy]: transform(this.envoyProxies),
-      [ComponentType.ConsensusNode]: transform(this.consensusNodes),
-      [ComponentType.MirrorNodeExplorer]: transform(this.mirrorNodeExplorers),
+      [ComponentTypes.Relay]: this.transformComponentGroupToObject(this.relays),
+      [ComponentTypes.HaProxy]: this.transformComponentGroupToObject(this.haProxies),
+      [ComponentTypes.MirrorNode]: this.transformComponentGroupToObject(this.mirrorNodes),
+      [ComponentTypes.EnvoyProxy]: this.transformComponentGroupToObject(this.envoyProxies),
+      [ComponentTypes.ConsensusNode]: this.transformComponentGroupToObject(this.consensusNodes),
+      [ComponentTypes.MirrorNodeExplorer]: this.transformComponentGroupToObject(this.mirrorNodeExplorers),
+      [ComponentTypes.BlockNode]: this.transformComponentGroupToObject(this.blockNodes),
     };
   }
 
-  public clone() {
-    const data = this.toObject();
+  public clone(): ComponentsDataWrapper {
+    const data: ComponentsDataStruct = this.toObject();
 
     return ComponentsDataWrapper.fromObject(data);
   }
