@@ -45,7 +45,6 @@ import {
   type SoloListrTask,
   type SoloListrTaskWrapper,
 } from '../types/index.js';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {type ConsensusNode} from '../core/model/consensus-node.js';
@@ -76,6 +75,7 @@ import {type Service} from '../integration/kube/resources/service/service.js';
 import {SemVer, lt as SemVersionLessThan} from 'semver';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 
 export interface NetworkDeployConfigClass {
   applicationEnv: string;

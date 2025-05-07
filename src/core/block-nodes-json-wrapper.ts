@@ -3,8 +3,7 @@
 import {Templates} from './templates.js';
 import {type BlockNodeComponent} from './config/remote/components/block-node-component.js';
 import {type Cluster} from './config/remote/cluster.js';
-import {type ToJSON} from '../types/index.js';
-import {type ClusterReference} from './config/remote/types.js';
+import {type ClusterReference, type ToJSON} from '../types/index.js';
 import * as constants from './constants.js';
 
 interface BlockNodeConnectionData {

@@ -21,7 +21,6 @@ import {ModifyLocalConfigError} from '../errors/modify-local-config-error.js';
 import {CreateLocalConfigFileError} from '../errors/create-local-config-file-error.js';
 import {RefreshLocalConfigSourceError} from '../errors/refresh-local-config-source-error.js';
 import {WriteLocalConfigFileError} from '../errors/write-local-config-file-error.js';
-import {User} from '@kubernetes/client-node';
 
 @injectable()
 export class LocalConfigRuntimeState {
