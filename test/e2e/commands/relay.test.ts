@@ -16,7 +16,7 @@ import * as version from '../../../version.js';
 import {sleep} from '../../../src/core/helpers.js';
 import {RelayCommand} from '../../../src/commands/relay.js';
 import {Duration} from '../../../src/core/time/duration.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
@@ -46,8 +46,12 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
   } = bootstrapResp;
 
   describe('RelayCommand', async (): Promise<void> => {
-    const relayCmd: RelayCommand = new RelayCommand(bootstrapResp.opts);
+    let relayCommand: RelayCommand;
     const testLogger: SoloLogger = container.resolve(InjectTokens.SoloLogger);
+
+    before(() => {
+      relayCommand = container.resolve(InjectTokens.RelayCommand);
+    });
 
     afterEach(async (): Promise<void> => {
       // wait for k8s to finish destroying containers from relay destroy
@@ -75,7 +79,7 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
               command: RelayCommand.COMMAND_NAME,
               subcommand: 'deploy',
               // @ts-expect-error to access private property
-              callback: async (argv: ArgvStruct): Promise<boolean> => relayCmd.deploy(argv),
+              callback: async (argv: ArgvStruct): Promise<boolean> => relayCommand.deploy(argv),
             });
           } catch (error) {
             logger.showUserError(error);
@@ -90,7 +94,7 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
               command: RelayCommand.COMMAND_NAME,
               subcommand: 'destroy',
               // @ts-expect-error to access private modifier
-              callback: async (argv: ArgvStruct): Promise<boolean> => relayCmd.destroy(argv),
+              callback: async (argv: ArgvStruct): Promise<boolean> => relayCommand.destroy(argv),
             });
           } catch (error) {
             logger.showUserError(error);

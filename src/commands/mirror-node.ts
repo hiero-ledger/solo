@@ -4,23 +4,21 @@ import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {Listr} from 'listr2';
 import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
-import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {type ProfileManager} from '../core/profile-manager.js';
-import {BaseCommand, type Options} from './base.js';
+import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import * as helpers from '../core/helpers.js';
 import {type AnyYargs, type ArgvStruct} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
-import {ComponentType} from '../core/config/remote/enumerations.js';
 import {MirrorNodeComponent} from '../core/config/remote/components/mirror-node-component.js';
 import * as fs from 'node:fs';
-import {type Optional, type SoloListrTask} from '../types/index.js';
+import {type CommandDefinition, type Optional, type SoloListrTask} from '../types/index.js';
 import * as Base64 from 'js-base64';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {
@@ -28,7 +26,7 @@ import {
   MIRROR_INGRESS_TLS_SECRET_NAME,
   MIRROR_INGRESS_CONTROLLER,
 } from '../core/constants.js';
-import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
@@ -36,11 +34,15 @@ import chalk from 'chalk';
 import {type CommandFlag} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
-import {type ClusterReference, type DeploymentName} from '../core/config/remote/types.js';
+import {type ClusterReference, type DeploymentName} from '../types/index.js';
 import {KeyManager} from '../core/key-manager.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {inject, injectable} from 'tsyringe-neo';
+import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {type AccountId} from '@hashgraph/sdk';
 
 interface MirrorNodeDeployConfigClass {
@@ -91,21 +93,16 @@ interface MirrorNodeDestroyContext {
   };
 }
 
+@injectable()
 export class MirrorNodeCommand extends BaseCommand {
-  private readonly accountManager: AccountManager;
-  private readonly profileManager: ProfileManager;
+  public constructor(
+    @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
+    @inject(InjectTokens.ProfileManager) private readonly profileManager?: ProfileManager,
+  ) {
+    super();
 
-  public constructor(options: Options) {
-    super(options);
-    if (!options || !options.accountManager) {
-      throw new IllegalArgumentError('An instance of core/AccountManager is required', options.accountManager);
-    }
-    if (!options || !options.profileManager) {
-      throw new MissingArgumentError('An instance of core/ProfileManager is required', options.downloader);
-    }
-
-    this.accountManager = options.accountManager;
-    this.profileManager = options.profileManager;
+    this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
+    this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
   }
 
   public static readonly COMMAND_NAME = 'mirror-node';
@@ -357,7 +354,7 @@ export class MirrorNodeCommand extends BaseCommand {
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
 
             context_.config.clusterContext = context_.config.clusterRef
-              ? this.localConfig.clusterRefs[context_.config.clusterRef]
+              ? this.localConfig.clusterRefs.get(context_.config.clusterRef)
               : this.k8Factory.default().contexts().readCurrent();
 
             const deploymentName: DeploymentName = self.configManager.getFlag<DeploymentName>(flags.deployment);
@@ -747,7 +744,7 @@ export class MirrorNodeCommand extends BaseCommand {
             const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
             const clusterReference = this.configManager.getFlag<string>(flags.clusterRef) as string;
             const clusterContext = clusterReference
-              ? this.localConfig.clusterRefs[clusterReference]
+              ? this.localConfig.clusterRefs.get(clusterReference)
               : this.k8Factory.default().contexts().readCurrent();
 
             if (!(await self.k8Factory.getK8(clusterContext).namespaces().has(namespace))) {
@@ -851,8 +848,8 @@ export class MirrorNodeCommand extends BaseCommand {
     return true;
   }
 
-  public getCommandDefinition() {
-    const self = this;
+  public getCommandDefinition(): CommandDefinition {
+    const self: this = this;
     return {
       command: MirrorNodeCommand.COMMAND_NAME,
       desc: 'Manage Hedera Mirror Node in solo network',
@@ -923,7 +920,7 @@ export class MirrorNodeCommand extends BaseCommand {
       skip: (): boolean => !this.remoteConfigManager.isLoaded(),
       task: async (): Promise<void> => {
         await this.remoteConfigManager.modify(async remoteConfig => {
-          remoteConfig.components.remove('mirrorNode', ComponentType.MirrorNode);
+          remoteConfig.components.remove('mirrorNode', ComponentTypes.MirrorNode);
         });
       },
     };

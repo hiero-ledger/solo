@@ -5,6 +5,14 @@ import {Deployment} from './deployment.js';
 import {UserIdentity} from '../common/user-identity.js';
 import {Version} from '../../../../business/utils/version.js';
 import {ApplicationVersions} from '../common/application-versions.js';
+import {
+  type ClusterReference,
+  type ClusterReferences,
+  type DeploymentName,
+  type Realm,
+  type Shard,
+} from '../../../../types/index.js';
+import {type NamespaceName} from '../../../../types/namespace/namespace-name.js';
 
 @Exclude()
 export class LocalConfig {
@@ -27,13 +35,13 @@ export class LocalConfig {
 
   @Expose()
   @Type(() => Map)
-  public clusterRefs: Map<string, string>;
+  public clusterRefs: ClusterReferences;
 
   constructor(
     schemaVersion?: number,
     versions?: ApplicationVersions,
     deployments?: Deployment[],
-    clusterReferences?: Map<string, string>,
+    clusterReferences?: ClusterReferences,
     userIdentity?: UserIdentity,
   ) {
     this.schemaVersion = schemaVersion ?? 1;
@@ -41,5 +49,28 @@ export class LocalConfig {
     this.deployments = deployments ?? [];
     this.clusterRefs = clusterReferences ?? new Map<string, string>();
     this.userIdentity = userIdentity ?? new UserIdentity();
+  }
+
+  public addClusterRef(clusterReference: ClusterReference, context: string): void {
+    this.clusterRefs.set(clusterReference, context);
+  }
+
+  public removeClusterRef(clusterReference: ClusterReference): void {
+    this.clusterRefs.delete(clusterReference);
+  }
+
+  public addDeployment(deployment: DeploymentName, namespace: NamespaceName, realm: Realm, shard: Shard): void {
+    this.deployments.push(new Deployment(deployment, namespace.name, [], realm, shard));
+  }
+
+  public removeDeployment(deployment: DeploymentName): void {
+    this.deployments = this.deployments.filter((d): boolean => d.name !== deployment);
+  }
+
+  public addClusterRefToDeployment(clusterReference: ClusterReference, deployment: DeploymentName): void {
+    const deploymentObject: Deployment = this.deployments.find(d => d.name === deployment);
+    if (deploymentObject) {
+      deploymentObject.clusters.push(clusterReference);
+    }
   }
 }
