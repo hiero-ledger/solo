@@ -54,10 +54,10 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
   // TODO: remove once versions below 0.62.0 are no longer supported
   const platformVersion: SemVer = new SemVer(configManager.getFlag(flags.releaseTag));
 
-  const isOlder: boolean = lt(platformVersion, '0.62.0');
+  const isOlder: boolean = lt(platformVersion, 'v0.62.0');
   if (isOlder) {
-    argv.setArg(flags.releaseTag, '0.62.0');
-    configManager.setFlag(flags.releaseTag, '0.62.0');
+    argv.setArg(flags.releaseTag, 'v0.62.0');
+    configManager.setFlag(flags.releaseTag, 'v0.62.0');
   }
 
   describe('BlockNodeCommand', async () => {
