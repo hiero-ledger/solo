@@ -32,9 +32,9 @@ import {SemVer, lt} from 'semver';
 
 const execAsync = promisify(exec);
 
-let platformVersion: SemVer = new SemVer(HEDERA_PLATFORM_VERSION_TAG);
-if (lt(platformVersion, new SemVer('v0.62.0'))) {
-  platformVersion = new SemVer('v0.62.0');
+let platformVersion: string = HEDERA_PLATFORM_VERSION_TAG;
+if (lt(new SemVer(HEDERA_PLATFORM_VERSION_TAG), new SemVer('v0.62.0'))) {
+  platformVersion = 'v0.62.0';
 }
 
 const testName: string = 'block-node-cmd-e2e';
