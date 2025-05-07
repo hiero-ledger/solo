@@ -3,13 +3,16 @@
 import * as constants from '../../constants.js';
 import {SoloError} from '../../errors/solo-error.js';
 import {type K8Factory} from '../../../integration/kube/k8-factory.js';
-import {type ComponentsDataWrapper} from './components-data-wrapper.js';
-import {type BaseComponent} from './components/base-component.js';
 import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
 import {type LocalConfigRuntimeState} from '../../../business/runtime-state/local-config-runtime-state.js';
-import {ConsensusNodeStates} from './enumerations/consensus-node-states.js';
 import {type Context} from '../../../types/index.js';
+import {type NodeAlias} from '../../../types/aliases.js';
+import {Templates} from '../../templates.js';
+import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
+import {type ConsensusNodeState} from '../../../data/schema/model/remote/state/consensus-node-state.js';
+import {type BaseState} from '../../../data/schema/model/remote/state/base-state.js';
+import {type DeploymentState} from '../../../data/schema/model/remote/deployment-state.js';
 
 /**
  * Static class is used to validate that components in the remote config
