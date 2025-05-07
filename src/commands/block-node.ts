@@ -157,7 +157,7 @@ export class BlockNodeCommand extends BaseCommand {
             const isOlder: boolean = lt(platformVersion, '0.62.0');
             if (isOlder) {
               throw new SoloError(
-                'Hedera platform versions less than 0.62.0 are not supported for block node,' +
+                'Hedera platform versions less than v0.62.0 are not supported for block node,' +
                   `override it with ${flags.releaseTag.name} flag`,
               );
             }
