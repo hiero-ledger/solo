@@ -4,7 +4,6 @@ import {expect} from 'chai';
 import {describe, it} from 'mocha';
 import {Migration} from '../../../../../src/core/config/remote/migration.js';
 import {SoloError} from '../../../../../src/core/errors/solo-error.js';
-import {RemoteConfigMetadata} from '../../../../../src/core/config/remote/metadata.js';
 import {type NamespaceNameAsString, type Version} from '../../../../../src/types/index.js';
 import {UserIdentity} from '../../../../../src/data/schema/model/common/user-identity.js';
 import {DeploymentStates} from '../../../../../src/core/config/remote/enumerations/deployment-states.js';
@@ -89,7 +88,6 @@ describe('RemoteConfigMetadata', () => {
   it('should successfully create instance using fromObject', () => {
     const {metadata, values} = createMetadata();
 
-    // @ts-expect-error - TS234: to access private property
     delete metadata._migration;
 
     const newMetadata: RemoteConfigMetadata = RemoteConfigMetadata.fromObject({
@@ -143,7 +141,6 @@ describe('RemoteConfigMetadata', () => {
             values.hederaMirrorNodeChartVersion,
             values.hederaExplorerChartVersion,
             values.hederaJsonRpcRelayChartVersion,
-            // @ts-expect-error - TS2345: to inject wrong migration
             {},
           ),
       ).to.throw(SoloError, `Invalid migration: ${{}}`);

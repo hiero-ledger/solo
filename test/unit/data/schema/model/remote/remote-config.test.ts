@@ -176,11 +176,10 @@ describe('RemoteConfig', () => {
       expect(rc.versions.jsonRpcRelayChart.version).to.equal('0.63.2');
       expect(rc.clusters.length).to.be.equal(1);
       expect(rc.state.consensusNodes.length).to.be.equal(4);
-      expect(rc.state.consensusNodes[0].id).to.be.equal(0);
-      expect(rc.state.consensusNodes[0].name).to.be.equal('node1');
-      expect(rc.state.consensusNodes[0].namespace).to.be.equal('solo-alpha-prod');
-      expect(rc.state.consensusNodes[0].cluster).to.be.equal('gke-alpha-prod-us-central1');
-      expect(rc.state.consensusNodes[0].phase).to.be.equal(DeploymentPhase.REQUESTED);
+      expect(rc.state.consensusNodes[0].metadata.id).to.be.equal(0);
+      expect(rc.state.consensusNodes[0].metadata.namespace).to.be.equal('solo-alpha-prod');
+      expect(rc.state.consensusNodes[0].metadata.cluster).to.be.equal('gke-alpha-prod-us-central1');
+      expect(rc.state.consensusNodes[0].metadata.phase).to.be.equal(DeploymentPhase.REQUESTED);
       expect(rc.state.ledgerPhase).to.be.equal(LedgerPhase.UNINITIALIZED);
     });
 
@@ -219,11 +218,10 @@ describe('RemoteConfig', () => {
       expect(rc2.versions.jsonRpcRelayChart.version).to.equal('0.63.2');
       expect(rc2.clusters.length).to.be.equal(1);
       expect(rc2.state.consensusNodes.length).to.be.equal(4);
-      expect(rc2.state.consensusNodes[0].id).to.be.equal(0);
-      expect(rc2.state.consensusNodes[0].name).to.be.equal('node1');
-      expect(rc2.state.consensusNodes[0].namespace).to.be.equal('solo-alpha-prod');
-      expect(rc2.state.consensusNodes[0].cluster).to.be.equal('gke-alpha-prod-us-central1');
-      expect(rc2.state.consensusNodes[0].phase).to.be.equal(DeploymentPhase.REQUESTED);
+      expect(rc2.state.consensusNodes[0].metadata.id).to.be.equal(0);
+      expect(rc2.state.consensusNodes[0].metadata.namespace).to.be.equal('solo-alpha-prod');
+      expect(rc2.state.consensusNodes[0].metadata.cluster).to.be.equal('gke-alpha-prod-us-central1');
+      expect(rc2.state.consensusNodes[0].metadata.phase).to.be.equal(DeploymentPhase.REQUESTED);
       expect(rc2.state.ledgerPhase).to.be.equal(LedgerPhase.UNINITIALIZED);
     });
   });

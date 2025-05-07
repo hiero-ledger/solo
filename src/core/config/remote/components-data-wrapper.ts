@@ -7,10 +7,10 @@ import {SoloError} from '../../errors/solo-error.js';
 import {ComponentTypes} from './enumerations/component-types.js';
 import {BaseState} from '../../../data/schema/model/remote/state/base-state.js';
 import {isValidEnum} from '../../util/validation-helpers.js';
-import {type ClusterReference, type ComponentId} from './types.js';
 import {type DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
 import {type RemoteConfigRuntimeState} from '../../../business/runtime-state/remote-config-runtime-state.js';
 import {type DeploymentState} from '../../../data/schema/model/remote/deployment-state.js';
+import {type ClusterReference, type ComponentId} from '../../../types/index.js';
 
 export class ComponentsDataWrapper {
   public readonly state: DeploymentState;

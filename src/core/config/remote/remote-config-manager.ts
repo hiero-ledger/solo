@@ -11,10 +11,9 @@ import {
   type Context,
   type DeploymentName,
   type NamespaceNameAsString,
-} from './types.js';
+} from '../../../types/index.js';
 import {type SoloLogger} from '../../logging/solo-logger.js';
 import {type ConfigManager} from '../../config-manager.js';
-import {type LocalConfig} from '../local/local-config.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../dependency-injection/container-helper.js';
 import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases} from '../../../types/aliases.js';
@@ -22,19 +21,18 @@ import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
 import {ConsensusNode} from '../../model/consensus-node.js';
 import {Templates} from '../../templates.js';
-import {promptTheUserForDeployment, resolveNamespaceFromDeployment} from '../../resolvers.js';
-import {type ConfigMap} from '../../../integration/kube/resources/config-map/config-map.js';
+import {promptTheUserForDeployment} from '../../resolvers.js';
 import {getSoloVersion} from '../../../../version.js';
-import {DeploymentStates} from './enumerations/deployment-states.js';
 import {type RemoteConfigRuntimeState} from '../../../business/runtime-state/remote-config-runtime-state.js';
 import {type RemoteConfig} from '../../../data/schema/model/remote/remote-config.js';
 import {SemVer} from 'semver';
 import {Cluster} from '../../../data/schema/model/common/cluster.js';
-import {DeploymentStructure} from '../local/local-config-data.js';
 import {RemoteConfigMetadata} from '../../../data/schema/model/remote/remote-config-metadata.js';
 import * as constants from '../../constants.js';
 import {LocalConfigRuntimeState} from '../../../business/runtime-state/local-config-runtime-state.js';
 import {DeploymentStates} from './enumerations/deployment-states.js';
+import {Deployment} from '../../../data/schema/model/local/deployment.js';
+import {DeploymentState} from '../../../data/schema/model/remote/deployment-state.js';
 
 /**
  * Uses Kubernetes ConfigMaps to manage the remote configuration data by creating, loading, modifying,
@@ -239,7 +237,7 @@ export class RemoteConfigManager {
 
     // TODO: Current quick fix for commands where namespace is not passed
     let deploymentName: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
-    let currentDeployment: DeploymentStructure = this.localConfig.getDeployment(deploymentName);
+    let currentDeployment: Deployment = this.localConfig.getDeployment(deploymentName);
 
     if (!deploymentName) {
       deploymentName = await promptTheUserForDeployment(this.configManager);
