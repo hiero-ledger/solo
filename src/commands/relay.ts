@@ -7,7 +7,7 @@ import * as helpers from '../core/helpers.js';
 import * as constants from '../core/constants.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {type AccountManager} from '../core/account-manager.js';
-import {BaseCommand, type Options} from './base.js';
+import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {showVersionBanner} from '../core/helpers.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
@@ -19,6 +19,9 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterReference, type DeploymentName} from '../types/index.js';
 import {type CommandDefinition, type Optional, type SoloListrTask} from '../types/index.js';
 import {HEDERA_JSON_RPC_RELAY_VERSION} from '../../version.js';
+import {inject, injectable} from 'tsyringe-neo';
+import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 
 interface RelayDestroyConfigClass {
@@ -62,19 +65,16 @@ interface RelayDeployContext {
   config: RelayDeployConfigClass;
 }
 
+@injectable()
 export class RelayCommand extends BaseCommand {
-  private readonly profileManager: ProfileManager;
-  private readonly accountManager: AccountManager;
+  public constructor(
+    @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
+    @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
+  ) {
+    super();
 
-  public constructor(options: Options) {
-    super(options);
-
-    if (!options || !options.profileManager) {
-      throw new MissingArgumentError('An instance of core/ProfileManager is required', options.downloader);
-    }
-
-    this.profileManager = options.profileManager;
-    this.accountManager = options.accountManager;
+    this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
+    this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
   }
 
   public static readonly COMMAND_NAME = 'relay';

@@ -2,11 +2,11 @@
 
 import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
-import {BaseCommand, type Options} from './base.js';
+import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
 import chalk from 'chalk';
-import {ClusterCommandTasks} from './cluster/tasks.js';
+import {type ClusterCommandTasks} from './cluster/tasks.js';
 import {
   type ClusterReference,
   type DeploymentName,
@@ -18,12 +18,13 @@ import {type CommandDefinition, type SoloListrTask} from '../types/index.js';
 import {ErrorMessages} from '../core/error-messages.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterChecks} from '../core/cluster-checks.js';
-import {container} from 'tsyringe-neo';
+import {container, inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type ArgvStruct, type AnyYargs, type NodeAliases} from '../types/aliases.js';
 import {Templates} from '../core/templates.js';
 import {Cluster} from '../core/config/remote/cluster.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
+import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {type Deployment} from '../data/schema/model/local/deployment.js';
 import {ConsensusNodeStates} from '../core/config/remote/enumerations/consensus-node-states.js';
 import {DeploymentStates} from '../core/config/remote/enumerations/deployment-states.js';
@@ -52,13 +53,12 @@ export interface DeploymentAddClusterContext {
   config: DeploymentAddClusterConfig;
 }
 
+@injectable()
 export class DeploymentCommand extends BaseCommand {
-  readonly tasks: ClusterCommandTasks;
+  constructor(@inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks) {
+    super();
 
-  constructor(options: Options) {
-    super(options);
-
-    this.tasks = container.resolve(ClusterCommandTasks);
+    this.tasks = patchInject(tasks, InjectTokens.ClusterCommandTasks, this.constructor.name);
   }
 
   public static readonly COMMAND_NAME = 'deployment';

@@ -21,7 +21,6 @@ import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {type ChartManager} from '../../core/chart-manager.js';
 import {type LockManager} from '../../core/lock/lock-manager.js';
 import {type ClusterChecks} from '../../core/cluster-checks.js';
-import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {SOLO_CLUSTER_SETUP_CHART} from '../../core/constants.js';
 import {type ClusterReferenceConnectContext} from './config-interfaces/cluster-reference-connect-context.js';
@@ -33,20 +32,20 @@ import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config
 
 @injectable()
 export class ClusterCommandTasks {
-  private readonly clusterChecks: ClusterChecks = container.resolve(InjectTokens.ClusterChecks);
-
   constructor(
     @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
     @inject(InjectTokens.ChartManager) private readonly chartManager: ChartManager,
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
+    @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
   ) {
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
+    this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
   }
 
   public connectClusterRef(): SoloListrTask<ClusterReferenceConnectContext> {

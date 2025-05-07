@@ -15,7 +15,6 @@ import {type CommandFlag} from '../../../src/types/flag-types.js';
 import {type RemoteConfigManager} from '../../../src/core/config/remote/remote-config-manager.js';
 import {expect} from 'chai';
 import fs from 'node:fs';
-import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
 import {type K8} from '../../../src/integration/kube/k8.js';
 import {
@@ -81,8 +80,8 @@ describe('Dual Cluster Full E2E Test', function dualClusterFullEndToEndTest() {
     } catch {
       // allowed to fail if the file doesn't exist
     }
-    resetForTest(namespace.name, testCacheDirectory, testLogger, false);
     testLogger = container.resolve<SoloWinstonLogger>(InjectTokens.SoloLogger);
+    resetForTest(namespace.name, testCacheDirectory, false);
     for (const item of contexts) {
       const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
       await k8Client.namespaces().delete(namespace);
@@ -92,7 +91,7 @@ describe('Dual Cluster Full E2E Test', function dualClusterFullEndToEndTest() {
 
   beforeEach(async (): Promise<void> => {
     testLogger.info(`${testName}: resetting containers for each test`);
-    resetForTest(namespace.name, testCacheDirectory, testLogger, false);
+    resetForTest(namespace.name, testCacheDirectory, false);
     testLogger.info(`${testName}: finished resetting containers for each test`);
   });
 
@@ -148,7 +147,6 @@ describe('Dual Cluster Full E2E Test', function dualClusterFullEndToEndTest() {
 
   it(`${testName}: node keys`, async (): Promise<void> => {
     testLogger.info(`${testName}: beginning node keys command`);
-    expect(container.resolve<SoloLogger>(InjectTokens.SoloLogger)).to.equal(testLogger);
     await main(soloNodeKeysArgv(deployment));
     const node1Key: Buffer = fs.readFileSync(
       PathEx.joinWithRealPath(testCacheDirectory, 'keys', 's-private-node1.pem'),
