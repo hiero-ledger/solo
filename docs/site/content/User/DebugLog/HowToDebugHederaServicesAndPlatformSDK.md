@@ -206,6 +206,7 @@ SOLO_NAMESPACE=solo-e2e
 SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 SOLO_DEPLOYMENT=solo-deployment
 
+rm -Rf ~/.solo
 kind delete cluster -n "${SOLO_CLUSTER_NAME}" 
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 solo init
