@@ -18,7 +18,7 @@ import {type ClusterReference} from '../types/index.js';
 import {type Optional, type SoloListrTaskWrapper} from '../types/index.js';
 import chalk from 'chalk';
 import {PathEx} from '../business/utils/path-ex.js';
-import validator, {isAlpha} from 'validator';
+import validator from 'validator';
 
 export class Flags {
   public static KEY_COMMON = '_COMMON_';
@@ -1953,7 +1953,8 @@ export class Flags {
     constName: 'username',
     name: 'user',
     definition: {
-      describe: 'Optional user name used for local configuration. Only accepts letters and numbers. Defaults to the username provided by the OS',
+      describe:
+        'Optional user name used for local configuration. Only accepts letters and numbers. Defaults to the username provided by the OS',
       type: 'string',
       alias: 'u',
     },
