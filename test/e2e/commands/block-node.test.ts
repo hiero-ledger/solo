@@ -28,6 +28,7 @@ import {type ClusterReference, type ExtendedNetServer} from '../../../src/types/
 import {exec} from 'node:child_process';
 import {promisify} from 'node:util';
 import * as constants from '../../../src/core/constants.js';
+import {SemVer, lt} from 'semver';
 
 const execAsync = promisify(exec);
 
@@ -49,6 +50,13 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
     opts: {k8Factory, commandInvoker, remoteConfigManager, configManager, logger},
     cmd: {nodeCmd, networkCmd},
   } = bootstrapResp;
+
+  // TODO: remove once versions below 0.62.0 are no longer supported
+  const platformVersion: SemVer = new SemVer(configManager.getFlag(flags.releaseTag));
+  const isOlder: boolean = lt(platformVersion, '0.62.0');
+  if (isOlder) {
+    configManager.setFlag(flags.relayReleaseTag, '0.62.0');
+  }
 
   describe('BlockNodeCommand', async () => {
     const blockNodeCommand: BlockNodeCommand = new BlockNodeCommand(bootstrapResp.opts);

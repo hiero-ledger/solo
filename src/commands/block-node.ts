@@ -32,6 +32,7 @@ import {type Containers} from '../integration/kube/resources/container/container
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
+import {lt, SemVer} from 'semver';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -43,6 +44,7 @@ interface BlockNodeDeployConfigClass {
   enableIngress: boolean;
   quiet: boolean;
   valuesFile: Optional<string>;
+  releaseTag: string;
   namespace: NamespaceName;
   nodeAliases: NodeAliases; // from remote config
   context: string;
@@ -91,6 +93,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.enableIngress,
       flags.quiet,
       flags.valuesFile,
+      flags.releaseTag,
     ],
   };
 
@@ -149,6 +152,15 @@ export class BlockNodeCommand extends BaseCommand {
               BlockNodeCommand.ADD_CONFIGS_NAME,
               allFlags,
             ) as BlockNodeDeployConfigClass;
+
+            const platformVersion: SemVer = new SemVer(context_.config.releaseTag);
+            const isOlder: boolean = lt(platformVersion, '0.62.0');
+            if (isOlder) {
+              throw new SoloError(
+                'Hedera platform versions less than 0.62.0 are not supported for block node,' +
+                  `override it with ${flags.releaseTag.name} flag`,
+              );
+            }
 
             context_.config.namespace = await resolveNamespaceFromDeployment(
               this.localConfig,
