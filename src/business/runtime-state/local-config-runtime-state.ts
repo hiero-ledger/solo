@@ -7,7 +7,7 @@ import {LocalConfigSource} from '../../data/configuration/impl/local-config-sour
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {LocalConfigSchema} from '../../data/schema/migration/impl/local/local-config-schema.js';
 import {type ObjectMapper} from '../../data/mapper/api/object-mapper.js';
-import {CTObjectMapper} from '../../data/mapper/impl/ct-object-mapper.js';
+import {ClassToObjectMapper} from '../../data/mapper/impl/ct-object-mapper.js';
 import {ConfigKeyFormatter} from '../../data/key/config-key-formatter.js';
 import {UserIdentity} from '../../data/schema/model/common/user-identity.js';
 import {Deployment} from '../../data/schema/model/local/deployment.js';
@@ -21,7 +21,6 @@ import {ModifyLocalConfigError} from '../errors/modify-local-config-error.js';
 import {CreateLocalConfigFileError} from '../errors/create-local-config-file-error.js';
 import {RefreshLocalConfigSourceError} from '../errors/refresh-local-config-source-error.js';
 import {WriteLocalConfigFileError} from '../errors/write-local-config-file-error.js';
-import {User} from '@kubernetes/client-node';
 
 @injectable()
 export class LocalConfigRuntimeState {
@@ -37,7 +36,7 @@ export class LocalConfigRuntimeState {
     this.basePath = patchInject(basePath, InjectTokens.HomeDirectory, this.constructor.name);
 
     this.backend = new YamlFileStorageBackend(this.basePath);
-    this.objectMapper = new CTObjectMapper(ConfigKeyFormatter.instance());
+    this.objectMapper = new ClassToObjectMapper(ConfigKeyFormatter.instance());
     this.source = new LocalConfigSource(
       fileName,
       new LocalConfigSchema(this.objectMapper),

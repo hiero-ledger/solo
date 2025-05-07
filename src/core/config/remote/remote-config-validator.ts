@@ -101,7 +101,7 @@ export class RemoteConfigValidator {
 
   public static async validateComponents(
     namespace: NamespaceName,
-    components: DeploymentState,
+    state: DeploymentState,
     k8Factory: K8Factory,
     localConfig: LocalConfigRuntimeState,
     skipConsensusNodes: boolean,
@@ -111,7 +111,7 @@ export class RemoteConfigValidator {
       .flatMap(([key, {getLabelsCallback, displayName, skipCondition}]): Promise<void>[] =>
         RemoteConfigValidator.validateComponentGroup(
           namespace,
-          components[key],
+          state[key],
           k8Factory,
           localConfig,
           getLabelsCallback,
@@ -125,14 +125,14 @@ export class RemoteConfigValidator {
 
   private static validateComponentGroup(
     namespace: NamespaceName,
-    components: Record<string, BaseState>,
+    state: Record<string, BaseState>,
     k8Factory: K8Factory,
     localConfig: LocalConfigRuntimeState,
     getLabelsCallback: (component: BaseState) => string[],
     displayName: string,
     skipCondition?: (component: BaseState) => boolean,
   ): Promise<void>[] {
-    return Object.values(components).map(async (component): Promise<void> => {
+    return Object.values(state).map(async (component): Promise<void> => {
       if (skipCondition?.(component)) {
         return;
       }

@@ -29,6 +29,7 @@ import {type BaseComponent} from '../../../../src/core/config/remote/components/
 import {DeploymentPhase} from '../../../../src/data/schema/model/remote/deployment-phase.js';
 import {Templates} from '../../../../src/core/templates.js';
 import {LocalConfigRuntimeState} from '../../../../src/business/runtime-state/local-config-runtime-state.js';
+import {DeploymentState} from '../../../../src/data/schema/model/remote/deployment-state.js';
 
 interface ComponentsRecord {
   explorer: MirrorNodeExplorerComponent;
@@ -206,17 +207,16 @@ describe('RemoteConfigValidator', () => {
       const consensusNodeComponents: Record<ComponentId, ConsensusNodeComponent> =
         ComponentFactory.createConsensusNodeComponentsFromNodeIds(nodeIds, 'cluster-ref', namespace);
 
-      const componentsDataWrapper: ComponentsDataWrapper =
-        ComponentsDataWrapper.initializeWithNodes(consensusNodeComponents);
+      const deploymentState: DeploymentState = new DeploymentState();
 
       for (const nodeId of nodeIds) {
         // Make sure the status is STARTED
-        componentsDataWrapper.changeNodePhase(nodeId, DeploymentPhase.STARTED);
+        // deploymentState.changeNodePhase(nodeId, DeploymentPhase.STARTED);
       }
 
       await RemoteConfigValidator.validateComponents(
         namespace,
-        componentsDataWrapper,
+        deploymentState,
         k8Factory,
         localConfig,
         skipConsensusNodes,
@@ -232,14 +232,13 @@ describe('RemoteConfigValidator', () => {
         const consensusNodeComponents: Record<ComponentId, ConsensusNodeComponent> =
           ComponentFactory.createConsensusNodeComponentsFromNodeIds(nodeIds, 'cluster-ref', namespace);
 
-        const componentsDataWrapper: ComponentsDataWrapper =
-          ComponentsDataWrapper.initializeWithNodes(consensusNodeComponents);
+        const deploymentState: DeploymentState = new DeploymentState();
 
         for (const nodeId of nodeIds) {
-          componentsDataWrapper.changeNodePhase(nodeId, nodeState);
+          // deploymentState.changeNodePhase(nodeId, nodeState);
         }
 
-        await RemoteConfigValidator.validateComponents(namespace, componentsDataWrapper, k8Factory, localConfig, false);
+        await RemoteConfigValidator.validateComponents(namespace, deploymentState, k8Factory, localConfig, false);
       });
     }
   });

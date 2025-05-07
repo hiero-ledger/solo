@@ -41,7 +41,7 @@ export class CommandInvoker {
     subcommand?: string;
   }): Promise<void> {
     // unload the remote config from the manager
-    this.remoteConfigManager.unload();
+    // this.remoteConfigManager.unload(); // TODO: unload using runtime state
 
     if (!argv.getArg<string>(flags.context)) {
       argv.setArg(flags.context, this.k8Factory.default().contexts().readCurrent());

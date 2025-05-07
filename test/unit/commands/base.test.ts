@@ -15,9 +15,7 @@ import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {resetForTest} from '../../test-container.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {ComponentsDataWrapper} from '../../../src/core/config/remote/components-data-wrapper.js';
-import {createComponentsDataWrapper} from '../core/config/remote/components-data-wrapper.test.js';
 import {type ClusterReferences} from '../../../src/types/index.js';
-import {Cluster} from '../../../src/core/config/remote/cluster.js';
 import {ConsensusNode} from '../../../src/core/model/consensus-node.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
@@ -155,11 +153,6 @@ describe('BaseCommand', () => {
 
       // @ts-expect-error - TS2540: to mock
       localConfig.clusterRefs = sandbox.stub().returns({cluster: 'context1', cluster2: 'context2'});
-      const {
-        wrapper: {componentsDataWrapper},
-      } = createComponentsDataWrapper();
-
-      const newComponentsDataWrapper = ComponentsDataWrapper.fromObject(componentsDataWrapper.toObject());
       const remoteConfigManager = sinon.createStubInstance(RemoteConfigManager);
 
       const mockConsensusNodes = [
@@ -192,19 +185,6 @@ describe('BaseCommand', () => {
       mockedClusterReferenceMap.set('cluster2', 'context2');
       remoteConfigManager.getClusterRefs.returns(mockedClusterReferenceMap);
 
-      Object.defineProperty(remoteConfigManager, 'components', {
-        get: () => newComponentsDataWrapper,
-      });
-      remoteConfigManager.isLoaded = sinon.stub<[], boolean>().returns(true);
-
-      const clusters = {};
-      const cluster = new Cluster('cluster', 'namespace', 'deployment', undefined, undefined);
-      clusters[cluster.name] = cluster;
-      const cluster2 = new Cluster('cluster2', 'namespace', 'deployment', undefined, undefined);
-      clusters[cluster2.name] = cluster2;
-      Object.defineProperty(remoteConfigManager, 'clusters', {
-        get: () => clusters,
-      });
       const k8Factory = sinon.stub();
 
       // @ts-expect-error - allow to create instance of abstract class

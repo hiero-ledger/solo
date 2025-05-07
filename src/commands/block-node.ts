@@ -16,13 +16,18 @@ import {
   type NodeAliases,
 } from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
-import {type ClusterReference, type DeploymentName} from '../types/index.js';
-import {type CommandDefinition, type Optional, type SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
+import {
+  type ClusterReference,
+  type CommandDefinition,
+  type DeploymentName,
+  type Optional,
+  type SoloListrTask,
+  type SoloListrTaskWrapper,
+} from '../types/index.js';
 import * as versions from '../../version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type Lock} from '../core/lock/lock.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
-import {BlockNodeComponent} from '../core/config/remote/components/block-node-component.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {Duration} from '../core/time/duration.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
@@ -31,6 +36,9 @@ import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-bui
 import {type Containers} from '../integration/kube/resources/container/containers.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
+import {BlockNodeState} from '../data/schema/model/remote/state/block-node-state.js';
+import {ComponentStateMetadata} from '../data/schema/model/remote/state/component-state-metadata.js';
+import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -46,7 +54,7 @@ interface BlockNodeDeployConfigClass {
   nodeAliases: NodeAliases; // from remote config
   context: string;
   valuesArg: string;
-  newBlockNodeComponent: BlockNodeComponent;
+  newBlockNodeComponent: BlockNodeState;
   releaseName: string;
 }
 
@@ -83,7 +91,7 @@ export class BlockNodeCommand extends BaseCommand {
       valuesArgument += helpers.prepareValuesFiles(config.valuesFile);
     }
 
-    valuesArgument += helpers.populateHelmArguments({nameOverride: config.newBlockNodeComponent.name});
+    valuesArgument += helpers.populateHelmArguments({nameOverride: config.newBlockNodeComponent.metadata.id});
 
     if (config.domainName) {
       valuesArgument += helpers.populateHelmArguments({
@@ -153,10 +161,8 @@ export class BlockNodeCommand extends BaseCommand {
 
             config.releaseName = this.getReleaseName();
 
-            config.newBlockNodeComponent = new BlockNodeComponent(
-              config.releaseName,
-              config.clusterRef,
-              config.namespace.name,
+            config.newBlockNodeComponent = new BlockNodeState(
+              new ComponentStateMetadata(1, config.namespace.name, config.clusterRef, DeploymentPhase.DEPLOYED),
             );
           },
         },

@@ -2,12 +2,8 @@
 
 import {Exclude, Expose, Transform} from 'class-transformer';
 import {Transformations} from '../../utils/transformations.js';
-import {
-  type ClusterReference,
-  type ComponentId,
-  type NamespaceNameAsString,
-} from '../../../../../core/config/remote/types.js';
 import {type DeploymentPhase} from '../deployment-phase.js';
+import {type ClusterReference, type ComponentId, type NamespaceNameAsString} from '../../../../../types/index.js';
 
 @Exclude()
 export class ComponentStateMetadata {
