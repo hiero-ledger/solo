@@ -30,7 +30,7 @@ check_service_health() {
 }
 
 if [ -z "${STORAGE_TYPE}" ]; then
-  storageType="gcs_only"
+  storageType="minio_only"
 else
   storageType=${STORAGE_TYPE}
 fi
@@ -161,7 +161,7 @@ else
 
   kubectl port-forward -n "${SOLO_NAMESPACE}" svc/haproxy-node1-svc 50211:50211 > /dev/null 2>&1 &
 
-  explorer_svc="$(kubectl get svc -l app.kubernetes.io/component=hedera-explorer -n ${SOLO_NAMESPACE} --output json | jq -r '.items[].metadata.name')"
+  explorer_svc="$(kubectl get svc -l app.kubernetes.io/component=hiero-explorer -n ${SOLO_NAMESPACE} --output json | jq -r '.items[].metadata.name')"
   kubectl port-forward -n "${SOLO_NAMESPACE}" svc/"${explorer_svc}" 8080:80 > /dev/null 2>&1 &
 
   # Check Explorer endpoints
