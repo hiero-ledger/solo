@@ -21,6 +21,7 @@ export class ErrorHandler {
       this.handleSilentBreak(error_);
     } else {
       this.handleError(error);
+      process.exitCode = 1;
     }
   }
 
