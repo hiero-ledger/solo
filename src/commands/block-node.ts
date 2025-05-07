@@ -154,12 +154,8 @@ export class BlockNodeCommand extends BaseCommand {
             ) as BlockNodeDeployConfigClass;
 
             const platformVersion: SemVer = new SemVer(context_.config.releaseTag);
-            const isOlder: boolean = lt(platformVersion, 'v0.62.0');
-            if (isOlder) {
-              throw new SoloError(
-                'Hedera platform versions less than v0.62.0 are not supported for block node,' +
-                  `override it with ${flags.releaseTag.name} flag`,
-              );
+            if (lt(platformVersion, new SemVer('v0.62.0'))) {
+              throw new SoloError('Hedera platform versions less than v0.62.0 are not supported');
             }
 
             context_.config.namespace = await resolveNamespaceFromDeployment(
