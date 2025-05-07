@@ -3,7 +3,7 @@
 import {SoloError} from '../../../core/errors/solo-error.js';
 import {ResourceOperation} from '../resources/resource-operation.js';
 import {type ResourceType} from '../resources/resource-type.js';
-import {type NamespaceName} from '../resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 
 export class ResourceOperationError extends SoloError {
   /**

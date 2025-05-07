@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type Services} from '../../../resources/service/services.js';
-import {type NamespaceName} from '../../../resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {V1ObjectMeta, V1Service, V1ServicePort, V1ServiceSpec, type CoreV1Api} from '@kubernetes/client-node';
 import {K8ClientBase} from '../../k8-client-base.js';
 import {type Service} from '../../../resources/service/service.js';

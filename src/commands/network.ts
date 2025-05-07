@@ -907,18 +907,18 @@ export class NetworkCommand extends BaseCommand {
           title: `Install chart '${constants.SOLO_DEPLOYMENT_CHART}'`,
           task: async context_ => {
             const config = context_.config;
-            for (const clusterReference of Object.keys(config.clusterRefs)) {
+            for (const [clusterReference] of config.clusterRefs) {
               if (
                 await self.chartManager.isChartInstalled(
                   config.namespace,
                   constants.SOLO_DEPLOYMENT_CHART,
-                  config.clusterRefs[clusterReference],
+                  config.clusterRefs.get(clusterReference),
                 )
               ) {
                 await self.chartManager.uninstall(
                   config.namespace,
                   constants.SOLO_DEPLOYMENT_CHART,
-                  config.clusterRefs[clusterReference],
+                  config.clusterRefs.get(clusterReference),
                 );
               }
 
@@ -929,7 +929,7 @@ export class NetworkCommand extends BaseCommand {
                 context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
                 config.soloChartVersion,
                 config.valuesArgMap[clusterReference],
-                config.clusterRefs[clusterReference],
+                config.clusterRefs.get(clusterReference),
               );
               showVersionBanner(self.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
             }
@@ -1003,7 +1003,7 @@ export class NetworkCommand extends BaseCommand {
             // Perform a helm upgrade for each cluster
             const subTasks: SoloListrTask<Context>[] = [];
             const config = context_.config;
-            for (const clusterReference of Object.keys(config.clusterRefs)) {
+            for (const [clusterReference] of config.clusterRefs) {
               subTasks.push({
                 title: `Upgrade chart for cluster: ${chalk.yellow(clusterReference)}`,
                 task: async () => {
@@ -1014,12 +1014,12 @@ export class NetworkCommand extends BaseCommand {
                     context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
                     config.soloChartVersion,
                     config.valuesArgMap[clusterReference],
-                    config.clusterRefs[clusterReference],
+                    config.clusterRefs.get(clusterReference),
                   );
                   showVersionBanner(self.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
 
                   // TODO: Remove this code now that we have made the config dynamic and can update it without redeploying
-                  const context = config.clusterRefs[clusterReference];
+                  const context = config.clusterRefs.get(clusterReference);
                   const pods: Pod[] = await this.k8Factory
                     .getK8(context)
                     .pods()
@@ -1243,8 +1243,8 @@ export class NetworkCommand extends BaseCommand {
     return networkDestroySuccess;
   }
 
-  getCommandDefinition() {
-    const self = this;
+  public getCommandDefinition(): CommandDefinition {
+    const self: this = this;
     return {
       command: NetworkCommand.COMMAND_NAME,
       desc: 'Manage solo network deployment',

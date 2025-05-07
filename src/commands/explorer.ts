@@ -15,9 +15,9 @@ import {ListrLock} from '../core/lock/listr-lock.js';
 import {type MirrorNodeExplorerComponent} from '../core/config/remote/components/mirror-node-explorer-component.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
-import {type Optional, type SoloListrTask} from '../types/index.js';
+import {type CommandDefinition, type Optional, type SoloListrTask} from '../types/index.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterChecks} from '../core/cluster-checks.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -248,7 +248,7 @@ export class ExplorerCommand extends BaseCommand {
 
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
             context_.config.clusterContext = context_.config.clusterRef
-              ? this.localConfig.clusterRefs[context_.config.clusterRef]
+              ? this.localConfig.clusterRefs.get(context_.config.clusterRef)
               : this.k8Factory.default().contexts().readCurrent();
 
             if (
@@ -475,7 +475,7 @@ export class ExplorerCommand extends BaseCommand {
               ? this.configManager.getFlag(flags.clusterRef)
               : this.remoteConfigManager.currentCluster;
 
-            const clusterContext: Context = this.localConfig.clusterRefs[clusterReference];
+            const clusterContext: Context = this.localConfig.clusterRefs.get(clusterReference);
 
             context_.config = {
               namespace,
@@ -549,8 +549,8 @@ export class ExplorerCommand extends BaseCommand {
     return true;
   }
 
-  public getCommandDefinition() {
-    const self = this;
+  public getCommandDefinition(): CommandDefinition {
+    const self: this = this;
     return {
       command: ExplorerCommand.COMMAND_NAME,
       desc: 'Manage Explorer in solo network',

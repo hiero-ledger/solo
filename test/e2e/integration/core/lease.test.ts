@@ -9,7 +9,7 @@ import {sleep} from '../../../../src/core/helpers.js';
 import {NoopLeaseRenewalService} from './noop-lease-renewal-service.test.js';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';
-import {NamespaceName} from '../../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 import {LockRelinquishmentError} from '../../../../src/core/lock/lock-relinquishment-error.js';
 

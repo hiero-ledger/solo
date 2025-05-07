@@ -2,17 +2,14 @@
 
 import * as constants from '../../constants.js';
 import {SoloError} from '../../errors/solo-error.js';
-import {type NamespaceName} from '../../../integration/kube/resources/namespace/namespace-name.js';
-import {type LocalConfig} from '../local/local-config.js';
-import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
-import {type Context} from './types.js';
 import {type K8Factory} from '../../../integration/kube/k8-factory.js';
-import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
-import {Templates} from '../../templates.js';
-import {type NodeAlias} from '../../../types/aliases.js';
-import {type DeploymentState} from '../../../data/schema/model/remote/deployment-state.js';
-import {type BaseState} from '../../../data/schema/model/remote/state/base-state.js';
-import {type ConsensusNodeState} from '../../../data/schema/model/remote/state/consensus-node-state.js';
+import {type ComponentsDataWrapper} from './components-data-wrapper.js';
+import {type BaseComponent} from './components/base-component.js';
+import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
+import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
+import {type LocalConfigRuntimeState} from '../../../business/runtime-state/local-config-runtime-state.js';
+import {ConsensusNodeStates} from './enumerations/consensus-node-states.js';
+import {type Context} from '../../../types/index.js';
 
 /**
  * Static class is used to validate that components in the remote config
@@ -103,7 +100,7 @@ export class RemoteConfigValidator {
     namespace: NamespaceName,
     components: DeploymentState,
     k8Factory: K8Factory,
-    localConfig: LocalConfig,
+    localConfig: LocalConfigRuntimeState,
     skipConsensusNodes: boolean,
   ): Promise<void> {
     const validationPromises: Promise<void>[] = Object.entries(RemoteConfigValidator.componentValidationsMapping)
@@ -127,7 +124,7 @@ export class RemoteConfigValidator {
     namespace: NamespaceName,
     components: Record<string, BaseState>,
     k8Factory: K8Factory,
-    localConfig: LocalConfig,
+    localConfig: LocalConfigRuntimeState,
     getLabelsCallback: (component: BaseState) => string[],
     displayName: string,
     skipCondition?: (component: BaseState) => boolean,
@@ -137,7 +134,7 @@ export class RemoteConfigValidator {
         return;
       }
 
-      const context: Context = localConfig.clusterRefs[component.metadata.cluster];
+      const context: Context = localConfig.clusterRefs.get(component.metadata.cluster);
       const labels: string[] = getLabelsCallback(component);
 
       try {

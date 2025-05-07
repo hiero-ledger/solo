@@ -8,7 +8,7 @@ import {sleep} from '../helpers.js';
 import {Duration} from '../time/duration.js';
 import {type Lock, type LockRenewalService} from './lock.js';
 import {StatusCodes} from 'http-status-codes';
-import {type NamespaceName} from '../../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {type Lease} from '../../integration/kube/resources/lease/lease.js';
 import {LockAcquisitionError} from './lock-acquisition-error.js';
 import {LockRelinquishmentError} from './lock-relinquishment-error.js';

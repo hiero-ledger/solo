@@ -5,6 +5,7 @@
  */
 export enum ComponentTypes {
   ConsensusNode = 'consensusNodes',
+  BlockNode = 'blockNodes',
   HaProxy = 'haProxies',
   EnvoyProxy = 'envoyProxies',
   MirrorNode = 'mirrorNodes',

@@ -6,7 +6,7 @@ import {SoloError} from './errors/solo-error.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
-import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {Repository} from '../integration/helm/model/repository.js';
 import {type ReleaseItem} from '../integration/helm/model/release/release-item.js';

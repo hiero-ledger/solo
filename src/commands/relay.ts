@@ -156,7 +156,7 @@ export class RelayCommand extends BaseCommand {
       valuesArgument += ` --set config.OPERATOR_KEY_MAIN=${operatorKey}`;
     } else {
       try {
-        const namespace = NamespaceName.of(this.localConfig.deployments[deploymentName].namespace);
+        const namespace = NamespaceName.of(this.localConfig.getDeployment(deploymentName).namespace);
 
         const k8 = this.k8Factory.getK8(context);
         const secrets = await k8.secrets().list(namespace, [`solo.hedera.com/account-id=${operatorIdUsing}`]);
@@ -336,8 +336,8 @@ export class RelayCommand extends BaseCommand {
             await self.chartManager.install(
               config.namespace,
               config.releaseName,
-              JSON_RPC_RELAY_CHART,
-              JSON_RPC_RELAY_CHART,
+              constants.JSON_RPC_RELAY_CHART,
+              constants.JSON_RPC_RELAY_CHART,
               '',
               config.valuesArg,
               config.context,

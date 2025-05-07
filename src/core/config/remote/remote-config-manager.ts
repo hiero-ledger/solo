@@ -10,7 +10,6 @@ import {
   type ClusterReferences,
   type Context,
   type DeploymentName,
-  type EmailAddress,
   type NamespaceNameAsString,
 } from './types.js';
 import {type SoloLogger} from '../../logging/solo-logger.js';
@@ -19,11 +18,12 @@ import {type LocalConfig} from '../local/local-config.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../dependency-injection/container-helper.js';
 import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases} from '../../../types/aliases.js';
-import {type NamespaceName} from '../../../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
 import {ConsensusNode} from '../../model/consensus-node.js';
 import {Templates} from '../../templates.js';
-import {promptTheUserForDeployment} from '../../resolvers.js';
+import {promptTheUserForDeployment, resolveNamespaceFromDeployment} from '../../resolvers.js';
+import {type ConfigMap} from '../../../integration/kube/resources/config-map/config-map.js';
 import {getSoloVersion} from '../../../../version.js';
 import {DeploymentStates} from './enumerations/deployment-states.js';
 import {type RemoteConfigRuntimeState} from '../../../business/runtime-state/remote-config-runtime-state.js';
@@ -31,9 +31,10 @@ import {type RemoteConfig} from '../../../data/schema/model/remote/remote-config
 import {SemVer} from 'semver';
 import {Cluster} from '../../../data/schema/model/common/cluster.js';
 import {DeploymentStructure} from '../local/local-config-data.js';
-import {DeploymentState} from '../../../data/schema/model/remote/deployment-state.js';
 import {RemoteConfigMetadata} from '../../../data/schema/model/remote/remote-config-metadata.js';
 import * as constants from '../../constants.js';
+import {LocalConfigRuntimeState} from '../../../business/runtime-state/local-config-runtime-state.js';
+import {DeploymentStates} from './enumerations/deployment-states.js';
 
 /**
  * Uses Kubernetes ConfigMaps to manage the remote configuration data by creating, loading, modifying,
@@ -51,13 +52,13 @@ export class RemoteConfigManager {
   public constructor(
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
-    @inject(InjectTokens.LocalConfig) private readonly localConfig?: LocalConfig,
+    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
     @inject(InjectTokens.ConfigManager) private readonly configManager?: ConfigManager,
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfigRuntimeState?: RemoteConfigRuntimeState,
   ) {
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
-    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfig, this.constructor.name);
+    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.remoteConfigRuntimeState = patchInject(
       remoteConfigRuntimeState,
@@ -100,14 +101,14 @@ export class RemoteConfigManager {
       ),
     };
 
-    const lastUpdatedAt: Date = new Date();
-    const email: EmailAddress = this.localConfig.userEmailAddress;
-    const soloVersion: string = getSoloVersion();
-    const currentCommand: string = argv._.join(' ');
+    const lastUpdatedAt = new Date();
+    const userIdentity = this.localConfig.userIdentity;
+    const soloVersion = getSoloVersion();
+    const currentCommand = argv._.join(' ');
 
     this.remoteConfig = new RemoteConfigDataWrapper({
       clusters,
-      metadata: new RemoteConfigMetadata(namespace.name, deployment, state, lastUpdatedAt, email, soloVersion),
+      metadata: new RemoteConfigMetadata(namespace.name, deployment, state, lastUpdatedAt, userIdentity, soloVersion),
       commandHistory: [currentCommand],
       lastExecutedCommand: currentCommand,
       components: ComponentsDataWrapper.initializeWithNodes(nodeAliases, clusterReference, namespace.name),
@@ -163,7 +164,7 @@ export class RemoteConfigManager {
       const commandArguments: string = flags.stringifyArgv(argv);
 
       this.addCommandToHistory(
-        `Executed by ${this.localConfig.userEmailAddress}: ${currentCommand} ${commandArguments}`.trim(),
+        `Executed by ${this.localConfig.userIdentity.name}: ${currentCommand} ${commandArguments}`.trim(),
         remoteConfig,
       );
 
@@ -238,11 +239,11 @@ export class RemoteConfigManager {
 
     // TODO: Current quick fix for commands where namespace is not passed
     let deploymentName: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
-    let currentDeployment: DeploymentStructure = this.localConfig.deployments[deploymentName];
+    let currentDeployment: DeploymentStructure = this.localConfig.getDeployment(deploymentName);
 
     if (!deploymentName) {
       deploymentName = await promptTheUserForDeployment(this.configManager);
-      currentDeployment = this.localConfig.deployments[deploymentName];
+      currentDeployment = this.localConfig.getDeployment(deploymentName);
       // TODO: Fix once we have the DataManager,
       //       without this the user will be prompted a second time for the deployment
       // TODO: we should not be mutating argv
@@ -296,7 +297,7 @@ export class RemoteConfigManager {
       const cluster: Cluster = this.remoteConfigRuntimeState.clusters.find(
         (cluster: Cluster): boolean => cluster.name === node.metadata.cluster,
       );
-      const context: Context = this.localConfig.clusterRefs[node.metadata.cluster];
+      const context: Context = this.localConfig.clusterRefs.get(node.metadata.cluster);
       const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(node.metadata.id + 1);
 
       consensusNodes.push(
@@ -338,10 +339,10 @@ export class RemoteConfigManager {
    */
   public getClusterRefs(): ClusterReferences {
     const nodes: ConsensusNode[] = this.getConsensusNodes();
-    const accumulator: ClusterReferences = {};
+    const accumulator: ClusterReferences = new Map<string, string>();
 
     for (const node of nodes) {
-      accumulator[node.cluster] ||= node.context;
+      accumulator.set(node.cluster, node.context);
     }
 
     return accumulator;
@@ -350,9 +351,9 @@ export class RemoteConfigManager {
   private getContextForFirstCluster(): string {
     const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
 
-    const clusterReference: ClusterReference = this.localConfig.deployments[deploymentName].clusters[0];
+    const clusterReference: ClusterReference = this.localConfig.getDeployment(deploymentName).clusters[0];
 
-    const context: Context = this.localConfig.clusterRefs[clusterReference];
+    const context: Context = this.localConfig.clusterRefs.get(clusterReference);
 
     this.logger.debug(`Using context ${context} for cluster ${clusterReference} for deployment ${deploymentName}`);
 

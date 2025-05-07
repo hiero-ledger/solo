@@ -3,14 +3,13 @@
 import {SoloError} from '../core/errors/solo-error.js';
 import {ShellRunner} from '../core/shell-runner.js';
 import {type LockManager} from '../core/lock/lock-manager.js';
-import {type LocalConfig} from '../core/config/local/local-config.js';
 import {type RemoteConfigManager} from '../core/config/remote/remote-config-manager.js';
 import {type ChartManager} from '../core/chart-manager.js';
 import {type ConfigManager} from '../core/config-manager.js';
 import {type DependencyManager} from '../core/dependency-managers/index.js';
 import * as constants from '../core/constants.js';
 import fs from 'node:fs';
-import {type ClusterReference, type ClusterReferences} from '../core/config/remote/types.js';
+import {type ClusterReference, type ClusterReferences} from '../types/index.js';
 import {Flags} from './flags.js';
 import {type SoloLogger} from '../core/logging/solo-logger.js';
 import {type PackageDownloader} from '../core/package-downloader.js';
@@ -22,6 +21,7 @@ import {type CertificateManager} from '../core/certificate-manager.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {type HelmClient} from '../integration/helm/helm-client.js';
+import {type LocalConfigRuntimeState} from '../business/runtime-state/local-config-runtime-state.js';
 
 export interface Options {
   logger: SoloLogger;
@@ -37,7 +37,7 @@ export interface Options {
   profileManager: ProfileManager;
   leaseManager: LockManager;
   certificateManager: CertificateManager;
-  localConfig: LocalConfig;
+  localConfig: LocalConfigRuntimeState;
   remoteConfigManager: RemoteConfigManager;
 }
 
@@ -48,7 +48,7 @@ export abstract class BaseCommand extends ShellRunner {
   public readonly configManager: ConfigManager;
   protected readonly depManager: DependencyManager;
   protected readonly leaseManager: LockManager;
-  public readonly localConfig: LocalConfig;
+  public readonly localConfig: LocalConfigRuntimeState;
   protected readonly remoteConfigManager: RemoteConfigManager;
 
   constructor(options: Options) {
@@ -105,7 +105,7 @@ export abstract class BaseCommand extends ShellRunner {
   ): Record<ClusterReference, string> {
     // initialize the map with an empty array for each cluster-ref
     const valuesFiles: Record<ClusterReference, string> = {[Flags.KEY_COMMON]: ''};
-    for (const clusterReference of Object.keys(clusterReferences)) {
+    for (const [clusterReference] of clusterReferences) {
       valuesFiles[clusterReference] = '';
     }
 
@@ -180,7 +180,7 @@ export abstract class BaseCommand extends ShellRunner {
     const valuesFiles: Record<ClusterReference, string> = {
       [Flags.KEY_COMMON]: '',
     };
-    for (const clusterReference of Object.keys(clusterReferences)) {
+    for (const [clusterReference] of clusterReferences) {
       valuesFiles[clusterReference] = '';
     }
 

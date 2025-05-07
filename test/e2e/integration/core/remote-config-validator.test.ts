@@ -14,13 +14,12 @@ import {type MirrorNodeExplorerComponent} from '../../../../src/core/config/remo
 import {type EnvoyProxyComponent} from '../../../../src/core/config/remote/components/envoy-proxy-component.js';
 import {type NodeId} from '../../../../src/types/aliases.js';
 import {container} from 'tsyringe-neo';
-import {NamespaceName} from '../../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
 import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
 import {ContainerName} from '../../../../src/integration/kube/resources/container/container-name.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
-import {LocalConfig} from '../../../../src/core/config/local/local-config.js';
 import {getTestCacheDirectory} from '../../../test-utility.js';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {LocalConfigDataWrapper} from '../../../../src/core/config/local/local-config-data-wrapper.js';
@@ -29,6 +28,7 @@ import {ComponentFactory} from '../../../../src/core/config/remote/components/co
 import {type BaseComponent} from '../../../../src/core/config/remote/components/base-component.js';
 import {DeploymentPhase} from '../../../../src/data/schema/model/remote/deployment-phase.js';
 import {Templates} from '../../../../src/core/templates.js';
+import {LocalConfigRuntimeState} from '../../../../src/business/runtime-state/local-config-runtime-state.js';
 
 interface ComponentsRecord {
   explorer: MirrorNodeExplorerComponent;
@@ -106,7 +106,7 @@ describe('RemoteConfigValidator', () => {
   const namespace: NamespaceName = NamespaceName.of('remote-config-validator');
 
   let k8Factory: K8Factory;
-  let localConfig: LocalConfig;
+  let localConfig: LocalConfigRuntimeState;
   const filePath: string = `${getTestCacheDirectory('LocalConfig')}/localConfig.yaml`;
 
   let components: ComponentsRecord;
@@ -116,9 +116,8 @@ describe('RemoteConfigValidator', () => {
 
   before(async () => {
     k8Factory = container.resolve(InjectTokens.K8Factory);
-    localConfig = new LocalConfig(filePath);
-    // @ts-expect-error - TS2341: to mock
-    localConfig.localConfigData = new LocalConfigDataWrapper('test@test.com', '0.0.1', {}, {});
+    localConfig = new LocalConfigRuntimeState(`${getTestCacheDirectory('LocalConfig')}`, 'localConfig.yaml');
+    await localConfig.load();
     await k8Factory.default().namespaces().create(namespace);
   });
 
