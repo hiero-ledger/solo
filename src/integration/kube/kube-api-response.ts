@@ -3,7 +3,7 @@
 import type http from 'node:http';
 import {type ResourceOperation} from './resources/resource-operation.js';
 import {type ResourceType} from './resources/resource-type.js';
-import {type NamespaceName} from './resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {ResourceNotFoundError} from './errors/resource-operation-errors.js';
 import {StatusCodes} from 'http-status-codes';
 import {KubeApiError} from './errors/kube-api-error.js';

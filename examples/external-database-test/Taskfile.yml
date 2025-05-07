@@ -34,7 +34,6 @@ env:
   SOLO_CLUSTER_SETUP_NAMESPACE: solo-setup
   SOLO_CLUSTER_RELEASE_NAME: solo-cluster-setup
   MIRROR_RELEASE_NAME: mirror
-  SOLO_EMAIL: john@doe.com
   HEDERA_SERVICES_ROOT: "/Users/user/source/hiero-consensus-node"
   ENABLE_EXPLORER_TLS_FLAG: "--enable-hedera-explorer-tls"
   TLS_CLUSTER_ISSUER_TYPE_FLAG: "--tls-cluster-issuer-type acme-staging"

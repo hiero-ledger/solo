@@ -57,7 +57,7 @@ import {
   type DeploymentName,
   type Realm,
   type Shard,
-} from '../core/config/remote/types.js';
+} from '../types/index.js';
 import {Base64} from 'js-base64';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Duration} from '../core/time/duration.js';
@@ -961,18 +961,18 @@ export class NetworkCommand extends BaseCommand {
           title: `Install chart '${constants.SOLO_DEPLOYMENT_CHART}'`,
           task: async (context_): Promise<void> => {
             const config: NetworkDeployConfigClass = context_.config;
-            for (const clusterReference of Object.keys(config.clusterRefs)) {
+            for (const [clusterReference] of config.clusterRefs) {
               if (
                 await this.chartManager.isChartInstalled(
                   config.namespace,
                   constants.SOLO_DEPLOYMENT_CHART,
-                  config.clusterRefs[clusterReference],
+                  config.clusterRefs.get(clusterReference),
                 )
               ) {
                 await this.chartManager.uninstall(
                   config.namespace,
                   constants.SOLO_DEPLOYMENT_CHART,
-                  config.clusterRefs[clusterReference],
+                  config.clusterRefs.get(clusterReference),
                 );
               }
 
@@ -983,7 +983,7 @@ export class NetworkCommand extends BaseCommand {
                 context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
                 config.soloChartVersion,
                 config.valuesArgMap[clusterReference],
-                config.clusterRefs[clusterReference],
+                config.clusterRefs.get(clusterReference),
               );
               showVersionBanner(this.logger, SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
             }
@@ -1057,7 +1057,7 @@ export class NetworkCommand extends BaseCommand {
             // Perform a helm upgrade for each cluster
             const subTasks: SoloListrTask<NetworkDeployContext>[] = [];
             const config: NetworkDeployConfigClass = context_.config;
-            for (const clusterReference of Object.keys(config.clusterRefs)) {
+            for (const [clusterReference] of config.clusterRefs) {
               subTasks.push({
                 title: `Upgrade chart for cluster: ${chalk.yellow(clusterReference)}`,
                 task: async (): Promise<void> => {
@@ -1068,12 +1068,12 @@ export class NetworkCommand extends BaseCommand {
                     context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
                     config.soloChartVersion,
                     config.valuesArgMap[clusterReference],
-                    config.clusterRefs[clusterReference],
+                    config.clusterRefs.get(clusterReference),
                   );
                   showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
 
                   // TODO: Remove this code now that we have made the config dynamic and can update it without redeploying
-                  const context: Context = config.clusterRefs[clusterReference];
+                  const context: Context = config.clusterRefs.get(clusterReference);
                   const pods: Pod[] = await this.k8Factory
                     .getK8(context)
                     .pods()

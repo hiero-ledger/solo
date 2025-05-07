@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type ToObject} from '../../../types/index.js';
-import {type ClusterReference, type DeploymentName, type NamespaceNameAsString} from './types.js';
+import {type ClusterReference, type DeploymentName, type NamespaceNameAsString} from '../../../types/index.js';
 import {SoloError} from '../../errors/solo-error.js';
 import {type ClusterStruct} from './interfaces/cluster-struct.js';
 

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type Namespaces} from '../../../resources/namespace/namespaces.js';
+import {type Namespaces} from '../../../../../types/namespace/namespaces.js';
 import {type V1Status, type CoreV1Api} from '@kubernetes/client-node';
 import {StatusCodes} from 'http-status-codes';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
-import {NamespaceName} from '../../../resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {sleep} from '../../../../../core/helpers.js';
 import {Duration} from '../../../../../core/time/duration.js';
 

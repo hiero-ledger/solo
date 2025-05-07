@@ -1,29 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type LocalConfig} from './config/local/local-config.js';
-import {type DeploymentName} from './config/remote/types.js';
+import {type DeploymentName} from './../types/index.js';
 import {type ConfigManager} from './config-manager.js';
 import {Flags as flags} from '../commands/flags.js';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type SoloListrTaskWrapper} from '../types/index.js';
 import {input as inputPrompt} from '@inquirer/prompts';
 import {SoloError} from './errors/solo-error.js';
 import {type AnyListrContext} from '../types/aliases.js';
+import {type LocalConfigRuntimeState} from '../business/runtime-state/local-config-runtime-state.js';
 
 export async function resolveNamespaceFromDeployment(
-  localConfig: LocalConfig,
+  localConfig: LocalConfigRuntimeState,
   configManager: ConfigManager,
   task?: SoloListrTaskWrapper<AnyListrContext>,
 ): Promise<NamespaceName> {
   const deploymentName: DeploymentName = await promptTheUserForDeployment(configManager, task);
-
-  if (!localConfig.deployments.hasOwnProperty(deploymentName)) {
-    throw new SoloError(
-      `deployment ${deploymentName}, is missing from deployments: ${JSON.stringify(localConfig.deployments)}`,
-    );
-  }
-
-  return NamespaceName.of(localConfig.deployments[deploymentName].namespace);
+  return NamespaceName.of(localConfig.getDeployment(deploymentName).namespace);
 }
 
 export async function promptTheUserForDeployment(

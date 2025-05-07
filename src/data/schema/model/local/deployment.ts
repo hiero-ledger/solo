@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Exclude, Expose} from 'class-transformer';
-import {type Realm, type Shard} from '../../../../core/config/remote/types.js';
+import {type Realm, type Shard} from '../../../../types/index.js';
 
 @Exclude()
 export class Deployment {

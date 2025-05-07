@@ -3,7 +3,7 @@
 import {SoloError} from '../../../errors/solo-error.js';
 import {BaseComponent} from './base-component.js';
 import {ComponentTypes} from '../enumerations/component-types.js';
-import {type ClusterReference, type ComponentName, type NamespaceNameAsString} from '../types.js';
+import {type ClusterReference, type ComponentName, type NamespaceNameAsString} from '../../../../types/index.js';
 import {type NodeAliases} from '../../../../types/aliases.js';
 import {type ToObject} from '../../../../types/index.js';
 import {type RelayComponentStruct} from './interfaces/relay-component-struct.js';
