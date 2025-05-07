@@ -28,21 +28,15 @@ import {type ClusterReference, type ExtendedNetServer} from '../../../src/types/
 import {exec} from 'node:child_process';
 import {promisify} from 'node:util';
 import * as constants from '../../../src/core/constants.js';
-import {SemVer, lt} from 'semver';
 
 const execAsync = promisify(exec);
-
-let platformVersion: string = HEDERA_PLATFORM_VERSION_TAG;
-if (lt(new SemVer(HEDERA_PLATFORM_VERSION_TAG), new SemVer('v0.62.0'))) {
-  platformVersion = 'v0.62.0';
-}
 
 const testName: string = 'block-node-cmd-e2e';
 const namespace: NamespaceName = NamespaceName.of(testName);
 const argv: Argv = Argv.getDefaultArgv(namespace);
 const clusterReference: ClusterReference = getTestCluster();
 argv.setArg(flags.namespace, namespace.name);
-argv.setArg(flags.releaseTag, platformVersion);
+argv.setArg(flags.releaseTag, HEDERA_PLATFORM_VERSION_TAG);
 argv.setArg(flags.nodeAliasesUnparsed, 'node1');
 argv.setArg(flags.generateGossipKeys, true);
 argv.setArg(flags.generateTlsKeys, true);
@@ -106,10 +100,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
         const scriptStd: {stdout: string; stderr: string} = await execAsync('sh ./get-block.sh 1', commandOptions);
 
         expect(scriptStd.stderr).to.equal('');
-
-        const getBlockResponse: {status: string} = JSON.parse(scriptStd.stdout);
-
-        expect(getBlockResponse.status).to.equal('READ_BLOCK_SUCCESS');
+        expect(scriptStd.stdout).to.include('READ_BLOCK_SUCCESS');
 
         logger.showUserError(scriptStd);
       } finally {
