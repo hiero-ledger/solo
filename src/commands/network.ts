@@ -35,19 +35,21 @@ import {
 } from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {v4 as uuidv4} from 'uuid';
-import {type SoloListr, type SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
-import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
-import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
-import {type ConsensusNode} from '../core/model/consensus-node.js';
 import {
   type ClusterReference,
   type ClusterReferences,
+  type CommandDefinition,
+  type Context,
   type DeploymentName,
   type Realm,
   type Shard,
-  type Context,
-} from '../core/config/remote/types.js';
+  type SoloListr,
+  type SoloListrTask,
+  type SoloListrTaskWrapper,
+} from '../types/index.js';
+import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
+import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
+import {type ConsensusNode} from '../core/model/consensus-node.js';
 import {Base64} from 'js-base64';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Duration} from '../core/time/duration.js';
@@ -56,8 +58,9 @@ import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {ComponentFactory} from '../core/config/remote/components/component-factory.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
-import {SemVer, lt as SemVersionLessThan} from 'semver';
-import {SOLO_DEPLOYMENT_CHART} from '../core/constants.js';
+import {lt as SemVersionLessThan, SemVer} from 'semver';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
+import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 
 export interface NetworkDeployConfigClass {
   applicationEnv: string;
@@ -1313,18 +1316,20 @@ export class NetworkCommand extends BaseCommand {
       task: async (context_): Promise<void> => {
         const {namespace} = context_.config;
 
-        await this.remoteConfigManager.modify(async remoteConfig => {
+        await this.remoteConfigManager.modify(async (_, components) => {
           for (const consensusNode of context_.config.consensusNodes) {
             const nodeId: NodeId = Templates.nodeIdFromNodeAlias(consensusNode.name);
             const clusterReference: ClusterReference = consensusNode.cluster;
 
-            remoteConfig.components.changeNodePhase(nodeId, DeploymentPhase.REQUESTED);
+            components.changeNodePhase(nodeId, DeploymentPhase.REQUESTED);
 
-            remoteConfig.components.addNewComponent(
+            components.addNewComponent(
               ComponentFactory.createNewEnvoyProxyComponent(this.remoteConfigManager, clusterReference, namespace),
+              ComponentTypes.EnvoyProxy,
             );
-            remoteConfig.components.addNewComponent(
+            components.addNewComponent(
               ComponentFactory.createNewHaProxyComponent(this.remoteConfigManager, clusterReference, namespace),
+              ComponentTypes.HaProxy,
             );
           }
         });

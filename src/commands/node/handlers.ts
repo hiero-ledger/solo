@@ -12,7 +12,6 @@ import {type NodeCommandTasks} from './tasks.js';
 import {NodeSubcommandType} from '../../core/enumerations.js';
 import {NodeHelper} from './helper.js';
 import {type ArgvStruct, type NodeAlias, type NodeAliases, NodeId} from '../../types/aliases.js';
-import {ConsensusNodeComponent} from '../../core/config/remote/components/consensus-node-component.js';
 import {type Listr} from 'listr2';
 import chalk from 'chalk';
 import {type ComponentsDataWrapper} from '../../core/config/remote/components-data-wrapper.js';
@@ -30,6 +29,7 @@ import {type NodeUpgradeContext} from './config-interfaces/node-upgrade-context.
 import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
 import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
 import {Templates} from '../../core/templates.js';
+import {ConsensusNodeState} from '../../data/schema/model/remote/state/consensus-node-state.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -912,10 +912,10 @@ export class NodeCommandHandlers extends CommandHandler {
       title: `Change node state to ${phase} in remote config`,
       skip: (): boolean => !this.remoteConfigManager.isLoaded(),
       task: async (context_: Context): Promise<void> => {
-        await this.remoteConfigManager.modify(async remoteConfig => {
+        await this.remoteConfigManager.modify(async (_, components) => {
           for (const consensusNode of context_.config.consensusNodes) {
             const nodeId: NodeId = Templates.nodeIdFromNodeAlias(consensusNode.name);
-            remoteConfig.components.changeNodePhase(nodeId, phase);
+            components.changeNodePhase(nodeId, phase);
           }
         });
       },
@@ -1009,9 +1009,9 @@ export class NodeCommandHandlers extends CommandHandler {
     acceptedPhases: Optional<DeploymentPhase[]>,
     excludedPhases: Optional<DeploymentPhase[]>,
   ): DeploymentPhase {
-    let nodeComponent: ConsensusNodeComponent;
+    let nodeComponent: ConsensusNodeState;
     try {
-      nodeComponent = components.getComponent<ConsensusNodeComponent>(
+      nodeComponent = components.getComponent<ConsensusNodeState>(
         ComponentTypes.ConsensusNode,
         Templates.nodeIdFromNodeAlias(nodeAlias),
       );
@@ -1034,6 +1034,6 @@ export class NodeCommandHandlers extends CommandHandler {
     //   throw new SoloError(`${nodeAlias} has invalid state - ` + errorMessageData);
     // }
 
-    return nodeComponent.phase;
+    return nodeComponent.metadata.phase;
   }
 }

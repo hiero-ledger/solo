@@ -76,6 +76,10 @@ export class RemoteConfigManager {
     return this.componentsDataWrapper;
   }
 
+  public get clusters(): Cluster[] {
+    return this.remoteConfigRuntimeState.clusters;
+  }
+
   /* ---------- Readers and Modifiers ---------- */
 
   public isLoaded(): boolean {

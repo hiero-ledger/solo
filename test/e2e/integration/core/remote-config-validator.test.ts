@@ -6,12 +6,6 @@ import {expect} from 'chai';
 import {RemoteConfigValidator} from '../../../../src/core/config/remote/remote-config-validator.js';
 import {ComponentsDataWrapper} from '../../../../src/core/config/remote/components-data-wrapper.js';
 import {SoloError} from '../../../../src/core/errors/solo-error.js';
-import {type RelayComponent} from '../../../../src/core/config/remote/components/relay-component.js';
-import {type HaProxyComponent} from '../../../../src/core/config/remote/components/ha-proxy-component.js';
-import {type MirrorNodeComponent} from '../../../../src/core/config/remote/components/mirror-node-component.js';
-import {type ConsensusNodeComponent} from '../../../../src/core/config/remote/components/consensus-node-component.js';
-import {type MirrorNodeExplorerComponent} from '../../../../src/core/config/remote/components/mirror-node-explorer-component.js';
-import {type EnvoyProxyComponent} from '../../../../src/core/config/remote/components/envoy-proxy-component.js';
 import {type NodeId} from '../../../../src/types/aliases.js';
 import {container} from 'tsyringe-neo';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
@@ -22,22 +16,29 @@ import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tok
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {getTestCacheDirectory} from '../../../test-utility.js';
 import {Duration} from '../../../../src/core/time/duration.js';
-import {LocalConfigDataWrapper} from '../../../../src/core/config/local/local-config-data-wrapper.js';
-import {type ClusterReference, type ComponentId} from '../../../../src/core/config/remote/types.js';
+import {type ClusterReference, type ComponentId} from '../../../../src/types/index.js';
 import {ComponentFactory} from '../../../../src/core/config/remote/components/component-factory.js';
-import {type BaseComponent} from '../../../../src/core/config/remote/components/base-component.js';
 import {DeploymentPhase} from '../../../../src/data/schema/model/remote/deployment-phase.js';
 import {Templates} from '../../../../src/core/templates.js';
 import {LocalConfigRuntimeState} from '../../../../src/business/runtime-state/local-config-runtime-state.js';
 import {DeploymentState} from '../../../../src/data/schema/model/remote/deployment-state.js';
+import {type ExplorerState} from '../../../../src/data/schema/model/remote/state/explorer-state.js';
+import {type MirrorNodeState} from '../../../../src/data/schema/model/remote/state/mirror-node-state.js';
+import {type RelayNodeState} from '../../../../src/data/schema/model/remote/state/relay-node-state.js';
+import {type ConsensusNodeState} from '../../../../src/data/schema/model/remote/state/consensus-node-state.js';
+import {type HAProxyState} from '../../../../src/data/schema/model/remote/state/haproxy-state.js';
+import {type EnvoyProxyState} from '../../../../src/data/schema/model/remote/state/envoy-proxy-state.js';
+import {type BaseState} from '../../../../src/data/schema/model/remote/state/base-state.js';
+import {ComponentTypes} from '../../../../src/core/config/remote/enumerations/component-types.js';
+import {RemoteConfig} from '../../../../src/data/schema/model/remote/remote-config.js';
 
 interface ComponentsRecord {
-  explorer: MirrorNodeExplorerComponent;
-  mirrorNode: MirrorNodeComponent;
-  relay: RelayComponent;
-  consensusNode: ConsensusNodeComponent;
-  haProxy: HaProxyComponent;
-  envoyProxy: EnvoyProxyComponent;
+  explorer: ExplorerState;
+  mirrorNode: MirrorNodeState;
+  relay: RelayNodeState;
+  consensusNode: ConsensusNodeState;
+  haProxy: HAProxyState;
+  envoyProxy: EnvoyProxyState;
 }
 
 interface LabelRecord {
@@ -89,16 +90,21 @@ function prepareComponentsData(namespace: NamespaceName): ComponentsData {
   };
 
   const podNames: Record<string, string> = {
-    explorer: `hedera-explorer-${components.explorer.id}`,
-    mirrorNode: `mirror-importer-${components.mirrorNode.id}`,
-    relay: `relay-${components.relay.id}`,
-    consensusNode: Templates.renderNetworkPodName(Templates.renderNodeAliasFromNumber(components.consensusNode.id + 1))
-      .name,
-    haProxy: `haproxy-node1-${Templates.renderNodeAliasFromNumber(components.haProxy.id + 1)}`,
-    envoyProxy: `envoy-proxy-${Templates.renderNodeAliasFromNumber(components.envoyProxy.id + 1)}`,
+    explorer: `hedera-explorer-${components.explorer.metadata.id}`,
+    mirrorNode: `mirror-importer-${components.mirrorNode.metadata.id}`,
+    relay: `relay-${components.relay.metadata.id}`,
+    consensusNode: Templates.renderNetworkPodName(
+      Templates.renderNodeAliasFromNumber(components.consensusNode.metadata.id + 1),
+    ).name,
+    haProxy: `haproxy-node1-${Templates.renderNodeAliasFromNumber(components.haProxy.metadata.id + 1)}`,
+    envoyProxy: `envoy-proxy-${Templates.renderNodeAliasFromNumber(components.envoyProxy.metadata.id + 1)}`,
   };
 
-  const componentsDataWrapper: ComponentsDataWrapper = ComponentsDataWrapper.initializeEmpty();
+  const state: DeploymentState = new DeploymentState();
+  const remoteConfig: RemoteConfig = new RemoteConfig(undefined, undefined, undefined, undefined, state);
+
+  // @ts-expect-error - TS2740 to mock
+  const componentsDataWrapper: ComponentsDataWrapper = new ComponentsDataWrapper({state: remoteConfig.state});
 
   return {namespace, components, labelRecord, componentsDataWrapper, podNames};
 }
@@ -159,26 +165,27 @@ describe('RemoteConfigValidator', () => {
   const testCasesForIndividualComponents: Array<{
     componentKey: keyof ComponentsRecord;
     displayName: string;
+    type: ComponentTypes;
   }> = [
-    {componentKey: 'relay', displayName: 'Relay'},
-    {componentKey: 'haProxy', displayName: 'HaProxy'},
-    {componentKey: 'mirrorNode', displayName: 'Mirror node'},
-    {componentKey: 'envoyProxy', displayName: 'Envoy proxy'},
-    {componentKey: 'consensusNode', displayName: 'Consensus node'},
-    {componentKey: 'explorer', displayName: 'Mirror node explorer'},
+    {componentKey: 'relay', displayName: 'Relay', type: ComponentTypes.RelayNodes},
+    {componentKey: 'haProxy', displayName: 'HaProxy', type: ComponentTypes.HaProxy},
+    {componentKey: 'mirrorNode', displayName: 'Mirror node', type: ComponentTypes.MirrorNode},
+    {componentKey: 'envoyProxy', displayName: 'Envoy proxy', type: ComponentTypes.EnvoyProxy},
+    {componentKey: 'consensusNode', displayName: 'Consensus node', type: ComponentTypes.ConsensusNode},
+    {componentKey: 'explorer', displayName: 'Mirror node explorer', type: ComponentTypes.Explorers},
   ];
 
-  for (const {componentKey, displayName} of testCasesForIndividualComponents) {
+  for (const {componentKey, displayName, type} of testCasesForIndividualComponents) {
     describe(`${displayName} validation`, () => {
       it('should fail if component is not present', async () => {
-        const component: BaseComponent = components[componentKey];
+        const component: BaseState = components[componentKey];
 
-        componentsDataWrapper.addNewComponent(component);
+        componentsDataWrapper.addNewComponent(component, type);
 
         try {
           await RemoteConfigValidator.validateComponents(
             namespace,
-            componentsDataWrapper,
+            componentsDataWrapper.state,
             k8Factory,
             localConfig,
             false,
@@ -193,7 +200,13 @@ describe('RemoteConfigValidator', () => {
       it('should succeed if component is present', async () => {
         await createPod(podNames[componentKey], labelRecord[componentKey]);
 
-        await RemoteConfigValidator.validateComponents(namespace, componentsDataWrapper, k8Factory, localConfig, false);
+        await RemoteConfigValidator.validateComponents(
+          namespace,
+          componentsDataWrapper.state,
+          k8Factory,
+          localConfig,
+          false,
+        );
       });
     });
   }
@@ -204,19 +217,27 @@ describe('RemoteConfigValidator', () => {
 
       const nodeIds: NodeId[] = [0, 1, 2];
 
-      const consensusNodeComponents: Record<ComponentId, ConsensusNodeComponent> =
-        ComponentFactory.createConsensusNodeComponentsFromNodeIds(nodeIds, 'cluster-ref', namespace);
+      const consensusNodeComponents: ConsensusNodeState[] = ComponentFactory.createConsensusNodeComponentsFromNodeIds(
+        nodeIds,
+        'cluster-ref',
+        namespace,
+      );
 
-      const deploymentState: DeploymentState = new DeploymentState();
+      const componentsDataWrapper: ComponentsDataWrapper = new ComponentsDataWrapper({
+        // @ts-expect-error - TS2740 to mock
+        state: {
+          consensusNodes: consensusNodeComponents,
+        },
+      });
 
       for (const nodeId of nodeIds) {
         // Make sure the status is STARTED
-        // deploymentState.changeNodePhase(nodeId, DeploymentPhase.STARTED);
+        componentsDataWrapper.changeNodePhase(nodeId, DeploymentPhase.STARTED);
       }
 
       await RemoteConfigValidator.validateComponents(
         namespace,
-        deploymentState,
+        componentsDataWrapper.state,
         k8Factory,
         localConfig,
         skipConsensusNodes,
@@ -229,16 +250,30 @@ describe('RemoteConfigValidator', () => {
       it(`Should not validate consensus nodes if status is ${nodeState} `, async () => {
         const nodeIds: NodeId[] = [0, 1, 2];
 
-        const consensusNodeComponents: Record<ComponentId, ConsensusNodeComponent> =
-          ComponentFactory.createConsensusNodeComponentsFromNodeIds(nodeIds, 'cluster-ref', namespace);
+        const consensusNodeComponents: ConsensusNodeState[] = ComponentFactory.createConsensusNodeComponentsFromNodeIds(
+          nodeIds,
+          'cluster-ref',
+          namespace,
+        );
 
-        const deploymentState: DeploymentState = new DeploymentState();
+        const componentsDataWrapper: ComponentsDataWrapper = new ComponentsDataWrapper({
+          // @ts-expect-error - TS2740 to mock
+          state: {
+            consensusNodes: consensusNodeComponents,
+          },
+        });
 
         for (const nodeId of nodeIds) {
-          // deploymentState.changeNodePhase(nodeId, nodeState);
+          componentsDataWrapper.changeNodePhase(nodeId, nodeState);
         }
 
-        await RemoteConfigValidator.validateComponents(namespace, deploymentState, k8Factory, localConfig, false);
+        await RemoteConfigValidator.validateComponents(
+          namespace,
+          componentsDataWrapper.state,
+          k8Factory,
+          localConfig,
+          false,
+        );
       });
     }
   });

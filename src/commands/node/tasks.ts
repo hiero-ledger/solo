@@ -78,8 +78,15 @@ import {PodReference} from '../../integration/kube/resources/pod/pod-reference.j
 import {ContainerReference} from '../../integration/kube/resources/container/container-reference.js';
 import {NetworkNodes} from '../../core/network-nodes.js';
 import {container, inject, injectable} from 'tsyringe-neo';
-import {type Optional, type SoloListr, type SoloListrTask, type SoloListrTaskWrapper} from '../../types/index.js';
-import {type ClusterReference, type DeploymentName, type NamespaceNameAsString, type Context} from '../../types/index.js';
+import {
+  type ClusterReference,
+  type Context,
+  type DeploymentName,
+  type Optional,
+  type SoloListr,
+  type SoloListrTask,
+  type SoloListrTaskWrapper,
+} from '../../types/index.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {ConsensusNode} from '../../core/model/consensus-node.js';
 import {type K8} from '../../integration/kube/k8.js';
@@ -87,9 +94,6 @@ import {Base64} from 'js-base64';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {type RemoteConfigManager} from '../../core/config/remote/remote-config-manager.js';
 import {BaseCommand} from '../base.js';
-import {ConsensusNodeComponent} from '../../core/config/remote/components/consensus-node-component.js';
-import {EnvoyProxyComponent} from '../../core/config/remote/components/envoy-proxy-component.js';
-import {HaProxyComponent} from '../../core/config/remote/components/ha-proxy-component.js';
 import {HEDERA_PLATFORM_VERSION} from '../../../version.js';
 import {ShellRunner} from '../../core/shell-runner.js';
 import {PathEx} from '../../business/utils/path-ex.js';
@@ -114,7 +118,10 @@ import {type NodeStartConfigClass} from './config-interfaces/node-start-config-c
 import {type CheckedNodesConfigClass, type CheckedNodesContext} from './config-interfaces/node-common-config-class.js';
 import {type NetworkNodeServices} from '../../core/network-node-services.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
-import {ConsensusNodeStates} from '../../core/config/remote/enumerations/consensus-node-states.js';
+import {Cluster} from '../../data/schema/model/common/cluster.js';
+import {ComponentFactory} from '../../core/config/remote/components/component-factory.js';
+import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
+import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
 
 @injectable()
 export class NodeCommandTasks {
@@ -2546,20 +2553,23 @@ export class NodeCommandTasks {
 
         task.title += `: ${nodeAlias}`;
 
-        await this.remoteConfigManager.modify(async remoteConfig => {
-          remoteConfig.components.addNewComponent(
+        await this.remoteConfigManager.modify(async (_, components) => {
+          components.addNewComponent(
             ComponentFactory.createNewConsensusNodeComponent(
               nodeId,
               clusterReference,
               namespace,
               DeploymentPhase.STARTED,
             ),
+            ComponentTypes.ConsensusNode,
           );
-          remoteConfig.components.addNewComponent(
+          components.addNewComponent(
             ComponentFactory.createNewEnvoyProxyComponent(this.remoteConfigManager, clusterReference, namespace),
+            ComponentTypes.EnvoyProxy,
           );
-          remoteConfig.components.addNewComponent(
+          components.addNewComponent(
             ComponentFactory.createNewHaProxyComponent(this.remoteConfigManager, clusterReference, namespace),
+            ComponentTypes.HaProxy,
           );
         });
 
@@ -2567,7 +2577,7 @@ export class NodeCommandTasks {
 
         // if the consensusNodes does not contain the nodeAlias then add it
         if (!context_.config.consensusNodes.some((node: ConsensusNode) => node.name === nodeAlias)) {
-          const cluster: Cluster = this.remoteConfigManager.clusters[clusterReference];
+          const cluster: Cluster = this.remoteConfigManager.clusters.find(cluster => cluster.name === clusterReference);
 
           context_.config.consensusNodes.push(
             new ConsensusNode(

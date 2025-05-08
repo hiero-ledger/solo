@@ -6,7 +6,6 @@ import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import * as helpers from '../core/helpers.js';
 import {showVersionBanner} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
-import {JSON_RPC_RELAY_CHART} from '../core/constants.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand, type Options} from './base.js';
@@ -14,15 +13,20 @@ import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {type AnyYargs, type ArgvStruct, type NodeAlias, type NodeAliases, type NodeId} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
-import {type RelayComponent} from '../core/config/remote/components/relay-component.js';
 import * as Base64 from 'js-base64';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
-import {type ClusterReference, type DeploymentName} from '../core/config/remote/types.js';
-import {type CommandDefinition, type Optional, type SoloListrTask} from '../types/index.js';
+import {
+  type ClusterReference,
+  type CommandDefinition,
+  type DeploymentName,
+  type Optional,
+  type SoloListrTask,
+} from '../types/index.js';
 import {HEDERA_JSON_RPC_RELAY_VERSION} from '../../version.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {ComponentFactory} from '../core/config/remote/components/component-factory.js';
 import {Templates} from '../core/templates.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
+import {RelayNodeState} from '../data/schema/model/remote/state/relay-node-state.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -546,13 +550,14 @@ export class RelayCommand extends BaseCommand {
       title: 'Add relay component in remote config',
       skip: (): boolean => !this.remoteConfigManager.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfigManager.modify(async remoteConfig => {
+        await this.remoteConfigManager.modify(async (_, components) => {
           const {namespace, nodeAliases, clusterRef} = context_.config;
 
           const nodeIds: NodeId[] = nodeAliases.map((nodeAlias: NodeAlias) => Templates.nodeIdFromNodeAlias(nodeAlias));
 
-          remoteConfig.components.addNewComponent(
+          components.addNewComponent(
             ComponentFactory.createNewRelayComponent(this.remoteConfigManager, clusterRef, namespace, nodeIds),
+            ComponentTypes.RelayNodes,
           );
         });
       },
@@ -567,15 +572,14 @@ export class RelayCommand extends BaseCommand {
       task: async (context_): Promise<void> => {
         const clusterReference: ClusterReference = context_.config.clusterRef;
 
-        await this.remoteConfigManager.modify(async remoteConfig => {
-          const relayComponents: RelayComponent[] =
-            remoteConfig.components.getComponentsByClusterReference<RelayComponent>(
-              ComponentTypes.RelayNodes,
-              clusterReference,
-            );
+        await this.remoteConfigManager.modify(async (_, components) => {
+          const relayComponents: RelayNodeState[] = components.getComponentsByClusterReference<RelayNodeState>(
+            ComponentTypes.RelayNodes,
+            clusterReference,
+          );
 
           for (const relayComponent of relayComponents) {
-            remoteConfig.components.removeComponent(relayComponent.id, ComponentTypes.RelayNodes);
+            components.removeComponent(relayComponent.metadata.id, ComponentTypes.RelayNodes);
           }
         });
       },
