@@ -33,7 +33,7 @@ kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > 
 
 Then you can access the Explorer at `http://localhost:8080`
 
-Or you can use Task tool to deploy Solo network with Mirror Node with a single command [link](../../../site/content/en/development/task-tool)
+Or you can use Task tool to deploy Solo network with Mirror Node with a single command [link](../development/task-tool)
 
 Next, you can try to create a few accounts with Solo and see the transactions in the Explorer.
 
@@ -48,4 +48,4 @@ Or you can use Hedera JavaScript SDK examples to create topic, submit message an
 Add SDK.md link here
 -->
 
-* [Instructions for using Solo with Hedera JavaScript SDK](SDK.md)
+* [Instructions for using Solo with Hiero JavaScript SDK](javascript-sdk.md)
