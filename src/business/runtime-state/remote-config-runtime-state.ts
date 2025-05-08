@@ -17,7 +17,9 @@ import {DeploymentState} from '../../data/schema/model/remote/deployment-state.j
 import {DeploymentHistory} from '../../data/schema/model/remote/deployment-history.js';
 import {RemoteConfig} from '../../data/schema/model/remote/remote-config.js';
 import {UserIdentity} from '../../data/schema/model/common/user-identity.js';
-import type {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
+import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
+import {ConsensusNodeState} from '../../data/schema/model/remote/state/consensus-node-state.js';
+import {SemVer} from 'semver';
 
 @injectable()
 export class RemoteConfigRuntimeState {
@@ -89,21 +91,24 @@ export class RemoteConfigRuntimeState {
   }
 
   public async create(
+    ledgerPhase: LedgerPhase,
     userIdentity: UserIdentity,
+    consensusNodeStates: ConsensusNodeState[],
+    command: string,
+    cluster: Cluster,
+    cliVersion: SemVer,
   ): Promise<void> {
     const metadata: RemoteConfigMetadata = new RemoteConfigMetadata();
     metadata.lastUpdatedAt = new Date();
     metadata.lastUpdatedBy = userIdentity;
 
-    const state: DeploymentState = new DeploymentState();
-    state.ledgerPhase = LedgerPhase.INITIALIZED;
-
-    const history: DeploymentHistory = new DeploymentHistory();
-
-    const clusters: Cluster[] = [];
-
-    const versions: ApplicationVersions = new ApplicationVersions();
+    const state: DeploymentState = new DeploymentState(ledgerPhase, consensusNodeStates);
+    const history: DeploymentHistory = new DeploymentHistory([command], command);
+    const clusters: Cluster[] = [cluster];
+    const versions: ApplicationVersions = new ApplicationVersions(cliVersion);
 
     const remoteConfig: RemoteConfig = new RemoteConfig(undefined, metadata, versions, clusters, state, history);
+
+    await this.backend.writeObject('' /* TODO */, this.objectMapper.toObject(remoteConfig));
   }
 }

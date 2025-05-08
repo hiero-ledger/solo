@@ -16,14 +16,14 @@ import {type SoloLogger} from '../../logging/solo-logger.js';
 import {type ConfigManager} from '../../config-manager.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../dependency-injection/container-helper.js';
-import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases} from '../../../types/aliases.js';
+import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases, NodeId} from '../../../types/aliases.js';
 import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
 import {ConsensusNode} from '../../model/consensus-node.js';
 import {Templates} from '../../templates.js';
 import {promptTheUserForDeployment} from '../../resolvers.js';
 import {getSoloVersion} from '../../../../version.js';
-import {type RemoteConfigRuntimeState} from '../../../business/runtime-state/remote-config-runtime-state.js';
+import {RemoteConfigRuntimeState} from '../../../business/runtime-state/remote-config-runtime-state.js';
 import {type RemoteConfig} from '../../../data/schema/model/remote/remote-config.js';
 import {SemVer} from 'semver';
 import {Cluster} from '../../../data/schema/model/common/cluster.js';
@@ -34,6 +34,10 @@ import {DeploymentStates} from './enumerations/deployment-states.js';
 import {Deployment} from '../../../data/schema/model/local/deployment.js';
 import {DeploymentState} from '../../../data/schema/model/remote/deployment-state.js';
 import {ConfigMap} from '../../../integration/kube/resources/config-map/config-map.js';
+import {ConsensusNodeState} from '../../../data/schema/model/remote/state/consensus-node-state.js';
+import {ComponentStateMetadata} from '../../../data/schema/model/remote/state/component-state-metadata.js';
+import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
+import {LedgerPhase} from '../../../data/schema/model/remote/ledger-phase.js';
 
 /**
  * Uses Kubernetes ConfigMaps to manage the remote configuration data by creating, loading, modifying,
@@ -41,12 +45,13 @@ import {ConfigMap} from '../../../integration/kube/resources/config-map/config-m
  */
 @injectable()
 export class RemoteConfigManager {
+  private remoteConfigRuntimeState?: RemoteConfigRuntimeState
+
   /**
    * @param k8Factory - The Kubernetes client used for interacting with ConfigMaps.
    * @param logger - The logger for recording activity and errors.
    * @param localConfig - Local configuration for the remote config.
    * @param configManager - Manager to retrieve application flags and settings.
-   * @param remoteConfigRuntimeState
    * @param componentsDataWrapper
    */
   public constructor(
@@ -54,18 +59,12 @@ export class RemoteConfigManager {
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
     @inject(InjectTokens.ConfigManager) private readonly configManager?: ConfigManager,
-    @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfigRuntimeState?: RemoteConfigRuntimeState,
     @inject(InjectTokens.ComponentsDataWrapper) public readonly componentsDataWrapper?: ComponentsDataWrapper,
   ) {
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
-    this.remoteConfigRuntimeState = patchInject(
-      remoteConfigRuntimeState,
-      InjectTokens.RemoteConfigRuntimeState,
-      this.constructor.name,
-    );
     this.componentsDataWrapper = patchInject(
       componentsDataWrapper,
       InjectTokens.ComponentsDataWrapper,
@@ -88,7 +87,7 @@ export class RemoteConfigManager {
    */
   public async create(
     argv: ArgvStruct,
-    state: DeploymentStates,
+    ledgerPhase: LedgerPhase,
     nodeAliases: NodeAliases,
     namespace: NamespaceName,
     deployment: DeploymentName,
@@ -97,30 +96,35 @@ export class RemoteConfigManager {
     dnsBaseDomain: string,
     dnsConsensusNodePattern: string,
   ): Promise<void> {
-    const clusters: Record<ClusterReference, Cluster> = {
-      [clusterReference]: new Cluster(
-        clusterReference,
+    const configMap: ConfigMap = await this.createConfigMap(namespace, context);
+
+    const consensusNodeStates: ConsensusNodeState[] = nodeAliases.map((nodeAlias: NodeAlias): ConsensusNodeState => {
+      const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias)
+
+      const stateMetadata: ComponentStateMetadata = new ComponentStateMetadata(
+        nodeId,
         namespace.name,
-        deployment,
-        dnsBaseDomain,
-        dnsConsensusNodePattern,
-      ),
-    };
+        clusterReference,
+        DeploymentPhase.REQUESTED,
+      )
 
-    const lastUpdatedAt = new Date();
-    const userIdentity = this.localConfig.userIdentity;
-    const soloVersion = getSoloVersion();
-    const currentCommand = argv._.join(' ');
-
-    this.remoteConfig = new RemoteConfigDataWrapper({
-      clusters,
-      metadata: new RemoteConfigMetadata(namespace.name, deployment, state, lastUpdatedAt, userIdentity, soloVersion),
-      commandHistory: [currentCommand],
-      lastExecutedCommand: currentCommand,
-      components: ComponentsDataWrapper.initializeWithNodes(nodeAliases, clusterReference, namespace.name),
+      return new ConsensusNodeState(stateMetadata);
     });
 
-    await this.createConfigMap(context);
+    const cluster: Cluster = new Cluster(
+      clusterReference,
+      namespace.name,
+      deployment,
+      dnsBaseDomain,
+      dnsConsensusNodePattern,
+    );
+
+    const userIdentity = this.localConfig.userIdentity;
+    const cliVersion = new SemVer(getSoloVersion());
+    const command: string = argv._.join(' ');
+
+    this.remoteConfigRuntimeState = new RemoteConfigRuntimeState(configMap);
+    await this.remoteConfigRuntimeState.create(ledgerPhase,userIdentity, consensusNodeStates, command, cluster, cliVersion)
   }
 
   public addCommandToHistory(command: string, remoteConfig: RemoteConfig): void {
@@ -130,6 +134,35 @@ export class RemoteConfigManager {
     if (remoteConfig.history.commands.length > constants.SOLO_REMOTE_CONFIG_MAX_COMMAND_IN_HISTORY) {
       remoteConfig.history.commands.shift();
     }
+  }
+
+  public async createConfigMap(namespace: NamespaceName, context: Context): Promise<ConfigMap> {
+    const name: string = constants.SOLO_REMOTE_CONFIGMAP_NAME;
+    const labels: Record<string, string> = constants.SOLO_REMOTE_CONFIGMAP_LABELS;
+    await this.k8Factory.getK8(context).configMaps().create(namespace, name, labels, {});
+    return await this.k8Factory.getK8(context).configMaps().read(namespace, name);
+  }
+
+  private async load(namespace?: NamespaceName, context?: Context): Promise<void> {
+    if (this.remoteConfigRuntimeState && this.remoteConfigRuntimeState.isLoaded()) {
+      return;
+    }
+
+    const configMap: ConfigMap = await this.getConfigMap(namespace, context);
+    this.remoteConfigRuntimeState = new RemoteConfigRuntimeState(configMap);
+  }
+
+  public async getConfigMap(namespace?: NamespaceName, context?: Context): Promise<ConfigMap> {
+    const configMap: ConfigMap = await this.k8Factory
+      .getK8(context)
+      .configMaps()
+      .read(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+
+    if (!configMap) {
+      throw new SoloError(`Remote config ConfigMap not found for namespace: ${namespace}, context: ${context}`);
+    }
+
+    return configMap;
   }
 
   /* ---------- Listr Task Builders ---------- */
@@ -150,7 +183,7 @@ export class RemoteConfigManager {
     await this.setDefaultNamespaceAndDeploymentIfNotSet(argv);
     this.setDefaultContextIfNotSet();
 
-    await this.remoteConfigRuntimeState.(); // TODO LOAD RUNTIME STATE
+    await this.remoteConfigRuntimeState; // TODO LOAD RUNTIME STATE
 
     this.logger.info('Remote config loaded');
     if (!validate) {
@@ -178,13 +211,6 @@ export class RemoteConfigManager {
 
       await this.remoteConfigRuntimeState.handleArgv(argv);
     });
-  }
-
-  private async load(): Promise<void> {
-    const configMap: ConfigMap = await this.k8Factory.default().configMaps().read(
-      this.configManager.getFlag(flags.namespace),
-      constants.SOLO_REMOTE_CONFIGMAP_NAME,
-      );
   }
 
   private populateVersionsInMetadata(argv: AnyObject, remoteConfig: RemoteConfig): void {
