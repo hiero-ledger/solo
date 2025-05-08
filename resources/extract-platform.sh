@@ -44,7 +44,14 @@ pwd | tee -a ${LOG_FILE}
 ls -al | tee -a ${LOG_FILE}
 
 echo "Using unzip to extract files"
-unzip -o "${BUILD_ZIP_FILE}" -d "${HAPI_DIR}" | tee -a ${LOG_FILE}
+
+# To avoid "Device or resource busy" error when unzip tries to delete pre-existing file first before extracting
+# Uncompress to a temporary directory and then move the files to the target directory
+
+mkdir /tmp/extract
+unzip -o "${BUILD_ZIP_FILE}" -d /tmp/extract | tee -a ${LOG_FILE}
+sudo cp -rf /tmp/extract/* "${HAPI_DIR}" | tee -a ${LOG_FILE}
+rm -rf /tmp/extract
 
 [[ $? -ne 0 ]] && echo "Failure occurred during decompress" && exit 1
 echo "................................end: extract-platform.sh" | tee -a ${LOG_FILE}
