@@ -54,6 +54,11 @@ on:
         type: string
         required: false
         default: "solo-e2e"
+      version:
+        description: "Version:"
+        type: string
+        required: false
+        default: "latest"
 
 defaults:
   run:
@@ -210,6 +215,7 @@ jobs:
         run: |
           echo SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1 > .env
           cat .env
+          export CONSENSUS_NODE_VERSION=${{ inputs.version }}
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
 
       - name: Upload E2E Logs to GitHub
