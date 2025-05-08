@@ -217,7 +217,7 @@ export class RemoteConfigManager {
       skipConsensusNodesValidation,
     );
 
-    await this.remoteConfigRuntimeState.modify(async (remoteConfig: RemoteConfig) => {
+    await this.modify(async (remoteConfig: RemoteConfig) => {
       const currentCommand: string = argv._?.join(' ');
       const commandArguments: string = flags.stringifyArgv(argv);
 
@@ -283,8 +283,9 @@ export class RemoteConfigManager {
 
   /** Empties the component data inside the remote config */
   public async deleteComponents(): Promise<void> {
-    await this.remoteConfigRuntimeState.modify(async (remoteConfig: RemoteConfig) => {
+    await this.modify(async (remoteConfig, components) => {
       remoteConfig.state = new DeploymentState();
+      components.state = remoteConfig.state;
     });
   }
 

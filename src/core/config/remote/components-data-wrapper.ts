@@ -10,7 +10,7 @@ import {type DeploymentState} from '../../../data/schema/model/remote/deployment
 import {type ClusterReference, type ComponentId} from '../../../types/index.js';
 
 export class ComponentsDataWrapper {
-  public readonly state: DeploymentState;
+  public state: DeploymentState;
 
   public constructor(remoteConfigRuntimeState?: RemoteConfigRuntimeState) {
     this.state = remoteConfigRuntimeState.state;

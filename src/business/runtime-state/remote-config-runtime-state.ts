@@ -34,7 +34,7 @@ export class RemoteConfigRuntimeState {
     this.source = new RemoteConfigSource(new RemoteConfigSchema(this.objectMapper), this.objectMapper, this.backend);
   }
 
-  private async write(): Promise<void> {
+  public async write(): Promise<void> {
     return this.source.persist();
   }
 
