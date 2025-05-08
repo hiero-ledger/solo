@@ -15,16 +15,20 @@ env:
 # TODO - verify that api docs are mounted correctly and referenced links are working
 tasks:
   default:
+    desc: "List all commands"
+
+  build:
     cmds:
       - task: "check-doc-dir"
       - task: "clean"
       - task: "install"
       - task: "build:all"
 
-  start:
+  local:
+    desc: "Run the local server"
     cmds:
       - task: "default"
-      - hugo server --disableFastRender --ignoreCache
+      - hugo server --cleanDestinationDir -e dev -DFE --minify serve --renderToMemory
 
   check-doc-dir:
     status:
