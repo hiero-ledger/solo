@@ -19,7 +19,7 @@ import {type NodeAlias} from '../types/aliases.js';
 import {Duration} from './time/duration.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';

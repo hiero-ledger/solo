@@ -131,7 +131,7 @@ else
   npm run solo-test -- init
   npm run solo-test -- cluster-ref setup \
     -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
-  npm run solo-test -- cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} --email john@doe.com
+  npm run solo-test -- cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
 
   npm run solo-test -- deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 
@@ -161,12 +161,12 @@ else
 
   kubectl port-forward -n "${SOLO_NAMESPACE}" svc/haproxy-node1-svc 50211:50211 > /dev/null 2>&1 &
 
-  explorer_svc="$(kubectl get svc -l app.kubernetes.io/component=hedera-explorer -n ${SOLO_NAMESPACE} --output json | jq -r '.items[].metadata.name')"
+  explorer_svc="$(kubectl get svc -l app.kubernetes.io/component=hiero-explorer -n ${SOLO_NAMESPACE} --output json | jq -r '.items[].metadata.name')"
   kubectl port-forward -n "${SOLO_NAMESPACE}" svc/"${explorer_svc}" 8080:80 > /dev/null 2>&1 &
 
   # Check Explorer endpoints
-  check_service_health "https://localhost:31001" "Hedera Mirror Node Explorer" "Explorer" "https" || exit 1
-  check_service_health "http://localhost:31000" "Hedera Mirror Node Explorer" "Explorer" "http" || exit 1
+  check_service_health "https://localhost:31001" "SPDX-License" "Explorer" "https" || exit 1
+  check_service_health "http://localhost:31000" "SPDX-License" "Explorer" "http" || exit 1
 
   # Check Mirror API endpoints
   check_service_health "https://localhost:32001/api/v1/accounts" "accounts" "Mirror" "https" || exit 1
