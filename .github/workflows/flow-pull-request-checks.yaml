@@ -45,7 +45,7 @@ jobs:
       custom-job-label: Standard
 
   e2e-tests:
-    name: E2E Tests (${{ matrix.e2e-test-type.name }})
+    name: E2E Tests (${{matrix.consensus-node-version }} ${{ matrix.e2e-test-type.name }}})
     if: ${{ !cancelled() && always() }}
     uses: ./.github/workflows/zxc-e2e-test.yaml
     needs:
