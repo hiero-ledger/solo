@@ -571,9 +571,9 @@ async function verifyExplorerDeployWasSuccessful(
   const hederaExplorerPods: Pod[] = await k8
     .pods()
     .list(namespace, [
-      'app.kubernetes.io/instance=hedera-explorer',
-      'app.kubernetes.io/name=hedera-explorer-chart',
-      'app.kubernetes.io/component=hedera-explorer',
+      'app.kubernetes.io/instance=hiero-explorer',
+      'app.kubernetes.io/name=hiero-explorer-chart',
+      'app.kubernetes.io/component=hiero-explorer',
     ]);
   expect(hederaExplorerPods).to.have.lengthOf(1);
   let portForwarder: ExtendedNetServer;
