@@ -38,10 +38,7 @@ tasks:
 
   clean:
     cmds:
-      - rm -Rf content/Classes
-      - rm -f content/Developer/DEV.md
-      - rm -f content/User/README.md
-      - rm -f content/User/SoloCommands.md
+      - rm -Rf content/en/classes
       - rm -Rf public
       - rm -Rf themes
       - rm -f .hugo_build.lock
@@ -50,20 +47,33 @@ tasks:
     cmds:
       - task: "build:typedoc"
       - task: "build:copy"
-      - task: "build:help"
+      - task: "build:cli:help"
       - task: "build:hugo"
 
-  build:
+  build:solo:
+    sources:
+      - src/**/*.ts
+      - version.ts
+      - solo.ts
+    generates:
+      - dist/**/*.js
     cmds:
       - rm -Rf dist
       - npx tsc
       - node {{.TASKFILE_DIR}}/../../resources/post-build-script.js
 
-  build:help:
+  build:cli:help:
     dir: ../..
+    sources:
+      - src/**/*.ts
+      - version.ts
+      - solo.ts
+    generates:
+      - dist/**/*.js
     cmds:
+      - rm -f docs/site/content/en/documentation/solo-commands.md
       - chmod 755 docs/site/generate_help.sh
-      - task: "build"
+      - task: "build:solo"
       - docs/site/generate_help.sh
 
   build:hugo:
@@ -72,39 +82,81 @@ tasks:
       - echo "origin    $HUGO_ORIGIN"
       - echo "host      $HUGO_HOST"
       - echo "base_path $HUGO_BASEPATH"
-      - mkdir -p themes/hugo-geekdoc
-      - curl -L https://github.com/thegeeklab/hugo-geekdoc/releases/latest/download/hugo-geekdoc.tar.gz | tar -xz -C themes/hugo-geekdoc/ --strip-components=1
       - hugo version
       - hugo config
       - hugo --gc --minify --baseURL "$HUGO_BASE_URL/"
 
   build:typedoc:
     dir: ../..
+    sources:
+      - src/**/*.ts
+      - version.ts
+      - solo.ts
+    generates:
+      - dist/**/*.js
     cmds:
-      - npx typedoc --excludeExternals --out docs/site/public/static/Classes --entryPoints ./solo.ts --entryPoints ./src/index.ts --entryPointStrategy expand ./src
+      - npx typedoc --excludeExternals --out docs/site/static/Classes --entryPoints ./solo.ts --entryPoints ./src/index.ts --entryPointStrategy expand ./src
 
   build:copy:
     cmds:
       - mkdir -p content/Developer
-      - cp ../../DEV.md content/Developer/DEV.md
       - mkdir -p content/User
-      - mkdir -p content/User/README
-      - cp ../../README.md content/User/README/README.md
-      - mkdir -p content/User/README/README/images
-      - cp ../../images/DockerDesktop.png content/User/README/README/images/DockerDesktop.png
-      - chmod -R 755 content/User/README
+      - mkdir -p content/Documentation/images
+      - cp ../../images/docker-desktop.png content/Documentation/images/docker-desktop.png
+      - chmod -R 755 content/Documentation
 
   install:
     cmds:
       - task: "install:hugo"
       - task: "install:typedoc"
       - task: "install:solo"
+      - task: "install:docsy"
+
+  install:docsy:
+    status:
+      - ls -al go.mod
+    cmds:
+      - hugo mod init github.com/hiero-ledger/solo
+      - hugo mod get github.com/google/docsy@v0.11.0
 
   install:hugo:
-    status:
-      - command -v hugo
+#    status:
+#      - command -v hugo
+#      - |
+#        node -e "
+#        const { execSync } = require('child_process');
+#        const semver = require('semver');
+#
+#        try {
+#          const output = execSync('hugo version').toString();
+#          const versionMatch = output.match(/v(\d+\.\d+\.\d+)(\+extended)?/);
+#          if (!versionMatch) {
+#            console.error('❌ Could not extract Hugo version from:', output);
+#            process.exit(1);
+#          }
+#
+#          const currentVersion = versionMatch[1];
+#          const isExtended = !!versionMatch[2];
+#          const requiredVersion = '0.145.0';
+#
+#          if (!isExtended) {
+#            console.error('❌ Hugo is not the extended version. Please install the extended edition.');
+#            process.exit(1);
+#          }
+#
+#          if (!semver.gte(currentVersion, requiredVersion)) {
+#            console.error(\`❌ Hugo version \${currentVersion} is too old. Requires >= \${requiredVersion}\`);
+#            process.exit(1);
+#          }
+#
+#          console.log(\`✅ Hugo version \${currentVersion}+extended is OK (>= \${requiredVersion})\`);
+#        } catch (err) {
+#          console.error('❌ Failed to run hugo:', err.message);
+#          process.exit(1);
+#        }
+#        "
     cmds:
-      - go install github.com/gohugoio/hugo@v0.124.1
+      - CGO_ENABLED=1 go install -tags extended github.com/gohugoio/hugo@v0.145.0
 
   install:typedoc:
     cmds:
@@ -112,5 +164,8 @@ tasks:
 
   install:solo:
     dir: ../..
+    sources:
+      - package.json
+      - package-lock.json
     cmds:
       - npm install

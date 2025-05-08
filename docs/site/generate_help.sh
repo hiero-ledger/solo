@@ -1,8 +1,14 @@
 #!/bin/bash
 set -eo pipefail
 
-OUTPUT_FILE="docs/site/content/User/SoloCommands.md"
-echo "# Solo Command Reference" > "$OUTPUT_FILE"
+OUTPUT_FILE="docs/site/content/en/documentation/solo-commands.md"
+echo "---" > "$OUTPUT_FILE"
+echo "title: ""Solo CLI Commands""" >> "$OUTPUT_FILE"
+echo "weight: 40" >> "$OUTPUT_FILE"
+echo "description: >" >> "$OUTPUT_FILE"
+echo "    This document provides a comprehensive reference for the Solo CLI commands, including their options and usage." >> "$OUTPUT_FILE"
+echo "---" >> "$OUTPUT_FILE"
+echo "# Solo Command Reference" >> "$OUTPUT_FILE"
 
 # Add Table of Contents placeholder
 echo "## Table of Contents" >> "$OUTPUT_FILE"

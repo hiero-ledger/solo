@@ -16,12 +16,12 @@
 
 name: Update README.md
 
-# This workflow calls script update_md.sh to update the docs/content/User/StepByStepGuide.md file
+# This workflow calls script update_md.sh to update the docs/site/content/en/docs/step-by-step-guide.md file
 on:
   workflow_dispatch:
     inputs:
       commit-changes:
-        description: "Commit updated README.md"
+        description: "Commit updated step-by-step-guide.md"
         type: boolean
         required: false
         default: false
@@ -42,7 +42,7 @@ on:
         required: true
     inputs:
       commit-changes:
-        description: "Commit updated README.md"
+        description: "Commit updated step-by-step-guide.md"
         type: boolean
         required: false
         default: false
@@ -52,7 +52,7 @@ on:
         required: false
     outputs:
       commit-hash:
-        description: "The commit hash for the updated README.md commit"
+        description: "The commit hash for the updated step-by-step-guide.md commit"
         value: ${{ jobs.update.outputs.commit_hash }}
 
 defaults:
@@ -115,7 +115,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install gettext-base
 
-      - name: Update docs/site/content/User/StepByStepGuide.md
+      - name: Update docs/site/content/en/docs/step-by-step-guide.md
         env:
           SOLO_TEST_CLUSTER: "solo-update-readme-${{ github.run_id }}-${{ github.run_attempt }}"
         run: |
@@ -135,17 +135,17 @@ jobs:
           
           ../.github/workflows/script/update_md.sh </dev/null | cat
           set +x
-          echo "::group::Updated StepByStepGuide.md"
+          echo "::group::Updated step-by-step-guide.md"
           
           cd ..
-          cat docs/site/content/User/StepByStepGuide.md
+          cat docs/site/content/en/docs/step-by-step-guide.md
           echo "::endgroup::"
 
-      - name: Check docs/site/content/User/StepByStepGuide.md Changes
+      - name: Check docs/site/content/en/docs/step-by-step-guide.md Changes
         id: check-readme-changes
         run: |
           set +e
-          echo "::group::Git Diff StepByStepGuide.md"
+          echo "::group::Git Diff step-by-step-guide.md"
           git diff --stat
           echo "::endgroup::"
                
@@ -167,7 +167,7 @@ jobs:
           fi
           
           TOTAL_LINES_CHANGED=$(($INSERTIONS + $DELETIONS))
-          echo "Total README lines changed: $TOTAL_LINES_CHANGED"
+          echo "Total step-by-step-guide.md lines changed: $TOTAL_LINES_CHANGED"
 
       - name: Import GPG key
         uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
@@ -178,15 +178,15 @@ jobs:
           git_user_signingkey: true
           git_commit_gpgsign: true
 
-      - name: Commit docs/site/content/User/StepByStepGuide.md Changes
+      - name: Commit docs/site/content/en/docs/step-by-step-guide.md Changes
         id: commit-readme
         if : ${{ github.event.inputs.dry-run-enabled != 'true' && !cancelled() && !failure() && inputs.commit-changes }}
         uses: stefanzweifel/git-auto-commit-action@b863ae1933cb653a53c021fe36dbb774e1fb9403 # v5.2.0
         with:
-          commit_message: "chore: auto update docs/site/content/User/StepByStepGuide.md"
+          commit_message: "chore: auto update docs/site/content/en/docs/step-by-step-guide.md"
           commit_options: '--no-verify --signoff'
           add_options: '-u'
-          file_pattern: 'docs/site/content/User/StepByStepGuide.md'
+          file_pattern: 'docs/site/content/en/docs/step-by-step-guide.md'
           commit_user_name: Swirlds Automation
           commit_user_email: swirlds-eng-automation@swirlds.com
           commit_author: Swirlds Automation <swirlds-eng-automation@swirlds.com>
