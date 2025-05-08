@@ -10,19 +10,14 @@
   "bugs": "https://github.com/hiero-ledger/solo/issues",
   "spelling": "cSpell:ignore docsy hugo htmltest precheck postbuild rtlcss -",
   "scripts": {
-    "_build": "npm run _hugo-dev --",
-    "_hugo": "hugo --cleanDestinationDir",
-    "_hugo-dev": "npm run _hugo -- -e dev -DFE",
-    "_local": "npx cross-env HUGO_MODULE_WORKSPACE=docsy.work",
-    "_serve": "npm run _hugo-dev -- --minify serve --renderToMemory",
-    "build:preview": "npm run _hugo-dev -- --minify --baseURL \"${DEPLOY_PRIME_URL:-/}\"",
-    "build:production": "npm run _hugo -- --minify",
-    "build": "npm run _build -- ",
+    "build:preview": "npm run hugo --cleanDestinationDir -e dev -DFE --minify --baseURL \"${DEPLOY_PRIME_URL:-/}\"",
+    "build:production": "npm run hugo --cleanDestinationDir --minify",
+    "build": "npm run hugo --cleanDestinationDir -e dev -DFE",
     "clean": "rm -Rf public/* resources",
-    "local": "npm run _local -- npm run",
+    "local": "npx cross-env HUGO_MODULE_WORKSPACE=docsy.work -- npm run",
     "precheck:links:all": "npm run build",
     "precheck:links": "npm run build",
-    "serve": "npm run _serve"
+    "serve": "npm run hugo --cleanDestinationDir -e dev -DFE --minify serve --renderToMemory"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",
