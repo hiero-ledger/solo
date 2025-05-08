@@ -255,8 +255,8 @@ solo relay deploy -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
 $SOLO_RELAY_DEPLOY_OUTPUT
 ```
 
-#### Access Hedera Services
-Next: [Access Hedera Services](https://solo.hiero.org/User/AccessHederaServices/)
+#### Execution Developer
+Next: [Execution Developer](execution-developer)
 
 #### Destroy relay node
 ```

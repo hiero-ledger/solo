@@ -675,8 +675,8 @@ Version			: v0.67.0
 ✔ Add relay component in remote config
 ```
 
-#### Access Hedera Services
-Next: [Access Hedera Services](https://solo.hiero.org/User/AccessHederaServices/)
+#### Execution Developer
+Next: [Execution Developer](execution-developer)
 
 #### Destroy relay node
 ```
