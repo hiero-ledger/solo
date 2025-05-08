@@ -24,7 +24,7 @@ solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_C
 solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME}
 
 kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &
-kubectl port-forward svc/hedera-explorer -n "${SOLO_NAMESPACE}" 8080:80 > /dev/null 2>&1 &
+kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:80 > /dev/null 2>&1 &
 ```
 
 Then you can access the hedera explorer at `http://localhost:8080`
