@@ -13,7 +13,7 @@ import fs from 'node:fs';
 //  right before it required, this adds better semver library compatibility
 export const HELM_VERSION: string = 'v3.14.2';
 export const SOLO_CHART_VERSION: string = '0.50.0';
-export const HEDERA_PLATFORM_VERSION: string = 'v0.62.0-main-0cba1a3e';
+export const HEDERA_PLATFORM_VERSION: string = 'v0.61.2';
 export const MIRROR_NODE_VERSION: string = 'v0.126.0';
 export const HEDERA_EXPLORER_VERSION: string = '24.12.1';
 export const HEDERA_JSON_RPC_RELAY_VERSION: string = 'v0.67.0';
