@@ -4,6 +4,7 @@
  * Dependency injection tokens
  */
 export const InjectTokens = {
+  ComponentsDataWrapper: Symbol.for('ComponentsDataWrapper'),
   LogLevel: Symbol.for('LogLevel'),
   DevelopmentMode: Symbol.for('DevelopmentMode'),
   OsPlatform: Symbol.for('OsPlatform'),

@@ -16,6 +16,8 @@ import {Cluster} from '../../data/schema/model/common/cluster.js';
 import {DeploymentState} from '../../data/schema/model/remote/deployment-state.js';
 import {DeploymentHistory} from '../../data/schema/model/remote/deployment-history.js';
 import {RemoteConfig} from '../../data/schema/model/remote/remote-config.js';
+import {UserIdentity} from '../../data/schema/model/common/user-identity.js';
+import type {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
 
 @injectable()
 export class RemoteConfigRuntimeState {
@@ -84,5 +86,24 @@ export class RemoteConfigRuntimeState {
     await callback(this.source.modelData);
 
     return this.write();
+  }
+
+  public async create(
+    userIdentity: UserIdentity,
+  ): Promise<void> {
+    const metadata: RemoteConfigMetadata = new RemoteConfigMetadata();
+    metadata.lastUpdatedAt = new Date();
+    metadata.lastUpdatedBy = userIdentity;
+
+    const state: DeploymentState = new DeploymentState();
+    state.ledgerPhase = LedgerPhase.INITIALIZED;
+
+    const history: DeploymentHistory = new DeploymentHistory();
+
+    const clusters: Cluster[] = [];
+
+    const versions: ApplicationVersions = new ApplicationVersions();
+
+    const remoteConfig: RemoteConfig = new RemoteConfig(undefined, metadata, versions, clusters, state, history);
   }
 }

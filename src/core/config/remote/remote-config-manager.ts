@@ -33,6 +33,7 @@ import {LocalConfigRuntimeState} from '../../../business/runtime-state/local-con
 import {DeploymentStates} from './enumerations/deployment-states.js';
 import {Deployment} from '../../../data/schema/model/local/deployment.js';
 import {DeploymentState} from '../../../data/schema/model/remote/deployment-state.js';
+import {ConfigMap} from '../../../integration/kube/resources/config-map/config-map.js';
 
 /**
  * Uses Kubernetes ConfigMaps to manage the remote configuration data by creating, loading, modifying,
@@ -46,6 +47,7 @@ export class RemoteConfigManager {
    * @param localConfig - Local configuration for the remote config.
    * @param configManager - Manager to retrieve application flags and settings.
    * @param remoteConfigRuntimeState
+   * @param componentsDataWrapper
    */
   public constructor(
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
@@ -53,6 +55,7 @@ export class RemoteConfigManager {
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
     @inject(InjectTokens.ConfigManager) private readonly configManager?: ConfigManager,
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfigRuntimeState?: RemoteConfigRuntimeState,
+    @inject(InjectTokens.ComponentsDataWrapper) public readonly componentsDataWrapper?: ComponentsDataWrapper,
   ) {
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
@@ -61,6 +64,11 @@ export class RemoteConfigManager {
     this.remoteConfigRuntimeState = patchInject(
       remoteConfigRuntimeState,
       InjectTokens.RemoteConfigRuntimeState,
+      this.constructor.name,
+    );
+    this.componentsDataWrapper = patchInject(
+      componentsDataWrapper,
+      InjectTokens.ComponentsDataWrapper,
       this.constructor.name,
     );
   }
@@ -142,7 +150,7 @@ export class RemoteConfigManager {
     await this.setDefaultNamespaceAndDeploymentIfNotSet(argv);
     this.setDefaultContextIfNotSet();
 
-    await this.load(); // TODO LOAD RUNTIME STATE
+    await this.remoteConfigRuntimeState.(); // TODO LOAD RUNTIME STATE
 
     this.logger.info('Remote config loaded');
     if (!validate) {
@@ -170,6 +178,13 @@ export class RemoteConfigManager {
 
       await this.remoteConfigRuntimeState.handleArgv(argv);
     });
+  }
+
+  private async load(): Promise<void> {
+    const configMap: ConfigMap = await this.k8Factory.default().configMaps().read(
+      this.configManager.getFlag(flags.namespace),
+      constants.SOLO_REMOTE_CONFIGMAP_NAME,
+      );
   }
 
   private populateVersionsInMetadata(argv: AnyObject, remoteConfig: RemoteConfig): void {
