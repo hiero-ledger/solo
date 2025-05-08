@@ -12,6 +12,7 @@ env:
   HUGO_HOST: solo.hiero.org
   HUGO_BASEPATH: /
 
+# TODO - verify that api docs are mounted correctly and referenced links are working
 tasks:
   default:
     cmds:
