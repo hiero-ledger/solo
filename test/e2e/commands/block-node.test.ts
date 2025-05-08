@@ -90,20 +90,18 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
         .then((pods: Pod[]): Pod => pods[0]);
 
       const srv: ExtendedNetServer = await pod.portForward(8080, 8080);
-      try {
-        const commandOptions: {cwd: string} = {cwd: './test/data'};
+      const commandOptions: {cwd: string} = {cwd: './test/data'};
 
-        // Make script executable
-        await execAsync('chmod +x ./get-block.sh', commandOptions);
+      // Make script executable
+      await execAsync('chmod +x ./get-block.sh', commandOptions);
 
-        // Execute script
-        const scriptStd: {stdout: string; stderr: string} = await execAsync('sh ./get-block.sh 1', commandOptions);
+      // Execute script
+      const scriptStd: {stdout: string; stderr: string} = await execAsync('sh ./get-block.sh 1', commandOptions);
 
-        expect(scriptStd.stderr).to.equal('');
-        expect(scriptStd.stdout).to.include('READ_BLOCK_SUCCESS');
-      } finally {
-        await pod.stopPortForward(srv);
-      }
+      expect(scriptStd.stderr).to.equal('');
+      expect(scriptStd.stdout).to.include('READ_BLOCK_SUCCESS');
+
+      await pod.stopPortForward(srv);
     });
 
     it("Should succeed with removing block node with 'destroy' command", async function (): Promise<void> {
