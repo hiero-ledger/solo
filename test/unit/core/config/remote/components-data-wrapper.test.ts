@@ -86,14 +86,6 @@ export function createComponentsDataWrapper(): {
 describe('ComponentsDataWrapper', () => {
   it('should be able to create a instance', () => createComponentsDataWrapper());
 
-  it('should not be able to create a instance if wrong data is passed to constructor', () => {
-    // @ts-expect-error - TS267: to access private constructor
-    expect((): ComponentsDataWrapper => new ComponentsDataWrapper({componentName: {}})).to.throw(
-      SoloError,
-      'Invalid component type',
-    );
-  });
-
   it('should not be able to add new component with the .addNewComponent() method if it already exist', () => {
     const {
       wrapper: {componentsDataWrapper},

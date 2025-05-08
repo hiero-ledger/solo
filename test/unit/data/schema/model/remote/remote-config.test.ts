@@ -92,12 +92,11 @@ function migrateConsensusNodes(plainObject: MigrationCandidate) {
     }
     const newConsensusNode = {
       id: oldConsensusNode.nodeId,
-      name: oldConsensusNode.name,
       namespace: oldConsensusNode.namespace,
       cluster: oldConsensusNode.cluster,
       phase: migratedState,
     };
-    plainObject.state.consensusNodes.push(newConsensusNode);
+    plainObject.state.consensusNodes.push({metadata: newConsensusNode});
   }
 }
 
@@ -196,11 +195,12 @@ describe('RemoteConfig', () => {
       expect(plainRemoteConfigObject.versions.jsonRpcRelayChart).to.equal('0.63.2');
       expect(plainRemoteConfigObject.clusters.length).to.be.equal(1);
       expect(plainRemoteConfigObject.state.consensusNodes.length).to.be.equal(4);
-      expect(plainRemoteConfigObject.state.consensusNodes[0].id).to.be.equal(0);
-      expect(plainRemoteConfigObject.state.consensusNodes[0].name).to.be.equal('node1');
-      expect(plainRemoteConfigObject.state.consensusNodes[0].namespace).to.be.equal('solo-alpha-prod');
-      expect(plainRemoteConfigObject.state.consensusNodes[0].cluster).to.be.equal('gke-alpha-prod-us-central1');
-      expect(plainRemoteConfigObject.state.consensusNodes[0].phase).to.be.equal(DeploymentPhase.REQUESTED);
+
+      const consensusNode: Record<any, any> = plainRemoteConfigObject.state.consensusNodes[0];
+      expect(consensusNode.metadata.id).to.be.equal(0);
+      expect(consensusNode.metadata.namespace).to.be.equal('solo-alpha-prod');
+      expect(consensusNode.metadata.cluster).to.be.equal('gke-alpha-prod-us-central1');
+      expect(consensusNode.metadata.phase).to.be.equal(DeploymentPhase.REQUESTED);
       expect(plainRemoteConfigObject.state.ledgerPhase).to.be.equal(LedgerPhase.UNINITIALIZED);
     });
 
