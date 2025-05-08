@@ -41,7 +41,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        type: ["account-init"]
+        consensus-node-version: ["v0.61.4", "v0.61.2", "v0.61.1", "v0.61.0", "v0.60.1", "v0.60.0"]
       max-parallel: 1
     steps:
       - name: Harden Runner
@@ -73,9 +73,9 @@ jobs:
           verbosity: 3
           wait: 120s
 
-      - name: Run Example Task File Test with type ${{ matrix.type }}
+      - name: Run Example Task File Test with type ${{ matrix.consensus-node-version }}
         run: |
           cd examples/external-database-test
-          export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
-          SOLO_CLUSTER_NAME=solo-task-test-${{ matrix.type }}-${{ github.run_id }}-${{ github.run_attempt }} task install:external-database
+          export CONSENSUS_NODE_VERSION=${{ matrix.consensus-node-version }}
+          SOLO_CLUSTER_NAME=solo-task-test-${{ github.run_id }}-${{ github.run_attempt }} task install:external-database
           task destroy:external-database
