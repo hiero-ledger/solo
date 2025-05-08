@@ -44,7 +44,7 @@ menu: {main: {weight: 10}}
 Solo is an opinionated CLI tool to deploy and manage standalone test networks.
 {.text-center}
 
-[Getting Started](/User/README/README.md)
+[Getting Started](/docs/README.md)
 {.text-center}
 
 ## Feature overview
