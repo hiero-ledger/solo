@@ -4,7 +4,7 @@ import {YamlConfigMapStorageBackend} from '../../../../../src/data/backend/impl/
 import {expect} from 'chai';
 import sinon from 'sinon';
 import {K8ClientConfigMap} from '../../../../../src/integration/kube/k8-client/resources/config-map/k8-client-config-map.js';
-import {NamespaceName} from '../../../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../../../src/types/namespace/namespace-name.js';
 
 describe('YamlConfigMapStorageBackend', (): void => {
   let backend: YamlConfigMapStorageBackend;

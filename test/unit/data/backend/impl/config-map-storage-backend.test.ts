@@ -6,7 +6,7 @@ import {StorageOperation} from '../../../../../src/data/backend/api/storage-oper
 import {StorageBackendError} from '../../../../../src/data/backend/api/storage-backend-error.js';
 import {type ConfigMap} from '../../../../../src/integration/kube/resources/config-map/config-map.js';
 import {K8ClientConfigMap} from '../../../../../src/integration/kube/k8-client/resources/config-map/k8-client-config-map.js';
-import {NamespaceName} from '../../../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../../../src/types/namespace/namespace-name.js';
 
 describe('ConfigMapStorageBackend', (): void => {
   let configMap: ConfigMap;
