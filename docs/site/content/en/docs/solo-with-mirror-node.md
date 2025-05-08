@@ -31,7 +31,7 @@ solo mirror-node deploy --deployment "${SOLO_DEVELOPMENT}"
 kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &
 ```
 
-Then you can access the Explorer at `http://localhost:8080`
+Then you can access the Explorer at <http://localhost:8080>
 
 Or you can use Task tool to deploy Solo network with Mirror Node with a single command [link](../development/task-tool)
 
