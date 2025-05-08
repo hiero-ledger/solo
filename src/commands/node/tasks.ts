@@ -2368,7 +2368,7 @@ export class NodeCommandTasks {
         const container = await k8.containers().readByRef(containerReference);
 
         const archiveCommand: string =
-          'cd "${states[0]}" && zip -r "${states[0]}.zip" . && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
+          'cd "${states[0]}" && zip -rq "${states[0]}.zip" . && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
 
         // zip the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
         const zipFileName = await container.execContainer([
@@ -2377,6 +2377,7 @@ export class NodeCommandTasks {
           `cd ${upgradeDirectory} && mapfile -t states < <(ls -1t .) && ${archiveCommand} && echo -n \${states[0]}.zip`,
         ]);
 
+        this.logger.debug(`state zip file to download is = ${zipFileName}`);
         await k8
           .containers()
           .readByRef(containerReference)
