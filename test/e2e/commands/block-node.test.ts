@@ -101,8 +101,6 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
 
         expect(scriptStd.stderr).to.equal('');
         expect(scriptStd.stdout).to.include('READ_BLOCK_SUCCESS');
-
-        logger.showUserError(scriptStd);
       } finally {
         await pod.stopPortForward(srv);
       }
