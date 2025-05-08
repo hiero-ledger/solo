@@ -39,6 +39,7 @@ import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {BlockNodeState} from '../data/schema/model/remote/state/block-node-state.js';
 import {ComponentStateMetadata} from '../data/schema/model/remote/state/component-state-metadata.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
+import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -303,10 +304,10 @@ export class BlockNodeCommand extends BaseCommand {
       title: 'Add block node component in remote config',
       skip: (): boolean => !this.remoteConfigManager.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfigManager.modify(async remoteConfig => {
+        await this.remoteConfigManager.modify(async (_, components) => {
           const config: BlockNodeDeployConfigClass = context_.config;
 
-          remoteConfig.components.add(config.newBlockNodeComponent);
+          components.addNewComponent(config.newBlockNodeComponent, ComponentTypes.BlockNode);
         });
       },
     };

@@ -27,10 +27,8 @@ import {RemoteConfigRuntimeState} from '../../../business/runtime-state/remote-c
 import {type RemoteConfig} from '../../../data/schema/model/remote/remote-config.js';
 import {SemVer} from 'semver';
 import {Cluster} from '../../../data/schema/model/common/cluster.js';
-import {RemoteConfigMetadata} from '../../../data/schema/model/remote/remote-config-metadata.js';
 import * as constants from '../../constants.js';
 import {LocalConfigRuntimeState} from '../../../business/runtime-state/local-config-runtime-state.js';
-import {DeploymentStates} from './enumerations/deployment-states.js';
 import {Deployment} from '../../../data/schema/model/local/deployment.js';
 import {DeploymentState} from '../../../data/schema/model/remote/deployment-state.js';
 import {ConfigMap} from '../../../integration/kube/resources/config-map/config-map.js';
@@ -38,6 +36,8 @@ import {ConsensusNodeState} from '../../../data/schema/model/remote/state/consen
 import {ComponentStateMetadata} from '../../../data/schema/model/remote/state/component-state-metadata.js';
 import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
 import {LedgerPhase} from '../../../data/schema/model/remote/ledger-phase.js';
+import {UserIdentity} from '../../../data/schema/model/common/user-identity.js';
+import {WriteRemoteConfigBeforeLoadError} from '../../../business/errors/write-remote-config-before-load-error.js';
 
 /**
  * Uses Kubernetes ConfigMaps to manage the remote configuration data by creating, loading, modifying,
@@ -45,31 +45,25 @@ import {LedgerPhase} from '../../../data/schema/model/remote/ledger-phase.js';
  */
 @injectable()
 export class RemoteConfigManager {
-  private remoteConfigRuntimeState?: RemoteConfigRuntimeState
+  private remoteConfigRuntimeState?: RemoteConfigRuntimeState;
+  public componentsDataWrapper?: ComponentsDataWrapper;
 
   /**
    * @param k8Factory - The Kubernetes client used for interacting with ConfigMaps.
    * @param logger - The logger for recording activity and errors.
    * @param localConfig - Local configuration for the remote config.
    * @param configManager - Manager to retrieve application flags and settings.
-   * @param componentsDataWrapper
    */
   public constructor(
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
     @inject(InjectTokens.ConfigManager) private readonly configManager?: ConfigManager,
-    @inject(InjectTokens.ComponentsDataWrapper) public readonly componentsDataWrapper?: ComponentsDataWrapper,
   ) {
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
-    this.componentsDataWrapper = patchInject(
-      componentsDataWrapper,
-      InjectTokens.ComponentsDataWrapper,
-      this.constructor.name,
-    );
   }
 
   /* ---------- Getters ---------- */
@@ -78,7 +72,21 @@ export class RemoteConfigManager {
     return this.k8Factory.default().clusters().readCurrent();
   }
 
+  public get components(): ComponentsDataWrapper {
+    return this.componentsDataWrapper;
+  }
+
   /* ---------- Readers and Modifiers ---------- */
+
+  public isLoaded(): boolean {
+    return this.remoteConfigRuntimeState?.isLoaded() ?? false;
+  }
+
+  public async modify(
+    callback: (remoteConfig: RemoteConfig, components: ComponentsDataWrapper) => Promise<void>,
+  ): Promise<void> {
+    await this.remoteConfigRuntimeState.modify(callback, this.components);
+  }
 
   /**
    * Creates a new remote configuration in the Kubernetes cluster.
@@ -99,14 +107,12 @@ export class RemoteConfigManager {
     const configMap: ConfigMap = await this.createConfigMap(namespace, context);
 
     const consensusNodeStates: ConsensusNodeState[] = nodeAliases.map((nodeAlias: NodeAlias): ConsensusNodeState => {
-      const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias)
-
       const stateMetadata: ComponentStateMetadata = new ComponentStateMetadata(
-        nodeId,
+        Templates.nodeIdFromNodeAlias(nodeAlias),
         namespace.name,
         clusterReference,
         DeploymentPhase.REQUESTED,
-      )
+      );
 
       return new ConsensusNodeState(stateMetadata);
     });
@@ -119,12 +125,22 @@ export class RemoteConfigManager {
       dnsConsensusNodePattern,
     );
 
-    const userIdentity = this.localConfig.userIdentity;
-    const cliVersion = new SemVer(getSoloVersion());
+    const userIdentity: Readonly<UserIdentity> = this.localConfig.userIdentity;
+    const cliVersion: SemVer = new SemVer(getSoloVersion());
     const command: string = argv._.join(' ');
 
     this.remoteConfigRuntimeState = new RemoteConfigRuntimeState(configMap);
-    await this.remoteConfigRuntimeState.create(ledgerPhase,userIdentity, consensusNodeStates, command, cluster, cliVersion)
+
+    await this.remoteConfigRuntimeState.create(
+      ledgerPhase,
+      userIdentity,
+      consensusNodeStates,
+      command,
+      cluster,
+      cliVersion,
+    );
+
+    this.componentsDataWrapper = new ComponentsDataWrapper(this.remoteConfigRuntimeState);
   }
 
   public addCommandToHistory(command: string, remoteConfig: RemoteConfig): void {
@@ -183,7 +199,10 @@ export class RemoteConfigManager {
     await this.setDefaultNamespaceAndDeploymentIfNotSet(argv);
     this.setDefaultContextIfNotSet();
 
-    await this.remoteConfigRuntimeState; // TODO LOAD RUNTIME STATE
+    const namespace: NamespaceName = this.configManager.getFlag(flags.namespace);
+    const context: Context = this.configManager.getFlag(flags.context);
+
+    await this.load(namespace, context);
 
     this.logger.info('Remote config loaded');
     if (!validate) {
@@ -208,8 +227,6 @@ export class RemoteConfigManager {
       );
 
       this.populateVersionsInMetadata(argv, remoteConfig);
-
-      await this.remoteConfigRuntimeState.handleArgv(argv);
     });
   }
 

@@ -20,6 +20,7 @@ import {UserIdentity} from '../../data/schema/model/common/user-identity.js';
 import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
 import {ConsensusNodeState} from '../../data/schema/model/remote/state/consensus-node-state.js';
 import {SemVer} from 'semver';
+import {ComponentsDataWrapper} from '../../core/config/remote/components-data-wrapper.js';
 
 @injectable()
 export class RemoteConfigRuntimeState {
@@ -81,11 +82,14 @@ export class RemoteConfigRuntimeState {
     return this.source.modelData.history;
   }
 
-  public async modify(callback: (remoteConfig: RemoteConfig) => Promise<void>): Promise<void> {
+  public async modify(
+    callback: (remoteConfig: RemoteConfig, components: ComponentsDataWrapper) => Promise<void>,
+    components: ComponentsDataWrapper,
+  ): Promise<void> {
     if (!this.isLoaded()) {
       throw new WriteRemoteConfigBeforeLoadError('Attempting to modify remote config before loading it');
     }
-    await callback(this.source.modelData);
+    await callback(this.source.modelData, components);
 
     return this.write();
   }

@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {inject} from 'tsyringe-neo';
-import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
-import {patchInject} from '../../dependency-injection/container-helper.js';
 import {SoloError} from '../../errors/solo-error.js';
 import {ComponentTypes} from './enumerations/component-types.js';
 import {BaseState} from '../../../data/schema/model/remote/state/base-state.js';
@@ -15,16 +12,8 @@ import {type ClusterReference, type ComponentId} from '../../../types/index.js';
 export class ComponentsDataWrapper {
   public readonly state: DeploymentState;
 
-  private constructor(
-    @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfigRuntimeState?: RemoteConfigRuntimeState,
-  ) {
-    this.remoteConfigRuntimeState = patchInject(
-      remoteConfigRuntimeState,
-      InjectTokens.RemoteConfigRuntimeState,
-      this.constructor.name,
-    );
-
-    this.state = this.remoteConfigRuntimeState.state;
+  public constructor(remoteConfigRuntimeState?: RemoteConfigRuntimeState) {
+    this.state = remoteConfigRuntimeState.state;
   }
 
   /* -------- Modifiers -------- */

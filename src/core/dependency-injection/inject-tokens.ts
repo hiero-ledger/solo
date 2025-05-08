@@ -4,7 +4,6 @@
  * Dependency injection tokens
  */
 export const InjectTokens = {
-  ComponentsDataWrapper: Symbol.for('ComponentsDataWrapper'),
   LogLevel: Symbol.for('LogLevel'),
   DevelopmentMode: Symbol.for('DevelopmentMode'),
   OsPlatform: Symbol.for('OsPlatform'),
@@ -44,7 +43,6 @@ export const InjectTokens = {
   Middlewares: Symbol.for('Middlewares'),
   KeyFormatter: Symbol.for('KeyFormatter'),
   ConfigProvider: Symbol.for('ConfigProvider'),
-  RemoteConfigRuntimeState: Symbol.for('RemoteConfigRuntimeState'),
   LocalConfigFileName: Symbol.for('LocalConfigFileName'),
   LocalConfigSource: Symbol.for('LocalConfigSource'),
   LocalConfigRuntimeState: Symbol.for('LocalConfigRuntimeState'),
