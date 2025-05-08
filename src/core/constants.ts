@@ -70,10 +70,10 @@ export const MIRROR_NODE_CHART = 'hedera-mirror';
 export const MIRROR_NODE_RELEASE_NAME = 'mirror';
 
 export const HEDERA_EXPLORER_CHART_URL =
-  process.env.HEDERA_EXPLORER_CHART_URL ?? 'oci://ghcr.io/hashgraph/hedera-mirror-node-explorer/hedera-explorer-chart';
-export const HEDERA_EXPLORER_RELEASE_NAME = 'hedera-explorer';
+  process.env.HEDERA_EXPLORER_CHART_URL ?? 'oci://ghcr.io/hiero-ledger/hiero-mirror-node-explorer/hiero-explorer-chart';
+export const HEDERA_EXPLORER_RELEASE_NAME = 'hiero-explorer';
 export const SOLO_RELAY_LABEL = 'app=hedera-json-rpc-relay';
-export const SOLO_HEDERA_EXPLORER_LABEL = 'app.kubernetes.io/component=hedera-explorer';
+export const SOLO_HEDERA_EXPLORER_LABEL = 'app.kubernetes.io/component=hiero-explorer';
 
 export const INGRESS_CONTROLLER_CHART_URL =
   process.env.INGRESS_CONTROLLER_CHART_URL ?? 'https://haproxy-ingress.github.io/charts';

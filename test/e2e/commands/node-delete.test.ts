@@ -26,8 +26,9 @@ import {AccountCommand} from '../../../src/commands/account.js';
 
 const namespace = NamespaceName.of('node-delete');
 const deleteNodeAlias = 'node1';
+const updateNodeAlias = 'node2';
 const argv = Argv.getDefaultArgv(namespace);
-argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2');
+argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
 argv.setArg(flags.nodeAlias, deleteNodeAlias);
 argv.setArg(flags.stakeAmounts, '1,1000');
 argv.setArg(flags.generateGossipKeys, true);
@@ -70,6 +71,29 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
 
       await accountManager.close();
     }).timeout(Duration.ofMinutes(10).toMillis());
+
+    it('should be able to create account after a node delete', async () => {
+      await commandInvoker.invoke({
+        argv: argv,
+        command: AccountCommand.COMMAND_NAME,
+        subcommand: 'create',
+        callback: async argv => accountCmd.create(argv),
+      });
+    });
+
+    it('should be able to update a node after node delete', async () => {
+      argv.setArg(flags.newAccountNumber, '0.0.7');
+      argv.setArg(flags.nodeAlias, updateNodeAlias);
+
+      await commandInvoker.invoke({
+        argv: argv,
+        command: NodeCommand.COMMAND_NAME,
+        subcommand: 'update',
+        callback: async argv => nodeCmd.handlers.update(argv),
+      });
+
+      await accountManager.close();
+    }).timeout(Duration.ofMinutes(30).toMillis());
 
     balanceQueryShouldSucceed(accountManager, namespace, remoteConfigManager, logger, deleteNodeAlias);
 

@@ -21,10 +21,10 @@ Once the nodes are up, you may now expose various services (using `k9s` (shift-f
   kubectl port-forward svc/envoy-proxy-node2-svc -n "${SOLO_NAMESPACE}" 8281:8080 &
   kubectl port-forward svc/envoy-proxy-node3-svc -n "${SOLO_NAMESPACE}" 8381:8080 &
   ```
-* Hedera explorer: `solo-deployment-hedera-explorer`
+* Hedera explorer: `solo-deployment-hiero-explorer`
   ```bash
-  #enable port forwarding for hedera explorer, can be access at http://localhost:8080/
-  kubectl port-forward svc/hedera-explorer -n "${SOLO_NAMESPACE}" 8080:80 &
+  #enable portforwarding for hiero explorer, can be access at http://localhost:8080/
+  kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:80 &
   ```
 * JSON Rpc Relays
 
