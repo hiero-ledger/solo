@@ -25,7 +25,7 @@ import {type AnyYargs, type ArgvStruct, type NodeAliases} from '../types/aliases
 import {Templates} from '../core/templates.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {DeploymentStates} from '../core/config/remote/enumerations/deployment-states.js';
-import {ComponentFactory} from '../core/config/remote/components/component-factory.js';
+import {ComponentFactory} from '../core/config/remote/component-factory.js';
 import {type Deployment} from '../data/schema/model/local/deployment.js';
 import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';

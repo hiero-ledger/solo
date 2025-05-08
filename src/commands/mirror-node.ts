@@ -45,7 +45,7 @@ import {KeyManager} from '../core/key-manager.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {ComponentFactory} from '../core/config/remote/components/component-factory.js';
+import {ComponentFactory} from '../core/config/remote/component-factory.js';
 import {type AccountId} from '@hashgraph/sdk';
 import {type MirrorNodeState} from '../data/schema/model/remote/state/mirror-node-state.js';
 

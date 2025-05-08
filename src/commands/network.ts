@@ -56,7 +56,7 @@ import {Duration} from '../core/time/duration.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
-import {ComponentFactory} from '../core/config/remote/components/component-factory.js';
+import {ComponentFactory} from '../core/config/remote/component-factory.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {NamespaceName} from '../types/namespace/namespace-name.js';

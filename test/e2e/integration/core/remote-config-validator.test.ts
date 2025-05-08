@@ -16,8 +16,8 @@ import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tok
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {getTestCacheDirectory} from '../../../test-utility.js';
 import {Duration} from '../../../../src/core/time/duration.js';
-import {type ClusterReference, type ComponentId} from '../../../../src/types/index.js';
-import {ComponentFactory} from '../../../../src/core/config/remote/components/component-factory.js';
+import {type ClusterReference} from '../../../../src/types/index.js';
+import {ComponentFactory} from '../../../../src/core/config/remote/component-factory.js';
 import {DeploymentPhase} from '../../../../src/data/schema/model/remote/deployment-phase.js';
 import {Templates} from '../../../../src/core/templates.js';
 import {LocalConfigRuntimeState} from '../../../../src/business/runtime-state/local-config-runtime-state.js';

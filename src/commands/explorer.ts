@@ -35,7 +35,7 @@ import {
 } from '../core/constants.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {ComponentFactory} from '../core/config/remote/components/component-factory.js';
+import {ComponentFactory} from '../core/config/remote/component-factory.js';
 import {type MirrorNodeState} from '../data/schema/model/remote/state/mirror-node-state.js';
 
 interface ExplorerDeployConfigClass {

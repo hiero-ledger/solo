@@ -37,7 +37,6 @@ import {SemVer, lt as SemVersionLessThan} from 'semver';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
 import {type LocalConfig} from '../../../src/data/schema/model/local/local-config.js';
 import {type ClusterReferences} from '../../../src/types/index.js';
-import {ComponentsDataWrapper} from '../../../src/core/config/remote/components-data-wrapper.js';
 
 const testName = 'network-cmd-unit';
 const namespace = NamespaceName.of(testName);

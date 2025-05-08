@@ -119,7 +119,7 @@ import {type CheckedNodesConfigClass, type CheckedNodesContext} from './config-i
 import {type NetworkNodeServices} from '../../core/network-node-services.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
 import {Cluster} from '../../data/schema/model/common/cluster.js';
-import {ComponentFactory} from '../../core/config/remote/components/component-factory.js';
+import {ComponentFactory} from '../../core/config/remote/component-factory.js';
 import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
 import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
 

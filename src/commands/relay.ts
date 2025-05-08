@@ -23,10 +23,10 @@ import {
 } from '../types/index.js';
 import {HEDERA_JSON_RPC_RELAY_VERSION} from '../../version.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {ComponentFactory} from '../core/config/remote/components/component-factory.js';
+import {ComponentFactory} from '../core/config/remote/component-factory.js';
 import {Templates} from '../core/templates.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
-import {RelayNodeState} from '../data/schema/model/remote/state/relay-node-state.js';
+import {type RelayNodeState} from '../data/schema/model/remote/state/relay-node-state.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;

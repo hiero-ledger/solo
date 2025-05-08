@@ -16,7 +16,7 @@ import {type SoloLogger} from '../../logging/solo-logger.js';
 import {type ConfigManager} from '../../config-manager.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../dependency-injection/container-helper.js';
-import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases, NodeId} from '../../../types/aliases.js';
+import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases} from '../../../types/aliases.js';
 import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
 import {ConsensusNode} from '../../model/consensus-node.js';
@@ -37,7 +37,6 @@ import {ComponentStateMetadata} from '../../../data/schema/model/remote/state/co
 import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
 import {LedgerPhase} from '../../../data/schema/model/remote/ledger-phase.js';
 import {UserIdentity} from '../../../data/schema/model/common/user-identity.js';
-import {WriteRemoteConfigBeforeLoadError} from '../../../business/errors/write-remote-config-before-load-error.js';
 
 /**
  * Uses Kubernetes ConfigMaps to manage the remote configuration data by creating, loading, modifying,
