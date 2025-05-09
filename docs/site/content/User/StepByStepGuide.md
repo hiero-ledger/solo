@@ -626,7 +626,7 @@ Current Command		: explorer deploy --deployment solo-deployment --quiet-mode
 ❯ Install cert manager
 ↓ Install cert manager [SKIPPED: Install cert manager]
 ❯ Install explorer
-*********************** Installed hedera-explorer chart ************************
+*********************** Installed hiero-explorer chart ************************
 Version			: 24.12.1
 ********************************************************************************
 ✔ Install explorer
@@ -705,7 +705,7 @@ Current Command		: relay destroy --node-aliases node1,node2,node3 --deployment s
 
  *** Destroyed Relays ***
 -------------------------------------------------------------------------------
- - hedera-explorer [hedera-explorer-chart-24.12.1]
+ - hiero-explorer [hiero-explorer-chart-24.12.1]
  - mirror [hedera-mirror-0.126.0]
  - solo-deployment [solo-deployment-0.50.0]
 
@@ -826,7 +826,7 @@ Context: kind-solo                                <0> all   <a>       Attach    
 │ solo                envoy-proxy-node2-667f848689-628cx                             ●  1/1   Running         0 1 │
 │ solo                envoy-proxy-node3-6bb4b4cbdf-dmwtr                             ●  1/1   Running         0 1 │
 │ solo                solo-deployment-grpc-75bb9c6c55-l7kvt                     ●  1/1   Running         0 1 │
-│ solo                solo-deployment-hedera-explorer-6565ccb4cb-9dbw2          ●  1/1   Running         0 1 │
+│ solo                solo-deployment-hiero-explorer-6565ccb4cb-9dbw2          ●  1/1   Running         0 1 │
 │ solo                solo-deployment-importer-dd74fd466-vs4mb                  ●  1/1   Running         0 1 │
 │ solo                solo-deployment-monitor-54b8f57db9-fn5qq                  ●  1/1   Running         0 1 │
 │ solo                solo-deployment-postgres-postgresql-0                     ●  1/1   Running         0 1 │

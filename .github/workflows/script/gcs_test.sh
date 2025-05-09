@@ -155,7 +155,7 @@ else
   kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-rest 5551:80 > /dev/null 2>&1 &
 
   npm run solo-test -- explorer deploy -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" \
-    --cluster-ref kind-${SOLO_CLUSTER_NAME} --tls-cluster-issuer-type self-signed --enable-hedera-explorer-tls \
+    --cluster-ref kind-${SOLO_CLUSTER_NAME} --tls-cluster-issuer-type self-signed --enable-hiero-explorer-tls \
     --ingress-controller-value-file "${script_dir}"/explorer-ingress-controller-values.yaml \
     --enable-ingress --domain-name localhost
 

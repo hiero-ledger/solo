@@ -2472,7 +2472,7 @@ Options:
                                       deployment                                                                     
      --dev                            Enable developer mode           [boolean] [default: false]                     
      --domain-name                    Custom domain name              [string]                                       
-     --enable-hedera-explorer-tls     Enable the Hedera Explorer      [boolean] [default: false]                     
+     --enable-hiero-explorer-tls     Enable the Hiero Explorer      [boolean] [default: false]                     
                                       TLS, defaults to false,                                                        
                                       requires certManager and                                                       
                                       certManagerCrds, which can be                                                  
@@ -2483,13 +2483,13 @@ Options:
                                       component/pod                                                                  
      --force-port-forward             Force port forward to access    [boolean] [default: true]                      
                                       the network services                                                           
-     --hedera-explorer-static-ip      The static IP address to use    [string]                                       
+     --hiero-explorer-static-ip      The static IP address to use    [string]                                       
                                       for the Hedera Explorer load                                                   
                                       balancer, defaults to ""                                                       
-     --hedera-explorer-tls-host-name  The host name to use for the    [string] [default: "explorer.solo.local"]      
+     --hiero-explorer-tls-host-name  The host name to use for the    [string] [default: "explorer.solo.local"]      
                                       Hedera Explorer TLS, defaults                                                  
                                       to "explorer.solo.local"                                                       
-     --hedera-explorer-version        Hedera explorer chart version   [string] [default: "24.12.1"]                  
+     --hiero-explorer-version        Hiero explorer chart version   [string] [default: "24.12.1"]                  
      --ingress-controller-value-file  The value file to use for       [string]                                       
                                       ingress controller, defaults                                                   
                                       to ""                                                                          

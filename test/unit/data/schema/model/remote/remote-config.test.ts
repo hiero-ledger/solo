@@ -31,7 +31,7 @@ function migrateVersions(plainObject: MigrationCandidate) {
     plainObject.metadata?.hederaMirrorNodeChartVersion || plainObject.flags?.mirrorNodeVersion || '0.0.0',
   );
   plainObject.versions.explorerChart = migrateVersionPrefix(
-    plainObject.metadata?.hederaExplorerChartVersion || plainObject.flags?.hederaExplorerVersion || '0.0.0',
+    plainObject.metadata?.hieroExplorerChartVersion || plainObject.flags?.hieroExplorerVersion || '0.0.0',
   );
   plainObject.versions.jsonRpcRelayChart = migrateVersionPrefix(
     plainObject.metadata?.hederaJsonRpcRelayChartVersion || plainObject.flags?.relayReleaseTag || '0.0.0',
