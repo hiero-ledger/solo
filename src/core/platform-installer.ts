@@ -258,8 +258,6 @@ export class PlatformInstaller {
             'keys',
             Templates.renderTLSPemPrivateKeyFile(consensusNode.name as NodeAlias),
           ),
-        );
-        sourceFiles.push(
           PathEx.joinWithRealPath(
             stagingDirectory,
             'keys',
