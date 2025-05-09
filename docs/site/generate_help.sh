@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eo pipefail
 
-OUTPUT_FILE="docs/site/content/en/documentation/solo-commands.md"
+OUTPUT_FILE="docs/site/content/en/docs/solo-commands.md"
 echo "---" > "$OUTPUT_FILE"
 echo "title: ""Solo CLI Commands""" >> "$OUTPUT_FILE"
 echo "weight: 40" >> "$OUTPUT_FILE"
