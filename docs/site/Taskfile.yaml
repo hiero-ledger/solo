@@ -112,9 +112,9 @@ tasks:
       - version.ts
       - solo.ts
     generates:
-      - docs/site/static/development/classes/**/*.*
+      - docs/site/static/classes/**/*.*
     cmds:
-      - npx typedoc --excludeExternals --out docs/site/static/development/classes --entryPoints ./solo.ts --entryPoints ./src/index.ts --entryPointStrategy expand ./src
+      - npx typedoc --excludeExternals --out docs/site/static/classes --entryPoints ./solo.ts --entryPoints ./src/index.ts --entryPointStrategy expand ./src
 
   install:
     desc: "Install dependencies: Hugo, TypeDoc, Solo CLI, and Docsy theme"
