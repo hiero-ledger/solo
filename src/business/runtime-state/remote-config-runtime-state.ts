@@ -36,7 +36,7 @@ import {
   type NamespaceNameAsString,
 } from '../../types/index.js';
 import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases} from '../../types/aliases.js';
-import {type NamespaceName} from '../../types/namespace/namespace-name.js';
+import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {ComponentStateMetadata} from '../../data/schema/model/remote/state/component-state-metadata.js';
 import {Templates} from '../../core/templates.js';
 import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
@@ -60,6 +60,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   private phase: RuntimeStatePhase = RuntimeStatePhase.NotLoaded;
 
   private componentsDataWrapper?: ComponentsDataWrapperApi;
+  public clusterReferences: Map<Context, ClusterReference> = new Map();
 
   private source?: RemoteConfigSource;
   private backend?: YamlConfigMapStorageBackend;
@@ -83,6 +84,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   public get components(): ComponentsDataWrapperApi {
+    this.failIfNotLoaded();
     return this.componentsDataWrapper;
   }
 
@@ -254,8 +256,16 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     await this.setDefaultNamespaceAndDeploymentIfNotSet(argv);
     this.setDefaultContextIfNotSet();
 
-    const namespace: NamespaceName = this.configManager.getFlag(flags.namespace);
-    const context: Context = this.configManager.getFlag(flags.context);
+    const deployment: Deployment = this.localConfig.getDeployment(
+      this.configManager.getFlag<DeploymentName>(flags.deployment),
+    );
+
+    const namespace: NamespaceName = NamespaceName.of(deployment.namespace);
+
+    for (const clusterReference of deployment.clusters) {
+      const context: Context = this.localConfig.clusterRefs.get(clusterReference);
+      this.clusterReferences.set(context, clusterReference);
+    }
 
     await this.load(namespace, context);
 
