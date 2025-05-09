@@ -9,7 +9,6 @@ import sinon from 'sinon';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
-import {resetTestContainer} from '../../../test-container.js';
 
 describe('InitCommand', () => {
   let sandbox = sinon.createSandbox();
