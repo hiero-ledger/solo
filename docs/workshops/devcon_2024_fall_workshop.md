@@ -337,7 +337,7 @@ Check your other terminal where you ran `k9s` command and you will be see a set 
 ### 4.1 Expose Hedera Explorer port
 
 ```bash
-kubectl port-forward svc/fullstack-deployment-hedera-explorer -n $SOLO_NAMESPACE 8080:80 &
+kubectl port-forward svc/fullstack-deployment-hiero-explorer -n $SOLO_NAMESPACE 8080:80 &
 ```
 
 #### Checkpoint

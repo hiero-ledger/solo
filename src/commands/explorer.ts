@@ -43,7 +43,7 @@ interface ExplorerDeployConfigClass {
   ingressControllerValueFile: string;
   hieroExplorerTlsHostName: string;
   hieroExplorerStaticIp: string | '';
-  hederaExplorerVersion: string;
+  hieroExplorerVersion: string;
   mirrorNamespace: NamespaceName;
   namespace: NamespaceName;
   profileFile: string;
@@ -98,7 +98,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.enableHieroExplorerTls,
       flags.hieroExplorerTlsHostName,
       flags.hieroExplorerStaticIp,
-      flags.hederaExplorerVersion,
+      flags.hieroExplorerVersion,
       flags.mirrorNamespace,
       flags.namespace,
       flags.deployment,
@@ -227,7 +227,7 @@ export class ExplorerCommand extends BaseCommand {
               flags.hieroExplorerTlsHostName,
               flags.ingressControllerValueFile,
               flags.hieroExplorerStaticIp,
-              flags.hederaExplorerVersion,
+              flags.hieroExplorerVersion,
               flags.mirrorNamespace,
               flags.tlsClusterIssuerType,
               flags.valuesFile,
@@ -336,11 +336,11 @@ export class ExplorerCommand extends BaseCommand {
               constants.HEDERA_EXPLORER_RELEASE_NAME,
               '',
               HEDERA_EXPLORER_CHART_URL,
-              config.hederaExplorerVersion,
+              config.hieroExplorerVersion,
               exploreValuesArgument,
               context_.config.clusterContext,
             );
-            showVersionBanner(self.logger, constants.HEDERA_EXPLORER_RELEASE_NAME, config.hederaExplorerVersion);
+            showVersionBanner(self.logger, constants.HEDERA_EXPLORER_RELEASE_NAME, config.hieroExplorerVersion);
           },
         },
         {

@@ -1662,25 +1662,25 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly hederaExplorerVersion: CommandFlag = {
-    constName: 'hederaExplorerVersion',
-    name: 'hedera-explorer-version',
+  public static readonly hieroExplorerVersion: CommandFlag = {
+    constName: 'hieroExplorerVersion',
+    name: 'hiero-explorer-version',
     definition: {
-      describe: 'Hedera explorer chart version',
+      describe: 'Hiero explorer chart version',
       defaultValue: version.HEDERA_EXPLORER_VERSION,
       type: 'string',
     },
-    prompt: async function promptHederaExplorerVersion(
+    prompt: async function promptHieroExplorerVersion(
       task: SoloListrTaskWrapper<AnyListrContext>,
       input: boolean,
     ): Promise<boolean> {
       return await Flags.promptToggle(
         task,
         input,
-        Flags.hederaExplorerVersion.definition.defaultValue as boolean,
-        'Would you like to choose hedera explorer version? ',
+        Flags.hieroExplorerVersion.definition.defaultValue as boolean,
+        'Would you like to choose Hiero explorer version? ',
         null,
-        Flags.hederaExplorerVersion.name,
+        Flags.hieroExplorerVersion.name,
       );
     },
   };
@@ -2514,7 +2514,7 @@ export class Flags {
     Flags.ingressControllerValueFile,
     Flags.hieroExplorerTlsHostName,
     Flags.hieroExplorerStaticIp,
-    Flags.hederaExplorerVersion,
+    Flags.hieroExplorerVersion,
     Flags.inputDir,
     Flags.loadBalancerEnabled,
     Flags.localBuildPath,

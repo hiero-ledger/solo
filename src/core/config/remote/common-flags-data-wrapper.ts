@@ -16,7 +16,7 @@ export class CommonFlagsDataWrapper implements ToObject<RemoteConfigCommonFlagsS
     flags.soloChartVersion,
     flags.mirrorNodeVersion,
     flags.nodeAliasesUnparsed,
-    flags.hederaExplorerVersion,
+    flags.hieroExplorerVersion,
   ];
 
   private constructor(
@@ -105,7 +105,7 @@ export class CommonFlagsDataWrapper implements ToObject<RemoteConfigCommonFlagsS
       nodeAliasesUnparsed: this.flags.nodeAliasesUnparsed,
       releaseTag: this.flags.releaseTag,
       relayReleaseTag: this.flags.relayReleaseTag,
-      hederaExplorerVersion: this.flags.hederaExplorerVersion,
+      hieroExplorerVersion: this.flags.hieroExplorerVersion,
       mirrorNodeVersion: this.flags.mirrorNodeVersion,
     };
   }
