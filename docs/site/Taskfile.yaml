@@ -13,6 +13,7 @@ env:
   HUGO_BASEPATH: /
 
 # TODO - verify that api docs are mounted correctly and referenced links are working
+# TODO - add version env variable base URL and print to console
 tasks:
   default:
     desc: "List all available tasks"
@@ -51,17 +52,17 @@ tasks:
       - rm -Rf static/classes
       - rm -Rf public
       - rm -Rf resources
-      - rm -Rf themes
       - rm -f .hugo_build.lock
 
   build:all:
+    desc: "Perform the build operations: typedoc, cli help, and hugo"
     cmds:
       - task: "build:typedoc"
-      - task: "build:copy"
       - task: "build:cli:help"
       - task: "build:hugo"
 
   build:solo:
+    desc: "Build the Solo CLI"
     sources:
       - src/**/*.ts
       - version.ts
@@ -74,6 +75,7 @@ tasks:
       - node {{.TASKFILE_DIR}}/../../resources/post-build-script.js
 
   build:cli:help:
+    desc: "Generate the CLI help documentation"
     dir: ../..
     sources:
       - src/**/*.ts
@@ -88,6 +90,7 @@ tasks:
       - docs/site/generate_help.sh
 
   build:hugo:
+    desc: "Build the Hugo site"
     cmds:
       - echo "base_url  $HUGO_BASE_URL"
       - echo "origin    $HUGO_ORIGIN"
@@ -98,6 +101,7 @@ tasks:
       - hugo --cleanDestinationDir --gc --minify --baseURL "$HUGO_BASE_URL/"
 
   build:typedoc:
+    desc: "Generate the API documentation using TypeDoc"
     dir: ../..
     sources:
       - src/**/*.ts
@@ -109,7 +113,7 @@ tasks:
       - npx typedoc --excludeExternals --out docs/site/static/classes --entryPoints ./solo.ts --entryPoints ./src/index.ts --entryPointStrategy expand ./src
 
   install:
-    desc: "Install dependencies"
+    desc: "Install dependencies: Hugo, TypeDoc, Solo CLI, and Docsy theme"
     cmds:
       - task: "install:hugo"
       - task: "install:typedoc"
@@ -124,6 +128,7 @@ tasks:
       - hugo mod get github.com/google/docsy@v0.11.0
 
   install:hugo:
+    desc: "Install Hugo extended version"
     status:
       - command -v hugo
       - |
@@ -163,10 +168,12 @@ tasks:
       - CGO_ENABLED=1 go install -tags extended github.com/gohugoio/hugo@v0.145.0
 
   install:typedoc:
+    desc: "Install TypeDoc"
     cmds:
       - npx typedoc --version
 
   install:solo:
+    desc: "Install the Solo CLI dependencies from the package.json"
     dir: ../..
     sources:
       - package.json
