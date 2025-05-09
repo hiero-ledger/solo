@@ -4,25 +4,32 @@ import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import * as helpers from '../core/helpers.js';
+import {showVersionBanner} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {showVersionBanner} from '../core/helpers.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {type AnyYargs, type ArgvStruct, type NodeAliases} from '../types/aliases.js';
+import {type AnyYargs, type ArgvStruct, type NodeAlias, type NodeAliases, type NodeId} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
-import {RelayComponent} from '../core/config/remote/components/relay-component.js';
 import * as Base64 from 'js-base64';
-import {NamespaceName} from '../types/namespace/namespace-name.js';
-import {type ClusterReference, type DeploymentName} from '../types/index.js';
-import {type CommandDefinition, type Optional, type SoloListrTask} from '../types/index.js';
+import {
+  type ClusterReference,
+  type CommandDefinition,
+  type DeploymentName,
+  type Optional,
+  type SoloListrTask,
+} from '../types/index.js';
 import {HEDERA_JSON_RPC_RELAY_VERSION} from '../../version.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
+import {Templates} from '../core/templates.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
+import {type RelayNodeState} from '../data/schema/model/remote/state/relay-node-state.js';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -70,6 +77,7 @@ export class RelayCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
   ) {
     super();
 
@@ -208,7 +216,7 @@ export class RelayCommand extends BaseCommand {
     const accountMap = this.accountManager.getNodeAccountMap(nodeAliases, deploymentName);
     const networkNodeServicesMap = await this.accountManager.getNodeServiceMap(
       namespace,
-      this.remoteConfigManager.getClusterRefs(),
+      this.remoteConfig.getClusterRefs(),
       deploymentName,
     );
     for (const nodeAlias of nodeAliases) {
@@ -271,13 +279,13 @@ export class RelayCommand extends BaseCommand {
             );
             context_.config.nodeAliases = helpers.parseNodeAliases(
               context_.config.nodeAliasesUnparsed,
-              this.remoteConfigManager.getConsensusNodes(),
+              this.remoteConfig.getConsensusNodes(),
               this.configManager,
             );
             context_.config.releaseName = self.prepareReleaseName(context_.config.nodeAliases);
 
             if (context_.config.clusterRef) {
-              const context = self.remoteConfigManager.getClusterRefs()[context_.config.clusterRef];
+              const context = self.remoteConfig.getClusterRefs()[context_.config.clusterRef];
               if (context) {
                 context_.config.context = context;
               }
@@ -306,7 +314,7 @@ export class RelayCommand extends BaseCommand {
             const config = context_.config;
             await self.accountManager.loadNodeClient(
               context_.config.namespace,
-              self.remoteConfigManager.getClusterRefs(),
+              self.remoteConfig.getClusterRefs(),
               self.configManager.getFlag<DeploymentName>(flags.deployment),
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
@@ -425,14 +433,14 @@ export class RelayCommand extends BaseCommand {
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
               nodeAliases: helpers.parseNodeAliases(
                 self.configManager.getFlag<string>(flags.nodeAliasesUnparsed) as string,
-                this.remoteConfigManager.getConsensusNodes(),
+                this.remoteConfig.getConsensusNodes(),
                 this.configManager,
               ),
               clusterRef: self.configManager.getFlag<string>(flags.clusterRef) as string,
             } as RelayDestroyConfigClass;
 
             if (context_.config.clusterRef) {
-              const context = self.remoteConfigManager.getClusterRefs()[context_.config.clusterRef];
+              const context = self.remoteConfig.getClusterRefs()[context_.config.clusterRef];
               if (context) {
                 context_.config.context = context;
               }
@@ -455,7 +463,7 @@ export class RelayCommand extends BaseCommand {
           task: async context_ => {
             const config = context_.config;
 
-            await this.chartManager.uninstall(config.namespace, config.releaseName, context_.config.context);
+            await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
 
             this.logger.showList(
               'Destroyed Relays',
@@ -467,7 +475,7 @@ export class RelayCommand extends BaseCommand {
           },
           skip: context_ => !context_.config.isChartInstalled,
         },
-        this.removeRelayComponent(),
+        this.disableRelayComponent(),
       ],
       {
         concurrent: false,
@@ -541,28 +549,39 @@ export class RelayCommand extends BaseCommand {
   public addRelayComponent(): SoloListrTask<RelayDeployContext> {
     return {
       title: 'Add relay component in remote config',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfigManager.modify(async remoteConfig => {
-          const {
-            config: {namespace, nodeAliases},
-          } = context_;
-          const cluster = this.remoteConfigManager.currentCluster;
+        await this.remoteConfig.modify(async (_, components) => {
+          const {namespace, nodeAliases, clusterRef} = context_.config;
 
-          remoteConfig.components.add(new RelayComponent('relay', cluster, namespace.name, nodeAliases));
+          const nodeIds: NodeId[] = nodeAliases.map((nodeAlias: NodeAlias) => Templates.nodeIdFromNodeAlias(nodeAlias));
+
+          components.addNewComponent(
+            this.componentFactory.createNewRelayComponent(clusterRef, namespace, nodeIds),
+            ComponentTypes.RelayNodes,
+          );
         });
       },
     };
   }
 
   /** Remove the relay component from remote config. */
-  public removeRelayComponent(): SoloListrTask<RelayDestroyContext> {
+  public disableRelayComponent(): SoloListrTask<RelayDestroyContext> {
     return {
       title: 'Remove relay component from remote config',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
-      task: async (): Promise<void> => {
-        await this.remoteConfigManager.modify(async remoteConfig => {
-          remoteConfig.components.remove('relay', ComponentTypes.Relay);
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      task: async (context_): Promise<void> => {
+        const clusterReference: ClusterReference = context_.config.clusterRef;
+
+        await this.remoteConfig.modify(async (_, components) => {
+          const relayComponents: RelayNodeState[] = components.getComponentsByClusterReference<RelayNodeState>(
+            ComponentTypes.RelayNodes,
+            clusterReference,
+          );
+
+          for (const relayComponent of relayComponents) {
+            components.removeComponent(relayComponent.metadata.id, ComponentTypes.RelayNodes);
+          }
         });
       },
     };

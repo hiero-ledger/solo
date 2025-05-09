@@ -10,12 +10,10 @@ import * as version from '../../../version.js';
 import * as constants from '../../../src/core/constants.js';
 import {type ConfigManager} from '../../../src/core/config-manager.js';
 import {type ChartManager} from '../../../src/core/chart-manager.js';
-import {NetworkCommand} from '../../../src/commands/network.js';
+import {NetworkCommand, type NetworkDeployConfigClass} from '../../../src/commands/network.js';
 import {type LockManager} from '../../../src/core/lock/lock-manager.js';
-import {type RemoteConfigManager} from '../../../src/core/config/remote/remote-config-manager.js';
 import {type ProfileManager} from '../../../src/core/profile-manager.js';
 import {type KeyManager} from '../../../src/core/key-manager.js';
-import {ROOT_DIR} from '../../../src/core/constants.js';
 import {ListrLock} from '../../../src/core/lock/listr-lock.js';
 import {GenesisNetworkDataConstructor} from '../../../src/core/genesis-network-models/genesis-network-data-constructor.js';
 import {container} from 'tsyringe-neo';
@@ -42,6 +40,8 @@ import {ValueContainer} from '../../../src/core/dependency-injection/value-conta
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
 import {type LocalConfig} from '../../../src/data/schema/model/local/local-config.js';
 import {type ClusterReferences} from '../../../src/types/index.js';
+import {ROOT_DIR} from '../../../src/core/constants.js';
+import {type RemoteConfigRuntimeState} from '../../../src/business/runtime-state/remote-config-runtime-state.js';
 
 const testName = 'network-cmd-unit';
 const namespace = NamespaceName.of(testName);
@@ -81,7 +81,7 @@ describe('NetworkCommand unit tests', () => {
 
     const k8SFactoryStub = sinon.stub() as unknown as K8Factory;
     const clusterChecksStub = sinon.stub() as unknown as ClusterChecks;
-    const remoteConfigManagerStub = sinon.stub() as unknown as RemoteConfigManager;
+    const remoteConfigStub = sinon.stub() as unknown as RemoteConfigRuntimeState;
     const chartManagerStub = sinon.stub() as unknown as ChartManager;
     const certificateManagerStub = sinon.stub() as unknown as CertificateManager;
     const profileManagerStub = sinon.stub() as unknown as ProfileManager;
@@ -96,8 +96,8 @@ describe('NetworkCommand unit tests', () => {
         [InjectTokens.K8Factory, new ValueContainer(InjectTokens.K8Factory, k8SFactoryStub)],
         [InjectTokens.ClusterChecks, new ValueContainer(InjectTokens.ClusterChecks, clusterChecksStub)],
         [
-          InjectTokens.RemoteConfigManager,
-          new ValueContainer(InjectTokens.RemoteConfigManager, remoteConfigManagerStub),
+          InjectTokens.RemoteConfigRuntimeState,
+          new ValueContainer(InjectTokens.RemoteConfigRuntimeState, remoteConfigStub),
         ],
         [InjectTokens.ChartManager, new ValueContainer(InjectTokens.ChartManager, chartManagerStub)],
         [InjectTokens.CertificateManager, new ValueContainer(InjectTokens.CertificateManager, certificateManagerStub)],
@@ -195,10 +195,10 @@ describe('NetworkCommand unit tests', () => {
       options.chartManager.install = sinon.stub().returns(true);
       options.chartManager.uninstall = sinon.stub().returns(true);
 
-      options.remoteConfigManager = container.resolve<RemoteConfigManager>(InjectTokens.RemoteConfigManager);
-      options.remoteConfigManager.isLoaded = sinon.stub().returns(true);
-      options.remoteConfigManager.getConfigMap = sinon.stub().returns(null);
-      options.remoteConfigManager.modify = sinon.stub();
+      options.remoteConfig = container.resolve<RemoteConfigRuntimeState>(InjectTokens.RemoteConfigRuntimeState);
+      options.remoteConfig.isLoaded = sinon.stub().returns(true);
+      options.remoteConfig.getConfigMap = sinon.stub().returns(null);
+      options.remoteConfig.modify = sinon.stub();
 
       options.localConfig.modify((modelData: LocalConfig): void => {
         modelData.addClusterRef('solo-e2e', 'context-1');
@@ -220,10 +220,10 @@ describe('NetworkCommand unit tests', () => {
     it('Install function is called with expected parameters', async () => {
       try {
         const networkCommand = container.resolve<NetworkCommand>(NetworkCommand);
-        options.remoteConfigManager.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
-        options.remoteConfigManager.getContexts = sinon.stub().returns(['context1']);
+        options.remoteConfig.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
+        options.remoteConfig.getContexts = sinon.stub().returns(['context1']);
         const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['solo-e2e', 'context1']]);
-        options.remoteConfigManager.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
+        options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
         await networkCommand.deploy(argv.build());
 
@@ -242,10 +242,10 @@ describe('NetworkCommand unit tests', () => {
         argv.setArg(flags.force, true);
         const networkCommand = container.resolve<NetworkCommand>(NetworkCommand);
 
-        options.remoteConfigManager.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
-        options.remoteConfigManager.getContexts = sinon.stub().returns(['context1']);
+        options.remoteConfig.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
+        options.remoteConfig.getContexts = sinon.stub().returns(['context1']);
         const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['solo-e2e', 'context1']]);
-        options.remoteConfigManager.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
+        options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
         await networkCommand.deploy(argv.build());
         expect(options.chartManager.install.args[0][0].name).to.equal('solo-e2e');
@@ -268,15 +268,17 @@ describe('NetworkCommand unit tests', () => {
 
         const task = sinon.stub();
 
-        options.remoteConfigManager.getConsensusNodes = sinon
+        options.remoteConfig.getConsensusNodes = sinon
           .stub()
           .returns([new ConsensusNode('node1', 0, 'solo-e2e', 'cluster', 'context-1', 'base', 'pattern', 'fqdn')]);
-        options.remoteConfigManager.getContexts = sinon.stub().returns(['context-1']);
+
+        options.remoteConfig.getContexts = sinon.stub().returns(['context-1']);
         const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['cluster', 'context1']]);
-        options.remoteConfigManager.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
+        options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
         const networkCommand = container.resolve<NetworkCommand>(NetworkCommand);
-        const config = await networkCommand.prepareConfig(task, argv.build());
+        // @ts-expect-error - to access private method
+        const config: NetworkDeployConfigClass = await networkCommand.prepareConfig(task, argv.build());
 
         expect(config.valuesArgMap).to.not.empty;
         expect(config.valuesArgMap['cluster']).to.not.empty;

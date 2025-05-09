@@ -3,195 +3,156 @@
 import * as constants from '../../constants.js';
 import {SoloError} from '../../errors/solo-error.js';
 import {type K8Factory} from '../../../integration/kube/k8-factory.js';
-import {type ComponentsDataWrapper} from './components-data-wrapper.js';
-import {type BaseComponent} from './components/base-component.js';
 import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
 import {type LocalConfigRuntimeState} from '../../../business/runtime-state/local-config-runtime-state.js';
-import {ConsensusNodeStates} from './enumerations/consensus-node-states.js';
 import {type Context} from '../../../types/index.js';
+import {type NodeAlias} from '../../../types/aliases.js';
+import {Templates} from '../../templates.js';
+import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
+import {type ConsensusNodeState} from '../../../data/schema/model/remote/state/consensus-node-state.js';
+import {type BaseState} from '../../../data/schema/model/remote/state/base-state.js';
+import {inject, injectable} from 'tsyringe-neo';
+import {type RemoteConfigRuntimeStateApi} from '../../../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {patchInject} from '../../dependency-injection/container-helper.js';
+import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
+import {RemoteConfigValidatorApi} from './api/remote-config-validator-api.js';
 
 /**
  * Static class is used to validate that components in the remote config
  * are present in the kubernetes cluster, and throw errors if there is mismatch.
  */
-export class RemoteConfigValidator {
-  /**
-   * Gathers and handles validation of all components.
-   *
-   * @param namespace - namespace to validate the components in.
-   * @param components - components to validate.
-   * @param k8Factory - to validate the elements.
-   * @param localConfig - to get the context from cluster
-   * @param skipConsensusNodes - whether to validate consensus nodes
-   */
-  public static async validateComponents(
-    namespace: NamespaceName,
-    components: ComponentsDataWrapper,
-    k8Factory: K8Factory,
-    localConfig: LocalConfigRuntimeState,
-    skipConsensusNodes: boolean,
-  ): Promise<void> {
-    await Promise.all([
-      ...RemoteConfigValidator.validateRelays(namespace, components, k8Factory, localConfig),
-      ...RemoteConfigValidator.validateHaProxies(namespace, components, k8Factory, localConfig),
-      ...RemoteConfigValidator.validateMirrorNodes(namespace, components, k8Factory, localConfig),
-      ...RemoteConfigValidator.validateEnvoyProxies(namespace, components, k8Factory, localConfig),
-      ...RemoteConfigValidator.validateMirrorNodeExplorers(namespace, components, k8Factory, localConfig),
-      ...RemoteConfigValidator.validateBlockNodes(namespace, components, k8Factory, localConfig),
-      ...(skipConsensusNodes
-        ? []
-        : RemoteConfigValidator.validateConsensusNodes(namespace, components, k8Factory, localConfig)),
-    ]);
+@injectable()
+export class RemoteConfigValidator implements RemoteConfigValidatorApi {
+  public constructor(
+    @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
+    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
+    @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig?: RemoteConfigRuntimeStateApi,
+  ) {
+    this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
+    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
+    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
   }
 
-  private static validateRelays(
-    namespace: NamespaceName,
-    components: ComponentsDataWrapper,
-    k8Factory: K8Factory,
-    localConfig: LocalConfigRuntimeState,
-  ): Promise<void>[] {
-    return Object.values(components.relays).map(async component => {
-      const context: Context = localConfig.clusterRefs.get(component.cluster);
-      const labels: string[] = [constants.SOLO_RELAY_LABEL];
-      try {
-        const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
-
-        if (pods.length === 0) {
-          throw new Error('Pod not found');
-        } // to return the generic error message
-      } catch (error) {
-        RemoteConfigValidator.throwValidationError('Relay', component, error);
-      }
-    });
+  private static getRelayLabels(): string[] {
+    // TODO:
+    //  https://github.com/hashgraph/solo/issues/1823
+    //  Add logic for selecting by specific label,
+    //  when multiple instances can be deployed at the same time.
+    return [constants.SOLO_RELAY_LABEL];
   }
 
-  private static validateHaProxies(
-    namespace: NamespaceName,
-    components: ComponentsDataWrapper,
-    k8Factory: K8Factory,
-    localConfig: LocalConfigRuntimeState,
-  ): Promise<void>[] {
-    return Object.values(components.haProxies).map(async component => {
-      const context: Context = localConfig.clusterRefs.get(component.cluster);
-      const labels: string[] = [`app=${component.name}`];
-      try {
-        const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
-
-        if (pods.length === 0) {
-          throw new Error('Pod not found');
-        } // to return the generic error message
-      } catch (error) {
-        RemoteConfigValidator.throwValidationError('HaProxy', component, error);
-      }
-    });
+  private static getHaProxyLabels(component: BaseState): string[] {
+    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(component.metadata.id + 1);
+    return [`app=haproxy-${nodeAlias}`, 'solo.hedera.com/type=haproxy'];
   }
 
-  private static validateMirrorNodes(
-    namespace: NamespaceName,
-    components: ComponentsDataWrapper,
-    k8Factory: K8Factory,
-    localConfig: LocalConfigRuntimeState,
-  ): Promise<void>[] {
-    return Object.values(components.mirrorNodes).map(async component => {
-      const context: Context = localConfig.clusterRefs.get(component.cluster);
-      const labels: string[] = constants.SOLO_HEDERA_MIRROR_IMPORTER;
-      try {
-        const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
-
-        if (pods.length === 0) {
-          throw new Error('Pod not found');
-        } // to return the generic error message
-      } catch (error) {
-        RemoteConfigValidator.throwValidationError('Mirror node', component, error);
-      }
-    });
+  private static getMirrorNodeLabels(): string[] {
+    // TODO:
+    //  https://github.com/hashgraph/solo/issues/1823
+    //  Add logic for selecting by specific label,
+    //  when multiple instances can be deployed at the same time.
+    return constants.SOLO_HEDERA_MIRROR_IMPORTER;
   }
 
-  private static validateEnvoyProxies(
-    namespace: NamespaceName,
-    components: ComponentsDataWrapper,
-    k8Factory: K8Factory,
-    localConfig: LocalConfigRuntimeState,
-  ): Promise<void>[] {
-    return Object.values(components.envoyProxies).map(async component => {
-      const context: Context = localConfig.clusterRefs.get(component.cluster);
-      const labels: string[] = [`app=${component.name}`];
-      try {
-        const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
-
-        if (pods.length === 0) {
-          throw new Error('Pod not found');
-        } // to return the generic error message
-      } catch (error) {
-        RemoteConfigValidator.throwValidationError('Envoy proxy', component, error);
-      }
-    });
+  private static getEnvoyProxyLabels(component: BaseState): string[] {
+    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(component.metadata.id + 1);
+    return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=envoy-proxy'];
   }
 
-  private static validateConsensusNodes(
+  private static getMirrorNodeExplorerLabels(): string[] {
+    // TODO:
+    //  https://github.com/hashgraph/solo/issues/1823
+    //  Add logic for selecting by specific label,
+    //  when multiple instances can be deployed at the same time.
+    return [constants.SOLO_HEDERA_EXPLORER_LABEL];
+  }
+
+  private static getConsensusNodeLabels(component: BaseState): string[] {
+    return [`app=network-${Templates.renderNodeAliasFromNumber(component.metadata.id + 1)}`];
+  }
+
+  private static consensusNodeSkipConditionCallback(nodeComponent: ConsensusNodeState): boolean {
+    return (
+      nodeComponent.metadata.phase === DeploymentPhase.REQUESTED ||
+      nodeComponent.metadata.phase === DeploymentPhase.STOPPED
+    );
+  }
+
+  private static componentValidationsMapping: Record<
+    string,
+    {
+      getLabelsCallback: (component: BaseState) => string[];
+      displayName: string;
+      skipCondition?: (component: BaseState) => boolean;
+    }
+  > = {
+    relays: {
+      displayName: 'Relay',
+      getLabelsCallback: RemoteConfigValidator.getRelayLabels,
+    },
+    haProxies: {
+      displayName: 'HaProxy',
+      getLabelsCallback: RemoteConfigValidator.getHaProxyLabels,
+    },
+    mirrorNodes: {
+      displayName: 'Mirror node',
+      getLabelsCallback: RemoteConfigValidator.getMirrorNodeLabels,
+    },
+    envoyProxies: {
+      displayName: 'Envoy proxy',
+      getLabelsCallback: RemoteConfigValidator.getEnvoyProxyLabels,
+    },
+    mirrorNodeExplorers: {
+      displayName: 'Mirror node explorer',
+      getLabelsCallback: RemoteConfigValidator.getMirrorNodeExplorerLabels,
+    },
+    consensusNodes: {
+      displayName: 'Consensus node',
+      getLabelsCallback: RemoteConfigValidator.getConsensusNodeLabels,
+      skipCondition: RemoteConfigValidator.consensusNodeSkipConditionCallback,
+    },
+  };
+
+  public async validateComponents(namespace: NamespaceName, skipConsensusNodes: boolean): Promise<void> {
+    const validationPromises: Promise<void>[] = Object.entries(RemoteConfigValidator.componentValidationsMapping)
+      .filter(([key]) => key !== 'consensusNodes' || !skipConsensusNodes)
+      .flatMap(([key, {getLabelsCallback, displayName, skipCondition}]): Promise<void>[] =>
+        this.validateComponentGroup(
+          namespace,
+          this.remoteConfig.state[key],
+          getLabelsCallback,
+          displayName,
+          skipCondition,
+        ),
+      );
+
+    await Promise.all(validationPromises);
+  }
+
+  private validateComponentGroup(
     namespace: NamespaceName,
-    components: ComponentsDataWrapper,
-    k8Factory: K8Factory,
-    localConfig: LocalConfigRuntimeState,
+    state: Record<string, BaseState>,
+    getLabelsCallback: (component: BaseState) => string[],
+    displayName: string,
+    skipCondition?: (component: BaseState) => boolean,
   ): Promise<void>[] {
-    return Object.values(components.consensusNodes).map(async component => {
-      if (component.state === ConsensusNodeStates.REQUESTED || component.state === ConsensusNodeStates.NON_DEPLOYED) {
+    return Object.values(state).map(async (component): Promise<void> => {
+      if (skipCondition?.(component)) {
         return;
       }
 
-      const context: Context = localConfig.clusterRefs.get(component.cluster);
-      const labels: string[] = [`app=network-${component.name}`];
+      const context: Context = this.localConfig.clusterRefs.get(component.metadata.cluster);
+      const labels: string[] = getLabelsCallback(component);
+
       try {
-        const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
+        const pods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);
 
         if (pods.length === 0) {
-          throw new Error('Pod not found');
-        } // to return the generic error message
+          throw new Error('Pod not found'); // to return the generic error message
+        }
       } catch (error) {
-        RemoteConfigValidator.throwValidationError('Consensus node', component, error);
-      }
-    });
-  }
-
-  private static validateMirrorNodeExplorers(
-    namespace: NamespaceName,
-    components: ComponentsDataWrapper,
-    k8Factory: K8Factory,
-    localConfig: LocalConfigRuntimeState,
-  ): Promise<void>[] {
-    return Object.values(components.mirrorNodeExplorers).map(async component => {
-      const context: Context = localConfig.clusterRefs.get(component.cluster);
-      const labels: string[] = [constants.SOLO_HEDERA_EXPLORER_LABEL];
-      try {
-        const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
-
-        if (pods.length === 0) {
-          throw new Error('Pod not found');
-        } // to return the generic error message
-      } catch (error) {
-        RemoteConfigValidator.throwValidationError('Mirror node explorer', component, error);
-      }
-    });
-  }
-
-  private static validateBlockNodes(
-    namespace: NamespaceName,
-    components: ComponentsDataWrapper,
-    k8Factory: K8Factory,
-    localConfig: LocalConfigRuntimeState,
-  ): Promise<void>[] {
-    return Object.values(components.blockNodes).map(async component => {
-      const context: Context = localConfig.clusterRefs[component.cluster];
-      const labels: string[] = [constants.SOLO_HEDERA_EXPLORER_LABEL]; // TODO: ADD BLOCK SELECT
-      try {
-        const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
-
-        if (pods.length === 0) {
-          throw new Error('Pod not found');
-        } // to return the generic error message
-      } catch (error) {
-        RemoteConfigValidator.throwValidationError('Block node', component, error);
+        throw RemoteConfigValidator.buildValidationError(displayName, component, error);
       }
     });
   }
@@ -199,16 +160,19 @@ export class RemoteConfigValidator {
   /**
    * Generic handler that throws errors.
    *
-   * @param type - name to display in error message
+   * @param displayName - name to display in error message
    * @param component - component which is not found in the cluster
    * @param error - original error for the kube client
    */
-  private static throwValidationError(type: string, component: BaseComponent, error: Error | unknown): never {
-    throw new SoloError(
-      `${type} in remote config with name ${component.name} ` +
-        `was not found in namespace: ${component.namespace}, cluster: ${component.cluster}`,
-      error,
-      {component: component.toObject()},
+  private static buildValidationError(displayName: string, component: BaseState, error: Error | unknown): SoloError {
+    return new SoloError(RemoteConfigValidator.buildValidationErrorMessage(displayName, component), error, component);
+  }
+
+  public static buildValidationErrorMessage(displayName: string, component: BaseState): string {
+    return (
+      `${displayName} in remote config with id ${component.metadata.id} was not found in ` +
+      `namespace: ${component.metadata.namespace}, ` +
+      `cluster: ${component.metadata.cluster}`
     );
   }
 }

@@ -45,7 +45,7 @@ argvExecute.setArg(flags.inputDir, temporaryDirectory);
 
 endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   const {
-    opts: {k8Factory, accountManager, remoteConfigManager, logger, commandInvoker},
+    opts: {k8Factory, accountManager, remoteConfig, logger, commandInvoker},
     cmd: {nodeCmd, accountCmd},
   } = bootstrapResp;
 
@@ -91,9 +91,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await accountManager.close();
     }).timeout(Duration.ofMinutes(10).toMillis());
 
-    balanceQueryShouldSucceed(accountManager, namespace, remoteConfigManager, logger, nodeAlias);
+    balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger, nodeAlias);
 
-    accountCreationShouldSucceed(accountManager, namespace, remoteConfigManager, logger, nodeAlias);
+    accountCreationShouldSucceed(accountManager, namespace, remoteConfig, logger, nodeAlias);
 
     it('deleted consensus node should not be running', async () => {
       // read config.txt file from first node, read config.txt line by line, it should not contain value of nodeAlias
