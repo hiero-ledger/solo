@@ -62,7 +62,7 @@ export class RemoteConfigV1Migration implements SchemaMigration {
 
     // migrate the clusters
     const clusters: object[] = [];
-    for (const cluster in Object.keys(clone.clusters)) {
+    for (const cluster in clone.clusters) {
       const clusterObject: {
         name: string;
         namespace: string;
@@ -99,102 +99,126 @@ export class RemoteConfigV1Migration implements SchemaMigration {
       explorers: [],
     };
 
-    // migrate the consensus nodes
-    for (const consensusNode of Object.keys(clone.components.consensusNodes)) {
-      const component: {
-        name: string;
-        nodeId: number;
-        namespace: string;
-        cluster: string;
-      } = clone.components.consensusNodes[consensusNode];
+    // Ensure components exists to avoid errors
+    if (!clone.components) {
+      clone.components = {
+        consensusNodes: {},
+        haProxies: {},
+        envoyProxies: {},
+        mirrorNodes: {},
+        relayNodes: {},
+        explorers: {},
+      };
+    }
 
-      clone.state.consensusNodes.push({
-        id: component.nodeId,
-        name: component.name,
-        namespace: component.namespace,
-        cluster: component.cluster,
-        phase: 'started',
-      });
+    // migrate the consensus nodes
+    if (clone.components.consensusNodes) {
+      for (const consensusNode in clone.components.consensusNodes) {
+        const component: {
+          name: string;
+          nodeId: number;
+          namespace: string;
+          cluster: string;
+        } = clone.components.consensusNodes[consensusNode];
+
+        clone.state.consensusNodes.push({
+          id: component.nodeId,
+          name: component.name,
+          namespace: component.namespace,
+          cluster: component.cluster,
+          phase: 'started',
+        });
+      }
     }
 
     //migrate haproxies
-    for (const haproxy of Object.keys(clone.components.haproxies)) {
-      const component: {
-        name: string;
-        namespace: string;
-        cluster: string;
-      } = clone.components.haproxies[haproxy];
+    if (clone.components.haProxies) {
+      for (const haproxy in clone.components.haProxies) {
+        const component: {
+          name: string;
+          namespace: string;
+          cluster: string;
+        } = clone.components.haProxies[haproxy];
 
-      clone.state.haProxies.push({
-        name: component.name,
-        namespace: component.namespace,
-        cluster: component.cluster,
-        phase: 'started',
-      });
+        clone.state.haProxies.push({
+          name: component.name,
+          namespace: component.namespace,
+          cluster: component.cluster,
+          phase: 'started',
+        });
+      }
     }
 
     // migrate envoy proxies
-    for (const envoyProxy of Object.keys(clone.components.envoyProxies)) {
-      const component: {
-        name: string;
-        namespace: string;
-        cluster: string;
-      } = clone.components.envoyProxies[envoyProxy];
+    if (clone.components.envoyProxies) {
+      for (const envoyProxy in clone.components.envoyProxies) {
+        const component: {
+          name: string;
+          namespace: string;
+          cluster: string;
+        } = clone.components.envoyProxies[envoyProxy];
 
-      clone.state.envoyProxies.push({
-        name: component.name,
-        namespace: component.namespace,
-        cluster: component.cluster,
-        phase: 'started',
-      });
+        clone.state.envoyProxies.push({
+          name: component.name,
+          namespace: component.namespace,
+          cluster: component.cluster,
+          phase: 'started',
+        });
+      }
     }
 
     // migrate explorers
-    for (const explorer of Object.keys(clone.components.explorers)) {
-      const component: {
-        name: string;
-        namespace: string;
-        cluster: string;
-      } = clone.components.explorers[explorer];
+    if (clone.components.explorers) {
+      for (const explorer in clone.components.explorers) {
+        const component: {
+          name: string;
+          namespace: string;
+          cluster: string;
+        } = clone.components.explorers[explorer];
 
-      clone.state.explorers.push({
-        name: component.name,
-        namespace: component.namespace,
-        cluster: component.cluster,
-        phase: 'started',
-      });
+        clone.state.explorers.push({
+          name: component.name,
+          namespace: component.namespace,
+          cluster: component.cluster,
+          phase: 'started',
+        });
+      }
     }
 
     // migrate mirror nodes
-    for (const mirrorNode of Object.keys(clone.components.mirrorNodes)) {
-      const component: {
-        name: string;
-        namespace: string;
-        cluster: string;
-      } = clone.components.mirrorNodes[mirrorNode];
+    if (clone.components.mirrorNodes) {
+      for (const mirrorNode in clone.components.mirrorNodes) {
+        const component: {
+          name: string;
+          namespace: string;
+          cluster: string;
+        } = clone.components.mirrorNodes[mirrorNode];
 
-      clone.state.mirrorNodes.push({
-        name: component.name,
-        namespace: component.namespace,
-        cluster: component.cluster,
-        phase: 'started',
-      });
+        clone.state.mirrorNodes.push({
+          name: component.name,
+          namespace: component.namespace,
+          cluster: component.cluster,
+          phase: 'started',
+        });
+      }
     }
 
     // migrate relay nodes
-    for (const relayNode of Object.keys(clone.components.relayNodes)) {
-      const component: {
-        name: string;
-        namespace: string;
-        cluster: string;
-      } = clone.components.relayNodes[relayNode];
+    if (clone.components.relayNodes) {
+      for (const relayNode in clone.components.relayNodes) {
+        const component: {
+          name: string;
+          namespace: string;
+          cluster: string;
+        } = clone.components.relayNodes[relayNode];
 
-      clone.state.relayNodes.push({
-        name: component.name,
-        namespace: component.namespace,
-        cluster: component.cluster,
-        phase: 'started',
-      });
+        clone.state.relayNodes.push({
+          name: component.name,
+          namespace: component.namespace,
+          cluster: component.cluster,
+          phase: 'started',
+        });
+      }
     }
 
     // delete the old components structure
@@ -203,18 +227,31 @@ export class RemoteConfigV1Migration implements SchemaMigration {
     // migrate the history
     clone.history = {};
     clone.history.commands = [];
-    for (const historyItem of Object.keys(clone.commandHistory)) {
-      clone.history.commands.push(historyItem);
+
+    // Handle the case when commandHistory is undefined
+    if (clone.commandHistory) {
+      // Check if commandHistory is an array or an object
+      if (Array.isArray(clone.commandHistory)) {
+        // If it's an array, push each item to the command array
+        for (const historyItem of clone.commandHistory) {
+          clone.history.commands.push(historyItem);
+        }
+      } else if (typeof clone.commandHistory === 'object') {
+        // If it's an object, push each key to the command array
+        for (const key in clone.commandHistory) {
+          clone.history.commands.push(key);
+        }
+      }
+      // delete the old command history
+      delete clone.commandHistory;
     }
 
-    // delete the old command history
-    delete clone.commandHistory;
-
     // migrate the last executed command
-    clone.history.lastExecutedCommand = clone.lastExecutedCommand;
-
-    // delete the old last executed command
-    delete clone.lastExecutedCommand;
+    if (clone.lastExecutedCommand) {
+      clone.history.lastExecutedCommand = clone.lastExecutedCommand;
+      // delete the old last executed command
+      delete clone.lastExecutedCommand;
+    }
 
     // Set the schema version to the new version
     clone.schemaVersion = this.version.value;
