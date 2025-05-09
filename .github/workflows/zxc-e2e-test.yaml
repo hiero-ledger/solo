@@ -215,6 +215,6 @@ jobs:
         run: |
           echo SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1 > .env
           cat .env
-          export CONSENSUS_NODE_VERSION=${{ inputs.version }}
+          export HEDERA_PLATFORM_VERSION=${{ inputs.version }}
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
 
