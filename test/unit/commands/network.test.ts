@@ -31,11 +31,15 @@ import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type DefaultHelmClient} from '../../../src/integration/helm/impl/default-helm-client.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
+import {type CertificateManager} from '../../../src/core/certificate-manager.js';
+import {type PlatformInstaller} from '../../../src/core/platform-installer.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import {SemVer, lt as SemVersionLessThan} from 'semver';
 import {ComponentsDataWrapper} from '../../../src/core/config/remote/components-data-wrapper.js';
 import {ROOT_DIR} from '../../../src/core/constants.js';
+import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
+import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
 import {type LocalConfig} from '../../../src/data/schema/model/local/local-config.js';
 import {type ClusterReferences} from '../../../src/types/index.js';
@@ -76,16 +80,44 @@ describe('NetworkCommand unit tests', () => {
   describe('Chart Install Function is called correctly', () => {
     let options: any;
 
-    beforeEach(async () => {
-      resetForTest();
-      options = {};
+    const k8SFactoryStub = sinon.stub() as unknown as K8Factory;
+    const clusterChecksStub = sinon.stub() as unknown as ClusterChecks;
+    const remoteConfigManagerStub = sinon.stub() as unknown as RemoteConfigManager;
+    const chartManagerStub = sinon.stub() as unknown as ChartManager;
+    const certificateManagerStub = sinon.stub() as unknown as CertificateManager;
+    const profileManagerStub = sinon.stub() as unknown as ProfileManager;
+    const platformInstallerStub = sinon.stub() as unknown as PlatformInstaller;
+    const keyManagerStub = sinon.stub() as unknown as KeyManager;
+    const depManagerStub = sinon.stub() as unknown as DependencyManager;
+    const helmStub = sinon.stub() as unknown as DefaultHelmClient;
+    let containerOverrides: InstanceOverrides;
 
+    beforeEach(async () => {
+      containerOverrides = new Map<symbol, ValueContainer>([
+        [InjectTokens.K8Factory, new ValueContainer(InjectTokens.K8Factory, k8SFactoryStub)],
+        [InjectTokens.ClusterChecks, new ValueContainer(InjectTokens.ClusterChecks, clusterChecksStub)],
+        [
+          InjectTokens.RemoteConfigManager,
+          new ValueContainer(InjectTokens.RemoteConfigManager, remoteConfigManagerStub),
+        ],
+        [InjectTokens.ChartManager, new ValueContainer(InjectTokens.ChartManager, chartManagerStub)],
+        [InjectTokens.CertificateManager, new ValueContainer(InjectTokens.CertificateManager, certificateManagerStub)],
+        [InjectTokens.ProfileManager, new ValueContainer(InjectTokens.ProfileManager, profileManagerStub)],
+        [InjectTokens.PlatformInstaller, new ValueContainer(InjectTokens.PlatformInstaller, platformInstallerStub)],
+        [InjectTokens.KeyManager, new ValueContainer(InjectTokens.KeyManager, keyManagerStub)],
+        [InjectTokens.DependencyManager, new ValueContainer(InjectTokens.DependencyManager, depManagerStub)],
+        [InjectTokens.Helm, new ValueContainer(InjectTokens.Helm, helmStub)],
+      ]);
+
+      resetForTest(undefined, undefined, true, containerOverrides);
+
+      options = {};
       options.logger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
 
       options.configManager = container.resolve<ConfigManager>(InjectTokens.ConfigManager);
       options.configManager.update(argv.build());
 
-      options.k8Factory = sinon.stub() as unknown as K8Factory;
+      options.k8Factory = k8SFactoryStub;
       const k8Stub = sinon.stub();
 
       options.k8Factory.default = sinon.stub().returns(k8Stub);
@@ -126,7 +158,6 @@ describe('NetworkCommand unit tests', () => {
       });
       options.k8Factory.default().clusters().readCurrent = sinon.stub().returns('solo-e2e');
 
-      const clusterChecksStub = sinon.stub() as unknown as ClusterChecks;
       clusterChecksStub.isMinioInstalled = sinon.stub();
       clusterChecksStub.isPrometheusInstalled = sinon.stub();
       clusterChecksStub.isCertManagerInstalled = sinon.stub();
@@ -145,17 +176,18 @@ describe('NetworkCommand unit tests', () => {
       });
 
       options.keyManager = container.resolve<KeyManager>(InjectTokens.KeyManager);
+      options.keyManager.prepareTLSKeyFilePaths = sinon.stub();
       options.keyManager.copyGossipKeysToStaging = sinon.stub();
       options.keyManager.copyNodeKeysToStaging = sinon.stub();
 
-      options.platformInstaller = sinon.stub();
+      options.platformInstaller = platformInstallerStub;
       options.platformInstaller.copyNodeKeys = sinon.stub();
       container.registerInstance(InjectTokens.PlatformInstaller, options.platformInstaller);
 
       options.profileManager = container.resolve<ProfileManager>(InjectTokens.ProfileManager);
       options.profileManager.prepareValuesForSoloChart = sinon.stub();
 
-      options.certificateManager = sinon.stub();
+      options.certificateManager = certificateManagerStub;
       container.registerInstance(InjectTokens.CertificateManager, options.certificateManager);
 
       options.chartManager = container.resolve<ChartManager>(InjectTokens.ChartManager);
@@ -165,7 +197,9 @@ describe('NetworkCommand unit tests', () => {
       options.chartManager.uninstall = sinon.stub().returns(true);
 
       options.remoteConfigManager = container.resolve<RemoteConfigManager>(InjectTokens.RemoteConfigManager);
+      options.remoteConfigManager.isLoaded = sinon.stub().returns(true);
       options.remoteConfigManager.getConfigMap = sinon.stub().returns(null);
+      options.remoteConfigManager.modify = sinon.stub();
 
       options.localConfig.modify((modelData: LocalConfig): void => {
         modelData.addClusterRef('solo-e2e', 'context-1');
@@ -186,7 +220,7 @@ describe('NetworkCommand unit tests', () => {
 
     it('Install function is called with expected parameters', async () => {
       try {
-        const networkCommand = new NetworkCommand(options);
+        const networkCommand = container.resolve<NetworkCommand>(NetworkCommand);
         options.remoteConfigManager.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
         options.remoteConfigManager.getContexts = sinon.stub().returns(['context1']);
         options.remoteConfigManager.getClusterRefs = sinon
@@ -212,7 +246,7 @@ describe('NetworkCommand unit tests', () => {
       try {
         argv.setArg(flags.chartDirectory, 'test-directory');
         argv.setArg(flags.force, true);
-        const networkCommand = new NetworkCommand(options);
+        const networkCommand = container.resolve<NetworkCommand>(NetworkCommand);
 
         options.remoteConfigManager.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
         options.remoteConfigManager.getContexts = sinon.stub().returns(['context1']);
@@ -254,7 +288,7 @@ describe('NetworkCommand unit tests', () => {
         const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['cluster', 'context1']]);
         options.remoteConfigManager.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
-        const networkCommand: NetworkCommand = new NetworkCommand(options);
+        const networkCommand = container.resolve<NetworkCommand>(NetworkCommand);
         // @ts-expect-error - to access private method
         const config: NetworkDeployConfigClass = await networkCommand.prepareConfig(task, argv.build());
 

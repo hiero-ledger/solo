@@ -51,7 +51,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
   } = bootstrapResp;
 
   describe('BlockNodeCommand', async () => {
-    const blockNodeCommand: BlockNodeCommand = new BlockNodeCommand(bootstrapResp.opts);
+    const blockNodeCommand: BlockNodeCommand = container.resolve<BlockNodeCommand>(InjectTokens.BlockNodeCommand);
 
     // @ts-expect-error - TS2341: to access private method
     const blockNodeComponentName: ComponentName = blockNodeCommand.getReleaseName();

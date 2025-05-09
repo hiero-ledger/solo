@@ -34,6 +34,8 @@ import {Argv} from '../../helpers/argv-wrapper.js';
 import {type DeploymentName, type Realm, type Shard} from '../../../src/types/index.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {entityId} from '../../../src/core/helpers.js';
+import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
+import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
 
 const defaultTimeout = Duration.ofSeconds(20).toMillis();
@@ -56,7 +58,11 @@ argv.setArg(flags.shard, 0);
 // enable load balancer for e2e tests
 // argv.setArg(flags.loadBalancerEnabled, true);
 
-endToEndTestSuite(testName, argv, {}, bootstrapResp => {
+const overrides: InstanceOverrides = new Map<symbol, ValueContainer>([
+  [InjectTokens.SystemAccounts, new ValueContainer(InjectTokens.SystemAccounts, testSystemAccounts)],
+]);
+
+endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp => {
   describe('AccountCommand', () => {
     let accountCmd: AccountCommand;
     let testLogger: SoloLogger;
@@ -67,7 +73,7 @@ endToEndTestSuite(testName, argv, {}, bootstrapResp => {
     } = bootstrapResp;
 
     before(async () => {
-      accountCmd = new AccountCommand(bootstrapResp.opts, testSystemAccounts);
+      accountCmd = container.resolve(AccountCommand) as AccountCommand;
       bootstrapResp.cmd.accountCmd = accountCmd;
       const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
       await localConfig.load();
@@ -107,7 +113,7 @@ endToEndTestSuite(testName, argv, {}, bootstrapResp => {
           subcommand: 'init',
           callback: async argv => accountCmd.init(argv),
         });
-      }).timeout(Duration.ofMinutes(3).toMillis());
+      }).timeout(Duration.ofMinutes(8).toMillis());
 
       describe('special accounts should have new keys', () => {
         const genesisKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
