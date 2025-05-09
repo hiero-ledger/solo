@@ -58,6 +58,7 @@ for cmd in "${COMMANDS[@]}"; do
     for subcmd in "${SUBCOMMANDS[@]}"; do
         echo "#2 Processing subcommand: $cmd $subcmd"
         echo -e "\n### $cmd $subcmd" >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
         echo '```' >> "$OUTPUT_FILE"
         npm run solo -- "$cmd" "$subcmd" --help >> "$OUTPUT_FILE"
         echo '```' >> "$OUTPUT_FILE"
