@@ -52,7 +52,7 @@ tasks:
   clean:
     desc: "Remove artifacts that are automatically generated"
     cmds:
-      - rm -Rf static/classes
+      - rm -Rf static
       - rm -Rf public
       - rm -Rf resources
       - rm -f .hugo_build.lock
@@ -112,9 +112,9 @@ tasks:
       - version.ts
       - solo.ts
     generates:
-      - docs/site/static/classes/**/*.*
+      - docs/site/static/development/classes/**/*.*
     cmds:
-      - npx typedoc --excludeExternals --out docs/site/static/classes --entryPoints ./solo.ts --entryPoints ./src/index.ts --entryPointStrategy expand ./src
+      - npx typedoc --excludeExternals --out docs/site/static/development/classes --entryPoints ./solo.ts --entryPoints ./src/index.ts --entryPointStrategy expand ./src
 
   install:
     desc: "Install dependencies: Hugo, TypeDoc, Solo CLI, and Docsy theme"

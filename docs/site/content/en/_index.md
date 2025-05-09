@@ -15,10 +15,10 @@ Solo is a tool for deploying a Hiero Ledger Consensus Node Network locally or to
 
 {{% blocks/section %}}
 <div class="text-center">
-<a class="btn btn-lg btn-primary" href="/docs/">
+<a class="btn btn-lg btn-primary" href="docs/">
 Docs<i class="fas fa-arrow-alt-circle-right ms-2"></i>
 </a>
 <br/><div class="mt-3 mb-3"></div>
-<a class="btn btn-lg btn-primary" href="/development/">Contribute<i class="fas fa-arrow-alt-circle-right ms-2"></i></a>
+<a class="btn btn-lg btn-primary" href="development/">Contribute<i class="fas fa-arrow-alt-circle-right ms-2"></i></a>
 </div>
 {{% /blocks/section %}}
