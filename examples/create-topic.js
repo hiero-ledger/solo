@@ -114,11 +114,15 @@ async function main() {
           if (obj.messages.length === 0) {
             console.log('No messages yet');
           } else {
+            if (obj.messages.length === 0) {
+              console.error(`No messages found for the topic ${createReceipt.topicId}`);
+              process.exit(1);
+            }
             // convert message from base64 to utf-8
             const base64 = obj.messages[0].message;
             const buff = Buffer.from(base64, 'base64');
             receivedMessage = buff.toString('utf-8');
-            console.log(`Received message: ${receivedMessage}`);
+            console.log(`Query received message: ${receivedMessage}`);
             received = true;
           }
         });
