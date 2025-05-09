@@ -9,11 +9,7 @@
   "license": "Apache-2.0",
   "bugs": "https://github.com/hiero-ledger/solo/issues",
   "spelling": "cSpell:ignore docsy hugo htmltest precheck postbuild rtlcss -",
-  "scripts": {
-    "build:preview": "npm run hugo --cleanDestinationDir -e dev -DFE --minify --baseURL \"${DEPLOY_PRIME_URL:-/}\"",
-    "build:production": "npm run hugo --cleanDestinationDir --minify",
-    "build": "npm run hugo --cleanDestinationDir -e dev -DFE"
-  },
+  "scripts": {},
   "devDependencies": {
     "autoprefixer": "^10.4.21",
     "cross-env": "^7.0.3",
