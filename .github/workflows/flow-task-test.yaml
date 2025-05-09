@@ -75,7 +75,8 @@ jobs:
 
       - name: Run Example Task File Test with type ${{ matrix.type }}
         run: |
-          export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
+#          export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
+          export CONSENSUS_NODE_VERSION="v0.61.4" # Temporary fix for the smart contract test wait until hedera app fixed
           cd examples/external-database-test
           SOLO_CLUSTER_NAME=solo-task-test-${{ matrix.type }}-${{ github.run_id }}-${{ github.run_attempt }} task install:external-database
           task destroy:external-database
