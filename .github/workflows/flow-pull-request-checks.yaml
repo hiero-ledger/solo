@@ -58,6 +58,7 @@ jobs:
         e2e-test-type:
           - { name: "Node Add", test-script: "test-${{ needs.env-vars.outputs.e2e-node-add-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-add-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-add-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-node-add-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
           - { name: "Node Delete", test-script: "test-${{ needs.env-vars.outputs.e2e-node-delete-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-delete-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-delete-coverage-report }}", cluster-name: "${{needs.env-vars.outputs.e2e-node-delete-test-subdir}}-${{ github.run_id }}-${{ github.run_attempt }}" }
+          - { name: "Node Update", test-script: "test-${{ needs.env-vars.outputs.e2e-node-update-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-update-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-update-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-node-update-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
       max-parallel: 5
     with:
       custom-job-label: ${{ matrix.e2e-test-type.name }}
