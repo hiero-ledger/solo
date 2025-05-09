@@ -57,7 +57,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {ComponentFactory} from '../core/config/remote/component-factory.js';
+import {type ComponentFactory} from '../core/config/remote/component-factory.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
@@ -145,6 +145,7 @@ export class NetworkCommand extends BaseCommand {
     @inject(InjectTokens.KeyManager) private readonly keyManager: KeyManager,
     @inject(InjectTokens.PlatformInstaller) private readonly platformInstaller: PlatformInstaller,
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactory,
   ) {
     super();
 
@@ -1311,11 +1312,11 @@ export class NetworkCommand extends BaseCommand {
             components.changeNodePhase(nodeId, DeploymentPhase.REQUESTED);
 
             components.addNewComponent(
-              ComponentFactory.createNewEnvoyProxyComponent(this.remoteConfig, clusterReference, namespace),
+              this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
               ComponentTypes.EnvoyProxy,
             );
             components.addNewComponent(
-              ComponentFactory.createNewHaProxyComponent(this.remoteConfig, clusterReference, namespace),
+              this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),
               ComponentTypes.HaProxy,
             );
           }

@@ -12,13 +12,27 @@ import {Templates} from '../../templates.js';
 import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
 import {type ConsensusNodeState} from '../../../data/schema/model/remote/state/consensus-node-state.js';
 import {type BaseState} from '../../../data/schema/model/remote/state/base-state.js';
-import {type DeploymentState} from '../../../data/schema/model/remote/deployment-state.js';
+import {inject, injectable} from 'tsyringe-neo';
+import {type RemoteConfigRuntimeStateApi} from '../../../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {patchInject} from '../../dependency-injection/container-helper.js';
+import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
 
 /**
  * Static class is used to validate that components in the remote config
  * are present in the kubernetes cluster, and throw errors if there is mismatch.
  */
+@injectable()
 export class RemoteConfigValidator {
+  public constructor(
+    @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
+    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
+    @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig?: RemoteConfigRuntimeStateApi,
+  ) {
+    this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
+    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
+    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+  }
+
   private static getRelayLabels(): string[] {
     // TODO:
     //  https://github.com/hashgraph/solo/issues/1823
@@ -99,21 +113,13 @@ export class RemoteConfigValidator {
     },
   };
 
-  public static async validateComponents(
-    namespace: NamespaceName,
-    state: DeploymentState,
-    k8Factory: K8Factory,
-    localConfig: LocalConfigRuntimeState,
-    skipConsensusNodes: boolean,
-  ): Promise<void> {
+  public async validateComponents(namespace: NamespaceName, skipConsensusNodes: boolean): Promise<void> {
     const validationPromises: Promise<void>[] = Object.entries(RemoteConfigValidator.componentValidationsMapping)
       .filter(([key]) => key !== 'consensusNodes' || !skipConsensusNodes)
       .flatMap(([key, {getLabelsCallback, displayName, skipCondition}]): Promise<void>[] =>
-        RemoteConfigValidator.validateComponentGroup(
+        this.validateComponentGroup(
           namespace,
-          state[key],
-          k8Factory,
-          localConfig,
+          this.remoteConfig.state[key],
           getLabelsCallback,
           displayName,
           skipCondition,
@@ -123,11 +129,9 @@ export class RemoteConfigValidator {
     await Promise.all(validationPromises);
   }
 
-  private static validateComponentGroup(
+  private validateComponentGroup(
     namespace: NamespaceName,
     state: Record<string, BaseState>,
-    k8Factory: K8Factory,
-    localConfig: LocalConfigRuntimeState,
     getLabelsCallback: (component: BaseState) => string[],
     displayName: string,
     skipCondition?: (component: BaseState) => boolean,
@@ -137,11 +141,11 @@ export class RemoteConfigValidator {
         return;
       }
 
-      const context: Context = localConfig.clusterRefs.get(component.metadata.cluster);
+      const context: Context = this.localConfig.clusterRefs.get(component.metadata.cluster);
       const labels: string[] = getLabelsCallback(component);
 
       try {
-        const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
+        const pods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);
 
         if (pods.length === 0) {
           throw new Error('Pod not found'); // to return the generic error message

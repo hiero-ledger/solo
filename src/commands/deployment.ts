@@ -26,7 +26,7 @@ import {Templates} from '../core/templates.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {DeploymentStates} from '../core/config/remote/enumerations/deployment-states.js';
-import {ComponentFactory} from '../core/config/remote/component-factory.js';
+import {type ComponentFactory} from '../core/config/remote/component-factory.js';
 import {type Deployment} from '../data/schema/model/local/deployment.js';
 import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
@@ -59,7 +59,10 @@ export interface DeploymentAddClusterContext {
 
 @injectable()
 export class DeploymentCommand extends BaseCommand {
-  constructor(@inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks) {
+  public constructor(
+    @inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactory,
+  ) {
     super();
 
     this.tasks = patchInject(tasks, InjectTokens.ClusterCommandTasks, this.constructor.name);
@@ -739,7 +742,7 @@ export class DeploymentCommand extends BaseCommand {
           //* add the new nodes to components
           for (const nodeAlias of nodeAliases) {
             components.addNewComponent(
-              ComponentFactory.createNewConsensusNodeComponent(
+              this.componentFactory.createNewConsensusNodeComponent(
                 Templates.nodeIdFromNodeAlias(nodeAlias),
                 clusterRef,
                 namespace,

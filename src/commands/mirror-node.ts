@@ -104,6 +104,7 @@ export class MirrorNodeCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
     @inject(InjectTokens.ProfileManager) private readonly profileManager?: ProfileManager,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory?: ComponentFactory,
   ) {
     super();
 
@@ -951,7 +952,7 @@ export class MirrorNodeCommand extends BaseCommand {
           const {namespace, clusterRef} = context_.config;
 
           components.addNewComponent(
-            ComponentFactory.createNewMirrorNodeComponent(this.remoteConfig, clusterRef, namespace),
+            this.componentFactory.createNewMirrorNodeComponent(clusterRef, namespace),
             ComponentTypes.MirrorNode,
           );
         });

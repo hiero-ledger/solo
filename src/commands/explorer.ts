@@ -81,6 +81,7 @@ export class ExplorerCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactory,
   ) {
     super();
 
@@ -653,7 +654,7 @@ export class ExplorerCommand extends BaseCommand {
           const {namespace, clusterRef} = context_.config;
 
           components.addNewComponent(
-            ComponentFactory.createNewExplorerComponent(this.remoteConfig, clusterRef, namespace),
+            this.componentFactory.createNewExplorerComponent(clusterRef, namespace),
             ComponentTypes.Explorers,
           );
         });

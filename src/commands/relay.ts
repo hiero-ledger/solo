@@ -77,6 +77,7 @@ export class RelayCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactory,
   ) {
     super();
 
@@ -556,7 +557,7 @@ export class RelayCommand extends BaseCommand {
           const nodeIds: NodeId[] = nodeAliases.map((nodeAlias: NodeAlias) => Templates.nodeIdFromNodeAlias(nodeAlias));
 
           components.addNewComponent(
-            ComponentFactory.createNewRelayComponent(this.remoteConfig, clusterRef, namespace, nodeIds),
+            this.componentFactory.createNewRelayComponent(clusterRef, namespace, nodeIds),
             ComponentTypes.RelayNodes,
           );
         });

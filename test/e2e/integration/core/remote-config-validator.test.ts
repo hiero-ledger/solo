@@ -56,22 +56,25 @@ interface ComponentsData {
   labelRecord: LabelRecord;
   componentsDataWrapper: ComponentsDataWrapper;
   podNames: Record<string, string>;
+  componentFactory: ComponentFactory;
 }
 
 function prepareComponentsData(namespace: NamespaceName): ComponentsData {
-  const remoteConfigManagerMock: any = {components: {getNewComponentId: (): number => 1}};
+  const remoteConfigMock: any = {components: {getNewComponentId: (): number => 1}};
 
   const clusterReference: ClusterReference = 'cluster';
   const nodeState: DeploymentPhase = DeploymentPhase.STARTED;
   const nodeId: NodeId = 0;
 
+  const componentFactory: ComponentFactory = new ComponentFactory(remoteConfigMock);
+
   const components: ComponentsRecord = {
-    explorer: ComponentFactory.createNewExplorerComponent(remoteConfigManagerMock, clusterReference, namespace),
-    mirrorNode: ComponentFactory.createNewMirrorNodeComponent(remoteConfigManagerMock, clusterReference, namespace),
-    relay: ComponentFactory.createNewRelayComponent(remoteConfigManagerMock, clusterReference, namespace, [0]),
-    consensusNode: ComponentFactory.createNewConsensusNodeComponent(nodeId, clusterReference, namespace, nodeState),
-    haProxy: ComponentFactory.createNewHaProxyComponent(remoteConfigManagerMock, clusterReference, namespace),
-    envoyProxy: ComponentFactory.createNewEnvoyProxyComponent(remoteConfigManagerMock, clusterReference, namespace),
+    explorer: componentFactory.createNewExplorerComponent(clusterReference, namespace),
+    mirrorNode: componentFactory.createNewMirrorNodeComponent(clusterReference, namespace),
+    relay: componentFactory.createNewRelayComponent(clusterReference, namespace, [0]),
+    consensusNode: componentFactory.createNewConsensusNodeComponent(nodeId, clusterReference, namespace, nodeState),
+    haProxy: componentFactory.createNewHaProxyComponent(clusterReference, namespace),
+    envoyProxy: componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
   };
 
   const labelRecord: LabelRecord = {
@@ -106,7 +109,7 @@ function prepareComponentsData(namespace: NamespaceName): ComponentsData {
   // @ts-expect-error - TS2740 to mock
   const componentsDataWrapper: ComponentsDataWrapper = new ComponentsDataWrapper({state: remoteConfig.state});
 
-  return {namespace, components, labelRecord, componentsDataWrapper, podNames};
+  return {namespace, components, labelRecord, componentsDataWrapper, podNames, componentFactory};
 }
 
 describe('RemoteConfigValidator', () => {
@@ -120,6 +123,7 @@ describe('RemoteConfigValidator', () => {
   let labelRecord: LabelRecord;
   let componentsDataWrapper: ComponentsDataWrapper;
   let podNames: Record<string, string>;
+  let componentFactory: ComponentFactory;
 
   before(async () => {
     k8Factory = container.resolve(InjectTokens.K8Factory);
@@ -134,6 +138,7 @@ describe('RemoteConfigValidator', () => {
     components = testData.components;
     labelRecord = testData.labelRecord;
     componentsDataWrapper = testData.componentsDataWrapper;
+    componentFactory = testData.componentFactory;
   });
 
   after(async function () {
@@ -175,6 +180,11 @@ describe('RemoteConfigValidator', () => {
     {componentKey: 'explorer', displayName: 'Mirror node explorer', type: ComponentTypes.Explorers},
   ];
 
+  // @ts-expect-error - to mock
+  const remoteConfigValidator: RemoteConfigValidator = new RemoteConfigValidator(k8Factory, localConfig, {
+    state: componentsDataWrapper.state,
+  });
+
   for (const {componentKey, displayName, type} of testCasesForIndividualComponents) {
     describe(`${displayName} validation`, () => {
       it('should fail if component is not present', async () => {
@@ -183,13 +193,7 @@ describe('RemoteConfigValidator', () => {
         componentsDataWrapper.addNewComponent(component, type);
 
         try {
-          await RemoteConfigValidator.validateComponents(
-            namespace,
-            componentsDataWrapper.state,
-            k8Factory,
-            localConfig,
-            false,
-          );
+          await remoteConfigValidator.validateComponents(namespace, true);
           expect.fail();
         } catch (error) {
           expect(error).to.be.instanceOf(SoloError);
@@ -200,13 +204,7 @@ describe('RemoteConfigValidator', () => {
       it('should succeed if component is present', async () => {
         await createPod(podNames[componentKey], labelRecord[componentKey]);
 
-        await RemoteConfigValidator.validateComponents(
-          namespace,
-          componentsDataWrapper.state,
-          k8Factory,
-          localConfig,
-          false,
-        );
+        await remoteConfigValidator.validateComponents(namespace, false);
       });
     });
   }
@@ -217,7 +215,7 @@ describe('RemoteConfigValidator', () => {
 
       const nodeIds: NodeId[] = [0, 1, 2];
 
-      const consensusNodeComponents: ConsensusNodeState[] = ComponentFactory.createConsensusNodeComponentsFromNodeIds(
+      const consensusNodeComponents: ConsensusNodeState[] = componentFactory.createConsensusNodeComponentsFromNodeIds(
         nodeIds,
         'cluster-ref',
         namespace,
@@ -235,13 +233,7 @@ describe('RemoteConfigValidator', () => {
         componentsDataWrapper.changeNodePhase(nodeId, DeploymentPhase.STARTED);
       }
 
-      await RemoteConfigValidator.validateComponents(
-        namespace,
-        componentsDataWrapper.state,
-        k8Factory,
-        localConfig,
-        skipConsensusNodes,
-      );
+      await remoteConfigValidator.validateComponents(namespace, skipConsensusNodes);
     });
 
     const nodeStates: DeploymentPhase[] = [DeploymentPhase.REQUESTED, DeploymentPhase.STOPPED];
@@ -250,7 +242,7 @@ describe('RemoteConfigValidator', () => {
       it(`Should not validate consensus nodes if status is ${nodeState} `, async () => {
         const nodeIds: NodeId[] = [0, 1, 2];
 
-        const consensusNodeComponents: ConsensusNodeState[] = ComponentFactory.createConsensusNodeComponentsFromNodeIds(
+        const consensusNodeComponents: ConsensusNodeState[] = componentFactory.createConsensusNodeComponentsFromNodeIds(
           nodeIds,
           'cluster-ref',
           namespace,
@@ -267,13 +259,7 @@ describe('RemoteConfigValidator', () => {
           componentsDataWrapper.changeNodePhase(nodeId, nodeState);
         }
 
-        await RemoteConfigValidator.validateComponents(
-          namespace,
-          componentsDataWrapper.state,
-          k8Factory,
-          localConfig,
-          false,
-        );
+        await remoteConfigValidator.validateComponents(namespace, false);
       });
     }
   });

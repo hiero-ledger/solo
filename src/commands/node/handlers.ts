@@ -45,11 +45,7 @@ export class NodeCommandHandlers extends CommandHandler {
     super();
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.configs = patchInject(configs, InjectTokens.NodeCommandConfigs, this.constructor.name);
-    this.remoteConfig = patchInject(
-      remoteConfig,
-      InjectTokens.RemoteConfigRuntimeState,
-      this.constructor.name,
-    );
+    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.tasks = patchInject(tasks, InjectTokens.NodeCommandTasks, this.constructor.name);
   }
 

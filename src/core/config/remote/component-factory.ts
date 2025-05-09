@@ -20,7 +20,7 @@ import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
 @injectable()
 export class ComponentFactory {
   public constructor(
-    @inject('RemoteConfigRuntimeStateApi') private readonly remoteConfig: RemoteConfigRuntimeStateApi,
+    @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
   ) {
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
   }

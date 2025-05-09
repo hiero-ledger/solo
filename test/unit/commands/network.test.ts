@@ -81,7 +81,7 @@ describe('NetworkCommand unit tests', () => {
 
     const k8SFactoryStub = sinon.stub() as unknown as K8Factory;
     const clusterChecksStub = sinon.stub() as unknown as ClusterChecks;
-    const remoteConfigManagerStub = sinon.stub() as unknown as RemoteConfigRuntimeState;
+    const remoteConfigStub = sinon.stub() as unknown as RemoteConfigRuntimeState;
     const chartManagerStub = sinon.stub() as unknown as ChartManager;
     const certificateManagerStub = sinon.stub() as unknown as CertificateManager;
     const profileManagerStub = sinon.stub() as unknown as ProfileManager;
@@ -97,7 +97,7 @@ describe('NetworkCommand unit tests', () => {
         [InjectTokens.ClusterChecks, new ValueContainer(InjectTokens.ClusterChecks, clusterChecksStub)],
         [
           InjectTokens.RemoteConfigRuntimeState,
-          new ValueContainer(InjectTokens.RemoteConfigRuntimeState, remoteConfigManagerStub),
+          new ValueContainer(InjectTokens.RemoteConfigRuntimeState, remoteConfigStub),
         ],
         [InjectTokens.ChartManager, new ValueContainer(InjectTokens.ChartManager, chartManagerStub)],
         [InjectTokens.CertificateManager, new ValueContainer(InjectTokens.CertificateManager, certificateManagerStub)],

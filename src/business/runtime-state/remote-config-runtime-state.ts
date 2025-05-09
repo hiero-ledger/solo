@@ -70,6 +70,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
     @inject(InjectTokens.ConfigManager) private readonly configManager?: ConfigManager,
+    @inject(InjectTokens.RemoteConfigValidator) private readonly remoteConfigValidator?: RemoteConfigValidator,
   ) {
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
@@ -263,13 +264,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       return;
     }
 
-    await RemoteConfigValidator.validateComponents(
-      this.configManager.getFlag(flags.namespace),
-      this.state,
-      this.k8Factory,
-      this.localConfig,
-      skipConsensusNodesValidation,
-    );
+    await this.remoteConfigValidator.validateComponents(namespace, skipConsensusNodesValidation);
 
     await this.modify(async (remoteConfig: RemoteConfig) => {
       const currentCommand: string = argv._?.join(' ');
