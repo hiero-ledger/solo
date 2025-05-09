@@ -18,7 +18,7 @@ echo -e "\n- [Root Help Output](#root-help-output)" >> "$OUTPUT_FILE"
 COMMANDS=($(npm run solo -- --help | awk '/Commands:/ {flag=1; next} /Options:/ {flag=0} flag && NF && $1 != "" {print $1}' || true))
 
 for cmd in "${COMMANDS[@]}"; do
-    echo "Processing command: $cmd"
+    echo "#1 Processing command: $cmd"
     echo -e "\n- [${cmd}](#${cmd})" >> "$OUTPUT_FILE"
 
     # Add subcommands if they exist
@@ -28,7 +28,7 @@ for cmd in "${COMMANDS[@]}"; do
     SUBCOMMANDS=($(echo "$SUBCOMMAND_OUTPUT" | sed -n '/Commands:/,/Options:/p' | grep -E "^  $cmd \S+" | awk '{print $2}' || true))
 
     for subcmd in "${SUBCOMMANDS[@]}"; do
-        echo "Processing subcommand: $cmd $subcmd"
+        echo "#1 Processing subcommand: $cmd $subcmd"
         echo -e "\n  - [${cmd} $subcmd](#${cmd}-${subcmd})" >> "$OUTPUT_FILE"
     done
 done
@@ -41,6 +41,7 @@ echo '```' >> "$OUTPUT_FILE"
 
 # Process each command
 for cmd in "${COMMANDS[@]}"; do
+    echo "#2 Processing command: $cmd"
     echo -e "\n## $cmd" >> "$OUTPUT_FILE"
     echo '```' >> "$OUTPUT_FILE"
     npm run solo -- "$cmd" --help >> "$OUTPUT_FILE"
@@ -51,6 +52,7 @@ for cmd in "${COMMANDS[@]}"; do
     SUBCOMMANDS=($(echo "$SUBCOMMAND_OUTPUT" | sed -n '/Commands:/,/Options:/p' | grep -E "^  $cmd \S+" | awk '{print $2}' || true))
 
     for subcmd in "${SUBCOMMANDS[@]}"; do
+        echo "#2 Processing subcommand: $cmd $subcmd"
         echo -e "\n### $cmd $subcmd" >> "$OUTPUT_FILE"
         echo '```' >> "$OUTPUT_FILE"
         npm run solo -- "$cmd" "$subcmd" --help >> "$OUTPUT_FILE"
