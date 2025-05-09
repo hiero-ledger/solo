@@ -115,7 +115,7 @@ export class KeyManager {
    * @param nodeAlias
    * @param keysDirectory - directory where keys and certs are stored
    */
-  prepareTLSKeyFilePaths(nodeAlias: NodeAlias, keysDirectory: string): PrivateKeyAndCertificateObject {
+  prepareTlsKeyFilePaths(nodeAlias: NodeAlias, keysDirectory: string): PrivateKeyAndCertificateObject {
     if (!nodeAlias) {
       throw new MissingArgumentError('nodeAlias is required');
     }
@@ -400,7 +400,7 @@ export class KeyManager {
    * @returns a Promise that saves the keys and certs as PEM files
    */
   storeTLSKey(nodeAlias: NodeAlias, nodeKey: NodeKeyObject, keysDirectory: string) {
-    const nodeKeyFiles = this.prepareTLSKeyFilePaths(nodeAlias, keysDirectory);
+    const nodeKeyFiles = this.prepareTlsKeyFilePaths(nodeAlias, keysDirectory);
     return this.storeNodeKey(nodeAlias, nodeKey, keysDirectory, nodeKeyFiles, 'gRPC TLS');
   }
 
@@ -410,7 +410,7 @@ export class KeyManager {
    * @param keysDirectory - directory path where pem files are stored
    */
   loadTLSKey(nodeAlias: NodeAlias, keysDirectory: string) {
-    const nodeKeyFiles = this.prepareTLSKeyFilePaths(nodeAlias, keysDirectory);
+    const nodeKeyFiles = this.prepareTlsKeyFilePaths(nodeAlias, keysDirectory);
     return this.loadNodeKey(nodeAlias, keysDirectory, KeyManager.TLSKeyAlgo, nodeKeyFiles, 'gRPC TLS');
   }
 
