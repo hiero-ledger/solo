@@ -5,35 +5,38 @@ description: >
     This guide provides step by step instructions to set up a solo network using Kubernetes.
 type: docs
 ---
+
 ## Solo User Guide
 
 ### Table of Contents
-- [Setup Kubernetes cluster](#setup-kubernetes-cluster)
-  - [Remote cluster](#remote-cluster)
-  - [Local cluster](#local-cluster)
-- [Step by Step Instructions](#step-by-step-instructions)
-  - [Initialize solo directories](#initialize-solo-directories)
-  - [Generate pem formatted node keys](#generate-pem-formatted-node-keys)
-  - [Create a deployment in the specified clusters](#create-a-deployment-in-the-specified-clusters-generate-remoteconfig-and-localconfig-objects)
-  - [Setup cluster with shared components](#setup-cluster-with-shared-components)
-  - [Create a solo deployment](#create-a-solo-deployment)
-  - [Deploy helm chart with Hedera network components](#deploy-helm-chart-with-hedera-network-components)
-  - [Setup node with Hedera platform software](#setup-node-with-hedera-platform-software)
-  - [Deploy mirror node](#deploy-mirror-node)
-  - [Deploy explorer mode](#deploy-explorer-mode)
-  - [Deploy a JSON RPC relay](#deploy-a-json-rpc-relay)
-  - [Execution Developer](#execution-developer)
-  - [Destroy relay node](#destroy-relay-node)
-  - [Destroy mirror node](#destroy-mirror-node)
-  - [Destroy explorer node](#destroy-explorer-node)
-  - [Destroy network](#destroy-network)
+
+* [Setup Kubernetes cluster](#setup-kubernetes-cluster)
+  * [Remote cluster](#remote-cluster)
+  * [Local cluster](#local-cluster)
+* [Step by Step Instructions](#step-by-step-instructions)
+  * [Initialize solo directories](#initialize-solo-directories)
+  * [Generate pem formatted node keys](#generate-pem-formatted-node-keys)
+  * [Create a deployment in the specified clusters](#create-a-deployment-in-the-specified-clusters-generate-remoteconfig-and-localconfig-objects)
+  * [Setup cluster with shared components](#setup-cluster-with-shared-components)
+  * [Create a solo deployment](#create-a-solo-deployment)
+  * [Deploy helm chart with Hedera network components](#deploy-helm-chart-with-hedera-network-components)
+  * [Setup node with Hedera platform software](#setup-node-with-hedera-platform-software)
+  * [Deploy mirror node](#deploy-mirror-node)
+  * [Deploy explorer mode](#deploy-explorer-mode)
+  * [Deploy a JSON RPC relay](#deploy-a-json-rpc-relay)
+  * [Execution Developer](#execution-developer)
+  * [Destroy relay node](#destroy-relay-node)
+  * [Destroy mirror node](#destroy-mirror-node)
+  * [Destroy explorer node](#destroy-explorer-node)
+  * [Destroy network](#destroy-network)
 
 For those who would like to have more control or need some customized setups, here are some step by step instructions of how to setup and deploy a solo network.
+
 ### Setup Kubernetes cluster
 
 #### Remote cluster
 
-- You may use remote kubernetes cluster. In this case, ensure kubernetes context is set up correctly.
+* You may use remote kubernetes cluster. In this case, ensure kubernetes context is set up correctly.
 
 ```
 kubectl config use-context <context-name>
@@ -41,7 +44,7 @@ kubectl config use-context <context-name>
 
 #### Local cluster
 
-- You may use [kind](https://kind.sigs.k8s.io/) or [microk8s](https://microk8s.io/) to create a cluster. In this case,
+* You may use [kind](https://kind.sigs.k8s.io/) or [microk8s](https://microk8s.io/) to create a cluster. In this case,
   ensure your Docker engine has enough resources (e.g. Memory >=8Gb, CPU: >=4). Below we show how you can use `kind` to create a cluster
 
 First, use the following command to set up the environment variables:
@@ -59,6 +62,7 @@ Then run the following command to set the kubectl context to the new cluster:
 ```bash
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 ```
+
 Example output
 
 ```
@@ -84,7 +88,6 @@ Have a nice day! 👋
 ```
 
 You may now view pods in your cluster using `k9s -A` as below:
-
 
 ```
  Context: kind-solo                                <0> all   <a>       Attach       <ctr… ____  __.________
@@ -112,7 +115,6 @@ You may now view pods in your cluster using `k9s -A` as below:
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-
 ### Step by Step Instructions
 
 #### Initialize `solo` directories:
@@ -124,7 +126,7 @@ rm -rf ~/.solo
 solo init
 ```
 
-- Example output
+* Example output
 
 ```
 
@@ -157,12 +159,14 @@ If a full reset is needed, delete the directory or relevant sub-directories befo
 ```
 
 #### Create a deployment in the specified clusters, generate RemoteConfig and LocalConfig objects.
-- Associates a cluster reference to a k8s context
+
+* Associates a cluster reference to a k8s context
+
 ```
 solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_SETUP_NAMESPACE} --context kind-${SOLO_CLUSTER_NAME}
 ```
 
-- Example output
+* Example output
 
 ```
 
@@ -181,12 +185,14 @@ Current Command		: cluster-ref connect --cluster-ref kind-solo-e2e --context kin
 ❯ Associate a context with a cluster reference: 
 ✔ Associate a context with a cluster reference: kind-solo-e2e
 ```
-- Create a deployment
+
+* Create a deployment
+
 ```
 solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-- Example output
+* Example output
 
 ```
 
@@ -202,12 +208,14 @@ Kubernetes Namespace	: solo
 ❯ Add deployment to local config
 ✔ Adding deployment: solo-deployment with namespace: solo to local config
 ```
-- Add a cluster to deployment
+
+* Add a cluster to deployment
+
 ```
 solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_SETUP_NAMESPACE} --num-consensus-nodes 3
 ```
 
-- Example output
+* Example output
 
 ```
 
@@ -239,7 +247,7 @@ Current Command		: deployment add-cluster --deployment solo-deployment --cluster
 solo node keys --gossip-keys --tls-keys -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-- Example output
+* Example output
 
 ```
 
@@ -274,20 +282,23 @@ Current Command		: node keys --gossip-keys --tls-keys --node-aliases node1,node2
 ❯ Finalize
 ✔ Finalize
 ```
+
 PEM key files are generated in `~/.solo/cache/keys` directory.
+
 ```
 hedera-node1.crt    hedera-node3.crt    s-private-node1.pem s-public-node1.pem  unused-gossip-pem
 hedera-node1.key    hedera-node3.key    s-private-node2.pem s-public-node2.pem  unused-tls
 hedera-node2.crt    hedera-node4.crt    s-private-node3.pem s-public-node3.pem
 hedera-node2.key    hedera-node4.key    s-private-node4.pem s-public-node4.pem
 ```
+
 #### Setup cluster with shared components
 
 ```
 solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 ```
 
-- Example output
+* Example output
 
 ```
 
@@ -310,7 +321,6 @@ Version			: 0.50.0
 
 In a separate terminal, you may run `k9s` to view the pod status.
 
-
 #### Deploy helm chart with Hedera network components
 
 It may take a while (5~15 minutes depending on your internet speed) to download various docker images and get the pods started.
@@ -321,7 +331,7 @@ If it fails, ensure you have enough resources allocated for Docker engine and re
 solo network deploy -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-- Example output
+* Example output
 
 ```
 
@@ -401,13 +411,14 @@ Version			: 0.50.0
 ```
 
 #### Setup node with Hedera platform software.
-- It may take a while as it download the hedera platform code from <https://builds.hedera.com/>
+
+* It may take a while as it download the hedera platform code from <https://builds.hedera.com/>
 
 ```
 solo node setup -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-- Example output
+* Example output
 
 ```
 
@@ -469,13 +480,13 @@ Current Command		: node setup --node-aliases node1,node2,node3 --deployment solo
 ✔ Change node state to setup in remote config
 ```
 
-- Start the nodes
+* Start the nodes
 
 ```
 solo node start -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-- Example output
+* Example output
 
 ```
 
@@ -545,15 +556,15 @@ Current Command		: node start --node-aliases node1,node2,node3 --deployment solo
 ✔ Add node stakes
 ```
 
----
-
+***
 
 #### Deploy mirror node
 
 ```
 solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_SETUP_NAMESPACE}
 ```
-- Example output
+
+* Example output
 
 ```
 
@@ -603,7 +614,8 @@ Version			: v0.126.0
 ```
 solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_SETUP_NAMESPACE}
 ```
-- Example output
+
+* Example output
 
 ```
 
@@ -644,7 +656,7 @@ Explorer deployment failed: Error deploying explorer: Invalid cluster: undefined
 solo relay deploy -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-- Example output
+* Example output
 
 ```
 
@@ -676,14 +688,16 @@ Version			: v0.67.0
 ```
 
 #### Execution Developer
+
 Next: [Execution Developer](execution-developer)
 
 #### Destroy relay node
+
 ```
 solo relay destroy --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-- Example output
+* Example output
 
 ```
 
@@ -712,10 +726,13 @@ Current Command		: relay destroy --node-aliases node1,node2,node3 --deployment s
 ```
 
 #### Destroy mirror node
+
 ```
 solo mirror-node destroy --deployment "${SOLO_DEPLOYMENT}"
 ```
-- Example output
+
+* Example output
+
 ```
 
 ******************************* Solo *********************************************
@@ -737,12 +754,15 @@ Current Command		: mirror-node destroy --deployment solo-deployment --quiet-mode
 ❯ Remove mirror node from remote config
 ✔ Remove mirror node from remote config
 ```
+
 #### Destroy explorer node
+
 ```
 solo explorer destroy --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-- Example output
+* Example output
+
 ```
 
 ******************************* Solo *********************************************
@@ -768,10 +788,13 @@ Explorer destruction failed: Error destroy explorer: Component mirrorNodeExplore
 ```
 
 #### Destroy network
+
 ```
 solo network destroy --deployment "${SOLO_DEPLOYMENT}"
 ```
-- Example output
+
+* Example output
+
 ```
 
 ******************************* Solo *********************************************
@@ -789,7 +812,6 @@ Current Command		: network destroy --deployment solo-deployment --quiet-mode
 ❯ Running sub-tasks to destroy network
 ✔ Deleting the RemoteConfig configmap in namespace solo
 ```
-
 
 You may view the list of pods using `k9s` as below:
 
