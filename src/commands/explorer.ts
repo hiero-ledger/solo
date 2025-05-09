@@ -39,10 +39,10 @@ interface ExplorerDeployConfigClass {
   clusterRef: ClusterReference;
   clusterContext: string;
   enableIngress: boolean;
-  enableHederaExplorerTls: boolean;
+  enableHieroExplorerTls: boolean;
   ingressControllerValueFile: string;
-  hederaExplorerTlsHostName: string;
-  hederaExplorerStaticIp: string | '';
+  hieroExplorerTlsHostName: string;
+  hieroExplorerStaticIp: string | '';
   hederaExplorerVersion: string;
   mirrorNamespace: NamespaceName;
   namespace: NamespaceName;
@@ -95,9 +95,9 @@ export class ExplorerCommand extends BaseCommand {
       flags.clusterRef,
       flags.enableIngress,
       flags.ingressControllerValueFile,
-      flags.enableHederaExplorerTls,
-      flags.hederaExplorerTlsHostName,
-      flags.hederaExplorerStaticIp,
+      flags.enableHieroExplorerTls,
+      flags.hieroExplorerTlsHostName,
+      flags.hieroExplorerStaticIp,
       flags.hederaExplorerVersion,
       flags.mirrorNamespace,
       flags.namespace,
@@ -223,10 +223,10 @@ export class ExplorerCommand extends BaseCommand {
 
             // disable the prompts that we don't want to prompt the user for
             flags.disablePrompts([
-              flags.enableHederaExplorerTls,
-              flags.hederaExplorerTlsHostName,
+              flags.enableHieroExplorerTls,
+              flags.hieroExplorerTlsHostName,
               flags.ingressControllerValueFile,
-              flags.hederaExplorerStaticIp,
+              flags.hieroExplorerStaticIp,
               flags.hederaExplorerVersion,
               flags.mirrorNamespace,
               flags.tlsClusterIssuerType,
@@ -320,7 +320,7 @@ export class ExplorerCommand extends BaseCommand {
             );
             showVersionBanner(self.logger, constants.SOLO_CERT_MANAGER_CHART, soloChartVersion, 'Upgraded');
           },
-          skip: context_ => !context_.config.enableHederaExplorerTls,
+          skip: context_ => !context_.config.enableHieroExplorerTls,
         },
 
         {
@@ -350,8 +350,8 @@ export class ExplorerCommand extends BaseCommand {
 
             let explorerIngressControllerValuesArgument: string = '';
 
-            if (config.hederaExplorerStaticIp !== '') {
-              explorerIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${config.hederaExplorerStaticIp}`;
+            if (config.hieroExplorerStaticIp !== '') {
+              explorerIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${config.hieroExplorerStaticIp}`;
             }
             explorerIngressControllerValuesArgument += ` --set fullnameOverride=${EXPLORER_INGRESS_CONTROLLER}`;
             explorerIngressControllerValuesArgument += ` --set controller.ingressClass=${constants.EXPLORER_INGRESS_CLASS_NAME}`;

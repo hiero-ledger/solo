@@ -899,26 +899,26 @@ export class Flags {
     },
   };
 
-  public static readonly enableHederaExplorerTls: CommandFlag = {
-    constName: 'enableHederaExplorerTls',
-    name: 'enable-hedera-explorer-tls',
+  public static readonly enableHieroExplorerTls: CommandFlag = {
+    constName: 'enableHieroExplorerTls',
+    name: 'enable-hiero-explorer-tls',
     definition: {
       describe:
-        'Enable the Hedera Explorer TLS, defaults to false, requires certManager and certManagerCrds, which can be deployed through solo-cluster-setup chart or standalone',
+        'Enable the Hiero Explorer TLS, defaults to false, requires certManager and certManagerCrds, which can be deployed through solo-cluster-setup chart or standalone',
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: async function promptEnableHederaExplorerTls(
+    prompt: async function promptEnableHieroExplorerTls(
       task: SoloListrTaskWrapper<AnyListrContext>,
       input: boolean,
     ): Promise<boolean> {
       return await Flags.promptToggle(
         task,
         input,
-        Flags.enableHederaExplorerTls.definition.defaultValue as boolean,
-        'Would you like to enable the Hedera Explorer TLS? ',
+        Flags.enableHieroExplorerTls.definition.defaultValue as boolean,
+        'Would you like to enable the Hiero Explorer TLS? ',
         null,
-        Flags.enableHederaExplorerTls.name,
+        Flags.enableHieroExplorerTls.name,
       );
     },
   };
@@ -934,36 +934,36 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly hederaExplorerStaticIp: CommandFlag = {
-    constName: 'hederaExplorerStaticIp',
-    name: 'hedera-explorer-static-ip',
+  public static readonly hieroExplorerStaticIp: CommandFlag = {
+    constName: 'hieroExplorerStaticIp',
+    name: 'hiero-explorer-static-ip',
     definition: {
-      describe: 'The static IP address to use for the Hedera Explorer load balancer, defaults to ""',
+      describe: 'The static IP address to use for the Hiero Explorer load balancer, defaults to ""',
       defaultValue: '',
       type: 'string',
     },
     prompt: undefined,
   };
 
-  public static readonly hederaExplorerTlsHostName: CommandFlag = {
-    constName: 'hederaExplorerTlsHostName',
-    name: 'hedera-explorer-tls-host-name',
+  public static readonly hieroExplorerTlsHostName: CommandFlag = {
+    constName: 'hieroExplorerTlsHostName',
+    name: 'hiero-explorer-tls-host-name',
     definition: {
-      describe: 'The host name to use for the Hedera Explorer TLS, defaults to "explorer.solo.local"',
+      describe: 'The host name to use for the Hiero Explorer TLS, defaults to "explorer.solo.local"',
       defaultValue: 'explorer.solo.local',
       type: 'string',
     },
-    prompt: async function promptHederaExplorerTlsHostName(
+    prompt: async function promptHieroExplorerTlsHostName(
       task: SoloListrTaskWrapper<AnyListrContext>,
       input: string,
     ): Promise<string> {
       return await Flags.promptText(
         task,
         input,
-        Flags.hederaExplorerTlsHostName.definition.defaultValue as string,
-        'Enter the host name to use for the Hedera Explorer TLS: ',
+        Flags.hieroExplorerTlsHostName.definition.defaultValue as string,
+        'Enter the host name to use for the Hiero Explorer TLS: ',
         null,
-        Flags.hederaExplorerTlsHostName.name,
+        Flags.hieroExplorerTlsHostName.name,
       );
     },
   };
@@ -2492,7 +2492,7 @@ export class Flags {
     Flags.ecdsaPrivateKey,
     Flags.ed25519PrivateKey,
     Flags.enableIngress,
-    Flags.enableHederaExplorerTls,
+    Flags.enableHieroExplorerTls,
     Flags.enablePrometheusSvcMonitor,
     Flags.enableTimeout,
     Flags.endpointType,
@@ -2512,8 +2512,8 @@ export class Flags {
     Flags.grpcWebTlsKeyPath,
     Flags.haproxyIps,
     Flags.ingressControllerValueFile,
-    Flags.hederaExplorerTlsHostName,
-    Flags.hederaExplorerStaticIp,
+    Flags.hieroExplorerTlsHostName,
+    Flags.hieroExplorerStaticIp,
     Flags.hederaExplorerVersion,
     Flags.inputDir,
     Flags.loadBalancerEnabled,
