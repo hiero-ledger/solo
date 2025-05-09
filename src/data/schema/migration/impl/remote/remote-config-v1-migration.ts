@@ -32,8 +32,10 @@ export class RemoteConfigV1Migration implements SchemaMigration {
       throw new InvalidSchemaVersionError(clone.schemaVersion, 0);
     }
 
-    // set the lastUpdated to now and system:migrate
+    // Preserve the original metadata and add lastUpdated information
+    const originalMetadata = clone.metadata || {};
     clone.metadata = {
+      ...originalMetadata,
       lastUpdatedAt: new Date(),
       lastUpdatedBy: {
         name: 'system',
@@ -90,13 +92,13 @@ export class RemoteConfigV1Migration implements SchemaMigration {
     // migrate the components
     clone.state = {
       ledgerPhase: 'initialized',
-      consensusNodes: [],
-      blockNodes: [],
-      mirrorNodes: [],
-      relayNodes: [],
-      haProxies: [],
-      envoyProxies: [],
-      explorers: [],
+      consensusNodes: {},
+      blockNodes: {},
+      mirrorNodes: {},
+      relayNodes: {},
+      haProxies: {},
+      envoyProxies: {},
+      explorers: {},
     };
 
     // Ensure components exists to avoid errors
@@ -121,13 +123,13 @@ export class RemoteConfigV1Migration implements SchemaMigration {
           cluster: string;
         } = clone.components.consensusNodes[consensusNode];
 
-        clone.state.consensusNodes.push({
+        clone.state.consensusNodes[consensusNode] = {
           id: component.nodeId,
           name: component.name,
           namespace: component.namespace,
           cluster: component.cluster,
           phase: 'started',
-        });
+        };
       }
     }
 
@@ -140,12 +142,12 @@ export class RemoteConfigV1Migration implements SchemaMigration {
           cluster: string;
         } = clone.components.haProxies[haproxy];
 
-        clone.state.haProxies.push({
+        clone.state.haProxies[haproxy] = {
           name: component.name,
           namespace: component.namespace,
           cluster: component.cluster,
           phase: 'started',
-        });
+        };
       }
     }
 
@@ -158,12 +160,12 @@ export class RemoteConfigV1Migration implements SchemaMigration {
           cluster: string;
         } = clone.components.envoyProxies[envoyProxy];
 
-        clone.state.envoyProxies.push({
+        clone.state.envoyProxies[envoyProxy] = {
           name: component.name,
           namespace: component.namespace,
           cluster: component.cluster,
           phase: 'started',
-        });
+        };
       }
     }
 
@@ -176,12 +178,12 @@ export class RemoteConfigV1Migration implements SchemaMigration {
           cluster: string;
         } = clone.components.explorers[explorer];
 
-        clone.state.explorers.push({
+        clone.state.explorers[explorer] = {
           name: component.name,
           namespace: component.namespace,
           cluster: component.cluster,
           phase: 'started',
-        });
+        };
       }
     }
 
@@ -194,12 +196,12 @@ export class RemoteConfigV1Migration implements SchemaMigration {
           cluster: string;
         } = clone.components.mirrorNodes[mirrorNode];
 
-        clone.state.mirrorNodes.push({
+        clone.state.mirrorNodes[mirrorNode] = {
           name: component.name,
           namespace: component.namespace,
           cluster: component.cluster,
           phase: 'started',
-        });
+        };
       }
     }
 
@@ -212,12 +214,12 @@ export class RemoteConfigV1Migration implements SchemaMigration {
           cluster: string;
         } = clone.components.relayNodes[relayNode];
 
-        clone.state.relayNodes.push({
+        clone.state.relayNodes[relayNode] = {
           name: component.name,
           namespace: component.namespace,
           cluster: component.cluster,
           phase: 'started',
-        });
+        };
       }
     }
 

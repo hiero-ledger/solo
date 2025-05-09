@@ -4,10 +4,12 @@ import {expect} from 'chai';
 import {RemoteConfigV1Migration} from '../../../../../../../src/data/schema/migration/impl/remote/remote-config-v1-migration.js';
 import {IllegalArgumentError} from '../../../../../../../src/business/errors/illegal-argument-error.js';
 import {InvalidSchemaVersionError} from '../../../../../../../src/data/schema/migration/api/invalid-schema-version-error.js';
-import * as sinon from 'sinon';
+import sinon from 'sinon';
 import * as fs from 'node:fs';
 import * as yaml from 'js-yaml';
-// Import getSoloVersion directly to get its actual value for testing
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import * as versionUtils from '../../../../../../../version.js';
 import {getSoloVersion} from '../../../../../../../version.js';
 import {type VersionRange} from '../../../../../../../src/business/utils/version-range.js';
 import {type Version} from '../../../../../../../src/business/utils/version.js';
@@ -48,46 +50,18 @@ describe('RemoteConfigV1Migration', () => {
 
   describe('migrate', (): void => {
     it('should migrate real config from v0-35-1-remote-config.yaml file', async (): Promise<void> => {
-      // Load the YAML file
-      const yamlPath: string = 'test/data/v0-35-1-remote-config.yaml';
-      const yamlContent: string = fs.readFileSync(yamlPath, 'utf8');
+      const yamlContent: string = fs.readFileSync('test/data/v0-35-1-remote-config.yaml', 'utf8');
       const config: Record<string, any> = yaml.load(yamlContent) as Record<string, any>;
 
       // Set schemaVersion to 0 for migration test
       config.schemaVersion = 0;
 
-      // Transform component structure to match what the migration expects
-      // The YAML file has components as objects with key-value pairs, but the migration expects them as arrays
+      // Ensure components structure is properly set up
       if (config.components) {
-        // Transform consensusNodes
-        if (config.components.consensusNodes) {
-          const consensusNodes: Record<string, any> = {};
-          for (const key of Object.keys(config.components.consensusNodes)) {
-            consensusNodes[key] = config.components.consensusNodes[key];
-          }
-          config.components.consensusNodes = consensusNodes;
-        } else {
-          config.components.consensusNodes = {};
-        }
-
-        // Transform other component types similarly
-        for (const componentType of ['haProxies', 'envoyProxies', 'mirrorNodes', 'relayNodes', 'mirrorNodeExplorers']) {
-          if (config.components[componentType]) {
-            const components: Record<string, any> = {};
-            for (const key of Object.keys(config.components[componentType])) {
-              components[key] = config.components[componentType][key];
-            }
-            config.components[componentType] = components;
-          } else {
-            config.components[componentType] = {};
-          }
-        }
-
         // Ensure explorers exists (it's called mirrorNodeExplorers in the YAML)
-        config.components.explorers =
-          !config.components.explorers && config.components.mirrorNodeExplorers
-            ? config.components.mirrorNodeExplorers
-            : {};
+        if (!config.components.explorers && config.components.mirrorNodeExplorers) {
+          config.components.explorers = config.components.mirrorNodeExplorers;
+        }
       } else {
         // If components doesn't exist, create an empty structure
         config.components = {
@@ -127,7 +101,7 @@ describe('RemoteConfigV1Migration', () => {
       // Verify state was created (components are migrated to state)
       expect(result).to.have.property('state');
       expect(result.state).to.have.property('consensusNodes');
-      expect(Array.isArray(result.state.consensusNodes)).to.be.true;
+      expect(result.state.consensusNodes).to.be.an('object');
 
       // Verify namespace and deploymentName were removed from metadata
       expect(result.metadata).to.not.have.property('namespace');
@@ -184,31 +158,37 @@ describe('RemoteConfigV1Migration', () => {
     });
 
     it('should migrate version information correctly', async (): Promise<void> => {
+      // Create a source object with all the version fields
+      const sourceVersions = {
+        soloVersion: '1.0.0',
+        soloChartVersion: '2.0.0',
+        hederaPlatformVersion: '3.0.0',
+        hederaMirrorNodeChartVersion: '4.0.0',
+        hederaExplorerChartVersion: '5.0.0',
+        hederaJsonRpcRelayChartVersion: '6.0.0',
+      };
+      
       const source: Record<string, any> = {
-        metadata: {
-          soloVersion: '1.0.0',
-          soloChartVersion: '2.0.0',
-          hederaPlatformVersion: '3.0.0',
-          hederaMirrorNodeChartVersion: '4.0.0',
-          hederaExplorerChartVersion: '5.0.0',
-          hederaJsonRpcRelayChartVersion: '6.0.0',
-        },
+        metadata: sourceVersions,
       };
 
+      // Create a direct clone of the source to keep the original values for comparison
+      const sourceClone = JSON.parse(JSON.stringify(source));
+      
       const result = (await migration.migrate(source)) as Record<string, any>;
 
       expect(result).to.have.property('versions');
 
-      // Check that the properties exist but don't check exact values
-      // since they might be overridden by the implementation
+      // Verify that the migration preserves the version values from metadata
+      // We can't check the cli version exactly since getSoloVersion might override it
       expect(result.versions).to.have.property('cli');
-      expect(result.versions).to.have.property('chart');
-      expect(result.versions).to.have.property('consensusNode');
-      expect(result.versions).to.have.property('mirrorNodeChart');
-      expect(result.versions).to.have.property('explorerChart');
-      expect(result.versions).to.have.property('jsonRpcRelayChart');
-      expect(result.versions).to.have.property('blockNodeChart');
-
+      expect(result.versions.chart).to.equal(sourceClone.metadata.soloChartVersion);
+      expect(result.versions.consensusNode).to.equal(sourceClone.metadata.hederaPlatformVersion);
+      expect(result.versions.mirrorNodeChart).to.equal(sourceClone.metadata.hederaMirrorNodeChartVersion);
+      expect(result.versions.explorerChart).to.equal(sourceClone.metadata.hederaExplorerChartVersion);
+      expect(result.versions.jsonRpcRelayChart).to.equal(sourceClone.metadata.hederaJsonRpcRelayChartVersion);
+      expect(result.versions).to.have.property('blockNodeChart', '');
+      
       // Verify old version properties are deleted
       expect(result.metadata).to.not.have.property('soloVersion');
       expect(result.metadata).to.not.have.property('soloChartVersion');
@@ -226,15 +206,15 @@ describe('RemoteConfigV1Migration', () => {
       const result = (await migration.migrate(source)) as Record<string, any>;
 
       expect(result).to.have.property('versions');
-      expect(result.versions).to.deep.include({
-        cli: getSoloVersion(),
-        chart: '0.0.0',
-        consensusNode: '0.0.0',
-        mirrorNodeChart: '0.0.0',
-        explorerChart: '0.0.0',
-        jsonRpcRelayChart: '0.0.0',
-      });
-      expect(result.versions).to.have.property('blockNodeChart');
+
+      // Check that default values are used when metadata versions are not present
+      expect(result.versions).to.have.property('cli', getSoloVersion());
+      expect(result.versions).to.have.property('chart', '0.0.0');
+      expect(result.versions).to.have.property('consensusNode', '0.0.0');
+      expect(result.versions).to.have.property('mirrorNodeChart', '0.0.0');
+      expect(result.versions).to.have.property('explorerChart', '0.0.0');
+      expect(result.versions).to.have.property('jsonRpcRelayChart', '0.0.0');
+      expect(result.versions).to.have.property('blockNodeChart', '');
     });
 
     it('should migrate clusters correctly', async (): Promise<void> => {
@@ -263,7 +243,6 @@ describe('RemoteConfigV1Migration', () => {
       expect(Array.isArray(result.clusters)).to.be.true;
       expect(result.clusters.length).to.equal(2);
 
-      // Since Object.keys() order is not guaranteed, we need to check both possible orders
       const clusterNames = result.clusters.map((c: any) => c.name);
       expect(clusterNames).to.include('cluster1');
       expect(clusterNames).to.include('cluster2');
@@ -357,8 +336,8 @@ describe('RemoteConfigV1Migration', () => {
       expect(result.state).to.have.property('ledgerPhase', 'initialized');
 
       // Check consensus nodes
-      expect(result.state.consensusNodes).to.have.lengthOf(1);
-      expect(result.state.consensusNodes[0]).to.deep.include({
+      expect(result.state.consensusNodes).to.have.property('node1');
+      expect(result.state.consensusNodes.node1).to.deep.include({
         id: 1,
         name: 'node1',
         namespace: 'namespace1',
@@ -367,8 +346,8 @@ describe('RemoteConfigV1Migration', () => {
       });
 
       // Check haProxies
-      expect(result.state.haProxies).to.have.lengthOf(1);
-      expect(result.state.haProxies[0]).to.deep.include({
+      expect(result.state.haProxies).to.have.property('haproxy1');
+      expect(result.state.haProxies.haproxy1).to.deep.include({
         name: 'haproxy1',
         namespace: 'namespace1',
         cluster: 'cluster1',
@@ -376,8 +355,8 @@ describe('RemoteConfigV1Migration', () => {
       });
 
       // Check envoyProxies
-      expect(result.state.envoyProxies).to.have.lengthOf(1);
-      expect(result.state.envoyProxies[0]).to.deep.include({
+      expect(result.state.envoyProxies).to.have.property('envoy1');
+      expect(result.state.envoyProxies.envoy1).to.deep.include({
         name: 'envoy1',
         namespace: 'namespace1',
         cluster: 'cluster1',
@@ -385,8 +364,8 @@ describe('RemoteConfigV1Migration', () => {
       });
 
       // Check explorers
-      expect(result.state.explorers).to.have.lengthOf(1);
-      expect(result.state.explorers[0]).to.deep.include({
+      expect(result.state.explorers).to.have.property('explorer1');
+      expect(result.state.explorers.explorer1).to.deep.include({
         name: 'explorer1',
         namespace: 'namespace1',
         cluster: 'cluster1',
@@ -394,8 +373,8 @@ describe('RemoteConfigV1Migration', () => {
       });
 
       // Check mirrorNodes
-      expect(result.state.mirrorNodes).to.have.lengthOf(1);
-      expect(result.state.mirrorNodes[0]).to.deep.include({
+      expect(result.state.mirrorNodes).to.have.property('mirror1');
+      expect(result.state.mirrorNodes.mirror1).to.deep.include({
         name: 'mirror1',
         namespace: 'namespace1',
         cluster: 'cluster1',
@@ -403,8 +382,8 @@ describe('RemoteConfigV1Migration', () => {
       });
 
       // Check relayNodes
-      expect(result.state.relayNodes).to.have.lengthOf(1);
-      expect(result.state.relayNodes[0]).to.deep.include({
+      expect(result.state.relayNodes).to.have.property('relay1');
+      expect(result.state.relayNodes.relay1).to.deep.include({
         name: 'relay1',
         namespace: 'namespace1',
         cluster: 'cluster1',
