@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {RemoteConfigRuntimeState} from '../../business/runtime-state/remote-config-runtime-state.js';
-
 /**
  * Dependency injection tokens
  */

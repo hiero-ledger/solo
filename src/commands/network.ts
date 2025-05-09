@@ -704,9 +704,9 @@ export class NetworkCommand extends BaseCommand {
       flags.genesisThrottlesFile.definition.defaultValue as string,
     );
 
-    config.consensusNodes = this.remoteConfigManager.getConsensusNodes();
-    config.contexts = this.remoteConfigManager.getContexts();
-    config.clusterRefs = this.remoteConfigManager.getClusterRefs();
+    config.consensusNodes = this.remoteConfig.getConsensusNodes();
+    config.contexts = this.remoteConfig.getContexts();
+    config.clusterRefs = this.remoteConfig.getClusterRefs();
     config.nodeAliases = parseNodeAliases(config.nodeAliasesUnparsed, config.consensusNodes, this.configManager);
     argv[flags.nodeAliasesUnparsed.name] = config.nodeAliases.join(',');
 
@@ -1169,7 +1169,7 @@ export class NetworkCommand extends BaseCommand {
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
               enableTimeout: self.configManager.getFlag<boolean>(flags.enableTimeout) as boolean,
               force: self.configManager.getFlag<boolean>(flags.force) as boolean,
-              contexts: self.remoteConfigManager.getContexts(),
+              contexts: self.remoteConfig.getContexts(),
             };
 
             return ListrLock.newAcquireLockTask(lease, task);
@@ -1202,7 +1202,7 @@ export class NetworkCommand extends BaseCommand {
                 } else {
                   // If the namespace is not being deleted,
                   // remove all components data from the remote configuration
-                  await self.remoteConfigManager.deleteComponents();
+                  await self.remoteConfig.deleteComponents();
                 }
               }, constants.NETWORK_DESTROY_WAIT_TIMEOUT * 1000);
 
@@ -1299,11 +1299,11 @@ export class NetworkCommand extends BaseCommand {
   public addNodesAndProxies(): SoloListrTask<NetworkDeployContext> {
     return {
       title: 'Add node and proxies to remote config',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
         const {namespace} = context_.config;
 
-        await this.remoteConfigManager.modify(async (_, components) => {
+        await this.remoteConfig.modify(async (_, components) => {
           for (const consensusNode of context_.config.consensusNodes) {
             const nodeId: NodeId = Templates.nodeIdFromNodeAlias(consensusNode.name);
             const clusterReference: ClusterReference = consensusNode.cluster;
@@ -1311,11 +1311,11 @@ export class NetworkCommand extends BaseCommand {
             components.changeNodePhase(nodeId, DeploymentPhase.REQUESTED);
 
             components.addNewComponent(
-              ComponentFactory.createNewEnvoyProxyComponent(this.remoteConfigManager, clusterReference, namespace),
+              ComponentFactory.createNewEnvoyProxyComponent(this.remoteConfig, clusterReference, namespace),
               ComponentTypes.EnvoyProxy,
             );
             components.addNewComponent(
-              ComponentFactory.createNewHaProxyComponent(this.remoteConfigManager, clusterReference, namespace),
+              ComponentFactory.createNewHaProxyComponent(this.remoteConfig, clusterReference, namespace),
               ComponentTypes.HaProxy,
             );
           }

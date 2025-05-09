@@ -215,7 +215,7 @@ export class RelayCommand extends BaseCommand {
     const accountMap = this.accountManager.getNodeAccountMap(nodeAliases, deploymentName);
     const networkNodeServicesMap = await this.accountManager.getNodeServiceMap(
       namespace,
-      this.remoteConfigManager.getClusterRefs(),
+      this.remoteConfig.getClusterRefs(),
       deploymentName,
     );
     for (const nodeAlias of nodeAliases) {
@@ -278,13 +278,13 @@ export class RelayCommand extends BaseCommand {
             );
             context_.config.nodeAliases = helpers.parseNodeAliases(
               context_.config.nodeAliasesUnparsed,
-              this.remoteConfigManager.getConsensusNodes(),
+              this.remoteConfig.getConsensusNodes(),
               this.configManager,
             );
             context_.config.releaseName = self.prepareReleaseName(context_.config.nodeAliases);
 
             if (context_.config.clusterRef) {
-              const context = self.remoteConfigManager.getClusterRefs()[context_.config.clusterRef];
+              const context = self.remoteConfig.getClusterRefs()[context_.config.clusterRef];
               if (context) {
                 context_.config.context = context;
               }
@@ -313,7 +313,7 @@ export class RelayCommand extends BaseCommand {
             const config = context_.config;
             await self.accountManager.loadNodeClient(
               context_.config.namespace,
-              self.remoteConfigManager.getClusterRefs(),
+              self.remoteConfig.getClusterRefs(),
               self.configManager.getFlag<DeploymentName>(flags.deployment),
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
@@ -432,14 +432,14 @@ export class RelayCommand extends BaseCommand {
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
               nodeAliases: helpers.parseNodeAliases(
                 self.configManager.getFlag<string>(flags.nodeAliasesUnparsed) as string,
-                this.remoteConfigManager.getConsensusNodes(),
+                this.remoteConfig.getConsensusNodes(),
                 this.configManager,
               ),
               clusterRef: self.configManager.getFlag<string>(flags.clusterRef) as string,
             } as RelayDestroyConfigClass;
 
             if (context_.config.clusterRef) {
-              const context = self.remoteConfigManager.getClusterRefs()[context_.config.clusterRef];
+              const context = self.remoteConfig.getClusterRefs()[context_.config.clusterRef];
               if (context) {
                 context_.config.context = context;
               }
@@ -548,15 +548,15 @@ export class RelayCommand extends BaseCommand {
   public addRelayComponent(): SoloListrTask<RelayDeployContext> {
     return {
       title: 'Add relay component in remote config',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfigManager.modify(async (_, components) => {
+        await this.remoteConfig.modify(async (_, components) => {
           const {namespace, nodeAliases, clusterRef} = context_.config;
 
           const nodeIds: NodeId[] = nodeAliases.map((nodeAlias: NodeAlias) => Templates.nodeIdFromNodeAlias(nodeAlias));
 
           components.addNewComponent(
-            ComponentFactory.createNewRelayComponent(this.remoteConfigManager, clusterRef, namespace, nodeIds),
+            ComponentFactory.createNewRelayComponent(this.remoteConfig, clusterRef, namespace, nodeIds),
             ComponentTypes.RelayNodes,
           );
         });
@@ -568,11 +568,11 @@ export class RelayCommand extends BaseCommand {
   public disableRelayComponent(): SoloListrTask<RelayDestroyContext> {
     return {
       title: 'Remove relay component from remote config',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
         const clusterReference: ClusterReference = context_.config.clusterRef;
 
-        await this.remoteConfigManager.modify(async (_, components) => {
+        await this.remoteConfig.modify(async (_, components) => {
           const relayComponents: RelayNodeState[] = components.getComponentsByClusterReference<RelayNodeState>(
             ComponentTypes.RelayNodes,
             clusterReference,

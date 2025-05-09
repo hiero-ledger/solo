@@ -33,6 +33,7 @@ export interface RemoteConfigRuntimeStateApi {
   getClusterRefs(): ClusterReferences;
   getContexts(): Context[];
   getConsensusNodes(): ConsensusNode[];
+  deleteComponents(): Promise<void>;
 
   isLoaded(): boolean;
   load(namespace?: NamespaceName, context?: Context): Promise<void>;

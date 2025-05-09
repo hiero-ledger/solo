@@ -391,7 +391,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   //* Common Commands
 
   /**
-   * Get the consensus nodes from the remoteConfigManager and use the localConfig to get the context
+   * Get the consensus nodes from the remoteConfig and use the localConfig to get the context
    * @returns an array of ConsensusNode objects
    */
   public getConsensusNodes(): ConsensusNode[] {

@@ -92,7 +92,6 @@ import {ConsensusNode} from '../../core/model/consensus-node.js';
 import {type K8} from '../../integration/kube/k8.js';
 import {Base64} from 'js-base64';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
-import {type RemoteConfigManager} from '../../core/config/remote/remote-config-manager.js';
 import {BaseCommand} from '../base.js';
 import {HEDERA_PLATFORM_VERSION} from '../../../version.js';
 import {ShellRunner} from '../../core/shell-runner.js';
@@ -122,6 +121,7 @@ import {Cluster} from '../../data/schema/model/common/cluster.js';
 import {ComponentFactory} from '../../core/config/remote/component-factory.js';
 import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
 import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
+import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 @injectable()
 export class NodeCommandTasks {
@@ -135,7 +135,7 @@ export class NodeCommandTasks {
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.ChartManager) private readonly chartManager: ChartManager,
     @inject(InjectTokens.CertificateManager) private readonly certificateManager: CertificateManager,
-    @inject(InjectTokens.RemoteConfigManager) private readonly remoteConfigManager: RemoteConfigManager,
+    @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
@@ -148,9 +148,9 @@ export class NodeCommandTasks {
     this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
     this.certificateManager = patchInject(certificateManager, InjectTokens.CertificateManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
-    this.remoteConfigManager = patchInject(
-      remoteConfigManager,
-      InjectTokens.RemoteConfigManager,
+    this.remoteConfig = patchInject(
+      remoteConfig,
+      InjectTokens.RemoteConfigRuntimeState,
       this.constructor.name,
     );
   }
@@ -447,7 +447,7 @@ export class NodeCommandTasks {
     const podReference = PodReference.of(namespace, podName);
     task.title = `${title} - status ${chalk.yellow('STARTING')}, attempt ${chalk.blueBright(`0/${maxAttempts}`)}`;
 
-    const consensusNodes = this.remoteConfigManager.getConsensusNodes();
+    const consensusNodes = this.remoteConfig.getConsensusNodes();
     if (!context) {
       context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
     }
@@ -639,7 +639,7 @@ export class NodeCommandTasks {
       const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
       await this.accountManager.loadNodeClient(
         namespace,
-        this.remoteConfigManager.getClusterRefs(),
+        this.remoteConfig.getClusterRefs(),
         deploymentName,
         this.configManager.getFlag<boolean>(flags.forcePortForward),
       );
@@ -850,7 +850,7 @@ export class NodeCommandTasks {
         try {
           const nodeClient = await this.accountManager.loadNodeClient(
             namespace,
-            this.remoteConfigManager.getClusterRefs(),
+            this.remoteConfig.getClusterRefs(),
             deployment,
           );
           const futureDate = new Date();
@@ -1079,7 +1079,7 @@ export class NodeCommandTasks {
       task: async (context_, task) => {
         const config = context_.config;
         config.existingNodeAliases = [];
-        const clusterReferences = this.remoteConfigManager.getClusterRefs();
+        const clusterReferences = this.remoteConfig.getClusterRefs();
         config.serviceMap = await self.accountManager.getNodeServiceMap(
           config.namespace,
           clusterReferences,
@@ -1183,7 +1183,7 @@ export class NodeCommandTasks {
       task: async context_ => {
         context_.config.serviceMap = await this.accountManager.getNodeServiceMap(
           context_.config.namespace,
-          this.remoteConfigManager.getClusterRefs(),
+          this.remoteConfig.getClusterRefs(),
           context_.config.deployment,
         );
         if (!context_.config.serviceMap.has(context_.config.nodeAlias)) {
@@ -1211,7 +1211,7 @@ export class NodeCommandTasks {
           context_.config.nodeAliases = helpers.parseNodeAliases(
             // @ts-ignore
             context_.config.nodeAliasesUnparsed,
-            this.remoteConfigManager.getConsensusNodes(),
+            this.remoteConfig.getConsensusNodes(),
             this.configManager,
           );
         }
@@ -1268,7 +1268,7 @@ export class NodeCommandTasks {
     const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
     const networkNodeServiceMap = await this.accountManager.getNodeServiceMap(
       namespace,
-      this.remoteConfigManager.getClusterRefs(),
+      this.remoteConfig.getClusterRefs(),
       deploymentName,
     );
 
@@ -1296,7 +1296,7 @@ export class NodeCommandTasks {
     const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
     const networkNodeServiceMap = await this.accountManager.getNodeServiceMap(
       namespace,
-      this.remoteConfigManager.getClusterRefs(),
+      this.remoteConfig.getClusterRefs(),
       deploymentName,
     );
 
@@ -1500,7 +1500,7 @@ export class NodeCommandTasks {
 
         config.nodeClient = await self.accountManager.refreshNodeClient(
           config.namespace,
-          this.remoteConfigManager.getClusterRefs(),
+          this.remoteConfig.getClusterRefs(),
           skipNodeAlias,
           this.configManager.getFlag<DeploymentName>(flags.deployment),
         );
@@ -1560,7 +1560,7 @@ export class NodeCommandTasks {
       task: async context_ => {
         await self.accountManager.refreshNodeClient(
           context_.config.namespace,
-          this.remoteConfigManager.getClusterRefs(),
+          this.remoteConfig.getClusterRefs(),
           context_.config.nodeAlias,
           this.configManager.getFlag<DeploymentName>(flags.deployment),
           this.configManager.getFlag<boolean>(flags.forcePortForward),
@@ -1857,7 +1857,7 @@ export class NodeCommandTasks {
         if (config.existingNodeAliases.length > 1) {
           config.nodeClient = await self.accountManager.refreshNodeClient(
             config.namespace,
-            this.remoteConfigManager.getClusterRefs(),
+            this.remoteConfig.getClusterRefs(),
             config.nodeAlias,
             this.configManager.getFlag<DeploymentName>(flags.deployment),
           );

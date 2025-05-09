@@ -5,7 +5,6 @@ import * as NodeFlags from './flags.js';
 import {type NodeCommandConfigs} from './configs.js';
 import * as constants from '../../core/constants.js';
 import {type LockManager} from '../../core/lock/lock-manager.js';
-import {type RemoteConfigManager} from '../../core/config/remote/remote-config-manager.js';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {type Lock} from '../../core/lock/lock.js';
 import {type NodeCommandTasks} from './tasks.js';
@@ -30,6 +29,7 @@ import {ComponentTypes} from '../../core/config/remote/enumerations/component-ty
 import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
 import {Templates} from '../../core/templates.js';
 import {ConsensusNodeState} from '../../data/schema/model/remote/state/consensus-node-state.js';
+import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -38,16 +38,16 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public constructor(
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
-    @inject(InjectTokens.RemoteConfigManager) private readonly remoteConfigManager: RemoteConfigManager,
+    @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.NodeCommandTasks) private readonly tasks: NodeCommandTasks,
     @inject(InjectTokens.NodeCommandConfigs) private readonly configs: NodeCommandConfigs,
   ) {
     super();
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.configs = patchInject(configs, InjectTokens.NodeCommandConfigs, this.constructor.name);
-    this.remoteConfigManager = patchInject(
-      remoteConfigManager,
-      InjectTokens.RemoteConfigManager,
+    this.remoteConfig = patchInject(
+      remoteConfig,
+      InjectTokens.RemoteConfigRuntimeState,
       this.constructor.name,
     );
     this.tasks = patchInject(tasks, InjectTokens.NodeCommandTasks, this.constructor.name);
@@ -59,8 +59,8 @@ export class NodeCommandHandlers extends CommandHandler {
   private static readonly UPGRADE_CONTEXT_FILE = 'node-upgrade.json';
 
   private init() {
-    this.consensusNodes = this.remoteConfigManager.getConsensusNodes();
-    this.contexts = this.remoteConfigManager.getContexts();
+    this.consensusNodes = this.remoteConfig.getConsensusNodes();
+    this.contexts = this.remoteConfig.getContexts();
   }
 
   /** ******** Task Lists **********/
@@ -910,9 +910,9 @@ export class NodeCommandHandlers extends CommandHandler {
 
     return {
       title: `Change node state to ${phase} in remote config`,
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_: Context): Promise<void> => {
-        await this.remoteConfigManager.modify(async (_, components) => {
+        await this.remoteConfig.modify(async (_, components) => {
           for (const consensusNode of context_.config.consensusNodes) {
             const nodeId: NodeId = Templates.nodeIdFromNodeAlias(consensusNode.name);
             components.changeNodePhase(nodeId, phase);
@@ -941,11 +941,11 @@ export class NodeCommandHandlers extends CommandHandler {
 
     return {
       title: 'Validate nodes states',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: (context_: Context, task): Listr<any, any, any> => {
         const nodeAliases = context_.config.nodeAliases;
 
-        const components = this.remoteConfigManager.components;
+        const components = this.remoteConfig.components;
 
         const subTasks: SoloListrTask<Context>[] = nodeAliases.map(nodeAlias => ({
           title: `Validating state for node ${nodeAlias}`,
@@ -983,14 +983,14 @@ export class NodeCommandHandlers extends CommandHandler {
 
     return {
       title: 'Validate nodes state',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: (context_: Context, task): void => {
         const nodeAlias = context_.config.nodeAlias;
 
         task.title += ` ${nodeAlias}`;
 
         // TODO: Disabled for now until the node's state mapping is completed
-        // const components = this.remoteConfigManager.components;
+        // const components = this.remoteConfig.components;
         // const state = this.validateNodeState(nodeAlias, components, acceptedPhases, excludedPhases);
         // task.title += ` - ${chalk.green('valid state')}: ${chalk.cyan(state)}`;
       },

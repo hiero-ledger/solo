@@ -55,7 +55,6 @@ import {gte as semVersionGte} from 'semver';
 import {type LocalConfigRuntimeState} from '../src/business/runtime-state/local-config-runtime-state.js';
 import {type InstanceOverrides} from '../src/core/dependency-injection/container-init.js';
 import {type RemoteConfigRuntimeStateApi} from '../src/business/runtime-state/api/remote-config-runtime-state-api.js';
-import {RemoteConfigRuntimeState} from '../src/business/runtime-state/remote-config-runtime-state.js';
 
 export const BASE_TEST_DIR = PathEx.join('test', 'data', 'tmp');
 

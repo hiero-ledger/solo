@@ -16,7 +16,6 @@ import {ProfileManager} from '../profile-manager.js';
 import {IntervalLockRenewalService} from '../lock/interval-lock-renewal.js';
 import {LockManager} from '../lock/lock-manager.js';
 import {CertificateManager} from '../certificate-manager.js';
-import {RemoteConfigManager} from '../config/remote/remote-config-manager.js';
 import os from 'node:os';
 import * as version from '../../../version.js';
 import {NetworkNodes} from '../network-nodes.js';
@@ -54,6 +53,7 @@ import {BlockNodeCommand} from '../../commands/block-node.js';
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
 import {LocalConfigSource} from '../../data/configuration/impl/local-config-source.js';
+import {RemoteConfigRuntimeState} from '../../business/runtime-state/remote-config-runtime-state.js';
 
 /**
  * Container class to manage the dependency injection container
@@ -115,7 +115,7 @@ export class Container {
       new SingletonContainer(InjectTokens.CertificateManager, CertificateManager),
       new SingletonContainer(InjectTokens.LocalConfigRuntimeState, LocalConfigRuntimeState),
       new SingletonContainer(InjectTokens.LocalConfigSource, LocalConfigSource),
-      new SingletonContainer(InjectTokens.RemoteConfigManager, RemoteConfigManager),
+      new SingletonContainer(InjectTokens.RemoteConfigRuntimeState, RemoteConfigRuntimeState),
       new SingletonContainer(InjectTokens.ClusterChecks, ClusterChecks),
       new SingletonContainer(InjectTokens.NetworkNodes, NetworkNodes),
       new SingletonContainer(InjectTokens.Middlewares, Middlewares),

@@ -476,7 +476,7 @@ export class ExplorerCommand extends BaseCommand {
 
             const clusterReference: ClusterReference = this.configManager.hasFlag(flags.clusterRef)
               ? this.configManager.getFlag(flags.clusterRef)
-              : this.remoteConfigManager.currentCluster;
+              : this.remoteConfig.currentCluster;
 
             const clusterContext: Context = this.localConfig.clusterRefs.get(clusterReference);
 
@@ -616,7 +616,7 @@ export class ExplorerCommand extends BaseCommand {
     return {
       title: 'Load remote config',
       task: async (): Promise<void> => {
-        await this.remoteConfigManager.loadAndValidate(argv);
+        await this.remoteConfig.loadAndValidate(argv);
       },
     };
   }
@@ -625,11 +625,11 @@ export class ExplorerCommand extends BaseCommand {
   private disableMirrorNodeExplorerComponents(): SoloListrTask<ExplorerDestroyContext> {
     return {
       title: 'Remove explorer from remote config',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
         const clusterReference: ClusterReference = context_.config.clusterReference;
 
-        await this.remoteConfigManager.modify(async (_, components) => {
+        await this.remoteConfig.modify(async (_, components) => {
           const explorerComponents: MirrorNodeState[] = components.getComponentsByClusterReference<MirrorNodeState>(
             ComponentTypes.Explorers,
             clusterReference,
@@ -647,13 +647,13 @@ export class ExplorerCommand extends BaseCommand {
   private addMirrorNodeExplorerComponents(): SoloListrTask<ExplorerDeployContext> {
     return {
       title: 'Add explorer to remote config',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfigManager.modify(async (_, components) => {
+        await this.remoteConfig.modify(async (_, components) => {
           const {namespace, clusterRef} = context_.config;
 
           components.addNewComponent(
-            ComponentFactory.createNewExplorerComponent(this.remoteConfigManager, clusterRef, namespace),
+            ComponentFactory.createNewExplorerComponent(this.remoteConfig, clusterRef, namespace),
             ComponentTypes.Explorers,
           );
         });

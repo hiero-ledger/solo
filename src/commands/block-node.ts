@@ -140,15 +140,13 @@ export class BlockNodeCommand extends BaseCommand {
               task,
             );
 
-            context_.config.nodeAliases = this.remoteConfigManager
-              .getConsensusNodes()
-              .map((node): NodeAlias => node.name);
+            context_.config.nodeAliases = this.remoteConfig.getConsensusNodes().map((node): NodeAlias => node.name);
 
             if (!context_.config.clusterRef) {
               context_.config.clusterRef = this.k8Factory.default().clusters().readCurrent();
             }
 
-            context_.config.context = this.remoteConfigManager.getClusterRefs()[context_.config.clusterRef];
+            context_.config.context = this.remoteConfig.getClusterRefs()[context_.config.clusterRef];
 
             this.logger.debug('Initialized config', {config: context_.config});
 
@@ -302,9 +300,9 @@ export class BlockNodeCommand extends BaseCommand {
   private addBlockNodeComponent(): SoloListrTask<BlockNodeDeployContext> {
     return {
       title: 'Add block node component in remote config',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfigManager.modify(async (_, components) => {
+        await this.remoteConfig.modify(async (_, components) => {
           const config: BlockNodeDeployConfigClass = context_.config;
 
           components.addNewComponent(config.newBlockNodeComponent, ComponentTypes.BlockNode);

@@ -30,7 +30,6 @@ import {ComponentFactory} from '../core/config/remote/component-factory.js';
 import {type Deployment} from '../data/schema/model/local/deployment.js';
 import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
-import {RemoteConfigRuntimeState} from '../business/runtime-state/remote-config-runtime-state.js';
 import {Cluster} from '../data/schema/model/common/cluster.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
@@ -220,7 +219,7 @@ export class DeploymentCommand extends BaseCommand {
             for (const clusterReference of clusterReferences) {
               const context = self.localConfig.clusterRefs.get(clusterReference);
               const namespace = NamespaceName.of(self.localConfig.getDeployment(deployment).namespace);
-              const remoteConfigExists: ConfigMap = await self.remoteConfigManager.getConfigMap(namespace, context);
+              const remoteConfigExists: ConfigMap = await self.remoteConfig.getConfigMap(namespace, context);
               const namespaceExists = await self.k8Factory.getK8(context).namespaces().has(namespace);
               const existingConfigMaps = await self.k8Factory
                 .getK8(context)
@@ -573,17 +572,18 @@ export class DeploymentCommand extends BaseCommand {
         const existingClusterContext: string = this.localConfig.clusterRefs.get(existingClusterReferences[0]);
         context_.config.existingClusterContext = existingClusterContext;
 
-        const remoteConfigConfigMap: ConfigMap = await this.remoteConfigManager.getConfigMap(
+        const remoteConfigConfigMap: ConfigMap = await this.remoteConfig.getConfigMap(
           namespace,
           existingClusterContext,
         );
 
-        const remoteConfig: RemoteConfigRuntimeState = new RemoteConfigRuntimeState(remoteConfigConfigMap);
-        const ledgerPhase: LedgerPhase = remoteConfig.state.ledgerPhase;
+        await this.remoteConfig.populateRemoteConfig(remoteConfigConfigMap);
+
+        const ledgerPhase: LedgerPhase = this.remoteConfig.state.ledgerPhase;
 
         context_.config.ledgerPhase = ledgerPhase;
 
-        const existingNodesCount: number = Object.keys(remoteConfig.state.consensusNodes).length;
+        const existingNodesCount: number = Object.keys(this.remoteConfig.state.consensusNodes).length;
 
         context_.config.nodeAliases = Templates.renderNodeAliasesFromCount(numberOfConsensusNodes, existingNodesCount);
 
@@ -693,7 +693,7 @@ export class DeploymentCommand extends BaseCommand {
         }
 
         if (!existingClusterContext) {
-          await this.remoteConfigManager.create(
+          await this.remoteConfig.create(
             argv,
             ledgerPhase,
             nodeAliases,
@@ -708,24 +708,22 @@ export class DeploymentCommand extends BaseCommand {
           return;
         }
 
-        const existingRemoteConfigConfigMap: ConfigMap = await this.remoteConfigManager.getConfigMap(
+        const existingRemoteConfigConfigMap: ConfigMap = await this.remoteConfig.getConfigMap(
           namespace,
           existingClusterContext,
         );
 
-        const existingRemoteConfig: RemoteConfigRuntimeState = new RemoteConfigRuntimeState(
-          existingRemoteConfigConfigMap,
-        );
+        await this.remoteConfig.populateRemoteConfig(existingRemoteConfigConfigMap);
 
         //? Create copy of the existing remote config inside the new cluster
-        await this.remoteConfigManager.createConfigMap(namespace, existingClusterContext);
-        await existingRemoteConfig.write(); // TODO
+        await this.remoteConfig.createConfigMap(namespace, existingClusterContext);
+        await this.remoteConfig.write();
 
         //? Update remote configs inside the clusters
-        await this.remoteConfigManager.modify(async (remoteConfig, components) => {
+        await this.remoteConfig.modify(async (remoteConfig, components) => {
           //* update the command history
           const command: string = argv._.join(' ');
-          this.remoteConfigManager.addCommandToHistory(command, remoteConfig);
+          this.remoteConfig.addCommandToHistory(command, remoteConfig);
 
           //* add the new clusters
           const newCluster: Cluster = new Cluster(
