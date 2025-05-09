@@ -12,12 +12,7 @@
   "scripts": {
     "build:preview": "npm run hugo --cleanDestinationDir -e dev -DFE --minify --baseURL \"${DEPLOY_PRIME_URL:-/}\"",
     "build:production": "npm run hugo --cleanDestinationDir --minify",
-    "build": "npm run hugo --cleanDestinationDir -e dev -DFE",
-    "clean": "rm -Rf public/* resources",
-    "local": "npx cross-env HUGO_MODULE_WORKSPACE=docsy.work -- npm run",
-    "precheck:links:all": "npm run build",
-    "precheck:links": "npm run build",
-    "serve": "npm run hugo --cleanDestinationDir -e dev -DFE --minify serve --renderToMemory"
+    "build": "npm run hugo --cleanDestinationDir -e dev -DFE"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",

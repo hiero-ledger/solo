@@ -15,9 +15,12 @@ env:
 # TODO - verify that api docs are mounted correctly and referenced links are working
 tasks:
   default:
-    desc: "List all commands"
+    desc: "List all available tasks"
+    cmds:
+      - task --list
 
   build:
+    desc: "Build the documentation site"
     cmds:
       - task: "check-doc-dir"
       - task: "clean"
@@ -31,6 +34,7 @@ tasks:
       - hugo server --cleanDestinationDir -e dev -DFE --minify serve --renderToMemory
 
   check-doc-dir:
+    desc: "Check if in the docs/site directory"
     status:
       - |
         if [ "$(basename "$PWD")" != "site" ]; then
@@ -42,9 +46,11 @@ tasks:
         exit 1
 
   clean:
+    desc: "Remove artifacts that are automatically generated"
     cmds:
-      - rm -Rf content/en/classes
+      - rm -Rf static/classes
       - rm -Rf public
+      - rm -Rf resources
       - rm -Rf themes
       - rm -f .hugo_build.lock
 
@@ -89,7 +95,7 @@ tasks:
       - echo "base_path $HUGO_BASEPATH"
       - hugo version
       - hugo config
-      - hugo --gc --minify --baseURL "$HUGO_BASE_URL/"
+      - hugo --cleanDestinationDir --gc --minify --baseURL "$HUGO_BASE_URL/"
 
   build:typedoc:
     dir: ../..
@@ -100,17 +106,10 @@ tasks:
     generates:
       - dist/**/*.js
     cmds:
-      - npx typedoc --excludeExternals --out docs/site/static/Classes --entryPoints ./solo.ts --entryPoints ./src/index.ts --entryPointStrategy expand ./src
-
-  build:copy:
-    cmds:
-      - mkdir -p content/Developer
-      - mkdir -p content/User
-      - mkdir -p content/Documentation/images
-      - cp ../../images/docker-desktop.png content/Documentation/images/docker-desktop.png
-      - chmod -R 755 content/Documentation
+      - npx typedoc --excludeExternals --out docs/site/static/classes --entryPoints ./solo.ts --entryPoints ./src/index.ts --entryPointStrategy expand ./src
 
   install:
+    desc: "Install dependencies"
     cmds:
       - task: "install:hugo"
       - task: "install:typedoc"
@@ -125,41 +124,41 @@ tasks:
       - hugo mod get github.com/google/docsy@v0.11.0
 
   install:hugo:
-#    status:
-#      - command -v hugo
-#      - |
-#        node -e "
-#        const { execSync } = require('child_process');
-#        const semver = require('semver');
-#
-#        try {
-#          const output = execSync('hugo version').toString();
-#          const versionMatch = output.match(/v(\d+\.\d+\.\d+)(\+extended)?/);
-#          if (!versionMatch) {
-#            console.error('❌ Could not extract Hugo version from:', output);
-#            process.exit(1);
-#          }
-#
-#          const currentVersion = versionMatch[1];
-#          const isExtended = !!versionMatch[2];
-#          const requiredVersion = '0.145.0';
-#
-#          if (!isExtended) {
-#            console.error('❌ Hugo is not the extended version. Please install the extended edition.');
-#            process.exit(1);
-#          }
-#
-#          if (!semver.gte(currentVersion, requiredVersion)) {
-#            console.error(\`❌ Hugo version \${currentVersion} is too old. Requires >= \${requiredVersion}\`);
-#            process.exit(1);
-#          }
-#
-#          console.log(\`✅ Hugo version \${currentVersion}+extended is OK (>= \${requiredVersion})\`);
-#        } catch (err) {
-#          console.error('❌ Failed to run hugo:', err.message);
-#          process.exit(1);
-#        }
-#        "
+    status:
+      - command -v hugo
+      - |
+        node -e "
+        const { execSync } = require('child_process');
+        const semver = require('semver');
+
+        try {
+          const output = execSync('hugo version').toString();
+          const versionMatch = output.match(/v(\d+\.\d+\.\d+)(\+extended)?/);
+          if (!versionMatch) {
+            console.error('❌ Could not extract Hugo version from:', output);
+            process.exit(1);
+          }
+
+          const currentVersion = versionMatch[1];
+          const isExtended = !!versionMatch[2];
+          const requiredVersion = '0.145.0';
+
+          if (!isExtended) {
+            console.error('❌ Hugo is not the extended version. Please install the extended edition.');
+            process.exit(1);
+          }
+
+          if (!semver.gte(currentVersion, requiredVersion)) {
+            console.error(\`❌ Hugo version \${currentVersion} is too old. Requires >= \${requiredVersion}\`);
+            process.exit(1);
+          }
+
+          console.log(\`✅ Hugo version \${currentVersion}+extended is OK (>= \${requiredVersion})\`);
+        } catch (err) {
+          console.error('❌ Failed to run hugo:', err.message);
+          process.exit(1);
+        }
+        "
     cmds:
       - CGO_ENABLED=1 go install -tags extended github.com/gohugoio/hugo@v0.145.0
 
