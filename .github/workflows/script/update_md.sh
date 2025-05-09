@@ -11,9 +11,10 @@ else
   SOLO_CLUSTER_NAME=${SOLO_TEST_CLUSTER}
 fi
 
-export SOLO_NAMESPACE=solo
+export SOLO_NAMESPACE=solo-e2e
+export SOLO_CLUSTER_SETUP_NAMESPACE=solo-cluster-setup
 export SOLO_DEPLOYMENT=solo-deployment
-export SOLO_CLUSTER_SETUP_NAMESPACE=solo-cluster
+export SOLO_EMAIL=john@doe.com
 
 echo "Perform the following kind and solo commands and save output to environment variables"
 

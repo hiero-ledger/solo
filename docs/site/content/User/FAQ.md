@@ -12,7 +12,7 @@ Use the following command to get account balance and private key of the account 
 
 ```bash
 # get account info of 0.0.1007 and also show the private key
-solo account get --account-id 0.0.1007 -n solo-e2e --private-key
+solo account get --account-id 0.0.1007 --deployment solo-deployment  --private-key
 ```
 
 The output would be similar to the following:
@@ -20,7 +20,8 @@ The output would be similar to the following:
 ```bash
 {
  "accountId": "0.0.1007",
- "privateKey": "302e020100300506032b657004220420cfea706dd9ed2d3c1660ba98acf4fdb74d247cce289ef6ef47486e055e0b9508",
+ "privateKey": "302e020100300506032b657004220420411a561013bceabb8cb83e3dc5558d052b9bd6a8977b5a7348bf9653034a29d7",
+ "privateKeyRaw": "411a561013bceabb8cb83e3dc5558d052b9bd6a8977b5a7348bf9653034a29d7"
  "publicKey": "302a300506032b65700321001d8978e647aca1195c54a4d3d5dc469b95666de14e9b6edde8ed337917b96013",
  "balance": 100
 }

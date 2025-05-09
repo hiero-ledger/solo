@@ -2,10 +2,11 @@
 
 Once the nodes are up, you may now expose various services (using `k9s` (shift-f) or `kubectl port-forward`) and access. Below are most used services that you may expose.
 
-* Node services: `network-<node ID>-svc`
-* HAProxy: `haproxy-<node ID>-svc`
+* where the 'node name' for Node ID = 0, is `node1` (`node${ nodeId + 1 }`)
+* Node services: `network-<node name>-svc`
+* HAProxy: `haproxy-<node name>-svc`
   ```bash
-  # enable portforwarding for haproxy
+  # enable port forwarding for haproxy
   # node1 grpc port accessed by localhost:50211
   kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 &
   # node2 grpc port accessed by localhost:51211
@@ -13,9 +14,9 @@ Once the nodes are up, you may now expose various services (using `k9s` (shift-f
   # node3 grpc port accessed by localhost:52211
   kubectl port-forward svc/haproxy-node3-svc -n "${SOLO_NAMESPACE}" 52211:50211 &
   ```
-* Envoy Proxy: `envoy-proxy-<node ID>-svc`
+* Envoy Proxy: `envoy-proxy-<node name>-svc`
   ```bash
-  # enable portforwarding for envoy proxy
+  # enable port forwarding for envoy proxy
   kubectl port-forward svc/envoy-proxy-node1-svc -n "${SOLO_NAMESPACE}" 8181:8080 &
   kubectl port-forward svc/envoy-proxy-node2-svc -n "${SOLO_NAMESPACE}" 8281:8080 &
   kubectl port-forward svc/envoy-proxy-node3-svc -n "${SOLO_NAMESPACE}" 8381:8080 &
@@ -31,7 +32,7 @@ You can deploy JSON RPC relays for one or more nodes as below:
 
 ```bash
 # deploy relay node first
-solo relay deploy -i node1
+solo relay deploy -i node1 --deployment "${SOLO_DEPLOYMENT}"
 
 # enable relay for node1
 kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n "${SOLO_NAMESPACE}" 7546:7546 &
