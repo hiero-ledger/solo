@@ -7,12 +7,15 @@ silent: false
 env:
   HUGO_ENVIRONMENT: production
   HUGO_ENV: production
-  HUGO_BASE_URL: https://solo.hiero.org/
-  HUGO_ORIGIN: https://solo.hiero.org
+  HUGO_ORIGIN: https://solo.hiero.org/
+  HUGO_LOCAL_ORIGIN: http://localhost:1313/
   HUGO_HOST: solo.hiero.org
+  HUGO_SOLO_VERSION: main/
   HUGO_BASEPATH: /
+vars:
+  hugo_base_url: "${HUGO_ORIGIN}${HUGO_SOLO_VERSION}"
+  hugo_local_base_url: "${HUGO_LOCAL_ORIGIN}${HUGO_SOLO_VERSION}"
 
-# TODO - verify that api docs are mounted correctly and referenced links are working
 # TODO - add version env variable base URL and print to console
 tasks:
   default:
@@ -31,8 +34,8 @@ tasks:
   local:
     desc: "Run the local server"
     cmds:
-      - task: "default"
-      - hugo server --cleanDestinationDir -e dev -DFE --minify serve --renderToMemory
+      - task: "build"
+      - hugo server --cleanDestinationDir -e dev -DFE --minify serve --renderToMemory --baseURL "{{.hugo_local_base_url}}"
 
   check-doc-dir:
     desc: "Check if in the docs/site directory"
@@ -92,13 +95,14 @@ tasks:
   build:hugo:
     desc: "Build the Hugo site"
     cmds:
-      - echo "base_url  $HUGO_BASE_URL"
       - echo "origin    $HUGO_ORIGIN"
       - echo "host      $HUGO_HOST"
       - echo "base_path $HUGO_BASEPATH"
+      - echo "solo vers $HUGO_SOLO_VERSION"
+      - echo "base_url  {{.hugo_base_url}}"
       - hugo version
       - hugo config
-      - hugo --cleanDestinationDir --gc --minify --baseURL "$HUGO_BASE_URL/"
+      - hugo --cleanDestinationDir --gc --minify --baseURL "{{.hugo_base_url}}"
 
   build:typedoc:
     desc: "Generate the API documentation using TypeDoc"
@@ -108,7 +112,7 @@ tasks:
       - version.ts
       - solo.ts
     generates:
-      - dist/**/*.js
+      - docs/site/static/classes/**/*.*
     cmds:
       - npx typedoc --excludeExternals --out docs/site/static/classes --entryPoints ./solo.ts --entryPoints ./src/index.ts --entryPointStrategy expand ./src
 
