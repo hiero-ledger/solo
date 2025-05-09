@@ -11,4 +11,13 @@ export class RemoteConfigMetadata {
   @Expose()
   @Type(() => UserIdentity)
   public lastUpdatedBy: UserIdentity;
+
+  public constructor(lastUpdatedAt?: Date, lastUpdatedBy?: UserIdentity) {
+    if (lastUpdatedAt) {
+      this.lastUpdatedAt = lastUpdatedAt;
+    }
+    if (lastUpdatedBy) {
+      this.lastUpdatedBy = lastUpdatedBy;
+    }
+  }
 }

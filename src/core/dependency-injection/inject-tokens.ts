@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {RemoteConfigRuntimeState} from '../../business/runtime-state/remote-config-runtime-state.js';
+
 /**
  * Dependency injection tokens
  */
@@ -29,7 +31,7 @@ export const InjectTokens = {
   KeyManager: Symbol.for('KeyManager'),
   ProfileManager: Symbol.for('ProfileManager'),
   CertificateManager: Symbol.for('CertificateManager'),
-  RemoteConfigManager: Symbol.for('RemoteConfigManager'),
+  RemoteConfigRuntimeState: Symbol.for('RemoteConfigRuntimeState'),
   ClusterChecks: Symbol.for('ClusterChecks'),
   NetworkNodes: Symbol.for('NetworkNodes'),
   AccountCommand: Symbol.for('AccountCommand'),

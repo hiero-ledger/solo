@@ -5,7 +5,6 @@ import {expect} from 'chai';
 import {type DependencyManager} from '../../../src/core/dependency-managers/index.js';
 import {type ChartManager} from '../../../src/core/chart-manager.js';
 import {type ConfigManager} from '../../../src/core/config-manager.js';
-import {RemoteConfigManager} from '../../../src/core/config/remote/remote-config-manager.js';
 import {K8Client} from '../../../src/integration/kube/k8-client/k8-client.js';
 import {BaseCommand} from '../../../src/commands/base.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
@@ -20,6 +19,8 @@ import {Argv} from '../../helpers/argv-wrapper.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
 import {type HelmClient} from '../../../src/integration/helm/helm-client.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
+import {type RemoteConfigRuntimeStateApi} from '../../../src/business/runtime-state/api/remote-config-runtime-state-api.js';
+import {RemoteConfigRuntimeState} from '../../../src/business/runtime-state/remote-config-runtime-state.js';
 
 describe('BaseCommand', () => {
   let helm: HelmClient;
@@ -27,7 +28,7 @@ describe('BaseCommand', () => {
   let configManager: ConfigManager;
   let depManager: DependencyManager;
   let localConfig: LocalConfigRuntimeState;
-  let remoteConfigManager: RemoteConfigManager;
+  let remoteConfig: RemoteConfigRuntimeStateApi;
   let sandbox = sinon.createSandbox();
   let testLogger: SoloLogger;
 
@@ -42,7 +43,7 @@ describe('BaseCommand', () => {
       configManager = container.resolve(InjectTokens.ConfigManager);
       depManager = container.resolve(InjectTokens.DependencyManager);
       localConfig = container.resolve(InjectTokens.LocalConfigRuntimeState);
-      remoteConfigManager = container.resolve(InjectTokens.RemoteConfigManager);
+      remoteConfig = container.resolve(InjectTokens.RemoteConfigRuntimeState);
 
       sandbox = sinon.createSandbox();
       sandbox.stub(K8Client.prototype, 'init').callsFake(() => this);
@@ -57,7 +58,7 @@ describe('BaseCommand', () => {
         configManager,
         depManager,
         localConfig,
-        remoteConfigManager,
+        remoteConfig,
       });
 
       await localConfig.load();
@@ -152,7 +153,7 @@ describe('BaseCommand', () => {
 
       // @ts-expect-error - TS2540: to mock
       localConfig.clusterRefs = sandbox.stub().returns({cluster: 'context1', cluster2: 'context2'});
-      const remoteConfigManager = sinon.createStubInstance(RemoteConfigManager);
+      const remoteConfig = sinon.createStubInstance(RemoteConfigRuntimeState);
 
       const mockConsensusNodes = [
         new ConsensusNode(
@@ -177,12 +178,12 @@ describe('BaseCommand', () => {
         ),
       ];
 
-      remoteConfigManager.getConsensusNodes.returns(mockConsensusNodes);
-      remoteConfigManager.getContexts.returns(mockConsensusNodes.map(node => node.context));
+      remoteConfig.getConsensusNodes.returns(mockConsensusNodes);
+      remoteConfig.getContexts.returns(mockConsensusNodes.map(node => node.context));
       const mockedClusterReferenceMap: ClusterReferences = new Map<string, string>();
       mockedClusterReferenceMap.set('cluster', 'context1');
       mockedClusterReferenceMap.set('cluster2', 'context2');
-      remoteConfigManager.getClusterRefs.returns(mockedClusterReferenceMap);
+      remoteConfig.getClusterRefs.returns(mockedClusterReferenceMap);
 
       const k8Factory = sinon.stub();
 
@@ -195,13 +196,13 @@ describe('BaseCommand', () => {
         configManager,
         depManager,
         localConfig,
-        remoteConfigManager,
+        remoteConfig,
       );
     });
 
     it('should return consensus nodes', () => {
       // @ts-expect-error - TS2445: to access private property
-      const consensusNodes = baseCmd.remoteConfigManager.getConsensusNodes();
+      const consensusNodes = baseCmd.remoteConfig.getConsensusNodes();
       expect(consensusNodes).to.be.an('array');
       expect(consensusNodes[0].context).to.equal('context1');
       expect(consensusNodes[1].context).to.equal('context2');
@@ -217,7 +218,7 @@ describe('BaseCommand', () => {
 
     it('should return contexts', () => {
       // @ts-expect-error - TS2445: to access private property
-      const contexts = baseCmd.remoteConfigManager.getContexts();
+      const contexts = baseCmd.remoteConfig.getContexts();
       expect(contexts).to.be.an('array');
       expect(contexts[0]).to.equal('context1');
       expect(contexts[1]).to.equal('context2');
@@ -226,7 +227,7 @@ describe('BaseCommand', () => {
     it('should return clusters references', () => {
       const expectedClusterReferences = {cluster: 'context1', cluster2: 'context2'};
       // @ts-expect-error - TS2445: to access private property
-      const clusterReferences: ClusterReferences = baseCmd.remoteConfigManager.getClusterRefs();
+      const clusterReferences: ClusterReferences = baseCmd.remoteConfig.getClusterRefs();
       for (const [clusterReference] of clusterReferences) {
         expect(clusterReferences.get(clusterReference)).to.equal(expectedClusterReferences[clusterReference]);
       }

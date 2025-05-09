@@ -12,7 +12,6 @@ import {type ConfigManager} from '../../../src/core/config-manager.js';
 import {type ChartManager} from '../../../src/core/chart-manager.js';
 import {NetworkCommand, type NetworkDeployConfigClass} from '../../../src/commands/network.js';
 import {type LockManager} from '../../../src/core/lock/lock-manager.js';
-import {type RemoteConfigManager} from '../../../src/core/config/remote/remote-config-manager.js';
 import {type ProfileManager} from '../../../src/core/profile-manager.js';
 import {type KeyManager} from '../../../src/core/key-manager.js';
 import {ListrLock} from '../../../src/core/lock/listr-lock.js';
@@ -42,6 +41,7 @@ import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/
 import {type LocalConfig} from '../../../src/data/schema/model/local/local-config.js';
 import {type ClusterReferences} from '../../../src/types/index.js';
 import {ROOT_DIR} from '../../../src/core/constants.js';
+import {type RemoteConfigRuntimeState} from '../../../src/business/runtime-state/remote-config-runtime-state.js';
 
 const testName = 'network-cmd-unit';
 const namespace = NamespaceName.of(testName);
@@ -81,7 +81,7 @@ describe('NetworkCommand unit tests', () => {
 
     const k8SFactoryStub = sinon.stub() as unknown as K8Factory;
     const clusterChecksStub = sinon.stub() as unknown as ClusterChecks;
-    const remoteConfigManagerStub = sinon.stub() as unknown as RemoteConfigManager;
+    const remoteConfigManagerStub = sinon.stub() as unknown as RemoteConfigRuntimeState;
     const chartManagerStub = sinon.stub() as unknown as ChartManager;
     const certificateManagerStub = sinon.stub() as unknown as CertificateManager;
     const profileManagerStub = sinon.stub() as unknown as ProfileManager;
@@ -96,8 +96,8 @@ describe('NetworkCommand unit tests', () => {
         [InjectTokens.K8Factory, new ValueContainer(InjectTokens.K8Factory, k8SFactoryStub)],
         [InjectTokens.ClusterChecks, new ValueContainer(InjectTokens.ClusterChecks, clusterChecksStub)],
         [
-          InjectTokens.RemoteConfigManager,
-          new ValueContainer(InjectTokens.RemoteConfigManager, remoteConfigManagerStub),
+          InjectTokens.RemoteConfigRuntimeState,
+          new ValueContainer(InjectTokens.RemoteConfigRuntimeState, remoteConfigManagerStub),
         ],
         [InjectTokens.ChartManager, new ValueContainer(InjectTokens.ChartManager, chartManagerStub)],
         [InjectTokens.CertificateManager, new ValueContainer(InjectTokens.CertificateManager, certificateManagerStub)],
@@ -195,7 +195,7 @@ describe('NetworkCommand unit tests', () => {
       options.chartManager.install = sinon.stub().returns(true);
       options.chartManager.uninstall = sinon.stub().returns(true);
 
-      options.remoteConfigManager = container.resolve<RemoteConfigManager>(InjectTokens.RemoteConfigManager);
+      options.remoteConfigManager = container.resolve<RemoteConfigRuntimeState>(InjectTokens.RemoteConfigRuntimeState);
       options.remoteConfigManager.isLoaded = sinon.stub().returns(true);
       options.remoteConfigManager.getConfigMap = sinon.stub().returns(null);
       options.remoteConfigManager.modify = sinon.stub();
