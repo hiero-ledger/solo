@@ -5,6 +5,7 @@ description: >
     This document describes how to use Solo with Mirror Node.
 type: docs
 ---
+
 ## Using Solo with mirror node
 
 User can deploy a Solo network with Mirror Node by running the following command:

@@ -4,22 +4,24 @@ linkTitle: About
 menu: {main: {weight: 10}}
 ---
 
-{{% blocks/cover title="About Solo" image_anchor="bottom" height="auto" %}}
+{{% blocks/cover title="About Solo" image\_anchor="bottom" height="auto" %}}
 
 ### A Hiero Ledger tool for deploying and managing Hiero Ledger networks.
+
 {.mt-5}
 
 {{% /blocks/cover %}}
 
 {{% blocks/lead %}}
 
-### Solo is a tool for deploying and managing Hiero Ledger networks leveraging Kubernetes. 
+### Solo is a tool for deploying and managing Hiero Ledger networks leveraging Kubernetes.
 
 {{% /blocks/lead %}}
 
 {{% blocks/section %}}
 
-### It is still under development, but it is already capable of deploying one or more [Consensus Nodes](https://github.com/hiero-ledger/hiero-consensus-node) within one or more Kubernetes clusters. 
+### It is still under development, but it is already capable of deploying one or more [Consensus Nodes](https://github.com/hiero-ledger/hiero-consensus-node) within one or more Kubernetes clusters.
+
 {.text-center}
 
 {{% /blocks/section %}}
@@ -27,6 +29,7 @@ menu: {main: {weight: 10}}
 {{% blocks/section %}}
 
 ### It also has the ability to deploy the [Mirror Node](https://github.com/hiero-ledger/hiero-mirror-node), [Explorer](https://github.com/hiero-ledger/hiero-mirror-node-explorer), and [JSON RPC Relay](https://github.com/hiero-ledger/hiero-json-rpc-relay).
+
 {.text-center}
 
 {{% /blocks/section %}}
@@ -48,15 +51,18 @@ Solo is an opinionated CLI tool to deploy and manage standalone test networks.
 {.text-center}
 
 ## Feature overview
+
 {.text-center}
 
 ### Clean and simple design
+
 {.text-center}
 
 Stay focused on deployment and don't get overwhelmed by a complex design.
 {.text-center}
 
 ### Easy configuration
+
 {.text-center}
 
 Getting started in minutes. Solo comes with easy to use configuration.

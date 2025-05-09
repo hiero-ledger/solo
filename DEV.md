@@ -4,6 +4,7 @@ weight: 20
 description: "Instructions for developers working on the Solo project"
 type: docs
 ---
+
 # Instructions for developers working on solo project
 
 Below we describe how you can set up a local environment and contribute to `solo`.

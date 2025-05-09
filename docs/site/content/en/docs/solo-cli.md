@@ -5,6 +5,7 @@ description: >
     Solo CLI is a command line interface for the Hiero Consensus Node network. It allows users to interact with the network, manage accounts, and perform various operations.
 type: docs
 ---
+
 ## Solo Command Line User Manual
 
 Solo has a series of commands to use, and some commands have subcommands.

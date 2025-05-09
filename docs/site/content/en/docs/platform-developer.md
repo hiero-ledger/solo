@@ -5,6 +5,7 @@ description: >
     This page provides information for developers who want to build and run Hiero Consensus Node testing application locally.
 type: docs
 ---
+
 ### Use Solo with a Local Built Hiero Consensus Node Testing Application
 
 First, please clone Hiero Consensus Node repo `https://github.com/hiero-ledger/hiero-consensus-node/` and build the code

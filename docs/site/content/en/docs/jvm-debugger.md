@@ -6,6 +6,7 @@ description: >
     It also provides instructions on how to save and reuse network state files.
 type: docs
 ---
+
 ## How to Debug a Hiero Consensus Node
 
 ### 1. Using k9s to access running consensus node logs
@@ -103,7 +104,7 @@ solo node start -i node1,node2,node3 -n "${SOLO_NAMESPACE}"
 solo node add --gossip-keys --tls-keys --debug-node-alias node4 --local-build-path ../hiero-consensus-node/hedera-node/data -n "${SOLO_NAMESPACE}" --pvcs true
 ```
 
-Example 3: attach a JVM debugger with the node update operation 
+Example 3: attach a JVM debugger with the node update operation
 
 ```bash
 ./test/e2e/setup-e2e.sh

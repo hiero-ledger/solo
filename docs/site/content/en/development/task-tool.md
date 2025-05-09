@@ -6,6 +6,7 @@ description: >
     It provides a simple command-line interface for developers to set up and manage their Solo network.
 type: docs
 ---
+
 ## Use the Task tool to Launch Solo
 
 For developers who want to quickly deploy a standalone Hiero Consensus Node network without needing to know what is under the hood,

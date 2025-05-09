@@ -5,6 +5,7 @@ description: >
     Frequently asked questions about the Solo CLI tool.
 type: docs
 ---
+
 ### How can I avoid using genesis keys ?
 
 You can run `solo account init` anytime after `solo node start`

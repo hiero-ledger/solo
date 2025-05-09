@@ -5,6 +5,7 @@ description: >
     Environment variables are used to customize the behavior of Solo. This document provides a list of environment variables that can be configured to change the default behavior.
 type: docs
 ---
+
 ## Environment Variables Used in Solo
 
 User can configure the following environment variables to customize the behavior of Solo.

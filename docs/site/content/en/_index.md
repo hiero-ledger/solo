@@ -2,10 +2,8 @@
 title: Solo docs
 ---
 
-{{< blocks/cover title="Welcome to Solo" image_anchor="top" height="full" >}}
-<a class="btn btn-lg btn-primary me-3 mb-4" href="docs/">
-  Learn More <i class="fas fa-arrow-alt-circle-right ms-2"></i>
-</a>
+{{< blocks/cover title="Welcome to Solo" image\_anchor="top" height="full" >}} <a class="btn btn-lg btn-primary me-3 mb-4" href="docs/">
+Learn More <i class="fas fa-arrow-alt-circle-right ms-2"></i> </a>
 {{< blocks/link-down color="info" >}}
 {{< /blocks/cover >}}
 
@@ -14,6 +12,7 @@ Solo is a tool for deploying a Hiero Ledger Consensus Node Network locally or to
 {{% /blocks/lead %}}
 
 {{% blocks/section %}}
+
 <div class="text-center">
 <a class="btn btn-lg btn-primary" href="docs/">
 Docs<i class="fas fa-arrow-alt-circle-right ms-2"></i>

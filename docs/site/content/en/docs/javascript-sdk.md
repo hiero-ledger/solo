@@ -6,6 +6,7 @@ description: >
     It includes instructions for setting up a local Solo network, creating test accounts, and running example scripts.
 type: docs
 ---
+
 ## Using Solo with the Hiero JavaScript SDK
 
 First, please follow solo repository README to install solo and Docker Desktop.
