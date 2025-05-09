@@ -5,14 +5,14 @@ import {ComponentTypes} from './enumerations/component-types.js';
 import {BaseState} from '../../../data/schema/model/remote/state/base-state.js';
 import {isValidEnum} from '../../util/validation-helpers.js';
 import {type DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
-import {type RemoteConfigRuntimeState} from '../../../business/runtime-state/remote-config-runtime-state.js';
 import {type DeploymentState} from '../../../data/schema/model/remote/deployment-state.js';
 import {type ClusterReference, type ComponentId} from '../../../types/index.js';
+import {type RemoteConfigRuntimeStateApi} from '../../../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 export class ComponentsDataWrapper {
   public state: DeploymentState;
 
-  public constructor(remoteConfigRuntimeState?: RemoteConfigRuntimeState) {
+  public constructor(remoteConfigRuntimeState?: RemoteConfigRuntimeStateApi) {
     this.state = remoteConfigRuntimeState.state;
   }
 

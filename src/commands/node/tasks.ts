@@ -118,10 +118,10 @@ import {type CheckedNodesConfigClass, type CheckedNodesContext} from './config-i
 import {type NetworkNodeServices} from '../../core/network-node-services.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
 import {Cluster} from '../../data/schema/model/common/cluster.js';
-import {type ComponentFactory} from '../../core/config/remote/component-factory.js';
 import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
 import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {type ComponentFactoryApi} from '../../core/config/remote/api/component-factory-api.js';
 
 @injectable()
 export class NodeCommandTasks {
@@ -137,7 +137,7 @@ export class NodeCommandTasks {
     @inject(InjectTokens.CertificateManager) private readonly certificateManager: CertificateManager,
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
-    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactory,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);

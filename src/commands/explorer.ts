@@ -35,8 +35,8 @@ import {
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {ComponentFactory} from '../core/config/remote/component-factory.js';
 import {type MirrorNodeState} from '../data/schema/model/remote/state/mirror-node-state.js';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -81,7 +81,7 @@ export class ExplorerCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
-    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactory,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
   ) {
     super();
 

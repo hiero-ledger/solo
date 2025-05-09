@@ -16,13 +16,14 @@ import {inject, injectable} from 'tsyringe-neo';
 import {type RemoteConfigRuntimeStateApi} from '../../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {patchInject} from '../../dependency-injection/container-helper.js';
 import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
+import {RemoteConfigValidatorApi} from './api/remote-config-validator-api.js';
 
 /**
  * Static class is used to validate that components in the remote config
  * are present in the kubernetes cluster, and throw errors if there is mismatch.
  */
 @injectable()
-export class RemoteConfigValidator {
+export class RemoteConfigValidator implements RemoteConfigValidatorApi {
   public constructor(
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,

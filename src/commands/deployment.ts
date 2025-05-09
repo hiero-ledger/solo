@@ -26,13 +26,13 @@ import {Templates} from '../core/templates.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {DeploymentStates} from '../core/config/remote/enumerations/deployment-states.js';
-import {type ComponentFactory} from '../core/config/remote/component-factory.js';
 import {type Deployment} from '../data/schema/model/local/deployment.js';
 import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 import {Cluster} from '../data/schema/model/common/cluster.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -61,7 +61,7 @@ export interface DeploymentAddClusterContext {
 export class DeploymentCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks,
-    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactory,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
   ) {
     super();
 

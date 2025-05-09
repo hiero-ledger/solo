@@ -57,11 +57,11 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {type ComponentFactory} from '../core/config/remote/component-factory.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
 export interface NetworkDeployConfigClass {
   applicationEnv: string;
@@ -145,7 +145,7 @@ export class NetworkCommand extends BaseCommand {
     @inject(InjectTokens.KeyManager) private readonly keyManager: KeyManager,
     @inject(InjectTokens.PlatformInstaller) private readonly platformInstaller: PlatformInstaller,
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
-    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactory,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
   ) {
     super();
 

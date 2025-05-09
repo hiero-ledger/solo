@@ -16,9 +16,10 @@ import {type RemoteConfigRuntimeStateApi} from '../../../business/runtime-state/
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../dependency-injection/container-helper.js';
 import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
+import {type ComponentFactoryApi} from './api/component-factory-api.js';
 
 @injectable()
-export class ComponentFactory {
+export class ComponentFactory implements ComponentFactoryApi {
   public constructor(
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
   ) {

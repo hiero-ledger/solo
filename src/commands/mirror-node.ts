@@ -47,9 +47,9 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {ComponentFactory} from '../core/config/remote/component-factory.js';
 import {type AccountId} from '@hashgraph/sdk';
 import {type MirrorNodeState} from '../data/schema/model/remote/state/mirror-node-state.js';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
 interface MirrorNodeDeployConfigClass {
   cacheDir: string;
@@ -104,7 +104,7 @@ export class MirrorNodeCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
     @inject(InjectTokens.ProfileManager) private readonly profileManager?: ProfileManager,
-    @inject(InjectTokens.ComponentFactory) private readonly componentFactory?: ComponentFactory,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory?: ComponentFactoryApi,
   ) {
     super();
 

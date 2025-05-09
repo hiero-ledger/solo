@@ -44,11 +44,11 @@ import {getSoloVersion} from '../../../version.js';
 import * as constants from '../../core/constants.js';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {Flags as flags} from '../../commands/flags.js';
-import {RemoteConfigValidator} from '../../core/config/remote/remote-config-validator.js';
 import {Deployment} from '../../data/schema/model/local/deployment.js';
 import {promptTheUserForDeployment} from '../../core/resolvers.js';
 import {ConsensusNode} from '../../core/model/consensus-node.js';
 import {RemoteConfigRuntimeStateApi} from './api/remote-config-runtime-state-api.js';
+import {type RemoteConfigValidatorApi} from '../../core/config/remote/api/remote-config-validator-api.js';
 
 enum RuntimeStatePhase {
   Loaded = 'loaded',
@@ -70,7 +70,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
     @inject(InjectTokens.ConfigManager) private readonly configManager?: ConfigManager,
-    @inject(InjectTokens.RemoteConfigValidator) private readonly remoteConfigValidator?: RemoteConfigValidator,
+    @inject(InjectTokens.RemoteConfigValidator) private readonly remoteConfigValidator?: RemoteConfigValidatorApi,
   ) {
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);

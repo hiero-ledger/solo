@@ -17,7 +17,6 @@ import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {getTestCacheDirectory} from '../../../test-utility.js';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {type ClusterReference} from '../../../../src/types/index.js';
-import {ComponentFactory} from '../../../../src/core/config/remote/component-factory.js';
 import {DeploymentPhase} from '../../../../src/data/schema/model/remote/deployment-phase.js';
 import {Templates} from '../../../../src/core/templates.js';
 import {LocalConfigRuntimeState} from '../../../../src/business/runtime-state/local-config-runtime-state.js';
@@ -31,6 +30,8 @@ import {type EnvoyProxyState} from '../../../../src/data/schema/model/remote/sta
 import {type BaseState} from '../../../../src/data/schema/model/remote/state/base-state.js';
 import {ComponentTypes} from '../../../../src/core/config/remote/enumerations/component-types.js';
 import {RemoteConfig} from '../../../../src/data/schema/model/remote/remote-config.js';
+import {type ComponentFactoryApi} from '../../../../src/core/config/remote/api/component-factory-api.js';
+import {ComponentFactory} from '../../../../src/core/config/remote/component-factory.js';
 
 interface ComponentsRecord {
   explorer: ExplorerState;
@@ -56,7 +57,7 @@ interface ComponentsData {
   labelRecord: LabelRecord;
   componentsDataWrapper: ComponentsDataWrapper;
   podNames: Record<string, string>;
-  componentFactory: ComponentFactory;
+  componentFactory: ComponentFactoryApi;
 }
 
 function prepareComponentsData(namespace: NamespaceName): ComponentsData {
@@ -66,7 +67,7 @@ function prepareComponentsData(namespace: NamespaceName): ComponentsData {
   const nodeState: DeploymentPhase = DeploymentPhase.STARTED;
   const nodeId: NodeId = 0;
 
-  const componentFactory: ComponentFactory = new ComponentFactory(remoteConfigMock);
+  const componentFactory: ComponentFactoryApi = new ComponentFactory(remoteConfigMock);
 
   const components: ComponentsRecord = {
     explorer: componentFactory.createNewExplorerComponent(clusterReference, namespace),
@@ -123,7 +124,7 @@ describe('RemoteConfigValidator', () => {
   let labelRecord: LabelRecord;
   let componentsDataWrapper: ComponentsDataWrapper;
   let podNames: Record<string, string>;
-  let componentFactory: ComponentFactory;
+  let componentFactory: ComponentFactoryApi;
 
   before(async () => {
     k8Factory = container.resolve(InjectTokens.K8Factory);

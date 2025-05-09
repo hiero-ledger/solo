@@ -26,10 +26,10 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {ComponentFactory} from '../core/config/remote/component-factory.js';
 import {Templates} from '../core/templates.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type RelayNodeState} from '../data/schema/model/remote/state/relay-node-state.js';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -77,7 +77,7 @@ export class RelayCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
-    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactory,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
   ) {
     super();
 

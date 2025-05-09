@@ -58,11 +58,7 @@ export class ProfileManager {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.cacheDir = PathEx.resolve(patchInject(cacheDirectory, InjectTokens.CacheDir, this.constructor.name));
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
-    this.remoteConfig = patchInject(
-      remoteConfig,
-      InjectTokens.RemoteConfigRuntimeState,
-      this.constructor.name,
-    );
+    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
 
