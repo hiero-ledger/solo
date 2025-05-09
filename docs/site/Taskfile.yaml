@@ -17,6 +17,7 @@ vars:
   hugo_local_base_url: "${HUGO_LOCAL_ORIGIN}${HUGO_SOLO_VERSION}"
 
 # TODO - add version env variable base URL and print to console
+# TODO - change search, it is currently pointing to docsy example site
 tasks:
   default:
     desc: "List all available tasks"
