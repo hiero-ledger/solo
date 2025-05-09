@@ -84,8 +84,10 @@ tasks:
       - src/**/*.ts
       - version.ts
       - solo.ts
+      - docs/site/generate_help.sh
     generates:
       - dist/**/*.js
+      - docs/site/content/en/docs/solo-commands.md
     cmds:
       - rm -f docs/site/content/en/docs/solo-commands.md
       - chmod 755 docs/site/generate_help.sh
