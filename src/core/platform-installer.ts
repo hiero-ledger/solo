@@ -17,7 +17,6 @@ import chalk from 'chalk';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type NodeAlias} from '../types/aliases.js';
 import {Duration} from './time/duration.js';
-import {requiresJavaSveFix, sleep} from './helpers.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
@@ -27,6 +26,7 @@ import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {sleep} from './helpers.js';
 
 /** PlatformInstaller install platform code in the root-container of a network pod */
 @injectable()
@@ -119,11 +119,9 @@ export class PlatformInstaller {
       const k8Containers = this.k8Factory.getK8(context).containers();
 
       const container = k8Containers.readByRef(containerReference);
-      const useZip = await requiresJavaSveFix(container);
-      this.logger.info(`Requires JavaSVE fix: ${useZip}`);
 
       await container.execContainer(`chmod +x ${extractScript}`);
-      await container.execContainer([extractScript, tag, useZip.toString()]);
+      await container.execContainer([extractScript, tag]);
 
       return true;
     } catch (error) {
