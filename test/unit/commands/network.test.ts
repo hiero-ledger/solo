@@ -176,7 +176,7 @@ describe('NetworkCommand unit tests', () => {
       });
 
       options.keyManager = container.resolve<KeyManager>(InjectTokens.KeyManager);
-      options.keyManager.prepareTLSKeyFilePaths = sinon.stub();
+      options.keyManager.prepareTlsKeyFilePaths = sinon.stub();
       options.keyManager.copyGossipKeysToStaging = sinon.stub();
       options.keyManager.copyNodeKeysToStaging = sinon.stub();
 
@@ -288,7 +288,9 @@ describe('NetworkCommand unit tests', () => {
         const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['cluster', 'context1']]);
         options.remoteConfigManager.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
-        const networkCommand = container.resolve<NetworkCommand>(NetworkCommand);
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+        // @ts-expect-error - to access private method
+        networkCommand.getBlockNodes = sinon.stub().returns([]);
         // @ts-expect-error - to access private method
         const config: NetworkDeployConfigClass = await networkCommand.prepareConfig(task, argv.build());
 
