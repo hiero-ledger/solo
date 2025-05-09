@@ -82,9 +82,10 @@ $SOLO_EXPLORER_DEPLOY_OUTPUT,$SOLO_RELAY_DESTROY_OUTPUT,$SOLO_MIRROR_NODE_DESTRO
 
 echo "Remove color codes and lines showing intermediate progress"
 
-
 sed -i 's/\[32m//g' ${TARGET_FILE}
 sed -i 's/\[33m//g' ${TARGET_FILE}
 sed -i 's/\[39m//g' ${TARGET_FILE}
 egrep -v '↓|❯|•' ${TARGET_FILE} > ${TARGET_FILE}.tmp && mv ${TARGET_FILE}.tmp ${TARGET_FILE}
+
+rm *.log
 set +x
