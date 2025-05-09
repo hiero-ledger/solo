@@ -8,8 +8,9 @@ import {type DeploymentPhase} from '../../../data/schema/model/remote/deployment
 import {type DeploymentState} from '../../../data/schema/model/remote/deployment-state.js';
 import {type ClusterReference, type ComponentId} from '../../../types/index.js';
 import {type RemoteConfigRuntimeStateApi} from '../../../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {type ComponentsDataWrapperApi} from './api/components-data-wrapper-api.js';
 
-export class ComponentsDataWrapper {
+export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   public state: DeploymentState;
 
   public constructor(remoteConfigRuntimeState?: RemoteConfigRuntimeStateApi) {

@@ -32,6 +32,7 @@ import {ComponentTypes} from '../../../../src/core/config/remote/enumerations/co
 import {RemoteConfig} from '../../../../src/data/schema/model/remote/remote-config.js';
 import {type ComponentFactoryApi} from '../../../../src/core/config/remote/api/component-factory-api.js';
 import {ComponentFactory} from '../../../../src/core/config/remote/component-factory.js';
+import {type ComponentsDataWrapperApi} from '../../../../src/core/config/remote/api/components-data-wrapper-api.js';
 
 interface ComponentsRecord {
   explorer: ExplorerState;
@@ -55,7 +56,7 @@ interface ComponentsData {
   namespace: NamespaceName;
   components: ComponentsRecord;
   labelRecord: LabelRecord;
-  componentsDataWrapper: ComponentsDataWrapper;
+  componentsDataWrapper: ComponentsDataWrapperApi;
   podNames: Record<string, string>;
   componentFactory: ComponentFactoryApi;
 }
@@ -108,7 +109,7 @@ function prepareComponentsData(namespace: NamespaceName): ComponentsData {
   const remoteConfig: RemoteConfig = new RemoteConfig(undefined, undefined, undefined, undefined, state);
 
   // @ts-expect-error - TS2740 to mock
-  const componentsDataWrapper: ComponentsDataWrapper = new ComponentsDataWrapper({state: remoteConfig.state});
+  const componentsDataWrapper: ComponentsDataWrapperApi = new ComponentsDataWrapper({state: remoteConfig.state});
 
   return {namespace, components, labelRecord, componentsDataWrapper, podNames, componentFactory};
 }
@@ -122,7 +123,7 @@ describe('RemoteConfigValidator', () => {
 
   let components: ComponentsRecord;
   let labelRecord: LabelRecord;
-  let componentsDataWrapper: ComponentsDataWrapper;
+  let componentsDataWrapper: ComponentsDataWrapperApi;
   let podNames: Record<string, string>;
   let componentFactory: ComponentFactoryApi;
 
@@ -222,7 +223,7 @@ describe('RemoteConfigValidator', () => {
         namespace,
       );
 
-      const componentsDataWrapper: ComponentsDataWrapper = new ComponentsDataWrapper({
+      const componentsDataWrapper: ComponentsDataWrapperApi = new ComponentsDataWrapper({
         // @ts-expect-error - TS2740 to mock
         state: {
           consensusNodes: consensusNodeComponents,
@@ -249,7 +250,7 @@ describe('RemoteConfigValidator', () => {
           namespace,
         );
 
-        const componentsDataWrapper: ComponentsDataWrapper = new ComponentsDataWrapper({
+        const componentsDataWrapper: ComponentsDataWrapperApi = new ComponentsDataWrapper({
           // @ts-expect-error - TS2740 to mock
           state: {
             consensusNodes: consensusNodeComponents,

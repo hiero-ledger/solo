@@ -13,7 +13,6 @@ import {NodeHelper} from './helper.js';
 import {type ArgvStruct, type NodeAlias, type NodeAliases, NodeId} from '../../types/aliases.js';
 import {type Listr} from 'listr2';
 import chalk from 'chalk';
-import {type ComponentsDataWrapper} from '../../core/config/remote/components-data-wrapper.js';
 import {type Optional, type SoloListrTask} from '../../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
@@ -30,6 +29,7 @@ import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.j
 import {Templates} from '../../core/templates.js';
 import {ConsensusNodeState} from '../../data/schema/model/remote/state/consensus-node-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {ComponentsDataWrapperApi} from '../../core/config/remote/api/components-data-wrapper-api.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -1001,7 +1001,7 @@ export class NodeCommandHandlers extends CommandHandler {
    */
   private validateNodeState(
     nodeAlias: NodeAlias,
-    components: ComponentsDataWrapper,
+    components: ComponentsDataWrapperApi,
     acceptedPhases: Optional<DeploymentPhase[]>,
     excludedPhases: Optional<DeploymentPhase[]>,
   ): DeploymentPhase {

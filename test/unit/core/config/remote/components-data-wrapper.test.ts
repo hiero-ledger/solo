@@ -20,6 +20,7 @@ import {RemoteConfig} from '../../../../../src/data/schema/model/remote/remote-c
 import {DeploymentState} from '../../../../../src/data/schema/model/remote/deployment-state.js';
 import {LedgerPhase} from '../../../../../src/data/schema/model/remote/ledger-phase.js';
 import {BlockNodeState} from '../../../../../src/data/schema/model/remote/state/block-node-state.js';
+import {type ComponentsDataWrapperApi} from '../../../../../src/core/config/remote/api/components-data-wrapper-api.js';
 
 export function createComponentsDataWrapper(): {
   values: {
@@ -38,7 +39,7 @@ export function createComponentsDataWrapper(): {
     explorers: ExplorerState[];
     blockNodes: BlockNodeState[];
   };
-  wrapper: {componentsDataWrapper: ComponentsDataWrapper};
+  wrapper: {componentsDataWrapper: ComponentsDataWrapperApi};
   componentId: ComponentId;
 } {
   const id: ComponentId = 0;
@@ -73,7 +74,7 @@ export function createComponentsDataWrapper(): {
   const remoteConfig: RemoteConfig = new RemoteConfig(undefined, undefined, undefined, undefined, deploymentState);
 
   // @ts-expect-error - to mock
-  const componentsDataWrapper: ComponentsDataWrapper = new ComponentsDataWrapper({state: remoteConfig.state});
+  const componentsDataWrapper: ComponentsDataWrapperApi = new ComponentsDataWrapper({state: remoteConfig.state});
 
   return {
     values: {id, cluster, namespace, phase, consensusNodeIds},

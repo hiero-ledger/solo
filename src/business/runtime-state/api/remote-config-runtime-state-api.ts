@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type ComponentsDataWrapper} from '../../../core/config/remote/components-data-wrapper.js';
 import {type ApplicationVersions} from '../../../data/schema/model/common/application-versions.js';
 import {
   type ClusterReference,
@@ -22,7 +21,7 @@ import {type ConsensusNode} from '../../../core/model/consensus-node.js';
 
 export interface RemoteConfigRuntimeStateApi {
   currentCluster: ClusterReference;
-  components: ComponentsDataWrapper;
+  components: ComponentsDataWrapperApi;
   schemaVersion: number;
   metadata: Readonly<RemoteConfigMetadata>;
   versions: Readonly<ApplicationVersions>;

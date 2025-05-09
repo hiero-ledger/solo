@@ -59,7 +59,7 @@ enum RuntimeStatePhase {
 export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   private phase: RuntimeStatePhase = RuntimeStatePhase.NotLoaded;
 
-  private componentsDataWrapper?: ComponentsDataWrapper;
+  private componentsDataWrapper?: ComponentsDataWrapperApi;
 
   private source?: RemoteConfigSource;
   private backend?: YamlConfigMapStorageBackend;
@@ -82,7 +82,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     return this.k8Factory.default().clusters().readCurrent();
   }
 
-  public get components(): ComponentsDataWrapper {
+  public get components(): ComponentsDataWrapperApi {
     return this.componentsDataWrapper;
   }
 
