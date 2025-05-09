@@ -24,7 +24,6 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {type ConfigManager} from './config-manager.js';
 import {Flags as flags} from '../commands/flags.js';
 import {type Realm, type Shard} from './../types/index.js';
-import {type Container} from '../integration/kube/resources/container/container.js';
 
 export function getInternalAddress(
   releaseVersion: semver.SemVer | string,
@@ -553,20 +552,6 @@ export function ipv4ToBase64(ipv4: string): string {
 
   // Base64 encode the byte array
   return btoa(String.fromCodePoint(...uint8Array));
-}
-
-/** Get the Apple Silicon chip type */
-export async function getProcessorType(container: Container): Promise<string> {
-  try {
-    return container.execContainer('uname -p');
-  } catch {
-    return 'unknown';
-  }
-}
-
-export async function requiresJavaSveFix(container: Container) {
-  const chipSet = await getProcessorType(container);
-  return chipSet.includes('aarch') || chipSet.includes('arm');
 }
 
 export function entityId(shard: Shard, realm: Realm, number: Long | number | string): string {

@@ -43,7 +43,16 @@ config: |
       "name": "localnet",
       "displayName": "LOCALNET",
       "url": "/",
-      "ledgerID": "03"
+      "ledgerID": "03",
+      "baseRealm": 0,
+      "baseShard": 0,
+      "enableWallet": false,
+      "enableStaking": false,
+      "enableExpiry": false,
+      "enableMarket": false,
+      "erc20IndexURL": null,
+      "erc721IndexURL": null,
+      "sourcifySetup": null
     }
   ]
 
