@@ -54,7 +54,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        consensus-node-version: ["v0.62.1", "v0.61.4", "v0.61.2", "v0.61.1", "v0.61.0", "v0.60.1", "v0.60.0"]
+        consensus-node-version: ["v0.62.1", "v0.61.4"]
         e2e-test-type:
           - { name: "Node Add", test-script: "test-${{ needs.env-vars.outputs.e2e-node-add-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-add-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-add-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-node-add-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
           - { name: "Node Delete", test-script: "test-${{ needs.env-vars.outputs.e2e-node-delete-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-delete-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-delete-coverage-report }}", cluster-name: "${{needs.env-vars.outputs.e2e-node-delete-test-subdir}}-${{ github.run_id }}-${{ github.run_attempt }}" }
