@@ -187,8 +187,8 @@ describe('BaseCommand', () => {
       const k8Factory = sinon.stub();
 
       // @ts-expect-error - allow to create instance of abstract class
-      baseCmd = new BaseCommand({
-        logger: testLogger,
+      baseCmd = new BaseCommand(
+        testLogger,
         helm,
         k8Factory,
         chartManager,
@@ -196,7 +196,7 @@ describe('BaseCommand', () => {
         depManager,
         localConfig,
         remoteConfigManager,
-      });
+      );
     });
 
     it('should return consensus nodes', () => {

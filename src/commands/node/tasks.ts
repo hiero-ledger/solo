@@ -1086,6 +1086,9 @@ export class NodeCommandTasks {
           config.deployment,
         );
         for (const networkNodeServices of config.serviceMap.values()) {
+          if (networkNodeServices.accountId === constants.IGNORED_NODE_ACCOUNT_ID) {
+            continue;
+          }
           config.existingNodeAliases.push(networkNodeServices.nodeAlias);
         }
         config.allNodeAliases = [...config.existingNodeAliases];
@@ -1998,7 +2001,6 @@ export class NodeCommandTasks {
             this.prepareValuesArgForNodeDelete(
               consensusNodes,
               valuesArgumentMap,
-              nodeId,
               config.nodeAlias,
               config.serviceMap,
               clusterNodeIndexMap,
@@ -2184,7 +2186,6 @@ export class NodeCommandTasks {
   private prepareValuesArgForNodeDelete(
     consensusNodes: ConsensusNode[],
     valuesArgumentMap: Record<ClusterReference, string>,
-    nodeId: NodeId,
     nodeAlias: NodeAlias,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
     clusterNodeIndexMap: Record<ClusterReference, Record<NodeId, /* index in the chart -> */ number>>,
@@ -2194,7 +2195,7 @@ export class NodeCommandTasks {
 
       // The index inside the chart
       const index = clusterNodeIndexMap[clusterReference][consensusNode.nodeId];
-
+      const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
       // For nodes that are not being deleted
       if (consensusNode.nodeId !== nodeId) {
         valuesArgumentMap[clusterReference] +=

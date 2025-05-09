@@ -33,7 +33,7 @@ endToEndTestSuite(testName, argv, {startNodes: false}, bootstrapResp => {
   } = bootstrapResp;
 
   describe('BlockNodeCommand', async () => {
-    const blockNodeCommand: BlockNodeCommand = new BlockNodeCommand(bootstrapResp.opts);
+    const blockNodeCommand: BlockNodeCommand = container.resolve<BlockNodeCommand>(InjectTokens.BlockNodeCommand);
 
     after(async function () {
       this.timeout(Duration.ofMinutes(5).toMillis());

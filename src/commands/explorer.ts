@@ -4,11 +4,10 @@ import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
-import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
 import {type ProfileManager} from '../core/profile-manager.js';
-import {BaseCommand, type Options} from './base.js';
+import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
@@ -24,7 +23,7 @@ import {
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterChecks} from '../core/cluster-checks.js';
-import {container} from 'tsyringe-neo';
+import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {KeyManager} from '../core/key-manager.js';
 import {
@@ -34,6 +33,7 @@ import {
   INGRESS_CONTROLLER_PREFIX,
 } from '../core/constants.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
+import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {ComponentFactory} from '../core/config/remote/component-factory.js';
 import {type MirrorNodeState} from '../data/schema/model/remote/state/mirror-node-state.js';
@@ -76,16 +76,16 @@ interface ExplorerDestroyContext {
   };
 }
 
+@injectable()
 export class ExplorerCommand extends BaseCommand {
-  private readonly profileManager: ProfileManager;
+  public constructor(
+    @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
+    @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
+  ) {
+    super();
 
-  public constructor(options: Options) {
-    super(options);
-    if (!options || !options.profileManager) {
-      throw new MissingArgumentError('An instance of core/ProfileManager is required', options.downloader);
-    }
-
-    this.profileManager = options.profileManager;
+    this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
+    this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
   }
 
   public static readonly COMMAND_NAME = 'explorer';
@@ -190,9 +190,7 @@ export class ExplorerCommand extends BaseCommand {
       );
     }
 
-    const clusterChecks: ClusterChecks = container.resolve(InjectTokens.ClusterChecks);
-
-    if (!(await clusterChecks.isCertManagerInstalled())) {
+    if (!(await this.clusterChecks.isCertManagerInstalled())) {
       valuesArgument += ' --set cert-manager.installCRDs=true';
     }
 
