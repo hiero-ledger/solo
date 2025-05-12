@@ -16,23 +16,23 @@ export class RemoteConfig {
   public schemaVersion: number;
 
   @Expose()
-  @Type(() => RemoteConfigMetadata)
+  @Type((): typeof RemoteConfigMetadata => RemoteConfigMetadata)
   public metadata: RemoteConfigMetadata;
 
   @Expose()
-  @Type(() => ApplicationVersions)
+  @Type((): typeof ApplicationVersions => ApplicationVersions)
   public versions: ApplicationVersions;
 
   @Expose()
-  @Type(() => Cluster)
+  @Type((): typeof Cluster => Cluster)
   public clusters: Cluster[];
 
   @Expose()
-  @Type(() => DeploymentState)
+  @Type((): typeof DeploymentState => DeploymentState)
   public state: DeploymentState;
 
   @Expose()
-  @Type(() => DeploymentHistory)
+  @Type((): typeof DeploymentHistory => DeploymentHistory)
   public history: DeploymentHistory;
 
   public constructor(

@@ -134,6 +134,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     this.backend = new YamlConfigMapStorageBackend(configMap);
     this.objectMapper = new ClassToObjectMapper(ConfigKeyFormatter.instance());
     this.source = new RemoteConfigSource(new RemoteConfigSchema(this.objectMapper), this.objectMapper, this.backend);
+    await this.source.load();
     this.phase = RuntimeStatePhase.Loaded;
   }
 
@@ -228,8 +229,6 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
     const configMap: ConfigMap = await this.createConfigMap(namespace, context);
     await this.populateRemoteConfig(configMap);
-    // @ts-expect-error to set newly created remote config
-    this.source.modelData = remoteConfig;
     await this.write();
 
     this.componentsDataWrapper = new ComponentsDataWrapper(remoteConfig.state);
@@ -300,7 +299,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     await this.k8Factory
       .getK8(context)
       .configMaps()
-      .create(namespace, name, labels, {[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]: ''});
+      .create(namespace, name, labels, {[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]: '{}'});
     return await this.k8Factory.getK8(context).configMaps().read(namespace, name);
   }
 
