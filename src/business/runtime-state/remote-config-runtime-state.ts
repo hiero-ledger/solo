@@ -2,7 +2,7 @@
 
 import {inject, injectable} from 'tsyringe-neo';
 import {type ObjectMapper} from '../../data/mapper/api/object-mapper.js';
-import {ClassToObjectMapper} from '../../data/mapper/impl/ct-object-mapper.js';
+import {ClassToObjectMapper} from '../../data/mapper/impl/class-to-object-mapper.js';
 import {ConfigKeyFormatter} from '../../data/key/config-key-formatter.js';
 import {ApplicationVersions} from '../../data/schema/model/common/application-versions.js';
 import {ReadRemoteConfigBeforeLoadError} from '../errors/read-remote-config-before-load-error.js';
@@ -158,6 +158,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     namespace: NamespaceName,
     data: Record<string, string>,
   ): Promise<void> {
+    console.log({context, namespace, data});
     await this.k8Factory.getK8(context).configMaps().update(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME, data);
   }
 
