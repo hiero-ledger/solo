@@ -54,6 +54,8 @@ export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>
 import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
 import {LocalConfigSource} from '../../data/configuration/impl/local-config-source.js';
 import {RemoteConfigRuntimeState} from '../../business/runtime-state/remote-config-runtime-state.js';
+import {ComponentFactory} from '../config/remote/component-factory.js';
+import {RemoteConfigValidator} from '../config/remote/remote-config-validator.js';
 
 /**
  * Container class to manage the dependency injection container
@@ -139,6 +141,8 @@ export class Container {
       new SingletonContainer(InjectTokens.NodeCommandConfigs, NodeCommandConfigs),
       new SingletonContainer(InjectTokens.ErrorHandler, ErrorHandler),
       new SingletonContainer(InjectTokens.ObjectMapper, ClassToObjectMapper),
+      new SingletonContainer(InjectTokens.ComponentFactory, ComponentFactory),
+      new SingletonContainer(InjectTokens.RemoteConfigValidator, RemoteConfigValidator),
     ];
 
     const valueContainers: ValueContainer[] = [

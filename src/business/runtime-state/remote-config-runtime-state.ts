@@ -349,7 +349,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       return;
     }
 
-    await this.remoteConfigValidator.validateComponents(this.namespace, skipConsensusNodesValidation);
+    await this.remoteConfigValidator.validateComponents(this.namespace, skipConsensusNodesValidation, this);
 
     await this.modify(async (remoteConfig: RemoteConfig) => {
       const currentCommand: string = argv._?.join(' ');

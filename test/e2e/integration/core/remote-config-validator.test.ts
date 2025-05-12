@@ -119,7 +119,6 @@ describe('RemoteConfigValidator', () => {
 
   let k8Factory: K8Factory;
   let localConfig: LocalConfigRuntimeState;
-  const filePath: string = `${getTestCacheDirectory('LocalConfig')}/localConfig.yaml`;
 
   let components: ComponentsRecord;
   let labelRecord: LabelRecord;
@@ -182,10 +181,8 @@ describe('RemoteConfigValidator', () => {
     {componentKey: 'explorer', displayName: 'Mirror node explorer', type: ComponentTypes.Explorers},
   ];
 
-  // @ts-expect-error - to mock
-  const remoteConfigValidator: RemoteConfigValidator = new RemoteConfigValidator(k8Factory, localConfig, {
-    state: componentsDataWrapper.state,
-  });
+  const remoteConfigValidator: RemoteConfigValidator = new RemoteConfigValidator(k8Factory, localConfig);
+  const remoteConfigData: any = {state: componentsDataWrapper.state};
 
   for (const {componentKey, displayName, type} of testCasesForIndividualComponents) {
     describe(`${displayName} validation`, () => {
@@ -195,7 +192,7 @@ describe('RemoteConfigValidator', () => {
         componentsDataWrapper.addNewComponent(component, type);
 
         try {
-          await remoteConfigValidator.validateComponents(namespace, true);
+          await remoteConfigValidator.validateComponents(namespace, true, remoteConfigData);
           expect.fail();
         } catch (error) {
           expect(error).to.be.instanceOf(SoloError);
@@ -206,7 +203,7 @@ describe('RemoteConfigValidator', () => {
       it('should succeed if component is present', async () => {
         await createPod(podNames[componentKey], labelRecord[componentKey]);
 
-        await remoteConfigValidator.validateComponents(namespace, false);
+        await remoteConfigValidator.validateComponents(namespace, false, remoteConfigData);
       });
     });
   }
@@ -235,7 +232,7 @@ describe('RemoteConfigValidator', () => {
         componentsDataWrapper.changeNodePhase(nodeId, DeploymentPhase.STARTED);
       }
 
-      await remoteConfigValidator.validateComponents(namespace, skipConsensusNodes);
+      await remoteConfigValidator.validateComponents(namespace, skipConsensusNodes, remoteConfigData);
     });
 
     const nodeStates: DeploymentPhase[] = [DeploymentPhase.REQUESTED, DeploymentPhase.STOPPED];
@@ -261,7 +258,7 @@ describe('RemoteConfigValidator', () => {
           componentsDataWrapper.changeNodePhase(nodeId, nodeState);
         }
 
-        await remoteConfigValidator.validateComponents(namespace, false);
+        await remoteConfigValidator.validateComponents(namespace, false, remoteConfigData);
       });
     }
   });

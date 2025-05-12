@@ -27,11 +27,9 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
   public constructor(
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
-    @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig?: RemoteConfigRuntimeStateApi,
   ) {
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
-    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
   }
 
   private static getRelayLabels(): string[] {
@@ -114,17 +112,15 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     },
   };
 
-  public async validateComponents(namespace: NamespaceName, skipConsensusNodes: boolean): Promise<void> {
+  public async validateComponents(
+    namespace: NamespaceName,
+    skipConsensusNodes: boolean,
+    remoteConfig: RemoteConfigRuntimeStateApi,
+  ): Promise<void> {
     const validationPromises: Promise<void>[] = Object.entries(RemoteConfigValidator.componentValidationsMapping)
       .filter(([key]) => key !== 'consensusNodes' || !skipConsensusNodes)
       .flatMap(([key, {getLabelsCallback, displayName, skipCondition}]): Promise<void>[] =>
-        this.validateComponentGroup(
-          namespace,
-          this.remoteConfig.state[key],
-          getLabelsCallback,
-          displayName,
-          skipCondition,
-        ),
+        this.validateComponentGroup(namespace, remoteConfig.state[key], getLabelsCallback, displayName, skipCondition),
       );
 
     await Promise.all(validationPromises);
