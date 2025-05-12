@@ -568,17 +568,17 @@ async function verifyExplorerDeployWasSuccessful(
 ): Promise<void> {
   const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
   const k8: K8 = k8Factory.getK8(contexts[1]);
-  const hederaExplorerPods: Pod[] = await k8
+  const explorerPods: Pod[] = await k8
     .pods()
     .list(namespace, [
       'app.kubernetes.io/instance=hiero-explorer',
       'app.kubernetes.io/name=hiero-explorer-chart',
       'app.kubernetes.io/component=hiero-explorer',
     ]);
-  expect(hederaExplorerPods).to.have.lengthOf(1);
+  expect(explorerPods).to.have.lengthOf(1);
   let portForwarder: ExtendedNetServer;
   try {
-    portForwarder = await k8.pods().readByReference(hederaExplorerPods[0].podReference).portForward(8080, 8080);
+    portForwarder = await k8.pods().readByReference(explorerPods[0].podReference).portForward(8080, 8080);
     await sleep(Duration.ofSeconds(2));
     const queryUrl: string = 'http://127.0.0.1:8080/api/v1/accounts?limit=15&order=desc';
     const packageDownloader: PackageDownloader = container.resolve<PackageDownloader>(InjectTokens.PackageDownloader);

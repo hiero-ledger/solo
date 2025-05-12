@@ -6,7 +6,7 @@ metadata:
   soloChartVersion: 0.44.0
   hederaPlatformVersion: v0.58.10
   hederaMirrorNodeChartVersion: v0.122
-  hederaExplorerChartVersion: 24.12.0
+  explorerChartVersion: 24.12.0
   hederaJsonRpcRelayChartVersion: v0.63.2
   soloVersion: 0.34.0
   version: 1.0.0
@@ -145,5 +145,5 @@ flags:
   nodeAliasesUnparsed: node1,node2,node3,node4
   releaseTag: v0.58.10
   relayReleaseTag: v0.63.2
-  hederaExplorerVersion: 24.12.0
+  explorerVersion: 24.12.0
   mirrorNodeVersion: v0.122
