@@ -5,6 +5,7 @@ import {type Lock} from './lock.js';
 
 import {LockAcquisitionError} from './lock-acquisition-error.js';
 import {type SoloListrTaskWrapper} from '../../types/index.js';
+import {DEFAULT_LOCK_ACQUIRE_ATTEMPTS} from '../constants.js';
 
 /**
  * A utility class for managing lock acquisition tasks in Listr2 based workflows.
@@ -13,7 +14,6 @@ export class ListrLock {
   /**
    * The default number of attempts to try acquiring the lock before failing.
    */
-  public static readonly DEFAULT_LOCK_ACQUIRE_ATTEMPTS = 10;
 
   /**
    * The title of the lock acquisition task used by Listr2.
@@ -61,7 +61,7 @@ export class ListrLock {
    * @throws LockAcquisitionError if the lock could not be acquired after the maximum number of attempts or an unexpected error occurred.
    */
   private static async acquireWithRetry(lock: Lock, task: SoloListrTaskWrapper<any>): Promise<void> {
-    const maxAttempts = +process.env.SOLO_LEASE_ACQUIRE_ATTEMPTS || ListrLock.DEFAULT_LOCK_ACQUIRE_ATTEMPTS;
+    const maxAttempts = DEFAULT_LOCK_ACQUIRE_ATTEMPTS;
     const title = task.title;
 
     let attempt: number;
