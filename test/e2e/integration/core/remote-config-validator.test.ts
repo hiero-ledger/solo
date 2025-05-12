@@ -108,8 +108,7 @@ function prepareComponentsData(namespace: NamespaceName): ComponentsData {
   const state: DeploymentState = new DeploymentState();
   const remoteConfig: RemoteConfig = new RemoteConfig(undefined, undefined, undefined, undefined, state);
 
-  // @ts-expect-error - TS2740 to mock
-  const componentsDataWrapper: ComponentsDataWrapperApi = new ComponentsDataWrapper({state: remoteConfig.state});
+  const componentsDataWrapper: ComponentsDataWrapperApi = new ComponentsDataWrapper(remoteConfig.state);
 
   return {namespace, components, labelRecord, componentsDataWrapper, podNames, componentFactory};
 }
@@ -220,11 +219,9 @@ describe('RemoteConfigValidator', () => {
         namespace,
       );
 
+      // @ts-expect-error - TS2740 to mock
       const componentsDataWrapper: ComponentsDataWrapperApi = new ComponentsDataWrapper({
-        // @ts-expect-error - TS2740 to mock
-        state: {
-          consensusNodes: consensusNodeComponents,
-        },
+        consensusNodes: consensusNodeComponents,
       });
 
       for (const nodeId of nodeIds) {
@@ -247,11 +244,9 @@ describe('RemoteConfigValidator', () => {
           namespace,
         );
 
+        // @ts-expect-error - TS2740 to mock
         const componentsDataWrapper: ComponentsDataWrapperApi = new ComponentsDataWrapper({
-          // @ts-expect-error - TS2740 to mock
-          state: {
-            consensusNodes: consensusNodeComponents,
-          },
+          consensusNodes: consensusNodeComponents,
         });
 
         for (const nodeId of nodeIds) {

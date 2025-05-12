@@ -139,15 +139,15 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
   public async write(): Promise<void> {
     await this.source.persist();
+    const remoteConfigDataBytes: Buffer = await this.backend.readBytes(constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY);
+    const remoteConfigData: Record<string, string> = {
+      [constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]: remoteConfigDataBytes.toString('utf8'),
+    };
 
     const promises: Promise<void>[] = [];
 
     for (const contexts of this.clusterReferences.keys()) {
-      promises.push(
-        this.updateConfigMap(contexts, this.namespace, {
-          /* TODO */
-        }),
-      );
+      promises.push(this.updateConfigMap(contexts, this.namespace, remoteConfigData));
     }
 
     await Promise.all(promises);
@@ -193,8 +193,6 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     dnsBaseDomain: string,
     dnsConsensusNodePattern: string,
   ): Promise<void> {
-    const configMap: ConfigMap = await this.createConfigMap(namespace, context);
-
     const consensusNodeStates: ConsensusNodeState[] = nodeAliases.map((nodeAlias: NodeAlias): ConsensusNodeState => {
       return new ConsensusNodeState(
         new ComponentStateMetadata(
@@ -218,8 +216,6 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       dnsConsensusNodePattern,
     );
 
-    await this.populateRemoteConfig(configMap);
-
     const remoteConfig: RemoteConfig = new RemoteConfig(
       undefined,
       new RemoteConfigMetadata(new Date(), userIdentity),
@@ -229,9 +225,13 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       new DeploymentHistory([command], command),
     );
 
-    await this.backend.writeObject(constants.SOLO_REMOTE_CONFIGMAP_NAME, this.objectMapper.toObject(remoteConfig));
+    const configMap: ConfigMap = await this.createConfigMap(namespace, context);
+    await this.populateRemoteConfig(configMap);
+    // @ts-expect-error to set newly created remote config
+    this.source.modelData = remoteConfig;
+    await this.write();
 
-    this.componentsDataWrapper = new ComponentsDataWrapper(this);
+    this.componentsDataWrapper = new ComponentsDataWrapper(remoteConfig.state);
   }
 
   public async createFromExisting(
@@ -246,7 +246,6 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     nodeAliases: NodeAliases,
   ): Promise<void> {
     const existingRemoteConfigConfigMap: ConfigMap = await this.getConfigMap(namespace, existingClusterContext);
-
     await this.populateRemoteConfig(existingRemoteConfigConfigMap);
 
     //? Create copy of the existing remote config inside the new cluster
@@ -297,7 +296,10 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   public async createConfigMap(namespace: NamespaceName, context: Context): Promise<ConfigMap> {
     const name: string = constants.SOLO_REMOTE_CONFIGMAP_NAME;
     const labels: Record<string, string> = constants.SOLO_REMOTE_CONFIGMAP_LABELS;
-    await this.k8Factory.getK8(context).configMaps().create(namespace, name, labels, {});
+    await this.k8Factory
+      .getK8(context)
+      .configMaps()
+      .create(namespace, name, labels, {[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]: ''});
     return await this.k8Factory.getK8(context).configMaps().read(namespace, name);
   }
 
@@ -350,6 +352,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     }
 
     await this.remoteConfigValidator.validateComponents(this.namespace, skipConsensusNodesValidation, this);
+    this.componentsDataWrapper = new ComponentsDataWrapper(this.state);
 
     await this.modify(async (remoteConfig: RemoteConfig) => {
       const currentCommand: string = argv._?.join(' ');

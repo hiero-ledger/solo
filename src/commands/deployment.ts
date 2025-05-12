@@ -282,6 +282,7 @@ export class DeploymentCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error: Error | unknown) {
+      console.error(error);
       throw new SoloError('Error adding cluster to deployment', error);
     }
 

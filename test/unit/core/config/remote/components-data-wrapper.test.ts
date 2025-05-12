@@ -73,8 +73,7 @@ export function createComponentsDataWrapper(): {
 
   const remoteConfig: RemoteConfig = new RemoteConfig(undefined, undefined, undefined, undefined, deploymentState);
 
-  // @ts-expect-error - to mock
-  const componentsDataWrapper: ComponentsDataWrapperApi = new ComponentsDataWrapper({state: remoteConfig.state});
+  const componentsDataWrapper: ComponentsDataWrapperApi = new ComponentsDataWrapper(remoteConfig.state);
 
   return {
     values: {id, cluster, namespace, phase, consensusNodeIds},
