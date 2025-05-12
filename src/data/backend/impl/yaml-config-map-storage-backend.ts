@@ -29,9 +29,6 @@ export class YamlConfigMapStorageBackend extends ConfigMapStorageBackend impleme
   }
 
   public async writeObject(key: string, data: object): Promise<void> {
-    console.log('------------- 11111111111 -----------------------');
-    console.log(data);
-    console.log('-------------');
     if (!data) {
       throw new IllegalArgumentError('data must not be null or undefined');
     }
@@ -40,7 +37,6 @@ export class YamlConfigMapStorageBackend extends ConfigMapStorageBackend impleme
       const yamlData: string = yaml.stringify(data, {sortMapEntries: true});
       await this.writeBytes(key, Buffer.from(yamlData, 'utf8'));
     } catch (error) {
-      console.error(error);
       throw new StorageBackendError(`error writing yaml for key: ${key} to config map`, error);
     }
   }

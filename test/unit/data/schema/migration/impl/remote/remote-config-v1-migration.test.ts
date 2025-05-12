@@ -6,6 +6,9 @@ import {IllegalArgumentError} from '../../../../../../../src/business/errors/ill
 import {InvalidSchemaVersionError} from '../../../../../../../src/data/schema/migration/api/invalid-schema-version-error.js';
 import sinon from 'sinon';
 import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import * as versionUtils from '../../../../../../../version.js';
 import * as yaml from 'yaml';
 import {getSoloVersion} from '../../../../../../../version.js';
 import {type VersionRange} from '../../../../../../../src/business/utils/version-range.js';

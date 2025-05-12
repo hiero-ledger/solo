@@ -27,6 +27,8 @@ export const SOLO_REMOTE_CONFIGMAP_LABEL_SELECTOR = 'solo.hedera.com/type=remote
 export const SOLO_REMOTE_CONFIGMAP_DATA_KEY = 'remote-config-data';
 export const NODE_COPY_CONCURRENT = Number(process.env.NODE_COPY_CONCURRENT) || 4;
 export const SKIP_NODE_PING = Boolean(process.env.SKIP_NODE_PING) || false;
+export const DEFAULT_LOCK_ACQUIRE_ATTEMPTS = +process.env.SOLO_LEASE_ACQUIRE_ATTEMPTS || 10;
+export const DEFAULT_LEASE_DURATION = +process.env.SOLO_LEASE_DURATION || 20;
 
 // --------------- Hedera network and node related constants --------------------------------------------------------------------
 export const HEDERA_CHAIN_ID = process.env.SOLO_CHAIN_ID || '298';
@@ -101,7 +103,7 @@ export const MIRROR_INGRESS_CONTROLLER = 'mirror-ingress-controller';
 export const EXPLORER_INGRESS_CLASS_NAME = 'explorer-ingress-class';
 export const EXPLORER_INGRESS_CONTROLLER = 'explorer-ingress-controller';
 // ------------------- Hedera Account related ---------------------------------------------------------------------------------
-export const DEFAULT_OPERATOR_ID_NUMBER = 2;
+export const DEFAULT_OPERATOR_ID_NUMBER = process.env.SOLO_OPERATOR_ID || 2;
 export const OPERATOR_KEY =
   process.env.SOLO_OPERATOR_KEY ||
   '302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137';
@@ -109,9 +111,9 @@ export const OPERATOR_PUBLIC_KEY =
   process.env.SOLO_OPERATOR_PUBLIC_KEY ||
   '302a300506032b65700321000aa8e21064c61eab86e2a9c164565b4e7a9a4146106e0a6cd03a8c395a110e92';
 
-export const DEFAULT_FREEZE_ID_NUMBER = 58;
+export const DEFAULT_FREEZE_ID_NUMBER = +process.env.FREEZE_ADMIN_ACCOUNT || 58;
 export const DEFAULT_TREASURY_ID_NUMBER = 2;
-export const DEFAULT_START_ID_NUMBER = 3;
+export const DEFAULT_START_ID_NUMBER = +process.env.DEFAULT_START_ID_NUMBER || 3;
 
 export const GENESIS_KEY =
   process.env.GENESIS_KEY ||
