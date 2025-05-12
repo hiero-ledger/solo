@@ -1,0 +1,25 @@
+{
+  "name": "solo-docs",
+  "version": "0.0.0",
+  "version.next": "0.0.1",
+  "description": "Solo technical documentation.",
+  "repository": "github:hiero-ledger/solo",
+  "homepage": "https://solo.hiero.org/",
+  "author": "Hashgraph",
+  "license": "Apache-2.0",
+  "bugs": "https://github.com/hiero-ledger/solo/issues",
+  "spelling": "cSpell:ignore docsy hugo htmltest precheck postbuild rtlcss -",
+  "scripts": {},
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "cross-env": "^7.0.3",
+    "hugo-extended": "0.145.0",
+    "postcss-cli": "^11.0.1",
+    "rtlcss": "^4.3.0"
+  },
+  "private": true,
+  "prettier": {
+    "proseWrap": "always",
+    "singleQuote": true
+  }
+}

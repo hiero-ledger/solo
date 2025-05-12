@@ -7,25 +7,39 @@ silent: false
 env:
   HUGO_ENVIRONMENT: production
   HUGO_ENV: production
-  HUGO_BASE_URL: https://solo.hiero.org/
-  HUGO_ORIGIN: https://solo.hiero.org
+  HUGO_ORIGIN: https://solo.hiero.org/
+  HUGO_LOCAL_ORIGIN: http://localhost:1313/
   HUGO_HOST: solo.hiero.org
+  HUGO_SOLO_VERSION: main
   HUGO_BASEPATH: /
+vars:
+  hugo_base_url: "${HUGO_ORIGIN}${HUGO_SOLO_VERSION}/"
+  hugo_local_base_url: "${HUGO_LOCAL_ORIGIN}${HUGO_SOLO_VERSION}/"
 
+# TODO - add version env variable base URL and print to console
+# TODO - change search, it is currently pointing to docsy example site
 tasks:
   default:
+    desc: "List all available tasks"
+    cmds:
+      - task --list
+
+  build:
+    desc: "Build the documentation site"
     cmds:
       - task: "check-doc-dir"
       - task: "clean"
       - task: "install"
       - task: "build:all"
 
-  start:
+  local:
+    desc: "Run the local server"
     cmds:
-      - task: "default"
-      - hugo server --disableFastRender --ignoreCache
+      - task: "build"
+      - hugo server --cleanDestinationDir -e dev -DFE --minify serve --renderToMemory --baseURL "{{.hugo_local_base_url}}"
 
   check-doc-dir:
+    desc: "Check if in the docs/site directory"
     status:
       - |
         if [ "$(basename "$PWD")" != "site" ]; then
@@ -37,80 +51,140 @@ tasks:
         exit 1
 
   clean:
+    desc: "Remove artifacts that are automatically generated"
     cmds:
-      - rm -Rf content/Classes
-      - rm -f content/Developer/DEV.md
-      - rm -f content/User/README.md
-      - rm -f content/User/SoloCommands.md
+      - rm -Rf static
       - rm -Rf public
-      - rm -Rf themes
+      - rm -Rf resources
       - rm -f .hugo_build.lock
 
   build:all:
+    desc: "Perform the build operations: typedoc, cli help, and hugo"
     cmds:
       - task: "build:typedoc"
-      - task: "build:copy"
-      - task: "build:help"
+      - task: "build:cli:help"
       - task: "build:hugo"
 
-  build:
+  build:solo:
+    desc: "Build the Solo CLI"
+    sources:
+      - src/**/*.ts
+      - version.ts
+      - solo.ts
+    generates:
+      - dist/**/*.js
     cmds:
       - rm -Rf dist
       - npx tsc
       - node {{.TASKFILE_DIR}}/../../resources/post-build-script.js
 
-  build:help:
+  build:cli:help:
+    desc: "Generate the CLI help documentation"
     dir: ../..
+    sources:
+      - src/**/*.ts
+      - version.ts
+      - solo.ts
+      - docs/site/generate_help.sh
+    generates:
+      - dist/**/*.js
+      - docs/site/content/en/docs/solo-commands.md
     cmds:
+      - rm -f docs/site/content/en/docs/solo-commands.md
       - chmod 755 docs/site/generate_help.sh
-      - task: "build"
+      - task: "build:solo"
       - docs/site/generate_help.sh
 
   build:hugo:
+    desc: "Build the Hugo site"
     cmds:
-      - echo "base_url  $HUGO_BASE_URL"
-      - echo "origin    $HUGO_ORIGIN"
-      - echo "host      $HUGO_HOST"
-      - echo "base_path $HUGO_BASEPATH"
-      - mkdir -p themes/hugo-geekdoc
-      - curl -L https://github.com/thegeeklab/hugo-geekdoc/releases/latest/download/hugo-geekdoc.tar.gz | tar -xz -C themes/hugo-geekdoc/ --strip-components=1
+      - echo "origin              $HUGO_ORIGIN"
+      - echo "host                $HUGO_HOST"
+      - echo "base_path           $HUGO_BASEPATH"
+      - echo "solo vers           $HUGO_SOLO_VERSION"
+      - echo "hugo_base_url       {{.hugo_base_url}}"
+      - echo "hugo_local_base_url {{.hugo_local_base_url}}"
       - hugo version
       - hugo config
-      - hugo --gc --minify --baseURL "$HUGO_BASE_URL/"
+      - hugo --cleanDestinationDir --gc --minify --baseURL "{{.hugo_base_url}}"
 
   build:typedoc:
+    desc: "Generate the API documentation using TypeDoc"
     dir: ../..
+    sources:
+      - src/**/*.ts
+      - version.ts
+      - solo.ts
+    generates:
+      - docs/site/static/classes/**/*.*
     cmds:
-      - npx typedoc --excludeExternals --out docs/site/public/static/Classes --entryPoints ./solo.ts --entryPoints ./src/index.ts --entryPointStrategy expand ./src
-
-  build:copy:
-    cmds:
-      - mkdir -p content/Developer
-      - cp ../../DEV.md content/Developer/DEV.md
-      - mkdir -p content/User
-      - mkdir -p content/User/README
-      - cp ../../README.md content/User/README/README.md
-      - mkdir -p content/User/README/README/images
-      - cp ../../images/DockerDesktop.png content/User/README/README/images/DockerDesktop.png
-      - chmod -R 755 content/User/README
+      - npx typedoc --excludeExternals --out docs/site/static/classes --entryPoints ./solo.ts --entryPoints ./src/index.ts --entryPointStrategy expand ./src
 
   install:
+    desc: "Install dependencies: Hugo, TypeDoc, Solo CLI, and Docsy theme"
     cmds:
       - task: "install:hugo"
       - task: "install:typedoc"
       - task: "install:solo"
+      - task: "install:docsy"
+
+  install:docsy:
+    status:
+      - ls -al go.mod
+    cmds:
+      - hugo mod init github.com/hiero-ledger/solo
+      - hugo mod get github.com/google/docsy@v0.11.0
 
   install:hugo:
+    desc: "Install Hugo extended version"
     status:
       - command -v hugo
+      - |
+        node -e "
+        const { execSync } = require('child_process');
+        const semver = require('semver');
+
+        try {
+          const output = execSync('hugo version').toString();
+          const versionMatch = output.match(/v(\d+\.\d+\.\d+)(\+extended)?/);
+          if (!versionMatch) {
+            console.error('❌ Could not extract Hugo version from:', output);
+            process.exit(1);
+          }
+
+          const currentVersion = versionMatch[1];
+          const isExtended = !!versionMatch[2];
+          const requiredVersion = '0.145.0';
+
+          if (!isExtended) {
+            console.error('❌ Hugo is not the extended version. Please install the extended edition.');
+            process.exit(1);
+          }
+
+          if (!semver.gte(currentVersion, requiredVersion)) {
+            console.error(\`❌ Hugo version \${currentVersion} is too old. Requires >= \${requiredVersion}\`);
+            process.exit(1);
+          }
+
+          console.log(\`✅ Hugo version \${currentVersion}+extended is OK (>= \${requiredVersion})\`);
+        } catch (err) {
+          console.error('❌ Failed to run hugo:', err.message);
+          process.exit(1);
+        }
+        "
     cmds:
-      - go install github.com/gohugoio/hugo@v0.124.1
+      - CGO_ENABLED=1 go install -tags extended github.com/gohugoio/hugo@v0.145.0
 
   install:typedoc:
+    desc: "Install TypeDoc"
     cmds:
       - npx typedoc --version
 
   install:solo:
+    desc: "Install the Solo CLI dependencies from the package.json"
     dir: ../..
+    sources:
+      - package.json
+      - package-lock.json
     cmds:
       - npm install

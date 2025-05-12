@@ -1,9 +1,12 @@
 #!/bin/bash
 
 # This script is used to run some common solo commands, and use the output to update
-# the docs/content/User/StepByStepGuide.md file. This is useful to keep the guide up to date
+# the docs/site/content/en/docs/step-by-step-guide.md file. This is useful to keep the guide up to date
 
 set -xeo pipefail
+
+export TARGET_DIR=docs/site/content/en/docs
+export TARGET_FILE=${TARGET_DIR}/step-by-step-guide.md
 
 if [[ -z "${SOLO_TEST_CLUSTER}" && ${SOLO_CLUSTER_NAME} == "" ]]; then
   SOLO_CLUSTER_NAME=solo-e2e
@@ -70,18 +73,20 @@ solo network destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee network-
 export SOLO_NETWORK_DESTROY_OUTPUT=$( cat network-destroy.log | tee test.log )
 
 cd ../
-echo "Generate README.md"
+echo "Generating ${TARGET_FILE} from ${TARGET_FILE}.template"
 
 envsubst '$KIND_CREATE_CLUSTER_OUTPUT,$SOLO_INIT_OUTPUT,$SOLO_NODE_KEY_PEM_OUTPUT,$SOLO_CLUSTER_SETUP_OUTPUT, \
 $SOLO_DEPLOYMENT_CREATE_OUTPUT,$SOLO_NETWORK_DEPLOY_OUTPUT,$SOLO_NODE_SETUP_OUTPUT,$SOLO_NODE_START_OUTPUT,\
 $SOLO_MIRROR_NODE_DEPLOY_OUTPUT,$SOLO_RELAY_DEPLOY_OUTPUT,$SOLO_CLUSTER_REF_CONNECT_OUTPUT,$SOLO_DEPLOYMENT_ADD_CLUSTER_OUTPUT,\
 $SOLO_EXPLORER_DEPLOY_OUTPUT,$SOLO_RELAY_DESTROY_OUTPUT,$SOLO_MIRROR_NODE_DESTROY_OUTPUT,$SOLO_EXPLORER_DESTROY_OUTPUT,$SOLO_NETWORK_DESTROY_OUTPUT'\
-< docs/site/content/User/StepByStepGuide.md.template > docs/site/content/User/StepByStepGuide.md
+< ${TARGET_FILE}.template > ${TARGET_FILE}
 
 echo "Remove color codes and lines showing intermediate progress"
 
-sed -i 's/\[32m//g' docs/site/content/User/StepByStepGuide.md
-sed -i 's/\[33m//g' docs/site/content/User/StepByStepGuide.md
-sed -i 's/\[39m//g' docs/site/content/User/StepByStepGuide.md
-egrep -v '↓|❯|•' docs/site/content/User/StepByStepGuide.md > docs/site/content/User/StepByStepGuide.md.tmp && mv docs/site/content/User/StepByStepGuide.md.tmp docs/site/content/User/StepByStepGuide.md
+sed -i 's/\[32m//g' ${TARGET_FILE}
+sed -i 's/\[33m//g' ${TARGET_FILE}
+sed -i 's/\[39m//g' ${TARGET_FILE}
+egrep -v '↓|❯|•' ${TARGET_FILE} > ${TARGET_FILE}.tmp && mv ${TARGET_FILE}.tmp ${TARGET_FILE}
+
+rm *.log
 set +x

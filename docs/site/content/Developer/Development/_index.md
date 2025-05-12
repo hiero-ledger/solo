@@ -1,4 +1,0 @@
----
-title: Development
-geekdocCollapseSection: true
----
