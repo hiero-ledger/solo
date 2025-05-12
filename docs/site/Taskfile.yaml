@@ -129,8 +129,6 @@ tasks:
       - task: "install:docsy"
 
   install:docsy:
-    status:
-      - ls -al go.mod
     cmds:
       - npm install -g postcss-cli # Install postcss-cli globally to get around bug: https://github.com/google/docsy/issues/235
       - npm install
