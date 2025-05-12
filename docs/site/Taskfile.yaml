@@ -133,7 +133,6 @@ tasks:
       - npm install -g postcss-cli # Install postcss-cli globally to get around bug: https://github.com/google/docsy/issues/235
       - npm install
       - npm install postcss # must install separately after prior items have been installed: https://www.docsy.dev/docs/get-started/docsy-as-module/installation-prerequisites/#install-postcss
-      - hugo mod init github.com/hiero-ledger/solo
       - hugo mod get github.com/google/docsy@v0.11.0
 
   install:hugo:
