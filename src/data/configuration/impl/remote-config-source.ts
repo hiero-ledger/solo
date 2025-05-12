@@ -8,8 +8,16 @@ import {type ObjectStorageBackend} from '../../backend/api/object-storage-backen
 import {type RemoteConfigSchema} from '../../schema/migration/impl/remote/remote-config-schema.js';
 
 export class RemoteConfigSource extends MutableModelConfigSource<RemoteConfig> implements Refreshable {
-  public constructor(schema: RemoteConfigSchema, mapper: ObjectMapper, backend: ObjectStorageBackend) {
+  public constructor(
+    schema: RemoteConfigSchema,
+    mapper: ObjectMapper,
+    backend: ObjectStorageBackend,
+    remoteConfig?: RemoteConfig, // if supplied, set it in this .modelData
+  ) {
     super('remote-config-data', schema, backend, mapper);
+    if (remoteConfig) {
+      this.modelData = remoteConfig;
+    }
   }
 
   public get name(): string {
