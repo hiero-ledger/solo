@@ -307,11 +307,10 @@ export class RemoteConfigManager {
         .defaultValue as Version;
     }
 
-    if (argv[flags.hieroExplorerVersion.name]) {
-      this.remoteConfig.metadata.hieroExplorerChartVersion = argv[flags.hieroExplorerVersion.name] as Version;
+    if (argv[flags.explorerVersion.name]) {
+      this.remoteConfig.metadata.explorerChartVersion = argv[flags.explorerVersion.name] as Version;
     } else if (command === 'explorer' && subcommand === 'deploy') {
-      this.remoteConfig.metadata.hieroExplorerChartVersion = flags.hieroExplorerVersion.definition
-        .defaultValue as Version;
+      this.remoteConfig.metadata.explorerChartVersion = flags.explorerVersion.definition.defaultValue as Version;
     }
 
     if (argv[flags.relayReleaseTag.name]) {

@@ -23,7 +23,7 @@ import {KeyManager} from '../core/key-manager.js';
 import {
   EXPLORER_INGRESS_CONTROLLER,
   EXPLORER_INGRESS_TLS_SECRET_NAME,
-  HEDERA_EXPLORER_CHART_URL,
+  EXPLORER_CHART_URL,
   INGRESS_CONTROLLER_PREFIX,
 } from '../core/constants.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
@@ -39,11 +39,11 @@ interface ExplorerDeployConfigClass {
   clusterRef: ClusterReference;
   clusterContext: string;
   enableIngress: boolean;
-  enableHieroExplorerTls: boolean;
+  enableExplorerTls: boolean;
   ingressControllerValueFile: string;
-  hieroExplorerTlsHostName: string;
-  hieroExplorerStaticIp: string | '';
-  hieroExplorerVersion: string;
+  explorerTlsHostName: string;
+  explorerStaticIp: string | '';
+  explorerVersion: string;
   mirrorNamespace: NamespaceName;
   namespace: NamespaceName;
   profileFile: string;
@@ -95,10 +95,10 @@ export class ExplorerCommand extends BaseCommand {
       flags.clusterRef,
       flags.enableIngress,
       flags.ingressControllerValueFile,
-      flags.enableHieroExplorerTls,
-      flags.hieroExplorerTlsHostName,
-      flags.hieroExplorerStaticIp,
-      flags.hieroExplorerVersion,
+      flags.enableExplorerTls,
+      flags.explorerTlsHostName,
+      flags.explorerStaticIp,
+      flags.explorerVersion,
       flags.mirrorNamespace,
       flags.namespace,
       flags.deployment,
@@ -138,7 +138,7 @@ export class ExplorerCommand extends BaseCommand {
       valuesArgument += ' --set ingress.enabled=true';
       valuesArgument += ` --set ingressClassName=${constants.EXPLORER_INGRESS_CLASS_NAME}`;
     }
-    valuesArgument += ` --set fullnameOverride=${constants.HEDERA_EXPLORER_RELEASE_NAME}`;
+    valuesArgument += ` --set fullnameOverride=${constants.EXPLORER_RELEASE_NAME}`;
 
     if (config.mirrorNamespace) {
       // use fully qualified service name for mirror node since the explorer is in a different namespace
@@ -223,11 +223,11 @@ export class ExplorerCommand extends BaseCommand {
 
             // disable the prompts that we don't want to prompt the user for
             flags.disablePrompts([
-              flags.enableHieroExplorerTls,
-              flags.hieroExplorerTlsHostName,
+              flags.enableExplorerTls,
+              flags.explorerTlsHostName,
               flags.ingressControllerValueFile,
-              flags.hieroExplorerStaticIp,
-              flags.hieroExplorerVersion,
+              flags.explorerStaticIp,
+              flags.explorerVersion,
               flags.mirrorNamespace,
               flags.tlsClusterIssuerType,
               flags.valuesFile,
@@ -320,7 +320,7 @@ export class ExplorerCommand extends BaseCommand {
             );
             showVersionBanner(self.logger, constants.SOLO_CERT_MANAGER_CHART, soloChartVersion, 'Upgraded');
           },
-          skip: context_ => !context_.config.enableHieroExplorerTls,
+          skip: context_ => !context_.config.enableExplorerTls,
         },
 
         {
@@ -333,14 +333,14 @@ export class ExplorerCommand extends BaseCommand {
 
             await self.chartManager.install(
               config.namespace,
-              constants.HEDERA_EXPLORER_RELEASE_NAME,
+              constants.EXPLORER_RELEASE_NAME,
               '',
-              HEDERA_EXPLORER_CHART_URL,
-              config.hieroExplorerVersion,
+              EXPLORER_CHART_URL,
+              config.explorerVersion,
               exploreValuesArgument,
               context_.config.clusterContext,
             );
-            showVersionBanner(self.logger, constants.HEDERA_EXPLORER_RELEASE_NAME, config.hieroExplorerVersion);
+            showVersionBanner(self.logger, constants.EXPLORER_RELEASE_NAME, config.explorerVersion);
           },
         },
         {
@@ -350,8 +350,8 @@ export class ExplorerCommand extends BaseCommand {
 
             let explorerIngressControllerValuesArgument: string = '';
 
-            if (config.hieroExplorerStaticIp !== '') {
-              explorerIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${config.hieroExplorerStaticIp}`;
+            if (config.explorerStaticIp !== '') {
+              explorerIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${config.explorerStaticIp}`;
             }
             explorerIngressControllerValuesArgument += ` --set fullnameOverride=${EXPLORER_INGRESS_CONTROLLER}`;
             explorerIngressControllerValuesArgument += ` --set controller.ingressClass=${constants.EXPLORER_INGRESS_CLASS_NAME}`;
@@ -380,7 +380,7 @@ export class ExplorerCommand extends BaseCommand {
             await this.k8Factory
               .getK8(context_.config.clusterContext)
               .ingresses()
-              .update(config.namespace, constants.HEDERA_EXPLORER_RELEASE_NAME, {
+              .update(config.namespace, constants.EXPLORER_RELEASE_NAME, {
                 metadata: {
                   annotations: {
                     'haproxy-ingress.github.io/backend-protocol': 'h1',
@@ -402,7 +402,7 @@ export class ExplorerCommand extends BaseCommand {
               .pods()
               .waitForReadyStatus(
                 context_.config.namespace,
-                [constants.SOLO_HEDERA_EXPLORER_LABEL],
+                [constants.SOLO_EXPLORER_LABEL],
                 constants.PODS_READY_MAX_ATTEMPTS,
                 constants.PODS_READY_DELAY,
               );
@@ -481,7 +481,7 @@ export class ExplorerCommand extends BaseCommand {
               clusterReference,
               isChartInstalled: await this.chartManager.isChartInstalled(
                 namespace,
-                constants.HEDERA_EXPLORER_RELEASE_NAME,
+                constants.EXPLORER_RELEASE_NAME,
                 clusterContext,
               ),
             };
@@ -499,7 +499,7 @@ export class ExplorerCommand extends BaseCommand {
           task: async context_ => {
             await this.chartManager.uninstall(
               context_.config.namespace,
-              constants.HEDERA_EXPLORER_RELEASE_NAME,
+              constants.EXPLORER_RELEASE_NAME,
               context_.config.clusterContext,
             );
           },

@@ -899,26 +899,26 @@ export class Flags {
     },
   };
 
-  public static readonly enableHieroExplorerTls: CommandFlag = {
-    constName: 'enableHieroExplorerTls',
-    name: 'enable-hiero-explorer-tls',
+  public static readonly enableExplorerTls: CommandFlag = {
+    constName: 'enableExplorerTls',
+    name: 'enable-explorer-tls',
     definition: {
       describe:
-        'Enable the Hiero Explorer TLS, defaults to false, requires certManager and certManagerCrds, which can be deployed through solo-cluster-setup chart or standalone',
+        'Enable Explorer TLS, defaults to false, requires certManager and certManagerCrds, which can be deployed through solo-cluster-setup chart or standalone',
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: async function promptEnableHieroExplorerTls(
+    prompt: async function promptEnableExplorerTls(
       task: SoloListrTaskWrapper<AnyListrContext>,
       input: boolean,
     ): Promise<boolean> {
       return await Flags.promptToggle(
         task,
         input,
-        Flags.enableHieroExplorerTls.definition.defaultValue as boolean,
-        'Would you like to enable the Hiero Explorer TLS? ',
+        Flags.enableExplorerTls.definition.defaultValue as boolean,
+        'Would you like to enable the Explorer TLS? ',
         null,
-        Flags.enableHieroExplorerTls.name,
+        Flags.enableExplorerTls.name,
       );
     },
   };
@@ -934,36 +934,36 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly hieroExplorerStaticIp: CommandFlag = {
-    constName: 'hieroExplorerStaticIp',
-    name: 'hiero-explorer-static-ip',
+  public static readonly explorerStaticIp: CommandFlag = {
+    constName: 'explorerStaticIp',
+    name: 'explorer-static-ip',
     definition: {
-      describe: 'The static IP address to use for the Hiero Explorer load balancer, defaults to ""',
+      describe: 'The static IP address to use for the Explorer load balancer, defaults to ""',
       defaultValue: '',
       type: 'string',
     },
     prompt: undefined,
   };
 
-  public static readonly hieroExplorerTlsHostName: CommandFlag = {
-    constName: 'hieroExplorerTlsHostName',
-    name: 'hiero-explorer-tls-host-name',
+  public static readonly explorerTlsHostName: CommandFlag = {
+    constName: 'explorerTlsHostName',
+    name: 'explorer-tls-host-name',
     definition: {
-      describe: 'The host name to use for the Hiero Explorer TLS, defaults to "explorer.solo.local"',
+      describe: 'The host name to use for the Explorer TLS, defaults to "explorer.solo.local"',
       defaultValue: 'explorer.solo.local',
       type: 'string',
     },
-    prompt: async function promptHieroExplorerTlsHostName(
+    prompt: async function promptExplorerTlsHostName(
       task: SoloListrTaskWrapper<AnyListrContext>,
       input: string,
     ): Promise<string> {
       return await Flags.promptText(
         task,
         input,
-        Flags.hieroExplorerTlsHostName.definition.defaultValue as string,
-        'Enter the host name to use for the Hiero Explorer TLS: ',
+        Flags.explorerTlsHostName.definition.defaultValue as string,
+        'Enter the host name to use for the Explorer TLS: ',
         null,
-        Flags.hieroExplorerTlsHostName.name,
+        Flags.explorerTlsHostName.name,
       );
     },
   };
@@ -1662,25 +1662,25 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly hieroExplorerVersion: CommandFlag = {
-    constName: 'hieroExplorerVersion',
-    name: 'hiero-explorer-version',
+  public static readonly explorerVersion: CommandFlag = {
+    constName: 'explorerVersion',
+    name: 'explorer-version',
     definition: {
-      describe: 'Hiero explorer chart version',
-      defaultValue: version.HEDERA_EXPLORER_VERSION,
+      describe: 'Explorer chart version',
+      defaultValue: version.EXPLORER_VERSION,
       type: 'string',
     },
-    prompt: async function promptHieroExplorerVersion(
+    prompt: async function promptExplorerVersion(
       task: SoloListrTaskWrapper<AnyListrContext>,
       input: boolean,
     ): Promise<boolean> {
       return await Flags.promptToggle(
         task,
         input,
-        Flags.hieroExplorerVersion.definition.defaultValue as boolean,
-        'Would you like to choose Hiero explorer version? ',
+        Flags.explorerVersion.definition.defaultValue as boolean,
+        'Would you like to choose explorer version? ',
         null,
-        Flags.hieroExplorerVersion.name,
+        Flags.explorerVersion.name,
       );
     },
   };
@@ -2492,7 +2492,7 @@ export class Flags {
     Flags.ecdsaPrivateKey,
     Flags.ed25519PrivateKey,
     Flags.enableIngress,
-    Flags.enableHieroExplorerTls,
+    Flags.enableExplorerTls,
     Flags.enablePrometheusSvcMonitor,
     Flags.enableTimeout,
     Flags.endpointType,
@@ -2512,9 +2512,9 @@ export class Flags {
     Flags.grpcWebTlsKeyPath,
     Flags.haproxyIps,
     Flags.ingressControllerValueFile,
-    Flags.hieroExplorerTlsHostName,
-    Flags.hieroExplorerStaticIp,
-    Flags.hieroExplorerVersion,
+    Flags.explorerTlsHostName,
+    Flags.explorerStaticIp,
+    Flags.explorerVersion,
     Flags.inputDir,
     Flags.loadBalancerEnabled,
     Flags.localBuildPath,

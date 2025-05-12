@@ -31,7 +31,7 @@ export class RemoteConfigMetadata
     public soloChartVersion: Version = '',
     public hederaPlatformVersion: Version = '',
     public hederaMirrorNodeChartVersion: Version = '',
-    public hieroExplorerChartVersion: Version = '',
+    public explorerChartVersion: Version = '',
     public hederaJsonRpcRelayChartVersion: Version = '',
     migration?: Migration,
   ) {
@@ -76,7 +76,7 @@ export class RemoteConfigMetadata
       metadata.soloChartVersion,
       metadata.hederaPlatformVersion,
       metadata.hederaMirrorNodeChartVersion,
-      metadata.hieroExplorerChartVersion,
+      metadata.explorerChartVersion,
       metadata.hederaJsonRpcRelayChartVersion,
       migration,
     );
@@ -132,7 +132,7 @@ export class RemoteConfigMetadata
       soloChartVersion: this.soloChartVersion,
       hederaPlatformVersion: this.hederaPlatformVersion,
       hederaMirrorNodeChartVersion: this.hederaMirrorNodeChartVersion,
-      hieroExplorerChartVersion: this.hieroExplorerChartVersion,
+      explorerChartVersion: this.explorerChartVersion,
       hederaJsonRpcRelayChartVersion: this.hederaJsonRpcRelayChartVersion,
       soloVersion: this.soloVersion,
     } as RemoteConfigMetadataStruct;

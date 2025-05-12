@@ -315,7 +315,7 @@ Context: kind-solo                                <0> all   <a>       Attach    
 │ solo                envoy-proxy-node2-667f848689-628cx                             ●  1/1   Running         0 1 │
 │ solo                envoy-proxy-node3-6bb4b4cbdf-dmwtr                             ●  1/1   Running         0 1 │
 │ solo                solo-deployment-grpc-75bb9c6c55-l7kvt                     ●  1/1   Running         0 1 │
-│ solo                solo-deployment-hiero-explorer-6565ccb4cb-9dbw2          ●  1/1   Running         0 1 │
+│ solo                solo-deployment-explorer-6565ccb4cb-9dbw2          ●  1/1   Running         0 1 │
 │ solo                solo-deployment-importer-dd74fd466-vs4mb                  ●  1/1   Running         0 1 │
 │ solo                solo-deployment-monitor-54b8f57db9-fn5qq                  ●  1/1   Running         0 1 │
 │ solo                solo-deployment-postgres-postgresql-0                     ●  1/1   Running         0 1 │

@@ -7,5 +7,5 @@ export type RemoteConfigCommonFlagsStruct = {
   soloChartVersion?: string;
   mirrorNodeVersion?: string;
   nodeAliasesUnparsed?: string;
-  hieroExplorerVersion?: string;
+  explorerVersion?: string;
 };

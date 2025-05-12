@@ -20,7 +20,7 @@ export function createMetadata() {
   const soloChartVersion = '';
   const hederaPlatformVersion = '';
   const hederaMirrorNodeChartVersion = '';
-  const hieroExplorerChartVersion = '';
+  const explorerChartVersion = '';
   const hederaJsonRpcRelayChartVersion = '';
 
   return {
@@ -49,7 +49,7 @@ export function createMetadata() {
       soloChartVersion,
       hederaPlatformVersion,
       hederaMirrorNodeChartVersion,
-      hieroExplorerChartVersion,
+      explorerChartVersion,
       hederaJsonRpcRelayChartVersion,
     },
     migration,
@@ -75,7 +75,7 @@ describe('RemoteConfigMetadata', () => {
         soloChartVersion,
         hederaPlatformVersion,
         hederaMirrorNodeChartVersion,
-        hieroExplorerChartVersion,
+        explorerChartVersion,
         hederaJsonRpcRelayChartVersion,
       },
     } = createMetadata();
@@ -90,7 +90,7 @@ describe('RemoteConfigMetadata', () => {
       soloChartVersion,
       hederaPlatformVersion,
       hederaMirrorNodeChartVersion,
-      hieroExplorerChartVersion,
+      explorerChartVersion,
       hederaJsonRpcRelayChartVersion,
       migration: migration.toObject(),
     });
@@ -115,7 +115,7 @@ describe('RemoteConfigMetadata', () => {
       soloChartVersion: '',
       hederaPlatformVersion: '',
       hederaMirrorNodeChartVersion: '',
-      hieroExplorerChartVersion: '',
+      explorerChartVersion: '',
       hederaJsonRpcRelayChartVersion: '',
     });
 

@@ -24,4 +24,3 @@ Below we describe how you can set up a local environment and contribute to `solo
   * Run `task test-setup`
   * Run `task test-e2e-standard`, NOTE: this excludes some E2E tests that have their own command
   * You can check the command `task --list-all` for more other test commands available.
-
