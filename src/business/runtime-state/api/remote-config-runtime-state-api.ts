@@ -18,6 +18,7 @@ import {type LedgerPhase} from '../../../data/schema/model/remote/ledger-phase.j
 import {type RemoteConfigMetadata} from '../../../data/schema/model/remote/remote-config-metadata.js';
 import {type Cluster} from '../../../data/schema/model/common/cluster.js';
 import {type ConsensusNode} from '../../../core/model/consensus-node.js';
+import {ComponentFactoryApi} from '../../../core/config/remote/api/component-factory-api.js';
 
 export interface RemoteConfigRuntimeStateApi {
   currentCluster: ClusterReference;
@@ -50,6 +51,19 @@ export interface RemoteConfigRuntimeStateApi {
     dnsBaseDomain: string,
     dnsConsensusNodePattern: string,
   ): Promise<void>;
+
+  createFromExisting(
+    namespace: NamespaceName,
+    clusterReference: ClusterReference,
+    deployment: DeploymentName,
+    componentFactory: ComponentFactoryApi,
+    dnsBaseDomain: string,
+    dnsConsensusNodePattern: string,
+    existingClusterContext: Context,
+    argv: ArgvStruct,
+    nodeAliases: NodeAliases,
+  ): Promise<void>;
+
   addCommandToHistory(command: string, remoteConfig: RemoteConfig): void;
   createConfigMap(namespace: NamespaceName, context: Context): Promise<ConfigMap>;
   getConfigMap(namespace?: NamespaceName, context?: Context): Promise<ConfigMap>;

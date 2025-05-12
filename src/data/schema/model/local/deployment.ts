@@ -1,18 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Exclude, Expose} from 'class-transformer';
-import {type Realm, type Shard} from '../../../../types/index.js';
+import {
+  type ClusterReference,
+  type DeploymentName,
+  type NamespaceNameAsString,
+  type Realm,
+  type Shard,
+} from '../../../../types/index.js';
 
 @Exclude()
 export class Deployment {
   @Expose()
-  public name: string;
+  public name: DeploymentName;
 
   @Expose()
-  public namespace: string;
+  public namespace: NamespaceNameAsString;
 
   @Expose()
-  public clusters: string[];
+  public clusters: ClusterReference[];
 
   @Expose()
   public realm: Realm;
@@ -20,7 +26,13 @@ export class Deployment {
   @Expose()
   public shard: Shard;
 
-  constructor(name?: string, namespace?: string, clusters?: string[], realm?: Realm, shard?: Shard) {
+  public constructor(
+    name?: DeploymentName,
+    namespace?: NamespaceNameAsString,
+    clusters?: ClusterReference[],
+    realm?: Realm,
+    shard?: Shard,
+  ) {
     this.name = name ?? '';
     this.namespace = namespace ?? '';
     this.clusters = clusters ?? [];

@@ -49,6 +49,8 @@ import {promptTheUserForDeployment} from '../../core/resolvers.js';
 import {ConsensusNode} from '../../core/model/consensus-node.js';
 import {RemoteConfigRuntimeStateApi} from './api/remote-config-runtime-state-api.js';
 import {type RemoteConfigValidatorApi} from '../../core/config/remote/api/remote-config-validator-api.js';
+import {ComponentFactoryApi} from '../../core/config/remote/api/component-factory-api.js';
+import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
 
 enum RuntimeStatePhase {
   Loaded = 'loaded',
@@ -61,6 +63,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
   private componentsDataWrapper?: ComponentsDataWrapperApi;
   public clusterReferences: Map<Context, ClusterReference> = new Map();
+  private namespace: NamespaceName;
 
   private source?: RemoteConfigSource;
   private backend?: YamlConfigMapStorageBackend;
@@ -135,7 +138,27 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   public async write(): Promise<void> {
-    return this.source.persist();
+    await this.source.persist();
+
+    const promises: Promise<void>[] = [];
+
+    for (const contexts of this.clusterReferences.keys()) {
+      promises.push(
+        this.updateConfigMap(contexts, this.namespace, {
+          /* TODO */
+        }),
+      );
+    }
+
+    await Promise.all(promises);
+  }
+
+  private async updateConfigMap(
+    context: Context,
+    namespace: NamespaceName,
+    data: Record<string, string>,
+  ): Promise<void> {
+    await this.k8Factory.getK8(context).configMaps().update(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME, data);
   }
 
   public isLoaded(): boolean {
@@ -206,9 +229,60 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       new DeploymentHistory([command], command),
     );
 
-    await this.backend.writeObject('' /* TODO */, this.objectMapper.toObject(remoteConfig));
+    await this.backend.writeObject(constants.SOLO_REMOTE_CONFIGMAP_NAME, this.objectMapper.toObject(remoteConfig));
 
     this.componentsDataWrapper = new ComponentsDataWrapper(this);
+  }
+
+  public async createFromExisting(
+    namespace: NamespaceName,
+    clusterReference: ClusterReference,
+    deployment: DeploymentName,
+    componentFactory: ComponentFactoryApi,
+    dnsBaseDomain: string,
+    dnsConsensusNodePattern: string,
+    existingClusterContext: Context,
+    argv: ArgvStruct,
+    nodeAliases: NodeAliases,
+  ): Promise<void> {
+    const existingRemoteConfigConfigMap: ConfigMap = await this.getConfigMap(namespace, existingClusterContext);
+
+    await this.populateRemoteConfig(existingRemoteConfigConfigMap);
+
+    //? Create copy of the existing remote config inside the new cluster
+    await this.createConfigMap(namespace, existingClusterContext);
+    await this.write();
+
+    //? Update remote configs inside the clusters
+    await this.modify(async (remoteConfig, components) => {
+      //* update the command history
+      const command: string = argv._.join(' ');
+      this.addCommandToHistory(command, remoteConfig);
+
+      //* add the new clusters
+      const newCluster: Cluster = new Cluster(
+        clusterReference,
+        namespace.name,
+        deployment,
+        dnsBaseDomain,
+        dnsConsensusNodePattern,
+      );
+
+      remoteConfig.clusters.push(newCluster);
+
+      //* add the new nodes to components
+      for (const nodeAlias of nodeAliases) {
+        components.addNewComponent(
+          componentFactory.createNewConsensusNodeComponent(
+            Templates.nodeIdFromNodeAlias(nodeAlias),
+            clusterReference,
+            namespace,
+            DeploymentPhase.REQUESTED,
+          ),
+          ComponentTypes.ConsensusNode,
+        );
+      }
+    });
   }
 
   public addCommandToHistory(command: string, remoteConfig: RemoteConfig): void {
@@ -256,25 +330,26 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     await this.setDefaultNamespaceAndDeploymentIfNotSet(argv);
     this.setDefaultContextIfNotSet();
 
-    const deployment: Deployment = this.localConfig.getDeployment(
-      this.configManager.getFlag<DeploymentName>(flags.deployment),
-    );
-
-    const namespace: NamespaceName = NamespaceName.of(deployment.namespace);
+    const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
+    const deployment: Deployment = this.localConfig.getDeployment(deploymentName);
+    this.namespace = NamespaceName.of(deployment.namespace);
+    const context: Context = this.localConfig.clusterRefs.get(deployment.clusters[0]);
 
     for (const clusterReference of deployment.clusters) {
       const context: Context = this.localConfig.clusterRefs.get(clusterReference);
       this.clusterReferences.set(context, clusterReference);
     }
 
-    await this.load(namespace, context);
+    // TODO: Compare configs from clusterReferences
+
+    await this.load(this.namespace, context);
 
     this.logger.info('Remote config loaded');
     if (!validate) {
       return;
     }
 
-    await this.remoteConfigValidator.validateComponents(namespace, skipConsensusNodesValidation);
+    await this.remoteConfigValidator.validateComponents(this.namespace, skipConsensusNodesValidation);
 
     await this.modify(async (remoteConfig: RemoteConfig) => {
       const currentCommand: string = argv._?.join(' ');

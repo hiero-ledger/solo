@@ -674,7 +674,7 @@ export class DeploymentCommand extends BaseCommand {
   public createOrEditRemoteConfigForNewDeployment(argv: ArgvStruct): SoloListrTask<DeploymentAddClusterContext> {
     return {
       title: 'create remote config for deployment',
-      task: async (context_, task) => {
+      task: async (context_, task): Promise<void> => {
         const {
           deployment,
           clusterRef,
@@ -695,63 +695,29 @@ export class DeploymentCommand extends BaseCommand {
           await this.k8Factory.getK8(context).namespaces().create(namespace);
         }
 
-        if (!existingClusterContext) {
-          await this.remoteConfig.create(
-            argv,
-            ledgerPhase,
-            nodeAliases,
-            namespace,
-            deployment,
-            clusterRef,
-            context,
-            dnsBaseDomain,
-            dnsConsensusNodePattern,
-          );
-
-          return;
-        }
-
-        const existingRemoteConfigConfigMap: ConfigMap = await this.remoteConfig.getConfigMap(
-          namespace,
-          existingClusterContext,
-        );
-
-        await this.remoteConfig.populateRemoteConfig(existingRemoteConfigConfigMap);
-
-        //? Create copy of the existing remote config inside the new cluster
-        await this.remoteConfig.createConfigMap(namespace, existingClusterContext);
-        await this.remoteConfig.write();
-
-        //? Update remote configs inside the clusters
-        await this.remoteConfig.modify(async (remoteConfig, components) => {
-          //* update the command history
-          const command: string = argv._.join(' ');
-          this.remoteConfig.addCommandToHistory(command, remoteConfig);
-
-          //* add the new clusters
-          const newCluster: Cluster = new Cluster(
-            clusterRef,
-            namespace.name,
-            deployment,
-            dnsBaseDomain,
-            dnsConsensusNodePattern,
-          );
-
-          remoteConfig.clusters.push(newCluster);
-
-          //* add the new nodes to components
-          for (const nodeAlias of nodeAliases) {
-            components.addNewComponent(
-              this.componentFactory.createNewConsensusNodeComponent(
-                Templates.nodeIdFromNodeAlias(nodeAlias),
-                clusterRef,
-                namespace,
-                DeploymentPhase.REQUESTED,
-              ),
-              ComponentTypes.ConsensusNode,
-            );
-          }
-        });
+        await (existingClusterContext
+          ? this.remoteConfig.createFromExisting(
+              namespace,
+              clusterRef,
+              deployment,
+              this.componentFactory,
+              dnsBaseDomain,
+              dnsConsensusNodePattern,
+              existingClusterContext,
+              argv,
+              nodeAliases,
+            )
+          : this.remoteConfig.create(
+              argv,
+              ledgerPhase,
+              nodeAliases,
+              namespace,
+              deployment,
+              clusterRef,
+              context,
+              dnsBaseDomain,
+              dnsConsensusNodePattern,
+            ));
       },
     };
   }
