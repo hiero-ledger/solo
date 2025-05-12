@@ -104,7 +104,6 @@ jobs:
         run: |
           set -xeo pipefail
           cd docs/site
-          npm install -g postcss-cli # Install postcss-cli globally to get around bug: https://github.com/google/docsy/issues/235
           task build
 
       # Upload the built site to GitHub Pages

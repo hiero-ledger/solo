@@ -132,6 +132,8 @@ tasks:
     status:
       - ls -al go.mod
     cmds:
+      - npm install -g postcss-cli # Install postcss-cli globally to get around bug: https://github.com/google/docsy/issues/235
+      - npm install
       - hugo mod init github.com/hiero-ledger/solo
       - hugo mod get github.com/google/docsy@v0.11.0
 
