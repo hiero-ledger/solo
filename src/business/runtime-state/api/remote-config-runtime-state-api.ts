@@ -18,7 +18,7 @@ import {type LedgerPhase} from '../../../data/schema/model/remote/ledger-phase.j
 import {type RemoteConfigMetadata} from '../../../data/schema/model/remote/remote-config-metadata.js';
 import {type Cluster} from '../../../data/schema/model/common/cluster.js';
 import {type ConsensusNode} from '../../../core/model/consensus-node.js';
-import {ComponentFactoryApi} from '../../../core/config/remote/api/component-factory-api.js';
+import {type ComponentFactoryApi} from '../../../core/config/remote/api/component-factory-api.js';
 
 export interface RemoteConfigRuntimeStateApi {
   currentCluster: ClusterReference;
