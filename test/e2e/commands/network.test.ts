@@ -2,12 +2,7 @@
 
 import {after, before, describe, it} from 'mocha';
 import {expect} from 'chai';
-import {
-  bootstrapTestVariables,
-  getTemporaryDirectory,
-  getTestCluster,
-  HEDERA_PLATFORM_VERSION_TAG,
-} from '../../test-utility.js';
+import {bootstrapTestVariables, getTemporaryDirectory, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
 import * as constants from '../../../src/core/constants.js';
 import * as version from '../../../version.js';
 import {sleep} from '../../../src/core/helpers.js';
@@ -49,7 +44,7 @@ describe('NetworkCommand', function networkCommand() {
   argv.setArg(flags.force, true);
   argv.setArg(flags.applicationEnv, applicationEnvironmentFilePath);
   argv.setArg(flags.loadBalancerEnabled, true);
-  argv.setArg(flags.clusterRef, `${getTestCluster()}-network-command-ref`);
+  argv.setArg(flags.clusterRef, `${argv.getArg(flags.clusterRef)}-${testName}`);
 
   const temporaryDirectory: string = os.tmpdir();
   const {
@@ -80,6 +75,7 @@ describe('NetworkCommand', function networkCommand() {
   });
 
   before(async () => {
+    this.timeout(Duration.ofMinutes(1).toMillis());
     await k8Factory.default().namespaces().delete(namespace);
 
     await commandInvoker.invoke({
