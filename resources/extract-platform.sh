@@ -35,6 +35,10 @@ if [[ $? -ne 0 ]]; then
     exit 1
 fi
 
+echo "Deleting previous version under $HAPI_DIR/data/lib/* and $HAPI_DIR/data/apps/*" | tee -a ${LOG_FILE}
+sudo rm -rf ${HAPI_DIR}/data/lib/* | tee -a ${LOG_FILE}
+sudo rm -rf ${HAPI_DIR}/data/apps/* | tee -a ${LOG_FILE}
+
 # extract
 echo "Extracting ${BUILD_ZIP_FILE}" | tee -a ${LOG_FILE}
 [[ -d "${HAPI_DIR}" ]] || mkdir -p "${HAPI_DIR}" | tee -a ${LOG_FILE}

@@ -99,7 +99,7 @@ import {type NodeAddContext} from './config-interfaces/node-add-context.js';
 import {type NodeDeleteContext} from './config-interfaces/node-delete-context.js';
 import {type NodeUpdateContext} from './config-interfaces/node-update-context.js';
 import {type NodeStatesContext} from './config-interfaces/node-states-context.js';
-import {type NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
+import {NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
 import {type NodeRefreshContext} from './config-interfaces/node-refresh-context.js';
 import {type NodeStopContext} from './config-interfaces/node-stop-context.js';
 import {type NodeFreezeContext} from './config-interfaces/node-freeze-context.js';
@@ -153,7 +153,7 @@ export class NodeCommandTasks {
     return FileId.fromString(entityId(shard, realm, constants.UPGRADE_FILE_ID_NUM));
   }
 
-  private async _prepareUpgradeZip(stagingDirectory: string): Promise<string> {
+  private async _prepareUpgradeZip(stagingDirectory: string, upgradeVersion: string): Promise<string> {
     // we build a mock upgrade.zip file as we really don't need to upgrade the network
     // also the platform zip file is ~80Mb in size requiring a lot of transactions since the max
     // transaction size is 6Kb and in practice we need to send the file as 4Kb chunks.
@@ -164,7 +164,7 @@ export class NodeCommandTasks {
       fs.mkdirSync(upgradeConfigDirectory, {recursive: true});
     }
 
-    // bump field hedera.config.version
+    // bump field hedera.config.version or use the version passed in
     const fileBytes = fs.readFileSync(PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.properties'));
     const lines = fileBytes.toString().split('\n');
     const newLines = [];
@@ -173,8 +173,8 @@ export class NodeCommandTasks {
       const parts = line.split('=');
       if (parts.length === 2) {
         if (parts[0] === 'hedera.config.version') {
-          let version = Number.parseInt(parts[1]);
-          line = `hedera.config.version=${++version}`;
+          const version: string = upgradeVersion ?? String(Number.parseInt(parts[1]) + 1);
+          line = `hedera.config.version=${version}`;
         }
         newLines.push(line);
       }
@@ -683,10 +683,10 @@ export class NodeCommandTasks {
         const config = context_.config;
         const {upgradeZipFile, deployment} = context_.config;
         if (upgradeZipFile) {
-          this.logger.debug(`Using upgrade zip file: ${context_.upgradeZipFile}`);
           context_.upgradeZipFile = upgradeZipFile;
+          this.logger.debug(`Using upgrade zip file: ${context_.upgradeZipFile}`);
         } else {
-          context_.upgradeZipFile = await self._prepareUpgradeZip(config.stagingDir);
+          context_.upgradeZipFile = await self._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
         }
         context_.upgradeZipHash = await self._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
       },
@@ -1141,13 +1141,23 @@ export class NodeCommandTasks {
 
   public fetchPlatformSoftware(
     aliasesField: string,
-  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext | NodeSetupContext> {
+  ): SoloListrTask<
+    NodeUpgradeContext | NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext | NodeSetupContext
+  > {
     const self = this;
     return {
       title: 'Fetch platform software into network nodes',
       task: (context_, task) => {
-        const {podRefs, releaseTag, localBuildPath} = context_.config;
+        const {podRefs, localBuildPath} = context_.config;
+        let {releaseTag} = context_.config;
 
+        if ('upgradeVersion' in context_.config) {
+          if (!context_.config.upgradeVersion) {
+            this.logger.info('Skip, no need to update the platform software');
+            return Promise.resolve();
+          }
+          releaseTag = context_.config.upgradeVersion;
+        }
         return localBuildPath === ''
           ? self._fetchPlatformSoftware(
               context_.config[aliasesField],

@@ -567,6 +567,17 @@ export class Flags {
     },
   };
 
+  public static readonly upgradeVersion: CommandFlag = {
+    constName: 'upgradeVersion',
+    name: 'upgrade-version',
+    definition: {
+      describe: 'Version to be used for the upgrade',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly relayReleaseTag: CommandFlag = {
     constName: 'relayReleaseTag',
     name: 'relay-release',
@@ -2539,6 +2550,7 @@ export class Flags {
     Flags.quiet,
     Flags.relayReleaseTag,
     Flags.releaseTag,
+    Flags.upgradeVersion,
     Flags.replicaCount,
     Flags.setAlias,
     Flags.settingTxt,

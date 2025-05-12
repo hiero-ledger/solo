@@ -35,7 +35,7 @@ argv.setArg(flags.releaseTag, HEDERA_PLATFORM_VERSION_TAG);
 argv.setArg(flags.namespace, namespace.name);
 argv.setArg(flags.realm, 0);
 argv.setArg(flags.shard, hederaPlatformSupportsNonZeroRealms() ? 1 : 0);
-
+argv.setArg(flags.upgradeVersion, 'v0.62.1');
 const zipFile = 'upgrade.zip';
 
 const TEST_VERSION_STRING = '0.100.0';
