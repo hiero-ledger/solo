@@ -10,7 +10,6 @@ import {ClassToObjectMapper} from '../../../../data/mapper/impl/class-to-object-
 import {ConfigKeyFormatter} from '../../../../data/key/config-key-formatter.js';
 import {LocalConfigSchemaDefinition} from '../../../../data/schema/migration/impl/local/local-config-schema-definition.js';
 import {LocalConfigSchema} from '../../../../data/schema/model/local/local-config-schema.js';
-import {LoadLocalConfigError} from '../../../errors/load-local-config-error.js';
 import {RefreshLocalConfigSourceError} from '../../../errors/refresh-local-config-source-error.js';
 import {WriteLocalConfigFileError} from '../../../errors/write-local-config-file-error.js';
 import {PathEx} from '../../../utils/path-ex.js';
@@ -52,7 +51,7 @@ export class LocalConfigRuntimeState {
   // Loads the source data and writes it back in case of migrations.
   public async load(): Promise<void> {
     if (!this.configFileExists()) {
-      throw new LoadLocalConfigError('Configuration file does not exist');
+      return await this.persist();
     }
 
     try {
@@ -62,15 +61,15 @@ export class LocalConfigRuntimeState {
       throw new RefreshLocalConfigSourceError('Failed to refresh local config source', error);
     }
 
-    try {
-      await this.persist();
-    } catch (error) {
-      throw new WriteLocalConfigFileError('Failed to write local config file', error);
-    }
+    await this.persist();
   }
 
   public async persist(): Promise<void> {
-    return await this.source.persist();
+    try {
+      return await this.source.persist();
+    } catch (error) {
+      throw new WriteLocalConfigFileError('Failed to write local config file', error);
+    }
   }
 
   private refresh(): void {

@@ -40,8 +40,8 @@ import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
-import {type LocalConfigSchema} from '../../../src/data/schema/model/local/local-config-schema.js';
 import {type ClusterReferences} from '../../../src/types/index.js';
+import {StringFacade} from '../../../src/business/runtime-state/facade/string-facade.js';
 
 const testName = 'network-cmd-unit';
 const namespace = NamespaceName.of(testName);
@@ -200,9 +200,7 @@ describe('NetworkCommand unit tests', () => {
       options.remoteConfigManager.getConfigMap = sinon.stub().returns(null);
       options.remoteConfigManager.modify = sinon.stub();
 
-      options.localConfig.modify((modelData: LocalConfigSchema): void => {
-        modelData.addClusterRef('solo-e2e', 'context-1');
-      });
+      options.localConfig.configuration.clusterRefs.set('solo-e2e', new StringFacade('context-1'));
 
       options.leaseManager = container.resolve<LockManager>(InjectTokens.LockManager);
       options.leaseManager.currentNamespace = sinon.stub().returns(testName);

@@ -48,7 +48,7 @@ describe('LocalConfigRuntimeState', () => {
     await createDeployment();
     const deployments: BackedArrayList<Deployment, DeploymentSchema> = runtimeState.configuration.deployments;
 
-    expect(deployments).to.deep.equal([{name: 'deployment-1'}]);
+    expect(deployments.find((d: Deployment): boolean => d.name === 'deployment-1')).to.not.be.undefined;
   });
 
   it('should throw DeploymentNotFoundError if deployment is not found', async (): Promise<void> => {

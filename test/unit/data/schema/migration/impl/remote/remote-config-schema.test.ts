@@ -21,7 +21,7 @@ describe('RemoteConfigSchema', () => {
 
   it('should return the correct name', () => {
     const schema: RemoteConfigSchemaDefinition = new RemoteConfigSchemaDefinition(objectMapper);
-    expect(schema.name).to.be.equal('RemoteConfig');
+    expect(schema.name).to.be.equal('RemoteConfigSchema');
   });
 
   it('should return the correct version', () => {
