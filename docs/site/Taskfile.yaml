@@ -17,7 +17,6 @@ vars:
   hugo_local_base_url: "${HUGO_LOCAL_ORIGIN}${HUGO_SOLO_VERSION}/"
 
 # TODO - add version env variable base URL and print to console
-# TODO - change search, it is currently pointing to docsy example site
 tasks:
   default:
     desc: "List all available tasks"
@@ -53,8 +52,8 @@ tasks:
   clean:
     desc: "Remove artifacts that are automatically generated"
     cmds:
-      - rm -Rf static
-      - rm -Rf public
+      - rm -Rf static/classes
+      - rm -Rf public/${HUGO_SOLO_VERSION}
       - rm -Rf resources
       - rm -f .hugo_build.lock
 
@@ -106,7 +105,7 @@ tasks:
       - echo "hugo_local_base_url {{.hugo_local_base_url}}"
       - hugo version
       - hugo config
-      - hugo --cleanDestinationDir --gc --minify --baseURL "{{.hugo_base_url}}"
+      - hugo --cleanDestinationDir --gc --minify --baseURL "{{.hugo_base_url}}" -d public/${HUGO_SOLO_VERSION}
 
   build:typedoc:
     desc: "Generate the API documentation using TypeDoc"
