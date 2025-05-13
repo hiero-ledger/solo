@@ -24,6 +24,7 @@ import {Argv} from '../../helpers/argv-wrapper.js';
 import {AccountCommand} from '../../../src/commands/account.js';
 import {NodeCommand} from '../../../src/commands/node/index.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
+import {TEST_UPGRADE_VERSION} from '../../../version-test.js';
 
 const namespace = NamespaceName.of('node-upgrade');
 const argv = Argv.getDefaultArgv(namespace);
@@ -35,7 +36,7 @@ argv.setArg(flags.releaseTag, HEDERA_PLATFORM_VERSION_TAG);
 argv.setArg(flags.namespace, namespace.name);
 argv.setArg(flags.realm, 0);
 argv.setArg(flags.shard, hederaPlatformSupportsNonZeroRealms() ? 1 : 0);
-argv.setArg(flags.upgradeVersion, 'v0.62.1');
+argv.setArg(flags.upgradeVersion, TEST_UPGRADE_VERSION);
 const zipFile = 'upgrade.zip';
 
 const TEST_VERSION_STRING = '0.100.0';
