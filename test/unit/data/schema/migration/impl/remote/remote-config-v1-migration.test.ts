@@ -6,10 +6,10 @@ import {IllegalArgumentError} from '../../../../../../../src/business/errors/ill
 import {InvalidSchemaVersionError} from '../../../../../../../src/data/schema/migration/api/invalid-schema-version-error.js';
 import sinon from 'sinon';
 import * as fs from 'node:fs';
-import * as yaml from 'js-yaml';
 import {getSoloVersion} from '../../../../../../../version.js';
 import {type VersionRange} from '../../../../../../../src/business/utils/version-range.js';
 import {type Version} from '../../../../../../../src/business/utils/version.js';
+import yaml from 'yaml';
 
 // Define a type for test objects
 type TestObject = Record<string, any>;
@@ -48,7 +48,7 @@ describe('RemoteConfigV1Migration', () => {
   describe('migrate', (): void => {
     it('should migrate real config from v0-35-1-remote-config.yaml file', async (): Promise<void> => {
       const yamlContent: string = fs.readFileSync('test/data/v0-35-1-remote-config.yaml', 'utf8');
-      const config: Record<string, any> = yaml.load(yamlContent) as Record<string, any>;
+      const config: Record<string, any> = yaml.parse(yamlContent) as Record<string, any>;
 
       // Set schemaVersion to 0 for migration test
       config.schemaVersion = 0;
@@ -170,7 +170,7 @@ describe('RemoteConfigV1Migration', () => {
       };
 
       // Create a direct clone of the source to keep the original values for comparison
-      const sourceClone = JSON.parse(JSON.stringify(source));
+      const sourceClone = structuredClone(source);
 
       const result = (await migration.migrate(source)) as Record<string, any>;
 

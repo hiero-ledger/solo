@@ -23,7 +23,9 @@ import {ConfigKeyFormatter} from '../../../../../../src/data/key/config-key-form
 import {type ClusterReferences} from '../../../../../../src/types/index.js';
 
 describe('LocalConfig', () => {
-  const schema: LocalConfigSchemaDefinition = new LocalConfigSchemaDefinition(new ClassToObjectMapper(ConfigKeyFormatter.instance()));
+  const schema: LocalConfigSchemaDefinition = new LocalConfigSchemaDefinition(
+    new ClassToObjectMapper(ConfigKeyFormatter.instance()),
+  );
   const soloVersion: string = '0.35.1';
   const localConfigPath = `test/data/v${soloVersion}-local-config.yaml`;
 
@@ -60,7 +62,13 @@ describe('LocalConfig', () => {
 
     it('should transform class to plain', async () => {
       const deployments: DeploymentSchema[] = [
-        new DeploymentSchema('dual-cluster-full-deployment', 'dual-cluster-full', ['e2e-cluster-1', 'e2e-cluster-2'], 0, 0),
+        new DeploymentSchema(
+          'dual-cluster-full-deployment',
+          'dual-cluster-full',
+          ['e2e-cluster-1', 'e2e-cluster-2'],
+          0,
+          0,
+        ),
         new DeploymentSchema('deployment', 'solo-e2e', ['cluster-1'], 0, 0),
       ];
 

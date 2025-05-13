@@ -13,7 +13,10 @@ import {LocalConfigV1Migration} from './local-config-v1-migration.js';
 import {LocalConfigV2Migration} from './local-config-v2-migration.js';
 
 @injectable()
-export class LocalConfigSchemaDefinition extends SchemaDefinitionBase<LocalConfigSchema> implements SchemaDefinition<LocalConfigSchema> {
+export class LocalConfigSchemaDefinition
+  extends SchemaDefinitionBase<LocalConfigSchema>
+  implements SchemaDefinition<LocalConfigSchema>
+{
   public constructor(@inject(InjectTokens.ObjectMapper) mapper: ObjectMapper) {
     super(mapper);
   }

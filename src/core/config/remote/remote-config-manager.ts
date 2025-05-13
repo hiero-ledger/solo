@@ -131,7 +131,7 @@ export class RemoteConfigManager {
     };
 
     const lastUpdatedAt = new Date();
-    const userIdentity = this.localConfig.configuration.userIdentity;
+    const userIdentity = this.localConfig.configuration.userIdentity.backingObject;
     const soloVersion = getSoloVersion();
     const currentCommand = argv._.join(' ');
 
