@@ -43,7 +43,7 @@
     "js-base64": "^3.7.7",
     "listr2": "^8.3.3",
     "selfsigned": "^2.4.1",
-    "semver": "^7.7.1",
+    "semver": "^7.7.2",
     "source-map-support": "^0.5.21",
     "stream-buffers": "^3.0.3",
     "tar": "^7.4.3",
