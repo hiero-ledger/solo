@@ -3,7 +3,7 @@
 import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import * as helpers from '../core/helpers.js';
-import {requiresJavaSveFix, showVersionBanner, sleep} from '../core/helpers.js';
+import {showVersionBanner, sleep} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -28,8 +28,6 @@ import {Duration} from '../core/time/duration.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import chalk from 'chalk';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
-import {type Containers} from '../integration/kube/resources/container/containers.js';
-import {type Container} from '../integration/kube/resources/container/container.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {lt, SemVer} from 'semver';
@@ -250,39 +248,6 @@ export class BlockNodeCommand extends BaseCommand {
             if (blockNodePods.length === 0) {
               throw new SoloError('Failed to list block node pod');
             }
-
-            const podReference: PodReference = blockNodePods[0].podReference;
-
-            const containerReference: ContainerReference = ContainerReference.of(
-              podReference,
-              constants.BLOCK_NODE_CONTAINER_NAME,
-            );
-
-            const k8Containers: Containers = this.k8Factory.getK8(config.context).containers();
-
-            const container: Container = k8Containers.readByRef(containerReference);
-
-            const shouldApplyJavaSveFix: boolean = await requiresJavaSveFix(container);
-
-            if (!shouldApplyJavaSveFix) {
-              return;
-            }
-
-            task.title += ` - ${chalk.grey('applying Java SVE fix')}`;
-
-            const upgradeValuesArgument: string = helpers.populateHelmArguments({
-              'blockNode.config.JAVA_OPTS': '"-Xms8G -Xmx8G -XX:UseSVE=0"',
-            });
-
-            await this.chartManager.upgrade(
-              config.namespace,
-              config.releaseName,
-              constants.BLOCK_NODE_CHART,
-              constants.BLOCK_NODE_CHART_URL,
-              config.chartVersion,
-              upgradeValuesArgument,
-              config.context,
-            );
           },
         },
         {

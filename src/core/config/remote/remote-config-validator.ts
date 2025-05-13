@@ -162,7 +162,7 @@ export class RemoteConfigValidator {
   ): Promise<void>[] {
     return Object.values(components.mirrorNodeExplorers).map(async component => {
       const context: Context = localConfig.clusterRefs.get(component.cluster);
-      const labels: string[] = [constants.SOLO_HEDERA_EXPLORER_LABEL];
+      const labels: string[] = [constants.SOLO_EXPLORER_LABEL];
       try {
         const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
 
