@@ -153,8 +153,6 @@ describe('BaseCommand', () => {
       const depManager = sinon.stub();
       const localConfig = sinon.stub() as unknown as LocalConfigRuntimeState;
 
-      // @ts-expect-error - TS2445: to access private property
-      localConfig.configuration.clusterRefs = sandbox.stub().returns({cluster: 'context1', cluster2: 'context2'});
       const {
         wrapper: {componentsDataWrapper},
       } = createComponentsDataWrapper();

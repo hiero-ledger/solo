@@ -118,8 +118,8 @@ describe('Dual Cluster Full E2E Test', function dualClusterFullEndToEndTest() {
       InjectTokens.LocalConfigRuntimeState,
     );
     const clusterReferences: BackedMap<string, StringFacade, string> = localConfig.configuration.clusterRefs;
-    expect(clusterReferences.get(testClusterArray[0])).to.equal(contexts[0]);
-    expect(clusterReferences.get(testClusterArray[1])).to.equal(contexts[1]);
+    expect(clusterReferences.get(testClusterArray[0])?.toString()).to.equal(contexts[0]);
+    expect(clusterReferences.get(testClusterArray[1])?.toString()).to.equal(contexts[1]);
     testLogger.info(`${testName}: finished solo cluster-ref connect`);
   });
 
