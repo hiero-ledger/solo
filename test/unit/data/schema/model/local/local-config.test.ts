@@ -10,10 +10,10 @@ import os from 'node:os';
 import {LocalConfig} from '../../../../../../src/data/schema/model/local/local-config.js';
 import {Deployment} from '../../../../../../src/data/schema/model/local/deployment.js';
 import {LocalConfigSchema} from '../../../../../../src/data/schema/migration/impl/local/local-config-schema.js';
-import {CTObjectMapper} from '../../../../../../src/data/mapper/impl/ct-object-mapper.js';
+import {ClassToObjectMapper} from '../../../../../../src/data/mapper/impl/class-to-object-mapper.js';
 import {ApplicationVersions} from '../../../../../../src/data/schema/model/common/application-versions.js';
 import {
-  HEDERA_EXPLORER_VERSION,
+  EXPLORER_VERSION,
   HEDERA_JSON_RPC_RELAY_VERSION,
   HEDERA_PLATFORM_VERSION,
   MIRROR_NODE_VERSION,
@@ -23,7 +23,7 @@ import {ConfigKeyFormatter} from '../../../../../../src/data/key/config-key-form
 import {type ClusterReferences} from '../../../../../../src/types/index.js';
 
 describe('LocalConfig', () => {
-  const schema: LocalConfigSchema = new LocalConfigSchema(new CTObjectMapper(ConfigKeyFormatter.instance()));
+  const schema: LocalConfigSchema = new LocalConfigSchema(new ClassToObjectMapper(ConfigKeyFormatter.instance()));
   const soloVersion: string = '0.35.1';
   const localConfigPath = `test/data/v${soloVersion}-local-config.yaml`;
 
@@ -75,7 +75,7 @@ describe('LocalConfig', () => {
         new SemVer(SOLO_CHART_VERSION),
         new SemVer(HEDERA_PLATFORM_VERSION),
         new SemVer(MIRROR_NODE_VERSION),
-        new SemVer(HEDERA_EXPLORER_VERSION),
+        new SemVer(EXPLORER_VERSION),
         new SemVer(HEDERA_JSON_RPC_RELAY_VERSION),
       );
       const lc = new LocalConfig(2, versions, deployments, clusterReferences);

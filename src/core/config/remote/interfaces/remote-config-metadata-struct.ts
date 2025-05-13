@@ -15,7 +15,7 @@ export interface RemoteConfigMetadataStruct {
   soloChartVersion: Version;
   hederaPlatformVersion: Version;
   hederaMirrorNodeChartVersion: Version;
-  hederaExplorerChartVersion: Version;
+  explorerChartVersion: Version;
   hederaJsonRpcRelayChartVersion: Version;
   migration?: MigrationStruct;
 }
