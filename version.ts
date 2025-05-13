@@ -12,10 +12,10 @@ import fs from 'node:fs';
 // TODO we should be consistent on the versioning format, let us drop the v prefix from the user, and manually add it
 //  right before it required, this adds better semver library compatibility
 export const HELM_VERSION: string = 'v3.14.2';
-export const SOLO_CHART_VERSION: string = '0.51.0';
+export const SOLO_CHART_VERSION: string = '0.52.0';
 export const HEDERA_PLATFORM_VERSION: string = 'v0.60.1';
 export const MIRROR_NODE_VERSION: string = 'v0.126.0';
-export const HEDERA_EXPLORER_VERSION: string = '24.15.0';
+export const EXPLORER_VERSION: string = '24.15.0';
 export const HEDERA_JSON_RPC_RELAY_VERSION: string = 'v0.67.0';
 export const INGRESS_CONTROLLER_VERSION: string = '0.14.5';
 export const BLOCK_NODE_VERSION: string = '0.10.0-SNAPSHOT';

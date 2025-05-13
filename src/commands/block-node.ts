@@ -28,6 +28,7 @@ import {Duration} from '../core/time/duration.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import chalk from 'chalk';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
+import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {lt, SemVer} from 'semver';
 
@@ -230,6 +231,23 @@ export class BlockNodeCommand extends BaseCommand {
                 constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS,
                 constants.BLOCK_NODE_PODS_RUNNING_DELAY,
               );
+          },
+        },
+        {
+          title: 'Check software',
+          task: async (context_, task): Promise<void> => {
+            const config: BlockNodeDeployConfigClass = context_.config;
+
+            const labels: string[] = [`app.kubernetes.io/instance=${config.releaseName}`];
+
+            const blockNodePods: Pod[] = await this.k8Factory
+              .getK8(config.context)
+              .pods()
+              .list(config.namespace, labels);
+
+            if (blockNodePods.length === 0) {
+              throw new SoloError('Failed to list block node pod');
+            }
           },
         },
         {

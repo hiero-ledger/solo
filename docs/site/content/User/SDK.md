@@ -14,7 +14,7 @@ task default-with-mirror
 Then create a new test account with the following command:
 
 ```
-npm run solo-test -- account create -n solo-e2e --hbar-amount 100
+npm run solo-test -- account create --deployment solo-deployment --hbar-amount 100
 ```
 
 The output would be similar to the following:
@@ -32,7 +32,7 @@ The output would be similar to the following:
 Then use the following command to get private key of the account `0.0.1007`:
 
 ```bash
- npm run solo-test -- account get --account-id 0.0.1007 -n solo-e2e --private-key
+ npm run solo-test -- account get --account-id 0.0.1007 --deployment solo-deployment --private-key
 ```
 
 The output would be similar to the following:
@@ -40,7 +40,8 @@ The output would be similar to the following:
 ```bash
 {
  "accountId": "0.0.1007",
- "privateKey": "302e020100300506032b657004220420cfea706dd9ed2d3c1660ba98acf4fdb74d247cce289ef6ef47486e055e0b9508",
+ "privateKey": "302e020100300506032b657004220420411a561013bceabb8cb83e3dc5558d052b9bd6a8977b5a7348bf9653034a29d7",
+ "privateKeyRaw": "411a561013bceabb8cb83e3dc5558d052b9bd6a8977b5a7348bf9653034a29d7"
  "publicKey": "302a300506032b65700321001d8978e647aca1195c54a4d3d5dc469b95666de14e9b6edde8ed337917b96013",
  "balance": 100
 }
@@ -51,13 +52,13 @@ At the root of the project `hedera-sdk-js`,  create a file `.env` and add the fo
 
 ```bash
 # Hedera Operator Account ID
-OPERATOR_ID="0.0.1007"
+export OPERATOR_ID="0.0.1007"
 
 # Hedera Operator Private Key
-OPERATOR_KEY="302a300506032b65700321001d8978e647aca1195c54a4d3d5dc469b95666de14e9b6edde8ed337917b96013"
+export OPERATOR_KEY="302a300506032b65700321001d8978e647aca1195c54a4d3d5dc469b95666de14e9b6edde8ed337917b96013"
 
 # Hedera Network
-HEDERA_NETWORK="local-node"
+export HEDERA_NETWORK="local-node"
 ```
 
 Make sure to assign the value of accountId to `OPERATOR_ID` and the value of privateKey to `OPERATOR_KEY`.

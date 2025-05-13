@@ -233,7 +233,7 @@ describe('ProfileManager', () => {
         }
       });
 
-      it(`should determine hedera-explorer chart values [profile = ${input.profileName}]`, async () => {
+      it(`should determine hiero-explorer chart values [profile = ${input.profileName}]`, async () => {
         configManager.setFlag(flags.profileFile, input.profileFile);
         configManager.setFlag(flags.cacheDir, getTestCacheDirectory('ProfileManager'));
         configManager.setFlag(flags.releaseTag, version.HEDERA_PLATFORM_VERSION);
