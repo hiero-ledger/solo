@@ -6,7 +6,12 @@ import {Flags} from '../../../src/commands/flags.js';
 import {getTestCacheDirectory, getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
 import {main} from '../../../src/index.js';
 import {resetForTest} from '../../test-container.js';
-import {type ClusterReference, type ClusterReferences, type DeploymentName} from '../../../src/types/index.js';
+import {
+  type ClusterReference,
+  type ClusterReferences,
+  type DeploymentName,
+  type ExtendedNetServer,
+} from '../../../src/types/index.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {container} from 'tsyringe-neo';
@@ -17,6 +22,7 @@ import {expect} from 'chai';
 import fs from 'node:fs';
 import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
 import {type K8} from '../../../src/integration/kube/k8.js';
+import * as constants from '../../../src/core/constants.js';
 import {
   DEFAULT_LOCAL_CONFIG_FILE,
   HEDERA_HAPI_PATH,
@@ -32,8 +38,6 @@ import {ContainerReference} from '../../../src/integration/kube/resources/contai
 import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
 import {type SoloWinstonLogger} from '../../../src/core/logging/solo-winston-logger.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
-import * as constants from '../../../src/core/constants.js';
-import {type ExtendedNetServer} from '../../../src/types/index.js';
 import http from 'node:http';
 import {sleep} from '../../../src/core/helpers.js';
 import {type AccountManager} from '../../../src/core/account-manager.js';
@@ -46,7 +50,9 @@ import {
   type TransactionResponse,
 } from '@hashgraph/sdk';
 import {type PackageDownloader} from '../../../src/core/package-downloader.js';
-import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
+import {type BackedMap} from '../../../src/business/runtime-state/collection/backed-map.js';
+import {type StringFacade} from '../../../src/business/runtime-state/facade/string-facade.js';
 
 const testName: string = 'dual-cluster-full';
 
@@ -111,7 +117,7 @@ describe('Dual Cluster Full E2E Test', function dualClusterFullEndToEndTest() {
     const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
       InjectTokens.LocalConfigRuntimeState,
     );
-    const clusterReferences: ClusterReferences = localConfig.clusterRefs;
+    const clusterReferences: BackedMap<string, StringFacade, string> = localConfig.configuration.clusterRefs;
     expect(clusterReferences.get(testClusterArray[0])).to.equal(contexts[0]);
     expect(clusterReferences.get(testClusterArray[1])).to.equal(contexts[1]);
     testLogger.info(`${testName}: finished solo cluster-ref connect`);

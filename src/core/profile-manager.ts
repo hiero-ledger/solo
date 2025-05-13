@@ -30,7 +30,7 @@ import {type RemoteConfigManager} from './config/remote/remote-config-manager.js
 import {type ClusterReference, DeploymentName, Realm, Shard} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {AccountManager} from './account-manager.js';
-import {LocalConfigRuntimeState} from '../business/runtime-state/local-config-runtime-state.js';
+import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 
 @injectable()
 export class ProfileManager {
@@ -251,8 +251,8 @@ export class ProfileManager {
     // Update application.properties with shard and realm
     await this.updateApplicationPropertiesWithRealmAndShard(
       applicationPropertiesPath,
-      this.localConfig.getRealm(deploymentName),
-      this.localConfig.getShard(deploymentName),
+      this.localConfig.configuration.realmForDeployment(deploymentName),
+      this.localConfig.configuration.shardForDeployment(deploymentName),
     );
 
     for (const flag of flags.nodeConfigFileFlags.values()) {

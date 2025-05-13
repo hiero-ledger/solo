@@ -22,7 +22,7 @@ import {ConsensusNode} from '../../../src/core/model/consensus-node.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
 import {type HelmClient} from '../../../src/integration/helm/helm-client.js';
-import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 
 describe('BaseCommand', () => {
   let helm: HelmClient;
@@ -153,8 +153,8 @@ describe('BaseCommand', () => {
       const depManager = sinon.stub();
       const localConfig = sinon.stub() as unknown as LocalConfigRuntimeState;
 
-      // @ts-expect-error - TS2540: to mock
-      localConfig.clusterRefs = sandbox.stub().returns({cluster: 'context1', cluster2: 'context2'});
+      // @ts-expect-error - TS2445: to access private property
+      localConfig.configuration.clusterRefs = sandbox.stub().returns({cluster: 'context1', cluster2: 'context2'});
       const {
         wrapper: {componentsDataWrapper},
       } = createComponentsDataWrapper();

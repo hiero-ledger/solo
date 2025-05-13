@@ -4,7 +4,7 @@ import {Migration} from './migration.js';
 import {SoloError} from '../../errors/solo-error.js';
 import {type DeploymentName, type NamespaceNameAsString, type Version} from '../../../types/index.js';
 import {type Optional, type ToObject, type Validate} from '../../../types/index.js';
-import {type UserIdentity} from '../../../data/schema/model/common/user-identity.js';
+import {type UserIdentitySchema} from '../../../data/schema/model/common/user-identity-schema.js';
 import {DeploymentStates} from './enumerations/deployment-states.js';
 import {isValidEnum} from '../../util/validation-helpers.js';
 import {type RemoteConfigMetadataStruct} from './interfaces/remote-config-metadata-struct.js';
@@ -26,7 +26,7 @@ export class RemoteConfigMetadata
     public readonly deploymentName: DeploymentName,
     public readonly state: DeploymentStates,
     public readonly lastUpdatedAt: Date,
-    public readonly lastUpdateBy: UserIdentity,
+    public readonly lastUpdateBy: UserIdentitySchema,
     public readonly soloVersion: Version,
     public soloChartVersion: Version = '',
     public hederaPlatformVersion: Version = '',
@@ -42,7 +42,7 @@ export class RemoteConfigMetadata
   /* -------- Modifiers -------- */
 
   /** Simplifies making a migration */
-  public makeMigration(userIdentity: UserIdentity, fromVersion: Version): void {
+  public makeMigration(userIdentity: UserIdentitySchema, fromVersion: Version): void {
     this._migration = new Migration(new Date(), userIdentity, fromVersion);
   }
 

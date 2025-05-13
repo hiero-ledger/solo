@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Exclude, Expose, Type} from 'class-transformer';
-import {Deployment} from './deployment.js';
-import {UserIdentity} from '../common/user-identity.js';
+import {DeploymentSchema} from './deployment-schema.js';
+import {UserIdentitySchema} from '../common/user-identity-schema.js';
 import {Version} from '../../../../business/utils/version.js';
-import {ApplicationVersions} from '../common/application-versions.js';
+import {ApplicationVersionsSchema} from '../common/application-versions-schema.js';
 import {
   type ClusterReference,
   type ClusterReferences,
@@ -15,40 +15,47 @@ import {
 import {type NamespaceName} from '../../../../types/namespace/namespace-name.js';
 
 @Exclude()
-export class LocalConfig {
+export class LocalConfigSchema {
   public static readonly SCHEMA_VERSION: Version<number> = new Version(1);
+  public static readonly EMPTY: LocalConfigSchema = new LocalConfigSchema(
+    LocalConfigSchema.SCHEMA_VERSION.value,
+    new ApplicationVersionsSchema(),
+    [],
+    new Map<string, string>(),
+    new UserIdentitySchema(),
+  );
 
   @Expose()
   public schemaVersion: number;
 
   @Expose()
-  @Type(() => ApplicationVersions)
-  public versions: ApplicationVersions;
+  @Type(() => ApplicationVersionsSchema)
+  public versions: ApplicationVersionsSchema;
 
   @Expose()
-  @Type(() => UserIdentity)
-  public userIdentity: UserIdentity;
+  @Type(() => UserIdentitySchema)
+  public userIdentity: UserIdentitySchema;
 
   @Expose()
-  @Type(() => Deployment)
-  public deployments: Deployment[];
+  @Type(() => DeploymentSchema)
+  public deployments: DeploymentSchema[];
 
   @Expose()
   @Type(() => Map)
   public clusterRefs: ClusterReferences;
 
-  constructor(
+  public constructor(
     schemaVersion?: number,
-    versions?: ApplicationVersions,
-    deployments?: Deployment[],
+    versions?: ApplicationVersionsSchema,
+    deployments?: DeploymentSchema[],
     clusterReferences?: ClusterReferences,
-    userIdentity?: UserIdentity,
+    userIdentity?: UserIdentitySchema,
   ) {
     this.schemaVersion = schemaVersion ?? 1;
-    this.versions = versions ?? new ApplicationVersions();
+    this.versions = versions ?? new ApplicationVersionsSchema();
     this.deployments = deployments ?? [];
     this.clusterRefs = clusterReferences ?? new Map<string, string>();
-    this.userIdentity = userIdentity ?? new UserIdentity();
+    this.userIdentity = userIdentity ?? new UserIdentitySchema();
   }
 
   public addClusterRef(clusterReference: ClusterReference, context: string): void {
@@ -60,7 +67,7 @@ export class LocalConfig {
   }
 
   public addDeployment(deployment: DeploymentName, namespace: NamespaceName, realm: Realm, shard: Shard): void {
-    this.deployments.push(new Deployment(deployment, namespace.name, [], realm, shard));
+    this.deployments.push(new DeploymentSchema(deployment, namespace.name, [], realm, shard));
   }
 
   public removeDeployment(deployment: DeploymentName): void {
@@ -68,7 +75,7 @@ export class LocalConfig {
   }
 
   public addClusterRefToDeployment(clusterReference: ClusterReference, deployment: DeploymentName): void {
-    const deploymentObject: Deployment = this.deployments.find(d => d.name === deployment);
+    const deploymentObject: DeploymentSchema = this.deployments.find(d => d.name === deployment);
     if (deploymentObject) {
       deploymentObject.clusters.push(clusterReference);
     }
