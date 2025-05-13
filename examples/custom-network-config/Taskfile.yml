@@ -18,7 +18,7 @@ env:
   # LOCAL_BUILD_FLAG: "--local-build-path {{.HEDERA_SERVICES_ROOT}}/hedera-node/data"
 
   HEDERA_SERVICES_ROOT: "/Users/user/source/hiero-consensus-node"
-  ENABLE_EXPLORER_TLS_FLAG: "--enable-hedera-explorer-tls"
+  ENABLE_EXPLORER_TLS_FLAG: "--enable-explorer-tls"
   TLS_CLUSTER_ISSUER_TYPE_FLAG: "--tls-cluster-issuer-type acme-staging"
   ENABLE_EXPLORER_INGRESS: "--enable-ingress"
   ENABLE_MIRROR_INGRESS: "--enable-ingress"

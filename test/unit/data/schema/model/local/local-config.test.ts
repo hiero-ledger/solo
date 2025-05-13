@@ -13,7 +13,7 @@ import {LocalConfigSchema} from '../../../../../../src/data/schema/migration/imp
 import {ClassToObjectMapper} from '../../../../../../src/data/mapper/impl/class-to-object-mapper.js';
 import {ApplicationVersions} from '../../../../../../src/data/schema/model/common/application-versions.js';
 import {
-  HEDERA_EXPLORER_VERSION,
+  EXPLORER_VERSION,
   HEDERA_JSON_RPC_RELAY_VERSION,
   HEDERA_PLATFORM_VERSION,
   MIRROR_NODE_VERSION,
@@ -75,7 +75,7 @@ describe('LocalConfig', () => {
         new SemVer(SOLO_CHART_VERSION),
         new SemVer(HEDERA_PLATFORM_VERSION),
         new SemVer(MIRROR_NODE_VERSION),
-        new SemVer(HEDERA_EXPLORER_VERSION),
+        new SemVer(EXPLORER_VERSION),
         new SemVer(HEDERA_JSON_RPC_RELAY_VERSION),
       );
       const lc = new LocalConfig(2, versions, deployments, clusterReferences);

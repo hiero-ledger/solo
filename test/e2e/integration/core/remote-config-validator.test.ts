@@ -212,7 +212,7 @@ describe('RemoteConfigValidator', () => {
     });
 
     it('should succeed if component is present', async () => {
-      const [key, value] = constants.SOLO_HEDERA_EXPLORER_LABEL.split('=');
+      const [key, value] = constants.SOLO_EXPLORER_LABEL.split('=');
       await createPod(mirrorNodeExplorerName, {[key]: value});
 
       await Promise.all(

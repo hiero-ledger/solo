@@ -7,9 +7,6 @@ import {InvalidSchemaVersionError} from '../../../../../../../src/data/schema/mi
 import sinon from 'sinon';
 import * as fs from 'node:fs';
 import * as yaml from 'js-yaml';
-import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import * as versionUtils from '../../../../../../../version.js';
 import {getSoloVersion} from '../../../../../../../version.js';
 import {type VersionRange} from '../../../../../../../src/business/utils/version-range.js';
 import {type Version} from '../../../../../../../src/business/utils/version.js';
@@ -167,14 +164,14 @@ describe('RemoteConfigV1Migration', () => {
         hederaExplorerChartVersion: '5.0.0',
         hederaJsonRpcRelayChartVersion: '6.0.0',
       };
-      
+
       const source: Record<string, any> = {
         metadata: sourceVersions,
       };
 
       // Create a direct clone of the source to keep the original values for comparison
       const sourceClone = JSON.parse(JSON.stringify(source));
-      
+
       const result = (await migration.migrate(source)) as Record<string, any>;
 
       expect(result).to.have.property('versions');
@@ -188,7 +185,7 @@ describe('RemoteConfigV1Migration', () => {
       expect(result.versions.explorerChart).to.equal(sourceClone.metadata.hederaExplorerChartVersion);
       expect(result.versions.jsonRpcRelayChart).to.equal(sourceClone.metadata.hederaJsonRpcRelayChartVersion);
       expect(result.versions).to.have.property('blockNodeChart', '');
-      
+
       // Verify old version properties are deleted
       expect(result.metadata).to.not.have.property('soloVersion');
       expect(result.metadata).to.not.have.property('soloChartVersion');

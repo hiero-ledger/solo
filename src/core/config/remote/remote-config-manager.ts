@@ -307,11 +307,10 @@ export class RemoteConfigManager {
         .defaultValue as Version;
     }
 
-    if (argv[flags.hederaExplorerVersion.name]) {
-      this.remoteConfig.metadata.hederaExplorerChartVersion = argv[flags.hederaExplorerVersion.name] as Version;
+    if (argv[flags.explorerVersion.name]) {
+      this.remoteConfig.metadata.explorerChartVersion = argv[flags.explorerVersion.name] as Version;
     } else if (command === 'explorer' && subcommand === 'deploy') {
-      this.remoteConfig.metadata.hederaExplorerChartVersion = flags.hederaExplorerVersion.definition
-        .defaultValue as Version;
+      this.remoteConfig.metadata.explorerChartVersion = flags.explorerVersion.definition.defaultValue as Version;
     }
 
     if (argv[flags.relayReleaseTag.name]) {
