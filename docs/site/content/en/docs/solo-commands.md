@@ -545,7 +545,7 @@ Options:
      --prometheus-stack         Deploy prometheus stack         [boolean] [default: false]      
 -q,  --quiet-mode               Quiet mode, do not prompt for   [boolean] [default: false]      
                                 confirmation                                                    
-     --solo-chart-version       Solo testing chart version      [string] [default: "0.50.0"]    
+     --solo-chart-version       Solo testing chart version      [string] [default: "0.52.0"]    
 -v,  --version                  Show version number             [boolean]                       
 
 ```
@@ -720,7 +720,7 @@ Options:
 -t,  --release-tag                Release tag to be used (e.g.    [string] [default: "v0.59.5"]                            
                                   v0.59.5)                                                                                 
      --settings-txt               settings.txt file for node      [string] [default: "templates/settings.txt"]             
-     --solo-chart-version         Solo testing chart version      [string] [default: "0.50.0"]                             
+     --solo-chart-version         Solo testing chart version      [string] [default: "0.52.0"]                             
      --storage-type               storage type for saving stream  [default: "minio_only"]                                  
                                   files, available options are                                                             
                                   minio_only, aws_only,                                                                    
@@ -1197,7 +1197,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
      --tls-keys            Generate gRPC TLS keys for      [boolean] [default: false]                   
                            nodes                                                                        
 -v,  --version             Show version number             [boolean]                                    
@@ -1279,7 +1279,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
      --tls-keys            Generate gRPC TLS keys for      [boolean] [default: false]                   
                            nodes                                                                        
 -v,  --version             Show version number             [boolean]                                    
@@ -1360,7 +1360,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
      --tls-keys            Generate gRPC TLS keys for      [boolean] [default: false]                   
                            nodes                                                                        
 -v,  --version             Show version number             [boolean]                                    
@@ -1451,7 +1451,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
      --tls-keys            Generate gRPC TLS keys for      [boolean] [default: false]                   
                            nodes                                                                        
 -v,  --version             Show version number             [boolean]                                    
@@ -1515,7 +1515,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
      --tls-private-key     path and file name of the       [string]                                     
                            private TLS key to be used                                                   
      --tls-public-key      path and file name of the       [string]                                     
@@ -1584,7 +1584,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
      --tls-private-key     path and file name of the       [string]                                     
                            private TLS key to be used                                                   
      --tls-public-key      path and file name of the       [string]                                     
@@ -1642,7 +1642,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -1696,7 +1696,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -1743,7 +1743,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -1793,7 +1793,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -1843,7 +1843,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -1893,7 +1893,7 @@ Options:
                            confirmation                                                                 
 -t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
                            v0.59.5)                                                                     
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -1993,7 +1993,7 @@ Options:
                            (empty means all nodes)                                                      
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -2038,7 +2038,7 @@ Options:
                            (empty means all nodes)                                                      
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -2081,7 +2081,7 @@ Options:
                            (empty means all nodes)                                                      
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -2124,7 +2124,7 @@ Options:
                            (empty means all nodes)                                                      
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
-     --solo-chart-version  Solo testing chart version      [string] [default: "0.50.0"]                 
+     --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -2485,24 +2485,23 @@ Options:
                                       deployment                                                                     
      --dev                            Enable developer mode           [boolean] [default: false]                     
      --domain-name                    Custom domain name              [string]                                       
-     --enable-hiero-explorer-tls     Enable the Hiero Explorer      [boolean] [default: false]                     
-                                      TLS, defaults to false,                                                        
-                                      requires certManager and                                                       
-                                      certManagerCrds, which can be                                                  
-                                      deployed through                                                               
+     --enable-explorer-tls            Enable Explorer TLS, defaults   [boolean] [default: false]                     
+                                      to false, requires certManager                                                 
+                                      and certManagerCrds, which can                                                 
+                                      be deployed through                                                            
                                       solo-cluster-setup chart or                                                    
                                       standalone                                                                     
      --enable-ingress                 enable ingress on the           [boolean] [default: false]                     
                                       component/pod                                                                  
+     --explorer-static-ip             The static IP address to use    [string]                                       
+                                      for the Explorer load                                                          
+                                      balancer, defaults to ""                                                       
+     --explorer-tls-host-name         The host name to use for the    [string] [default: "explorer.solo.local"]      
+                                      Explorer TLS, defaults to                                                      
+                                      "explorer.solo.local"                                                          
+     --explorer-version               Explorer chart version          [string] [default: "24.15.0"]                  
      --force-port-forward             Force port forward to access    [boolean] [default: true]                      
                                       the network services                                                           
-     --hiero-explorer-static-ip      The static IP address to use    [string]                                       
-                                      for the Hedera Explorer load                                                   
-                                      balancer, defaults to ""                                                       
-     --hiero-explorer-tls-host-name  The host name to use for the    [string] [default: "explorer.solo.local"]      
-                                      Hedera Explorer TLS, defaults                                                  
-                                      to "explorer.solo.local"                                                       
-     --hiero-explorer-version        Hiero explorer chart version   [string] [default: "24.12.1"]                  
      --ingress-controller-value-file  The value file to use for       [string]                                       
                                       ingress controller, defaults                                                   
                                       to ""                                                                          
@@ -2517,7 +2516,7 @@ Options:
                                       (e.g. custom-spec.yaml)                                                        
 -q,  --quiet-mode                     Quiet mode, do not prompt for   [boolean] [default: false]                     
                                       confirmation                                                                   
-     --solo-chart-version             Solo testing chart version      [string] [default: "0.50.0"]                   
+     --solo-chart-version             Solo testing chart version      [string] [default: "0.52.0"]                   
      --tls-cluster-issuer-type        The TLS cluster issuer type to  [string] [default: "self-signed"]              
                                       use for hedera explorer,                                                       
                                       defaults to "self-signed", the                                                 

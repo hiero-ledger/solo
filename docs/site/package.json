@@ -21,5 +21,8 @@
   "prettier": {
     "proseWrap": "always",
     "singleQuote": true
+  },
+  "dependencies": {
+    "postcss": "^8.5.3"
   }
 }
