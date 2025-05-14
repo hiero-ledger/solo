@@ -9,8 +9,6 @@ export class ErrorMessages {
 
   public static readonly LOCAL_CONFIG_GENERIC = 'Validation of local config failed';
 
-  public static readonly LOCAL_CONFIG_INVALID_EMAIL = 'Invalid email address provided';
-
   public static readonly LOCAL_CONFIG_INVALID_DEPLOYMENTS_FORMAT = 'Wrong deployments format';
 
   public static readonly LOCAL_CONFIG_CONTEXT_CLUSTER_MAPPING_FORMAT = 'Wrong clusterRefs format';

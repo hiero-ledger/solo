@@ -9,7 +9,7 @@ import {Duration} from '../../../src/core/time/duration.js';
 import {HEDERA_HAPI_PATH, ROOT_CONTAINER} from '../../../src/core/constants.js';
 import fs from 'node:fs';
 import {Zippy} from '../../../src/core/zippy.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../../../src/integration/kube/resources/container/container-reference.js';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';

@@ -6,7 +6,7 @@ import {RemoteConfigMetadata} from './metadata.js';
 import {ComponentsDataWrapper} from './components-data-wrapper.js';
 import * as constants from '../../constants.js';
 import {CommonFlagsDataWrapper} from './common-flags-data-wrapper.js';
-import {type ClusterReference, type Version} from './types.js';
+import {type ClusterReference, type Version} from '../../../types/index.js';
 import {type ToObject, type Validate} from '../../../types/index.js';
 import {type ConfigManager} from '../../config-manager.js';
 import {type RemoteConfigData} from './remote-config-data.js';

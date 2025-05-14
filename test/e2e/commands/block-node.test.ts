@@ -8,7 +8,7 @@ import {endToEndTestSuite, getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '..
 import * as version from '../../../version.js';
 import {sleep} from '../../../src/core/helpers.js';
 import {Duration} from '../../../src/core/time/duration.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
@@ -33,7 +33,7 @@ endToEndTestSuite(testName, argv, {startNodes: false}, bootstrapResp => {
   } = bootstrapResp;
 
   describe('BlockNodeCommand', async () => {
-    const blockNodeCommand: BlockNodeCommand = new BlockNodeCommand(bootstrapResp.opts);
+    const blockNodeCommand: BlockNodeCommand = container.resolve<BlockNodeCommand>(InjectTokens.BlockNodeCommand);
 
     after(async function () {
       this.timeout(Duration.ofMinutes(5).toMillis());

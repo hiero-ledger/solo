@@ -45,7 +45,7 @@ async function createRemoteConfigDataWrapper() {
   };
 }
 
-describe('RemoteConfigDataWrapper', async () => {
+describe('RemoteConfigDataWrapper', () => {
   it('should be able to create a instance', () => createRemoteConfigDataWrapper());
 
   it('should be able to add new command to history with addCommandToHistory()', async () => {

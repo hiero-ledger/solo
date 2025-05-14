@@ -46,7 +46,6 @@ import {
   entityId,
   prepareEndpoints,
   renameAndCopyFile,
-  requiresJavaSveFix,
   showVersionBanner,
   sleep,
   splitFlagInput,
@@ -73,24 +72,19 @@ import {Duration} from '../../core/time/duration.js';
 import {type NodeAddConfigClass} from './config-interfaces/node-add-config-class.js';
 import {GenesisNetworkDataConstructor} from '../../core/genesis-network-models/genesis-network-data-constructor.js';
 import {NodeOverridesModel} from '../../core/node-overrides-model.js';
-import {type NamespaceName} from '../../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {PodReference} from '../../integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../../integration/kube/resources/container/container-reference.js';
 import {NetworkNodes} from '../../core/network-nodes.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import {type Optional, type SoloListr, type SoloListrTask, type SoloListrTaskWrapper} from '../../types/index.js';
-import {
-  type ClusterReference,
-  type DeploymentName,
-  type NamespaceNameAsString,
-} from '../../core/config/remote/types.js';
+import {type ClusterReference, type DeploymentName, type NamespaceNameAsString} from '../../types/index.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {ConsensusNode} from '../../core/model/consensus-node.js';
 import {type K8} from '../../integration/kube/k8.js';
 import {Base64} from 'js-base64';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {type RemoteConfigManager} from '../../core/config/remote/remote-config-manager.js';
-import {type LocalConfig} from '../../core/config/local/local-config.js';
 import {BaseCommand} from '../base.js';
 import {ConsensusNodeComponent} from '../../core/config/remote/components/consensus-node-component.js';
 import {EnvoyProxyComponent} from '../../core/config/remote/components/envoy-proxy-component.js';
@@ -105,7 +99,7 @@ import {type NodeAddContext} from './config-interfaces/node-add-context.js';
 import {type NodeDeleteContext} from './config-interfaces/node-delete-context.js';
 import {type NodeUpdateContext} from './config-interfaces/node-update-context.js';
 import {type NodeStatesContext} from './config-interfaces/node-states-context.js';
-import {type NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
+import {NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
 import {type NodeRefreshContext} from './config-interfaces/node-refresh-context.js';
 import {type NodeStopContext} from './config-interfaces/node-stop-context.js';
 import {type NodeFreezeContext} from './config-interfaces/node-freeze-context.js';
@@ -118,6 +112,7 @@ import {type NodeKeysConfigClass} from './config-interfaces/node-keys-config-cla
 import {type NodeStartConfigClass} from './config-interfaces/node-start-config-class.js';
 import {type CheckedNodesConfigClass, type CheckedNodesContext} from './config-interfaces/node-common-config-class.js';
 import {type NetworkNodeServices} from '../../core/network-node-services.js';
+import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
 import {ConsensusNodeStates} from '../../core/config/remote/enumerations/consensus-node-states.js';
 
 @injectable()
@@ -133,7 +128,7 @@ export class NodeCommandTasks {
     @inject(InjectTokens.ChartManager) private readonly chartManager: ChartManager,
     @inject(InjectTokens.CertificateManager) private readonly certificateManager: CertificateManager,
     @inject(InjectTokens.RemoteConfigManager) private readonly remoteConfigManager: RemoteConfigManager,
-    @inject(InjectTokens.LocalConfig) private readonly localConfig: LocalConfig,
+    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
@@ -144,13 +139,12 @@ export class NodeCommandTasks {
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
     this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
     this.certificateManager = patchInject(certificateManager, InjectTokens.CertificateManager, this.constructor.name);
-    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfig, this.constructor.name);
+    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfigManager = patchInject(
       remoteConfigManager,
       InjectTokens.RemoteConfigManager,
       this.constructor.name,
     );
-    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfig, this.constructor.name);
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
@@ -159,7 +153,7 @@ export class NodeCommandTasks {
     return FileId.fromString(entityId(shard, realm, constants.UPGRADE_FILE_ID_NUM));
   }
 
-  private async _prepareUpgradeZip(stagingDirectory: string): Promise<string> {
+  private async _prepareUpgradeZip(stagingDirectory: string, upgradeVersion: string): Promise<string> {
     // we build a mock upgrade.zip file as we really don't need to upgrade the network
     // also the platform zip file is ~80Mb in size requiring a lot of transactions since the max
     // transaction size is 6Kb and in practice we need to send the file as 4Kb chunks.
@@ -170,7 +164,7 @@ export class NodeCommandTasks {
       fs.mkdirSync(upgradeConfigDirectory, {recursive: true});
     }
 
-    // bump field hedera.config.version
+    // bump field hedera.config.version or use the version passed in
     const fileBytes = fs.readFileSync(PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.properties'));
     const lines = fileBytes.toString().split('\n');
     const newLines = [];
@@ -179,8 +173,8 @@ export class NodeCommandTasks {
       const parts = line.split('=');
       if (parts.length === 2) {
         if (parts[0] === 'hedera.config.version') {
-          let version = Number.parseInt(parts[1]);
-          line = `hedera.config.version=${++version}`;
+          const version: string = upgradeVersion ?? String(Number.parseInt(parts[1]) + 1);
+          line = `hedera.config.version=${version}`;
         }
         newLines.push(line);
       }
@@ -689,10 +683,10 @@ export class NodeCommandTasks {
         const config = context_.config;
         const {upgradeZipFile, deployment} = context_.config;
         if (upgradeZipFile) {
-          this.logger.debug(`Using upgrade zip file: ${context_.upgradeZipFile}`);
           context_.upgradeZipFile = upgradeZipFile;
+          this.logger.debug(`Using upgrade zip file: ${context_.upgradeZipFile}`);
         } else {
-          context_.upgradeZipFile = await self._prepareUpgradeZip(config.stagingDir);
+          context_.upgradeZipFile = await self._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
         }
         context_.upgradeZipHash = await self._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
       },
@@ -1084,6 +1078,9 @@ export class NodeCommandTasks {
           config.deployment,
         );
         for (const networkNodeServices of config.serviceMap.values()) {
+          if (networkNodeServices.accountId === constants.IGNORED_NODE_ACCOUNT_ID) {
+            continue;
+          }
           config.existingNodeAliases.push(networkNodeServices.nodeAlias);
         }
         config.allNodeAliases = [...config.existingNodeAliases];
@@ -1144,13 +1141,23 @@ export class NodeCommandTasks {
 
   public fetchPlatformSoftware(
     aliasesField: string,
-  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext | NodeSetupContext> {
+  ): SoloListrTask<
+    NodeUpgradeContext | NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext | NodeSetupContext
+  > {
     const self = this;
     return {
       title: 'Fetch platform software into network nodes',
       task: (context_, task) => {
-        const {podRefs, releaseTag, localBuildPath} = context_.config;
+        const {podRefs, localBuildPath} = context_.config;
+        let {releaseTag} = context_.config;
 
+        if ('upgradeVersion' in context_.config) {
+          if (!context_.config.upgradeVersion) {
+            this.logger.info('Skip, no need to update the platform software');
+            return Promise.resolve();
+          }
+          releaseTag = context_.config.upgradeVersion;
+        }
         return localBuildPath === ''
           ? self._fetchPlatformSoftware(
               context_.config[aliasesField],
@@ -1947,7 +1954,7 @@ export class NodeCommandTasks {
 
         // Make sure valuesArgMap is initialized with empty strings
         const valuesArgumentMap: Record<ClusterReference, string> = {};
-        for (const clusterReference of Object.keys(clusterReferences)) {
+        for (const [clusterReference] of clusterReferences) {
           valuesArgumentMap[clusterReference] = '';
         }
 
@@ -1969,7 +1976,7 @@ export class NodeCommandTasks {
 
         const clusterNodeIndexMap: Record<ClusterReference, Record<NodeId, /* index in the chart -> */ number>> = {};
 
-        for (const clusterReference of Object.keys(clusterReferences)) {
+        for (const [clusterReference] of clusterReferences) {
           clusterNodeIndexMap[clusterReference] = {};
 
           for (const [index, node] of consensusNodes
@@ -1996,7 +2003,6 @@ export class NodeCommandTasks {
             this.prepareValuesArgForNodeDelete(
               consensusNodes,
               valuesArgumentMap,
-              nodeId,
               config.nodeAlias,
               config.serviceMap,
               clusterNodeIndexMap,
@@ -2051,11 +2057,16 @@ export class NodeCommandTasks {
           config.debugNodeAlias,
         );
 
+        const clusterReferencesList: ClusterReference[] = [];
+        for (const [clusterReference] of clusterReferences) {
+          clusterReferencesList.push(clusterReference);
+        }
+
         // Update all charts
         await Promise.all(
-          Object.keys(clusterReferences).map(async clusterReference => {
+          clusterReferencesList.map(async clusterReference => {
             const valuesArguments = valuesArgumentMap[clusterReference];
-            const context = this.localConfig.clusterRefs[clusterReference];
+            const context = this.localConfig.clusterRefs.get(clusterReference);
 
             await self.chartManager.upgrade(
               config.namespace,
@@ -2177,7 +2188,6 @@ export class NodeCommandTasks {
   private prepareValuesArgForNodeDelete(
     consensusNodes: ConsensusNode[],
     valuesArgumentMap: Record<ClusterReference, string>,
-    nodeId: NodeId,
     nodeAlias: NodeAlias,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
     clusterNodeIndexMap: Record<ClusterReference, Record<NodeId, /* index in the chart -> */ number>>,
@@ -2187,7 +2197,7 @@ export class NodeCommandTasks {
 
       // The index inside the chart
       const index = clusterNodeIndexMap[clusterReference][consensusNode.nodeId];
-
+      const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
       // For nodes that are not being deleted
       if (consensusNode.nodeId !== nodeId) {
         valuesArgumentMap[clusterReference] +=
@@ -2367,9 +2377,8 @@ export class NodeCommandTasks {
         const k8 = this.k8Factory.getK8(context);
         const container = await k8.containers().readByRef(containerReference);
 
-        const archiveCommand = (await requiresJavaSveFix(container))
-          ? 'dnf install zip -y && cd "${states[0]}" && zip -r "${states[0]}.zip" . && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"'
-          : 'jar cf "${states[0]}.zip" -C "${states[0]}" .';
+        const archiveCommand: string =
+          'cd "${states[0]}" && zip -rq "${states[0]}.zip" . && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
 
         // zip the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
         const zipFileName = await container.execContainer([
@@ -2378,6 +2387,7 @@ export class NodeCommandTasks {
           `cd ${upgradeDirectory} && mapfile -t states < <(ls -1t .) && ${archiveCommand} && echo -n \${states[0]}.zip`,
         ]);
 
+        this.logger.debug(`state zip file to download is = ${zipFileName}`);
         await k8
           .containers()
           .readByRef(containerReference)
@@ -2416,9 +2426,7 @@ export class NodeCommandTasks {
           context,
         );
 
-        const extractCommand = (await requiresJavaSveFix(container))
-          ? `unzip ${path.basename(config.lastStateZipPath)}`
-          : `jar xf ${path.basename(config.lastStateZipPath)}`;
+        const extractCommand = `unzip ${path.basename(config.lastStateZipPath)}`;
 
         await k8
           .containers()
@@ -2541,7 +2549,7 @@ export class NodeCommandTasks {
         const nodeAlias = context_.config.nodeAlias;
         const namespace: NamespaceNameAsString = context_.config.namespace.name;
         const clusterReference = context_.config.clusterRef;
-        const context = this.localConfig.clusterRefs[clusterReference];
+        const context = this.localConfig.clusterRefs.get(clusterReference);
 
         task.title += `: ${nodeAlias}`;
 

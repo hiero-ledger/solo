@@ -20,7 +20,7 @@ import {type Optional, type SoloListrTask} from '../../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {CommandHandler} from '../../core/command-handler.js';
-import {type NamespaceName} from '../../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {type ConsensusNode} from '../../core/model/consensus-node.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {type NodeDeleteContext} from './config-interfaces/node-delete-context.js';
@@ -92,7 +92,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.refreshNodeList(),
       this.tasks.copyNodeKeysToSecrets('refreshedConsensusNodes'),
       this.tasks.getNodeLogsAndConfigs(),
-      this.tasks.updateChartWithConfigMap('Delete network node', NodeSubcommandType.DELETE),
+      this.tasks.updateChartWithConfigMap('Delete network node and update configMaps', NodeSubcommandType.DELETE),
       this.tasks.killNodes(),
       this.tasks.sleep('Give time for pods to come up after being killed', 20_000),
       this.tasks.checkNodePodsAreRunning(),
@@ -230,6 +230,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
       this.tasks.downloadNodeUpgradeFiles(),
       this.tasks.getNodeLogsAndConfigs(),
+      this.tasks.fetchPlatformSoftware('nodeAliases'),
       this.tasks.startNodes('allNodeAliases'),
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),

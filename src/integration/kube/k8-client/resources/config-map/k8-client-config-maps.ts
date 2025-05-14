@@ -2,7 +2,7 @@
 
 import {type CoreV1Api, V1ConfigMap, V1ObjectMeta} from '@kubernetes/client-node';
 import {type ConfigMaps} from '../../../resources/config-map/config-maps.js';
-import {type NamespaceName} from '../../../resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {
   ResourceCreateError,
   ResourceDeleteError,

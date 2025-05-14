@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {expect} from 'chai';
-import {after, describe, it} from 'mocha';
+import {after, before, describe, it} from 'mocha';
 
 import fs from 'node:fs';
 import * as yaml from 'yaml';
@@ -15,7 +15,7 @@ import {type NodeAlias} from '../../../src/types/aliases.js';
 import {container} from 'tsyringe-neo';
 import {resetForTest} from '../../test-container.js';
 import {Templates} from '../../../src/core/templates.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from '../../../src/core/model/consensus-node.js';
 import {KubeConfig} from '@kubernetes/client-node';
@@ -23,6 +23,7 @@ import {MissingArgumentError} from '../../../src/core/errors/missing-argument-er
 import sinon from 'sinon';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {entityId} from '../../../src/core/helpers.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
 
 describe('ProfileManager', () => {
   let temporaryDirectory: string, configManager: ConfigManager, profileManager: ProfileManager, cacheDirectory: string;
@@ -68,7 +69,7 @@ describe('ProfileManager', () => {
 
   let stagingDirectory = '';
 
-  before(() => {
+  before(async () => {
     resetForTest(namespace.name);
     temporaryDirectory = getTemporaryDirectory();
     configManager = container.resolve(InjectTokens.ConfigManager);
@@ -93,6 +94,9 @@ describe('ProfileManager', () => {
 
     // @ts-expect-error - TS2339: to mock
     profileManager.remoteConfigManager.getConsensusNodes = sinon.stub().returns(consensusNodes);
+
+    const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+    await localConfig.load();
   });
 
   after(() => {
@@ -227,7 +231,7 @@ describe('ProfileManager', () => {
         }
       });
 
-      it(`should determine hedera-explorer chart values [profile = ${input.profileName}]`, async () => {
+      it(`should determine hiero-explorer chart values [profile = ${input.profileName}]`, async () => {
         configManager.setFlag(flags.profileFile, input.profileFile);
         configManager.setFlag(flags.cacheDir, getTestCacheDirectory('ProfileManager'));
         configManager.setFlag(flags.releaseTag, version.HEDERA_PLATFORM_VERSION);

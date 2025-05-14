@@ -2,9 +2,9 @@
 
 import {Migration} from './migration.js';
 import {SoloError} from '../../errors/solo-error.js';
-import {type DeploymentName, type EmailAddress, type NamespaceNameAsString, type Version} from './types.js';
+import {type DeploymentName, type NamespaceNameAsString, type Version} from '../../../types/index.js';
 import {type Optional, type ToObject, type Validate} from '../../../types/index.js';
-
+import {type UserIdentity} from '../../../data/schema/model/common/user-identity.js';
 import {DeploymentStates} from './enumerations/deployment-states.js';
 import {isValidEnum} from '../../util/validation-helpers.js';
 import {type RemoteConfigMetadataStruct} from './interfaces/remote-config-metadata-struct.js';
@@ -26,12 +26,12 @@ export class RemoteConfigMetadata
     public readonly deploymentName: DeploymentName,
     public readonly state: DeploymentStates,
     public readonly lastUpdatedAt: Date,
-    public readonly lastUpdateBy: EmailAddress,
+    public readonly lastUpdateBy: UserIdentity,
     public readonly soloVersion: Version,
     public soloChartVersion: Version = '',
     public hederaPlatformVersion: Version = '',
     public hederaMirrorNodeChartVersion: Version = '',
-    public hederaExplorerChartVersion: Version = '',
+    public explorerChartVersion: Version = '',
     public hederaJsonRpcRelayChartVersion: Version = '',
     migration?: Migration,
   ) {
@@ -42,8 +42,8 @@ export class RemoteConfigMetadata
   /* -------- Modifiers -------- */
 
   /** Simplifies making a migration */
-  public makeMigration(email: EmailAddress, fromVersion: Version): void {
-    this._migration = new Migration(new Date(), email, fromVersion);
+  public makeMigration(userIdentity: UserIdentity, fromVersion: Version): void {
+    this._migration = new Migration(new Date(), userIdentity, fromVersion);
   }
 
   /* -------- Getters -------- */
@@ -76,7 +76,7 @@ export class RemoteConfigMetadata
       metadata.soloChartVersion,
       metadata.hederaPlatformVersion,
       metadata.hederaMirrorNodeChartVersion,
-      metadata.hederaExplorerChartVersion,
+      metadata.explorerChartVersion,
       metadata.hederaJsonRpcRelayChartVersion,
       migration,
     );
@@ -99,7 +99,13 @@ export class RemoteConfigMetadata
       throw new SoloError(`Invalid lastUpdatedAt: ${this.lastUpdatedAt}`);
     }
 
-    if (!this.lastUpdateBy || typeof this.lastUpdateBy !== 'string') {
+    if (
+      !this.lastUpdateBy ||
+      !this.lastUpdateBy.name ||
+      !this.lastUpdateBy.hostname ||
+      typeof this.lastUpdateBy.name !== 'string' ||
+      typeof this.lastUpdateBy.hostname !== 'string'
+    ) {
       throw new SoloError(`Invalid lastUpdateBy: ${this.lastUpdateBy}`);
     }
 
@@ -126,7 +132,7 @@ export class RemoteConfigMetadata
       soloChartVersion: this.soloChartVersion,
       hederaPlatformVersion: this.hederaPlatformVersion,
       hederaMirrorNodeChartVersion: this.hederaMirrorNodeChartVersion,
-      hederaExplorerChartVersion: this.hederaExplorerChartVersion,
+      explorerChartVersion: this.explorerChartVersion,
       hederaJsonRpcRelayChartVersion: this.hederaJsonRpcRelayChartVersion,
       soloVersion: this.soloVersion,
     } as RemoteConfigMetadataStruct;

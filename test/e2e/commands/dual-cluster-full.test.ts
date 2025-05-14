@@ -6,12 +6,8 @@ import {Flags} from '../../../src/commands/flags.js';
 import {getTestCacheDirectory, getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
 import {main} from '../../../src/index.js';
 import {resetForTest} from '../../test-container.js';
-import {
-  type ClusterReference,
-  type ClusterReferences,
-  type DeploymentName,
-} from '../../../src/core/config/remote/types.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {type ClusterReference, type ClusterReferences, type DeploymentName} from '../../../src/types/index.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
@@ -19,8 +15,6 @@ import {type CommandFlag} from '../../../src/types/flag-types.js';
 import {type RemoteConfigManager} from '../../../src/core/config/remote/remote-config-manager.js';
 import {expect} from 'chai';
 import fs from 'node:fs';
-import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
-import {type LocalConfig} from '../../../src/core/config/local/local-config.js';
 import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
 import {type K8} from '../../../src/integration/kube/k8.js';
 import {
@@ -52,10 +46,11 @@ import {
   type TransactionResponse,
 } from '@hashgraph/sdk';
 import {type PackageDownloader} from '../../../src/core/package-downloader.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
 
 const testName: string = 'dual-cluster-full';
 
-describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTest(): Promise<void> {
+describe('Dual Cluster Full E2E Test', function dualClusterFullEndToEndTest() {
   this.bail(true);
   const namespace: NamespaceName = NamespaceName.of(testName);
   const deployment: DeploymentName = `${testName}-deployment`;
@@ -67,9 +62,9 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
     `${testCluster}`,
     `${testCluster.replace(soloTestCluster.includes('-c1') ? '-c1' : '-c2', soloTestCluster.includes('-c1') ? '-c2' : '-c1')}`,
   ];
-  const testClusterReferences: ClusterReferences = {};
-  testClusterReferences[testClusterArray[0]] = contexts[0];
-  testClusterReferences[testClusterArray[1]] = contexts[1];
+  const testClusterReferences: ClusterReferences = new Map<string, string>();
+  testClusterReferences.set(testClusterArray[0], contexts[0]);
+  testClusterReferences.set(testClusterArray[1], contexts[1]);
   const testCacheDirectory: string = getTestCacheDirectory(testName);
   let testLogger: SoloWinstonLogger;
   const createdAccountIds: string[] = [];
@@ -85,8 +80,8 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
     } catch {
       // allowed to fail if the file doesn't exist
     }
-    resetForTest(namespace.name, testCacheDirectory, testLogger, false);
     testLogger = container.resolve<SoloWinstonLogger>(InjectTokens.SoloLogger);
+    resetForTest(namespace.name, testCacheDirectory, false);
     for (const item of contexts) {
       const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
       await k8Client.namespaces().delete(namespace);
@@ -96,7 +91,7 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
 
   beforeEach(async (): Promise<void> => {
     testLogger.info(`${testName}: resetting containers for each test`);
-    resetForTest(namespace.name, testCacheDirectory, testLogger, false);
+    resetForTest(namespace.name, testCacheDirectory, false);
     testLogger.info(`${testName}: finished resetting containers for each test`);
   });
 
@@ -113,10 +108,12 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
     for (const [index, element] of testClusterArray.entries()) {
       await main(soloClusterReferenceConnectArgv(element, contexts[index]));
     }
-    const localConfig: LocalConfig = container.resolve<LocalConfig>(InjectTokens.LocalConfig);
+    const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
+      InjectTokens.LocalConfigRuntimeState,
+    );
     const clusterReferences: ClusterReferences = localConfig.clusterRefs;
-    expect(clusterReferences[testClusterArray[0]]).to.equal(contexts[0]);
-    expect(clusterReferences[testClusterArray[1]]).to.equal(contexts[1]);
+    expect(clusterReferences.get(testClusterArray[0])).to.equal(contexts[0]);
+    expect(clusterReferences.get(testClusterArray[1])).to.equal(contexts[1]);
     testLogger.info(`${testName}: finished solo cluster-ref connect`);
   });
 
@@ -150,7 +147,6 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
 
   it(`${testName}: node keys`, async (): Promise<void> => {
     testLogger.info(`${testName}: beginning node keys command`);
-    expect(container.resolve<SoloLogger>(InjectTokens.SoloLogger)).to.equal(testLogger);
     await main(soloNodeKeysArgv(deployment));
     const node1Key: Buffer = fs.readFileSync(
       PathEx.joinWithRealPath(testCacheDirectory, 'keys', 's-private-node1.pem'),
@@ -284,8 +280,6 @@ function soloClusterReferenceConnectArgv(clusterReference: ClusterReference, con
     clusterReference,
     optionFromFlag(Flags.context),
     context,
-    optionFromFlag(Flags.userEmailAddress),
-    'dual.full.cluster.test@host.com',
   );
   argvPushGlobalFlags(argv);
   return argv;
@@ -574,17 +568,17 @@ async function verifyExplorerDeployWasSuccessful(
 ): Promise<void> {
   const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
   const k8: K8 = k8Factory.getK8(contexts[1]);
-  const hederaExplorerPods: Pod[] = await k8
+  const explorerPods: Pod[] = await k8
     .pods()
     .list(namespace, [
-      'app.kubernetes.io/instance=hedera-explorer',
-      'app.kubernetes.io/name=hedera-explorer-chart',
-      'app.kubernetes.io/component=hedera-explorer',
+      'app.kubernetes.io/instance=hiero-explorer',
+      'app.kubernetes.io/name=hiero-explorer-chart',
+      'app.kubernetes.io/component=hiero-explorer',
     ]);
-  expect(hederaExplorerPods).to.have.lengthOf(1);
+  expect(explorerPods).to.have.lengthOf(1);
   let portForwarder: ExtendedNetServer;
   try {
-    portForwarder = await k8.pods().readByReference(hederaExplorerPods[0].podReference).portForward(8080, 8080);
+    portForwarder = await k8.pods().readByReference(explorerPods[0].podReference).portForward(8080, 8080);
     await sleep(Duration.ofSeconds(2));
     const queryUrl: string = 'http://127.0.0.1:8080/api/v1/accounts?limit=15&order=desc';
     const packageDownloader: PackageDownloader = container.resolve<PackageDownloader>(InjectTokens.PackageDownloader);

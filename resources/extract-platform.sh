@@ -5,7 +5,6 @@
 set -o pipefail
 
 readonly tag="${1}"
-readonly useZip="${2}"
 if [[ -z "${tag}" ]]; then
     echo "Release tag is required (e.g. v0.42.5)";
     exit 1
@@ -36,6 +35,10 @@ if [[ $? -ne 0 ]]; then
     exit 1
 fi
 
+echo "Deleting previous version under $HAPI_DIR/data/lib/* and $HAPI_DIR/data/apps/*" | tee -a ${LOG_FILE}
+sudo rm -rf ${HAPI_DIR}/data/lib/* | tee -a ${LOG_FILE}
+sudo rm -rf ${HAPI_DIR}/data/apps/* | tee -a ${LOG_FILE}
+
 # extract
 echo "Extracting ${BUILD_ZIP_FILE}" | tee -a ${LOG_FILE}
 [[ -d "${HAPI_DIR}" ]] || mkdir -p "${HAPI_DIR}" | tee -a ${LOG_FILE}
@@ -44,14 +47,15 @@ cd ${HAPI_DIR}
 pwd | tee -a ${LOG_FILE}
 ls -al | tee -a ${LOG_FILE}
 
-if [[ "$useZip" == "true" ]]; then
-    echo "Using unzip to extract files"
-    dnf install unzip -y | tee -a ${LOG_FILE}
-    unzip -o "${BUILD_ZIP_FILE}" -d "${HAPI_DIR}" | tee -a ${LOG_FILE}
-else
-    echo "Using jar to extract files"
-    jar xvf "${BUILD_ZIP_FILE}" | tee -a ${LOG_FILE}
-fi
+echo "Using unzip to extract files"
+
+# To avoid "Device or resource busy" error when unzip tries to delete pre-existing file first before extracting
+# Uncompress to a temporary directory and then move the files to the target directory
+
+mkdir /tmp/extract
+unzip -o "${BUILD_ZIP_FILE}" -d /tmp/extract | tee -a ${LOG_FILE}
+sudo cp -rf /tmp/extract/* "${HAPI_DIR}" | tee -a ${LOG_FILE}
+rm -rf /tmp/extract
 
 [[ $? -ne 0 ]] && echo "Failure occurred during decompress" && exit 1
 echo "................................end: extract-platform.sh" | tee -a ${LOG_FILE}

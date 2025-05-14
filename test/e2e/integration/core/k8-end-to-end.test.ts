@@ -18,7 +18,7 @@ import crypto from 'node:crypto';
 import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';
-import {NamespaceName} from '../../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
 import {ContainerName} from '../../../../src/integration/kube/resources/container/container-name.js';
 import {ContainerReference} from '../../../../src/integration/kube/resources/container/container-reference.js';

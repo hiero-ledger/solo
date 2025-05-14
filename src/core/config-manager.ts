@@ -9,7 +9,7 @@ import type * as yargs from 'yargs';
 import {type CommandFlag} from '../types/flag-types.js';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {StorageType} from './constants.js';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ArgvStruct, type AnyListrContext, type AnyObject, type AnyYargs} from '../types/aliases.js';
 import {type Optional, type SoloListrTaskWrapper} from '../types/index.js';
@@ -229,6 +229,9 @@ export class ConfigManager {
               get() {
                 this.usedConfigs.set(flag.constName, this.usedConfigs.get(flag.constName) + 1 || 1);
                 return this[`_${flag.constName}`];
+              },
+              set(value) {
+                this[`_${flag.constName}`] = value;
               },
             });
           }

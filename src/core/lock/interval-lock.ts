@@ -4,11 +4,12 @@ import {MissingArgumentError} from '../errors/missing-argument-error.js';
 import {SoloError} from '../errors/solo-error.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {LockHolder} from './lock-holder.js';
+import {DEFAULT_LEASE_DURATION} from '../constants.js';
 import {sleep} from '../helpers.js';
 import {Duration} from '../time/duration.js';
 import {type Lock, type LockRenewalService} from './lock.js';
 import {StatusCodes} from 'http-status-codes';
-import {type NamespaceName} from '../../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {type Lease} from '../../integration/kube/resources/lease/lease.js';
 import {LockAcquisitionError} from './lock-acquisition-error.js';
 import {LockRelinquishmentError} from './lock-relinquishment-error.js';
@@ -25,9 +26,6 @@ import {container} from 'tsyringe-neo';
  * @public
  */
 export class IntervalLock implements Lock {
-  /** The default duration in seconds for which the lock is to be held before being considered expired. */
-  public static readonly DEFAULT_LEASE_DURATION = 20;
-
   /** The holder of the lock. */
   private readonly _lockHolder: LockHolder;
 
@@ -80,9 +78,7 @@ export class IntervalLock implements Lock {
     }
 
     // In most production cases, the environment variable should be preferred over the constructor argument.
-    this._durationSeconds = durationSeconds
-      ? durationSeconds
-      : +process.env.SOLO_LEASE_DURATION || IntervalLock.DEFAULT_LEASE_DURATION;
+    this._durationSeconds = durationSeconds ? durationSeconds : DEFAULT_LEASE_DURATION;
   }
 
   /**
@@ -439,7 +435,7 @@ export class IntervalLock implements Lock {
    */
   private static checkExpiration(lease: Lease): boolean {
     const now = Duration.ofMillis(Date.now());
-    const durationSec = lease.durationSeconds || IntervalLock.DEFAULT_LEASE_DURATION;
+    const durationSec = lease.durationSeconds || DEFAULT_LEASE_DURATION;
     const lastRenewalTime = lease.renewTime || lease.acquireTime;
     const lastRenewal = Duration.ofMillis(new Date(lastRenewalTime).valueOf());
     const deltaSec = now.minus(lastRenewal).seconds;

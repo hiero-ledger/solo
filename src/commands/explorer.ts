@@ -4,11 +4,10 @@ import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
-import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
 import {type ProfileManager} from '../core/profile-manager.js';
-import {BaseCommand, type Options} from './base.js';
+import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {type AnyYargs, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
@@ -16,19 +15,20 @@ import {MirrorNodeExplorerComponent} from '../core/config/remote/components/mirr
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {type CommandDefinition, type Optional, type SoloListrTask} from '../types/index.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterChecks} from '../core/cluster-checks.js';
-import {container} from 'tsyringe-neo';
+import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {KeyManager} from '../core/key-manager.js';
 import {
   EXPLORER_INGRESS_CONTROLLER,
   EXPLORER_INGRESS_TLS_SECRET_NAME,
-  HEDERA_EXPLORER_CHART_URL,
+  EXPLORER_CHART_URL,
   INGRESS_CONTROLLER_PREFIX,
 } from '../core/constants.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
-import {type ClusterReference, type Context} from '../core/config/remote/types.js';
+import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {type ClusterReference, type Context} from '../types/index.js';
 import * as helpers from '../core/helpers.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {ListrRemoteConfig} from '../core/config/remote/listr-config-tasks.js';
@@ -39,11 +39,11 @@ interface ExplorerDeployConfigClass {
   clusterRef: ClusterReference;
   clusterContext: string;
   enableIngress: boolean;
-  enableHederaExplorerTls: boolean;
+  enableExplorerTls: boolean;
   ingressControllerValueFile: string;
-  hederaExplorerTlsHostName: string;
-  hederaExplorerStaticIp: string | '';
-  hederaExplorerVersion: string;
+  explorerTlsHostName: string;
+  explorerStaticIp: string | '';
+  explorerVersion: string;
   mirrorNamespace: NamespaceName;
   namespace: NamespaceName;
   profileFile: string;
@@ -71,16 +71,16 @@ interface ExplorerDestroyContext {
   };
 }
 
+@injectable()
 export class ExplorerCommand extends BaseCommand {
-  private readonly profileManager: ProfileManager;
+  public constructor(
+    @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
+    @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
+  ) {
+    super();
 
-  public constructor(options: Options) {
-    super(options);
-    if (!options || !options.profileManager) {
-      throw new MissingArgumentError('An instance of core/ProfileManager is required', options.downloader);
-    }
-
-    this.profileManager = options.profileManager;
+    this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
+    this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
   }
 
   public static readonly COMMAND_NAME = 'explorer';
@@ -95,10 +95,10 @@ export class ExplorerCommand extends BaseCommand {
       flags.clusterRef,
       flags.enableIngress,
       flags.ingressControllerValueFile,
-      flags.enableHederaExplorerTls,
-      flags.hederaExplorerTlsHostName,
-      flags.hederaExplorerStaticIp,
-      flags.hederaExplorerVersion,
+      flags.enableExplorerTls,
+      flags.explorerTlsHostName,
+      flags.explorerStaticIp,
+      flags.explorerVersion,
       flags.mirrorNamespace,
       flags.namespace,
       flags.deployment,
@@ -138,7 +138,7 @@ export class ExplorerCommand extends BaseCommand {
       valuesArgument += ' --set ingress.enabled=true';
       valuesArgument += ` --set ingressClassName=${constants.EXPLORER_INGRESS_CLASS_NAME}`;
     }
-    valuesArgument += ` --set fullnameOverride=${constants.HEDERA_EXPLORER_RELEASE_NAME}`;
+    valuesArgument += ` --set fullnameOverride=${constants.EXPLORER_RELEASE_NAME}`;
 
     if (config.mirrorNamespace) {
       // use fully qualified service name for mirror node since the explorer is in a different namespace
@@ -185,9 +185,7 @@ export class ExplorerCommand extends BaseCommand {
       );
     }
 
-    const clusterChecks: ClusterChecks = container.resolve(InjectTokens.ClusterChecks);
-
-    if (!(await clusterChecks.isCertManagerInstalled())) {
+    if (!(await this.clusterChecks.isCertManagerInstalled())) {
       valuesArgument += ' --set cert-manager.installCRDs=true';
     }
 
@@ -225,11 +223,11 @@ export class ExplorerCommand extends BaseCommand {
 
             // disable the prompts that we don't want to prompt the user for
             flags.disablePrompts([
-              flags.enableHederaExplorerTls,
-              flags.hederaExplorerTlsHostName,
+              flags.enableExplorerTls,
+              flags.explorerTlsHostName,
               flags.ingressControllerValueFile,
-              flags.hederaExplorerStaticIp,
-              flags.hederaExplorerVersion,
+              flags.explorerStaticIp,
+              flags.explorerVersion,
               flags.mirrorNamespace,
               flags.tlsClusterIssuerType,
               flags.valuesFile,
@@ -248,7 +246,7 @@ export class ExplorerCommand extends BaseCommand {
 
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
             context_.config.clusterContext = context_.config.clusterRef
-              ? this.localConfig.clusterRefs[context_.config.clusterRef]
+              ? this.localConfig.clusterRefs.get(context_.config.clusterRef)
               : this.k8Factory.default().contexts().readCurrent();
 
             if (
@@ -322,7 +320,7 @@ export class ExplorerCommand extends BaseCommand {
             );
             showVersionBanner(self.logger, constants.SOLO_CERT_MANAGER_CHART, soloChartVersion, 'Upgraded');
           },
-          skip: context_ => !context_.config.enableHederaExplorerTls,
+          skip: context_ => !context_.config.enableExplorerTls,
         },
 
         {
@@ -335,14 +333,14 @@ export class ExplorerCommand extends BaseCommand {
 
             await self.chartManager.install(
               config.namespace,
-              constants.HEDERA_EXPLORER_RELEASE_NAME,
+              constants.EXPLORER_RELEASE_NAME,
               '',
-              HEDERA_EXPLORER_CHART_URL,
-              config.hederaExplorerVersion,
+              EXPLORER_CHART_URL,
+              config.explorerVersion,
               exploreValuesArgument,
               context_.config.clusterContext,
             );
-            showVersionBanner(self.logger, constants.HEDERA_EXPLORER_RELEASE_NAME, config.hederaExplorerVersion);
+            showVersionBanner(self.logger, constants.EXPLORER_RELEASE_NAME, config.explorerVersion);
           },
         },
         {
@@ -352,8 +350,8 @@ export class ExplorerCommand extends BaseCommand {
 
             let explorerIngressControllerValuesArgument: string = '';
 
-            if (config.hederaExplorerStaticIp !== '') {
-              explorerIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${config.hederaExplorerStaticIp}`;
+            if (config.explorerStaticIp !== '') {
+              explorerIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${config.explorerStaticIp}`;
             }
             explorerIngressControllerValuesArgument += ` --set fullnameOverride=${EXPLORER_INGRESS_CONTROLLER}`;
             explorerIngressControllerValuesArgument += ` --set controller.ingressClass=${constants.EXPLORER_INGRESS_CLASS_NAME}`;
@@ -382,7 +380,7 @@ export class ExplorerCommand extends BaseCommand {
             await this.k8Factory
               .getK8(context_.config.clusterContext)
               .ingresses()
-              .update(config.namespace, constants.HEDERA_EXPLORER_RELEASE_NAME, {
+              .update(config.namespace, constants.EXPLORER_RELEASE_NAME, {
                 metadata: {
                   annotations: {
                     'haproxy-ingress.github.io/backend-protocol': 'h1',
@@ -404,7 +402,7 @@ export class ExplorerCommand extends BaseCommand {
               .pods()
               .waitForReadyStatus(
                 context_.config.namespace,
-                [constants.SOLO_HEDERA_EXPLORER_LABEL],
+                [constants.SOLO_EXPLORER_LABEL],
                 constants.PODS_READY_MAX_ATTEMPTS,
                 constants.PODS_READY_DELAY,
               );
@@ -475,7 +473,7 @@ export class ExplorerCommand extends BaseCommand {
               ? this.configManager.getFlag(flags.clusterRef)
               : this.remoteConfigManager.currentCluster;
 
-            const clusterContext: Context = this.localConfig.clusterRefs[clusterReference];
+            const clusterContext: Context = this.localConfig.clusterRefs.get(clusterReference);
 
             context_.config = {
               namespace,
@@ -483,7 +481,7 @@ export class ExplorerCommand extends BaseCommand {
               clusterReference,
               isChartInstalled: await this.chartManager.isChartInstalled(
                 namespace,
-                constants.HEDERA_EXPLORER_RELEASE_NAME,
+                constants.EXPLORER_RELEASE_NAME,
                 clusterContext,
               ),
             };
@@ -501,7 +499,7 @@ export class ExplorerCommand extends BaseCommand {
           task: async context_ => {
             await this.chartManager.uninstall(
               context_.config.namespace,
-              constants.HEDERA_EXPLORER_RELEASE_NAME,
+              constants.EXPLORER_RELEASE_NAME,
               context_.config.clusterContext,
             );
           },

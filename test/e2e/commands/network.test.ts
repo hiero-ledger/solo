@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import {KeyManager} from '../../../src/core/key-manager.js';
 import {Duration} from '../../../src/core/time/duration.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {PodName} from '../../../src/integration/kube/resources/pod/pod-name.js';
 import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
@@ -21,6 +21,9 @@ import {DeploymentCommand} from '../../../src/commands/deployment.js';
 import {NetworkCommand} from '../../../src/commands/network.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import os from 'node:os';
+import {container} from 'tsyringe-neo';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
+import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 
 describe('NetworkCommand', function networkCommand() {
   this.bail(true);
@@ -41,6 +44,7 @@ describe('NetworkCommand', function networkCommand() {
   argv.setArg(flags.force, true);
   argv.setArg(flags.applicationEnv, applicationEnvironmentFilePath);
   argv.setArg(flags.loadBalancerEnabled, true);
+  argv.setArg(flags.clusterRef, `${argv.getArg(flags.clusterRef)}-${testName}`);
 
   const temporaryDirectory: string = os.tmpdir();
   const {
@@ -53,6 +57,8 @@ describe('NetworkCommand', function networkCommand() {
     this.timeout(Duration.ofMinutes(1).toMillis());
     await KeyManager.generateTls(temporaryDirectory, 'grpc');
     await KeyManager.generateTls(temporaryDirectory, 'grpcWeb');
+    const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+    await localConfig.load();
   });
 
   argv.setArg(flags.grpcTlsCertificatePath, 'node1=' + PathEx.join(temporaryDirectory, 'grpc.crt'));
@@ -69,6 +75,7 @@ describe('NetworkCommand', function networkCommand() {
   });
 
   before(async () => {
+    this.timeout(Duration.ofMinutes(1).toMillis());
     await k8Factory.default().namespaces().delete(namespace);
 
     await commandInvoker.invoke({
@@ -109,7 +116,7 @@ describe('NetworkCommand', function networkCommand() {
     configManager.update(argv.build());
   });
 
-  it('deployment create should succeed', async () => {
+  it('cluster-ref add-cluster should succeed', async () => {
     await commandInvoker.invoke({
       argv: argv,
       command: DeploymentCommand.COMMAND_NAME,

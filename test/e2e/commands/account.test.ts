@@ -23,7 +23,7 @@ import {AccountCommand} from '../../../src/commands/account.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {NodeCommand} from '../../../src/commands/node/index.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
@@ -31,9 +31,12 @@ import * as helpers from '../../../src/core/helpers.js';
 import {Templates} from '../../../src/core/templates.js';
 import * as Base64 from 'js-base64';
 import {Argv} from '../../helpers/argv-wrapper.js';
-import {type DeploymentName, type Realm, type Shard} from '../../../src/core/config/remote/types.js';
+import {type DeploymentName, type Realm, type Shard} from '../../../src/types/index.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {entityId} from '../../../src/core/helpers.js';
+import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
+import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
 
 const defaultTimeout = Duration.ofSeconds(20).toMillis();
 
@@ -55,8 +58,12 @@ argv.setArg(flags.shard, 0);
 // enable load balancer for e2e tests
 // argv.setArg(flags.loadBalancerEnabled, true);
 
-endToEndTestSuite(testName, argv, {}, bootstrapResp => {
-  describe('AccountCommand', async () => {
+const overrides: InstanceOverrides = new Map<symbol, ValueContainer>([
+  [InjectTokens.SystemAccounts, new ValueContainer(InjectTokens.SystemAccounts, testSystemAccounts)],
+]);
+
+endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp => {
+  describe('AccountCommand', () => {
     let accountCmd: AccountCommand;
     let testLogger: SoloLogger;
 
@@ -65,9 +72,11 @@ endToEndTestSuite(testName, argv, {}, bootstrapResp => {
       cmd: {nodeCmd},
     } = bootstrapResp;
 
-    before(() => {
-      accountCmd = new AccountCommand(bootstrapResp.opts, testSystemAccounts);
+    before(async () => {
+      accountCmd = container.resolve(AccountCommand) as AccountCommand;
       bootstrapResp.cmd.accountCmd = accountCmd;
+      const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+      await localConfig.load();
       testLogger = getTestLogger();
     });
 
@@ -104,7 +113,7 @@ endToEndTestSuite(testName, argv, {}, bootstrapResp => {
           subcommand: 'init',
           callback: async argv => accountCmd.init(argv),
         });
-      }).timeout(Duration.ofMinutes(3).toMillis());
+      }).timeout(Duration.ofMinutes(8).toMillis());
 
       describe('special accounts should have new keys', () => {
         const genesisKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);

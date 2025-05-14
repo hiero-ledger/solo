@@ -11,18 +11,16 @@ import {SoloError} from '../../core/errors/solo-error.js';
 import {UserBreak} from '../../core/errors/user-break.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type SoloListrTask} from '../../types/index.js';
-import {type ClusterReference} from '../../core/config/remote/types.js';
-import {type LocalConfig} from '../../core/config/local/local-config.js';
+import {type ClusterReference} from '../../types/index.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
-import {type NamespaceName} from '../../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {type ChartManager} from '../../core/chart-manager.js';
 import {type LockManager} from '../../core/lock/lock-manager.js';
 import {type ClusterChecks} from '../../core/cluster-checks.js';
-import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {SOLO_CLUSTER_SETUP_CHART} from '../../core/constants.js';
 import {type ClusterReferenceConnectContext} from './config-interfaces/cluster-reference-connect-context.js';
@@ -30,23 +28,24 @@ import {type ClusterReferenceDefaultContext} from './config-interfaces/cluster-r
 import {type ClusterReferenceSetupContext} from './config-interfaces/cluster-reference-setup-context.js';
 import {type ClusterReferenceResetContext} from './config-interfaces/cluster-reference-reset-context.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
 
 @injectable()
 export class ClusterCommandTasks {
-  private readonly clusterChecks: ClusterChecks = container.resolve(InjectTokens.ClusterChecks);
-
   constructor(
     @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
-    @inject(InjectTokens.LocalConfig) private readonly localConfig: LocalConfig,
+    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
     @inject(InjectTokens.ChartManager) private readonly chartManager: ChartManager,
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
+    @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
   ) {
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
-    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfig, this.constructor.name);
+    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
+    this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
   }
 
   public connectClusterRef(): SoloListrTask<ClusterReferenceConnectContext> {
@@ -101,7 +100,7 @@ export class ClusterCommandTasks {
         const {clusterRef} = context_.config;
         task.title = clusterRef;
 
-        if (self.localConfig.clusterRefs.hasOwnProperty(clusterRef)) {
+        if (self.localConfig.clusterRefs.get(clusterRef)) {
           throw new SoloError(`Cluster ref ${clusterRef} already exists inside local config`);
         }
       },
@@ -154,9 +153,10 @@ export class ClusterCommandTasks {
       title: 'List all available clusters',
       task: async () => {
         const clusterReferences = this.localConfig.clusterRefs;
-        const clusterList = Object.entries(clusterReferences).map(
-          ([clusterName, clusterContext]) => `${clusterName}:${clusterContext}`,
-        );
+        const clusterList = [];
+        for (const [clusterName, clusterContext] of clusterReferences) {
+          clusterList.push(`${clusterName}:${clusterContext}`);
+        }
         this.logger.showList('Cluster references and the respective contexts', clusterList);
       },
     };
@@ -169,12 +169,12 @@ export class ClusterCommandTasks {
         const clusterReference = context_.config.clusterRef;
         const clusterReferences = this.localConfig.clusterRefs;
         const deployments = this.localConfig.deployments;
+        const context = clusterReferences.get(clusterReference);
 
-        if (!clusterReferences[clusterReference]) {
+        if (context) {
           throw new Error(`Cluster "${clusterReference}" not found in the LocalConfig`);
         }
 
-        const context = clusterReferences[clusterReference];
         const deploymentsWithSelectedCluster = Object.entries(deployments)
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           .filter(([_, deployment]) => deployment.clusters.includes(clusterReference))

@@ -1,3 +1,15 @@
+---
+title: "Getting Started"
+weight: 1 
+description: >
+  Getting started with Solo 
+type: docs
+---
+
+> \[!WARNING]
+>
+> Any version of Solo prior to `v0.35.3` will fail on Apple M3/M4 chipsets due to a known issue with Java 21 and these chipsets.
+
 # Solo
 
 [![NPM Version](https://img.shields.io/npm/v/%40hashgraph%2Fsolo?logo=npm)](https://www.npmjs.com/package/@hashgraph/solo)
@@ -25,7 +37,7 @@ An opinionated CLI tool to deploy and manage standalone test networks.
 
 To run a three-node network, you will need to set up Docker Desktop with at least 8GB of memory and 4 CPUs.
 
-![alt text](images/DockerDesktop.png)
+![alt text](images/docker-desktop.png)
 
 ## Setup
 
@@ -57,7 +69,7 @@ nvm use v20.18.0
 
 ## Documentation
 
-[Getting Started](https://solo.hiero.org/User/StepByStepGuide/)
+[Getting Started](https://solo.hiero.org/docs/step-by-step-guide/)
 
 ## Contributing
 

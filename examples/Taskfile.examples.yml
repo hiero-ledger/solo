@@ -211,7 +211,7 @@ tasks:
         else
           export CLUSTER_REF="kind-${SOLO_CLUSTER_NAME}"
         fi
-        SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- cluster-ref connect --cluster-ref ${CLUSTER_REF} --context ${CONTEXT} --email {{ .SOLO_EMAIL }}
+        SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- cluster-ref connect --cluster-ref ${CLUSTER_REF} --context ${CONTEXT}
 
   solo:deployment:create:
     silent: true
@@ -541,7 +541,7 @@ tasks:
         if [[ "{{ .use_port_forwards }}" == "true" ]];then
           echo "Enable port forwarding for Hedera Explorer & Mirror Node Network"
           echo "Port forwarding for Hedera Explorer: http://localhost:8080"
-          explorer_svc="$(kubectl get svc -l app.kubernetes.io/component=hedera-explorer -n ${EXPLORER_DEPLOYED_NAME_SPACE} --output json | jq -r '.items[].metadata.name')"
+          explorer_svc="$(kubectl get svc -l app.kubernetes.io/component=hiero-explorer -n ${EXPLORER_DEPLOYED_NAME_SPACE} --output json | jq -r '.items[].metadata.name')"
           /bin/bash -c "nohup kubectl port-forward -n \"${EXPLORER_DEPLOYED_NAME_SPACE}\" \"svc/${explorer_svc}\" 8080:80 > /dev/null 2>&1 &"
           sleep 4
         fi

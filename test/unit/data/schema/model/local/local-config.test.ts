@@ -10,19 +10,20 @@ import os from 'node:os';
 import {LocalConfig} from '../../../../../../src/data/schema/model/local/local-config.js';
 import {Deployment} from '../../../../../../src/data/schema/model/local/deployment.js';
 import {LocalConfigSchema} from '../../../../../../src/data/schema/migration/impl/local/local-config-schema.js';
-import {CTObjectMapper} from '../../../../../../src/data/mapper/impl/ct-object-mapper.js';
+import {ClassToObjectMapper} from '../../../../../../src/data/mapper/impl/class-to-object-mapper.js';
 import {ApplicationVersions} from '../../../../../../src/data/schema/model/common/application-versions.js';
 import {
-  HEDERA_EXPLORER_VERSION,
+  EXPLORER_VERSION,
   HEDERA_JSON_RPC_RELAY_VERSION,
   HEDERA_PLATFORM_VERSION,
   MIRROR_NODE_VERSION,
   SOLO_CHART_VERSION,
 } from '../../../../../../version.js';
 import {ConfigKeyFormatter} from '../../../../../../src/data/key/config-key-formatter.js';
+import {type ClusterReferences} from '../../../../../../src/types/index.js';
 
 describe('LocalConfig', () => {
-  const schema: LocalConfigSchema = new LocalConfigSchema(new CTObjectMapper(ConfigKeyFormatter.instance()));
+  const schema: LocalConfigSchema = new LocalConfigSchema(new ClassToObjectMapper(ConfigKeyFormatter.instance()));
   const soloVersion: string = '0.35.1';
   const localConfigPath = `test/data/v${soloVersion}-local-config.yaml`;
 
@@ -63,7 +64,7 @@ describe('LocalConfig', () => {
         new Deployment('deployment', 'solo-e2e', ['cluster-1'], 0, 0),
       ];
 
-      const clusterReferences: Map<string, string> = new Map<string, string>();
+      const clusterReferences: ClusterReferences = new Map<string, string>();
       clusterReferences.set('cluster-1', 'context-1');
       clusterReferences.set('cluster-2', 'context-2');
       clusterReferences.set('e2e-cluster-1', 'kind-solo-e2e-c1');
@@ -74,7 +75,7 @@ describe('LocalConfig', () => {
         new SemVer(SOLO_CHART_VERSION),
         new SemVer(HEDERA_PLATFORM_VERSION),
         new SemVer(MIRROR_NODE_VERSION),
-        new SemVer(HEDERA_EXPLORER_VERSION),
+        new SemVer(EXPLORER_VERSION),
         new SemVer(HEDERA_JSON_RPC_RELAY_VERSION),
       );
       const lc = new LocalConfig(2, versions, deployments, clusterReferences);

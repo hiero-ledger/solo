@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import chalk from 'chalk';
-import {BaseCommand, type Options} from './base.js';
+import {BaseCommand} from './base.js';
 import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {Flags as flags} from './flags.js';
@@ -13,12 +13,15 @@ import {type AccountId, AccountInfo, HbarUnit, Long, NodeUpdateTransaction, Priv
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {type ArgvStruct, type AnyYargs, type NodeAliases} from '../types/aliases.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
-import {type ClusterReference, type DeploymentName, type Realm, type Shard} from '../core/config/remote/types.js';
+import {type NamespaceName} from '../types/namespace/namespace-name.js';
+import {type ClusterReference, type DeploymentName, type Realm, type Shard} from '../types/index.js';
 import {type CommandDefinition, type SoloListrTask} from '../types/index.js';
 import {Templates} from '../core/templates.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Base64} from 'js-base64';
+import {inject, injectable} from 'tsyringe-neo';
+import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {entityId} from '../core/helpers.js';
 
 interface UpdateAccountConfig {
@@ -37,8 +40,8 @@ interface UpdateAccountContext {
   accountInfo: {accountId: AccountId | string; balance: number; publicKey: string; privateKey?: string};
 }
 
+@injectable()
 export class AccountCommand extends BaseCommand {
-  private readonly accountManager: AccountManager;
   private accountInfo: {
     accountId: string;
     balance: number;
@@ -46,18 +49,16 @@ export class AccountCommand extends BaseCommand {
     privateKey?: string;
     accountAlias?: string;
   } | null;
-  private readonly systemAccounts: number[][];
 
-  public constructor(options: Options, systemAccounts: number[][] = constants.SYSTEM_ACCOUNTS) {
-    super(options);
+  public constructor(
+    @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
+    @inject(InjectTokens.SystemAccounts) private readonly systemAccounts: number[][],
+  ) {
+    super();
 
-    if (!options || !options.accountManager) {
-      throw new IllegalArgumentError('An instance of core/AccountManager is required', options.accountManager);
-    }
-
-    this.accountManager = options.accountManager;
+    this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
     this.accountInfo = null;
-    this.systemAccounts = systemAccounts;
+    this.systemAccounts = patchInject(systemAccounts, InjectTokens.SystemAccounts, this.constructor.name);
   }
 
   public static readonly COMMAND_NAME = 'account';
@@ -257,7 +258,7 @@ export class AccountCommand extends BaseCommand {
             } as Config;
 
             config.contextName =
-              this.localConfig.clusterRefs[config.clusterRef] ?? self.k8Factory.default().contexts().readCurrent();
+              this.localConfig.clusterRefs.get(config.clusterRef) ?? self.k8Factory.default().contexts().readCurrent();
 
             if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
               throw new SoloError(`namespace ${config.namespace.name} does not exist`);
@@ -492,7 +493,7 @@ export class AccountCommand extends BaseCommand {
             } as Config;
 
             config.contextName =
-              this.localConfig.clusterRefs[config.clusterRef] ?? self.k8Factory.default().contexts().readCurrent();
+              this.localConfig.clusterRefs.get(config.clusterRef) ?? self.k8Factory.default().contexts().readCurrent();
 
             if (!config.amount) {
               config.amount = flags.amount.definition.defaultValue as number;
@@ -587,7 +588,7 @@ export class AccountCommand extends BaseCommand {
             } as UpdateAccountConfig;
 
             config.contextName =
-              this.localConfig.clusterRefs[config.clusterRef] ?? self.k8Factory.default().contexts().readCurrent();
+              this.localConfig.clusterRefs.get(config.clusterRef) ?? self.k8Factory.default().contexts().readCurrent();
 
             if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
               throw new SoloError(`namespace ${config.namespace} does not exist`);
@@ -688,7 +689,7 @@ export class AccountCommand extends BaseCommand {
             } as Config;
 
             config.contextName =
-              this.localConfig.clusterRefs[config.clusterRef] ?? self.k8Factory.default().contexts().readCurrent();
+              this.localConfig.clusterRefs.get(config.clusterRef) ?? self.k8Factory.default().contexts().readCurrent();
 
             if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
               throw new SoloError(`namespace ${config.namespace} does not exist`);

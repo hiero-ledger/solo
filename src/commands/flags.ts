@@ -13,12 +13,12 @@ import {
   number as numberPrompt,
   confirm as confirmPrompt,
 } from '@inquirer/prompts';
-import validator from 'validator';
 import {type AnyListrContext, type AnyObject, type AnyYargs} from '../types/aliases.js';
-import {type ClusterReference} from '../core/config/remote/types.js';
+import {type ClusterReference} from '../types/index.js';
 import {type Optional, type SoloListrTaskWrapper} from '../types/index.js';
 import chalk from 'chalk';
 import {PathEx} from '../business/utils/path-ex.js';
+import validator from 'validator';
 
 export class Flags {
   public static KEY_COMMON = '_COMMON_';
@@ -567,6 +567,17 @@ export class Flags {
     },
   };
 
+  public static readonly upgradeVersion: CommandFlag = {
+    constName: 'upgradeVersion',
+    name: 'upgrade-version',
+    definition: {
+      describe: 'Version to be used for the upgrade',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly relayReleaseTag: CommandFlag = {
     constName: 'relayReleaseTag',
     name: 'relay-release',
@@ -899,26 +910,26 @@ export class Flags {
     },
   };
 
-  public static readonly enableHederaExplorerTls: CommandFlag = {
-    constName: 'enableHederaExplorerTls',
-    name: 'enable-hedera-explorer-tls',
+  public static readonly enableExplorerTls: CommandFlag = {
+    constName: 'enableExplorerTls',
+    name: 'enable-explorer-tls',
     definition: {
       describe:
-        'Enable the Hedera Explorer TLS, defaults to false, requires certManager and certManagerCrds, which can be deployed through solo-cluster-setup chart or standalone',
+        'Enable Explorer TLS, defaults to false, requires certManager and certManagerCrds, which can be deployed through solo-cluster-setup chart or standalone',
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: async function promptEnableHederaExplorerTls(
+    prompt: async function promptEnableExplorerTls(
       task: SoloListrTaskWrapper<AnyListrContext>,
       input: boolean,
     ): Promise<boolean> {
       return await Flags.promptToggle(
         task,
         input,
-        Flags.enableHederaExplorerTls.definition.defaultValue as boolean,
-        'Would you like to enable the Hedera Explorer TLS? ',
+        Flags.enableExplorerTls.definition.defaultValue as boolean,
+        'Would you like to enable the Explorer TLS? ',
         null,
-        Flags.enableHederaExplorerTls.name,
+        Flags.enableExplorerTls.name,
       );
     },
   };
@@ -934,36 +945,36 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly hederaExplorerStaticIp: CommandFlag = {
-    constName: 'hederaExplorerStaticIp',
-    name: 'hedera-explorer-static-ip',
+  public static readonly explorerStaticIp: CommandFlag = {
+    constName: 'explorerStaticIp',
+    name: 'explorer-static-ip',
     definition: {
-      describe: 'The static IP address to use for the Hedera Explorer load balancer, defaults to ""',
+      describe: 'The static IP address to use for the Explorer load balancer, defaults to ""',
       defaultValue: '',
       type: 'string',
     },
     prompt: undefined,
   };
 
-  public static readonly hederaExplorerTlsHostName: CommandFlag = {
-    constName: 'hederaExplorerTlsHostName',
-    name: 'hedera-explorer-tls-host-name',
+  public static readonly explorerTlsHostName: CommandFlag = {
+    constName: 'explorerTlsHostName',
+    name: 'explorer-tls-host-name',
     definition: {
-      describe: 'The host name to use for the Hedera Explorer TLS, defaults to "explorer.solo.local"',
+      describe: 'The host name to use for the Explorer TLS, defaults to "explorer.solo.local"',
       defaultValue: 'explorer.solo.local',
       type: 'string',
     },
-    prompt: async function promptHederaExplorerTlsHostName(
+    prompt: async function promptExplorerTlsHostName(
       task: SoloListrTaskWrapper<AnyListrContext>,
       input: string,
     ): Promise<string> {
       return await Flags.promptText(
         task,
         input,
-        Flags.hederaExplorerTlsHostName.definition.defaultValue as string,
-        'Enter the host name to use for the Hedera Explorer TLS: ',
+        Flags.explorerTlsHostName.definition.defaultValue as string,
+        'Enter the host name to use for the Explorer TLS: ',
         null,
-        Flags.hederaExplorerTlsHostName.name,
+        Flags.explorerTlsHostName.name,
       );
     },
   };
@@ -1662,57 +1673,26 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly hederaExplorerVersion: CommandFlag = {
-    constName: 'hederaExplorerVersion',
-    name: 'hedera-explorer-version',
+  public static readonly explorerVersion: CommandFlag = {
+    constName: 'explorerVersion',
+    name: 'explorer-version',
     definition: {
-      describe: 'Hedera explorer chart version',
-      defaultValue: version.HEDERA_EXPLORER_VERSION,
+      describe: 'Explorer chart version',
+      defaultValue: version.EXPLORER_VERSION,
       type: 'string',
     },
-    prompt: async function promptHederaExplorerVersion(
+    prompt: async function promptExplorerVersion(
       task: SoloListrTaskWrapper<AnyListrContext>,
       input: boolean,
     ): Promise<boolean> {
       return await Flags.promptToggle(
         task,
         input,
-        Flags.hederaExplorerVersion.definition.defaultValue as boolean,
-        'Would you like to choose hedera explorer version? ',
+        Flags.explorerVersion.definition.defaultValue as boolean,
+        'Would you like to choose explorer version? ',
         null,
-        Flags.hederaExplorerVersion.name,
+        Flags.explorerVersion.name,
       );
-    },
-  };
-
-  public static readonly userEmailAddress: CommandFlag = {
-    constName: 'userEmailAddress',
-    name: 'email',
-    definition: {
-      defaultValue: 'john@doe.com',
-      describe: 'User email address used for local configuration',
-      type: 'string',
-    },
-    prompt: async function promptUserEmailAddress(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: string,
-    ): Promise<string> {
-      if (input?.length) {
-        return input;
-      }
-
-      const promptForInput = async () => {
-        return await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
-          message: 'Please enter your email address:',
-        });
-      };
-
-      input = await promptForInput();
-      while (!validator.isEmail(input)) {
-        input = await promptForInput();
-      }
-
-      return input;
     },
   };
 
@@ -1979,6 +1959,36 @@ export class Flags {
   };
 
   //* ------------------------------------------------------------------------------------------- *//
+
+  public static readonly username: CommandFlag = {
+    constName: 'username',
+    name: 'user',
+    definition: {
+      describe:
+        'Optional user name used for local configuration. Only accepts letters and numbers. Defaults to the username provided by the OS',
+      type: 'string',
+      alias: 'u',
+    },
+    prompt: async function promptUsername(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
+      const promptForInput = async () => {
+        return await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
+          message: 'Please enter your username. Can only contain letters and numbers:',
+        });
+      };
+
+      input = await promptForInput();
+
+      while (!Flags.username.validate(input)) {
+        input = await promptForInput();
+      }
+
+      return input;
+    },
+    validate: (input: string): boolean => {
+      // only allow letters and numbers
+      return validator.isAlphanumeric(input);
+    },
+  };
 
   public static readonly grpcTlsKeyPath: CommandFlag = {
     constName: 'grpcTlsKeyPath',
@@ -2493,7 +2503,7 @@ export class Flags {
     Flags.ecdsaPrivateKey,
     Flags.ed25519PrivateKey,
     Flags.enableIngress,
-    Flags.enableHederaExplorerTls,
+    Flags.enableExplorerTls,
     Flags.enablePrometheusSvcMonitor,
     Flags.enableTimeout,
     Flags.endpointType,
@@ -2513,9 +2523,9 @@ export class Flags {
     Flags.grpcWebTlsKeyPath,
     Flags.haproxyIps,
     Flags.ingressControllerValueFile,
-    Flags.hederaExplorerTlsHostName,
-    Flags.hederaExplorerStaticIp,
-    Flags.hederaExplorerVersion,
+    Flags.explorerTlsHostName,
+    Flags.explorerStaticIp,
+    Flags.explorerVersion,
     Flags.inputDir,
     Flags.loadBalancerEnabled,
     Flags.localBuildPath,
@@ -2540,6 +2550,7 @@ export class Flags {
     Flags.quiet,
     Flags.relayReleaseTag,
     Flags.releaseTag,
+    Flags.upgradeVersion,
     Flags.replicaCount,
     Flags.setAlias,
     Flags.settingTxt,
@@ -2574,7 +2585,6 @@ export class Flags {
     Flags.tlsPublicKey,
     Flags.updateAccountKeys,
     Flags.upgradeZipFile,
-    Flags.userEmailAddress,
     Flags.valuesFile,
     Flags.useExternalDatabase,
     Flags.externalDatabaseHost,
@@ -2592,6 +2602,7 @@ export class Flags {
     Flags.blockNodeVersion,
     Flags.realm,
     Flags.shard,
+    Flags.username,
   ];
 
   /** Resets the definition.disablePrompt for all flags */
