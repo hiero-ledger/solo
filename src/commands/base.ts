@@ -18,9 +18,10 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {inject} from 'tsyringe-neo';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
 export abstract class BaseCommand extends ShellRunner {
-  constructor(
+  public constructor(
     @inject(InjectTokens.Helm) protected readonly helm?: HelmClient,
     @inject(InjectTokens.K8Factory) protected readonly k8Factory?: K8Factory,
     @inject(InjectTokens.ChartManager) protected readonly chartManager?: ChartManager,
@@ -29,6 +30,7 @@ export abstract class BaseCommand extends ShellRunner {
     @inject(InjectTokens.LockManager) protected readonly leaseManager?: LockManager,
     @inject(InjectTokens.LocalConfigRuntimeState) public readonly localConfig?: LocalConfigRuntimeState,
     @inject(InjectTokens.RemoteConfigManager) protected readonly remoteConfigManager?: RemoteConfigManager,
+    @inject(InjectTokens.ComponentFactory) protected readonly componentFactory?: ComponentFactoryApi,
   ) {
     super();
 

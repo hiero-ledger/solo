@@ -9,7 +9,12 @@ import {MirrorNodeComponent} from './components/mirror-node-component.js';
 import {EnvoyProxyComponent} from './components/envoy-proxy-component.js';
 import {ConsensusNodeComponent} from './components/consensus-node-component.js';
 import {MirrorNodeExplorerComponent} from './components/mirror-node-explorer-component.js';
-import {type ClusterReference, type ComponentName, type NamespaceNameAsString} from '../../../types/index.js';
+import {
+  type ClusterReference,
+  ComponentId,
+  type ComponentName,
+  type NamespaceNameAsString,
+} from '../../../types/index.js';
 import {ComponentTypes} from './enumerations/component-types.js';
 import {ConsensusNodeStates} from './enumerations/consensus-node-states.js';
 import {type BaseComponentStruct} from './components/interfaces/base-component-struct.js';
@@ -18,6 +23,7 @@ import {type ConsensusNodeComponentStruct} from './components/interfaces/consens
 import {type ComponentsDataStruct} from './interfaces/components-data-struct.js';
 import {Templates} from '../../templates.js';
 import {type NodeAliases} from '../../../types/aliases.js';
+import {ComponentsDataWrapperApi} from './api/components-data-wrapper-api.js';
 
 /**
  * Represent the components in the remote config and handles:
@@ -25,7 +31,7 @@ import {type NodeAliases} from '../../../types/aliases.js';
  * - Validation.
  * - Conversion FROM and TO plain object.
  */
-export class ComponentsDataWrapper {
+export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   private constructor(
     public readonly relays: Record<ComponentName, RelayComponent> = {},
     public readonly haProxies: Record<ComponentName, HaProxyComponent> = {},
@@ -40,7 +46,7 @@ export class ComponentsDataWrapper {
 
   /* -------- Modifiers -------- */
 
-  /** Used to add new component to their respective group. */
+  /** Used to add new component to their respective group. */ // TODO: ADD MIDDLEWARE FOR INCREMENTING THE COUNT
   public add(component: BaseComponent): void {
     const self = this;
 
@@ -190,7 +196,7 @@ export class ComponentsDataWrapper {
 
     for (const [componentType, subComponents] of Object.entries(components)) {
       switch (componentType) {
-        case ComponentTypes.Relay: {
+        case ComponentTypes.RelayNodes: {
           for (const [componentName, component] of Object.entries(subComponents)) {
             relays[componentName] = RelayComponent.fromObject(component as RelayComponentStruct);
           }
@@ -227,7 +233,7 @@ export class ComponentsDataWrapper {
           break;
         }
 
-        case ComponentTypes.MirrorNodeExplorer: {
+        case ComponentTypes.Explorers: {
           for (const [componentName, component] of Object.entries(subComponents)) {
             mirrorNodeExplorers[componentName] = MirrorNodeExplorerComponent.fromObject(component);
           }
@@ -257,6 +263,8 @@ export class ComponentsDataWrapper {
       blockNodes,
     );
   }
+
+  public async removeById(componentType: ComponentTypes, id: ComponentId): Promise<void> {}
 
   /** Used to create an empty instance used to keep the constructor private */
   public static initializeEmpty(): ComponentsDataWrapper {

@@ -717,6 +717,18 @@ export class Flags {
     },
   };
 
+  public static readonly id: CommandFlag = {
+    constName: 'id',
+    name: 'id',
+    definition: {
+      describe: 'ID',
+      type: 'string',
+    },
+    prompt: async function promptChainId(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
+      return await Flags.promptText(task, input, undefined, 'Enter ID: ', null, Flags.id.name);
+    },
+  };
+
   public static readonly chainId: CommandFlag = {
     constName: 'chainId',
     name: 'ledger-id',

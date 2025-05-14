@@ -16,19 +16,28 @@ import {
   type NodeAliases,
 } from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
-import {type ClusterReference, type DeploymentName} from '../types/index.js';
-import {type CommandDefinition, type Optional, type SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
+import {
+  type ClusterReference,
+  type CommandDefinition,
+  type DeploymentName,
+  type Optional,
+  type SoloListrTask,
+  type SoloListrTaskWrapper,
+} from '../types/index.js';
 import * as versions from '../../version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type Lock} from '../core/lock/lock.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
-import {BlockNodeComponent} from '../core/config/remote/components/block-node-component.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {Duration} from '../core/time/duration.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import chalk from 'chalk';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
+import {type BlockNodeState} from '../data/schema/model/remote/state/block-node-state.js';
+import {type ComponentDataApi} from '../core/config/remote/api/component-data-api.js';
+import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
+import {type RemoteConfigDataWrapper} from '../core/config/remote/remote-config-data-wrapper.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -44,7 +53,7 @@ interface BlockNodeDeployConfigClass {
   nodeAliases: NodeAliases; // from remote config
   context: string;
   valuesArg: string;
-  newBlockNodeComponent: BlockNodeComponent;
+  newBlockNodeComponent: BlockNodeState;
   releaseName: string;
 }
 
@@ -81,7 +90,7 @@ export class BlockNodeCommand extends BaseCommand {
       valuesArgument += helpers.prepareValuesFiles(config.valuesFile);
     }
 
-    valuesArgument += helpers.populateHelmArguments({nameOverride: config.newBlockNodeComponent.name});
+    valuesArgument += helpers.populateHelmArguments({nameOverride: config.releaseName});
 
     if (config.domainName) {
       valuesArgument += helpers.populateHelmArguments({
@@ -96,7 +105,11 @@ export class BlockNodeCommand extends BaseCommand {
   }
 
   private getReleaseName(): string {
-    return constants.BLOCK_NODE_RELEASE_NAME;
+    return (
+      constants.BLOCK_NODE_RELEASE_NAME +
+      '-' +
+      (this.remoteConfigManager as any as ComponentDataApi).getNewComponentId(ComponentTypes.BlockNode)
+    );
   }
 
   private async add(argv: ArgvStruct): Promise<boolean> {
@@ -151,10 +164,9 @@ export class BlockNodeCommand extends BaseCommand {
 
             config.releaseName = this.getReleaseName();
 
-            config.newBlockNodeComponent = new BlockNodeComponent(
-              config.releaseName,
+            config.newBlockNodeComponent = this.componentFactory.createNewBlockNodeComponent(
               config.clusterRef,
-              config.namespace.name,
+              config.namespace,
             );
           },
         },
@@ -202,7 +214,7 @@ export class BlockNodeCommand extends BaseCommand {
         },
         {
           title: 'Check software',
-          task: async (context_, task): Promise<void> => {
+          task: async (context_): Promise<void> => {
             const config: BlockNodeDeployConfigClass = context_.config;
 
             const labels: string[] = [`app.kubernetes.io/instance=${config.releaseName}`];
@@ -262,7 +274,7 @@ export class BlockNodeCommand extends BaseCommand {
       title: 'Add block node component in remote config',
       skip: (): boolean => !this.remoteConfigManager.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfigManager.modify(async remoteConfig => {
+        await this.remoteConfigManager.modify(async (remoteConfig: RemoteConfigDataWrapper): Promise<void> => {
           const config: BlockNodeDeployConfigClass = context_.config;
 
           remoteConfig.components.add(config.newBlockNodeComponent);
@@ -303,7 +315,7 @@ export class BlockNodeCommand extends BaseCommand {
           .getK8(config.context)
           .pods()
           .list(config.namespace, [`app.kubernetes.io/instance=${config.releaseName}`])
-          .then(pods => pods[0].podReference);
+          .then((pods: Pod[]): PodReference => pods[0].podReference);
 
         const containerReference: ContainerReference = ContainerReference.of(
           blockNodePodReference,

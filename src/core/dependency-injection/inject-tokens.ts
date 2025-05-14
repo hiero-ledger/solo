@@ -4,6 +4,7 @@
  * Dependency injection tokens
  */
 export const InjectTokens = {
+  ComponentFactory: Symbol.for('ComponentFactory'),
   LogLevel: Symbol.for('LogLevel'),
   DevelopmentMode: Symbol.for('DevelopmentMode'),
   OsPlatform: Symbol.for('OsPlatform'),
