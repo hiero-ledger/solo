@@ -104,7 +104,7 @@ defaults:
       - name: JAVA_HEAP_MIN
         value: "16g"
       - name: JAVA_HEAP_MAX
-        value: "19g"
+        value: "26g"
       - name: MALLOC_ARENA_MAX
         value: "4"
 
