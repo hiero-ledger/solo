@@ -31,11 +31,13 @@ tasks:
       - task: "install"
       - task: "build:all"
 
-  local:
-    desc: "Run the local server"
+  install:nginx:
+    desc: "Install Nginx"
+    status:
+      - command -v nginx
     cmds:
-      - task: "build"
-      - hugo server --cleanDestinationDir -e dev -DFE --minify serve --renderToMemory --baseURL "{{.hugo_local_base_url}}"
+      - brew update
+      - brew install nginx
 
   check-doc-dir:
     desc: "Check if in the docs/site directory"
@@ -105,7 +107,15 @@ tasks:
       - echo "hugo_local_base_url {{.hugo_local_base_url}}"
       - hugo version
       - hugo config
-      - hugo --cleanDestinationDir --gc --minify --baseURL "{{.hugo_base_url}}" -d public/${HUGO_SOLO_VERSION}
+      - hugo --cleanDestinationDir -e prod --gc --minify --baseURL "{{.hugo_base_url}}" -d public/${HUGO_SOLO_VERSION}
+
+  local:
+    desc: "Run the local server"
+    cmds:
+      - task: "install:nginx"
+      - task: "build"
+      #      - hugo server --cleanDestinationDir -e dev -DFE --minify serve --renderToMemory --baseURL "{{.hugo_local_base_url}}"
+      - hugo server --cleanDestinationDir -e dev -DFE --minify serve --baseURL "{{.hugo_local_base_url}}" -d public/${HUGO_SOLO_VERSION}
 
   build:typedoc:
     desc: "Generate the API documentation using TypeDoc"
@@ -187,3 +197,74 @@ tasks:
       - package-lock.json
     cmds:
       - npm install
+
+  deploy:nginx:
+    desc: "Deploy Nginx to serve the Hugo site"
+    cmds:
+      - task: "build"
+      - task: "deploy:nginx:config"
+      - task: "deploy:nginx:start"
+
+  deploy:nginx:config:
+    desc: "Configure Nginx to serve the Hugo site"
+    cmds:
+      - |
+        if [ ! -d "nginx" ]; then
+          mkdir -p nginx
+        fi
+      - |
+        cat > nginx/nginx.conf << 'EOF'
+        worker_processes  1;
+
+        events {
+            worker_connections  1024;
+        }
+
+        http {
+            include       mime.types;
+            default_type  application/octet-stream;
+
+            sendfile        on;
+            keepalive_timeout  65;
+
+            server {
+                listen       80;
+                server_name  localhost;
+
+                root   {{.TASKFILE_DIR}}/public;
+                index  index.html index.htm;
+
+                location / {
+                    try_files $uri $uri/ /index.html;
+                }
+
+                error_page   500 502 503 504  /50x.html;
+                location = /50x.html {
+                    root   html;
+                }
+            }
+        }
+        EOF
+
+  deploy:nginx:start:
+    desc: "Start Nginx with the Hugo site configuration"
+    cmds:
+      - |
+        if pgrep nginx > /dev/null; then
+          echo "Stopping existing Nginx..."
+          nginx -s stop
+        fi
+      - |
+        echo "Starting Nginx..."
+        nginx -c {{.TASKFILE_DIR}}/nginx/nginx.conf
+
+  deploy:nginx:stop:
+    desc: "Stop Nginx"
+    cmds:
+      - |
+        if pgrep nginx > /dev/null; then
+          echo "Stopping Nginx..."
+          nginx -s stop
+        else
+          echo "Nginx is not running"
+        fi
