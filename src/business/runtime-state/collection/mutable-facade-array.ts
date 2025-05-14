@@ -10,13 +10,13 @@ export class MutableFacadeArray<T extends Facade<B>, B> implements FacadeArray<T
 
   public constructor(
     private readonly facadeObjectConstructor: FacadeObjectConstructor<T, B>,
-    private readonly backingObjectConstructor: ClassConstructor<B>,
-    private readonly backingArray: B[],
+    private readonly encapsulatedObjectConstructor: ClassConstructor<B>,
+    private readonly encapsulatedArray: B[],
   ) {
     this.facadeArray = [];
 
-    for (const backingObject of backingArray) {
-      const facadeObject: T = new this.facadeObjectConstructor(backingObject);
+    for (const encapsulatedObject of encapsulatedArray) {
+      const facadeObject: T = new this.facadeObjectConstructor(encapsulatedObject);
       this.facadeArray.push(facadeObject);
     }
   }
@@ -26,13 +26,13 @@ export class MutableFacadeArray<T extends Facade<B>, B> implements FacadeArray<T
   }
 
   public add(value: T): void {
-    const backingObject: B = value.encapsulatedObject;
+    const encapsulatedObject: B = value.encapsulatedObject;
     this.facadeArray.push(value);
-    this.backingArray.push(backingObject);
+    this.encapsulatedArray.push(encapsulatedObject);
   }
 
   public addNew(): T {
-    const encapsulatedObject: B = new this.backingObjectConstructor();
+    const encapsulatedObject: B = new this.encapsulatedObjectConstructor();
     const facadeObject: T = new this.facadeObjectConstructor(encapsulatedObject);
     this.add(facadeObject);
 
@@ -51,7 +51,7 @@ export class MutableFacadeArray<T extends Facade<B>, B> implements FacadeArray<T
 
   public set(index: number, value: T): void {
     this.facadeArray[index] = value;
-    this.backingArray[index] = value.encapsulatedObject;
+    this.encapsulatedArray[index] = value.encapsulatedObject;
   }
 
   public indexOf(value: T): number {
@@ -81,16 +81,16 @@ export class MutableFacadeArray<T extends Facade<B>, B> implements FacadeArray<T
       this.facadeArray.splice(facadeIndex, 1);
     }
 
-    const backingIndex: number = this.backingArray.indexOf(value.encapsulatedObject);
+    const encapsulatedIndex: number = this.encapsulatedArray.indexOf(value.encapsulatedObject);
 
-    if (backingIndex !== -1) {
-      this.backingArray.splice(backingIndex, 1);
+    if (encapsulatedIndex !== -1) {
+      this.encapsulatedArray.splice(encapsulatedIndex, 1);
     }
   }
 
   public clear(): void {
     this.facadeArray.splice(0);
-    this.backingArray.splice(0);
+    this.encapsulatedArray.splice(0);
   }
 
   public *[Symbol.iterator](): IterableIterator<T> {

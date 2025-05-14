@@ -10,22 +10,22 @@ export class MutableFacadeMap<K, V extends Facade<BV>, BV> implements FacadeMap<
 
   public constructor(
     private readonly facadeObjectConstructor: FacadeObjectConstructor<V, BV>,
-    private readonly backingObjectConstructor: ClassConstructor<BV>,
-    private readonly backingMap: Map<K, BV>,
+    private readonly encapsulatedObjectConstructor: ClassConstructor<BV>,
+    private readonly encapsulatedMap: Map<K, BV>,
   ) {
     this.facadeMap = new Map<K, V>();
 
-    for (const [key, backingObject] of backingMap.entries()) {
-      const facadeObject: V = new this.facadeObjectConstructor(backingObject);
+    for (const [key, encapsulatedObject] of encapsulatedMap.entries()) {
+      const facadeObject: V = new this.facadeObjectConstructor(encapsulatedObject);
       this.facadeMap.set(key, facadeObject);
     }
   }
 
   public addNew(key: K): V {
-    const backingObject: BV = new this.backingObjectConstructor();
-    const facadeObject: V = new this.facadeObjectConstructor(backingObject);
+    const encapsulatedObject: BV = new this.encapsulatedObjectConstructor();
+    const facadeObject: V = new this.facadeObjectConstructor(encapsulatedObject);
     this.facadeMap.set(key, facadeObject);
-    this.backingMap.set(key, backingObject);
+    this.encapsulatedMap.set(key, encapsulatedObject);
 
     return facadeObject;
   }
@@ -35,9 +35,9 @@ export class MutableFacadeMap<K, V extends Facade<BV>, BV> implements FacadeMap<
   }
 
   public set(key: K, value: V): void {
-    const backingObject: BV = value.encapsulatedObject;
+    const encapsulatedObject: BV = value.encapsulatedObject;
     this.facadeMap.set(key, value);
-    this.backingMap.set(key, backingObject);
+    this.encapsulatedMap.set(key, encapsulatedObject);
   }
 
   public has(key: K): boolean {
@@ -64,14 +64,14 @@ export class MutableFacadeMap<K, V extends Facade<BV>, BV> implements FacadeMap<
 
   public delete(key: K): boolean {
     const removed: boolean = this.facadeMap.delete(key);
-    this.backingMap.delete(key);
+    this.encapsulatedMap.delete(key);
 
     return removed;
   }
 
   public clear(): void {
     this.facadeMap.clear();
-    this.backingMap.clear();
+    this.encapsulatedMap.clear();
   }
 
   public get size(): number {
