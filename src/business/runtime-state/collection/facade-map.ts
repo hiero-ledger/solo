@@ -2,7 +2,7 @@
 
 import {type Facade} from '../facade/facade.js';
 
-export interface BackedMap<K, V extends Facade<BV>, BV> {
+export interface FacadeMap<K, V extends Facade<BV>, BV> {
   readonly size: number;
 
   addNew(key: K): V;

@@ -2,7 +2,7 @@
 
 import {type Facade} from '../facade/facade.js';
 
-export interface BackedArrayList<T extends Facade<B>, B> {
+export interface FacadeArray<T extends Facade<B>, B> {
   readonly length: number;
 
   add(value: T): void;

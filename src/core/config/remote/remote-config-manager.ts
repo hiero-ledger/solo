@@ -35,7 +35,7 @@ import {type ConfigMap} from '../../../integration/kube/resources/config-map/con
 import {getSoloVersion} from '../../../../version.js';
 import {LocalConfigRuntimeState} from '../../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {DeploymentStates} from './enumerations/deployment-states.js';
-import {BackedArrayList} from '../../../business/runtime-state/collection/backed-array-list.js';
+import {FacadeArray} from '../../../business/runtime-state/collection/facade-array.js';
 import {StringFacade} from '../../../business/runtime-state/facade/string-facade.js';
 
 /**
@@ -398,7 +398,7 @@ export class RemoteConfigManager {
       throw new SoloError('Failed to get deployment');
     }
 
-    const clusterReferences: BackedArrayList<StringFacade, string> =
+    const clusterReferences: FacadeArray<StringFacade, string> =
       this.localConfig.configuration.deploymentByName(deploymentName).clusters;
 
     if (!clusterReferences) {

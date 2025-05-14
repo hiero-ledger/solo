@@ -3,20 +3,16 @@
 import {type DeploymentSchema} from '../../../../data/schema/model/local/deployment-schema.js';
 import {type Realm, type Shard} from '../../../../types/index.js';
 import {type Facade} from '../../facade/facade.js';
-import {type BackedArrayList} from '../../collection/backed-array-list.js';
+import {type FacadeArray} from '../../collection/facade-array.js';
 import {StringFacade} from '../../facade/string-facade.js';
-import {MutableBackedArrayList} from '../../collection/mutable-backed-array-list.js';
+import {MutableFacadeArray} from '../../collection/mutable-facade-array.js';
 
 export class Deployment implements Facade<DeploymentSchema> {
-  private readonly clusterList: BackedArrayList<StringFacade, string>;
+  private readonly clusterList: FacadeArray<StringFacade, string>;
 
   public constructor(public readonly encapsulatedObject: DeploymentSchema) {
     // eslint-disable-next-line @typescript-eslint/no-wrapper-object-types
-    this.clusterList = new MutableBackedArrayList<StringFacade, String>(
-      StringFacade,
-      String,
-      encapsulatedObject.clusters,
-    );
+    this.clusterList = new MutableFacadeArray<StringFacade, String>(StringFacade, String, encapsulatedObject.clusters);
   }
 
   public get name(): string {
@@ -51,7 +47,7 @@ export class Deployment implements Facade<DeploymentSchema> {
     this.encapsulatedObject.shard = shard;
   }
 
-  public get clusters(): BackedArrayList<StringFacade, string> {
+  public get clusters(): FacadeArray<StringFacade, string> {
     return this.clusterList;
   }
 }

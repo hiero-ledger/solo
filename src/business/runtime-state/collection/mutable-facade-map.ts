@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type BackedMap} from './backed-map.js';
+import {type FacadeMap} from './facade-map.js';
 import {type Facade} from '../facade/facade.js';
 import {type FacadeObjectConstructor} from '../facade/facade-object-constructor.js';
 import {type ClassConstructor} from '../../utils/class-constructor.type.js';
 
-export class MutableBackedMap<K, V extends Facade<BV>, BV> implements BackedMap<K, V, BV> {
+export class MutableFacadeMap<K, V extends Facade<BV>, BV> implements FacadeMap<K, V, BV> {
   private readonly facadeMap: Map<K, V>;
 
   public constructor(
@@ -85,6 +85,6 @@ export class MutableBackedMap<K, V extends Facade<BV>, BV> implements BackedMap<
   }
 
   public [Symbol.toStringTag](): string {
-    return 'MutableBackedMap';
+    return 'MutableFacadeMap';
   }
 }

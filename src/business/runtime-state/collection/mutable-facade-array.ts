@@ -2,10 +2,10 @@
 
 import {type ClassConstructor} from '../../utils/class-constructor.type.js';
 import {type Facade} from '../facade/facade.js';
-import {type BackedArrayList} from './backed-array-list.js';
+import {type FacadeArray} from './facade-array.js';
 import {type FacadeObjectConstructor} from '../facade/facade-object-constructor.js';
 
-export class MutableBackedArrayList<T extends Facade<B>, B> implements BackedArrayList<T, B> {
+export class MutableFacadeArray<T extends Facade<B>, B> implements FacadeArray<T, B> {
   private readonly facadeArray: T[];
 
   public constructor(

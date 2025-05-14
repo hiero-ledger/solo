@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
 import {type Realm, type Shard} from '../../../../src/types/index.js';
 import {type Deployment} from '../../../../src/business/runtime-state/config/local/deployment.js';
-import {type BackedArrayList} from '../../../../src/business/runtime-state/collection/backed-array-list.js';
+import {type FacadeArray} from '../../../../src/business/runtime-state/collection/facade-array.js';
 import {type DeploymentSchema} from '../../../../src/data/schema/model/local/deployment-schema.js';
 
 describe('LocalConfigRuntimeState', () => {
@@ -46,7 +46,7 @@ describe('LocalConfigRuntimeState', () => {
 
   it('should return deployments', async (): Promise<void> => {
     await createDeployment();
-    const deployments: BackedArrayList<Deployment, DeploymentSchema> = runtimeState.configuration.deployments;
+    const deployments: FacadeArray<Deployment, DeploymentSchema> = runtimeState.configuration.deployments;
 
     expect(deployments.find((d: Deployment): boolean => d.name === 'deployment-1')).to.not.be.undefined;
   });

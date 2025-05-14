@@ -51,7 +51,7 @@ import {
 } from '@hashgraph/sdk';
 import {type PackageDownloader} from '../../../src/core/package-downloader.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
-import {type BackedMap} from '../../../src/business/runtime-state/collection/backed-map.js';
+import {type FacadeMap} from '../../../src/business/runtime-state/collection/facade-map.js';
 import {type StringFacade} from '../../../src/business/runtime-state/facade/string-facade.js';
 
 const testName: string = 'dual-cluster-full';
@@ -117,7 +117,7 @@ describe('Dual Cluster Full E2E Test', function dualClusterFullEndToEndTest() {
     const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
       InjectTokens.LocalConfigRuntimeState,
     );
-    const clusterReferences: BackedMap<string, StringFacade, string> = localConfig.configuration.clusterRefs;
+    const clusterReferences: FacadeMap<string, StringFacade, string> = localConfig.configuration.clusterRefs;
     expect(clusterReferences.get(testClusterArray[0])?.toString()).to.equal(contexts[0]);
     expect(clusterReferences.get(testClusterArray[1])?.toString()).to.equal(contexts[1]);
     testLogger.info(`${testName}: finished solo cluster-ref connect`);
