@@ -29,6 +29,8 @@ import {type PodReference} from '../integration/kube/resources/pod/pod-reference
 import chalk from 'chalk';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
+import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
+import {lt, SemVer} from 'semver';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -40,6 +42,7 @@ interface BlockNodeDeployConfigClass {
   enableIngress: boolean;
   quiet: boolean;
   valuesFile: Optional<string>;
+  releaseTag: string;
   namespace: NamespaceName;
   nodeAliases: NodeAliases; // from remote config
   context: string;
@@ -52,12 +55,31 @@ interface BlockNodeDeployContext {
   config: BlockNodeDeployConfigClass;
 }
 
+interface BlockNodeDestroyConfigClass {
+  chartDirectory: string;
+  clusterRef: ClusterReference;
+  deployment: DeploymentName;
+  devMode: boolean;
+  quiet: boolean;
+  namespace: NamespaceName;
+  context: string;
+  isChartInstalled: boolean;
+  valuesArg: string;
+  releaseName: string;
+}
+
+interface BlockNodeDestroyContext {
+  config: BlockNodeDestroyConfigClass;
+}
+
 export class BlockNodeCommand extends BaseCommand {
   public static readonly COMMAND_NAME: string = 'block';
 
-  private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
+  private static readonly ADD_CONFIGS_NAME: string = 'addConfigs';
 
-  private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
+  private static readonly DESTROY_CONFIGS_NAME: string = 'destroyConfigs';
+
+  private static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.blockNodeChartVersion,
@@ -69,7 +91,13 @@ export class BlockNodeCommand extends BaseCommand {
       flags.enableIngress,
       flags.quiet,
       flags.valuesFile,
+      flags.releaseTag,
     ],
+  };
+
+  private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.deployment, flags.devMode, flags.force, flags.quiet],
   };
 
   private async prepareValuesArgForBlockNode(config: BlockNodeDeployConfigClass): Promise<string> {
@@ -109,19 +137,24 @@ export class BlockNodeCommand extends BaseCommand {
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             this.configManager.update(argv);
 
-            flags.disablePrompts(BlockNodeCommand.DEPLOY_FLAGS_LIST.optional);
+            flags.disablePrompts(BlockNodeCommand.ADD_FLAGS_LIST.optional);
 
             const allFlags: CommandFlag[] = [
-              ...BlockNodeCommand.DEPLOY_FLAGS_LIST.required,
-              ...BlockNodeCommand.DEPLOY_FLAGS_LIST.optional,
+              ...BlockNodeCommand.ADD_FLAGS_LIST.required,
+              ...BlockNodeCommand.ADD_FLAGS_LIST.optional,
             ];
 
             await this.configManager.executePrompt(task, allFlags);
 
             context_.config = this.configManager.getConfig(
-              BlockNodeCommand.DEPLOY_CONFIGS_NAME,
+              BlockNodeCommand.ADD_CONFIGS_NAME,
               allFlags,
             ) as BlockNodeDeployConfigClass;
+
+            const platformVersion: SemVer = new SemVer(context_.config.releaseTag);
+            if (lt(platformVersion, new SemVer('v0.62.0'))) {
+              throw new SoloError('Hedera platform versions less than v0.62.0 are not supported');
+            }
 
             context_.config.namespace = await resolveNamespaceFromDeployment(
               this.localConfig,
@@ -256,6 +289,97 @@ export class BlockNodeCommand extends BaseCommand {
     return true;
   }
 
+  private async destroy(argv: ArgvStruct): Promise<boolean> {
+    const lease: Lock = await this.leaseManager.create();
+
+    const tasks: Listr<BlockNodeDestroyContext> = new Listr<BlockNodeDestroyContext>(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
+            this.configManager.update(argv);
+
+            flags.disablePrompts(BlockNodeCommand.DESTROY_FLAGS_LIST.optional);
+
+            const allFlags: CommandFlag[] = [
+              ...BlockNodeCommand.DESTROY_FLAGS_LIST.required,
+              ...BlockNodeCommand.DESTROY_FLAGS_LIST.optional,
+            ];
+
+            await this.configManager.executePrompt(task, allFlags);
+
+            context_.config = this.configManager.getConfig(
+              BlockNodeCommand.DESTROY_CONFIGS_NAME,
+              allFlags,
+            ) as BlockNodeDestroyConfigClass;
+
+            context_.config.namespace = await resolveNamespaceFromDeployment(
+              this.localConfig,
+              this.configManager,
+              task,
+            );
+
+            if (!context_.config.clusterRef) {
+              context_.config.clusterRef = this.k8Factory.default().clusters().readCurrent();
+            }
+
+            context_.config.context = this.remoteConfigManager.getClusterRefs()[context_.config.clusterRef];
+
+            context_.config.releaseName = this.getReleaseName();
+
+            context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
+              context_.config.namespace,
+              context_.config.releaseName,
+              context_.config.context,
+            );
+
+            this.logger.debug('Initialized config', {config: context_.config});
+
+            return ListrLock.newAcquireLockTask(lease, task);
+          },
+        },
+        {
+          title: 'Look-up block node',
+          task: async (context_): Promise<void> => {
+            const config: BlockNodeDestroyConfigClass = context_.config;
+            try {
+              this.remoteConfigManager.components.getComponent<BlockNodeComponent>(
+                ComponentTypes.BlockNode,
+                config.releaseName,
+              );
+            } catch (error) {
+              throw new SoloError(`Block node ${config.releaseName} was not found`, error);
+            }
+          },
+        },
+        {
+          title: 'Destroy block node',
+          task: async (context_): Promise<void> => {
+            const config: BlockNodeDestroyConfigClass = context_.config;
+
+            await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
+          },
+          skip: (context_): boolean => !context_.config.isChartInstalled,
+        },
+        this.removeBlockNodeComponent(),
+      ],
+      {
+        concurrent: false,
+        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+      },
+    );
+
+    try {
+      await tasks.run();
+    } catch (error) {
+      throw new SoloError(`Error deploying block node: ${error.message}`, error);
+    } finally {
+      await lease.release();
+    }
+
+    return true;
+  }
+
   /** Adds the block node component to remote config. */
   private addBlockNodeComponent(): SoloListrTask<BlockNodeDeployContext> {
     return {
@@ -266,6 +390,21 @@ export class BlockNodeCommand extends BaseCommand {
           const config: BlockNodeDeployConfigClass = context_.config;
 
           remoteConfig.components.add(config.newBlockNodeComponent);
+        });
+      },
+    };
+  }
+
+  /** Adds the block node component to remote config. */
+  private removeBlockNodeComponent(): SoloListrTask<BlockNodeDestroyContext> {
+    return {
+      title: 'Disable block node component in remote config',
+      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
+      task: async (context_): Promise<void> => {
+        await this.remoteConfigManager.modify(async remoteConfig => {
+          const config: BlockNodeDestroyConfigClass = context_.config;
+
+          remoteConfig.components.remove(config.releaseName, ComponentTypes.BlockNode);
         });
       },
     };
@@ -334,9 +473,8 @@ export class BlockNodeCommand extends BaseCommand {
 
             success = true;
             break;
-          } catch (error) {
+          } catch {
             // Guard
-            console.error(error);
           }
 
           attempt++;
@@ -361,12 +499,19 @@ export class BlockNodeCommand extends BaseCommand {
       this.logger,
     )
       .addCommandGroup(
-        new CommandGroup('node', 'Manage block nodes in solo network').addSubcommand(
-          new Subcommand('add', 'Add block node', this, this.add, (y: AnyYargs): void => {
-            flags.setRequiredCommandFlags(y, ...BlockNodeCommand.DEPLOY_FLAGS_LIST.required);
-            flags.setOptionalCommandFlags(y, ...BlockNodeCommand.DEPLOY_FLAGS_LIST.optional);
-          }),
-        ),
+        new CommandGroup('node', 'Manage block nodes in solo network')
+          .addSubcommand(
+            new Subcommand('add', 'Add block node', this, this.add, (y: AnyYargs): void => {
+              flags.setRequiredCommandFlags(y, ...BlockNodeCommand.ADD_FLAGS_LIST.required);
+              flags.setOptionalCommandFlags(y, ...BlockNodeCommand.ADD_FLAGS_LIST.optional);
+            }),
+          )
+          .addSubcommand(
+            new Subcommand('destroy', 'destroy block node', this, this.destroy, (y: AnyYargs): void => {
+              flags.setRequiredCommandFlags(y, ...BlockNodeCommand.DESTROY_FLAGS_LIST.required);
+              flags.setOptionalCommandFlags(y, ...BlockNodeCommand.DESTROY_FLAGS_LIST.optional);
+            }),
+          ),
       )
       .build();
   }
