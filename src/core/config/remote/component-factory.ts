@@ -30,51 +30,27 @@ export class ComponentFactory implements ComponentFactoryApi {
     namespace: NamespaceName,
     nodeIds: NodeId[],
   ): RelayNodeState {
-    const id: ComponentId = this.remoteConfig.getNewComponentId(ComponentTypes.RelayNodes);
-    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
-    const metadata: ComponentStateMetadata = new ComponentStateMetadata(id, namespace.name, clusterReference, phase);
-
-    return new RelayNodeState(metadata, nodeIds);
+    return new RelayNodeState(this.getMetadata(ComponentTypes.RelayNodes, clusterReference, namespace), nodeIds);
   }
 
   public createNewExplorerComponent(clusterReference: ClusterReference, namespace: NamespaceName): ExplorerState {
-    const id: ComponentId = this.remoteConfig.getNewComponentId(ComponentTypes.Explorers);
-    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
-    const metadata: ComponentStateMetadata = new ComponentStateMetadata(id, namespace.name, clusterReference, phase);
-
-    return new ExplorerState(metadata);
+    return new ExplorerState(this.getMetadata(ComponentTypes.Explorers, clusterReference, namespace));
   }
 
   public createNewMirrorNodeComponent(clusterReference: ClusterReference, namespace: NamespaceName): MirrorNodeState {
-    const id: ComponentId = this.remoteConfig.getNewComponentId(ComponentTypes.MirrorNode);
-    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
-    const metadata: ComponentStateMetadata = new ComponentStateMetadata(id, namespace.name, clusterReference, phase);
-
-    return new MirrorNodeState(metadata);
+    return new MirrorNodeState(this.getMetadata(ComponentTypes.MirrorNode, clusterReference, namespace));
   }
 
   public createNewHaProxyComponent(clusterReference: ClusterReference, namespace: NamespaceName): HAProxyState {
-    const id: ComponentId = this.remoteConfig.getNewComponentId(ComponentTypes.HaProxy);
-    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
-    const metadata: ComponentStateMetadata = new ComponentStateMetadata(id, namespace.name, clusterReference, phase);
-
-    return new HAProxyState(metadata);
+    return new HAProxyState(this.getMetadata(ComponentTypes.HaProxy, clusterReference, namespace));
   }
 
   public createNewEnvoyProxyComponent(clusterReference: ClusterReference, namespace: NamespaceName): EnvoyProxyState {
-    const id: ComponentId = this.remoteConfig.getNewComponentId(ComponentTypes.EnvoyProxy);
-    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
-    const metadata: ComponentStateMetadata = new ComponentStateMetadata(id, clusterReference, namespace.name, phase);
-
-    return new EnvoyProxyState(metadata);
+    return new EnvoyProxyState(this.getMetadata(ComponentTypes.EnvoyProxy, clusterReference, namespace));
   }
 
   public createNewBlockNodeComponent(clusterReference: ClusterReference, namespace: NamespaceName): BlockNodeState {
-    const id: ComponentId = this.remoteConfig.getNewComponentId(ComponentTypes.BlockNode);
-    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
-    const metadata: ComponentStateMetadata = new ComponentStateMetadata(id, clusterReference, namespace.name, phase);
-
-    return new BlockNodeState(metadata);
+    return new BlockNodeState(this.getMetadata(ComponentTypes.BlockNode, clusterReference, namespace));
   }
 
   public createNewConsensusNodeComponent(
@@ -102,5 +78,15 @@ export class ComponentFactory implements ComponentFactoryApi {
       (nodeId: NodeId): ConsensusNodeState =>
         this.createNewConsensusNodeComponent(nodeId, clusterReference, namespace, DeploymentPhase.REQUESTED),
     );
+  }
+
+  private getMetadata(
+    componentType: ComponentTypes,
+    clusterReference: ClusterReference,
+    namespace: NamespaceName,
+  ): ComponentStateMetadata {
+    const id: ComponentId = this.remoteConfig.getNewComponentId(componentType);
+    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
+    return new ComponentStateMetadata(id, namespace.name, clusterReference, phase);
   }
 }
