@@ -76,7 +76,7 @@ jobs:
         run: |
           # checkout the release tag branch
           git fetch --tags
-          git checkout "v${{ matrix.release-tag }}"
-          npm i @hashgraph/solo@${{ matrix.release-tag }} --force
+          git checkout v${{ matrix.release-tag }}
+          npm -g @hashgraph/solo@${{ matrix.release-tag }} --force
           solo --version
           .github/workflows/script/launch_network.sh
