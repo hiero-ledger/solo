@@ -8,7 +8,7 @@ hedera:
         - name: hgcapp-data-saved
           mountPath: /data-saved
   nodes:
-    - name: node0
+    - name: node1
       nodeId: 0
       accountId: 0.0.3
       root:
@@ -19,7 +19,7 @@ hedera:
           limits:
             cpu: 4
             memory: 31Gi
-    - name: node1
+    - name: node2
       nodeId: 1
       accountId: 0.0.4
       root:
@@ -30,7 +30,7 @@ hedera:
           limits:
             cpu: 4
             memory: 31Gi
-    - name: node2
+    - name: node3
       nodeId: 2
       accountId: 0.0.5
       root:
@@ -41,7 +41,7 @@ hedera:
           limits:
             cpu: 4
             memory: 31Gi
-    - name: node3
+    - name: node4
       nodeId: 3
       accountId: 0.0.6
       root:
@@ -52,40 +52,11 @@ hedera:
           limits:
             cpu: 4
             memory: 31Gi
-    - name: node4
-      nodeId: 4
-      accountId: 0.0.7
-      root:
-        resources:
-          requests:
-            cpu: 2
-            memory: 16Gi
-          limits:
-            cpu: 4
-            memory: 31Gi
-    - name: node5
-      nodeId: 5
-      accountId: 0.0.8
-      root:
-        resources:
-          requests:
-            cpu: 2
-            memory: 16Gi
-          limits:
-            cpu: 4
-            memory: 31Gi
-    - name: node6
-      nodeId: 6
-      accountId: 0.0.9
-      root:
-        resources:
-          requests:
-            cpu: 2
-            memory: 16Gi
-          limits:
-            cpu: 4
-            memory: 31Gi
 defaults:
+  haproxy:
+    serviceType: NodePort
+  envoyProxy:
+    loadBalancerEnabled: true
   sidecars:
     recordStreamUploader:
       resources:
@@ -111,6 +82,14 @@ defaults:
         limits:
           cpu: 150m
           memory: 200Mi
+    blockstreamUploader:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 200Mi
+        limits:
+          cpu: 150m
+          memory: 400Mi
   root:
     resources:
       requests:
@@ -126,6 +105,8 @@ defaults:
         value: "16g"
       - name: JAVA_HEAP_MAX
         value: "19g"
+      - name: MALLOC_ARENA_MAX
+        value: "1"
 deployment:
   podAnnotations: {}
   podLabels: {}
