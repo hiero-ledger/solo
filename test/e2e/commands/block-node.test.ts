@@ -96,7 +96,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
       await execAsync('chmod +x ./get-block.sh', commandOptions);
 
       // Execute script
-      const scriptStd: {stdout: string; stderr: string} = await execAsync('sh ./get-block.sh 1', commandOptions);
+      const scriptStd: {stdout: string; stderr: string} = await execAsync('./get-block.sh 1', commandOptions);
 
       expect(scriptStd.stderr).to.equal('');
       expect(scriptStd.stdout).to.include('READ_BLOCK_SUCCESS');
