@@ -35,7 +35,7 @@ permissions:
   actions: read
 
 jobs:
-  example-task-file-test:
+  test-migration-process:
     timeout-minutes: 30
     runs-on: hiero-solo-linux-large
     strategy:
