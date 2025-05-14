@@ -581,7 +581,7 @@ export class DeploymentCommand extends BaseCommand {
         }
 
         const existingClusterContext = this.localConfig.configuration.clusterRefs
-          .get(existingClusterReferences[0])
+          .get(existingClusterReferences.get(0)?.toString())
           ?.toString();
         context_.config.existingClusterContext = existingClusterContext;
 
