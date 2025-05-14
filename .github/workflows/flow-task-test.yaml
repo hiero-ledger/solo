@@ -74,9 +74,6 @@ jobs:
 
       - name: Launch Network with Release version ${{ matrix.release-tag }}
         run: |
-          # checkout the release tag branch
-          git fetch --tags
-          git checkout v${{ matrix.release-tag }}
           npm install -g @hashgraph/solo@${{ matrix.release-tag }} --force
           solo --version
           .github/workflows/script/launch_network.sh
