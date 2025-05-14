@@ -5,61 +5,61 @@ import {type ApplicationVersionsSchema} from '../../../../data/schema/model/comm
 import {type SemVer} from 'semver';
 
 export class ApplicationVersions implements Facade<ApplicationVersionsSchema> {
-  public constructor(public readonly backingObject: ApplicationVersionsSchema) {}
+  public constructor(public readonly encapsulatedObject: ApplicationVersionsSchema) {}
 
   public get cli(): SemVer {
-    return this.backingObject.cli;
+    return this.encapsulatedObject.cli;
   }
 
   public set cli(cli: SemVer) {
-    this.backingObject.cli = cli;
+    this.encapsulatedObject.cli = cli;
   }
 
   public get chart(): SemVer {
-    return this.backingObject.chart;
+    return this.encapsulatedObject.chart;
   }
 
   public set chart(chart: SemVer) {
-    this.backingObject.chart = chart;
+    this.encapsulatedObject.chart = chart;
   }
 
   public get consensusNode(): SemVer {
-    return this.backingObject.consensusNode;
+    return this.encapsulatedObject.consensusNode;
   }
 
   public set consensusNode(consensusNode: SemVer) {
-    this.backingObject.consensusNode = consensusNode;
+    this.encapsulatedObject.consensusNode = consensusNode;
   }
 
   public get mirrorNodeChart(): SemVer {
-    return this.backingObject.mirrorNodeChart;
+    return this.encapsulatedObject.mirrorNodeChart;
   }
 
   public set mirrorNodeChart(mirrorNodeChart: SemVer) {
-    this.backingObject.mirrorNodeChart = mirrorNodeChart;
+    this.encapsulatedObject.mirrorNodeChart = mirrorNodeChart;
   }
 
   public get explorerChart(): SemVer {
-    return this.backingObject.explorerChart;
+    return this.encapsulatedObject.explorerChart;
   }
 
   public set explorerChart(explorerChart: SemVer) {
-    this.backingObject.explorerChart = explorerChart;
+    this.encapsulatedObject.explorerChart = explorerChart;
   }
 
   public get jsonRpcRelayChart(): SemVer {
-    return this.backingObject.jsonRpcRelayChart;
+    return this.encapsulatedObject.jsonRpcRelayChart;
   }
 
   public set jsonRpcRelayChart(jsonRpcRelayChart: SemVer) {
-    this.backingObject.jsonRpcRelayChart = jsonRpcRelayChart;
+    this.encapsulatedObject.jsonRpcRelayChart = jsonRpcRelayChart;
   }
 
   public get blockNodeChart(): SemVer {
-    return this.backingObject.blockNodeChart;
+    return this.encapsulatedObject.blockNodeChart;
   }
 
   public set blockNodeChart(blockNodeChart: SemVer) {
-    this.backingObject.blockNodeChart = blockNodeChart;
+    this.encapsulatedObject.blockNodeChart = blockNodeChart;
   }
 }

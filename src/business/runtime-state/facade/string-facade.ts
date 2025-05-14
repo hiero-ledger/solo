@@ -3,7 +3,7 @@
 import {type Facade} from './facade.js';
 
 export class StringFacade implements Facade<string> {
-  public constructor(public readonly backingObject: string) {}
+  public constructor(public readonly encapsulatedObject: string) {}
 
   public equals(other: StringFacade): boolean {
     if (this === other) {
@@ -14,10 +14,10 @@ export class StringFacade implements Facade<string> {
       return false;
     }
 
-    return this.backingObject === other.backingObject;
+    return this.encapsulatedObject === other.encapsulatedObject;
   }
 
   public toString(): string {
-    return this.backingObject;
+    return this.encapsulatedObject;
   }
 }

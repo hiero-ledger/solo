@@ -7,7 +7,7 @@ describe('StringFacade', (): void => {
   it('should create a StringFacade instance', (): void => {
     const string_: string = 'Hello, world!';
     const facade: StringFacade = new StringFacade(string_);
-    expect(facade.backingObject).to.equal(string_);
+    expect(facade.encapsulatedObject).to.equal(string_);
   });
 
   it('should compare two StringFacade instances', (): void => {

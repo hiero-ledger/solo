@@ -10,41 +10,45 @@ import {MutableBackedArrayList} from '../../collection/mutable-backed-array-list
 export class Deployment implements Facade<DeploymentSchema> {
   private readonly clusterList: BackedArrayList<StringFacade, string>;
 
-  public constructor(public readonly backingObject: DeploymentSchema) {
+  public constructor(public readonly encapsulatedObject: DeploymentSchema) {
     // eslint-disable-next-line @typescript-eslint/no-wrapper-object-types
-    this.clusterList = new MutableBackedArrayList<StringFacade, String>(StringFacade, String, backingObject.clusters);
+    this.clusterList = new MutableBackedArrayList<StringFacade, String>(
+      StringFacade,
+      String,
+      encapsulatedObject.clusters,
+    );
   }
 
   public get name(): string {
-    return this.backingObject.name;
+    return this.encapsulatedObject.name;
   }
 
   public set name(name: string) {
-    this.backingObject.name = name;
+    this.encapsulatedObject.name = name;
   }
 
   public get namespace(): string {
-    return this.backingObject.namespace;
+    return this.encapsulatedObject.namespace;
   }
 
   public set namespace(namespace: string) {
-    this.backingObject.namespace = namespace;
+    this.encapsulatedObject.namespace = namespace;
   }
 
   public get realm(): Realm {
-    return this.backingObject.realm;
+    return this.encapsulatedObject.realm;
   }
 
   public set realm(realm: Realm) {
-    this.backingObject.realm = realm;
+    this.encapsulatedObject.realm = realm;
   }
 
   public get shard(): Shard {
-    return this.backingObject.shard;
+    return this.encapsulatedObject.shard;
   }
 
   public set shard(shard: Shard) {
-    this.backingObject.shard = shard;
+    this.encapsulatedObject.shard = shard;
   }
 
   public get clusters(): BackedArrayList<StringFacade, string> {

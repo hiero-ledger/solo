@@ -21,22 +21,22 @@ export class LocalConfig implements Facade<LocalConfigSchema> {
   private readonly _userIdentity: UserIdentity;
   private readonly _versions: ApplicationVersions;
 
-  public constructor(public readonly backingObject: LocalConfigSchema) {
+  public constructor(public readonly encapsulatedObject: LocalConfigSchema) {
     // eslint-disable-next-line @typescript-eslint/no-wrapper-object-types
     this._clusterRefs = new MutableBackedMap<string, StringFacade, String>(
       StringFacade,
       String,
-      backingObject.clusterRefs ?? new Map<string, string>(),
+      encapsulatedObject.clusterRefs ?? new Map<string, string>(),
     );
 
     this._deployments = new MutableBackedArrayList<Deployment, DeploymentSchema>(
       Deployment,
       DeploymentSchema,
-      backingObject.deployments ?? [],
+      encapsulatedObject.deployments ?? [],
     );
 
-    this._userIdentity = new UserIdentity(backingObject.userIdentity ?? new UserIdentitySchema());
-    this._versions = new ApplicationVersions(backingObject.versions ?? new ApplicationVersionsSchema());
+    this._userIdentity = new UserIdentity(encapsulatedObject.userIdentity ?? new UserIdentitySchema());
+    this._versions = new ApplicationVersions(encapsulatedObject.versions ?? new ApplicationVersionsSchema());
   }
 
   public get deployments(): MutableBackedArrayList<Deployment, DeploymentSchema> {

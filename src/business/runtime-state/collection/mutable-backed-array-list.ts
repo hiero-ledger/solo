@@ -9,14 +9,14 @@ export class MutableBackedArrayList<T extends Facade<B>, B> implements BackedArr
   private readonly facadeArray: T[];
 
   public constructor(
-    private readonly facadeObjectCtor: FacadeObjectConstructor<T, B>,
-    private readonly backingObjectCtor: ClassConstructor<B>,
+    private readonly facadeObjectConstructor: FacadeObjectConstructor<T, B>,
+    private readonly backingObjectConstructor: ClassConstructor<B>,
     private readonly backingArray: B[],
   ) {
     this.facadeArray = [];
 
     for (const backingObject of backingArray) {
-      const facadeObject: T = new this.facadeObjectCtor(backingObject);
+      const facadeObject: T = new this.facadeObjectConstructor(backingObject);
       this.facadeArray.push(facadeObject);
     }
   }
@@ -26,14 +26,14 @@ export class MutableBackedArrayList<T extends Facade<B>, B> implements BackedArr
   }
 
   public add(value: T): void {
-    const backingObject: B = value.backingObject;
+    const backingObject: B = value.encapsulatedObject;
     this.facadeArray.push(value);
     this.backingArray.push(backingObject);
   }
 
   public addNew(): T {
-    const backingObject: B = new this.backingObjectCtor();
-    const facadeObject: T = new this.facadeObjectCtor(backingObject);
+    const encapsulatedObject: B = new this.backingObjectConstructor();
+    const facadeObject: T = new this.facadeObjectConstructor(encapsulatedObject);
     this.add(facadeObject);
 
     return facadeObject;
@@ -51,7 +51,7 @@ export class MutableBackedArrayList<T extends Facade<B>, B> implements BackedArr
 
   public set(index: number, value: T): void {
     this.facadeArray[index] = value;
-    this.backingArray[index] = value.backingObject;
+    this.backingArray[index] = value.encapsulatedObject;
   }
 
   public indexOf(value: T): number {
@@ -81,7 +81,7 @@ export class MutableBackedArrayList<T extends Facade<B>, B> implements BackedArr
       this.facadeArray.splice(facadeIndex, 1);
     }
 
-    const backingIndex: number = this.backingArray.indexOf(value.backingObject);
+    const backingIndex: number = this.backingArray.indexOf(value.encapsulatedObject);
 
     if (backingIndex !== -1) {
       this.backingArray.splice(backingIndex, 1);

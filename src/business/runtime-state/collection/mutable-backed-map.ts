@@ -35,7 +35,7 @@ export class MutableBackedMap<K, V extends Facade<BV>, BV> implements BackedMap<
   }
 
   public set(key: K, value: V): void {
-    const backingObject: BV = value.backingObject;
+    const backingObject: BV = value.encapsulatedObject;
     this.facadeMap.set(key, value);
     this.backingMap.set(key, backingObject);
   }
