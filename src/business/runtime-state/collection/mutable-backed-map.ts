@@ -9,21 +9,21 @@ export class MutableBackedMap<K, V extends Facade<BV>, BV> implements BackedMap<
   private readonly facadeMap: Map<K, V>;
 
   public constructor(
-    private readonly facadeObjectCtor: FacadeObjectConstructor<V, BV>,
-    private readonly backingObjectCtor: ClassConstructor<BV>,
+    private readonly facadeObjectConstructor: FacadeObjectConstructor<V, BV>,
+    private readonly backingObjectConstructor: ClassConstructor<BV>,
     private readonly backingMap: Map<K, BV>,
   ) {
     this.facadeMap = new Map<K, V>();
 
     for (const [key, backingObject] of backingMap.entries()) {
-      const facadeObject: V = new this.facadeObjectCtor(backingObject);
+      const facadeObject: V = new this.facadeObjectConstructor(backingObject);
       this.facadeMap.set(key, facadeObject);
     }
   }
 
   public addNew(key: K): V {
-    const backingObject: BV = new this.backingObjectCtor();
-    const facadeObject: V = new this.facadeObjectCtor(backingObject);
+    const backingObject: BV = new this.backingObjectConstructor();
+    const facadeObject: V = new this.facadeObjectConstructor(backingObject);
     this.facadeMap.set(key, facadeObject);
     this.backingMap.set(key, backingObject);
 
