@@ -9,29 +9,32 @@ import * as constants from '../core/constants.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {type AnyYargs, type ArgvStruct} from '../types/aliases.js';
+import {AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
-import {MirrorNodeExplorerComponent} from '../core/config/remote/components/mirror-node-explorer-component.js';
+import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
-import {type CommandDefinition, type Optional, type SoloListrTask} from '../types/index.js';
+import {
+  type ClusterReference,
+  type CommandDefinition,
+  ComponentId,
+  type Context,
+  type Optional,
+  type SoloListrTask,
+} from '../types/index.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterChecks} from '../core/cluster-checks.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {KeyManager} from '../core/key-manager.js';
-import {
-  EXPLORER_INGRESS_CONTROLLER,
-  EXPLORER_INGRESS_TLS_SECRET_NAME,
-  EXPLORER_CHART_URL,
-  INGRESS_CONTROLLER_PREFIX,
-} from '../core/constants.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {type ClusterReference, type Context} from '../types/index.js';
-import * as helpers from '../core/helpers.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {ListrRemoteConfig} from '../core/config/remote/listr-config-tasks.js';
+import {ExplorerState} from '../data/schema/model/remote/state/explorer-state.js';
+import {ComponentDataApi} from '../core/config/remote/api/component-data-api.js';
+import {Lock} from '../core/lock/lock.js';
+import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -55,6 +58,8 @@ interface ExplorerDeployConfigClass {
   getUnusedConfigs: () => string[];
   soloChartVersion: string;
   domainName: Optional<string>;
+  releaseName: string;
+  ingressReleaseName: string;
 }
 
 interface ExplorerDeployContext {
@@ -68,6 +73,9 @@ interface ExplorerDestroyContext {
     clusterReference: ClusterReference;
     namespace: NamespaceName;
     isChartInstalled: boolean;
+    id: ComponentId;
+    releaseName: string;
+    ingressReleaseName: string;
   };
 }
 
@@ -114,7 +122,7 @@ export class ExplorerCommand extends BaseCommand {
   };
 
   private static readonly DESTROY_FLAGS_LIST = {
-    required: [],
+    required: [flags.id],
     optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.deployment],
   };
 
@@ -136,15 +144,15 @@ export class ExplorerCommand extends BaseCommand {
 
     if (config.enableIngress) {
       valuesArgument += ' --set ingress.enabled=true';
-      valuesArgument += ` --set ingressClassName=${constants.EXPLORER_INGRESS_CLASS_NAME}`;
+      valuesArgument += ` --set ingressClassName=${config.ingressReleaseName}`;
     }
-    valuesArgument += ` --set fullnameOverride=${constants.EXPLORER_RELEASE_NAME}`;
+    valuesArgument += ` --set fullnameOverride=${config.releaseName}`;
 
     if (config.mirrorNamespace) {
       // use fully qualified service name for mirror node since the explorer is in a different namespace
-      valuesArgument += ` --set proxyPass./api="http://${constants.MIRROR_NODE_RELEASE_NAME}-rest.${config.mirrorNamespace}.svc.cluster.local" `;
+      valuesArgument += ` --set proxyPass./api="http://${config.releaseName}-rest.${config.mirrorNamespace}.svc.cluster.local" `;
     } else {
-      valuesArgument += ` --set proxyPass./api="http://${constants.MIRROR_NODE_RELEASE_NAME}-rest" `;
+      valuesArgument += ` --set proxyPass./api="http://${config.releaseName}-rest" `;
     }
 
     if (config.domainName) {
@@ -160,7 +168,7 @@ export class ExplorerCommand extends BaseCommand {
           config.namespace,
           config.domainName,
           config.cacheDir,
-          EXPLORER_INGRESS_TLS_SECRET_NAME,
+          constants.EXPLORER_INGRESS_TLS_SECRET_NAME,
         );
 
         if (config.enableIngress) {
@@ -208,6 +216,20 @@ export class ExplorerCommand extends BaseCommand {
       valuesArgument += prepareValuesFiles(config.valuesFile);
     }
     return valuesArgument;
+  }
+
+  private getReleaseName(id: ComponentId): string {
+    if (!id) {
+      id = (this.remoteConfigManager as any as ComponentDataApi).getNewComponentId(ComponentTypes.Explorers);
+    }
+    return `${constants.EXPLORER_RELEASE_NAME}-${id}`;
+  }
+
+  private getIngressReleaseName(id: ComponentId): string {
+    if (!id) {
+      id = (this.remoteConfigManager as any as ComponentDataApi).getNewComponentId(ComponentTypes.Explorers);
+    }
+    return `${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}-${id}`;
   }
 
   private async deploy(argv: ArgvStruct): Promise<boolean> {
@@ -333,14 +355,14 @@ export class ExplorerCommand extends BaseCommand {
 
             await self.chartManager.install(
               config.namespace,
-              constants.EXPLORER_RELEASE_NAME,
+              config.releaseName,
               '',
-              EXPLORER_CHART_URL,
+              constants.EXPLORER_CHART_URL,
               config.explorerVersion,
               exploreValuesArgument,
               context_.config.clusterContext,
             );
-            showVersionBanner(self.logger, constants.EXPLORER_RELEASE_NAME, config.explorerVersion);
+            showVersionBanner(self.logger, config.releaseName, config.explorerVersion);
           },
         },
         {
@@ -353,34 +375,31 @@ export class ExplorerCommand extends BaseCommand {
             if (config.explorerStaticIp !== '') {
               explorerIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${config.explorerStaticIp}`;
             }
-            explorerIngressControllerValuesArgument += ` --set fullnameOverride=${EXPLORER_INGRESS_CONTROLLER}`;
-            explorerIngressControllerValuesArgument += ` --set controller.ingressClass=${constants.EXPLORER_INGRESS_CLASS_NAME}`;
-            explorerIngressControllerValuesArgument += ` --set controller.extraArgs.controller-class=${constants.EXPLORER_INGRESS_CONTROLLER}`;
+            explorerIngressControllerValuesArgument += ` --set fullnameOverride=${config.ingressReleaseName}`;
+            explorerIngressControllerValuesArgument += ` --set controller.ingressClass=${config.ingressReleaseName}`;
+            explorerIngressControllerValuesArgument += ` --set controller.extraArgs.controller-class=${config.ingressReleaseName}`;
             if (config.tlsClusterIssuerType === 'self-signed') {
               explorerIngressControllerValuesArgument += prepareValuesFiles(config.ingressControllerValueFile);
             }
 
             await self.chartManager.install(
               config.namespace,
-              constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME,
+              config.ingressReleaseName,
               constants.INGRESS_CONTROLLER_RELEASE_NAME,
               constants.INGRESS_CONTROLLER_RELEASE_NAME,
               INGRESS_CONTROLLER_VERSION,
               explorerIngressControllerValuesArgument,
               context_.config.clusterContext,
             );
-            showVersionBanner(
-              self.logger,
-              constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME,
-              INGRESS_CONTROLLER_VERSION,
-            );
+
+            showVersionBanner(self.logger, config.ingressReleaseName, INGRESS_CONTROLLER_VERSION);
 
             // patch explorer ingress to use h1 protocol, haproxy ingress controller default backend protocol is h2
             // to support grpc over http/2
             await this.k8Factory
               .getK8(context_.config.clusterContext)
               .ingresses()
-              .update(config.namespace, constants.EXPLORER_RELEASE_NAME, {
+              .update(config.namespace, config.releaseName, {
                 metadata: {
                   annotations: {
                     'haproxy-ingress.github.io/backend-protocol': 'h1',
@@ -390,7 +409,7 @@ export class ExplorerCommand extends BaseCommand {
             await this.k8Factory
               .getK8(context_.config.clusterContext)
               .ingressClasses()
-              .create(constants.EXPLORER_INGRESS_CLASS_NAME, INGRESS_CONTROLLER_PREFIX + EXPLORER_INGRESS_CONTROLLER);
+              .create(config.ingressReleaseName, constants.INGRESS_CONTROLLER_PREFIX + config.ingressReleaseName);
           },
           skip: context_ => !context_.config.enableIngress,
         },
@@ -417,8 +436,8 @@ export class ExplorerCommand extends BaseCommand {
               .waitForReadyStatus(
                 context_.config.namespace,
                 [
-                  `app.kubernetes.io/name=${constants.INGRESS_CONTROLLER_RELEASE_NAME}`,
-                  `app.kubernetes.io/instance=${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}`,
+                  `app.kubernetes.io/name=${context_.config.ingressReleaseName}`,
+                  `app.kubernetes.io/instance=${context_.config.ingressReleaseName}`,
                 ],
                 constants.PODS_READY_MAX_ATTEMPTS,
                 constants.PODS_READY_DELAY,
@@ -447,16 +466,16 @@ export class ExplorerCommand extends BaseCommand {
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
-    const self = this;
-    const lease = await self.leaseManager.create();
+    const self: this = this;
+    const lease: Lock = await self.leaseManager.create();
 
-    const tasks = new Listr<ExplorerDestroyContext>(
+    const tasks: Listr<ExplorerDestroyContext> = new Listr<ExplorerDestroyContext>(
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<AnyListrContext> => {
             if (!argv.force) {
-              const confirmResult = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
+              const confirmResult: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
                 default: false,
                 message: 'Are you sure you would like to destroy the explorer?',
               });
@@ -467,23 +486,29 @@ export class ExplorerCommand extends BaseCommand {
             }
 
             self.configManager.update(argv);
-            const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+            const namespace: NamespaceName = await resolveNamespaceFromDeployment(
+              this.localConfig,
+              this.configManager,
+              task,
+            );
 
             const clusterReference: ClusterReference = this.configManager.hasFlag(flags.clusterRef)
               ? this.configManager.getFlag(flags.clusterRef)
               : this.remoteConfigManager.currentCluster;
 
             const clusterContext: Context = this.localConfig.clusterRefs.get(clusterReference);
+            const id: ComponentId = this.configManager.getFlag(flags.id);
+            const releaseName: string = this.getReleaseName(id);
+            const ingressReleaseName: string = this.getIngressReleaseName(id);
 
             context_.config = {
               namespace,
               clusterContext,
               clusterReference,
-              isChartInstalled: await this.chartManager.isChartInstalled(
-                namespace,
-                constants.EXPLORER_RELEASE_NAME,
-                clusterContext,
-              ),
+              id,
+              releaseName,
+              ingressReleaseName,
+              isChartInstalled: await this.chartManager.isChartInstalled(namespace, releaseName, clusterContext),
             };
 
             if (!(await self.k8Factory.getK8(context_.config.clusterContext).namespaces().has(namespace))) {
@@ -496,10 +521,10 @@ export class ExplorerCommand extends BaseCommand {
         ListrRemoteConfig.loadRemoteConfig(this.remoteConfigManager, argv),
         {
           title: 'Destroy explorer',
-          task: async context_ => {
+          task: async (context_): Promise<void> => {
             await this.chartManager.uninstall(
               context_.config.namespace,
-              constants.EXPLORER_RELEASE_NAME,
+              context_.config.releaseName,
               context_.config.clusterContext,
             );
           },
@@ -508,21 +533,18 @@ export class ExplorerCommand extends BaseCommand {
         {
           title: 'Uninstall explorer ingress controller',
           task: async context_ => {
-            await this.chartManager.uninstall(
-              context_.config.namespace,
-              constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME,
-            );
+            await this.chartManager.uninstall(context_.config.namespace, context_.config.ingressReleaseName);
             // delete ingress class if found one
-            const existingIngressClasses = await this.k8Factory
+            const existingIngressClasses: IngressClass[] = await this.k8Factory
               .getK8(context_.config.clusterContext)
               .ingressClasses()
               .list();
-            existingIngressClasses.map(ingressClass => {
-              if (ingressClass.name === constants.EXPLORER_INGRESS_CLASS_NAME) {
+            existingIngressClasses.map((ingressClass: IngressClass): void => {
+              if (ingressClass.name === context_.config.ingressReleaseName) {
                 this.k8Factory
                   .getK8(context_.config.clusterContext)
                   .ingressClasses()
-                  .delete(constants.EXPLORER_INGRESS_CLASS_NAME);
+                  .delete(context_.config.ingressReleaseName);
               }
             });
           },
@@ -612,9 +634,9 @@ export class ExplorerCommand extends BaseCommand {
     return {
       title: 'Remove explorer from remote config',
       skip: (): boolean => !this.remoteConfigManager.isLoaded(),
-      task: async (): Promise<void> => {
+      task: async (context_): Promise<void> => {
         await this.remoteConfigManager.modify(async remoteConfig => {
-          remoteConfig.components.remove('mirrorNodeExplorer', ComponentTypes.MirrorNodeExplorer);
+          await remoteConfig.components.removeById(ComponentTypes.Explorers, context_.config.id);
         });
       },
     };
@@ -630,9 +652,12 @@ export class ExplorerCommand extends BaseCommand {
           const {
             config: {namespace, clusterRef},
           } = context_;
-          remoteConfig.components.add(
-            new MirrorNodeExplorerComponent('mirrorNodeExplorer', clusterRef, namespace.name),
+          const explorerComponent: ExplorerState = this.componentFactory.createNewExplorerComponent(
+            clusterRef,
+            namespace,
           );
+
+          remoteConfig.components.add(explorerComponent);
         });
       },
     };
