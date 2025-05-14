@@ -278,6 +278,8 @@ export class BlockNodeCommand extends BaseCommand {
           const config: BlockNodeDeployConfigClass = context_.config;
 
           remoteConfig.components.add(config.newBlockNodeComponent);
+
+          (this.remoteConfigManager as any as ComponentDataApi).updateHighestComponentId(ComponentTypes.BlockNode);
         });
       },
     };

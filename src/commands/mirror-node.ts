@@ -973,6 +973,8 @@ export class MirrorNodeCommand extends BaseCommand {
           );
 
           remoteConfig.components.add(mirrorNodeComponent);
+
+          (this.remoteConfigManager as any as ComponentDataApi).updateHighestComponentId(ComponentTypes.MirrorNode);
         });
       },
     };

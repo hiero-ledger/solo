@@ -573,6 +573,8 @@ export class RelayCommand extends BaseCommand {
           );
 
           remoteConfig.components.add(relayComponent);
+
+          (this.remoteConfigManager as any as ComponentDataApi).updateHighestComponentId(ComponentTypes.RelayNodes);
         });
       },
     };

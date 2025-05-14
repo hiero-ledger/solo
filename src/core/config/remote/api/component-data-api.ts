@@ -5,4 +5,5 @@ import {type ComponentId} from '../../../../types/index.js';
 
 export interface ComponentDataApi {
   getNewComponentId(type: ComponentTypes): ComponentId;
+  updateHighestComponentId(type: ComponentTypes): void;
 }

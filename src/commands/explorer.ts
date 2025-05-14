@@ -658,6 +658,8 @@ export class ExplorerCommand extends BaseCommand {
           );
 
           remoteConfig.components.add(explorerComponent);
+
+          (this.remoteConfigManager as any as ComponentDataApi).updateHighestComponentId(ComponentTypes.Explorers);
         });
       },
     };
