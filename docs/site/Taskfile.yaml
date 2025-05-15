@@ -16,7 +16,6 @@ vars:
   hugo_base_url: "${HUGO_ORIGIN}${HUGO_SOLO_VERSION}/"
   hugo_local_base_url: "${HUGO_LOCAL_ORIGIN}${HUGO_SOLO_VERSION}/"
 
-# TODO - add version env variable base URL and print to console
 tasks:
   default:
     desc: "List all available tasks"
@@ -66,6 +65,7 @@ tasks:
       - task: "build:cli:help"
       - task: "solo:version"
       - task: "build:hugo"
+      - task: "build:doc:artifacts"
 
   build:solo:
     desc: "Build the Solo CLI"
@@ -89,7 +89,6 @@ tasks:
       - solo.ts
       - docs/site/generate_help.sh
     generates:
-      - dist/**/*.js
       - docs/site/content/en/docs/solo-commands.md
     cmds:
       - rm -f docs/site/content/en/docs/solo-commands.md
@@ -277,9 +276,9 @@ tasks:
     silent: true
     cmds:
       - |
-        TASK_TEMP_DIR=docs/site/.task/temp
-        SOLO_VERSION_FILE=$TASK_TEMP_DIR/version.txt
-        mkdir -p $TASK_TEMP_DIR
+        BUILD_DIR=docs/site/build
+        SOLO_VERSION_FILE=$BUILD_DIR/version.txt
+        mkdir -p $BUILD_DIR
         echo -n "v$(node -p "require('./package.json').version")" > $SOLO_VERSION_FILE
         SOLO_VERSION=$(<"$SOLO_VERSION_FILE")
         SOLO_VERSION=$(echo "$SOLO_VERSION" | tr -d '\r\n[:space:]')
@@ -292,7 +291,6 @@ tasks:
           echo "building latest redirect to this version..."
           rm -Rf docs/site/public/latest 
           mkdir -p docs/site/public/latest
-          # create a copy of docs/site/public/index.html in docs/site/public/latest except to change /latest to /<value of (cat $SOLO_VERSION_FILE)>
           sed -e "s|/latest|/${SOLO_VERSION}|g" docs/site/public/index.html > docs/site/public/latest/index.html 
         else
           echo "Building for main, not redirecting to latest version..."
@@ -302,8 +300,17 @@ tasks:
     desc: "Display the latest version of the Solo CLI from https://www.npmjs.com/package/@hashgraph/solo"
     silent: true
     cmds:
-        - |
-          LATEST_VERSION=$(curl -s https://registry.npmjs.org/@hashgraph/solo/latest | jq -r '.version')
-          echo "Latest version of Solo CLI from https://www.npmjs.com/package/@hashgraph/solo: $LATEST_VERSION"
-          mkdir -p .task/temp
-          echo -n "v$LATEST_VERSION" > .task/temp/npmjs-latest-version.txt
+      - |
+        LATEST_VERSION=$(curl -s https://registry.npmjs.org/@hashgraph/solo/latest | jq -r '.version')
+        echo "Latest version of Solo CLI from https://www.npmjs.com/package/@hashgraph/solo: $LATEST_VERSION"
+        mkdir -p build
+        echo -n "v$LATEST_VERSION" > build/npmjs-latest-version.txt
+
+  build:doc:artifacts:
+    desc: "Builds a ./build/latest.tar.gz file with the ./public/latest directory and a ./build/${SOLO_VERSION}.tar.gz file with the ./public/${SOLO_VERSION} directory"
+    cmds:
+      - |
+        mkdir -p build
+        cd public
+        tar -czf ../build/latest.tar.gz latest
+        tar -czf ../build/${HUGO_SOLO_VERSION}.tar.gz ${HUGO_SOLO_VERSION}
