@@ -307,10 +307,13 @@ tasks:
         echo -n "v$LATEST_VERSION" > build/npmjs-latest-version.txt
 
   build:doc:artifacts:
-    desc: "Builds a ./build/latest.tar.gz file with the ./public/latest directory and a ./build/${SOLO_VERSION}.tar.gz file with the ./public/${SOLO_VERSION} directory"
+    desc: "Builds a ./build/latest.tar.gz file and a ./build/${SOLO_VERSION}.tar.gz file from the directories in the public directory"
     cmds:
       - |
         mkdir -p build
         cd public
         tar -czf ../build/latest.tar.gz latest
         tar -czf ../build/${HUGO_SOLO_VERSION}.tar.gz ${HUGO_SOLO_VERSION}
+        cd ..
+
+# TODO why is it creating a docs/site/docs/site/.task/temp directory?
