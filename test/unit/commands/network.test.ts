@@ -40,7 +40,7 @@ import {SemVer, lt as SemVersionLessThan} from 'semver';
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
-import {type LocalConfig} from '../../../src/data/schema/model/local/local-config.js';
+import {type LocalConfig} from '../../../src/data/schema/model/local/local-config-schema.js';
 import {type ClusterReferences} from '../../../src/types/index.js';
 
 const testName = 'network-cmd-unit';

@@ -3,7 +3,7 @@
 import {expect} from 'chai';
 import sinon from 'sinon';
 import {RemoteConfigSource} from '../../../../../src/data/configuration/impl/remote-config-source.js';
-import {RemoteConfigSchema} from '../../../../../src/data/schema/migration/impl/remote/remote-config-schema.js';
+import {RemoteConfigSchema} from '../../../../../src/data/schema/migration/impl/remote/remote-config-schema-definition.js';
 import {SimpleObjectStorageBackend} from '../../../fixtures/simple-object-storage-backend.fixture.js';
 import {type ObjectMapper} from '../../../../../src/data/mapper/api/object-mapper.js';
 

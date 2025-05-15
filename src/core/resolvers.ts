@@ -8,7 +8,7 @@ import {type SoloListrTaskWrapper} from '../types/index.js';
 import {input as inputPrompt} from '@inquirer/prompts';
 import {SoloError} from './errors/solo-error.js';
 import {type AnyListrContext} from '../types/aliases.js';
-import {type LocalConfigRuntimeState} from '../business/runtime-state/local-config-runtime-state.js';
+import {type LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 
 export async function resolveNamespaceFromDeployment(
   localConfig: LocalConfigRuntimeState,
@@ -16,7 +16,7 @@ export async function resolveNamespaceFromDeployment(
   task?: SoloListrTaskWrapper<AnyListrContext>,
 ): Promise<NamespaceName> {
   const deploymentName: DeploymentName = await promptTheUserForDeployment(configManager, task);
-  return NamespaceName.of(localConfig.getDeployment(deploymentName).namespace);
+  return NamespaceName.of(localConfig.configuration.deploymentByName(deploymentName).namespace);
 }
 
 export async function promptTheUserForDeployment(

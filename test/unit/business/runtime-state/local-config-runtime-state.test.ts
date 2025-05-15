@@ -6,11 +6,11 @@ import {LocalConfigRuntimeState} from '../../../../src/business/runtime-state/lo
 import {DeploymentNotFoundError} from '../../../../src/business/errors/deployment-not-found-error.js';
 import {YamlFileStorageBackend} from '../../../../src/data/backend/impl/yaml-file-storage-backend.js';
 import {LocalConfigSource} from '../../../../src/data/configuration/impl/local-config-source.js';
-import {UserIdentity} from '../../../../src/data/schema/model/common/user-identity.js';
-import {LocalConfig} from '../../../../src/data/schema/model/local/local-config.js';
+import {UserIdentitySchema} from '../../../../src/data/schema/model/common/user-identity-schema.js';
+import {LocalConfig} from '../../../../src/data/schema/model/local/local-config-schema.js';
 import {ReadLocalConfigBeforeLoadError} from '../../../../src/business/errors/read-local-config-before-load-error.js';
 import {WriteLocalConfigBeforeLoadError} from '../../../../src/business/errors/write-local-config-before-load-error.js';
-import {type Deployment} from '../../../../src/data/schema/model/local/deployment.js';
+import {type DeploymentSchema} from '../../../../src/data/schema/model/local/deployment-schema.js';
 
 describe('LocalConfigRuntimeState', () => {
   let sandbox: sinon.SinonSandbox;
@@ -73,7 +73,7 @@ describe('LocalConfigRuntimeState', () => {
     // @ts-expect-error Accessing private property for testing
     mockedSource.properties.returns(true);
     // @ts-expect-error Accessing private property for testing
-    const deployments: Deployment[] = runtimeState.deployments;
+    const deployments: DeploymentSchema[] = runtimeState.deployments;
 
     expect(deployments).to.deep.equal([{name: 'deployment-1'}]);
   });
@@ -93,7 +93,7 @@ describe('LocalConfigRuntimeState', () => {
     // @ts-expect-error Accessing private property for testing
     mockedSource.modelData = new LocalConfig();
     await runtimeState.modify(async (data: LocalConfig) => {
-      data.userIdentity = new UserIdentity('john', 'doe');
+      data.userIdentity = new UserIdentitySchema('john', 'doe');
     });
 
     sinon.assert.calledOnce(mockedSource.persist);

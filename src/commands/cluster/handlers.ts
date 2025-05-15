@@ -11,7 +11,7 @@ import {CommandHandler} from '../../core/command-handler.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {type ClusterCommandConfigs} from './configs.js';
 import {type ArgvStruct} from '../../types/aliases.js';
-import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
+import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 
 @injectable()
 export class ClusterCommandHandlers extends CommandHandler {

@@ -12,7 +12,7 @@ import {ExplorerState} from './state/explorer-state.js';
 import {BlockNodeState} from './state/block-node-state.js';
 
 @Exclude()
-export class DeploymentState {
+export class DeploymentStateSchema {
   @Expose()
   @Transform(Transformations.LedgerPhase)
   public ledgerPhase: LedgerPhase;

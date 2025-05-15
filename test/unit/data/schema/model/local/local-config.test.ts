@@ -7,11 +7,11 @@ import {instanceToPlain} from 'class-transformer';
 import {SemVer} from 'semver';
 import {beforeEach} from 'mocha';
 import os from 'node:os';
-import {LocalConfig} from '../../../../../../src/data/schema/model/local/local-config.js';
-import {Deployment} from '../../../../../../src/data/schema/model/local/deployment.js';
-import {LocalConfigSchema} from '../../../../../../src/data/schema/migration/impl/local/local-config-schema.js';
+import {LocalConfig} from '../../../../../../src/data/schema/model/local/local-config-schema.js';
+import {DeploymentSchema} from '../../../../../../src/data/schema/model/local/deployment-schema.js';
+import {LocalConfigSchema} from '../../../../../../src/data/schema/migration/impl/local/local-config-schema-definition.js';
 import {ClassToObjectMapper} from '../../../../../../src/data/mapper/impl/class-to-object-mapper.js';
-import {ApplicationVersions} from '../../../../../../src/data/schema/model/common/application-versions.js';
+import {ApplicationVersionsSchema} from '../../../../../../src/data/schema/model/common/application-versions-schema.js';
 import {
   EXPLORER_VERSION,
   HEDERA_JSON_RPC_RELAY_VERSION,
@@ -59,9 +59,9 @@ describe('LocalConfig', () => {
     });
 
     it('should transform class to plain', async () => {
-      const deployments: Deployment[] = [
-        new Deployment('dual-cluster-full-deployment', 'dual-cluster-full', ['e2e-cluster-1', 'e2e-cluster-2'], 0, 0),
-        new Deployment('deployment', 'solo-e2e', ['cluster-1'], 0, 0),
+      const deployments: DeploymentSchema[] = [
+        new DeploymentSchema('dual-cluster-full-deployment', 'dual-cluster-full', ['e2e-cluster-1', 'e2e-cluster-2'], 0, 0),
+        new DeploymentSchema('deployment', 'solo-e2e', ['cluster-1'], 0, 0),
       ];
 
       const clusterReferences: ClusterReferences = new Map<string, string>();
@@ -70,7 +70,7 @@ describe('LocalConfig', () => {
       clusterReferences.set('e2e-cluster-1', 'kind-solo-e2e-c1');
       clusterReferences.set('e2e-cluster-2', 'kind-solo-e2e-c2');
 
-      const versions = new ApplicationVersions(
+      const versions = new ApplicationVersionsSchema(
         new SemVer(soloVersion),
         new SemVer(SOLO_CHART_VERSION),
         new SemVer(HEDERA_PLATFORM_VERSION),

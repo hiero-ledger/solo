@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {RemoteConfigSchema} from '../../../../../../../src/data/schema/migration/impl/remote/remote-config-schema.js';
+import {RemoteConfigSchema} from '../../../../../../../src/data/schema/migration/impl/remote/remote-config-schema-definition.js';
 import {RemoteConfigV1Migration} from '../../../../../../../src/data/schema/migration/impl/remote/remote-config-v1-migration.js';
 import {type ObjectMapper} from '../../../../../../../src/data/mapper/api/object-mapper.js';
 import {expect} from 'chai';
-import {RemoteConfig} from '../../../../../../../src/data/schema/model/remote/remote-config.js';
+import {RemoteConfigSchema} from '../../../../../../../src/data/schema/model/remote/remote-config-schema.js';
 import {type SchemaMigration} from '../../../../../../../src/data/schema/migration/api/schema-migration.js';
 
 describe('RemoteConfigSchema', () => {
@@ -26,12 +26,12 @@ describe('RemoteConfigSchema', () => {
 
   it('should return the correct version', () => {
     const schema: RemoteConfigSchema = new RemoteConfigSchema(objectMapper);
-    expect(schema.version).equal(RemoteConfig.SCHEMA_VERSION);
+    expect(schema.version).equal(RemoteConfigSchema.SCHEMA_VERSION);
   });
 
   it('should return the correct classCtor', () => {
     const schema: RemoteConfigSchema = new RemoteConfigSchema(objectMapper);
-    expect(schema.classCtor).equal(RemoteConfig);
+    expect(schema.classCtor).equal(RemoteConfigSchema);
   });
 
   it('should return a migrations array containing RemoteConfigV1Migration', () => {

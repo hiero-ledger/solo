@@ -25,7 +25,7 @@ import {Templates} from '../core/templates.js';
 import {Cluster} from '../core/config/remote/cluster.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {type Deployment} from '../data/schema/model/local/deployment.js';
+import {type DeploymentSchema} from '../data/schema/model/local/deployment-schema.js';
 import {ConsensusNodeStates} from '../core/config/remote/enumerations/consensus-node-states.js';
 import {DeploymentStates} from '../core/config/remote/enumerations/deployment-states.js';
 import {ConsensusNodeComponent} from '../core/config/remote/components/consensus-node-component.js';
@@ -128,7 +128,7 @@ export class DeploymentCommand extends BaseCommand {
 
             if (
               self.localConfig.deployments &&
-              self.localConfig.deployments.some((d: Deployment): boolean => d.name === context_.config.deployment)
+              self.localConfig.deployments.some((d: DeploymentSchema): boolean => d.name === context_.config.deployment)
             ) {
               throw new SoloError(ErrorMessages.DEPLOYMENT_NAME_ALREADY_EXISTS(context_.config.deployment));
             }
@@ -142,7 +142,7 @@ export class DeploymentCommand extends BaseCommand {
             const {namespace, deployment, realm, shard} = context_.config;
             task.title = `Adding deployment: ${deployment} with namespace: ${namespace.name} to local config`;
 
-            if (this.localConfig.deployments.some((d: Deployment): boolean => d.name === deployment)) {
+            if (this.localConfig.deployments.some((d: DeploymentSchema): boolean => d.name === deployment)) {
               throw new SoloError(`Deployment ${deployment} is already added to local config`);
             }
 
@@ -199,7 +199,7 @@ export class DeploymentCommand extends BaseCommand {
 
             if (
               !self.localConfig.deployments ||
-              !self.localConfig.deployments.some((d: Deployment): boolean => d.name === context_.config.deployment)
+              !self.localConfig.deployments.some((d: DeploymentSchema): boolean => d.name === context_.config.deployment)
             ) {
               throw new SoloError(ErrorMessages.DEPLOYMENT_NAME_ALREADY_EXISTS(context_.config.deployment));
             }

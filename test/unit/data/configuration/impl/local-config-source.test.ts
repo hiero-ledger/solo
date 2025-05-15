@@ -2,7 +2,7 @@
 
 import {expect} from 'chai';
 import {LocalConfigSource} from '../../../../../src/data/configuration/impl/local-config-source.js';
-import {LocalConfigSchema} from '../../../../../src/data/schema/migration/impl/local/local-config-schema.js';
+import {LocalConfigSchema} from '../../../../../src/data/schema/migration/impl/local/local-config-schema-definition.js';
 import {type ObjectMapper} from '../../../../../src/data/mapper/api/object-mapper.js';
 import {ClassToObjectMapper} from '../../../../../src/data/mapper/impl/class-to-object-mapper.js';
 import {ConfigKeyFormatter} from '../../../../../src/data/key/config-key-formatter.js';

@@ -6,7 +6,7 @@ import {expect} from 'chai';
 import {beforeEach} from 'mocha';
 import os from 'node:os';
 import {instanceToPlain, plainToInstance} from 'class-transformer';
-import {RemoteConfig} from '../../../../../../src/data/schema/model/remote/remote-config.js';
+import {RemoteConfigSchema} from '../../../../../../src/data/schema/model/remote/remote-config-schema.js';
 import {LedgerPhase} from '../../../../../../src/data/schema/model/remote/ledger-phase.js';
 import {DeploymentPhase} from '../../../../../../src/data/schema/model/remote/deployment-phase.js';
 type MigrationCandidate = any;
@@ -164,7 +164,7 @@ describe('RemoteConfig', (): void => {
       migrate(plainObject);
     });
 
-    function expectRemoteConfigClass(rc: RemoteConfig) {
+    function expectRemoteConfigClass(rc: RemoteConfigSchema) {
       expect(rc).to.not.be.undefined.and.to.not.be.null;
       expect(rc.history.commands.length).to.be.equal(9);
       expect(rc.versions.cli.version).to.equal('0.34.0');
@@ -203,20 +203,20 @@ describe('RemoteConfig', (): void => {
     }
 
     it('should transform plain to class', async (): Promise<void> => {
-      const rc: RemoteConfig = plainToInstance(RemoteConfig, plainObject);
+      const rc: RemoteConfigSchema = plainToInstance(RemoteConfigSchema, plainObject);
       expectRemoteConfigClass(rc);
     });
 
     it('should transform class to plain', async (): Promise<void> => {
-      const rc: RemoteConfig = plainToInstance(RemoteConfig, plainObject);
+      const rc: RemoteConfigSchema = plainToInstance(RemoteConfigSchema, plainObject);
       const plainRemoteConfigObject = instanceToPlain(rc);
       expectRemoteConfigPlain(plainRemoteConfigObject);
     });
 
     it('should be able to go from a class to an object back to a class', async (): Promise<void> => {
-      const rc: RemoteConfig = plainToInstance(RemoteConfig, plainObject);
+      const rc: RemoteConfigSchema = plainToInstance(RemoteConfigSchema, plainObject);
       const plainRemoteConfigObject = instanceToPlain(rc);
-      const rc2: RemoteConfig = plainToInstance(RemoteConfig, plainRemoteConfigObject);
+      const rc2: RemoteConfigSchema = plainToInstance(RemoteConfigSchema, plainRemoteConfigObject);
       expectRemoteConfigClass(rc2);
     });
   });
