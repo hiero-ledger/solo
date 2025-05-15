@@ -63,7 +63,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     //  https://github.com/hashgraph/solo/issues/1823
     //  Add logic for selecting by specific label,
     //  when multiple instances can be deployed at the same time.
-    return [constants.SOLO_HEDERA_EXPLORER_LABEL];
+    return [constants.SOLO_EXPLORER_LABEL];
   }
 
   private static getConsensusNodeLabels(component: BaseState): string[] {

@@ -403,10 +403,10 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       remoteConfig.versions.mirrorNodeChart = new SemVer(flags.mirrorNodeVersion.definition.defaultValue as string);
     }
 
-    if (argv[flags.hederaExplorerVersion.name]) {
-      remoteConfig.versions.explorerChart = new SemVer(argv[flags.hederaExplorerVersion.name]);
+    if (argv[flags.explorerVersion.name]) {
+      remoteConfig.versions.explorerChart = new SemVer(argv[flags.explorerVersion.name]);
     } else if (command === 'explorer' && subcommand === 'deploy') {
-      remoteConfig.versions.explorerChart = new SemVer(flags.hederaExplorerVersion.definition.defaultValue as string);
+      remoteConfig.versions.explorerChart = new SemVer(flags.explorerVersion.definition.defaultValue as string);
     }
 
     if (argv[flags.relayReleaseTag.name]) {
