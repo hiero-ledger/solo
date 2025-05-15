@@ -7,7 +7,7 @@ import {type Version} from '../../../../business/utils/version.js';
 /**
  * Defines a schema which can be used to convert input data into a model instance.
  */
-export interface Schema<T> {
+export interface SchemaDefinition<T> {
   /**
    * The name of the schema. Schema name are unique and should be related to the specific configuration model which
    * the schema represents.

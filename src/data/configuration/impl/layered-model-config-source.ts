@@ -2,7 +2,7 @@
 
 import {LayeredConfigSource} from './layered-config-source.js';
 import {type ObjectMapper} from '../../mapper/api/object-mapper.js';
-import {type Schema} from '../../schema/migration/api/schema.js';
+import {type SchemaDefinition} from '../../schema/migration/api/schema-definition.js';
 import {ReflectAssist} from '../../../business/utils/reflect-assist.js';
 import {ConfigurationError} from '../api/configuration-error.js';
 import {IllegalArgumentError} from '../../../business/errors/illegal-argument-error.js';
@@ -26,7 +26,7 @@ export abstract class LayeredModelConfigSource<T extends object>
 
   protected constructor(
     protected readonly key: string,
-    public readonly schema: Schema<T>,
+    public readonly schema: SchemaDefinition<T>,
     backend: ObjectStorageBackend,
     mapper: ObjectMapper,
     prefix?: string,

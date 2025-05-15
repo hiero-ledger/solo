@@ -5,7 +5,7 @@ import {SemVer} from 'semver';
 import {Transformations} from '../utils/transformations.js';
 
 @Exclude()
-export class ApplicationVersions {
+export class ApplicationVersionsSchema {
   @Expose()
   @Transform(Transformations.SemVer)
   public cli: SemVer;

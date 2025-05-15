@@ -14,7 +14,7 @@ import {type ConfigManager} from '../../core/config-manager.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {type ChartManager} from '../../core/chart-manager.js';
 import {type ArgvStruct} from '../../types/aliases.js';
-import {type SoloListrTaskWrapper} from '../../types/index.js';
+import {type ClusterReference, type SoloListrTaskWrapper} from '../../types/index.js';
 import {type ClusterReferenceDefaultConfigClass} from './config-interfaces/cluster-reference-default-config-class.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type ClusterReferenceResetContext} from './config-interfaces/cluster-reference-reset-context.js';
@@ -24,8 +24,7 @@ import {type ClusterReferenceDefaultContext} from './config-interfaces/cluster-r
 import {type ClusterReferenceSetupContext} from './config-interfaces/cluster-reference-setup-context.js';
 import {type ClusterReferenceSetupConfigClass} from './config-interfaces/cluster-reference-setup-config-class.js';
 import {type ClusterReferenceResetConfigClass} from './config-interfaces/cluster-reference-reset-config-class.js';
-import {type ClusterReference} from '../../types/index.js';
-import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
+import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 
 @injectable()
 export class ClusterCommandConfigs {
@@ -119,7 +118,8 @@ export class ClusterCommandConfigs {
     );
 
     context_.config.context =
-      this.localConfig.clusterRefs.get(context_.config.clusterRef) ?? this.k8Factory.default().contexts().readCurrent();
+      this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString() ??
+      this.k8Factory.default().contexts().readCurrent();
 
     return context_.config;
   }

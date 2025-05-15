@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type Schema} from './schema.js';
+import {type SchemaDefinition} from './schema-definition.js';
 import {type SchemaMigration} from './schema-migration.js';
 import {Version} from '../../../../business/utils/version.js';
 import {type ClassConstructor} from '../../../../business/utils/class-constructor.type.js';
 import {type ObjectMapper} from '../../../mapper/api/object-mapper.js';
 import {SchemaValidationError} from './schema-validation-error.js';
 
-export abstract class SchemaBase<T> implements Schema<T> {
+export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
   public abstract get classCtor(): ClassConstructor<T>;
   public abstract get migrations(): SchemaMigration[];
   public abstract get name(): string;
