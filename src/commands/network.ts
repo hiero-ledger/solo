@@ -9,7 +9,6 @@ import {UserBreak} from '../core/errors/user-break.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
-import {SOLO_DEPLOYMENT_CHART} from '../core/constants.js';
 import {Templates} from '../core/templates.js';
 import {
   addDebugOptions,
@@ -59,9 +58,11 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {ConsensusNodeStates} from '../core/config/remote/enumerations/consensus-node-states.js';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {Deployment} from '../business/runtime-state/config/local/deployment.js';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
+import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 
 export interface NetworkDeployConfigClass {
   applicationEnv: string;

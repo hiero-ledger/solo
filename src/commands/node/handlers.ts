@@ -27,7 +27,7 @@ import {type NodeUpgradeContext} from './config-interfaces/node-upgrade-context.
 import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
 import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
 import {Templates} from '../../core/templates.js';
-import {ConsensusNodeState} from '../../data/schema/model/remote/state/consensus-node-state.js';
+import {ConsensusNodeStateSchema} from '../../data/schema/model/remote/state/consensus-node-state-schema.js';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {ComponentsDataWrapperApi} from '../../core/config/remote/api/components-data-wrapper-api.js';
 
@@ -1006,9 +1006,9 @@ export class NodeCommandHandlers extends CommandHandler {
     acceptedPhases: Optional<DeploymentPhase[]>,
     excludedPhases: Optional<DeploymentPhase[]>,
   ): DeploymentPhase {
-    let nodeComponent: ConsensusNodeState;
+    let nodeComponent: ConsensusNodeStateSchema;
     try {
-      nodeComponent = components.getComponent<ConsensusNodeState>(
+      nodeComponent = components.getComponent<ConsensusNodeStateSchema>(
         ComponentTypes.ConsensusNode,
         Templates.nodeIdFromNodeAlias(nodeAlias),
       );

@@ -115,12 +115,12 @@ import {type NodeKeysConfigClass} from './config-interfaces/node-keys-config-cla
 import {type NodeStartConfigClass} from './config-interfaces/node-start-config-class.js';
 import {type CheckedNodesConfigClass, type CheckedNodesContext} from './config-interfaces/node-common-config-class.js';
 import {type NetworkNodeServices} from '../../core/network-node-services.js';
-import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
-import {Cluster} from '../../data/schema/model/common/cluster.js';
 import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
 import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {type ComponentFactoryApi} from '../../core/config/remote/api/component-factory-api.js';
+import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 
 @injectable()
 export class NodeCommandTasks {
@@ -2554,7 +2554,7 @@ export class NodeCommandTasks {
         const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
         const namespace: NamespaceName = context_.config.namespace;
         const clusterReference: ClusterReference = context_.config.clusterRef;
-        const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference);
+        const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
 
         task.title += `: ${nodeAlias}`;
 
@@ -2582,7 +2582,7 @@ export class NodeCommandTasks {
 
         // if the consensusNodes does not contain the nodeAlias then add it
         if (!context_.config.consensusNodes.some((node: ConsensusNode) => node.name === nodeAlias)) {
-          const cluster: Cluster = this.remoteConfig.clusters.find(cluster => cluster.name === clusterReference);
+          const cluster: ClusterSchema = this.remoteConfig.clusters.find(cluster => cluster.name === clusterReference);
 
           context_.config.consensusNodes.push(
             new ConsensusNode(

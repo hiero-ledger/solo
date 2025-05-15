@@ -34,7 +34,7 @@ import {type PodReference} from '../integration/kube/resources/pod/pod-reference
 import chalk from 'chalk';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
-import {BlockNodeState} from '../data/schema/model/remote/state/block-node-state.js';
+import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {ComponentStateMetadataSchema} from '../data/schema/model/remote/state/component-state-metadata-schema.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
@@ -53,7 +53,7 @@ interface BlockNodeDeployConfigClass {
   nodeAliases: NodeAliases; // from remote config
   context: string;
   valuesArg: string;
-  newBlockNodeComponent: BlockNodeState;
+  newBlockNodeComponent: BlockNodeStateSchema;
   releaseName: string;
 }
 
@@ -158,7 +158,7 @@ export class BlockNodeCommand extends BaseCommand {
 
             config.releaseName = this.getReleaseName();
 
-            config.newBlockNodeComponent = new BlockNodeState(
+            config.newBlockNodeComponent = new BlockNodeStateSchema(
               new ComponentStateMetadataSchema(1, config.namespace.name, config.clusterRef, DeploymentPhase.DEPLOYED),
             );
           },

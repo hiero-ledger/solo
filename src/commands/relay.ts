@@ -28,7 +28,7 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {Templates} from '../core/templates.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
-import {type RelayNodeState} from '../data/schema/model/remote/state/relay-node-state.js';
+import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
 interface RelayDestroyConfigClass {
@@ -574,10 +574,11 @@ export class RelayCommand extends BaseCommand {
         const clusterReference: ClusterReference = context_.config.clusterRef;
 
         await this.remoteConfig.modify(async (_, components) => {
-          const relayComponents: RelayNodeState[] = components.getComponentsByClusterReference<RelayNodeState>(
-            ComponentTypes.RelayNodes,
-            clusterReference,
-          );
+          const relayComponents: RelayNodeStateSchema[] =
+            components.getComponentsByClusterReference<RelayNodeStateSchema>(
+              ComponentTypes.RelayNodes,
+              clusterReference,
+            );
 
           for (const relayComponent of relayComponents) {
             components.removeComponent(relayComponent.metadata.id, ComponentTypes.RelayNodes);

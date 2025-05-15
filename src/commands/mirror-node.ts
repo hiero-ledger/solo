@@ -48,7 +48,7 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {type AccountId} from '@hashgraph/sdk';
-import {type MirrorNodeState} from '../data/schema/model/remote/state/mirror-node-state.js';
+import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
 interface MirrorNodeDeployConfigClass {
@@ -929,10 +929,11 @@ export class MirrorNodeCommand extends BaseCommand {
         const clusterReference: ClusterReference = context_.config.clusterRef;
 
         await this.remoteConfig.modify(async (_, components) => {
-          const mirrorNodeComponents: MirrorNodeState[] = components.getComponentsByClusterReference<MirrorNodeState>(
-            ComponentTypes.MirrorNode,
-            clusterReference,
-          );
+          const mirrorNodeComponents: MirrorNodeStateSchema[] =
+            components.getComponentsByClusterReference<MirrorNodeStateSchema>(
+              ComponentTypes.MirrorNode,
+              clusterReference,
+            );
 
           for (const mirrorNodeComponent of mirrorNodeComponents) {
             components.removeComponent(mirrorNodeComponent.metadata.id, ComponentTypes.MirrorNode);

@@ -25,13 +25,10 @@ import {type AnyYargs, type ArgvStruct, type NodeAliases} from '../types/aliases
 import {Templates} from '../core/templates.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {ConsensusNodeStates} from '../core/config/remote/enumerations/consensus-node-states.js';
 import {DeploymentStates} from '../core/config/remote/enumerations/deployment-states.js';
-import {type Deployment} from '../data/schema/model/local/deployment.js';
 import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
-import {ConsensusNodeComponent} from '../core/config/remote/components/consensus-node-component.js';
 import {StringFacade} from '../business/runtime-state/facade/string-facade.js';
 import {Deployment} from '../business/runtime-state/config/local/deployment.js';
 

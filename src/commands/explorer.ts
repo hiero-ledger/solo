@@ -18,8 +18,6 @@ import {Flags as flags} from './flags.js';
 import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as helpers from '../core/helpers.js';
-import {MirrorNodeExplorerComponent} from '../core/config/remote/components/mirror-node-explorer-component.js';
-import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {
   type ClusterReference,
@@ -37,7 +35,7 @@ import {KeyManager} from '../core/key-manager.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {type MirrorNodeState} from '../data/schema/model/remote/state/mirror-node-state.js';
+import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
 interface ExplorerDeployConfigClass {
@@ -635,10 +633,11 @@ export class ExplorerCommand extends BaseCommand {
         const clusterReference: ClusterReference = context_.config.clusterReference;
 
         await this.remoteConfig.modify(async (_, components) => {
-          const explorerComponents: MirrorNodeState[] = components.getComponentsByClusterReference<MirrorNodeState>(
-            ComponentTypes.Explorers,
-            clusterReference,
-          );
+          const explorerComponents: MirrorNodeStateSchema[] =
+            components.getComponentsByClusterReference<MirrorNodeStateSchema>(
+              ComponentTypes.Explorers,
+              clusterReference,
+            );
 
           for (const explorerComponent of explorerComponents) {
             components.removeComponent(explorerComponent.metadata.id, ComponentTypes.Explorers);
