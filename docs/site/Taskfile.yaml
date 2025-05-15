@@ -273,6 +273,7 @@ tasks:
   solo:version:
     desc: "Display the version of the Solo CLI from the package.json and write it to a file"
     dir: ../..
+    silent: true
     cmds:
       - |
         TASK_TEMP_DIR=docs/site/.task/temp
