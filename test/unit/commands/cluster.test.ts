@@ -4,7 +4,7 @@ import sinon from 'sinon';
 import {before, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
 
-import {HEDERA_PLATFORM_VERSION_TAG, getTestCluster} from '../../test-utility.js';
+import {getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import * as version from '../../../version.js';
 import * as constants from '../../../src/core/constants.js';
@@ -22,7 +22,7 @@ import {DefaultHelmClient} from '../../../src/integration/helm/impl/default-helm
 import {ClusterCommandHandlers} from '../../../src/commands/cluster/handlers.js';
 import {SoloWinstonLogger} from '../../../src/core/logging/solo-winston-logger.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
-import {LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
+import {LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 
 const getBaseCommandOptions = (context: string) => {
   const options = {

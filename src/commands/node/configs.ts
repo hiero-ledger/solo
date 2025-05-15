@@ -5,8 +5,8 @@ import * as constants from '../../core/constants.js';
 import {AccountId, PrivateKey} from '@hashgraph/sdk';
 import {SoloError} from '../../core/errors/solo-error.js';
 import * as helpers from '../../core/helpers.js';
-import fs from 'node:fs';
 import {checkNamespace} from '../../core/helpers.js';
+import fs from 'node:fs';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import {Flags as flags} from '../flags.js';
 import {type AnyObject, type ArgvStruct} from '../../types/aliases.js';
@@ -49,7 +49,7 @@ import {type NodeRestartConfigClass} from './config-interfaces/node-restart-conf
 import {type NodeRestartContext} from './config-interfaces/node-restart-context.js';
 import {type NodeSetupContext} from './config-interfaces/node-setup-context.js';
 import {type NodePrepareUpgradeContext} from './config-interfaces/node-prepare-upgrade-context.js';
-import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
+import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';

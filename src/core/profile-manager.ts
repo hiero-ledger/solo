@@ -29,7 +29,7 @@ import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {type ClusterReference, DeploymentName, Realm, Shard} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {AccountManager} from './account-manager.js';
-import {LocalConfigRuntimeState} from '../business/runtime-state/local-config-runtime-state.js';
+import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 @injectable()
@@ -247,8 +247,8 @@ export class ProfileManager {
     // Update application.properties with shard and realm
     await this.updateApplicationPropertiesWithRealmAndShard(
       applicationPropertiesPath,
-      this.localConfig.getRealm(deploymentName),
-      this.localConfig.getShard(deploymentName),
+      this.localConfig.configuration.realmForDeployment(deploymentName),
+      this.localConfig.configuration.shardForDeployment(deploymentName),
     );
 
     for (const flag of flags.nodeConfigFileFlags.values()) {

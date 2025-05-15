@@ -6,11 +6,19 @@ import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
+import {
+  EXPLORER_INGRESS_CONTROLLER,
+  EXPLORER_INGRESS_TLS_SECRET_NAME,
+  EXPLORER_CHART_URL,
+  INGRESS_CONTROLLER_PREFIX,
+} from '../core/constants.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
+import * as helpers from '../core/helpers.js';
+import {MirrorNodeExplorerComponent} from '../core/config/remote/components/mirror-node-explorer-component.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {
@@ -26,12 +34,6 @@ import {type ClusterChecks} from '../core/cluster-checks.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {KeyManager} from '../core/key-manager.js';
-import {
-  EXPLORER_INGRESS_CONTROLLER,
-  EXPLORER_INGRESS_TLS_SECRET_NAME,
-  EXPLORER_CHART_URL,
-  INGRESS_CONTROLLER_PREFIX,
-} from '../core/constants.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
@@ -252,7 +254,7 @@ export class ExplorerCommand extends BaseCommand {
 
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
             context_.config.clusterContext = context_.config.clusterRef
-              ? this.localConfig.clusterRefs.get(context_.config.clusterRef)
+              ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString()
               : this.k8Factory.default().contexts().readCurrent();
 
             if (
@@ -479,7 +481,9 @@ export class ExplorerCommand extends BaseCommand {
               ? this.configManager.getFlag(flags.clusterRef)
               : this.remoteConfig.currentCluster;
 
-            const clusterContext: Context = this.localConfig.clusterRefs.get(clusterReference);
+            const clusterContext: Context = this.localConfig.configuration.clusterRefs
+              .get(clusterReference)
+              ?.toString();
 
             context_.config = {
               namespace,

@@ -4,4 +4,4 @@ import {Exclude} from 'class-transformer';
 import {BaseState} from './base-state.js';
 
 @Exclude()
-export class HAProxyState extends BaseState {}
+export class HAProxyStateSchema extends BaseState {}

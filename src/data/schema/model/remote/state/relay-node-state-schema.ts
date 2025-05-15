@@ -6,7 +6,7 @@ import {BaseState} from './base-state.js';
 import {NodeId} from '../../../../../types/aliases.js';
 
 @Exclude()
-export class RelayNodeState extends BaseState {
+export class RelayNodeStateSchema extends BaseState {
   @Expose()
   public consensusNodeIds: number[];
 

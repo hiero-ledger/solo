@@ -4,4 +4,4 @@ import {Exclude} from 'class-transformer';
 import {BaseState} from './base-state.js';
 
 @Exclude()
-export class ExplorerState extends BaseState {}
+export class EnvoyProxyStateSchema extends BaseState {}

@@ -5,7 +5,8 @@ import {SoloError} from '../../errors/solo-error.js';
 import {type K8Factory} from '../../../integration/kube/k8-factory.js';
 import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
-import {type LocalConfigRuntimeState} from '../../../business/runtime-state/local-config-runtime-state.js';
+import {type LocalConfigRuntimeState} from '../../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {ConsensusNodeStates} from './enumerations/consensus-node-states.js';
 import {type Context} from '../../../types/index.js';
 import {type NodeAlias} from '../../../types/aliases.js';
 import {Templates} from '../../templates.js';
@@ -138,7 +139,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
         return;
       }
 
-      const context: Context = this.localConfig.clusterRefs.get(component.metadata.cluster);
+      const context: Context = localConfig.configuration.clusterRefs.get(component.cluster)?.toString();
       const labels: string[] = getLabelsCallback(component);
 
       try {

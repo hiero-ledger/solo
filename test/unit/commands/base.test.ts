@@ -18,7 +18,7 @@ import {ConsensusNode} from '../../../src/core/model/consensus-node.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
 import {type HelmClient} from '../../../src/integration/helm/helm-client.js';
-import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../../../src/business/runtime-state/api/remote-config-runtime-state-api.js';
 import {RemoteConfigRuntimeState} from '../../../src/business/runtime-state/remote-config-runtime-state.js';
 

@@ -9,6 +9,7 @@ import {UserBreak} from '../core/errors/user-break.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
+import {SOLO_DEPLOYMENT_CHART} from '../core/constants.js';
 import {Templates} from '../core/templates.js';
 import {
   addDebugOptions,
@@ -45,6 +46,7 @@ import {
   type SoloListrTask,
   type SoloListrTaskWrapper,
 } from '../types/index.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {type ConsensusNode} from '../core/model/consensus-node.js';
@@ -57,11 +59,9 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
+import {ConsensusNodeStates} from '../core/config/remote/enumerations/consensus-node-states.js';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
-import {NamespaceName} from '../types/namespace/namespace-name.js';
-import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {Deployment} from '../business/runtime-state/config/local/deployment.js';
 
 export interface NetworkDeployConfigClass {
   applicationEnv: string;
@@ -672,8 +672,8 @@ export class NetworkCommand extends BaseCommand {
       ],
     ) as NetworkDeployConfigClass;
 
-    const realm: Realm = this.localConfig.getRealm(config.deployment);
-    const shard: Shard = this.localConfig.getShard(config.deployment);
+    const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
+    const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
 
     const networkNodeVersion = new SemVer(config.releaseTag);
     const minimumVersionForNonZeroRealms = new SemVer('0.60.0');
@@ -1179,9 +1179,15 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Remove deployment from local configuration',
           task: async (context_, task) => {
-            await this.localConfig.modify(async localConfigData => {
-              localConfigData.removeDeployment(context_.config.deployment);
-            });
+            const deployment: Deployment = this.localConfig.configuration.deployments.find(
+              (d: Deployment): boolean => d.name === context_.config.deployment,
+            );
+
+            if (deployment) {
+              this.localConfig.configuration.deployments.remove(deployment);
+            }
+
+            await this.localConfig.persist();
           },
         },
         {

@@ -49,13 +49,13 @@ import {SoloWinstonLogger} from '../logging/solo-winston-logger.js';
 import {SingletonContainer} from './singleton-container.js';
 import {ValueContainer} from './value-container.js';
 import {BlockNodeCommand} from '../../commands/block-node.js';
-
-export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
-import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
+import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {LocalConfigSource} from '../../data/configuration/impl/local-config-source.js';
 import {RemoteConfigRuntimeState} from '../../business/runtime-state/remote-config-runtime-state.js';
 import {ComponentFactory} from '../config/remote/component-factory.js';
 import {RemoteConfigValidator} from '../config/remote/remote-config-validator.js';
+
+export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
 /**
  * Container class to manage the dependency injection container

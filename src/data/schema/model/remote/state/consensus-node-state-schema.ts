@@ -4,4 +4,4 @@ import {Exclude} from 'class-transformer';
 import {BaseState} from './base-state.js';
 
 @Exclude()
-export class ConsensusNodeState extends BaseState {}
+export class ConsensusNodeStateSchema extends BaseState {}

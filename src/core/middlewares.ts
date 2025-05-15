@@ -15,7 +15,7 @@ import {type HelpRenderer} from './help-renderer.js';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {inject, injectable} from 'tsyringe-neo';
-import {LocalConfigRuntimeState} from '../business/runtime-state/local-config-runtime-state.js';
+import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 @injectable()

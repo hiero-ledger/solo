@@ -10,7 +10,7 @@ import {
 } from '../../../../types/index.js';
 
 @Exclude()
-export class Deployment {
+export class DeploymentSchema {
   @Expose()
   public name: DeploymentName;
 

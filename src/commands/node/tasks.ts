@@ -152,8 +152,8 @@ export class NodeCommandTasks {
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
-    const realm = this.localConfig.getRealm(deploymentName);
-    const shard = this.localConfig.getShard(deploymentName);
+    const realm = this.localConfig.configuration.realmForDeployment(deploymentName);
+    const shard = this.localConfig.configuration.shardForDeployment(deploymentName);
     return FileId.fromString(entityId(shard, realm, constants.UPGRADE_FILE_ID_NUM));
   }
 
@@ -2070,7 +2070,7 @@ export class NodeCommandTasks {
         await Promise.all(
           clusterReferencesList.map(async clusterReference => {
             const valuesArguments = valuesArgumentMap[clusterReference];
-            const context = this.localConfig.clusterRefs.get(clusterReference);
+            const context = this.localConfig.configuration.clusterRefs.get(clusterReference);
 
             await self.chartManager.upgrade(
               config.namespace,
@@ -2079,7 +2079,7 @@ export class NodeCommandTasks {
               context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
               config.soloChartVersion,
               valuesArguments,
-              context,
+              context.toString(),
             );
             showVersionBanner(self.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
           }),
@@ -2554,7 +2554,7 @@ export class NodeCommandTasks {
         const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
         const namespace: NamespaceName = context_.config.namespace;
         const clusterReference: ClusterReference = context_.config.clusterRef;
-        const context: Context = this.localConfig.clusterRefs.get(clusterReference);
+        const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference);
 
         task.title += `: ${nodeAlias}`;
 
@@ -2590,7 +2590,7 @@ export class NodeCommandTasks {
               nodeId,
               namespace.name,
               clusterReference,
-              context,
+              context.toString(),
               cluster.dnsBaseDomain,
               cluster.dnsConsensusNodePattern,
               Templates.renderConsensusNodeFullyQualifiedDomainName(
