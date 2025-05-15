@@ -110,7 +110,7 @@ tasks:
       - hugo --cleanDestinationDir -e prod --gc --minify --baseURL "{{.hugo_base_url}}" -d public/${HUGO_SOLO_VERSION}
 
   local:
-    desc: "Run the local server"
+    desc: "Run the local server for only current version"
     cmds:
       - task: "install:nginx"
       - task: "build"
@@ -199,14 +199,14 @@ tasks:
       - npm install
 
   deploy:nginx:
-    desc: "Deploy Nginx to serve the Hugo site"
+    desc: "Build the Hugo site, configure Nginx, then deploy Nginx to serve the Hugo site for testing multiple versions"
     cmds:
       - task: "build"
       - task: "deploy:nginx:config"
       - task: "deploy:nginx:start"
 
   deploy:nginx:config:
-    desc: "Configure Nginx to serve the Hugo site"
+    desc: "Configure Nginx to serve the Hugo site for testing multiple versions"
     cmds:
       - |
         if [ ! -d "nginx" ]; then
@@ -247,7 +247,7 @@ tasks:
         EOF
 
   deploy:nginx:start:
-    desc: "Start Nginx with the Hugo site configuration"
+    desc: "Start Nginx with the Hugo site configuration for testing multiple versions"
     cmds:
       - |
         if pgrep nginx > /dev/null; then
