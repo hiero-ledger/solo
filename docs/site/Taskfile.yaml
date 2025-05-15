@@ -249,6 +249,7 @@ tasks:
 
   deploy:nginx:start:
     desc: "Start Nginx with the Hugo site configuration for testing multiple versions"
+    silent: true
     cmds:
       - |
         if pgrep nginx > /dev/null; then
@@ -256,7 +257,7 @@ tasks:
           nginx -s stop
         fi
       - |
-        echo "Starting Nginx..."
+        echo "Starting Nginx... on http://localhost:7777"
         nginx -c {{.TASKFILE_DIR}}/nginx/nginx.conf
 
   deploy:nginx:stop:
@@ -296,3 +297,13 @@ tasks:
         else
           echo "Building for main, not redirecting to latest version..."
         fi
+
+  npmjs:latest:solo:version:
+    desc: "Display the latest version of the Solo CLI from https://www.npmjs.com/package/@hashgraph/solo"
+    silent: true
+    cmds:
+        - |
+          LATEST_VERSION=$(curl -s https://registry.npmjs.org/@hashgraph/solo/latest | jq -r '.version')
+          echo "Latest version of Solo CLI from https://www.npmjs.com/package/@hashgraph/solo: $LATEST_VERSION"
+          mkdir -p .task/temp
+          echo -n "v$LATEST_VERSION" > .task/temp/npmjs-latest-version.txt
