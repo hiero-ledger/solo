@@ -5,7 +5,7 @@ import {VersionRange} from '../../../../../business/utils/version-range.js';
 import {Version} from '../../../../../business/utils/version.js';
 import {
   getSoloVersion,
-  HEDERA_EXPLORER_VERSION,
+  EXPLORER_VERSION,
   HEDERA_JSON_RPC_RELAY_VERSION,
   HEDERA_PLATFORM_VERSION,
   MIRROR_NODE_VERSION,
@@ -47,7 +47,7 @@ export class LocalConfigV1Migration implements SchemaMigration {
       chart: SOLO_CHART_VERSION,
       consensusNode: HEDERA_PLATFORM_VERSION,
       mirrorNodeChart: MIRROR_NODE_VERSION,
-      explorerChart: HEDERA_EXPLORER_VERSION,
+      explorerChart: EXPLORER_VERSION,
       jsonRpcRelayChart: HEDERA_JSON_RPC_RELAY_VERSION,
       blockNodeChart: 'v0.0.0',
     };
