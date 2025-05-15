@@ -9,26 +9,27 @@ import chalk from 'chalk';
 import {type ClusterCommandTasks} from './cluster/tasks.js';
 import {
   type ClusterReference,
+  type CommandDefinition,
   type DeploymentName,
   type NamespaceNameAsString,
   type Realm,
   type Shard,
+  type SoloListrTask,
 } from '../types/index.js';
-import {type CommandDefinition, type SoloListrTask} from '../types/index.js';
 import {ErrorMessages} from '../core/error-messages.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterChecks} from '../core/cluster-checks.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
-import {type ArgvStruct, type AnyYargs, type NodeAliases} from '../types/aliases.js';
+import {type AnyYargs, type ArgvStruct, type NodeAliases} from '../types/aliases.js';
 import {Templates} from '../core/templates.js';
 import {Cluster} from '../core/config/remote/cluster.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {type DeploymentSchema} from '../data/schema/model/local/deployment-schema.js';
-import {ConsensusNodeStates} from '../core/config/remote/enumerations/consensus-node-states.js';
 import {DeploymentStates} from '../core/config/remote/enumerations/deployment-states.js';
-import {ConsensusNodeComponent} from '../core/config/remote/components/consensus-node-component.js';
+import {StringFacade} from '../business/runtime-state/facade/string-facade.js';
+import {Deployment} from '../business/runtime-state/config/local/deployment.js';
+import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -127,8 +128,10 @@ export class DeploymentCommand extends BaseCommand {
             } as Config;
 
             if (
-              self.localConfig.deployments &&
-              self.localConfig.deployments.some((d: DeploymentSchema): boolean => d.name === context_.config.deployment)
+              self.localConfig.configuration.deployments &&
+              self.localConfig.configuration.deployments.some(
+                (d: Deployment): boolean => d.name === context_.config.deployment,
+              )
             ) {
               throw new SoloError(ErrorMessages.DEPLOYMENT_NAME_ALREADY_EXISTS(context_.config.deployment));
             }
@@ -142,13 +145,17 @@ export class DeploymentCommand extends BaseCommand {
             const {namespace, deployment, realm, shard} = context_.config;
             task.title = `Adding deployment: ${deployment} with namespace: ${namespace.name} to local config`;
 
-            if (this.localConfig.deployments.some((d: DeploymentSchema): boolean => d.name === deployment)) {
+            if (this.localConfig.configuration.deployments.some((d: Deployment): boolean => d.name === deployment)) {
               throw new SoloError(`Deployment ${deployment} is already added to local config`);
             }
 
-            await this.localConfig.modify(async localConfigData => {
-              localConfigData.addDeployment(deployment, namespace, realm, shard);
-            });
+            const actualDeployment: Deployment = this.localConfig.configuration.deployments.addNew();
+            actualDeployment.name = deployment;
+            actualDeployment.namespace = namespace.name;
+            actualDeployment.realm = realm;
+            actualDeployment.shard = shard;
+
+            await this.localConfig.persist();
           },
         },
       ],
@@ -198,8 +205,10 @@ export class DeploymentCommand extends BaseCommand {
             } as Config;
 
             if (
-              !self.localConfig.deployments ||
-              !self.localConfig.deployments.some((d: DeploymentSchema): boolean => d.name === context_.config.deployment)
+              !self.localConfig.configuration.deployments ||
+              !self.localConfig.configuration.deployments.some(
+                (d: Deployment): boolean => d.name === context_.config.deployment,
+              )
             ) {
               throw new SoloError(ErrorMessages.DEPLOYMENT_NAME_ALREADY_EXISTS(context_.config.deployment));
             }
@@ -211,10 +220,10 @@ export class DeploymentCommand extends BaseCommand {
           title: 'Check for existing remote resources',
           task: async (context_, task) => {
             const {deployment} = context_.config;
-            const clusterReferences = self.localConfig.getDeployment(deployment).clusters;
+            const clusterReferences = self.localConfig.configuration.deploymentByName(deployment).clusters;
             for (const clusterReference of clusterReferences) {
-              const context = self.localConfig.clusterRefs.get(clusterReference);
-              const namespace = NamespaceName.of(self.localConfig.getDeployment(deployment).namespace);
+              const context = self.localConfig.configuration.clusterRefs.get(clusterReference.toString()).toString();
+              const namespace = NamespaceName.of(self.localConfig.configuration.deploymentByName(deployment).namespace);
               const remoteConfigExists = await self.remoteConfigManager.get(context);
               const namespaceExists = await self.k8Factory.getK8(context).namespaces().has(namespace);
               const existingConfigMaps = await self.k8Factory
@@ -232,9 +241,12 @@ export class DeploymentCommand extends BaseCommand {
           task: async context_ => {
             const {deployment} = context_.config;
 
-            await this.localConfig.modify(async localConfigData => {
-              localConfigData.removeDeployment(deployment);
-            });
+            const actualDeployment: Deployment = this.localConfig.configuration.deploymentByName(deployment);
+            if (actualDeployment) {
+              this.localConfig.configuration.deployments.remove(actualDeployment);
+            }
+
+            await this.localConfig.persist();
           },
         },
       ],
@@ -315,7 +327,7 @@ export class DeploymentCommand extends BaseCommand {
           task: async context_ => {
             const clusterName = context_.config.clusterName;
 
-            const context = self.localConfig.clusterRefs.get(clusterName);
+            const context = self.localConfig.configuration.clusterRefs.get(clusterName)?.toString();
 
             self.k8Factory.default().contexts().updateCurrent(context);
 
@@ -508,17 +520,19 @@ export class DeploymentCommand extends BaseCommand {
       task: async context_ => {
         const {clusterRef, deployment} = context_.config;
 
-        if (!this.localConfig.clusterRefs.get(clusterRef)) {
+        if (!this.localConfig.configuration.clusterRefs.get(clusterRef)) {
           throw new SoloError(`Cluster ref ${clusterRef} not found in local config`);
         }
 
-        context_.config.context = this.localConfig.clusterRefs.get(clusterRef);
+        context_.config.context = this.localConfig.configuration.clusterRefs.get(clusterRef)?.toString();
 
-        if (!this.localConfig.getDeployment(deployment)) {
+        if (!this.localConfig.configuration.deploymentByName(deployment)) {
           throw new SoloError(`Deployment ${deployment} not found in local config`);
         }
 
-        if (this.localConfig.getDeployment(deployment).clusters.includes(clusterRef)) {
+        if (
+          this.localConfig.configuration.deploymentByName(deployment).clusters.includes(new StringFacade(clusterRef))
+        ) {
           throw new SoloError(`Cluster ref ${clusterRef} is already added for deployment`);
         }
       },
@@ -543,7 +557,7 @@ export class DeploymentCommand extends BaseCommand {
       task: async (context_, task) => {
         const {deployment, numberOfConsensusNodes, quiet} = context_.config;
 
-        const existingClusterReferences = this.localConfig.getDeployment(deployment).clusters;
+        const existingClusterReferences = this.localConfig.configuration.deploymentByName(deployment).clusters;
 
         // if there is no remote config don't validate deployment state
         if (existingClusterReferences.length === 0) {
@@ -565,7 +579,9 @@ export class DeploymentCommand extends BaseCommand {
           return;
         }
 
-        const existingClusterContext = this.localConfig.clusterRefs.get(existingClusterReferences[0]);
+        const existingClusterContext = this.localConfig.configuration.clusterRefs
+          .get(existingClusterReferences.get(0)?.toString())
+          ?.toString();
         context_.config.existingClusterContext = existingClusterContext;
 
         const remoteConfig = await this.remoteConfigManager.get(existingClusterContext);
@@ -647,9 +663,8 @@ export class DeploymentCommand extends BaseCommand {
 
         task.title = `add cluster-ref: ${clusterRef} for deployment: ${deployment} in local config`;
 
-        await this.localConfig.modify(async localConfigData => {
-          localConfigData.addClusterRefToDeployment(clusterRef, deployment);
-        });
+        this.localConfig.configuration.deploymentByName(deployment).clusters.add(new StringFacade(clusterRef));
+        await this.localConfig.persist();
       },
     };
   }
@@ -716,12 +731,11 @@ export class DeploymentCommand extends BaseCommand {
           //* add the new nodes to components
           for (const nodeAlias of nodeAliases) {
             remoteConfig.components.add(
-              new ConsensusNodeComponent(
-                nodeAlias,
-                clusterRef,
-                namespace.name,
-                ConsensusNodeStates.NON_DEPLOYED,
+              this.componentFactory.createNewConsensusNodeComponent(
                 Templates.nodeIdFromNodeAlias(nodeAlias),
+                clusterRef,
+                namespace,
+                DeploymentPhase.REQUESTED,
               ),
             );
           }

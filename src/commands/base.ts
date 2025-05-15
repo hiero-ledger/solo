@@ -18,6 +18,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {inject} from 'tsyringe-neo';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
 export abstract class BaseCommand extends ShellRunner {
   public constructor(

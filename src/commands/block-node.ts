@@ -28,7 +28,6 @@ import * as versions from '../../version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type Lock} from '../core/lock/lock.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
-import {BlockNodeComponent} from '../core/config/remote/components/block-node-component.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {Duration} from '../core/time/duration.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';

@@ -7,9 +7,9 @@ import {instanceToPlain} from 'class-transformer';
 import {SemVer} from 'semver';
 import {beforeEach} from 'mocha';
 import os from 'node:os';
-import {LocalConfig} from '../../../../../../src/data/schema/model/local/local-config-schema.js';
+import {LocalConfigSchema} from '../../../../../../src/data/schema/model/local/local-config-schema.js';
 import {DeploymentSchema} from '../../../../../../src/data/schema/model/local/deployment-schema.js';
-import {LocalConfigSchema} from '../../../../../../src/data/schema/migration/impl/local/local-config-schema-definition.js';
+import {LocalConfigSchemaDefinition} from '../../../../../../src/data/schema/migration/impl/local/local-config-schema-definition.js';
 import {ClassToObjectMapper} from '../../../../../../src/data/mapper/impl/class-to-object-mapper.js';
 import {ApplicationVersionsSchema} from '../../../../../../src/data/schema/model/common/application-versions-schema.js';
 import {
@@ -23,7 +23,9 @@ import {ConfigKeyFormatter} from '../../../../../../src/data/key/config-key-form
 import {type ClusterReferences} from '../../../../../../src/types/index.js';
 
 describe('LocalConfig', () => {
-  const schema: LocalConfigSchema = new LocalConfigSchema(new ClassToObjectMapper(ConfigKeyFormatter.instance()));
+  const schema: LocalConfigSchemaDefinition = new LocalConfigSchemaDefinition(
+    new ClassToObjectMapper(ConfigKeyFormatter.instance()),
+  );
   const soloVersion: string = '0.35.1';
   const localConfigPath = `test/data/v${soloVersion}-local-config.yaml`;
 
@@ -42,7 +44,7 @@ describe('LocalConfig', () => {
     it('should transform plain to class', async () => {
       const lc = await schema.transform(plainObject);
       expect(lc).to.not.be.undefined.and.to.not.be.null;
-      expect(lc).to.be.instanceOf(LocalConfig);
+      expect(lc).to.be.instanceOf(LocalConfigSchema);
       expect(lc.versions.cli).to.be.instanceOf(SemVer);
       expect(lc.versions.cli).to.deep.equal(new SemVer('0.35.1'));
       expect(lc.deployments).to.have.lengthOf(2);
@@ -60,7 +62,13 @@ describe('LocalConfig', () => {
 
     it('should transform class to plain', async () => {
       const deployments: DeploymentSchema[] = [
-        new DeploymentSchema('dual-cluster-full-deployment', 'dual-cluster-full', ['e2e-cluster-1', 'e2e-cluster-2'], 0, 0),
+        new DeploymentSchema(
+          'dual-cluster-full-deployment',
+          'dual-cluster-full',
+          ['e2e-cluster-1', 'e2e-cluster-2'],
+          0,
+          0,
+        ),
         new DeploymentSchema('deployment', 'solo-e2e', ['cluster-1'], 0, 0),
       ];
 
@@ -78,7 +86,7 @@ describe('LocalConfig', () => {
         new SemVer(EXPLORER_VERSION),
         new SemVer(HEDERA_JSON_RPC_RELAY_VERSION),
       );
-      const lc = new LocalConfig(2, versions, deployments, clusterReferences);
+      const lc = new LocalConfigSchema(2, versions, deployments, clusterReferences);
       const newPlainObject: object = instanceToPlain(lc);
 
       expect(newPlainObject).to.not.be.undefined.and.to.not.be.null;
