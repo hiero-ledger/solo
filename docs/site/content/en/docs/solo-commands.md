@@ -1963,7 +1963,7 @@ Options:
 > @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node upgrade --help
 
-Missing required arguments: deployment, release-tag, upgrade-zip-file
+Missing required arguments: deployment, release-tag, upgrade-zip-file, upgrade-version
  node upgrade
 
 upgrades all nodes on the network
@@ -1975,6 +1975,8 @@ Options:
                            deployment                                                                   
 -t,  --release-tag         Release tag to be used (e.g.    [string] [required]                          
                            v0.59.5)                                                                     
+     --upgrade-version     Version to be used for the      [string] [required]                          
+                           upgrade                                                                      
      --upgrade-zip-file    A zipped file used for network  [string] [required]                          
                            upgrade                                                                      
      --app                 Testing app name                [string] [default: "HederaNode.jar"]         
