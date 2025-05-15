@@ -64,6 +64,7 @@ tasks:
     cmds:
       - task: "build:typedoc"
       - task: "build:cli:help"
+      - task: "solo:version"
       - task: "build:hugo"
 
   build:solo:
@@ -267,4 +268,30 @@ tasks:
           nginx -s stop
         else
           echo "Nginx is not running"
+        fi
+
+  solo:version:
+    desc: "Display the version of the Solo CLI from the package.json and write it to a file"
+    dir: ../..
+    cmds:
+      - |
+        export TASK_TEMP_DIR=docs/site/.task/temp
+        export SOLO_VERSION_FILE=$TASK_TEMP_DIR/version.txt
+        mkdir -p $TASK_TEMP_DIR
+        echo -n "v$(node -p "require('./package.json').version")" > $SOLO_VERSION_FILE
+        export SOLO_VERSION=$(<"$SOLO_VERSION_FILE")
+        export SOLO_VERSION=$(echo "$SOLO_VERSION" | tr -d '\r\n[:space:]')
+        echo "Solo CLI version: $SOLO_VERSION"
+        echo "Run the following command to build the site with the current version: $SOLO_VERSION"
+        echo "HUGO_SOLO_VERSION=$SOLO_VERSION task build" 
+        if [ "$HUGO_SOLO_VERSION" != "main" ]; then
+          cp docs/site/hugo-template.yaml docs/site/hugo.yaml
+          echo "    - {version: $SOLO_VERSION, url: /$SOLO_VERSION}">> docs/site/hugo.yaml
+          echo "building latest redirect to this version..."
+          rm -Rf docs/site/public/latest 
+          mkdir -p docs/site/public/latest
+          # create a copy of docs/site/public/index.html in docs/site/public/latest except to change /latest to /<value of (cat $SOLO_VERSION_FILE)>
+          sed -e "s|/latest|/${SOLO_VERSION}|g" docs/site/public/index.html > docs/site/public/latest/index.html 
+        else
+          echo "Building for main, not redirecting to latest version..."
         fi
