@@ -19,28 +19,28 @@ import {Duration} from '../../../../src/core/time/duration.js';
 import {type ClusterReference} from '../../../../src/types/index.js';
 import {DeploymentPhase} from '../../../../src/data/schema/model/remote/deployment-phase.js';
 import {Templates} from '../../../../src/core/templates.js';
-import {LocalConfigRuntimeState} from '../../../../src/business/runtime-state/local-config-runtime-state.js';
-import {DeploymentState} from '../../../../src/data/schema/model/remote/deployment-state.js';
-import {type ExplorerState} from '../../../../src/data/schema/model/remote/state/explorer-state.js';
-import {type MirrorNodeState} from '../../../../src/data/schema/model/remote/state/mirror-node-state.js';
-import {type RelayNodeState} from '../../../../src/data/schema/model/remote/state/relay-node-state.js';
-import {type ConsensusNodeState} from '../../../../src/data/schema/model/remote/state/consensus-node-state.js';
-import {type HAProxyState} from '../../../../src/data/schema/model/remote/state/haproxy-state.js';
-import {type EnvoyProxyState} from '../../../../src/data/schema/model/remote/state/envoy-proxy-state.js';
 import {type BaseStateSchema} from '../../../../src/data/schema/model/remote/state/base-state-schema.js';
 import {ComponentTypes} from '../../../../src/core/config/remote/enumerations/component-types.js';
-import {RemoteConfig} from '../../../../src/data/schema/model/remote/remote-config.js';
 import {type ComponentFactoryApi} from '../../../../src/core/config/remote/api/component-factory-api.js';
 import {ComponentFactory} from '../../../../src/core/config/remote/component-factory.js';
 import {type ComponentsDataWrapperApi} from '../../../../src/core/config/remote/api/components-data-wrapper-api.js';
+import {type ExplorerStateSchema} from '../../../../src/data/schema/model/remote/state/explorer-state-schema.js';
+import {type MirrorNodeStateSchema} from '../../../../src/data/schema/model/remote/state/mirror-node-state-schema.js';
+import {type RelayNodeStateSchema} from '../../../../src/data/schema/model/remote/state/relay-node-state-schema.js';
+import {type ConsensusNodeStateSchema} from '../../../../src/data/schema/model/remote/state/consensus-node-state-schema.js';
+import {type HAProxyStateSchema} from '../../../../src/data/schema/model/remote/state/haproxy-state-schema.js';
+import {type EnvoyProxyStateSchema} from '../../../../src/data/schema/model/remote/state/envoy-proxy-state-schema.js';
+import {DeploymentStateSchema} from '../../../../src/data/schema/model/remote/deployment-state-schema.js';
+import {RemoteConfigSchema} from '../../../../src/data/schema/model/remote/remote-config-schema.js';
+import {LocalConfigRuntimeState} from '../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 
 interface ComponentsRecord {
-  explorer: ExplorerState;
-  mirrorNode: MirrorNodeState;
-  relay: RelayNodeState;
-  consensusNode: ConsensusNodeState;
-  haProxy: HAProxyState;
-  envoyProxy: EnvoyProxyState;
+  explorer: ExplorerStateSchema;
+  mirrorNode: MirrorNodeStateSchema;
+  relay: RelayNodeStateSchema;
+  consensusNode: ConsensusNodeStateSchema;
+  haProxy: HAProxyStateSchema;
+  envoyProxy: EnvoyProxyStateSchema;
 }
 
 interface LabelRecord {
@@ -105,8 +105,8 @@ function prepareComponentsData(namespace: NamespaceName): ComponentsData {
     envoyProxy: `envoy-proxy-${Templates.renderNodeAliasFromNumber(components.envoyProxy.metadata.id + 1)}`,
   };
 
-  const state: DeploymentState = new DeploymentState();
-  const remoteConfig: RemoteConfig = new RemoteConfig(undefined, undefined, undefined, undefined, state);
+  const state: DeploymentStateSchema = new DeploymentStateSchema();
+  const remoteConfig: RemoteConfigSchema = new RemoteConfigSchema(undefined, undefined, undefined, undefined, state);
 
   const componentsDataWrapper: ComponentsDataWrapperApi = new ComponentsDataWrapper(remoteConfig.state);
 
@@ -213,13 +213,10 @@ describe('RemoteConfigValidator', () => {
 
       const nodeIds: NodeId[] = [0, 1, 2];
 
-      const consensusNodeComponents: ConsensusNodeState[] = componentFactory.createConsensusNodeComponentsFromNodeIds(
-        nodeIds,
-        'cluster-ref',
-        namespace,
-      );
+      const consensusNodeComponents: ConsensusNodeStateSchema[] =
+        componentFactory.createConsensusNodeComponentsFromNodeIds(nodeIds, 'cluster-ref', namespace);
 
-      // @ts-expect-error - TS2740 to mock
+      // @ts-expect-error - to mock
       const componentsDataWrapper: ComponentsDataWrapperApi = new ComponentsDataWrapper({
         consensusNodes: consensusNodeComponents,
       });
@@ -238,13 +235,10 @@ describe('RemoteConfigValidator', () => {
       it(`Should not validate consensus nodes if status is ${nodeState} `, async () => {
         const nodeIds: NodeId[] = [0, 1, 2];
 
-        const consensusNodeComponents: ConsensusNodeState[] = componentFactory.createConsensusNodeComponentsFromNodeIds(
-          nodeIds,
-          'cluster-ref',
-          namespace,
-        );
+        const consensusNodeComponents: ConsensusNodeStateSchema[] =
+          componentFactory.createConsensusNodeComponentsFromNodeIds(nodeIds, 'cluster-ref', namespace);
 
-        // @ts-expect-error - TS2740 to mock
+        // @ts-expect-error - to mock
         const componentsDataWrapper: ComponentsDataWrapperApi = new ComponentsDataWrapper({
           consensusNodes: consensusNodeComponents,
         });

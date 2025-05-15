@@ -50,7 +50,6 @@ import {RemoteConfigSchemaDefinition} from '../../data/schema/migration/impl/rem
 import {RemoteConfigSchema} from '../../data/schema/model/remote/remote-config-schema.js';
 import {ConsensusNodeStateSchema} from '../../data/schema/model/remote/state/consensus-node-state-schema.js';
 import {UserIdentitySchema} from '../../data/schema/model/common/user-identity-schema.js';
-import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 import {Deployment} from './config/local/deployment.js';
 
 enum RuntimeStatePhase {

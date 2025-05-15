@@ -5,12 +5,12 @@ import {ComponentTypes} from './enumerations/component-types.js';
 import {BaseStateSchema} from '../../../data/schema/model/remote/state/base-state-schema.js';
 import {isValidEnum} from '../../util/validation-helpers.js';
 import {type DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
-import {type DeploymentState} from '../../../data/schema/model/remote/deployment-state.js';
 import {type ClusterReference, type ComponentId} from '../../../types/index.js';
 import {type ComponentsDataWrapperApi} from './api/components-data-wrapper-api.js';
+import {type DeploymentStateSchema} from '../../../data/schema/model/remote/deployment-state-schema.js';
 
 export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
-  public constructor(public state: DeploymentState) {}
+  public constructor(public state: DeploymentStateSchema) {}
 
   /* -------- Modifiers -------- */
 

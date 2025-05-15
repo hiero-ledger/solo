@@ -40,7 +40,6 @@ import {type InstanceOverrides} from '../../../src/core/dependency-injection/con
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type ClusterReferences} from '../../../src/types/index.js';
-import {ROOT_DIR} from '../../../src/core/constants.js';
 import {type RemoteConfigRuntimeState} from '../../../src/business/runtime-state/remote-config-runtime-state.js';
 import {StringFacade} from '../../../src/business/runtime-state/facade/string-facade.js';
 

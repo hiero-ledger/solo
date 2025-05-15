@@ -160,7 +160,11 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
    * @param component - component which is not found in the cluster
    * @param error - original error for the kube client
    */
-  private static buildValidationError(displayName: string, component: BaseStateSchema, error: Error | unknown): SoloError {
+  private static buildValidationError(
+    displayName: string,
+    component: BaseStateSchema,
+    error: Error | unknown,
+  ): SoloError {
     return new SoloError(RemoteConfigValidator.buildValidationErrorMessage(displayName, component), error, component);
   }
 

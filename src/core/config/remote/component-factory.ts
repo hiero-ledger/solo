@@ -3,12 +3,6 @@
 import {ComponentTypes} from './enumerations/component-types.js';
 import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
 import {type NodeId} from '../../../types/aliases.js';
-import {RelayNodeState} from '../../../data/schema/model/remote/state/relay-node-state.js';
-import {ExplorerState} from '../../../data/schema/model/remote/state/explorer-state.js';
-import {MirrorNodeState} from '../../../data/schema/model/remote/state/mirror-node-state.js';
-import {HAProxyState} from '../../../data/schema/model/remote/state/haproxy-state.js';
-import {EnvoyProxyState} from '../../../data/schema/model/remote/state/envoy-proxy-state.js';
-import {ConsensusNodeState} from '../../../data/schema/model/remote/state/consensus-node-state.js';
 import {ComponentStateMetadataSchema} from '../../../data/schema/model/remote/state/component-state-metadata-schema.js';
 import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {type ClusterReference, type ComponentId} from '../../../types/index.js';
@@ -17,6 +11,12 @@ import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../dependency-injection/container-helper.js';
 import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
 import {type ComponentFactoryApi} from './api/component-factory-api.js';
+import {RelayNodeStateSchema} from '../../../data/schema/model/remote/state/relay-node-state-schema.js';
+import {ExplorerStateSchema} from '../../../data/schema/model/remote/state/explorer-state-schema.js';
+import {MirrorNodeStateSchema} from '../../../data/schema/model/remote/state/mirror-node-state-schema.js';
+import {HAProxyStateSchema} from '../../../data/schema/model/remote/state/haproxy-state-schema.js';
+import {EnvoyProxyStateSchema} from '../../../data/schema/model/remote/state/envoy-proxy-state-schema.js';
+import {ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
 
 @injectable()
 export class ComponentFactory implements ComponentFactoryApi {
@@ -30,44 +30,75 @@ export class ComponentFactory implements ComponentFactoryApi {
     clusterReference: ClusterReference,
     namespace: NamespaceName,
     nodeIds: NodeId[],
-  ): RelayNodeState {
+  ): RelayNodeStateSchema {
     const id: ComponentId = this.remoteConfig.components.getNewComponentId(ComponentTypes.RelayNodes);
     const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
-    const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(id, namespace.name, clusterReference, phase);
+    const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
+      id,
+      namespace.name,
+      clusterReference,
+      phase,
+    );
 
-    return new RelayNodeState(metadata, nodeIds);
+    return new RelayNodeStateSchema(metadata, nodeIds);
   }
 
-  public createNewExplorerComponent(clusterReference: ClusterReference, namespace: NamespaceName): ExplorerState {
+  public createNewExplorerComponent(clusterReference: ClusterReference, namespace: NamespaceName): ExplorerStateSchema {
     const id: ComponentId = this.remoteConfig.components.getNewComponentId(ComponentTypes.Explorers);
     const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
-    const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(id, namespace.name, clusterReference, phase);
+    const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
+      id,
+      namespace.name,
+      clusterReference,
+      phase,
+    );
 
-    return new ExplorerState(metadata);
+    return new ExplorerStateSchema(metadata);
   }
 
-  public createNewMirrorNodeComponent(clusterReference: ClusterReference, namespace: NamespaceName): MirrorNodeState {
+  public createNewMirrorNodeComponent(
+    clusterReference: ClusterReference,
+    namespace: NamespaceName,
+  ): MirrorNodeStateSchema {
     const id: ComponentId = this.remoteConfig.components.getNewComponentId(ComponentTypes.MirrorNode);
     const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
-    const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(id, namespace.name, clusterReference, phase);
+    const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
+      id,
+      namespace.name,
+      clusterReference,
+      phase,
+    );
 
-    return new MirrorNodeState(metadata);
+    return new MirrorNodeStateSchema(metadata);
   }
 
-  public createNewHaProxyComponent(clusterReference: ClusterReference, namespace: NamespaceName): HAProxyState {
+  public createNewHaProxyComponent(clusterReference: ClusterReference, namespace: NamespaceName): HAProxyStateSchema {
     const id: ComponentId = this.remoteConfig.components.getNewComponentId(ComponentTypes.HaProxy);
     const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
-    const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(id, namespace.name, clusterReference, phase);
+    const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
+      id,
+      namespace.name,
+      clusterReference,
+      phase,
+    );
 
-    return new HAProxyState(metadata);
+    return new HAProxyStateSchema(metadata);
   }
 
-  public createNewEnvoyProxyComponent(clusterReference: ClusterReference, namespace: NamespaceName): EnvoyProxyState {
+  public createNewEnvoyProxyComponent(
+    clusterReference: ClusterReference,
+    namespace: NamespaceName,
+  ): EnvoyProxyStateSchema {
     const id: ComponentId = this.remoteConfig.components.getNewComponentId(ComponentTypes.EnvoyProxy);
     const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
-    const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(id, clusterReference, namespace.name, phase);
+    const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
+      id,
+      clusterReference,
+      namespace.name,
+      phase,
+    );
 
-    return new EnvoyProxyState(metadata);
+    return new EnvoyProxyStateSchema(metadata);
   }
 
   public createNewConsensusNodeComponent(
@@ -75,7 +106,7 @@ export class ComponentFactory implements ComponentFactoryApi {
     clusterReference: ClusterReference,
     namespace: NamespaceName,
     phase: DeploymentPhase.REQUESTED | DeploymentPhase.STARTED,
-  ): ConsensusNodeState {
+  ): ConsensusNodeStateSchema {
     const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
       nodeId,
       namespace.name,
@@ -83,14 +114,14 @@ export class ComponentFactory implements ComponentFactoryApi {
       phase,
     );
 
-    return new ConsensusNodeState(metadata);
+    return new ConsensusNodeStateSchema(metadata);
   }
 
   public createConsensusNodeComponentsFromNodeIds(
     nodeIds: NodeId[],
     clusterReference: ClusterReference,
     namespace: NamespaceName,
-  ): ConsensusNodeState[] {
+  ): ConsensusNodeStateSchema[] {
     return nodeIds.map((nodeId: NodeId) =>
       this.createNewConsensusNodeComponent(nodeId, clusterReference, namespace, DeploymentPhase.REQUESTED),
     );

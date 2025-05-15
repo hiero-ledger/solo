@@ -28,7 +28,6 @@ import {type PlatformInstaller} from '../src/core/platform-installer.js';
 import {type ProfileManager} from '../src/core/profile-manager.js';
 import {type LockManager} from '../src/core/lock/lock-manager.js';
 import {type CertificateManager} from '../src/core/certificate-manager.js';
-import * as constants from '../src/core/constants.js';
 import {Templates} from '../src/core/templates.js';
 import {type ConfigManager} from '../src/core/config-manager.js';
 import {type ChartManager} from '../src/core/chart-manager.js';
