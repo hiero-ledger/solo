@@ -481,3 +481,4 @@ deleteme.yaml
 /docs/site/resources/
 /docs/site/.task/
 /docs/site/static/
+/docs/site/nginx/nginx.conf

@@ -228,7 +228,7 @@ tasks:
             keepalive_timeout  65;
 
             server {
-                listen       80;
+                listen       7777;
                 server_name  localhost;
 
                 root   {{.TASKFILE_DIR}}/public;
