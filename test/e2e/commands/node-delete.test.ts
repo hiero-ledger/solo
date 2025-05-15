@@ -23,6 +23,7 @@ import {Argv} from '../../helpers/argv-wrapper.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {NodeCommand} from '../../../src/commands/node/index.js';
 import {AccountCommand} from '../../../src/commands/account.js';
+import {AccountId} from '@hashgraph/sdk';
 
 const namespace = NamespaceName.of('node-delete');
 const deleteNodeAlias = 'node1';
@@ -38,6 +39,9 @@ argv.setArg(flags.releaseTag, HEDERA_PLATFORM_VERSION_TAG);
 argv.setArg(flags.namespace, namespace.name);
 argv.setArg(flags.realm, hederaPlatformSupportsNonZeroRealms() ? 65_535 : 0);
 argv.setArg(flags.shard, 0);
+
+let updateAcccountId: AccountId;
+let updateAcccountPrivateKey: string;
 
 endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   describe('Node delete', async () => {
@@ -79,12 +83,18 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
         subcommand: 'create',
         callback: async argv => accountCmd.create(argv),
       });
+
+      // Create a new account to update the node account id
+      // @ts-expect-error - TS2341: to access private property
+      const newAccountInfo = accountCmd.accountInfo;
+      updateAcccountId = AccountId.fromString(newAccountInfo.accountId);
+      updateAcccountPrivateKey = newAccountInfo.privateKey;
     });
 
     it('should be able to update a node after node delete', async () => {
-      argv.setArg(flags.newAccountNumber, '0.0.7');
+      argv.setArg(flags.newAccountNumber, updateAcccountId.toString());
       argv.setArg(flags.nodeAlias, updateNodeAlias);
-
+      argv.setArg(flags.newAdminKey, updateAcccountPrivateKey);
       await commandInvoker.invoke({
         argv: argv,
         command: NodeCommand.COMMAND_NAME,
