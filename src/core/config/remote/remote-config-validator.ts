@@ -6,13 +6,12 @@ import {type K8Factory} from '../../../integration/kube/k8-factory.js';
 import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
 import {type LocalConfigRuntimeState} from '../../../business/runtime-state/config/local/local-config-runtime-state.js';
-import {ConsensusNodeStates} from './enumerations/consensus-node-states.js';
 import {type Context} from '../../../types/index.js';
 import {type NodeAlias} from '../../../types/aliases.js';
 import {Templates} from '../../templates.js';
 import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
-import {type ConsensusNodeState} from '../../../data/schema/model/remote/state/consensus-node-state.js';
-import {type BaseState} from '../../../data/schema/model/remote/state/base-state.js';
+import {type ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
+import {type BaseStateSchema} from '../../../data/schema/model/remote/state/base-state-schema.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type RemoteConfigRuntimeStateApi} from '../../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {patchInject} from '../../dependency-injection/container-helper.js';
@@ -41,7 +40,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     return [constants.SOLO_RELAY_LABEL];
   }
 
-  private static getHaProxyLabels(component: BaseState): string[] {
+  private static getHaProxyLabels(component: BaseStateSchema): string[] {
     const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(component.metadata.id + 1);
     return [`app=haproxy-${nodeAlias}`, 'solo.hedera.com/type=haproxy'];
   }
@@ -54,7 +53,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     return constants.SOLO_HEDERA_MIRROR_IMPORTER;
   }
 
-  private static getEnvoyProxyLabels(component: BaseState): string[] {
+  private static getEnvoyProxyLabels(component: BaseStateSchema): string[] {
     const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(component.metadata.id + 1);
     return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=envoy-proxy'];
   }
@@ -67,11 +66,11 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     return [constants.SOLO_EXPLORER_LABEL];
   }
 
-  private static getConsensusNodeLabels(component: BaseState): string[] {
+  private static getConsensusNodeLabels(component: BaseStateSchema): string[] {
     return [`app=network-${Templates.renderNodeAliasFromNumber(component.metadata.id + 1)}`];
   }
 
-  private static consensusNodeSkipConditionCallback(nodeComponent: ConsensusNodeState): boolean {
+  private static consensusNodeSkipConditionCallback(nodeComponent: ConsensusNodeStateSchema): boolean {
     return (
       nodeComponent.metadata.phase === DeploymentPhase.REQUESTED ||
       nodeComponent.metadata.phase === DeploymentPhase.STOPPED
@@ -81,9 +80,9 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
   private static componentValidationsMapping: Record<
     string,
     {
-      getLabelsCallback: (component: BaseState) => string[];
+      getLabelsCallback: (component: BaseStateSchema) => string[];
       displayName: string;
-      skipCondition?: (component: BaseState) => boolean;
+      skipCondition?: (component: BaseStateSchema) => boolean;
     }
   > = {
     relays: {
@@ -129,17 +128,17 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
 
   private validateComponentGroup(
     namespace: NamespaceName,
-    state: Record<string, BaseState>,
-    getLabelsCallback: (component: BaseState) => string[],
+    state: Record<string, BaseStateSchema>,
+    getLabelsCallback: (component: BaseStateSchema) => string[],
     displayName: string,
-    skipCondition?: (component: BaseState) => boolean,
+    skipCondition?: (component: BaseStateSchema) => boolean,
   ): Promise<void>[] {
     return Object.values(state).map(async (component): Promise<void> => {
       if (skipCondition?.(component)) {
         return;
       }
 
-      const context: Context = localConfig.configuration.clusterRefs.get(component.cluster)?.toString();
+      const context: Context = this.localConfig.configuration.clusterRefs.get(component.metadata.cluster)?.toString();
       const labels: string[] = getLabelsCallback(component);
 
       try {
@@ -161,11 +160,11 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
    * @param component - component which is not found in the cluster
    * @param error - original error for the kube client
    */
-  private static buildValidationError(displayName: string, component: BaseState, error: Error | unknown): SoloError {
+  private static buildValidationError(displayName: string, component: BaseStateSchema, error: Error | unknown): SoloError {
     return new SoloError(RemoteConfigValidator.buildValidationErrorMessage(displayName, component), error, component);
   }
 
-  public static buildValidationErrorMessage(displayName: string, component: BaseState): string {
+  public static buildValidationErrorMessage(displayName: string, component: BaseStateSchema): string {
     return (
       `${displayName} in remote config with id ${component.metadata.id} was not found in ` +
       `namespace: ${component.metadata.namespace}, ` +

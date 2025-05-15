@@ -27,7 +27,7 @@ import {type RelayNodeState} from '../../../../src/data/schema/model/remote/stat
 import {type ConsensusNodeState} from '../../../../src/data/schema/model/remote/state/consensus-node-state.js';
 import {type HAProxyState} from '../../../../src/data/schema/model/remote/state/haproxy-state.js';
 import {type EnvoyProxyState} from '../../../../src/data/schema/model/remote/state/envoy-proxy-state.js';
-import {type BaseState} from '../../../../src/data/schema/model/remote/state/base-state.js';
+import {type BaseStateSchema} from '../../../../src/data/schema/model/remote/state/base-state-schema.js';
 import {ComponentTypes} from '../../../../src/core/config/remote/enumerations/component-types.js';
 import {RemoteConfig} from '../../../../src/data/schema/model/remote/remote-config.js';
 import {type ComponentFactoryApi} from '../../../../src/core/config/remote/api/component-factory-api.js';
@@ -186,7 +186,7 @@ describe('RemoteConfigValidator', () => {
   for (const {componentKey, displayName, type} of testCasesForIndividualComponents) {
     describe(`${displayName} validation`, () => {
       it('should fail if component is not present', async () => {
-        const component: BaseState = components[componentKey];
+        const component: BaseStateSchema = components[componentKey];
 
         componentsDataWrapper.addNewComponent(component, type);
 

@@ -15,7 +15,7 @@ import {MirrorNodeState} from '../../../../../src/data/schema/model/remote/state
 import {EnvoyProxyState} from '../../../../../src/data/schema/model/remote/state/envoy-proxy-state.js';
 import {ConsensusNodeState} from '../../../../../src/data/schema/model/remote/state/consensus-node-state.js';
 import {ExplorerState} from '../../../../../src/data/schema/model/remote/state/explorer-state.js';
-import {ComponentStateMetadata} from '../../../../../src/data/schema/model/remote/state/component-state-metadata.js';
+import {ComponentStateMetadataSchema} from '../../../../../src/data/schema/model/remote/state/component-state-metadata-schema.js';
 import {RemoteConfig} from '../../../../../src/data/schema/model/remote/remote-config.js';
 import {DeploymentState} from '../../../../../src/data/schema/model/remote/deployment-state.js';
 import {LedgerPhase} from '../../../../../src/data/schema/model/remote/ledger-phase.js';
@@ -50,7 +50,7 @@ export function createComponentsDataWrapper(): {
   const phase: DeploymentPhase = DeploymentPhase.DEPLOYED;
   const consensusNodeIds: NodeId[] = [0, 1];
 
-  const metadata: ComponentStateMetadata = new ComponentStateMetadata(id, namespace, cluster, phase);
+  const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(id, namespace, cluster, phase);
 
   const relays: RelayNodeState[] = [new RelayNodeState(metadata, consensusNodeIds)];
   const haProxies: HAProxyState[] = [new HAProxyState(metadata)];
@@ -113,7 +113,7 @@ describe('ComponentsDataWrapper', () => {
       phase: DeploymentPhase.DEPLOYED,
     };
 
-    const metadata: ComponentStateMetadata = new ComponentStateMetadata(id, namespace, cluster, phase);
+    const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(id, namespace, cluster, phase);
     const newComponent: EnvoyProxyState = new EnvoyProxyState(metadata);
 
     componentsDataWrapper.addNewComponent(newComponent, ComponentTypes.EnvoyProxy);

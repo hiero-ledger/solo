@@ -7,17 +7,9 @@ import {type ObjectMapper} from '../../mapper/api/object-mapper.js';
 import {type ObjectStorageBackend} from '../../backend/api/object-storage-backend.js';
 import {type RemoteConfigSchemaDefinition} from '../../schema/migration/impl/remote/remote-config-schema-definition.js';
 
-export class RemoteConfigSource extends MutableModelConfigSource<RemoteConfig> implements Refreshable {
-  public constructor(
-    schema: RemoteConfigSchema,
-    mapper: ObjectMapper,
-    backend: ObjectStorageBackend,
-    remoteConfig?: RemoteConfig, // if supplied, set it in this .modelData
-  ) {
+export class RemoteConfigSource extends MutableModelConfigSource<RemoteConfigSchema> implements Refreshable {
+  public constructor(schema: RemoteConfigSchemaDefinition, mapper: ObjectMapper, backend: ObjectStorageBackend) {
     super('remote-config-data', schema, backend, mapper);
-    if (remoteConfig) {
-      this.modelData = remoteConfig;
-    }
   }
 
   public get name(): string {

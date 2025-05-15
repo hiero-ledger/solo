@@ -6,7 +6,7 @@ import {type DeploymentPhase} from '../deployment-phase.js';
 import {type ClusterReference, type ComponentId, type NamespaceNameAsString} from '../../../../../types/index.js';
 
 @Exclude()
-export class ComponentStateMetadata {
+export class ComponentStateMetadataSchema {
   @Expose()
   public id: ComponentId;
 
