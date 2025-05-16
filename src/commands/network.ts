@@ -9,6 +9,7 @@ import {UserBreak} from '../core/errors/user-break.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
+import {SOLO_DEPLOYMENT_CHART} from '../core/constants.js';
 import {Templates} from '../core/templates.js';
 import {
   addDebugOptions,
@@ -45,14 +46,11 @@ import {
   type SoloListrTask,
   type SoloListrTaskWrapper,
 } from '../types/index.js';
-import {NamespaceName} from '../types/namespace/namespace-name.js';
-import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
-import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
-import {type ConsensusNode} from '../core/model/consensus-node.js';
 import {Base64} from 'js-base64';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Duration} from '../core/time/duration.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
+import {SOLO_DEPLOYMENT_CHART} from '../core/constants.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
