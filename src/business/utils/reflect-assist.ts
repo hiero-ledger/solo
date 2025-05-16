@@ -4,6 +4,7 @@ import {UnsupportedOperationError} from '../errors/unsupported-operation-error.j
 import {type Refreshable} from '../../data/configuration/spi/refreshable.js';
 import {type ObjectStorageBackend} from '../../data/backend/api/object-storage-backend.js';
 import {type Persistable} from '../../data/configuration/spi/persistable.js';
+import {type EnvironmentStorageBackend} from '../../data/backend/impl/environment-storage-backend.js';
 
 export class ReflectAssist {
   private constructor() {
@@ -41,6 +42,17 @@ export class ReflectAssist {
    */
   public static isObjectStorageBackend(v: object): v is ObjectStorageBackend {
     return typeof v === 'object' && !!v && 'readObject' in v;
+  }
+
+  /**
+   * TypeScript custom type guard that checks if the provided object implements EnvironmentStorageBackend.
+   *
+   * @param v - The object to check.
+   * @returns true if the object implements EnvironmentStorageBackend, false otherwise.
+   * @private
+   */
+  public static isEnvironmentStorageBackend(v: object): v is EnvironmentStorageBackend {
+    return typeof v === 'object' && !!v && 'list' in v;
   }
 
   public static coerce(v: string): string | number | boolean | object | null {
