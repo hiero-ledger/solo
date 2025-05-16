@@ -58,7 +58,9 @@ jobs:
           sudo apt-get update && sudo apt-get install -y jq
 
           # Read the JSON file
-          JSON_CONTENT=$(cat .github/workflows/support/e2e-test-matrix.json)
+          JSON_CONTENT=$(cat .github/workflows/support/e2e-test-matrix.json | jq -c .)
+          
+          echo "JSON_CONTENT: $JSON_CONTENT"
 
           # Set the output variable 'matrix' with the JSON content
           echo "matrix=$JSON_CONTENT" >> $GITHUB_OUTPUT
