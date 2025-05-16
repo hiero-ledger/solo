@@ -8,6 +8,7 @@ import {getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js
 import {Flags as flags} from '../../../src/commands/flags.js';
 import * as version from '../../../version.js';
 import * as constants from '../../../src/core/constants.js';
+import {ROOT_DIR} from '../../../src/core/constants.js';
 import {type ConfigManager} from '../../../src/core/config-manager.js';
 import {type ChartManager} from '../../../src/core/chart-manager.js';
 import {NetworkCommand} from '../../../src/commands/network.js';
@@ -15,7 +16,6 @@ import {type LockManager} from '../../../src/core/lock/lock-manager.js';
 import {type RemoteConfigManager} from '../../../src/core/config/remote/remote-config-manager.js';
 import {type ProfileManager} from '../../../src/core/profile-manager.js';
 import {type KeyManager} from '../../../src/core/key-manager.js';
-import {ROOT_DIR} from '../../../src/core/constants.js';
 import {ListrLock} from '../../../src/core/lock/listr-lock.js';
 import {GenesisNetworkDataConstructor} from '../../../src/core/genesis-network-models/genesis-network-data-constructor.js';
 import {container} from 'tsyringe-neo';
@@ -36,12 +36,12 @@ import {type CertificateManager} from '../../../src/core/certificate-manager.js'
 import {type PlatformInstaller} from '../../../src/core/platform-installer.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import {SemVer, lt as SemVersionLessThan} from 'semver';
+import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
-import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
-import {type LocalConfig} from '../../../src/data/schema/model/local/local-config.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type ClusterReferences} from '../../../src/types/index.js';
+import {StringFacade} from '../../../src/business/runtime-state/facade/string-facade.js';
 
 const testName = 'network-cmd-unit';
 const namespace = NamespaceName.of(testName);
@@ -200,9 +200,7 @@ describe('NetworkCommand unit tests', () => {
       options.remoteConfigManager.getConfigMap = sinon.stub().returns(null);
       options.remoteConfigManager.modify = sinon.stub();
 
-      options.localConfig.modify((modelData: LocalConfig): void => {
-        modelData.addClusterRef('solo-e2e', 'context-1');
-      });
+      options.localConfig.configuration.clusterRefs.set('solo-e2e', new StringFacade('context-1'));
 
       options.leaseManager = container.resolve<LockManager>(InjectTokens.LockManager);
       options.leaseManager.currentNamespace = sinon.stub().returns(testName);

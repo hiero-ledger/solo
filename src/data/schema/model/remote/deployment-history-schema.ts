@@ -3,7 +3,7 @@
 import {Exclude, Expose} from 'class-transformer';
 
 @Exclude()
-export class DeploymentHistory {
+export class DeploymentHistorySchema {
   @Expose()
   public commands: string[];
 

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SchemaBase} from '../../api/schema-base.js';
-import {type Schema} from '../../api/schema.js';
-import {RemoteConfig} from '../../../model/remote/remote-config.js';
+import {SchemaDefinitionBase} from '../../api/schema-definition-base.js';
+import {type SchemaDefinition} from '../../api/schema-definition.js';
+import {RemoteConfigSchema} from '../../../model/remote/remote-config-schema.js';
 import {type ClassConstructor} from '../../../../../business/utils/class-constructor.type.js';
 import {type SchemaMigration} from '../../api/schema-migration.js';
 import {type Version} from '../../../../../business/utils/version.js';
@@ -12,21 +12,24 @@ import {RemoteConfigV1Migration} from './remote-config-v1-migration.js';
 import {inject, injectable} from 'tsyringe-neo';
 
 @injectable()
-export class RemoteConfigSchema extends SchemaBase<RemoteConfig> implements Schema<RemoteConfig> {
+export class RemoteConfigSchemaDefinition
+  extends SchemaDefinitionBase<RemoteConfigSchema>
+  implements SchemaDefinition<RemoteConfigSchema>
+{
   public constructor(@inject(InjectTokens.ObjectMapper) mapper: ObjectMapper) {
     super(mapper);
   }
 
   public get name(): string {
-    return RemoteConfig.name;
+    return RemoteConfigSchema.name;
   }
 
   public get version(): Version<number> {
-    return RemoteConfig.SCHEMA_VERSION;
+    return RemoteConfigSchema.SCHEMA_VERSION;
   }
 
-  public get classCtor(): ClassConstructor<RemoteConfig> {
-    return RemoteConfig;
+  public get classCtor(): ClassConstructor<RemoteConfigSchema> {
+    return RemoteConfigSchema;
   }
 
   public get migrations(): SchemaMigration[] {

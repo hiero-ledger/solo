@@ -3,7 +3,7 @@
 import {Exclude, Expose} from 'class-transformer';
 
 @Exclude()
-export class Cluster {
+export class ClusterSchema {
   @Expose()
   public name: string;
 

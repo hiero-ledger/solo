@@ -4,7 +4,7 @@ import {Exclude, Expose} from 'class-transformer';
 import os from 'node:os';
 
 @Exclude()
-export class UserIdentity {
+export class UserIdentitySchema {
   @Expose()
   public name: string;
 

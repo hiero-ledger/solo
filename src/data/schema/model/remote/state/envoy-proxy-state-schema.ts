@@ -5,7 +5,7 @@ import {Transformations} from '../../utils/transformations.js';
 import {type DeploymentPhase} from '../deployment-phase.js';
 
 @Exclude()
-export class MirrorNodeState {
+export class EnvoyProxyStateSchema {
   @Expose()
   public name: string;
 

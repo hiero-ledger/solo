@@ -9,6 +9,7 @@ import {UserBreak} from '../core/errors/user-break.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
+import {SOLO_DEPLOYMENT_CHART} from '../core/constants.js';
 import {Templates} from '../core/templates.js';
 import {
   addDebugOptions,
@@ -29,30 +30,32 @@ import {ConsensusNodeComponent} from '../core/config/remote/components/consensus
 import {EnvoyProxyComponent} from '../core/config/remote/components/envoy-proxy-component.js';
 import {HaProxyComponent} from '../core/config/remote/components/ha-proxy-component.js';
 import {v4 as uuidv4} from 'uuid';
-import {type CommandDefinition, type SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
+import {
+  type ClusterReference,
+  type ClusterReferences,
+  type CommandDefinition,
+  type DeploymentName,
+  type Realm,
+  type Shard,
+  type SoloListrTask,
+  type SoloListrTaskWrapper,
+} from '../types/index.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {type ConsensusNode} from '../core/model/consensus-node.js';
-import {
-  type ClusterReference,
-  type ClusterReferences,
-  type DeploymentName,
-  type Realm,
-  type Shard,
-} from '../types/index.js';
 import {Base64} from 'js-base64';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Duration} from '../core/time/duration.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
-import {SOLO_DEPLOYMENT_CHART} from '../core/constants.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ConsensusNodeStates} from '../core/config/remote/enumerations/consensus-node-states.js';
-import {SemVer, lt as SemVersionLessThan} from 'semver';
+import {lt as SemVersionLessThan, SemVer} from 'semver';
+import {Deployment} from '../business/runtime-state/config/local/deployment.js';
 
 export interface NetworkDeployConfigClass {
   applicationEnv: string;
@@ -708,8 +711,8 @@ export class NetworkCommand extends BaseCommand {
       ],
     ) as NetworkDeployConfigClass;
 
-    const realm: Realm = this.localConfig.getRealm(config.deployment);
-    const shard: Shard = this.localConfig.getShard(config.deployment);
+    const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
+    const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
 
     const networkNodeVersion = new SemVer(config.releaseTag);
     const minimumVersionForNonZeroRealms = new SemVer('0.60.0');
@@ -1219,9 +1222,15 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Remove deployment from local configuration',
           task: async (context_, task) => {
-            await this.localConfig.modify(async localConfigData => {
-              localConfigData.removeDeployment(context_.config.deployment);
-            });
+            const deployment: Deployment = this.localConfig.configuration.deployments.find(
+              (d: Deployment): boolean => d.name === context_.config.deployment,
+            );
+
+            if (deployment) {
+              this.localConfig.configuration.deployments.remove(deployment);
+            }
+
+            await this.localConfig.persist();
           },
         },
         {

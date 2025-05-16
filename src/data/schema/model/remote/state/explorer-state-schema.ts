@@ -5,7 +5,7 @@ import {Transformations} from '../../utils/transformations.js';
 import {type DeploymentPhase} from '../deployment-phase.js';
 
 @Exclude()
-export class RelayNodeState {
+export class ExplorerStateSchema {
   @Expose()
   public name: string;
 
@@ -16,23 +16,13 @@ export class RelayNodeState {
   public cluster: string;
 
   @Expose()
-  public consensusNodeIds: number[];
-
-  @Expose()
   @Transform(Transformations.DeploymentPhase)
   public phase: DeploymentPhase;
 
-  public constructor(
-    name?: string,
-    namespace?: string,
-    cluster?: string,
-    consensusNodeIds?: number[],
-    phase?: DeploymentPhase,
-  ) {
+  public constructor(name?: string, namespace?: string, cluster?: string, phase?: DeploymentPhase) {
     this.name = name;
     this.namespace = namespace;
     this.cluster = cluster;
-    this.consensusNodeIds = consensusNodeIds;
     this.phase = phase;
   }
 }
