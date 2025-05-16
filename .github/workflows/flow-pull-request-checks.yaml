@@ -32,12 +32,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  env-vars:
-    name: Set Environment Variables
-    uses: ./.github/workflows/zxc-env-vars.yaml
-    with:
-      custom-job-label: Set Environment Variables
-
   generate_matrix:
     runs-on: hiero-solo-linux-medium
     outputs:
@@ -113,7 +107,6 @@ jobs:
     name: CodeCov
     uses: ./.github/workflows/zxc-code-analysis.yaml
     needs:
-      - env-vars
       - unit-tests
       - e2e-tests
     if: ${{ github.event.pull_request.head.repo.full_name == github.event.pull_request.base.repo.full_name }}
@@ -121,40 +114,6 @@ jobs:
       custom-job-label: Standard
       enable-codecov-analysis: true
       enable-e2e-coverage-report: true
-      e2e-integration-test-subdir: ${{ needs.env-vars.outputs.e2e-integration-test-subdir }}
-      e2e-standard-test-subdir: ${{ needs.env-vars.outputs.e2e-standard-test-subdir }}
-      e2e-node-pem-stop-test-subdir: ${{ needs.env-vars.outputs.e2e-node-pem-stop-test-subdir }}
-      e2e-node-pem-kill-test-subdir: ${{ needs.env-vars.outputs.e2e-node-pem-kill-test-subdir }}
-      e2e-node-local-hedera-test-subdir: ${{ needs.env-vars.outputs.e2e-node-local-hedera-test-subdir }}
-      e2e-node-local-ptt-test-subdir: ${{ needs.env-vars.outputs.e2e-node-local-ptt-test-subdir }}
-      e2e-node-add-test-subdir: ${{ needs.env-vars.outputs.e2e-node-add-test-subdir }}
-      e2e-node-add-local-test-subdir: ${{ needs.env-vars.outputs.e2e-node-add-local-test-subdir }}
-      e2e-node-add-separate-commands-test-subdir: ${{ needs.env-vars.outputs.e2e-node-add-separate-commands-test-subdir }}
-      e2e-node-update-test-subdir: ${{ needs.env-vars.outputs.e2e-node-update-test-subdir }}
-      e2e-node-update-separate-commands-test-subdir: ${{ needs.env-vars.outputs.e2e-node-update-separate-commands-test-subdir }}
-      e2e-node-delete-test-subdir: ${{ needs.env-vars.outputs.e2e-node-delete-test-subdir }}
-      e2e-node-delete-separate-commands-test-subdir: ${{ needs.env-vars.outputs.e2e-node-delete-separate-commands-test-subdir }}
-      e2e-node-upgrade-test-subdir: ${{ needs.env-vars.outputs.e2e-node-upgrade-test-subdir }}
-      e2e-node-upgrade-separate-commands-test-subdir: ${{ needs.env-vars.outputs.e2e-node-upgrade-separate-commands-test-subdir }}
-      e2e-relay-test-subdir: ${{ needs.env-vars.outputs.e2e-relay-test-subdir }}
-      e2e-block-node-test-subdir: ${{ needs.env-vars.outputs.e2e-block-node-test-subdir }}
-      e2e-integration-coverage-report: ${{ needs.env-vars.outputs.e2e-integration-coverage-report }}
-      e2e-standard-coverage-report: ${{ needs.env-vars.outputs.e2e-standard-coverage-report }}
-      e2e-node-pem-stop-coverage-report: ${{ needs.env-vars.outputs.e2e-node-pem-stop-coverage-report }}
-      e2e-node-pem-kill-coverage-report: ${{ needs.env-vars.outputs.e2e-node-pem-kill-coverage-report }}
-      e2e-node-local-hedera-coverage-report: ${{ needs.env-vars.outputs.e2e-node-local-hedera-coverage-report }}
-      e2e-node-local-ptt-coverage-report: ${{ needs.env-vars.outputs.e2e-node-local-ptt-coverage-report }}
-      e2e-node-add-coverage-report: ${{ needs.env-vars.outputs.e2e-node-add-coverage-report }}
-      e2e-node-add-local-coverage-report: ${{ needs.env-vars.outputs.e2e-node-add-local-coverage-report }}
-      e2e-node-add-separate-commands-coverage-report: ${{ needs.env-vars.outputs.e2e-node-add-separate-commands-coverage-report }}
-      e2e-node-update-coverage-report: ${{ needs.env-vars.outputs.e2e-node-update-coverage-report }}
-      e2e-node-update-separate-commands-coverage-report: ${{ needs.env-vars.outputs.e2e-node-update-separate-commands-coverage-report }}
-      e2e-node-delete-coverage-report: ${{ needs.env-vars.outputs.e2e-node-delete-coverage-report }}
-      e2e-node-delete-separate-commands-coverage-report: ${{ needs.env-vars.outputs.e2e-node-delete-separate-commands-coverage-report }}
-      e2e-node-upgrade-coverage-report: ${{ needs.env-vars.outputs.e2e-node-upgrade-coverage-report }}
-      e2e-node-upgrade-separate-commands-coverage-report: ${{ needs.env-vars.outputs.e2e-node-upgrade-separate-commands-coverage-report }}
-      e2e-relay-coverage-report: ${{ needs.env-vars.outputs.e2e-relay-coverage-report }}
-      e2e-block-node-coverage-report: ${{ needs.env-vars.outputs.e2e-block-node-coverage-report }}
     secrets:
       codecov-token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -162,7 +121,6 @@ jobs:
     name: Codacy
     uses: ./.github/workflows/zxc-code-analysis.yaml
     needs:
-      - env-vars
       - unit-tests
       - e2e-tests
     if: ${{ github.event.pull_request.head.repo.full_name == github.event.pull_request.base.repo.full_name }}
@@ -170,41 +128,5 @@ jobs:
       custom-job-label: Coverage
       enable-codacy-coverage: true
       enable-e2e-coverage-report: true
-      e2e-integration-test-subdir: ${{ needs.env-vars.outputs.e2e-integration-test-subdir }}
-      e2e-dual-cluster-full-test-subdir: ${{ needs.env-vars.outputs.e2e-dual-cluster-full-test-subdir }}
-      e2e-standard-test-subdir: ${{ needs.env-vars.outputs.e2e-standard-test-subdir }}
-      e2e-node-pem-stop-test-subdir: ${{ needs.env-vars.outputs.e2e-node-pem-stop-test-subdir }}
-      e2e-node-pem-kill-test-subdir: ${{ needs.env-vars.outputs.e2e-node-pem-kill-test-subdir }}
-      e2e-node-local-hedera-test-subdir: ${{ needs.env-vars.outputs.e2e-node-local-hedera-test-subdir }}
-      e2e-node-local-ptt-test-subdir: ${{ needs.env-vars.outputs.e2e-node-local-ptt-test-subdir }}
-      e2e-node-add-test-subdir: ${{ needs.env-vars.outputs.e2e-node-add-test-subdir }}
-      e2e-node-add-local-test-subdir: ${{ needs.env-vars.outputs.e2e-node-add-local-test-subdir }}
-      e2e-node-add-separate-commands-test-subdir: ${{ needs.env-vars.outputs.e2e-node-add-separate-commands-test-subdir }}
-      e2e-node-update-test-subdir: ${{ needs.env-vars.outputs.e2e-node-update-test-subdir }}
-      e2e-node-update-separate-commands-test-subdir: ${{ needs.env-vars.outputs.e2e-node-update-separate-commands-test-subdir }}
-      e2e-node-delete-test-subdir: ${{ needs.env-vars.outputs.e2e-node-delete-test-subdir }}
-      e2e-node-delete-separate-commands-test-subdir: ${{ needs.env-vars.outputs.e2e-node-delete-separate-commands-test-subdir }}
-      e2e-node-upgrade-test-subdir: ${{ needs.env-vars.outputs.e2e-node-upgrade-test-subdir }}
-      e2e-node-upgrade-separate-commands-test-subdir: ${{ needs.env-vars.outputs.e2e-node-upgrade-separate-commands-test-subdir }}
-      e2e-relay-test-subdir: ${{ needs.env-vars.outputs.e2e-relay-test-subdir }}
-      e2e-block-node-test-subdir: ${{ needs.env-vars.outputs.e2e-block-node-test-subdir }}
-      e2e-integration-coverage-report: ${{ needs.env-vars.outputs.e2e-integration-coverage-report }}
-      e2e-dual-cluster-full-coverage-report: ${{ needs.env-vars.outputs.e2e-dual-cluster-full-coverage-report }}
-      e2e-standard-coverage-report: ${{ needs.env-vars.outputs.e2e-standard-coverage-report }}
-      e2e-node-pem-stop-coverage-report: ${{ needs.env-vars.outputs.e2e-node-pem-stop-coverage-report }}
-      e2e-node-pem-kill-coverage-report: ${{ needs.env-vars.outputs.e2e-node-pem-kill-coverage-report }}
-      e2e-node-local-hedera-coverage-report: ${{ needs.env-vars.outputs.e2e-node-local-hedera-coverage-report }}
-      e2e-node-local-ptt-coverage-report: ${{ needs.env-vars.outputs.e2e-node-local-ptt-coverage-report }}
-      e2e-node-add-coverage-report: ${{ needs.env-vars.outputs.e2e-node-add-coverage-report }}
-      e2e-node-add-local-coverage-report: ${{ needs.env-vars.outputs.e2e-node-add-local-coverage-report }}
-      e2e-node-add-separate-commands-coverage-report: ${{ needs.env-vars.outputs.e2e-node-add-separate-commands-coverage-report }}
-      e2e-node-update-coverage-report: ${{ needs.env-vars.outputs.e2e-node-update-coverage-report }}
-      e2e-node-update-separate-commands-coverage-report: ${{ needs.env-vars.outputs.e2e-node-update-separate-commands-coverage-report }}
-      e2e-node-delete-coverage-report: ${{ needs.env-vars.outputs.e2e-node-delete-coverage-report }}
-      e2e-node-delete-separate-commands-coverage-report: ${{ needs.env-vars.outputs.e2e-node-delete-separate-commands-coverage-report }}
-      e2e-node-upgrade-coverage-report: ${{ needs.env-vars.outputs.e2e-node-upgrade-coverage-report }}
-      e2e-node-upgrade-separate-commands-coverage-report: ${{ needs.env-vars.outputs.e2e-node-upgrade-separate-commands-coverage-report }}
-      e2e-relay-coverage-report: ${{ needs.env-vars.outputs.e2e-relay-coverage-report }}
-      e2e-block-node-coverage-report: ${{ needs.env-vars.outputs.e2e-block-node-coverage-report }}
     secrets:
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}

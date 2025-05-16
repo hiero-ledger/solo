@@ -55,186 +55,7 @@ on:
         type: string
         required: false
         default: "Analyze"
-      e2e-integration-test-subdir:
-        description: "E2E Integration Test Subdirectory:"
-        type: string
-        required: false
-        default: "e2e-integration"
-      e2e-dual-cluster-full-test-subdir:
-        description: "E2E Dual Cluster Full Test Subdirectory:"
-        type: string
-        required: false
-        default: "e2e-dual-cluster-full"
-      e2e-standard-test-subdir:
-        description: "E2E Standard Test Subdirectory:"
-        type: string
-        required: false
-        default: "e2e-standard"
-      e2e-node-pem-stop-test-subdir:
-        description: "E2E Node PEM Stop Test Subdirectory:"
-        type: string
-        required: false
-        default: "e2e-node-pem-stop"
-      e2e-node-pem-kill-test-subdir:
-        description: "E2E Node PEM Kill Test Subdirectory:"
-        type: string
-        required: false
-        default: "e2e-node-pem-kill"
-      e2e-node-local-hedera-test-subdir:
-        description: "E2E Node Local Hedera Test Subdirectory:"
-        type: string
-        required: false
-        default: "e2e-node-local-hedera"
-      e2e-node-local-ptt-test-subdir:
-        description: "E2E Node Local PTT Test Subdirectory:"
-        type: string
-        required: false
-        default: "e2e-node-local-ptt"
-      e2e-node-add-test-subdir:
-        description: "E2E Node Add Test Subdirectory:"
-        type: string
-        required: false
-        default: "e2e-node-add"
-      e2e-node-add-local-test-subdir:
-        description: "E2E Node Add Local Test Subdirectory:"
-        type: string
-        required: false
-        default: "e2e-node-add-local"
-      e2e-node-add-separate-commands-test-subdir:
-        description: "E2E Node Add - Separate commands Test Subdirectory:"
-        type: string
-        required: false
-        default: "e2e-node-add-separate"
-      e2e-node-update-test-subdir:
-        description: "E2E Node Update Test Subdirectory:"
-        type: string
-        required: false
-        default: "e2e-node-update"
-      e2e-node-update-separate-commands-test-subdir:
-        description: "E2E Node Update - Separate commands Test Subdirectory:"
-        type: string
-        required: false
-        default: "e2e-node-update-separate"
-      e2e-node-delete-test-subdir:
-        description: "E2E Node Delete Test Subdirectory:"
-        type: string
-        required: false
-        default: "e2e-node-delete"
-      e2e-node-delete-separate-commands-test-subdir:
-        description: "E2E Node Delete - Separate commands Test Subdirectory:"
-        type: string
-        required: false
-        default: "e2e-node-delete-separate"
-      e2e-node-upgrade-test-subdir:
-        description: "E2E Node Upgrade Test Subdirectory:"
-        type: string
-        required: false
-        default: "e2e-node-upgrade"
-      e2e-node-upgrade-separate-commands-test-subdir:
-        description: "E2E Node Upgrade - Separate commands Test Subdirectory:"
-        type: string
-        required: false
-        default: "e2e-node-upgrade-separate"
-      e2e-relay-test-subdir:
-        description: "E2E Relay Test Subdirectory:"
-        type: string
-        required: false
-        default: "e2e-relay"
-      e2e-block-node-test-subdir:
-        description: "E2E Block Node Test Subdirectory:"
-        type: string
-        required: false
-        default: "e2e-block-node"
-      e2e-integration-coverage-report:
-        description: "E2E Integration Coverage Report:"
-        type: string
-        required: false
-        default: "E2E Integration Tests Coverage Report"
-      e2e-dual-cluster-full-coverage-report:
-        description: "E2E Dual Cluster Full Coverage Report:"
-        type: string
-        required: false
-        default: "E2E Dual Cluster Full Tests Coverage Report"
-      e2e-standard-coverage-report:
-        description: "E2E Standard Coverage Report:"
-        type: string
-        required: false
-        default: "E2E Standard Tests Coverage Report"
-      e2e-node-pem-stop-coverage-report:
-        description: "E2E Node PEM Stop Coverage Report:"
-        type: string
-        required: false
-        default: "E2E Node PEM Stop Tests Coverage Report"
-      e2e-node-pem-kill-coverage-report:
-        description: "E2E Node PEM Kill Coverage Report:"
-        type: string
-        required: false
-        default: "E2E Node PEM Kill Tests Coverage Report"
-      e2e-node-local-hedera-coverage-report:
-        description: "E2E Node Local Hedera Coverage Report:"
-        type: string
-        required: false
-        default: "E2E Node Local Hedera Tests Coverage Report"
-      e2e-node-local-ptt-coverage-report:
-        description: "E2E Node Local PTT Coverage Report:"
-        type: string
-        required: false
-        default: "E2E Node Local PTT Tests Coverage Report"
-      e2e-node-add-coverage-report:
-        description: "E2E Node Add Coverage Report:"
-        type: string
-        required: false
-        default: "E2E Node Add Tests Coverage Report"
-      e2e-node-add-local-coverage-report:
-        description: "E2E Node Add Local Coverage Report:"
-        type: string
-        required: false
-        default: "E2E Node Add Local Tests Coverage Report"
-      e2e-node-add-separate-commands-coverage-report:
-        description: "E2E Node Add - Separate commands Coverage Report:"
-        type: string
-        required: false
-        default: "E2E Node Add - Separate commands Tests Coverage Report"
-      e2e-node-update-coverage-report:
-        description: "E2E Node Update Coverage Report:"
-        type: string
-        required: false
-        default: "E2E Node Update Tests Coverage Report"
-      e2e-node-update-separate-commands-coverage-report:
-        description: "E2E Node Update - Separate commands Coverage Report:"
-        type: string
-        required: false
-        default: "E2E Node Update - Separate commands Tests Coverage Report"
-      e2e-node-delete-coverage-report:
-        description: "E2E Node Delete Coverage Report:"
-        type: string
-        required: false
-        default: "E2E Node Delete Tests Coverage Report"
-      e2e-node-delete-separate-commands-coverage-report:
-        description: "E2E Node Delete - Separate commands Coverage Report:"
-        type: string
-        required: false
-        default: "E2E Node Delete - Separate commands Tests Coverage Report"
-      e2e-node-upgrade-coverage-report:
-        description: "E2E Node Upgrade Coverage Report:"
-        type: string
-        required: false
-        default: "E2E Node Upgrade Tests Coverage Report"
-      e2e-node-upgrade-separate-commands-coverage-report:
-        description: "E2E Node Upgrade - Separate commands Coverage Report:"
-        type: string
-        required: false
-        default: "E2E Node Upgrade - Separate commands Tests Coverage Report"
-      e2e-relay-coverage-report:
-        description: "E2E Relay Coverage Report:"
-        type: string
-        required: false
-        default: "E2E Relay Tests Coverage Report"
-      e2e-block-node-coverage-report:
-        description: "E2E Block Node Coverage Report:"
-        type: string
-        required: false
-        default: "E2E Block Node Tests Coverage Report"
+
     secrets:
       snyk-token:
         description: "The Snyk access token is used by Snyk to analyze the code for vulnerabilities "
@@ -258,9 +79,74 @@ permissions:
   statuses: write
 
 jobs:
+
+  generate_matrix:
+    runs-on: hiero-solo-linux-medium
+    outputs:
+      matrix: ${{ steps.set_matrix.outputs.matrix }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Read JSON and Set Matrix Output
+        id: set_matrix
+        run: |
+          # Install jq (a lightweight and flexible command-line JSON processor)
+          sudo apt-get update && sudo apt-get install -y jq
+
+          # Read the JSON file
+          JSON_CONTENT=$(cat .github/workflows/support/e2e-test-matrix.json | jq -c .)
+          
+          echo "JSON_CONTENT: $JSON_CONTENT"
+
+          # Set the output variable 'matrix' with the JSON content
+          echo "matrix=$JSON_CONTENT" >> $GITHUB_OUTPUT
+
+  download_standard_reports:
+    name: Download Standard Reports
+    runs-on: hiero-solo-linux-medium # Use the appropriate runner
+    outputs:
+      standard_reports_artifact: download-standard-reports-artifact # Define an output for the artifact name
+    steps:
+      - name: Download Unit Test Coverage Report
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && !cancelled() && !failure() }}
+        with:
+          name: Unit Test Coverage Report
+          path: 'coverage/unit'
+
+      - name: Download HelmClient Unit Test Coverage Report
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && !cancelled() && !failure() }}
+        with:
+          name: Unit Test Coverage Report
+          path: 'coverage/unit-helm'
+
+      # Add any other standard reports here
+
+      - name: Combine and Upload Standard Reports Artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: download-standard-reports-artifact # Use a consistent name
+          path: |
+            coverage/unit
+            coverage/unit-helm
+          # Add other standard report paths here
+          if-no-files-found: ignore # Don't fail if no reports were downloaded
+
   analyze:
     name: ${{ inputs.custom-job-label || 'Analyze' }}
     runs-on: hiero-solo-linux-medium
+    needs: [generate_matrix, download_standard_reports]
+    strategy:
+      matrix:
+        reports: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
+      max-parallel: 5
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -278,145 +164,19 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
 
-      - name: Download Unit Test Coverage Report
+      - name: Download Standard Reports Artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && !cancelled() && !failure() }}
         with:
-          name: Unit Test Coverage Report
-          path: 'coverage/unit'
+          name: ${{ needs.download_standard_reports.outputs.standard_reports_artifact }}
+          path: coverage # Download all standard reports into the coverage directory
 
-      - name: Download HelmClient Unit Test Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && !cancelled() && !failure() }}
-        with:
-          name: Unit Test Coverage Report
-          path: 'coverage/unit-helm'
-
-      - name: Download E2E Integration Coverage Report
+      # Download the specific E2E coverage report for this matrix instance
+      - name: Download E2E Coverage Report - ${{ matrix.reports.coverage-report-name }}
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
         with:
-          name: ${{ inputs.e2e-integration-coverage-report }}
-          path: 'coverage/${{ inputs.e2e-integration-test-subdir }}'
-
-      - name: Download E2E Dual Cluster Full Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
-        with:
-          name: ${{ inputs.e2e-dual-cluster-full-coverage-report }}
-          path: 'coverage/${{ inputs.e2e-dual-cluster-full-test-subdir }}'
-
-      - name: Download E2E Standard Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
-        with:
-          name: ${{ inputs.e2e-standard-coverage-report }}
-          path: 'coverage/${{ inputs.e2e-standard-test-subdir }}'
-
-      - name: Download E2E Node PEM Stop Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
-        with:
-          name: ${{ inputs.e2e-node-pem-stop-coverage-report }}
-          path: 'coverage/${{ inputs.e2e-node-pem-stop-test-subdir }}'
-
-      - name: Download E2E Node PEM Kill Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
-        with:
-          name: ${{ inputs.e2e-node-pem-kill-coverage-report }}
-          path: 'coverage/${{ inputs.e2e-node-pem-kill-test-subdir }}'
-
-      - name: Download E2E Node Local Hedera Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
-        with:
-          name: ${{ inputs.e2e-node-local-hedera-coverage-report }}
-          path: 'coverage/${{ inputs.e2e-node-local-hedera-test-subdir }}'
-
-      - name: Download E2E Node Local PTT Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
-        with:
-          name: ${{ inputs.e2e-node-local-ptt-coverage-report }}
-          path: 'coverage/${{ inputs.e2e-node-local-ptt-test-subdir }}'
-
-      - name: Download E2E Node Add Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
-        with:
-          name: ${{ inputs.e2e-node-add-coverage-report }}
-          path: 'coverage/${{ inputs.e2e-node-add-test-subdir }}'
-
-      - name: Download E2E Node Add Local Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
-        with:
-          name: ${{ inputs.e2e-node-add-local-coverage-report }}
-          path: 'coverage/${{ inputs.e2e-node-add-local-test-subdir }}'
-
-      - name: Download E2E Node Add - Separate commands Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
-        with:
-          name: ${{ inputs.e2e-node-add-separate-commands-coverage-report }}
-          path: 'coverage/${{ inputs.e2e-node-add-separate-commands-test-subdir }}'
-
-      - name: Download E2E Node Update Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
-        with:
-          name: ${{ inputs.e2e-node-update-coverage-report }}
-          path: 'coverage/${{ inputs.e2e-node-update-test-subdir }}'
-
-      - name: Download E2E Node Update - Separate commands Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
-        with:
-          name: ${{ inputs.e2e-node-update-separate-commands-coverage-report }}
-          path: 'coverage/${{ inputs.e2e-node-update-separate-commands-test-subdir }}'
-
-      - name: Download E2E Node Delete Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
-        with:
-          name: ${{ inputs.e2e-node-delete-coverage-report }}
-          path: 'coverage/${{ inputs.e2e-node-delete-test-subdir }}'
-
-      - name: Download E2E Node Delete - Separate commands Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
-        with:
-          name: ${{ inputs.e2e-node-delete-separate-commands-coverage-report }}
-          path: 'coverage/${{ inputs.e2e-node-delete-separate-commands-test-subdir }}'
-
-      - name: Download E2E Node Upgrade Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
-        with:
-          name: ${{ inputs.e2e-node-upgrade-coverage-report }}
-          path: 'coverage/${{ inputs.e2e-node-upgrade-test-subdir }}'
-
-      - name: Download E2E Node Upgrade - Separate commands Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
-        with:
-          name: ${{ inputs.e2e-node-upgrade-separate-commands-coverage-report }}
-          path: 'coverage/${{ inputs.e2e-node-upgrade-separate-commands-test-subdir }}'
-
-      - name: Download E2E Relay Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
-        with:
-          name: ${{ inputs.e2e-relay-coverage-report }}
-          path: 'coverage/${{ inputs.e2e-relay-test-subdir }}'
-
-      - name: Download E2E Block Node Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
-        with:
-          name: ${{ inputs.e2e-block-node-coverage-report }}
-          path: 'coverage/${{ inputs.e2e-block-node-test-subdir }}'
+          name: ${{ matrix.reports.coverage-report-name }}
+          path: 'coverage/${{ matrix.reports.coverage-subdirectory }}'
 
       - name: Download E2E Test Report
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
