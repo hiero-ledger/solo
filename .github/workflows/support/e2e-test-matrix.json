@@ -12,9 +12,9 @@
     "coverage-report-name": "E2E Dual Cluster Full Tests Coverage Report"
   },
   {
-    "name": "Node Add",
-    "test-script": "test-e2e-node-add",
-    "coverage-subdirectory": "e2e-node-add",
-    "coverage-report-name": "E2E Node Add Tests Coverage Report"
+    "name": "Node PEM Kill",
+    "test-script": "test-e2e-node-pem-kill",
+    "coverage-subdirectory": "e2e-node-pem-kill",
+    "coverage-report-name": "E2E Node PEM Kill Tests Coverage Report"
   }
 ]
