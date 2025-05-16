@@ -16,6 +16,7 @@ import {NodeCommand} from '../src/commands/node/index.js';
 import {type DependencyManager} from '../src/core/dependency-managers/index.js';
 import {sleep} from '../src/core/helpers.js';
 import {AccountBalanceQuery, AccountCreateTransaction, Hbar, HbarUnit, PrivateKey} from '@hashgraph/sdk';
+import * as constants from '../src/core/constants.js';
 import {NODE_LOG_FAILURE_MSG, ROOT_CONTAINER, SOLO_LOGS_DIR} from '../src/core/constants.js';
 import crypto from 'node:crypto';
 import {type AccountCommand} from '../src/commands/account.js';
@@ -28,7 +29,6 @@ import {type ProfileManager} from '../src/core/profile-manager.js';
 import {type LockManager} from '../src/core/lock/lock-manager.js';
 import {type CertificateManager} from '../src/core/certificate-manager.js';
 import {type RemoteConfigManager} from '../src/core/config/remote/remote-config-manager.js';
-import * as constants from '../src/core/constants.js';
 import {Templates} from '../src/core/templates.js';
 import {type ConfigManager} from '../src/core/config-manager.js';
 import {type ChartManager} from '../src/core/chart-manager.js';
@@ -53,7 +53,7 @@ import {type NodeServiceMapping} from '../src/types/mappings/node-service-mappin
 import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../version-test.js';
 import {HEDERA_PLATFORM_VERSION} from '../version.js';
 import {gte as semVersionGte} from 'semver';
-import {type LocalConfigRuntimeState} from '../src/business/runtime-state/local-config-runtime-state.js';
+import {type LocalConfigRuntimeState} from '../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type InstanceOverrides} from '../src/core/dependency-injection/container-init.js';
 
 export const BASE_TEST_DIR = PathEx.join('test', 'data', 'tmp');

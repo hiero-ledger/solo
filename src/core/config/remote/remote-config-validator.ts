@@ -7,7 +7,7 @@ import {type ComponentsDataWrapper} from './components-data-wrapper.js';
 import {type BaseComponent} from './components/base-component.js';
 import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
-import {type LocalConfigRuntimeState} from '../../../business/runtime-state/local-config-runtime-state.js';
+import {type LocalConfigRuntimeState} from '../../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {ConsensusNodeStates} from './enumerations/consensus-node-states.js';
 import {type Context} from '../../../types/index.js';
 
@@ -52,7 +52,7 @@ export class RemoteConfigValidator {
     localConfig: LocalConfigRuntimeState,
   ): Promise<void>[] {
     return Object.values(components.relays).map(async component => {
-      const context: Context = localConfig.clusterRefs.get(component.cluster);
+      const context: Context = localConfig.configuration.clusterRefs.get(component.cluster)?.toString();
       const labels: string[] = [constants.SOLO_RELAY_LABEL];
       try {
         const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
@@ -73,7 +73,7 @@ export class RemoteConfigValidator {
     localConfig: LocalConfigRuntimeState,
   ): Promise<void>[] {
     return Object.values(components.haProxies).map(async component => {
-      const context: Context = localConfig.clusterRefs.get(component.cluster);
+      const context: Context = localConfig.configuration.clusterRefs.get(component.cluster)?.toString();
       const labels: string[] = [`app=${component.name}`];
       try {
         const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
@@ -94,7 +94,7 @@ export class RemoteConfigValidator {
     localConfig: LocalConfigRuntimeState,
   ): Promise<void>[] {
     return Object.values(components.mirrorNodes).map(async component => {
-      const context: Context = localConfig.clusterRefs.get(component.cluster);
+      const context: Context = localConfig.configuration.clusterRefs.get(component.cluster)?.toString();
       const labels: string[] = constants.SOLO_HEDERA_MIRROR_IMPORTER;
       try {
         const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
@@ -115,7 +115,7 @@ export class RemoteConfigValidator {
     localConfig: LocalConfigRuntimeState,
   ): Promise<void>[] {
     return Object.values(components.envoyProxies).map(async component => {
-      const context: Context = localConfig.clusterRefs.get(component.cluster);
+      const context: Context = localConfig.configuration.clusterRefs.get(component.cluster)?.toString();
       const labels: string[] = [`app=${component.name}`];
       try {
         const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
@@ -140,7 +140,7 @@ export class RemoteConfigValidator {
         return;
       }
 
-      const context: Context = localConfig.clusterRefs.get(component.cluster);
+      const context: Context = localConfig.configuration.clusterRefs.get(component.cluster)?.toString();
       const labels: string[] = [`app=network-${component.name}`];
       try {
         const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
@@ -161,8 +161,9 @@ export class RemoteConfigValidator {
     localConfig: LocalConfigRuntimeState,
   ): Promise<void>[] {
     return Object.values(components.mirrorNodeExplorers).map(async component => {
-      const context: Context = localConfig.clusterRefs.get(component.cluster);
+      const context: Context = localConfig.configuration.clusterRefs.get(component.cluster)?.toString();
       const labels: string[] = [constants.SOLO_EXPLORER_LABEL];
+
       try {
         const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
 
@@ -182,7 +183,7 @@ export class RemoteConfigValidator {
     localConfig: LocalConfigRuntimeState,
   ): Promise<void>[] {
     return Object.values(components.blockNodes).map(async component => {
-      const context: Context = localConfig.clusterRefs[component.cluster];
+      const context: Context = localConfig.configuration.clusterRefs[component.cluster];
       const labels: string[] = [`app.kubernetes.io/name=${constants.BLOCK_NODE_RELEASE_NAME}`];
       try {
         const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);

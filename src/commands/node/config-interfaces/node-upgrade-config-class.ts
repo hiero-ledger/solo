@@ -23,4 +23,5 @@ export interface NodeUpgradeConfigClass extends NodeCommonConfigWithNodeAliases,
   stagingKeysDir: string;
   treasuryKey: PrivateKey;
   curDate: Date;
+  upgradeVersion: string;
 }

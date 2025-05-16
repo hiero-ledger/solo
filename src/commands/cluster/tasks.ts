@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Flags as flags} from '../flags.js';
-import {type ArgvStruct, type AnyListrContext, type ConfigBuilder} from '../../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct, type ConfigBuilder} from '../../types/aliases.js';
 import {showVersionBanner} from '../../core/helpers.js';
 import * as constants from '../../core/constants.js';
+import {SOLO_CLUSTER_SETUP_CHART} from '../../core/constants.js';
 import chalk from 'chalk';
 import {ListrLock} from '../../core/lock/listr-lock.js';
 import {ErrorMessages} from '../../core/error-messages.js';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {UserBreak} from '../../core/errors/user-break.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
-import {type SoloListrTask} from '../../types/index.js';
-import {type ClusterReference} from '../../types/index.js';
+import {type ClusterReference, type SoloListrTask} from '../../types/index.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
@@ -22,13 +22,13 @@ import {type ChartManager} from '../../core/chart-manager.js';
 import {type LockManager} from '../../core/lock/lock-manager.js';
 import {type ClusterChecks} from '../../core/cluster-checks.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
-import {SOLO_CLUSTER_SETUP_CHART} from '../../core/constants.js';
 import {type ClusterReferenceConnectContext} from './config-interfaces/cluster-reference-connect-context.js';
 import {type ClusterReferenceDefaultContext} from './config-interfaces/cluster-reference-default-context.js';
 import {type ClusterReferenceSetupContext} from './config-interfaces/cluster-reference-setup-context.js';
 import {type ClusterReferenceResetContext} from './config-interfaces/cluster-reference-reset-context.js';
 import {PathEx} from '../../business/utils/path-ex.js';
-import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
+import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {StringFacade} from '../../business/runtime-state/facade/string-facade.js';
 
 @injectable()
 export class ClusterCommandTasks {
@@ -51,12 +51,15 @@ export class ClusterCommandTasks {
   public connectClusterRef(): SoloListrTask<ClusterReferenceConnectContext> {
     return {
       title: 'Associate a context with a cluster reference: ',
-      task: async (context_, task) => {
+      task: async (context_, task): Promise<void> => {
         task.title += context_.config.clusterRef;
 
-        await this.localConfig.modify(async localConfigData => {
-          localConfigData.addClusterRef(context_.config.clusterRef, context_.config.context);
-        });
+        this.localConfig.configuration.clusterRefs.set(
+          context_.config.clusterRef,
+          new StringFacade(context_.config.context),
+        );
+
+        await this.localConfig.persist();
       },
     };
   }
@@ -64,12 +67,11 @@ export class ClusterCommandTasks {
   public disconnectClusterRef(): SoloListrTask<ClusterReferenceDefaultContext> {
     return {
       title: 'Remove cluster reference ',
-      task: async (context_, task) => {
+      task: async (context_, task): Promise<void> => {
         task.title += context_.config.clusterRef;
 
-        await this.localConfig.modify(async localConfigData => {
-          localConfigData.removeClusterRef(context_.config.clusterRef);
-        });
+        this.localConfig.configuration.clusterRefs.delete(context_.config.clusterRef);
+        await this.localConfig.persist();
       },
     };
   }
@@ -100,7 +102,7 @@ export class ClusterCommandTasks {
         const {clusterRef} = context_.config;
         task.title = clusterRef;
 
-        if (self.localConfig.clusterRefs.get(clusterRef)) {
+        if (self.localConfig.configuration.clusterRefs.get(clusterRef)) {
           throw new SoloError(`Cluster ref ${clusterRef} already exists inside local config`);
         }
       },
@@ -152,7 +154,7 @@ export class ClusterCommandTasks {
     return {
       title: 'List all available clusters',
       task: async () => {
-        const clusterReferences = this.localConfig.clusterRefs;
+        const clusterReferences = this.localConfig.configuration.clusterRefs;
         const clusterList = [];
         for (const [clusterName, clusterContext] of clusterReferences) {
           clusterList.push(`${clusterName}:${clusterContext}`);
@@ -167,8 +169,8 @@ export class ClusterCommandTasks {
       title: 'Get cluster info',
       task: async (context_, task) => {
         const clusterReference = context_.config.clusterRef;
-        const clusterReferences = this.localConfig.clusterRefs;
-        const deployments = this.localConfig.deployments;
+        const clusterReferences = this.localConfig.configuration.clusterRefs;
+        const deployments = this.localConfig.configuration.deployments;
         const context = clusterReferences.get(clusterReference);
 
         if (context) {

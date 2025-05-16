@@ -40,7 +40,7 @@ const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS = [
 ];
 
 export const UPGRADE_FLAGS = {
-  required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.upgradeZipFile],
+  required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.upgradeZipFile, flags.upgradeVersion],
   optional: COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS,
 };
 

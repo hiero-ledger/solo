@@ -76,7 +76,7 @@ export class InitCommand extends BaseCommand {
           title: 'Create local configuration',
           skip: () => this.localConfig.configFileExists(),
           task: async (context_, task): Promise<void> => {
-            await this.localConfig.create(context_.config.username);
+            // await this.localConfig.create(context_.config.username);
             await this.localConfig.load();
           },
         },

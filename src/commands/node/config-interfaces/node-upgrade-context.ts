@@ -5,4 +5,5 @@ import {type NodeUpgradeConfigClass} from './node-upgrade-config-class.js';
 export interface NodeUpgradeContext {
   config: NodeUpgradeConfigClass;
   upgradeZipHash: string;
+  upgradeVersion: string;
 }

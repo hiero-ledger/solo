@@ -6,10 +6,10 @@ import {IllegalArgumentError} from '../../../../../../../src/business/errors/ill
 import {InvalidSchemaVersionError} from '../../../../../../../src/data/schema/migration/api/invalid-schema-version-error.js';
 import sinon from 'sinon';
 import * as fs from 'node:fs';
-import * as yaml from 'yaml';
 import {getSoloVersion} from '../../../../../../../version.js';
 import {type VersionRange} from '../../../../../../../src/business/utils/version-range.js';
 import {type Version} from '../../../../../../../src/business/utils/version.js';
+import yaml from 'yaml';
 
 // Define a type for test objects
 type TestObject = Record<string, any>;

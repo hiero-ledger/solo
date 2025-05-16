@@ -14,7 +14,7 @@ import {resetForTest} from '../../test-container.js';
 import {K8ClientSecrets} from '../../../src/integration/kube/k8-client/resources/secret/k8-client-secrets.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
-import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 
 describe('Certificate Manager', () => {
   const argv = Argv.initializeEmpty();

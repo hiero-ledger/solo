@@ -35,14 +35,14 @@ import {type CertificateManager} from '../../../src/core/certificate-manager.js'
 import {type PlatformInstaller} from '../../../src/core/platform-installer.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import {SemVer, lt as SemVersionLessThan} from 'semver';
 import {ComponentsDataWrapper} from '../../../src/core/config/remote/components-data-wrapper.js';
 import {ROOT_DIR} from '../../../src/core/constants.js';
+import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
-import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
-import {type LocalConfig} from '../../../src/data/schema/model/local/local-config.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type ClusterReferences} from '../../../src/types/index.js';
+import {StringFacade} from '../../../src/business/runtime-state/facade/string-facade.js';
 
 const testName = 'network-cmd-unit';
 const namespace = NamespaceName.of(testName);
@@ -201,9 +201,7 @@ describe('NetworkCommand unit tests', () => {
       options.remoteConfigManager.getConfigMap = sinon.stub().returns(null);
       options.remoteConfigManager.modify = sinon.stub();
 
-      options.localConfig.modify((modelData: LocalConfig): void => {
-        modelData.addClusterRef('solo-e2e', 'context-1');
-      });
+      options.localConfig.configuration.clusterRefs.set('solo-e2e', new StringFacade('context-1'));
 
       options.leaseManager = container.resolve<LockManager>(InjectTokens.LockManager);
       options.leaseManager.currentNamespace = sinon.stub().returns(testName);
