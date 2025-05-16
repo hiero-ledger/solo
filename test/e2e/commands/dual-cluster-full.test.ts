@@ -137,7 +137,8 @@ describe('Dual Cluster Full E2E Test', function dualClusterFullEndToEndTest() {
     }
     const remoteConfig: RemoteConfigRuntimeStateApi = container.resolve(InjectTokens.RemoteConfigRuntimeState);
     expect(remoteConfig.isLoaded(), 'remote config manager should be loaded').to.be.true;
-    const consensusNodes: Record<ComponentId, ConsensusNodeStateSchema> = remoteConfig.components.state.consensusNodes;
+    const consensusNodes: Record<ComponentId, ConsensusNodeStateSchema> =
+      remoteConfig.configuration.components.state.consensusNodes;
     expect(Object.entries(consensusNodes).length, 'consensus node count should be 2').to.equal(2);
     expect(consensusNodes[0].metadata.cluster).to.equal(testClusterArray[0]);
     expect(consensusNodes[1].metadata.cluster).to.equal(testClusterArray[1]);

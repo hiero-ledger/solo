@@ -551,16 +551,16 @@ export class RelayCommand extends BaseCommand {
       title: 'Add relay component in remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfig.modify(async (_, components) => {
-          const {namespace, nodeAliases, clusterRef} = context_.config;
+        const {namespace, nodeAliases, clusterRef} = context_.config;
 
-          const nodeIds: NodeId[] = nodeAliases.map((nodeAlias: NodeAlias) => Templates.nodeIdFromNodeAlias(nodeAlias));
+        const nodeIds: NodeId[] = nodeAliases.map((nodeAlias: NodeAlias) => Templates.nodeIdFromNodeAlias(nodeAlias));
 
-          components.addNewComponent(
-            this.componentFactory.createNewRelayComponent(clusterRef, namespace, nodeIds),
-            ComponentTypes.RelayNodes,
-          );
-        });
+        this.remoteConfig.configuration.components.addNewComponent(
+          this.componentFactory.createNewRelayComponent(clusterRef, namespace, nodeIds),
+          ComponentTypes.RelayNodes,
+        );
+
+        await this.remoteConfig.persist();
       },
     };
   }
@@ -573,17 +573,20 @@ export class RelayCommand extends BaseCommand {
       task: async (context_): Promise<void> => {
         const clusterReference: ClusterReference = context_.config.clusterRef;
 
-        await this.remoteConfig.modify(async (_, components) => {
-          const relayComponents: RelayNodeStateSchema[] =
-            components.getComponentsByClusterReference<RelayNodeStateSchema>(
-              ComponentTypes.RelayNodes,
-              clusterReference,
-            );
+        const relayComponents: RelayNodeStateSchema[] =
+          this.remoteConfig.configuration.components.getComponentsByClusterReference<RelayNodeStateSchema>(
+            ComponentTypes.RelayNodes,
+            clusterReference,
+          );
 
-          for (const relayComponent of relayComponents) {
-            components.removeComponent(relayComponent.metadata.id, ComponentTypes.RelayNodes);
-          }
-        });
+        for (const relayComponent of relayComponents) {
+          this.remoteConfig.configuration.components.removeComponent(
+            relayComponent.metadata.id,
+            ComponentTypes.RelayNodes,
+          );
+        }
+
+        await this.remoteConfig.persist();
       },
     };
   }

@@ -1,56 +1,56 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {inject, injectable} from 'tsyringe-neo';
-import {type ObjectMapper} from '../../data/mapper/api/object-mapper.js';
-import {ClassToObjectMapper} from '../../data/mapper/impl/class-to-object-mapper.js';
-import {ConfigKeyFormatter} from '../../data/key/config-key-formatter.js';
-import {ReadRemoteConfigBeforeLoadError} from '../errors/read-remote-config-before-load-error.js';
-import {WriteRemoteConfigBeforeLoadError} from '../errors/write-remote-config-before-load-error.js';
-import {RemoteConfigSource} from '../../data/configuration/impl/remote-config-source.js';
-import {YamlConfigMapStorageBackend} from '../../data/backend/impl/yaml-config-map-storage-backend.js';
-import {type ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
-import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
+import {type ObjectMapper} from '../../../../data/mapper/api/object-mapper.js';
+import {ClassToObjectMapper} from '../../../../data/mapper/impl/class-to-object-mapper.js';
+import {ConfigKeyFormatter} from '../../../../data/key/config-key-formatter.js';
+import {ReadRemoteConfigBeforeLoadError} from '../../../errors/read-remote-config-before-load-error.js';
+import {WriteRemoteConfigBeforeLoadError} from '../../../errors/write-remote-config-before-load-error.js';
+import {RemoteConfigSource} from '../../../../data/configuration/impl/remote-config-source.js';
+import {YamlConfigMapStorageBackend} from '../../../../data/backend/impl/yaml-config-map-storage-backend.js';
+import {type ConfigMap} from '../../../../integration/kube/resources/config-map/config-map.js';
+import {LedgerPhase} from '../../../../data/schema/model/remote/ledger-phase.js';
 import {SemVer} from 'semver';
-import {ComponentsDataWrapperApi} from '../../core/config/remote/api/components-data-wrapper-api.js';
-import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
-import {type K8Factory} from '../../integration/kube/k8-factory.js';
-import {type SoloLogger} from '../../core/logging/solo-logger.js';
-import {type ConfigManager} from '../../core/config-manager.js';
-import {patchInject} from '../../core/dependency-injection/container-helper.js';
-import {ComponentsDataWrapper} from '../../core/config/remote/components-data-wrapper.js';
+import {ComponentsDataWrapperApi} from '../../../../core/config/remote/api/components-data-wrapper-api.js';
+import {InjectTokens} from '../../../../core/dependency-injection/inject-tokens.js';
+import {type K8Factory} from '../../../../integration/kube/k8-factory.js';
+import {type SoloLogger} from '../../../../core/logging/solo-logger.js';
+import {type ConfigManager} from '../../../../core/config-manager.js';
+import {patchInject} from '../../../../core/dependency-injection/container-helper.js';
 import {
   type ClusterReference,
   type ClusterReferences,
   type Context,
   type DeploymentName,
   type NamespaceNameAsString,
-} from '../../types/index.js';
-import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases} from '../../types/aliases.js';
-import {NamespaceName} from '../../types/namespace/namespace-name.js';
-import {ComponentStateMetadataSchema} from '../../data/schema/model/remote/state/component-state-metadata-schema.js';
-import {Templates} from '../../core/templates.js';
-import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
-import {getSoloVersion} from '../../../version.js';
-import * as constants from '../../core/constants.js';
-import {SoloError} from '../../core/errors/solo-error.js';
-import {Flags as flags} from '../../commands/flags.js';
-import {promptTheUserForDeployment} from '../../core/resolvers.js';
-import {ConsensusNode} from '../../core/model/consensus-node.js';
-import {RemoteConfigRuntimeStateApi} from './api/remote-config-runtime-state-api.js';
-import {type RemoteConfigValidatorApi} from '../../core/config/remote/api/remote-config-validator-api.js';
-import {ComponentFactoryApi} from '../../core/config/remote/api/component-factory-api.js';
-import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
-import {LocalConfigRuntimeState} from './config/local/local-config-runtime-state.js';
-import {RemoteConfigMetadataSchema} from '../../data/schema/model/remote/remote-config-metadata-schema.js';
-import {ApplicationVersionsSchema} from '../../data/schema/model/common/application-versions-schema.js';
-import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
-import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
-import {DeploymentHistorySchema} from '../../data/schema/model/remote/deployment-history-schema.js';
-import {RemoteConfigSchemaDefinition} from '../../data/schema/migration/impl/remote/remote-config-schema-definition.js';
-import {RemoteConfigSchema} from '../../data/schema/model/remote/remote-config-schema.js';
-import {ConsensusNodeStateSchema} from '../../data/schema/model/remote/state/consensus-node-state-schema.js';
-import {UserIdentitySchema} from '../../data/schema/model/common/user-identity-schema.js';
-import {Deployment} from './config/local/deployment.js';
+} from '../../../../types/index.js';
+import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases} from '../../../../types/aliases.js';
+import {NamespaceName} from '../../../../types/namespace/namespace-name.js';
+import {ComponentStateMetadataSchema} from '../../../../data/schema/model/remote/state/component-state-metadata-schema.js';
+import {Templates} from '../../../../core/templates.js';
+import {DeploymentPhase} from '../../../../data/schema/model/remote/deployment-phase.js';
+import {getSoloVersion} from '../../../../../version.js';
+import * as constants from '../../../../core/constants.js';
+import {SoloError} from '../../../../core/errors/solo-error.js';
+import {Flags as flags} from '../../../../commands/flags.js';
+import {promptTheUserForDeployment} from '../../../../core/resolvers.js';
+import {ConsensusNode} from '../../../../core/model/consensus-node.js';
+import {RemoteConfigRuntimeStateApi} from '../../api/remote-config-runtime-state-api.js';
+import {type RemoteConfigValidatorApi} from '../../../../core/config/remote/api/remote-config-validator-api.js';
+import {ComponentFactoryApi} from '../../../../core/config/remote/api/component-factory-api.js';
+import {ComponentTypes} from '../../../../core/config/remote/enumerations/component-types.js';
+import {LocalConfigRuntimeState} from '../local/local-config-runtime-state.js';
+import {RemoteConfigMetadataSchema} from '../../../../data/schema/model/remote/remote-config-metadata-schema.js';
+import {ApplicationVersionsSchema} from '../../../../data/schema/model/common/application-versions-schema.js';
+import {ClusterSchema} from '../../../../data/schema/model/common/cluster-schema.js';
+import {DeploymentStateSchema} from '../../../../data/schema/model/remote/deployment-state-schema.js';
+import {DeploymentHistorySchema} from '../../../../data/schema/model/remote/deployment-history-schema.js';
+import {RemoteConfigSchemaDefinition} from '../../../../data/schema/migration/impl/remote/remote-config-schema-definition.js';
+import {RemoteConfigSchema} from '../../../../data/schema/model/remote/remote-config-schema.js';
+import {ConsensusNodeStateSchema} from '../../../../data/schema/model/remote/state/consensus-node-state-schema.js';
+import {UserIdentitySchema} from '../../../../data/schema/model/common/user-identity-schema.js';
+import {Deployment} from '../local/deployment.js';
+import {RemoteConfig} from './remote-config.js';
 
 enum RuntimeStatePhase {
   Loaded = 'loaded',
@@ -61,13 +61,14 @@ enum RuntimeStatePhase {
 export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   private phase: RuntimeStatePhase = RuntimeStatePhase.NotLoaded;
 
-  private componentsDataWrapper?: ComponentsDataWrapperApi;
   public clusterReferences: Map<Context, ClusterReference> = new Map();
   private namespace: NamespaceName;
 
   private source?: RemoteConfigSource;
   private backend?: YamlConfigMapStorageBackend;
   private objectMapper?: ObjectMapper;
+
+  private _remoteConfig?: RemoteConfig;
 
   public constructor(
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
@@ -82,43 +83,18 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
   }
 
+  public get configuration(): RemoteConfig {
+    this.failIfNotLoaded();
+    return this._remoteConfig;
+  }
+
+  public get components(): Readonly<ComponentsDataWrapperApi> {
+    this.failIfNotLoaded();
+    return this._remoteConfig.components;
+  }
+
   public get currentCluster(): ClusterReference {
     return this.k8Factory.default().clusters().readCurrent();
-  }
-
-  public get components(): ComponentsDataWrapperApi {
-    this.failIfNotLoaded();
-    return this.componentsDataWrapper;
-  }
-
-  public get schemaVersion(): number {
-    this.failIfNotLoaded();
-    return this.source.modelData.schemaVersion;
-  }
-
-  public get metadata(): Readonly<RemoteConfigMetadataSchema> {
-    this.failIfNotLoaded();
-    return this.source.modelData.metadata;
-  }
-
-  public get versions(): Readonly<ApplicationVersionsSchema> {
-    this.failIfNotLoaded();
-    return this.source.modelData.versions;
-  }
-
-  public get clusters(): Readonly<Readonly<ClusterSchema>[]> {
-    this.failIfNotLoaded();
-    return this.source.modelData.clusters;
-  }
-
-  public get state(): Readonly<DeploymentStateSchema> {
-    this.failIfNotLoaded();
-    return this.source.modelData.state;
-  }
-
-  public get history(): Readonly<DeploymentHistorySchema> {
-    this.failIfNotLoaded();
-    return this.source.modelData.history;
   }
 
   public async load(namespace?: NamespaceName, context?: Context): Promise<void> {
@@ -139,6 +115,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       this.backend,
     );
     await this.source.load();
+    this._remoteConfig = new RemoteConfig(this.source.modelData);
     this.phase = RuntimeStatePhase.Loaded;
   }
 
@@ -177,15 +154,11 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     }
   }
 
-  public async modify(
-    callback: (remoteConfig: RemoteConfigSchema, components: ComponentsDataWrapperApi) => Promise<void>,
-  ): Promise<void> {
+  public async persist(): Promise<void> {
     if (!this.isLoaded()) {
-      throw new WriteRemoteConfigBeforeLoadError('Attempting to modify remote config before loading it');
+      throw new WriteRemoteConfigBeforeLoadError('Attempting to persist remote config before loading it');
     }
-    await callback(this.source.modelData, this.components);
-
-    return this.write();
+    await this.write();
   }
 
   public async create(
@@ -236,8 +209,6 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     const configMap: ConfigMap = await this.createConfigMap(namespace, context);
     await this.populateRemoteConfig(configMap);
     await this.write();
-
-    this.componentsDataWrapper = new ComponentsDataWrapper(remoteConfig.state);
   }
 
   public async createFromExisting(
@@ -258,44 +229,36 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     await this.createConfigMap(namespace, existingClusterContext);
     await this.write();
 
-    //? Update remote configs inside the clusters
-    await this.modify(async (remoteConfig, components) => {
-      //* update the command history
-      const command: string = argv._.join(' ');
-      this.addCommandToHistory(command, remoteConfig);
+    //* update the command history
+    this.addCommandToHistory(argv._.join(' '));
 
-      //* add the new clusters
-      const newCluster: ClusterSchema = new ClusterSchema(
-        clusterReference,
-        namespace.name,
-        deployment,
-        dnsBaseDomain,
-        dnsConsensusNodePattern,
+    //* add the new clusters
+    this.configuration.addCluster(
+      new ClusterSchema(clusterReference, namespace.name, deployment, dnsBaseDomain, dnsConsensusNodePattern),
+    );
+
+    //* add the new nodes to components
+    for (const nodeAlias of nodeAliases) {
+      this.configuration.components.addNewComponent(
+        componentFactory.createNewConsensusNodeComponent(
+          Templates.nodeIdFromNodeAlias(nodeAlias),
+          clusterReference,
+          namespace,
+          DeploymentPhase.REQUESTED,
+        ),
+        ComponentTypes.ConsensusNode,
       );
+    }
 
-      remoteConfig.clusters.push(newCluster);
-
-      //* add the new nodes to components
-      for (const nodeAlias of nodeAliases) {
-        components.addNewComponent(
-          componentFactory.createNewConsensusNodeComponent(
-            Templates.nodeIdFromNodeAlias(nodeAlias),
-            clusterReference,
-            namespace,
-            DeploymentPhase.REQUESTED,
-          ),
-          ComponentTypes.ConsensusNode,
-        );
-      }
-    });
+    await this.persist();
   }
 
-  public addCommandToHistory(command: string, remoteConfig: RemoteConfigSchema): void {
-    remoteConfig.history.commands.push(command);
-    remoteConfig.history.lastExecutedCommand = command;
+  public addCommandToHistory(command: string): void {
+    this.source.modelData.history.commands.push(command);
+    this.source.modelData.history.lastExecutedCommand = command;
 
-    if (remoteConfig.history.commands.length > constants.SOLO_REMOTE_CONFIG_MAX_COMMAND_IN_HISTORY) {
-      remoteConfig.history.commands.shift();
+    if (this.source.modelData.history.commands.length > constants.SOLO_REMOTE_CONFIG_MAX_COMMAND_IN_HISTORY) {
+      this.source.modelData.history.commands.shift();
     }
   }
 
@@ -357,20 +320,22 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       return;
     }
 
-    await this.remoteConfigValidator.validateComponents(this.namespace, skipConsensusNodesValidation, this);
-    this.componentsDataWrapper = new ComponentsDataWrapper(this.state);
+    await this.remoteConfigValidator.validateComponents(
+      this.namespace,
+      skipConsensusNodesValidation,
+      this.configuration.state,
+    );
 
-    await this.modify(async (remoteConfig: RemoteConfigSchema) => {
-      const currentCommand: string = argv._?.join(' ');
-      const commandArguments: string = flags.stringifyArgv(argv);
+    const currentCommand: string = argv._?.join(' ');
+    const commandArguments: string = flags.stringifyArgv(argv);
 
-      this.addCommandToHistory(
-        `Executed by ${this.localConfig.configuration.userIdentity.name}: ${currentCommand} ${commandArguments}`.trim(),
-        remoteConfig,
-      );
+    this.addCommandToHistory(
+      `Executed by ${this.localConfig.configuration.userIdentity.name}: ${currentCommand} ${commandArguments}`.trim(),
+    );
 
-      this.populateVersionsInMetadata(argv, remoteConfig);
-    });
+    this.populateVersionsInMetadata(argv, this.source.modelData);
+
+    await this.persist();
   }
 
   private populateVersionsInMetadata(argv: AnyObject, remoteConfig: RemoteConfigSchema): void {
@@ -423,10 +388,13 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   public async deleteComponents(): Promise<void> {
-    await this.modify(async (remoteConfig, components) => {
-      remoteConfig.state = new DeploymentStateSchema();
-      components.state = remoteConfig.state;
-    });
+    this._remoteConfig.state.consensusNodes = [];
+    this._remoteConfig.state.blockNodes = [];
+    this._remoteConfig.state.envoyProxies = [];
+    this._remoteConfig.state.haProxies = [];
+    this._remoteConfig.state.explorers = [];
+    this._remoteConfig.state.mirrorNodes = [];
+    this._remoteConfig.state.relayNodes = [];
   }
 
   private async setDefaultNamespaceAndDeploymentIfNotSet(argv: AnyObject): Promise<void> {
@@ -490,8 +458,8 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
     const consensusNodes: ConsensusNode[] = [];
 
-    for (const node of Object.values(this.state.consensusNodes)) {
-      const cluster: ClusterSchema = this.clusters.find(
+    for (const node of Object.values(this.configuration.state.consensusNodes)) {
+      const cluster: ClusterSchema = this.configuration.clusters.find(
         (cluster: ClusterSchema): boolean => cluster.name === node.metadata.cluster,
       );
       const context: Context = this.localConfig.configuration.clusterRefs.get(node.metadata.cluster)?.toString();

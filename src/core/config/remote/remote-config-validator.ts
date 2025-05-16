@@ -17,6 +17,7 @@ import {type RemoteConfigRuntimeStateApi} from '../../../business/runtime-state/
 import {patchInject} from '../../dependency-injection/container-helper.js';
 import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
 import {RemoteConfigValidatorApi} from './api/remote-config-validator-api.js';
+import {DeploymentStateSchema} from '../../../data/schema/model/remote/deployment-state-schema.js';
 
 /**
  * Static class is used to validate that components in the remote config
@@ -115,12 +116,12 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
   public async validateComponents(
     namespace: NamespaceName,
     skipConsensusNodes: boolean,
-    remoteConfig: RemoteConfigRuntimeStateApi,
+    state: Readonly<DeploymentStateSchema>,
   ): Promise<void> {
     const validationPromises: Promise<void>[] = Object.entries(RemoteConfigValidator.componentValidationsMapping)
       .filter(([key]) => key !== 'consensusNodes' || !skipConsensusNodes)
       .flatMap(([key, {getLabelsCallback, displayName, skipCondition}]): Promise<void>[] =>
-        this.validateComponentGroup(namespace, remoteConfig.state[key], getLabelsCallback, displayName, skipCondition),
+        this.validateComponentGroup(namespace, state[key], getLabelsCallback, displayName, skipCondition),
       );
 
     await Promise.all(validationPromises);

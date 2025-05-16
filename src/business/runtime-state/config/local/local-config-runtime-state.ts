@@ -51,7 +51,8 @@ export class LocalConfigRuntimeState {
   // Loads the source data and writes it back in case of migrations.
   public async load(): Promise<void> {
     if (!this.configFileExists()) {
-      return await this.persist();
+      await this.persist();
+      return;
     }
 
     try {

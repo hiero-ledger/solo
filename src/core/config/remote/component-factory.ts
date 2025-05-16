@@ -31,7 +31,7 @@ export class ComponentFactory implements ComponentFactoryApi {
     namespace: NamespaceName,
     nodeIds: NodeId[],
   ): RelayNodeStateSchema {
-    const id: ComponentId = this.remoteConfig.components.getNewComponentId(ComponentTypes.RelayNodes);
+    const id: ComponentId = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.RelayNodes);
     const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
     const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
       id,
@@ -44,7 +44,7 @@ export class ComponentFactory implements ComponentFactoryApi {
   }
 
   public createNewExplorerComponent(clusterReference: ClusterReference, namespace: NamespaceName): ExplorerStateSchema {
-    const id: ComponentId = this.remoteConfig.components.getNewComponentId(ComponentTypes.Explorers);
+    const id: ComponentId = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.Explorers);
     const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
     const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
       id,
@@ -60,7 +60,7 @@ export class ComponentFactory implements ComponentFactoryApi {
     clusterReference: ClusterReference,
     namespace: NamespaceName,
   ): MirrorNodeStateSchema {
-    const id: ComponentId = this.remoteConfig.components.getNewComponentId(ComponentTypes.MirrorNode);
+    const id: ComponentId = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.MirrorNode);
     const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
     const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
       id,
@@ -73,7 +73,7 @@ export class ComponentFactory implements ComponentFactoryApi {
   }
 
   public createNewHaProxyComponent(clusterReference: ClusterReference, namespace: NamespaceName): HAProxyStateSchema {
-    const id: ComponentId = this.remoteConfig.components.getNewComponentId(ComponentTypes.HaProxy);
+    const id: ComponentId = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.HaProxy);
     const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
     const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
       id,
@@ -89,7 +89,7 @@ export class ComponentFactory implements ComponentFactoryApi {
     clusterReference: ClusterReference,
     namespace: NamespaceName,
   ): EnvoyProxyStateSchema {
-    const id: ComponentId = this.remoteConfig.components.getNewComponentId(ComponentTypes.EnvoyProxy);
+    const id: ComponentId = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.EnvoyProxy);
     const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
     const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
       id,
