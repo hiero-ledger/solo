@@ -138,6 +138,7 @@ jobs:
             coverage/unit-helm
           # Add other standard report paths here
           if-no-files-found: ignore # Don't fail if no reports were downloaded
+          overwrite: true
 
   analyze:
     name: ${{ matrix.reports.coverage-report-name || 'Analyze' }}
