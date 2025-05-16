@@ -4,7 +4,7 @@ linkTitle: About
 menu: {main: {weight: 10}}
 ---
 
-{{% blocks/cover title="About Solo" image_anchor="bottom" height="auto" %}}
+{{% blocks/cover title="About Solo" image\_anchor="bottom" height="auto" %}}
 
 ### A Hiero Ledger tool for deploying and managing Hiero Ledger networks.
 

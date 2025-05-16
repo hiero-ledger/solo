@@ -3,7 +3,6 @@
 import {SoloError} from '../core/errors/solo-error.js';
 import {ShellRunner} from '../core/shell-runner.js';
 import {type LockManager} from '../core/lock/lock-manager.js';
-import {type RemoteConfigManager} from '../core/config/remote/remote-config-manager.js';
 import {type ChartManager} from '../core/chart-manager.js';
 import {type ConfigManager} from '../core/config-manager.js';
 import {type DependencyManager} from '../core/dependency-managers/index.js';
@@ -18,6 +17,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {inject} from 'tsyringe-neo';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 export abstract class BaseCommand extends ShellRunner {
   constructor(
@@ -28,7 +28,7 @@ export abstract class BaseCommand extends ShellRunner {
     @inject(InjectTokens.DependencyManager) protected readonly depManager?: DependencyManager,
     @inject(InjectTokens.LockManager) protected readonly leaseManager?: LockManager,
     @inject(InjectTokens.LocalConfigRuntimeState) public readonly localConfig?: LocalConfigRuntimeState,
-    @inject(InjectTokens.RemoteConfigManager) protected readonly remoteConfigManager?: RemoteConfigManager,
+    @inject(InjectTokens.RemoteConfigRuntimeState) protected readonly remoteConfig?: RemoteConfigRuntimeStateApi,
   ) {
     super();
 
@@ -39,11 +39,7 @@ export abstract class BaseCommand extends ShellRunner {
     this.depManager = patchInject(depManager, InjectTokens.DependencyManager, this.constructor.name);
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
-    this.remoteConfigManager = patchInject(
-      remoteConfigManager,
-      InjectTokens.RemoteConfigManager,
-      this.constructor.name,
-    );
+    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
   }
 
   /**
@@ -53,7 +49,7 @@ export abstract class BaseCommand extends ShellRunner {
    * 1. Chart's default values file (if chartDirectory is set)
    * 2. Profile values file
    * 3. User's values file
-   * @param clusterRefs
+   * @param clusterReferences
    * @param valuesFileInput - the values file input string
    * @param chartDirectory - the chart directory
    * @param profileValuesFile - mapping of clusterRef to the profile values file full path

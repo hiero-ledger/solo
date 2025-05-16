@@ -9,15 +9,15 @@ import {resetForTest} from '../../test-container.js';
 import {
   type ClusterReference,
   type ClusterReferences,
-  type DeploymentName,
   type ExtendedNetServer,
+  type DeploymentName,
+  type ComponentId,
 } from '../../../src/types/index.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {type CommandFlag} from '../../../src/types/flag-types.js';
-import {type RemoteConfigManager} from '../../../src/core/config/remote/remote-config-manager.js';
 import {expect} from 'chai';
 import fs from 'node:fs';
 import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
@@ -30,7 +30,6 @@ import {
   ROOT_CONTAINER,
 } from '../../../src/core/constants.js';
 import {Duration} from '../../../src/core/time/duration.js';
-import {type ConsensusNodeComponent} from '../../../src/core/config/remote/components/consensus-node-component.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {Templates} from '../../../src/core/templates.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
@@ -50,9 +49,11 @@ import {
   type TransactionResponse,
 } from '@hashgraph/sdk';
 import {type PackageDownloader} from '../../../src/core/package-downloader.js';
+import {type RemoteConfigRuntimeStateApi} from '../../../src/business/runtime-state/api/remote-config-runtime-state-api.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type FacadeMap} from '../../../src/business/runtime-state/collection/facade-map.js';
 import {type StringFacade} from '../../../src/business/runtime-state/facade/string-facade.js';
+import {type ConsensusNodeStateSchema} from '../../../src/data/schema/model/remote/state/consensus-node-state-schema.js';
 
 const testName: string = 'dual-cluster-full';
 
@@ -134,12 +135,13 @@ describe('Dual Cluster Full E2E Test', function dualClusterFullEndToEndTest() {
     for (const element of testClusterArray) {
       await main(soloDeploymentAddClusterArgv(deployment, element, 1));
     }
-    const remoteConfigManager: RemoteConfigManager = container.resolve(InjectTokens.RemoteConfigManager);
-    expect(remoteConfigManager.isLoaded(), 'remote config manager should be loaded').to.be.true;
-    const consensusNodes: Record<string, ConsensusNodeComponent> = remoteConfigManager.components.consensusNodes;
+    const remoteConfig: RemoteConfigRuntimeStateApi = container.resolve(InjectTokens.RemoteConfigRuntimeState);
+    expect(remoteConfig.isLoaded(), 'remote config manager should be loaded').to.be.true;
+    const consensusNodes: Record<ComponentId, ConsensusNodeStateSchema> =
+      remoteConfig.configuration.components.state.consensusNodes;
     expect(Object.entries(consensusNodes).length, 'consensus node count should be 2').to.equal(2);
-    expect(consensusNodes['node1'].cluster).to.equal(testClusterArray[0]);
-    expect(consensusNodes['node2'].cluster).to.equal(testClusterArray[1]);
+    expect(consensusNodes[0].metadata.cluster).to.equal(testClusterArray[0]);
+    expect(consensusNodes[1].metadata.cluster).to.equal(testClusterArray[1]);
     testLogger.info(`${testName}: finished solo deployment add-cluster`);
   });
 

@@ -13,7 +13,7 @@ import {type SoloListrTask} from '../../types/index.js';
 export class DependencyManager extends ShellRunner {
   private readonly depManagerMap: Map<string, HelmDependencyManager>;
 
-  constructor(@inject(InjectTokens.HelmDependencyManager) helmDepManager?: HelmDependencyManager) {
+  public constructor(@inject(InjectTokens.HelmDependencyManager) helmDepManager?: HelmDependencyManager) {
     super();
     this.depManagerMap = helmDepManager
       ? new Map().set(constants.HELM, helmDepManager)
@@ -25,13 +25,12 @@ export class DependencyManager extends ShellRunner {
    * @param dep - is the name of the program
    * @param [shouldInstall] - Whether or not install the dependency if not installed
    */
-  async checkDependency(dep: string, shouldInstall = true) {
+  public async checkDependency(dep: string, shouldInstall: boolean = true): Promise<boolean> {
     this.logger.debug(`Checking for dependency: ${dep}`);
 
-    let status = false;
-    const manager = this.depManagerMap.get(dep);
+    let status: boolean = false;
+    const manager: HelmDependencyManager = this.depManagerMap.get(dep);
     if (manager) {
-      // @ts-ignore
       status = await manager.checkVersion(shouldInstall);
     }
 
@@ -43,12 +42,12 @@ export class DependencyManager extends ShellRunner {
     return true;
   }
 
-  taskCheckDependencies<T>(deps: string[]) {
+  public taskCheckDependencies<T>(deps: string[]): SoloListrTask<T>[] {
     return deps.map(dep => {
       return {
         title: `Check dependency: ${dep} [OS: ${os.platform()}, Release: ${os.release()}, Arch: ${os.arch()}]`,
         task: () => this.checkDependency(dep),
-      } as SoloListrTask<T>;
+      };
     });
   }
 }

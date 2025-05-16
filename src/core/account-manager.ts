@@ -46,12 +46,12 @@ import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ClusterReferences, type DeploymentName, Realm, Shard} from './../types/index.js';
 import {type Service} from '../integration/kube/resources/service/service.js';
 import {SoloService} from './model/solo-service.js';
-import {type RemoteConfigManager} from './config/remote/remote-config-manager.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {type NodeServiceMapping} from '../types/mappings/node-service-mapping.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {NetworkNodeServicesBuilder} from './network-node-services-builder.js';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
+import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 const REASON_FAILED_TO_GET_KEYS = 'failed to get keys for accountId';
 const REASON_SKIPPED = 'skipped since it does not have a genesis key';
@@ -69,16 +69,12 @@ export class AccountManager {
   constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
-    @inject(InjectTokens.RemoteConfigManager) private readonly remoteConfigManager?: RemoteConfigManager,
+    @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig?: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
-    this.remoteConfigManager = patchInject(
-      remoteConfigManager,
-      InjectTokens.RemoteConfigManager,
-      this.constructor.name,
-    );
+    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
 
     this._portForwards = [];
@@ -94,7 +90,7 @@ export class AccountManager {
     accountId: string,
     namespace: NamespaceName,
   ): Promise<AccountIdWithKeyPairObject> {
-    const contexts = this.remoteConfigManager.getContexts();
+    const contexts = this.remoteConfig.getContexts();
 
     for (const context of contexts) {
       try {
@@ -585,7 +581,7 @@ export class AccountManager {
             break;
           }
         }
-        const consensusNode: ConsensusNode = this.remoteConfigManager
+        const consensusNode: ConsensusNode = this.remoteConfig
           .getConsensusNodes()
           .find(node => node.name === serviceBuilder.nodeAlias);
         serviceBuilder.withExternalAddress(
@@ -754,7 +750,7 @@ export class AccountManager {
     };
 
     try {
-      const contexts = this.remoteConfigManager.getContexts();
+      const contexts = this.remoteConfig.getContexts();
       for (const context of contexts) {
         const secretName = Templates.renderAccountKeySecretName(accountId);
         const secretLabels = Templates.renderAccountKeySecretLabelObject(accountId);

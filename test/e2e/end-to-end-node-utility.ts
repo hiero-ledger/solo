@@ -46,7 +46,7 @@ export function endToEndNodeKeyRefreshTest(testName: string, mode: string, relea
     const defaultTimeout = Duration.ofMinutes(2).toMillis();
 
     const {
-      opts: {accountManager, k8Factory, remoteConfigManager, logger, commandInvoker},
+      opts: {accountManager, k8Factory, remoteConfig, logger, commandInvoker},
       cmd: {nodeCmd},
     } = bootstrapResp;
 
@@ -66,9 +66,9 @@ export function endToEndNodeKeyRefreshTest(testName: string, mode: string, relea
       });
 
       describe(`Node should have started successfully [mode ${mode}, release ${releaseTag}]`, () => {
-        balanceQueryShouldSucceed(accountManager, namespace, remoteConfigManager, logger);
+        balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
 
-        accountCreationShouldSucceed(accountManager, namespace, remoteConfigManager, logger);
+        accountCreationShouldSucceed(accountManager, namespace, remoteConfig, logger);
 
         it(`Node Proxy should be UP [mode ${mode}, release ${releaseTag}`, async () => {
           try {
@@ -115,9 +115,9 @@ export function endToEndNodeKeyRefreshTest(testName: string, mode: string, relea
 
         nodeRefreshShouldSucceed(nodeAlias, nodeCmd, argv);
 
-        balanceQueryShouldSucceed(accountManager, namespace, remoteConfigManager, logger);
+        balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
 
-        accountCreationShouldSucceed(accountManager, namespace, remoteConfigManager, logger);
+        accountCreationShouldSucceed(accountManager, namespace, remoteConfig, logger);
       });
 
       function nodePodShouldBeRunning(nodeCmd: NodeCommand, namespace: NamespaceName, nodeAlias: NodeAlias) {
