@@ -112,7 +112,7 @@ export SOLO_DEPLOYMENT_NETWORK_REALM=1
 
 ```typescript
 export class DeploymentConfig {
-  public static readonly DEFAULT_NETWORK_REALM: number = 0;
+  public static readonly DEPLOYMENT_NETWORK_REALM: number = 0;
 }
 ```
 
