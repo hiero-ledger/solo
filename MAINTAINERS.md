@@ -14,11 +14,11 @@ Maintainers are assigned the following scopes in this repository:
 
 <!-- Please keep this sorted alphabetically by github -->
 
-| Name | GitHub ID     | Scope      | LFID | Discord ID          | Email | Company Affiliation |
-|----- | ------------- | ---------- | ---- | ------------------- | ----- | ------------------- |
-|      | jeromy-cannon | Maintainer |      | jeromy_at_hashgraph |       | Hashgraph           |
-|      | leninmehedy   | Maintainer |      |                     |       | Hashgraph           |
-|      | nathanklick   | Maintainer |      | nathan.hashgraph    |       | Hashgraph           |
+| Name          | GitHub ID     | Scope      | LFID | Discord ID          | Email | Company Affiliation |
+|-------------- | ------------- | ---------- | ---- | ------------------- | ----- | ------------------- |
+| Jeromy Cannon | jeromy-cannon | Maintainer |      | jeromy_at_hashgraph |       | Hashgraph           |
+| Lenin Mehedy  | leninmehedy   | Maintainer |      |                     |       | Hashgraph           |
+| Nathan Klick  | nathanklick   | Maintainer |      | nathan.hashgraph    |       | Hashgraph           |
 
 
 ## Emeritus Maintainers
