@@ -140,7 +140,7 @@ jobs:
           if-no-files-found: ignore # Don't fail if no reports were downloaded
 
   analyze:
-    name: ${{ inputs.custom-job-label || 'Analyze' }}
+    name: ${{ matrix.reports.coverage-report-name || 'Analyze' }}
     runs-on: hiero-solo-linux-medium
     needs: [generate_matrix, download_standard_reports]
     strategy:

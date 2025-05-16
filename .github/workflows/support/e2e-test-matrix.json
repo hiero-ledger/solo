@@ -10,5 +10,11 @@
     "test-script": "test-e2e-dual-cluster-full",
     "coverage-subdirectory": "e2e-dual-cluster-full",
     "coverage-report-name": "E2E Dual Cluster Full Tests Coverage Report"
+  },
+  {
+    "name": "Node Add",
+    "test-script": "test-e2e-node-add",
+    "coverage-subdirectory": "e2e-node-add",
+    "coverage-report-name": "E2E Node Add Tests Coverage Report"
   }
 ]
