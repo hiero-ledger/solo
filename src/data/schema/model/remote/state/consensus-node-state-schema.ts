@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Exclude, Expose, Transform} from 'class-transformer';
-import {Transformations} from '../../utils/transformations.js';
 import {type DeploymentPhase} from '../deployment-phase.js';
+import {Transformations} from '../../utils/transformations.js';
 
 @Exclude()
-export class HAProxyState {
+export class ConsensusNodeStateSchema {
+  @Expose()
+  public id: number;
+
   @Expose()
   public name: string;
 
@@ -19,7 +22,8 @@ export class HAProxyState {
   @Transform(Transformations.DeploymentPhase)
   public phase: DeploymentPhase;
 
-  public constructor(name?: string, namespace?: string, cluster?: string, phase?: DeploymentPhase) {
+  public constructor(id?: number, name?: string, namespace?: string, cluster?: string, phase?: DeploymentPhase) {
+    this.id = id;
     this.name = name;
     this.namespace = namespace;
     this.cluster = cluster;

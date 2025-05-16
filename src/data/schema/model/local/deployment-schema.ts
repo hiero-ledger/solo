@@ -4,7 +4,7 @@ import {Exclude, Expose} from 'class-transformer';
 import {type Realm, type Shard} from '../../../../types/index.js';
 
 @Exclude()
-export class Deployment {
+export class DeploymentSchema {
   @Expose()
   public name: string;
 
@@ -20,7 +20,7 @@ export class Deployment {
   @Expose()
   public shard: Shard;
 
-  constructor(name?: string, namespace?: string, clusters?: string[], realm?: Realm, shard?: Shard) {
+  public constructor(name?: string, namespace?: string, clusters?: string[], realm?: Realm, shard?: Shard) {
     this.name = name ?? '';
     this.namespace = namespace ?? '';
     this.clusters = clusters ?? [];

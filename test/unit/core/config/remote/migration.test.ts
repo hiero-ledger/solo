@@ -5,11 +5,11 @@ import {describe, it} from 'mocha';
 import {Migration} from '../../../../../src/core/config/remote/migration.js';
 import {type Version} from '../../../../../src/types/index.js';
 import {SoloError} from '../../../../../src/core/errors/solo-error.js';
-import {UserIdentity} from '../../../../../src/data/schema/model/common/user-identity.js';
+import {UserIdentitySchema} from '../../../../../src/data/schema/model/common/user-identity-schema.js';
 
 function createMigration() {
   const migratedAt: Date = new Date();
-  const migratedBy: UserIdentity = new UserIdentity('test');
+  const migratedBy: UserIdentitySchema = new UserIdentitySchema('test');
   const fromVersion: Version = '1.0.0' as Version;
 
   return {
@@ -30,7 +30,7 @@ describe('Migration', () => {
 
   describe('Values', () => {
     const migratedAt = new Date();
-    const migratedBy = new UserIdentity('test', 'host');
+    const migratedBy = new UserIdentitySchema('test', 'host');
     const fromVersion = '1.0.0' as Version;
 
     it('should not be able to create new instance of the class with invalid migratedAt', () => {

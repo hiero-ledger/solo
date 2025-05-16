@@ -3,14 +3,14 @@
 import {SoloError} from '../../errors/solo-error.js';
 import {type Version} from '../../../types/index.js';
 import {type MigrationStruct} from './interfaces/migration-struct.js';
-import {type UserIdentity} from '../../../data/schema/model/common/user-identity.js';
+import {type UserIdentitySchema} from '../../../data/schema/model/common/user-identity-schema.js';
 
 export class Migration implements MigrationStruct {
   private readonly _migratedAt: Date;
-  private readonly _migratedBy: UserIdentity;
+  private readonly _migratedBy: UserIdentitySchema;
   private readonly _fromVersion: Version;
 
-  public constructor(migratedAt: Date, migratedBy: UserIdentity, fromVersion: Version) {
+  public constructor(migratedAt: Date, migratedBy: UserIdentitySchema, fromVersion: Version) {
     this._migratedAt = migratedAt;
     this._migratedBy = migratedBy;
     this._fromVersion = fromVersion;
@@ -22,7 +22,7 @@ export class Migration implements MigrationStruct {
   public get migratedAt(): Date {
     return this._migratedAt;
   }
-  public get migratedBy(): UserIdentity {
+  public get migratedBy(): UserIdentitySchema {
     return this._migratedBy;
   }
   public get fromVersion(): Version {
