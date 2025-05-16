@@ -198,6 +198,12 @@ jobs:
           check_name: "E2E Test Report"
           files: "e2e_test_report/**/*.xml"
 
+      - name: Show downloaded file directories
+        if: ${{ always() }}
+        run: |
+          ls -lah coverage || true
+          ls -lah e2e_test_report || true
+
       - name: Publish To Codecov
         uses: codecov/codecov-action@5c47607acb93fed5485fdbf7232e8a31425f672a # v5.0.2
         if: ${{ inputs.enable-codecov-analysis && !cancelled() && !failure() }}
