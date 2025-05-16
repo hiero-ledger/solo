@@ -74,7 +74,7 @@ export class InitCommand extends BaseCommand {
         },
         {
           title: 'Create local configuration',
-          skip: () => this.localConfig.configFileExists(),
+          // do not skip, since we need to run the step to do migration
           task: async (context_, task): Promise<void> => {
             // await this.localConfig.create(context_.config.username);
             await this.localConfig.load();
