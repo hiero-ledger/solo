@@ -81,7 +81,7 @@ permissions:
 jobs:
   analyze:
     name: ${{ inputs.custom-job-label || 'Analyze' }}
-    runs-on: hiero-solo-linux-medium # Or the appropriate runner
+    runs-on: hiero-solo-linux-medium
     steps:
       - name: Download Unit Test Coverage Report
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -102,7 +102,7 @@ jobs:
         if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
         with:
           pattern: "E2E*"
-          path: 'coverage/e2e*'
+          path: 'coverage/e2e'
 
       - name: Download E2E Test Report
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -115,7 +115,7 @@ jobs:
         uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.18.0
         if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
         with:
-          check_name: "E2E Test Report"
+          check_name: "E2E Test Report " {{ inputs.custom-job-label }}
           files: "e2e_test_report/**/*.xml"
 
       - name: Show downloaded file directories
