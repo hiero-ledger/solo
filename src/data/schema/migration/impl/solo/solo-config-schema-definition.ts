@@ -8,31 +8,31 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
 import {type ObjectMapper} from '../../../../mapper/api/object-mapper.js';
 import {SchemaDefinitionBase} from '../../api/schema-definition-base.js';
-import {EnvironmentConfigV1Migration} from './environment-config-v1-migration.js';
-import {EnvironmentConfigSchema} from '../../../model/environment/environment-config-schema.js';
+import {SoloConfigV1Migration} from './solo-config-v1-migration.js';
+import {SoloConfigSchema} from '../../../model/solo/solo-config-schema.js';
 
 @injectable()
-export class EnvironmentConfigSchemaDefinition
-  extends SchemaDefinitionBase<EnvironmentConfigSchema>
-  implements SchemaDefinition<EnvironmentConfigSchema>
+export class SoloConfigSchemaDefinition
+  extends SchemaDefinitionBase<SoloConfigSchema>
+  implements SchemaDefinition<SoloConfigSchema>
 {
   public constructor(@inject(InjectTokens.ObjectMapper) mapper: ObjectMapper) {
     super(mapper);
   }
 
   public get name(): string {
-    return EnvironmentConfigSchema.name;
+    return SoloConfigSchema.name;
   }
 
   public get version(): Version<number> {
-    return EnvironmentConfigSchema.SCHEMA_VERSION;
+    return SoloConfigSchema.SCHEMA_VERSION;
   }
 
-  public get classCtor(): ClassConstructor<EnvironmentConfigSchema> {
-    return EnvironmentConfigSchema;
+  public get classConstructor(): ClassConstructor<SoloConfigSchema> {
+    return SoloConfigSchema;
   }
 
   public get migrations(): SchemaMigration[] {
-    return [new EnvironmentConfigV1Migration()];
+    return [new SoloConfigV1Migration()];
   }
 }

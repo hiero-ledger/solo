@@ -53,6 +53,7 @@ export const HEDERA_NODE_SIDECARS = [
 ];
 
 // --------------- Charts related constants ----------------------------------------------------------------------------
+// TODO: move to resources/helm-config.yaml
 export const SOLO_SETUP_NAMESPACE = NamespaceName.of('solo-setup');
 
 export const SOLO_TESTING_CHART_URL = 'oci://ghcr.io/hashgraph/solo-charts';

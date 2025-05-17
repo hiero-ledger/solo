@@ -6,7 +6,7 @@ import {Version} from '../../../../../business/utils/version.js';
 import {IllegalArgumentError} from '../../../../../business/errors/illegal-argument-error.js';
 import {InvalidSchemaVersionError} from '../../api/invalid-schema-version-error.js';
 
-export class EnvironmentConfigV1Migration implements SchemaMigration {
+export class SoloConfigV1Migration implements SchemaMigration {
   public get range(): VersionRange<number> {
     return VersionRange.fromIntegerVersion(0);
   }
@@ -29,7 +29,7 @@ export class EnvironmentConfigV1Migration implements SchemaMigration {
       throw new InvalidSchemaVersionError(clone.schemaVersion, 0);
     }
 
-    clone.chartsDirectory = undefined;
+    // TODO add migration logic here
 
     // Set the schema version to the new version
     clone.schemaVersion = this.version.value;
