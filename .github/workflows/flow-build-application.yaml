@@ -92,6 +92,7 @@ jobs:
     uses: ./.github/workflows/zxc-e2e-test.yaml
     needs:
       - code-style
+      - generate_matrix
     strategy:
       fail-fast: false
       matrix:
