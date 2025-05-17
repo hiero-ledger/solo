@@ -12,9 +12,99 @@
     "coverage-report-name": "E2E Dual Cluster Full Tests Coverage Report"
   },
   {
+    "name": "Node Add",
+    "test-script": "test-e2e-node-add",
+    "coverage-subdirectory": "e2e-node-add",
+    "coverage-report-name": "E2E Node Add Tests Coverage Report"
+  },
+  {
+    "name": "Node Local Hedera",
+    "test-script": "test-e2e-node-local-hedera",
+    "coverage-subdirectory": "e2e-node-local-hedera",
+    "coverage-report-name": "E2E Node Local Hedera Tests Coverage Report"
+  },
+  {
+    "name": "Node Delete",
+    "test-script": "test-e2e-node-delete",
+    "coverage-subdirectory": "e2e-node-delete",
+    "coverage-report-name": "E2E Node Delete Tests Coverage Report"
+  },
+  {
     "name": "Node PEM Kill",
     "test-script": "test-e2e-node-pem-kill",
     "coverage-subdirectory": "e2e-node-pem-kill",
     "coverage-report-name": "E2E Node PEM Kill Tests Coverage Report"
+  },
+  {
+    "name": "Standard",
+    "test-script": "test-e2e-standard",
+    "coverage-subdirectory": "e2e-standard",
+    "coverage-report-name": "E2E Standard Tests Coverage Report"
+  },
+  {
+    "name": "Relay",
+    "test-script": "test-e2e-relay",
+    "coverage-subdirectory": "e2e-relay",
+    "coverage-report-name": "E2E Relay Tests Coverage Report"
+  },
+  {
+    "name": "Block Node",
+    "test-script": "test-e2e-block-node",
+    "coverage-subdirectory": "e2e-block-node",
+    "coverage-report-name": "E2E Block Node Tests Coverage Report"
+  },
+  {
+    "name": "Node Update",
+    "test-script": "test-e2e-node-update",
+    "coverage-subdirectory": "e2e-node-update",
+    "coverage-report-name": "E2E Node Update Tests Coverage Report"
+  },
+  {
+    "name": "Node Upgrade",
+    "test-script": "test-e2e-node-upgrade",
+    "coverage-subdirectory": "e2e-node-upgrade",
+    "coverage-report-name": "E2E Node Upgrade Tests Coverage Report"
+  },
+  {
+    "name": "Node PEM Stop",
+    "test-script": "test-e2e-node-pem-stop",
+    "coverage-subdirectory": "e2e-node-pem-stop",
+    "coverage-report-name": "E2E Node PEM Stop Tests Coverage Report"
+  },
+  {
+    "name": "Node Local PTT",
+    "test-script": "test-e2e-node-local-ptt",
+    "coverage-subdirectory": "e2e-node-local-ptt",
+    "coverage-report-name": "E2E Node Local PTT Tests Coverage Report"
+  },
+  {
+    "name": "Node Add Local",
+    "test-script": "test-e2e-node-add-local",
+    "coverage-subdirectory": "e2e-node-add-local",
+    "coverage-report-name": "E2E Node Add Local Tests Coverage Report"
+  },
+  {
+    "name": "Node Update - Separate commands",
+    "test-script": "test-e2e-node-update-separate",
+    "coverage-subdirectory": "e2e-node-update-separate",
+    "coverage-report-name": "E2E Node Update - Separate commands Tests Coverage Report"
+  },
+  {
+    "name": "Node Delete - Separate commands",
+    "test-script": "test-e2e-node-delete-separate",
+    "coverage-subdirectory": "e2e-node-delete-separate",
+    "coverage-report-name": "E2E Node Delete - Separate commands Tests Coverage Report"
+  },
+  {
+    "name": "Node Add - Separate commands",
+    "test-script": "test-e2e-node-add-separate",
+    "coverage-subdirectory": "e2e-node-add-separate",
+    "coverage-report-name": "E2E Node Add - Separate commands Tests Coverage Report"
+  },
+  {
+    "name": "Node Upgrade - Separate commands",
+    "test-script": "test-e2e-node-upgrade-separate",
+    "coverage-subdirectory": "e2e-node-upgrade-separate",
+    "coverage-report-name": "E2E Node Upgrade - Separate commands Tests Coverage Report"
   }
 ]
