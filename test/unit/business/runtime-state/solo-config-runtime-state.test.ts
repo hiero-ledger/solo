@@ -18,6 +18,7 @@ describe('SoloConfigRuntimeState', (): void => {
     expect(soloConfigRuntimeState.soloConfig).to.have.property('helmChart');
     expect(soloConfigRuntimeState.soloConfig.helmChart).to.be.an('object');
     expect(soloConfigRuntimeState.soloConfig.helmChart.name).to.equal('solo-deployment');
+    expect(soloConfigRuntimeState.soloConfig.helmChart.repository).to.equal('oci://ghcr.io/hashgraph/solo-charts');
   });
 
   it('should throw an error if the configuration is not loaded', (): void => {
@@ -25,5 +26,16 @@ describe('SoloConfigRuntimeState', (): void => {
       UnloadedConfigError,
       'SoloConfig is not loaded yet.',
     );
+  });
+
+  it('should return the directory', async (): Promise<void> => {
+    const directory: string = '../solo-charts/charts';
+    process.env.SOLO_SC_HELMCHART_DIRECTORY = directory;
+    await soloConfigRuntimeState.load();
+    const soloConfig: SoloConfig = soloConfigRuntimeState.soloConfig;
+    expect(soloConfig).to.have.property('helmChart');
+    expect(soloConfig.helmChart).to.have.property('directory');
+    expect(soloConfig.helmChart.directory).to.equal(directory);
+    expect(soloConfig.helmChart.repository).to.equal(directory);
   });
 });
