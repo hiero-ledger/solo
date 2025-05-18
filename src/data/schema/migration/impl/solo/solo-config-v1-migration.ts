@@ -29,11 +29,41 @@ export class SoloConfigV1Migration implements SchemaMigration {
       throw new InvalidSchemaVersionError(clone.schemaVersion, 0);
     }
 
-    // TODO add migration logic here
-
     // Set the schema version to the new version
     clone.schemaVersion = this.version.value;
 
+    if (!clone.helmChart) {
+      clone.helmChart = this.getNewHelmChartObject();
+    }
+
+    if (!clone.ingressControllerHelmChart) {
+      clone.ingressControllerHelmChart = this.getNewHelmChartObject();
+    }
+
+    if (!clone.clusterSetupHelmChart) {
+      clone.clusterSetupHelmChart = this.getNewHelmChartObject();
+    }
+
+    if (!clone.certManagerHelmChart) {
+      clone.certManagerHelmChart = this.getNewHelmChartObject();
+    }
+
     return clone;
+  }
+
+  private getNewHelmChartObject(): object {
+    return {
+      name: undefined,
+      namespace: undefined,
+      release: undefined,
+      repository: undefined,
+      directory: undefined,
+      version: undefined,
+      labelSelector: undefined,
+      containerName: undefined,
+      ingressClassName: undefined,
+      ingressControllerName: undefined,
+      ingressControllerPrefix: undefined,
+    };
   }
 }

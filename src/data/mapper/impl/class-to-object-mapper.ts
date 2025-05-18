@@ -12,6 +12,7 @@ import {patchInject} from '../../../core/dependency-injection/container-helper.j
 import {IllegalArgumentError} from '../../../business/errors/illegal-argument-error.js';
 import {type Primitive} from '../../../business/utils/primitive.js';
 import {type PrimitiveArray} from '../../../business/utils/primitive-array.js';
+import {ReflectAssist} from '../../../business/utils/reflect-assist.js';
 
 @injectable()
 export class ClassToObjectMapper implements ObjectMapper {
@@ -31,7 +32,9 @@ export class ClassToObjectMapper implements ObjectMapper {
 
   public fromObject<T extends R, R>(cls: ClassConstructor<T>, object: object): R {
     try {
-      return plainToInstance(cls, object);
+      const lowercaseInput: any = ReflectAssist.lowercaseKeysDeep(object);
+      const remapped: any = ReflectAssist.mapKeysToClassRecursive(lowercaseInput, cls);
+      return plainToInstance(cls, remapped);
     } catch (error) {
       throw new ObjectMappingError(`Error converting object to class instance [ cls = '${cls.name}' ]`, error);
     }
