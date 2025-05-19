@@ -13,7 +13,6 @@ import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phas
 import {type ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
 import {type BaseStateSchema} from '../../../data/schema/model/remote/state/base-state-schema.js';
 import {inject, injectable} from 'tsyringe-neo';
-import {type RemoteConfigRuntimeStateApi} from '../../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {patchInject} from '../../dependency-injection/container-helper.js';
 import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
 import {RemoteConfigValidatorApi} from './api/remote-config-validator-api.js';

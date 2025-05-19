@@ -11,7 +11,6 @@ import {type NodeCommandTasks} from './tasks.js';
 import {NodeSubcommandType} from '../../core/enumerations.js';
 import {NodeHelper} from './helper.js';
 import {type ArgvStruct, type NodeAlias, type NodeAliases, NodeId} from '../../types/aliases.js';
-import {type Listr} from 'listr2';
 import chalk from 'chalk';
 import {type Optional, SoloListr, type SoloListrTask} from '../../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
