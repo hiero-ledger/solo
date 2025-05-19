@@ -16,6 +16,16 @@ vars:
   hugo_base_url: "${HUGO_ORIGIN}${HUGO_SOLO_VERSION}/"
   hugo_local_base_url: "${HUGO_LOCAL_ORIGIN}${HUGO_SOLO_VERSION}/"
 
+# TODO for each release that has a docs attached download the docs and extract them
+# TODO only extract the latest archive for the npmjs latest version
+# TODO attach the arhive to the release, can I use gh CLI in Taskfile.yaml?
+# TODO add versions to exclude
+# TODO github workflow to run the docs build for main or release
+# TODO github workflow to construct the docs site and publish to gh pages, needs to either be in the same runner, or publish CI artifact to download on different runner
+# TODO get this all working in v0.35 and get it published to release
+# TODO get the v0.35 GHIs PRs created/merged
+# TODO create a bunch of issues for what needs to get done in v0.35, and assign them out to the team
+
 tasks:
   default:
     desc: "List all available tasks"
