@@ -37,7 +37,6 @@ import {type PlatformInstaller} from '../../../src/core/platform-installer.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import {ComponentsDataWrapper} from '../../../src/core/config/remote/components-data-wrapper.js';
-import {ROOT_DIR} from '../../../src/core/constants.js';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
