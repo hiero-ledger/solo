@@ -316,3 +316,54 @@ tasks:
         tar -czf ../build/latest.tar.gz latest
         tar -czf ../build/${HUGO_SOLO_VERSION}.tar.gz ${HUGO_SOLO_VERSION}
         cd ..
+
+  npmjs:list:solo:versions:
+    desc: Fetch and display all versions of @hashgraph/solo from NPM (with 'v' prefix)
+    cmds:
+      - |
+        if ! command -v curl &> /dev/null; then
+          echo "Error: curl is not installed." >&2
+          exit 1
+        fi
+        if ! command -v jq &> /dev/null; then
+          echo "Error: jq is not installed." >&2
+          exit 1
+        fi
+        echo "Fetching versions of @hashgraph/solo from NPM..."
+        response=$(curl -s https://registry.npmjs.org/@hashgraph/solo)
+        if [ $? -ne 0 ]; then
+          echo "Error: Failed to fetch data from NPM registry." >&2
+          exit 1
+        fi
+        versions=$(echo "$response" | jq -r '.versions | keys[] | "v\(. )"' 2> /dev/null)
+        if [ $? -ne 0 ]; then
+          echo "Error: Failed to parse JSON response." >&2
+          exit 1
+        fi
+        if [ -z "$versions" ]; then
+          echo "No versions found for @hashgraph/solo." >&2
+          exit 1
+        fi
+        echo "Available versions of @hashgraph/solo:"
+        echo "$versions" | tee build/npmjs-versions.txt 
+
+  # this will need adjusting once I get an artifact published
+  github:list:solo:releases:
+    desc: List GitHub releases for hiero-ledger/solo using gh CLI and output as JSON
+    cmds:
+      - |
+        if ! command -v gh &> /dev/null; then
+          echo "Error: GitHub CLI (gh) is not installed." >&2
+          exit 1
+        fi
+        echo "Fetching releases from GitHub with gh CLI..."
+        gh api -H "Accept: application/vnd.github+json" \
+          repos/hiero-ledger/solo/releases |
+        jq 'map({
+          tag: ("v" + (.tag_name | ltrimstr("v"))),
+          assets: (
+            .assets
+            | map(select(.name != "Source code (zip)" and .name != "Source code (tar.gz)"))
+            | map({name: .name, url: .browser_download_url})
+          )
+        })'
