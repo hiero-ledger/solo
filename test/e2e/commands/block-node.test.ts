@@ -28,6 +28,8 @@ import {type ClusterReference, type ExtendedNetServer} from '../../../src/types/
 import {exec} from 'node:child_process';
 import {promisify} from 'node:util';
 import * as constants from '../../../src/core/constants.js';
+import {lt, SemVer} from 'semver';
+import {ArgvStruct} from '../../../src/types/aliases.js';
 
 const execAsync = promisify(exec);
 
@@ -63,6 +65,30 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
     });
 
     afterEach(async () => await sleep(Duration.ofMillis(5)));
+
+    it('Should fail with versions less than 0.62.0', async () => {
+      const argvClone: Argv = argv.clone();
+      argvClone.setArg(flags.releaseTag, 'v0.61.0');
+
+      try {
+        await commandInvoker.invoke({
+          argv: argv,
+          command: BlockNodeCommand.COMMAND_NAME,
+          subcommand: 'node add',
+          // @ts-expect-error to access private property
+          callback: async (argv: ArgvStruct): Promise<boolean> => blockNodeCommand.add(argv),
+        });
+
+        expect.fail();
+      } catch (error) {
+        expect(error.message).to.include('Hedera platform versions less than');
+      }
+    });
+
+    const platformVersion: SemVer = new SemVer(argv.getArg<string>(flags.releaseTag));
+    if (lt(platformVersion, new SemVer('v0.62.0'))) {
+      return;
+    }
 
     it("Should succeed deploying block node with 'add' command", async function () {
       this.timeout(Duration.ofMinutes(5).toMillis());
