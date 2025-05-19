@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import sinon from 'sinon';
-import {it, describe, after, before, afterEach, beforeEach} from 'mocha';
+import {after, afterEach, before, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
 
 import {Flags as flags} from '../../../src/commands/flags.js';
 import {
   bootstrapTestVariables,
-  getTestCluster,
   getTestCacheDirectory,
+  getTestCluster,
   HEDERA_PLATFORM_VERSION_TAG,
 } from '../../test-utility.js';
 import * as constants from '../../../src/core/constants.js';
@@ -24,7 +24,7 @@ import {SoloWinstonLogger} from '../../../src/core/logging/solo-winston-logger.j
 import {container} from 'tsyringe-neo';
 import {ClusterCommandHandlers} from '../../../src/commands/cluster/handlers.js';
 import {ClusterCommandTasks} from '../../../src/commands/cluster/tasks.js';
-import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 
 describe('ClusterCommand', () => {

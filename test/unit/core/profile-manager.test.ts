@@ -9,7 +9,7 @@ import {Flags as flags} from '../../../src/commands/flags.js';
 import * as constants from '../../../src/core/constants.js';
 import {type ConfigManager} from '../../../src/core/config-manager.js';
 import {ProfileManager} from '../../../src/core/profile-manager.js';
-import {getTestCacheDirectory, getTemporaryDirectory} from '../../test-utility.js';
+import {getTemporaryDirectory, getTestCacheDirectory} from '../../test-utility.js';
 import * as version from '../../../version.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
 import {container} from 'tsyringe-neo';
@@ -23,16 +23,17 @@ import {MissingArgumentError} from '../../../src/core/errors/missing-argument-er
 import sinon from 'sinon';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {entityId} from '../../../src/core/helpers.js';
-import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
+import {type Realm, type Shard} from '../../../src/types/index.js';
 
 describe('ProfileManager', () => {
   let temporaryDirectory: string, configManager: ConfigManager, profileManager: ProfileManager, cacheDirectory: string;
-  const namespace = NamespaceName.of('test-namespace');
-  const deploymentName = 'deployment';
-  const realm = 1;
-  const shard = 2;
-  const testProfileFile = PathEx.join('test', 'data', 'test-profiles.yaml');
-  const kubeConfig = new KubeConfig();
+  const namespace: NamespaceName = NamespaceName.of('test-namespace');
+  const deploymentName: string = 'deployment';
+  const realm: Realm = 1;
+  const shard: Shard = 2;
+  const testProfileFile: string = PathEx.join('test', 'data', 'test-profiles.yaml');
+  const kubeConfig: KubeConfig = new KubeConfig();
   kubeConfig.loadFromDefault();
   const consensusNodes: ConsensusNode[] = [
     {
@@ -67,7 +68,7 @@ describe('ProfileManager', () => {
     },
   ];
 
-  let stagingDirectory = '';
+  let stagingDirectory: string = '';
 
   before(async () => {
     resetForTest(namespace.name);
@@ -95,7 +96,9 @@ describe('ProfileManager', () => {
     // @ts-expect-error - TS2339: to mock
     profileManager.remoteConfigManager.getConsensusNodes = sinon.stub().returns(consensusNodes);
 
-    const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+    const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
+      InjectTokens.LocalConfigRuntimeState,
+    );
     await localConfig.load();
   });
 
@@ -231,7 +234,7 @@ describe('ProfileManager', () => {
         }
       });
 
-      it(`should determine hedera-explorer chart values [profile = ${input.profileName}]`, async () => {
+      it(`should determine hiero-explorer chart values [profile = ${input.profileName}]`, async () => {
         configManager.setFlag(flags.profileFile, input.profileFile);
         configManager.setFlag(flags.cacheDir, getTestCacheDirectory('ProfileManager'));
         configManager.setFlag(flags.releaseTag, version.HEDERA_PLATFORM_VERSION);

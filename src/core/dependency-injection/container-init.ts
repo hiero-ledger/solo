@@ -30,7 +30,6 @@ import {NodeCommandTasks} from '../../commands/node/tasks.js';
 import {ClusterCommandConfigs} from '../../commands/cluster/configs.js';
 import {NodeCommandConfigs} from '../../commands/node/configs.js';
 import {ErrorHandler} from '../error-handler.js';
-import {CTObjectMapper} from '../../data/mapper/impl/ct-object-mapper.js';
 import {HelmExecutionBuilder} from '../../integration/helm/execution/helm-execution-builder.js';
 import {DefaultHelmClient} from '../../integration/helm/impl/default-helm-client.js';
 import {HelpRenderer} from '../help-renderer.js';
@@ -50,10 +49,11 @@ import {SoloWinstonLogger} from '../logging/solo-winston-logger.js';
 import {SingletonContainer} from './singleton-container.js';
 import {ValueContainer} from './value-container.js';
 import {BlockNodeCommand} from '../../commands/block-node.js';
+import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {LocalConfigSource} from '../../data/configuration/impl/local-config-source.js';
+import {ClassToObjectMapper} from '../../data/mapper/impl/class-to-object-mapper.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
-import {LocalConfigRuntimeState} from '../../business/runtime-state/local-config-runtime-state.js';
-import {LocalConfigSource} from '../../data/configuration/impl/local-config-source.js';
 
 /**
  * Container class to manage the dependency injection container
@@ -138,7 +138,7 @@ export class Container {
       new SingletonContainer(InjectTokens.ClusterCommandConfigs, ClusterCommandConfigs),
       new SingletonContainer(InjectTokens.NodeCommandConfigs, NodeCommandConfigs),
       new SingletonContainer(InjectTokens.ErrorHandler, ErrorHandler),
-      new SingletonContainer(InjectTokens.ObjectMapper, CTObjectMapper),
+      new SingletonContainer(InjectTokens.ObjectMapper, ClassToObjectMapper),
     ];
 
     const valueContainers: ValueContainer[] = [

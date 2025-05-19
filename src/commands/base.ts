@@ -9,7 +9,7 @@ import {type ConfigManager} from '../core/config-manager.js';
 import {type DependencyManager} from '../core/dependency-managers/index.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {type HelmClient} from '../integration/helm/helm-client.js';
-import {type LocalConfigRuntimeState} from '../business/runtime-state/local-config-runtime-state.js';
+import {type LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import * as constants from '../core/constants.js';
 import fs from 'node:fs';
 import {type ClusterReference, type ClusterReferences} from '../types/index.js';

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type Version} from '../../../../types/index.js';
-import {type UserIdentity} from '../../../../data/schema/model/common/user-identity.js';
+import {type UserIdentitySchema} from '../../../../data/schema/model/common/user-identity-schema.js';
 
 export interface MigrationStruct {
   migratedAt: Date;
-  migratedBy: UserIdentity;
+  migratedBy: UserIdentitySchema;
   fromVersion: Version;
 }
