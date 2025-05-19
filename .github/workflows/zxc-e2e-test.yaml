@@ -165,8 +165,7 @@ jobs:
 
       - name: Install grpcurl
         run: |
-          curl -sSL https://github.com/fullstorydev/grpcurl/releases/latest/download/grpcurl_1.8.9_linux_x86_64.tar.gz \
-            | tar -xz -C /usr/local/bin
+          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 
       - name: Compile Project
         run: task build
