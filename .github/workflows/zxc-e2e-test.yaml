@@ -165,7 +165,7 @@ jobs:
 
       - name: Install grpcurl
         run: |
-          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+          snap install grpcurl
 
       - name: Compile Project
         run: task build
