@@ -8,21 +8,27 @@ import {Flags as flags} from './flags.js';
 import {Listr} from 'listr2';
 import * as constants from '../core/constants.js';
 import * as helpers from '../core/helpers.js';
+import {entityId} from '../core/helpers.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {type AccountId, AccountInfo, HbarUnit, Long, NodeUpdateTransaction, PrivateKey} from '@hashgraph/sdk';
 import {ListrLock} from '../core/lock/listr-lock.js';
-import {type ArgvStruct, type AnyYargs, type NodeAliases} from '../types/aliases.js';
+import {type AnyYargs, type ArgvStruct, type NodeAliases} from '../types/aliases.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
-import {type ClusterReference, type DeploymentName, type Realm, type Shard} from '../types/index.js';
-import {type CommandDefinition, type SoloListrTask} from '../types/index.js';
+import {
+  type ClusterReference,
+  type CommandDefinition,
+  type DeploymentName,
+  type Realm,
+  type Shard,
+  type SoloListrTask,
+} from '../types/index.js';
 import {Templates} from '../core/templates.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Base64} from 'js-base64';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {entityId} from '../core/helpers.js';
 
 interface UpdateAccountConfig {
   accountId: string;
@@ -258,7 +264,8 @@ export class AccountCommand extends BaseCommand {
             } as Config;
 
             config.contextName =
-              this.localConfig.clusterRefs.get(config.clusterRef) ?? self.k8Factory.default().contexts().readCurrent();
+              this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString() ??
+              self.k8Factory.default().contexts().readCurrent();
 
             if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
               throw new SoloError(`namespace ${config.namespace.name} does not exist`);
@@ -310,8 +317,8 @@ export class AccountCommand extends BaseCommand {
                   title: 'Update special account key sets',
                   task: context_ => {
                     const subTasks: SoloListrTask<Context>[] = [];
-                    const realm: Realm = this.localConfig.getRealm(context_.config.deployment);
-                    const shard: Shard = this.localConfig.getShard(context_.config.deployment);
+                    const realm: Realm = this.localConfig.configuration.realmForDeployment(context_.config.deployment);
+                    const shard: Shard = this.localConfig.configuration.shardForDeployment(context_.config.deployment);
 
                     for (const currentSet of context_.accountsBatchedSet) {
                       const accountStart = entityId(shard, realm, currentSet[0]);
@@ -493,7 +500,8 @@ export class AccountCommand extends BaseCommand {
             } as Config;
 
             config.contextName =
-              this.localConfig.clusterRefs.get(config.clusterRef) ?? self.k8Factory.default().contexts().readCurrent();
+              this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString() ??
+              self.k8Factory.default().contexts().readCurrent();
 
             if (!config.amount) {
               config.amount = flags.amount.definition.defaultValue as number;
@@ -588,7 +596,8 @@ export class AccountCommand extends BaseCommand {
             } as UpdateAccountConfig;
 
             config.contextName =
-              this.localConfig.clusterRefs.get(config.clusterRef) ?? self.k8Factory.default().contexts().readCurrent();
+              this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString() ??
+              self.k8Factory.default().contexts().readCurrent();
 
             if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
               throw new SoloError(`namespace ${config.namespace} does not exist`);
@@ -689,7 +698,8 @@ export class AccountCommand extends BaseCommand {
             } as Config;
 
             config.contextName =
-              this.localConfig.clusterRefs.get(config.clusterRef) ?? self.k8Factory.default().contexts().readCurrent();
+              this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString() ??
+              self.k8Factory.default().contexts().readCurrent();
 
             if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
               throw new SoloError(`namespace ${config.namespace} does not exist`);

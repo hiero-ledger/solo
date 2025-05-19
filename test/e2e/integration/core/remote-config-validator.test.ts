@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {it, describe} from 'mocha';
+import {describe, it} from 'mocha';
 import {expect} from 'chai';
 
 import * as constants from '../../../../src/core/constants.js';
@@ -27,7 +27,7 @@ import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tok
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {getTestCacheDirectory} from '../../../test-utility.js';
 import {Duration} from '../../../../src/core/time/duration.js';
-import {LocalConfigRuntimeState} from '../../../../src/business/runtime-state/local-config-runtime-state.js';
+import {LocalConfigRuntimeState} from '../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {ConsensusNodeStates} from '../../../../src/core/config/remote/enumerations/consensus-node-states.js';
 
 describe('RemoteConfigValidator', () => {
