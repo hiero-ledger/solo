@@ -315,5 +315,3 @@ tasks:
         tar -czf ../build/latest.tar.gz latest
         tar -czf ../build/${HUGO_SOLO_VERSION}.tar.gz ${HUGO_SOLO_VERSION}
         cd ..
-
-# TODO why is it creating a docs/site/docs/site/.task/temp directory?
