@@ -8,6 +8,7 @@ import {getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js
 import {Flags as flags} from '../../../src/commands/flags.js';
 import * as version from '../../../version.js';
 import * as constants from '../../../src/core/constants.js';
+import {ROOT_DIR} from '../../../src/core/constants.js';
 import {type ConfigManager} from '../../../src/core/config-manager.js';
 import {type ChartManager} from '../../../src/core/chart-manager.js';
 import {NetworkCommand, type NetworkDeployConfigClass} from '../../../src/commands/network.js';
