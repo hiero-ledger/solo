@@ -51,7 +51,7 @@ export class RemoteConfigV1Migration implements SchemaMigration {
       mirrorNodeChart: clone.metadata.hederaMirrorNodeChartVersion ?? '0.0.0',
       explorerChart: clone.metadata.hederaExplorerChartVersion ?? '0.0.0',
       jsonRpcRelayChart: clone.metadata.hederaJsonRpcRelayChartVersion ?? '0.0.0',
-      blockNodeChart: '',
+      blockNodeChart: clone?.metadata?.hederaJsonRpcRelayChartVersion ?? '0.0.0',
     };
 
     // delete the old version structure

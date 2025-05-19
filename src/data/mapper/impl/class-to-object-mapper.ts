@@ -33,7 +33,7 @@ export class ClassToObjectMapper implements ObjectMapper {
     try {
       return plainToInstance(cls, object);
     } catch (error) {
-      throw new ObjectMappingError(`Error converting object to class instance [ cls = '${cls.name}' ]`, error);
+      throw new ObjectMappingError(`  Error converting object to class instance [ cls = '${cls.name}' ]`, error);
     }
   }
 

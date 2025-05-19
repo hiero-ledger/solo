@@ -26,7 +26,6 @@ export interface RemoteConfigRuntimeStateApi {
   isLoaded(): boolean;
   load(namespace?: NamespaceName, context?: Context): Promise<void>;
   populateRemoteConfig(configMap: ConfigMap): Promise<void>;
-  write(): Promise<void>;
   persist(): Promise<void>;
 
   create(
