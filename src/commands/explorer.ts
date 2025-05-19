@@ -632,17 +632,20 @@ export class ExplorerCommand extends BaseCommand {
       task: async (context_): Promise<void> => {
         const clusterReference: ClusterReference = context_.config.clusterReference;
 
-        await this.remoteConfig.modify(async (_, components) => {
-          const explorerComponents: MirrorNodeStateSchema[] =
-            components.getComponentsByClusterReference<MirrorNodeStateSchema>(
-              ComponentTypes.Explorers,
-              clusterReference,
-            );
+        const explorerComponents: MirrorNodeStateSchema[] =
+          this.remoteConfig.configuration.components.getComponentsByClusterReference<MirrorNodeStateSchema>(
+            ComponentTypes.Explorers,
+            clusterReference,
+          );
 
-          for (const explorerComponent of explorerComponents) {
-            components.removeComponent(explorerComponent.metadata.id, ComponentTypes.Explorers);
-          }
-        });
+        for (const explorerComponent of explorerComponents) {
+          this.remoteConfig.configuration.components.removeComponent(
+            explorerComponent.metadata.id,
+            ComponentTypes.Explorers,
+          );
+        }
+
+        await this.remoteConfig.persist();
       },
     };
   }
@@ -653,14 +656,14 @@ export class ExplorerCommand extends BaseCommand {
       title: 'Add explorer to remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfig.modify(async (_, components) => {
-          const {namespace, clusterRef} = context_.config;
+        const {namespace, clusterRef} = context_.config;
 
-          components.addNewComponent(
-            this.componentFactory.createNewExplorerComponent(clusterRef, namespace),
-            ComponentTypes.Explorers,
-          );
-        });
+        this.remoteConfig.configuration.components.addNewComponent(
+          this.componentFactory.createNewExplorerComponent(clusterRef, namespace),
+          ComponentTypes.Explorers,
+        );
+
+        await this.remoteConfig.persist();
       },
     };
   }

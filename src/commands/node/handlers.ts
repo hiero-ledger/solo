@@ -13,7 +13,7 @@ import {NodeHelper} from './helper.js';
 import {type ArgvStruct, type NodeAlias, type NodeAliases, NodeId} from '../../types/aliases.js';
 import {type Listr} from 'listr2';
 import chalk from 'chalk';
-import {type Optional, type SoloListrTask} from '../../types/index.js';
+import {type Optional, SoloListr, type SoloListrTask} from '../../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {CommandHandler} from '../../core/command-handler.js';
@@ -909,12 +909,12 @@ export class NodeCommandHandlers extends CommandHandler {
       title: `Change node state to ${phase} in remote config`,
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_: Context): Promise<void> => {
-        await this.remoteConfig.modify(async (_, components) => {
-          for (const consensusNode of context_.config.consensusNodes) {
-            const nodeId: NodeId = Templates.nodeIdFromNodeAlias(consensusNode.name);
-            components.changeNodePhase(nodeId, phase);
-          }
-        });
+        for (const consensusNode of context_.config.consensusNodes) {
+          const nodeId: NodeId = Templates.nodeIdFromNodeAlias(consensusNode.name);
+          this.remoteConfig.configuration.components.changeNodePhase(nodeId, phase);
+        }
+
+        await this.remoteConfig.persist();
       },
     };
   }
@@ -939,15 +939,20 @@ export class NodeCommandHandlers extends CommandHandler {
     return {
       title: 'Validate nodes states',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
-      task: (context_: Context, task): Listr<any, any, any> => {
-        const nodeAliases = context_.config.nodeAliases;
+      task: (context_: Context, task): SoloListr<any> => {
+        const nodeAliases: NodeAliases = context_.config.nodeAliases;
 
-        const components = this.remoteConfig.components;
+        const components: ComponentsDataWrapperApi = this.remoteConfig.configuration.components;
 
         const subTasks: SoloListrTask<Context>[] = nodeAliases.map(nodeAlias => ({
           title: `Validating state for node ${nodeAlias}`,
           task: (_, task): void => {
-            const state = this.validateNodeState(nodeAlias, components, acceptedPhases, excludedPhases);
+            const state: DeploymentPhase = this.validateNodeState(
+              nodeAlias,
+              components,
+              acceptedPhases,
+              excludedPhases,
+            );
 
             task.title += ` - ${chalk.green('valid state')}: ${chalk.cyan(state)}`;
           },

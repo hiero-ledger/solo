@@ -2558,31 +2558,35 @@ export class NodeCommandTasks {
 
         task.title += `: ${nodeAlias}`;
 
-        await this.remoteConfig.modify(async (_, components) => {
-          components.addNewComponent(
-            this.componentFactory.createNewConsensusNodeComponent(
-              nodeId,
-              clusterReference,
-              namespace,
-              DeploymentPhase.STARTED,
-            ),
-            ComponentTypes.ConsensusNode,
-          );
-          components.addNewComponent(
-            this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
-            ComponentTypes.EnvoyProxy,
-          );
-          components.addNewComponent(
-            this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),
-            ComponentTypes.HaProxy,
-          );
-        });
+        this.remoteConfig.configuration.components.addNewComponent(
+          this.componentFactory.createNewConsensusNodeComponent(
+            nodeId,
+            clusterReference,
+            namespace,
+            DeploymentPhase.STARTED,
+          ),
+          ComponentTypes.ConsensusNode,
+        );
+
+        this.remoteConfig.configuration.components.addNewComponent(
+          this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
+          ComponentTypes.EnvoyProxy,
+        );
+
+        this.remoteConfig.configuration.components.addNewComponent(
+          this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),
+          ComponentTypes.HaProxy,
+        );
+
+        await this.remoteConfig.persist();
 
         context_.config.consensusNodes = this.remoteConfig.getConsensusNodes();
 
         // if the consensusNodes does not contain the nodeAlias then add it
         if (!context_.config.consensusNodes.some((node: ConsensusNode) => node.name === nodeAlias)) {
-          const cluster: ClusterSchema = this.remoteConfig.clusters.find(cluster => cluster.name === clusterReference);
+          const cluster: ClusterSchema = this.remoteConfig.configuration.clusters.find(
+            cluster => cluster.name === clusterReference,
+          );
 
           context_.config.consensusNodes.push(
             new ConsensusNode(

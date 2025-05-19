@@ -267,11 +267,14 @@ export class BlockNodeCommand extends BaseCommand {
       title: 'Add block node component in remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfig.modify(async (_, components) => {
-          const config: BlockNodeDeployConfigClass = context_.config;
+        const config: BlockNodeDeployConfigClass = context_.config;
 
-          components.addNewComponent(config.newBlockNodeComponent, ComponentTypes.BlockNode);
-        });
+        this.remoteConfig.configuration.components.addNewComponent(
+          config.newBlockNodeComponent,
+          ComponentTypes.BlockNode,
+        );
+
+        await this.remoteConfig.persist();
       },
     };
   }

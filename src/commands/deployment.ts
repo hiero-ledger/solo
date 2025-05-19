@@ -596,11 +596,11 @@ export class DeploymentCommand extends BaseCommand {
 
         await this.remoteConfig.populateRemoteConfig(remoteConfigConfigMap);
 
-        const ledgerPhase: LedgerPhase = this.remoteConfig.state.ledgerPhase;
+        const ledgerPhase: LedgerPhase = this.remoteConfig.configuration.state.ledgerPhase;
 
         context_.config.ledgerPhase = ledgerPhase;
 
-        const existingNodesCount: number = Object.keys(this.remoteConfig.state.consensusNodes).length;
+        const existingNodesCount: number = Object.keys(this.remoteConfig.configuration.state.consensusNodes).length;
 
         context_.config.nodeAliases = Templates.renderNodeAliasesFromCount(numberOfConsensusNodes, existingNodesCount);
 

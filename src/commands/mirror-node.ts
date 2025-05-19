@@ -928,17 +928,20 @@ export class MirrorNodeCommand extends BaseCommand {
       task: async (context_): Promise<void> => {
         const clusterReference: ClusterReference = context_.config.clusterRef;
 
-        await this.remoteConfig.modify(async (_, components) => {
-          const mirrorNodeComponents: MirrorNodeStateSchema[] =
-            components.getComponentsByClusterReference<MirrorNodeStateSchema>(
-              ComponentTypes.MirrorNode,
-              clusterReference,
-            );
+        const mirrorNodeComponents: MirrorNodeStateSchema[] =
+          this.remoteConfig.configuration.components.getComponentsByClusterReference<MirrorNodeStateSchema>(
+            ComponentTypes.MirrorNode,
+            clusterReference,
+          );
 
-          for (const mirrorNodeComponent of mirrorNodeComponents) {
-            components.removeComponent(mirrorNodeComponent.metadata.id, ComponentTypes.MirrorNode);
-          }
-        });
+        for (const mirrorNodeComponent of mirrorNodeComponents) {
+          this.remoteConfig.configuration.components.removeComponent(
+            mirrorNodeComponent.metadata.id,
+            ComponentTypes.MirrorNode,
+          );
+        }
+
+        await this.remoteConfig.persist();
       },
     };
   }
@@ -949,14 +952,14 @@ export class MirrorNodeCommand extends BaseCommand {
       title: 'Add mirror node to remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfig.modify(async (_, components) => {
-          const {namespace, clusterRef} = context_.config;
+        const {namespace, clusterRef} = context_.config;
 
-          components.addNewComponent(
-            this.componentFactory.createNewMirrorNodeComponent(clusterRef, namespace),
-            ComponentTypes.MirrorNode,
-          );
-        });
+        this.remoteConfig.configuration.components.addNewComponent(
+          this.componentFactory.createNewMirrorNodeComponent(clusterRef, namespace),
+          ComponentTypes.MirrorNode,
+        );
+
+        await this.remoteConfig.persist();
       },
     };
   }

@@ -1311,23 +1311,22 @@ export class NetworkCommand extends BaseCommand {
       task: async (context_): Promise<void> => {
         const {namespace} = context_.config;
 
-        await this.remoteConfig.modify(async (_, components) => {
-          for (const consensusNode of context_.config.consensusNodes) {
-            const nodeId: NodeId = Templates.nodeIdFromNodeAlias(consensusNode.name);
-            const clusterReference: ClusterReference = consensusNode.cluster;
+        for (const consensusNode of context_.config.consensusNodes) {
+          const nodeId: NodeId = Templates.nodeIdFromNodeAlias(consensusNode.name);
+          const clusterReference: ClusterReference = consensusNode.cluster;
 
-            components.changeNodePhase(nodeId, DeploymentPhase.REQUESTED);
+          this.remoteConfig.configuration.components.changeNodePhase(nodeId, DeploymentPhase.REQUESTED);
 
-            components.addNewComponent(
-              this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
-              ComponentTypes.EnvoyProxy,
-            );
-            components.addNewComponent(
-              this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),
-              ComponentTypes.HaProxy,
-            );
-          }
-        });
+          this.remoteConfig.configuration.components.addNewComponent(
+            this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
+            ComponentTypes.EnvoyProxy,
+          );
+
+          this.remoteConfig.configuration.components.addNewComponent(
+            this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),
+            ComponentTypes.HaProxy,
+          );
+        }
       },
     };
   }
