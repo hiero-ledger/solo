@@ -2,11 +2,11 @@
 
 import {type ConfigSource} from '../spi/config-source.js';
 import {type ObjectMapper} from '../../mapper/api/object-mapper.js';
+import {LayeredConfigSource} from './layered-config-source.js';
 import {EnvironmentStorageBackend} from '../../backend/impl/environment-storage-backend.js';
 import {type Refreshable} from '../spi/refreshable.js';
 import {ConfigurationError} from '../api/configuration-error.js';
 import {Forest} from '../../key/lexer/forest.js';
-import {LayeredConfigSource} from './layered-config-source.js';
 
 /**
  * A {@link ConfigSource} that reads configuration data from the environment.
