@@ -10,7 +10,7 @@ import {Forest} from '../../key/lexer/forest.js';
 import {type ModelConfigSource} from '../spi/model-config-source.js';
 import {type EnvironmentStorageBackend} from '../../backend/impl/environment-storage-backend.js';
 
-export abstract class LayeredEnvironmentModelConfigSource<T extends object>
+export abstract class LayeredSoloModelConfigSource<T extends object>
   extends LayeredConfigSource
   implements ModelConfigSource<T>
 {
