@@ -34,6 +34,17 @@ describe('SoloConfigRuntimeState', (): void => {
     );
   });
 
+  it('should return the directory', async (): Promise<void> => {
+    const directory: string = '../solo-charts/charts';
+    process.env.SOLO_SC_HELMCHART_DIRECTORY = directory;
+    await soloConfigRuntimeState.load();
+    const soloConfig: SoloConfig = soloConfigRuntimeState.soloConfig;
+    expect(soloConfig).to.have.property('helmChart');
+    expect(soloConfig.helmChart).to.have.property('directory');
+    expect(soloConfig.helmChart.directory).to.equal(directory);
+    expect(soloConfig.helmChart.repository).to.equal(directory);
+  });
+
   describe('EnvironmentRuntimeState', (): void => {
     let initialEnvironment: any;
     beforeEach((): void => {
