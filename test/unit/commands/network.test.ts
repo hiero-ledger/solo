@@ -198,7 +198,11 @@ describe('NetworkCommand unit tests', () => {
       options.remoteConfig = container.resolve<RemoteConfigRuntimeState>(InjectTokens.RemoteConfigRuntimeState);
       options.remoteConfig.isLoaded = sinon.stub().returns(true);
       options.remoteConfig.getConfigMap = sinon.stub().returns(null);
-      options.remoteConfig.modify = sinon.stub();
+      options.remoteConfig.persist = sinon.stub();
+
+      options.remoteConfig.configuration = {
+        components: {changeNodePhase: sinon.stub(), getNewComponentId: sinon.stub(), addNewComponent: sinon.stub()},
+      };
 
       options.localConfig.configuration.clusterRefs.set('solo-e2e', new StringFacade('context-1'));
 
