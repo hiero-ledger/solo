@@ -51,7 +51,6 @@ import {ConsensusNodeStateSchema} from '../../../../data/schema/model/remote/sta
 import {UserIdentitySchema} from '../../../../data/schema/model/common/user-identity-schema.js';
 import {Deployment} from '../local/deployment.js';
 import {RemoteConfig} from './remote-config.js';
-import {SOLO_REMOTE_CONFIGMAP_DATA_KEY} from '../../../../core/constants.js';
 
 enum RuntimeStatePhase {
   Loaded = 'loaded',

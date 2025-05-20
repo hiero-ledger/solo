@@ -941,14 +941,12 @@ export class NodeCommandHandlers extends CommandHandler {
       task: (context_: Context, task): SoloListr<any> => {
         const nodeAliases: NodeAliases = context_.config.nodeAliases;
 
-        const components: ComponentsDataWrapperApi = this.remoteConfig.configuration.components;
-
         const subTasks: SoloListrTask<Context>[] = nodeAliases.map(nodeAlias => ({
           title: `Validating state for node ${nodeAlias}`,
           task: (_, task): void => {
             const state: DeploymentPhase = this.validateNodeState(
               nodeAlias,
-              components,
+              this.remoteConfig.configuration.components,
               acceptedPhases,
               excludedPhases,
             );

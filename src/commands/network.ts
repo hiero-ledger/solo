@@ -1327,6 +1327,8 @@ export class NetworkCommand extends BaseCommand {
             ComponentTypes.HaProxy,
           );
         }
+
+        await this.remoteConfig.persist();
       },
     };
   }
