@@ -29,7 +29,7 @@ import {exec} from 'node:child_process';
 import {promisify} from 'node:util';
 import * as constants from '../../../src/core/constants.js';
 import {lt, SemVer} from 'semver';
-import {ArgvStruct} from '../../../src/types/aliases.js';
+import {type ArgvStruct} from '../../../src/types/aliases.js';
 
 const execAsync = promisify(exec);
 
