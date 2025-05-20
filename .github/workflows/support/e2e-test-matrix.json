@@ -13,8 +13,8 @@
   },
   {
     "name": "External database",
-    "test-script": "test-e2e-external-database",
-    "coverage-subdirectory": "e2e-external-database",
-    "coverage-report-name": "E2E External Database Tests Coverage Report"
+    "test-script": "test-external-database",
+    "coverage-subdirectory": "external-database",
+    "coverage-report-name": "External Database Tests Coverage Report"
   }
 ]

@@ -201,7 +201,7 @@ jobs:
           cd ../solo
 
       - name: Setup E2E Tests
-        if: ${{ inputs.test-script != 'test-e2e-external-database' && !cancelled() }}
+        if: ${{ inputs.test-script != 'test-external-database' && !cancelled() }}
         run: | 
           npm link
           echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
