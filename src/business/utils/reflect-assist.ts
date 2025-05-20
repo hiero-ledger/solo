@@ -74,6 +74,21 @@ export class ReflectAssist {
     return object;
   }
 
+  public static lowercaseAndOriginalKeysDeep(object: any): any {
+    if (Array.isArray(object)) {
+      return object.map(element => ReflectAssist.lowercaseAndOriginalKeysDeep(element));
+    } else if (object && typeof object === 'object') {
+      const originalAndLowercaseKeys = Object.fromEntries(
+        Object.entries(object).flatMap(([key, value]) => [
+          [key, ReflectAssist.lowercaseAndOriginalKeysDeep(value)],
+          [key.toLowerCase(), ReflectAssist.lowercaseAndOriginalKeysDeep(value)],
+        ]),
+      );
+      return originalAndLowercaseKeys;
+    }
+    return object;
+  }
+
   public static mapKeysToClassRecursive<T>(object: any, cls: new () => T): any {
     const instance: T = new cls();
     const result: Record<string, any> = {};

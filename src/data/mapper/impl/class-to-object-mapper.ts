@@ -32,7 +32,7 @@ export class ClassToObjectMapper implements ObjectMapper {
 
   public fromObject<T extends R, R>(cls: ClassConstructor<T>, object: object): R {
     try {
-      const lowercaseInput: any = ReflectAssist.lowercaseKeysDeep(object);
+      const lowercaseInput: any = ReflectAssist.lowercaseAndOriginalKeysDeep(object);
       const remapped: any = ReflectAssist.mapKeysToClassRecursive(lowercaseInput, cls);
       return plainToInstance(cls, remapped);
     } catch (error) {
