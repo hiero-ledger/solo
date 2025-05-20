@@ -233,8 +233,12 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
     this.populateClusterReferences(deploymentName);
 
+    const newClusterContext: Context = this.localConfig.configuration.clusterRefs
+      .get(clusterReference.toString())
+      ?.toString();
+
     //? Create copy of the existing remote config inside the new cluster
-    await this.createConfigMap(namespace, existingClusterContext);
+    await this.createConfigMap(namespace, newClusterContext);
     await this.persist();
 
     //* update the command history
