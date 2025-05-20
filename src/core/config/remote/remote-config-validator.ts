@@ -85,8 +85,8 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       skipCondition?: (component: BaseStateSchema) => boolean;
     }
   > = {
-    relays: {
-      displayName: 'Relay',
+    relayNodes: {
+      displayName: 'Relay Nodes',
       getLabelsCallback: RemoteConfigValidator.getRelayLabels,
     },
     haProxies: {
@@ -94,15 +94,15 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       getLabelsCallback: RemoteConfigValidator.getHaProxyLabels,
     },
     mirrorNodes: {
-      displayName: 'Mirror node',
+      displayName: 'Mirror Node',
       getLabelsCallback: RemoteConfigValidator.getMirrorNodeLabels,
     },
     envoyProxies: {
-      displayName: 'Envoy proxy',
+      displayName: 'Envoy Proxy',
       getLabelsCallback: RemoteConfigValidator.getEnvoyProxyLabels,
     },
-    mirrorNodeExplorers: {
-      displayName: 'Mirror node explorer',
+    explorers: {
+      displayName: 'Explorer',
       getLabelsCallback: RemoteConfigValidator.getMirrorNodeExplorerLabels,
     },
     consensusNodes: {
@@ -128,12 +128,12 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
 
   private validateComponentGroup(
     namespace: NamespaceName,
-    state: Record<string, BaseStateSchema>,
+    components: BaseStateSchema[],
     getLabelsCallback: (component: BaseStateSchema) => string[],
     displayName: string,
     skipCondition?: (component: BaseStateSchema) => boolean,
   ): Promise<void>[] {
-    return Object.values(state).map(async (component): Promise<void> => {
+    return components.map(async (component): Promise<void> => {
       if (skipCondition?.(component)) {
         return;
       }

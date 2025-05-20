@@ -116,11 +116,11 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       this.objectMapper,
       this.backend,
     );
+
     await this.source.load();
 
     if (remoteConfig) {
-      // @ts-expect-error apsdlaplds
-      this.source.modelData = remoteConfig;
+      this.source.setModelData(remoteConfig);
     }
 
     this._remoteConfig = new RemoteConfig(this.source.modelData);

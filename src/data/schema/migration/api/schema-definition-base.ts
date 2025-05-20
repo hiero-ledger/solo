@@ -21,13 +21,13 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
     }
 
     const clone: any = structuredClone(data);
-    let dataVersion: number = clone.schemaVersion;
-    if (!dataVersion) {
-      dataVersion = sourceVersion ? sourceVersion.value : 0;
-    }
+    // let dataVersion: number = clone.schemaVersion;
+    // if (!dataVersion) {
+    //   dataVersion = sourceVersion ? sourceVersion.value : 0;
+    // }
 
-    const migrated = await this.applyMigrations(clone, new Version(dataVersion));
-    return this.mapper.fromObject(this.classCtor, migrated);
+    // const migrated = await this.applyMigrations(clone, new Version(dataVersion));
+    return this.mapper.fromObject(this.classCtor, clone);
   }
 
   public async validateMigrations(): Promise<void> {
