@@ -12,7 +12,10 @@ type ObjectMethod<T> = (cls: ClassConstructor<T>, key?: string) => T;
 type ObjectArrayMethod<T> = (cls: ClassConstructor<T>, key?: string) => T[];
 
 export class LayeredConfig implements Config {
-  public constructor(public readonly sources: ConfigSource[]) {
+  public constructor(
+    public readonly sources: ConfigSource[],
+    public readonly mergeSourceValues: boolean = false,
+  ) {
     if (sources) {
       sources.sort(Comparators.configSource);
     }
@@ -110,8 +113,9 @@ export class LayeredConfig implements Config {
 
     for (const source of this.sources) {
       const currentValue = source[method.name](cls, key);
+      // TODO what if I want to merge attributes of a class that are defined?
       if (currentValue !== null && currentValue !== undefined) {
-        value = currentValue;
+        value = this.mergeSourceValues ? ReflectAssist.merge(value, currentValue) : currentValue;
       }
     }
 

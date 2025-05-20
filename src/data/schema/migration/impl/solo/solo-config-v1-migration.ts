@@ -6,7 +6,7 @@ import {Version} from '../../../../../business/utils/version.js';
 import {IllegalArgumentError} from '../../../../../business/errors/illegal-argument-error.js';
 import {InvalidSchemaVersionError} from '../../api/invalid-schema-version-error.js';
 
-export class EnvironmentConfigV1Migration implements SchemaMigration {
+export class SoloConfigV1Migration implements SchemaMigration {
   public get range(): VersionRange<number> {
     return VersionRange.fromIntegerVersion(0);
   }
@@ -29,11 +29,41 @@ export class EnvironmentConfigV1Migration implements SchemaMigration {
       throw new InvalidSchemaVersionError(clone.schemaVersion, 0);
     }
 
-    clone.chartsDirectory = undefined;
-
     // Set the schema version to the new version
     clone.schemaVersion = this.version.value;
 
+    if (!clone.helmChart) {
+      clone.helmChart = this.getNewHelmChartObject();
+    }
+
+    if (!clone.ingressControllerHelmChart) {
+      clone.ingressControllerHelmChart = this.getNewHelmChartObject();
+    }
+
+    if (!clone.clusterSetupHelmChart) {
+      clone.clusterSetupHelmChart = this.getNewHelmChartObject();
+    }
+
+    if (!clone.certManagerHelmChart) {
+      clone.certManagerHelmChart = this.getNewHelmChartObject();
+    }
+
     return clone;
+  }
+
+  private getNewHelmChartObject(): object {
+    return {
+      name: undefined,
+      namespace: undefined,
+      release: undefined,
+      repository: undefined,
+      directory: undefined,
+      version: undefined,
+      labelSelector: undefined,
+      containerName: undefined,
+      ingressClassName: undefined,
+      ingressControllerName: undefined,
+      ingressControllerPrefix: undefined,
+    };
   }
 }

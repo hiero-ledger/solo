@@ -55,9 +55,13 @@ export const HEDERA_NODE_SIDECARS = [
 // --------------- Charts related constants ----------------------------------------------------------------------------
 export const SOLO_SETUP_NAMESPACE = NamespaceName.of('solo-setup');
 
+// TODO: remove after migrated to resources/solo-config.yaml
 export const SOLO_TESTING_CHART_URL = 'oci://ghcr.io/hashgraph/solo-charts';
+// TODO: remove after migrated to resources/solo-config.yaml
 export const SOLO_CLUSTER_SETUP_CHART = 'solo-cluster-setup';
+// TODO: remove after migrated to resources/solo-config.yaml
 export const SOLO_DEPLOYMENT_CHART = 'solo-deployment';
+// TODO: remove after migrated to resources/solo-config.yaml
 export const SOLO_CERT_MANAGER_CHART = 'solo-cert-manager';
 
 export const JSON_RPC_RELAY_CHART_URL =
@@ -75,10 +79,13 @@ export const EXPLORER_RELEASE_NAME = 'hiero-explorer';
 export const SOLO_RELAY_LABEL = 'app=hedera-json-rpc-relay';
 export const SOLO_EXPLORER_LABEL = 'app.kubernetes.io/component=hiero-explorer';
 
+// TODO: remove after migrated to resources/solo-config.yaml
 export const INGRESS_CONTROLLER_CHART_URL =
   process.env.INGRESS_CONTROLLER_CHART_URL ?? 'https://haproxy-ingress.github.io/charts';
+// TODO: remove after migrated to resources/solo-config.yaml
 export const INGRESS_CONTROLLER_RELEASE_NAME = 'haproxy-ingress';
 export const EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME = 'explorer-haproxy-ingress';
+// TODO: remove after migrated to resources/solo-config.yaml
 export const INGRESS_CONTROLLER_PREFIX = 'haproxy-ingress.github.io/controller/';
 
 export const BLOCK_NODE_CHART_URL = process.env.BLOCK_NODE_CHART_URL ?? 'oci://ghcr.io/hiero-ledger/hiero-block-node';
@@ -86,6 +93,7 @@ export const BLOCK_NODE_CHART = 'block-node-helm-chart';
 export const BLOCK_NODE_RELEASE_NAME = 'block-node';
 export const BLOCK_NODE_CONTAINER_NAME: ContainerName = ContainerName.of('block-node-helm-chart');
 
+// TODO: remove after migrated to resources/solo-config.yaml
 export const CERT_MANAGER_NAME_SPACE = 'cert-manager';
 export const SOLO_HEDERA_MIRROR_IMPORTER = [
   'app.kubernetes.io/component=importer',

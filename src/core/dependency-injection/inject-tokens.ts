@@ -53,7 +53,6 @@ export const InjectTokens = {
   Middlewares: Symbol.for('Middlewares'),
   KeyFormatter: Symbol.for('KeyFormatter'),
   CommandInvoker: Symbol.for('CommandInvoker'),
-  ConfigProvider: Symbol.for('ConfigProvider'),
   BlockNodeCommand: Symbol.for('BlockNodeCommand'),
   LocalConfigFileName: Symbol.for('LocalConfigFileName'),
   LocalConfigSource: Symbol.for('LocalConfigSource'),
