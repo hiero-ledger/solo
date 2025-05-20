@@ -27,7 +27,7 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
     }
 
     const migrated = await this.applyMigrations(clone, new Version(dataVersion));
-    return this.mapper.fromObject(this.classCtor, clone);
+    return this.mapper.fromObject(this.classCtor, migrated);
   }
 
   public async validateMigrations(): Promise<void> {
