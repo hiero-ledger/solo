@@ -17,6 +17,7 @@ import {MirrorNodeStateSchema} from '../../../data/schema/model/remote/state/mir
 import {HAProxyStateSchema} from '../../../data/schema/model/remote/state/haproxy-state-schema.js';
 import {EnvoyProxyStateSchema} from '../../../data/schema/model/remote/state/envoy-proxy-state-schema.js';
 import {ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
+import {BlockNodeStateSchema} from '../../../data/schema/model/remote/state/block-node-state-schema.js';
 
 @injectable()
 export class ComponentFactory implements ComponentFactoryApi {
@@ -99,6 +100,22 @@ export class ComponentFactory implements ComponentFactoryApi {
     );
 
     return new EnvoyProxyStateSchema(metadata);
+  }
+
+  public createNewBlockNodeComponent(
+    clusterReference: ClusterReference,
+    namespace: NamespaceName,
+  ): BlockNodeStateSchema {
+    const id: ComponentId = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.BlockNode);
+    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
+    const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
+      id,
+      namespace.name,
+      clusterReference,
+      phase,
+    );
+
+    return new BlockNodeStateSchema(metadata);
   }
 
   public createNewConsensusNodeComponent(

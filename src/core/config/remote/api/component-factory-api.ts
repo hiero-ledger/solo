@@ -10,6 +10,7 @@ import {type HAProxyStateSchema} from '../../../../data/schema/model/remote/stat
 import {type EnvoyProxyStateSchema} from '../../../../data/schema/model/remote/state/envoy-proxy-state-schema.js';
 import {type ConsensusNodeStateSchema} from '../../../../data/schema/model/remote/state/consensus-node-state-schema.js';
 import {type RelayNodeStateSchema} from '../../../../data/schema/model/remote/state/relay-node-state-schema.js';
+import {type BlockNodeStateSchema} from '../../../../data/schema/model/remote/state/block-node-state-schema.js';
 
 export interface ComponentFactoryApi {
   createNewRelayComponent(
@@ -25,6 +26,8 @@ export interface ComponentFactoryApi {
   createNewHaProxyComponent(clusterReference: ClusterReference, namespace: NamespaceName): HAProxyStateSchema;
 
   createNewEnvoyProxyComponent(clusterReference: ClusterReference, namespace: NamespaceName): EnvoyProxyStateSchema;
+
+  createNewBlockNodeComponent(clusterReference: ClusterReference, namespace: NamespaceName): BlockNodeStateSchema;
 
   createNewConsensusNodeComponent(
     nodeId: NodeId,

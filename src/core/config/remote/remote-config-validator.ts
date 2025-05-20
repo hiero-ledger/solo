@@ -77,6 +77,10 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     );
   }
 
+  private static getBlockNodeLabels(): string[] {
+    return [`app.kubernetes.io/name=${constants.BLOCK_NODE_RELEASE_NAME}`];
+  }
+
   private static componentValidationsMapping: Record<
     string,
     {
@@ -106,9 +110,13 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       getLabelsCallback: RemoteConfigValidator.getMirrorNodeExplorerLabels,
     },
     consensusNodes: {
-      displayName: 'Consensus node',
+      displayName: 'Consensus Node',
       getLabelsCallback: RemoteConfigValidator.getConsensusNodeLabels,
       skipCondition: RemoteConfigValidator.consensusNodeSkipConditionCallback,
+    },
+    blockNodes: {
+      displayName: 'Block Node',
+      getLabelsCallback: RemoteConfigValidator.getBlockNodeLabels,
     },
   };
 

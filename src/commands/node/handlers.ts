@@ -29,6 +29,7 @@ import {Templates} from '../../core/templates.js';
 import {ConsensusNodeStateSchema} from '../../data/schema/model/remote/state/consensus-node-state-schema.js';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {ComponentsDataWrapperApi} from '../../core/config/remote/api/components-data-wrapper-api.js';
+import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -801,7 +802,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.enablePortForwarding(),
         this.tasks.checkAllNodesAreActive('nodeAliases'),
         this.tasks.checkNodeProxiesAreActive(),
-        this.changeAllNodePhases(DeploymentPhase.STARTED),
+        this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
         this.tasks.addNodeStakes(),
       ],
       {
@@ -898,8 +899,12 @@ export class NodeCommandHandlers extends CommandHandler {
    * Changes the state from all consensus nodes components in remote config.
    *
    * @param phase - to which to change the consensus node component
+   * @param ledgerPhase
    */
-  public changeAllNodePhases(phase: DeploymentPhase): SoloListrTask<any> {
+  public changeAllNodePhases(
+    phase: DeploymentPhase,
+    ledgerPhase: Optional<LedgerPhase> = undefined,
+  ): SoloListrTask<any> {
     interface Context {
       config: {namespace: NamespaceName; consensusNodes: ConsensusNode[]};
     }
@@ -911,6 +916,10 @@ export class NodeCommandHandlers extends CommandHandler {
         for (const consensusNode of context_.config.consensusNodes) {
           const nodeId: NodeId = Templates.nodeIdFromNodeAlias(consensusNode.name);
           this.remoteConfig.configuration.components.changeNodePhase(nodeId, phase);
+        }
+
+        if (ledgerPhase) {
+          this.remoteConfig.configuration.state.ledgerPhase = ledgerPhase;
         }
 
         await this.remoteConfig.persist();

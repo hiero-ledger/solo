@@ -33,23 +33,26 @@ import {type EnvoyProxyStateSchema} from '../../../../src/data/schema/model/remo
 import {DeploymentStateSchema} from '../../../../src/data/schema/model/remote/deployment-state-schema.js';
 import {RemoteConfigSchema} from '../../../../src/data/schema/model/remote/remote-config-schema.js';
 import {LocalConfigRuntimeState} from '../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
+import {type BlockNodeStateSchema} from '../../../../src/data/schema/model/remote/state/block-node-state-schema.js';
 
 interface ComponentsRecord {
-  explorer: ExplorerStateSchema;
-  mirrorNode: MirrorNodeStateSchema;
-  relay: RelayNodeStateSchema;
-  consensusNode: ConsensusNodeStateSchema;
-  haProxy: HAProxyStateSchema;
-  envoyProxy: EnvoyProxyStateSchema;
+  explorers: ExplorerStateSchema;
+  mirrorNodes: MirrorNodeStateSchema;
+  relayNodes: RelayNodeStateSchema;
+  consensusNodes: ConsensusNodeStateSchema;
+  haProxies: HAProxyStateSchema;
+  envoyProxies: EnvoyProxyStateSchema;
+  blockNodes: BlockNodeStateSchema;
 }
 
 interface LabelRecord {
-  explorer: string[];
-  mirrorNode: string[];
-  relay: string[];
-  consensusNode: string[];
-  haProxy: string[];
-  envoyProxy: string[];
+  explorers: string[];
+  mirrorNodes: string[];
+  relayNodes: string[];
+  consensusNodes: string[];
+  haProxies: string[];
+  envoyProxies: string[];
+  blockNodes: string[];
 }
 
 interface ComponentsData {
@@ -62,7 +65,7 @@ interface ComponentsData {
 }
 
 function prepareComponentsData(namespace: NamespaceName): ComponentsData {
-  const remoteConfigMock: any = {components: {getNewComponentId: (): number => 1}};
+  const remoteConfigMock: any = {configuration: {components: {getNewComponentId: (): number => 1}}};
 
   const clusterReference: ClusterReference = 'cluster';
   const nodeState: DeploymentPhase = DeploymentPhase.STARTED;
@@ -71,38 +74,41 @@ function prepareComponentsData(namespace: NamespaceName): ComponentsData {
   const componentFactory: ComponentFactoryApi = new ComponentFactory(remoteConfigMock);
 
   const components: ComponentsRecord = {
-    explorer: componentFactory.createNewExplorerComponent(clusterReference, namespace),
-    mirrorNode: componentFactory.createNewMirrorNodeComponent(clusterReference, namespace),
-    relay: componentFactory.createNewRelayComponent(clusterReference, namespace, [0]),
-    consensusNode: componentFactory.createNewConsensusNodeComponent(nodeId, clusterReference, namespace, nodeState),
-    haProxy: componentFactory.createNewHaProxyComponent(clusterReference, namespace),
-    envoyProxy: componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
+    explorers: componentFactory.createNewExplorerComponent(clusterReference, namespace),
+    mirrorNodes: componentFactory.createNewMirrorNodeComponent(clusterReference, namespace),
+    relayNodes: componentFactory.createNewRelayComponent(clusterReference, namespace, [0]),
+    consensusNodes: componentFactory.createNewConsensusNodeComponent(nodeId, clusterReference, namespace, nodeState),
+    haProxies: componentFactory.createNewHaProxyComponent(clusterReference, namespace),
+    envoyProxies: componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
+    blockNodes: componentFactory.createNewBlockNodeComponent(clusterReference, namespace),
   };
 
   const labelRecord: LabelRecord = {
     // @ts-expect-error - to access private property
-    relay: RemoteConfigValidator.getRelayLabels(),
+    relayNodes: RemoteConfigValidator.getRelayLabels(),
     // @ts-expect-error - to access private property
-    haProxy: RemoteConfigValidator.getHaProxyLabels(components.haProxy),
+    haProxies: RemoteConfigValidator.getHaProxyLabels(components.haProxies),
     // @ts-expect-error - to access private property
-    mirrorNode: RemoteConfigValidator.getMirrorNodeLabels(),
+    mirrorNodes: RemoteConfigValidator.getMirrorNodeLabels(),
     // @ts-expect-error - to access private property
-    envoyProxy: RemoteConfigValidator.getEnvoyProxyLabels(components.envoyProxy),
+    envoyProxies: RemoteConfigValidator.getEnvoyProxyLabels(components.envoyProxies),
     // @ts-expect-error - to access private property
-    explorer: RemoteConfigValidator.getMirrorNodeExplorerLabels(),
+    explorers: RemoteConfigValidator.getMirrorNodeExplorerLabels(),
     // @ts-expect-error - to access private property
-    consensusNode: RemoteConfigValidator.getConsensusNodeLabels(components.consensusNode),
+    consensusNodes: RemoteConfigValidator.getConsensusNodeLabels(components.consensusNodes),
+    // @ts-expect-error - to access private property
+    blockNodes: RemoteConfigValidator.getBlockNodeLabels(),
   };
 
   const podNames: Record<string, string> = {
-    explorer: `hedera-explorer-${components.explorer.metadata.id}`,
-    mirrorNode: `mirror-importer-${components.mirrorNode.metadata.id}`,
-    relay: `relay-${components.relay.metadata.id}`,
-    consensusNode: Templates.renderNetworkPodName(
-      Templates.renderNodeAliasFromNumber(components.consensusNode.metadata.id + 1),
+    explorers: `hedera-explorer-${components.explorers.metadata.id}`,
+    mirrorNodes: `mirror-importer-${components.mirrorNodes.metadata.id}`,
+    relayNodes: `relay-${components.relayNodes.metadata.id}`,
+    consensusNodes: Templates.renderNetworkPodName(
+      Templates.renderNodeAliasFromNumber(components.consensusNodes.metadata.id + 1),
     ).name,
-    haProxy: `haproxy-node1-${Templates.renderNodeAliasFromNumber(components.haProxy.metadata.id + 1)}`,
-    envoyProxy: `envoy-proxy-${Templates.renderNodeAliasFromNumber(components.envoyProxy.metadata.id + 1)}`,
+    haProxies: `haproxy-node1-${Templates.renderNodeAliasFromNumber(components.haProxies.metadata.id + 1)}`,
+    envoyProxies: `envoy-proxy-${Templates.renderNodeAliasFromNumber(components.envoyProxies.metadata.id + 1)}`,
   };
 
   const state: DeploymentStateSchema = new DeploymentStateSchema();
@@ -124,6 +130,7 @@ describe('RemoteConfigValidator', () => {
   let componentsDataWrapper: ComponentsDataWrapperApi;
   let podNames: Record<string, string>;
   let componentFactory: ComponentFactoryApi;
+  let state: any;
 
   before(async () => {
     k8Factory = container.resolve(InjectTokens.K8Factory);
@@ -139,6 +146,7 @@ describe('RemoteConfigValidator', () => {
     labelRecord = testData.labelRecord;
     componentsDataWrapper = testData.componentsDataWrapper;
     componentFactory = testData.componentFactory;
+    state = componentsDataWrapper.state;
   });
 
   after(async function () {
@@ -172,16 +180,15 @@ describe('RemoteConfigValidator', () => {
     displayName: string;
     type: ComponentTypes;
   }> = [
-    {componentKey: 'relay', displayName: 'Relay', type: ComponentTypes.RelayNodes},
-    {componentKey: 'haProxy', displayName: 'HaProxy', type: ComponentTypes.HaProxy},
-    {componentKey: 'mirrorNode', displayName: 'Mirror node', type: ComponentTypes.MirrorNode},
-    {componentKey: 'envoyProxy', displayName: 'Envoy proxy', type: ComponentTypes.EnvoyProxy},
-    {componentKey: 'consensusNode', displayName: 'Consensus node', type: ComponentTypes.ConsensusNode},
-    {componentKey: 'explorer', displayName: 'Mirror node explorer', type: ComponentTypes.Explorers},
+    {componentKey: 'relayNodes', displayName: 'Relay Nodes', type: ComponentTypes.RelayNodes},
+    {componentKey: 'haProxies', displayName: 'HaProxy', type: ComponentTypes.HaProxy},
+    {componentKey: 'mirrorNodes', displayName: 'Mirror Node', type: ComponentTypes.MirrorNode},
+    {componentKey: 'envoyProxies', displayName: 'Envoy Proxy', type: ComponentTypes.EnvoyProxy},
+    {componentKey: 'consensusNodes', displayName: 'Consensus Node', type: ComponentTypes.ConsensusNode},
+    {componentKey: 'explorers', displayName: 'Explorer', type: ComponentTypes.Explorers},
   ];
 
   const remoteConfigValidator: RemoteConfigValidator = new RemoteConfigValidator(k8Factory, localConfig);
-  const remoteConfigData: any = {state: componentsDataWrapper.state};
 
   for (const {componentKey, displayName, type} of testCasesForIndividualComponents) {
     describe(`${displayName} validation`, () => {
@@ -191,8 +198,10 @@ describe('RemoteConfigValidator', () => {
         componentsDataWrapper.addNewComponent(component, type);
 
         try {
-          await remoteConfigValidator.validateComponents(namespace, true, remoteConfigData);
-          expect.fail();
+          await remoteConfigValidator.validateComponents(namespace, true, state);
+          if (type !== ComponentTypes.ConsensusNode) {
+            expect.fail();
+          }
         } catch (error) {
           expect(error).to.be.instanceOf(SoloError);
           expect(error.message).to.equal(RemoteConfigValidator.buildValidationErrorMessage(displayName, component));
@@ -202,7 +211,7 @@ describe('RemoteConfigValidator', () => {
       it('should succeed if component is present', async () => {
         await createPod(podNames[componentKey], labelRecord[componentKey]);
 
-        await remoteConfigValidator.validateComponents(namespace, false, remoteConfigData);
+        await remoteConfigValidator.validateComponents(namespace, false, state);
       });
     });
   }
@@ -226,7 +235,7 @@ describe('RemoteConfigValidator', () => {
         componentsDataWrapper.changeNodePhase(nodeId, DeploymentPhase.STARTED);
       }
 
-      await remoteConfigValidator.validateComponents(namespace, skipConsensusNodes, remoteConfigData);
+      await remoteConfigValidator.validateComponents(namespace, skipConsensusNodes, state);
     });
 
     const nodeStates: DeploymentPhase[] = [DeploymentPhase.REQUESTED, DeploymentPhase.STOPPED];
@@ -247,7 +256,7 @@ describe('RemoteConfigValidator', () => {
           componentsDataWrapper.changeNodePhase(nodeId, nodeState);
         }
 
-        await remoteConfigValidator.validateComponents(namespace, false, remoteConfigData);
+        await remoteConfigValidator.validateComponents(namespace, false, state);
       });
     }
   });
