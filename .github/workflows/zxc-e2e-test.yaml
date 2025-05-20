@@ -214,7 +214,7 @@ jobs:
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
 
       - name: Upload E2E Logs to GitHub
-        if: ${{ !cancelled() }}
+        if: ${{ inputs.test-script != 'test-external-database' && !cancelled() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: solo-${{ inputs.test-script }}.log
@@ -224,7 +224,7 @@ jobs:
 
       - name: Upload E2E Test Report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ steps.npm-deps.conclusion == 'success' && !cancelled() }}
+        if: ${{ inputs.test-script != 'test-external-database' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
         with:
           name: e2e_test_report_${{ inputs.test-script }}
           path: "junit-${{ inputs.coverage-subdirectory }}.xml"
@@ -233,7 +233,7 @@ jobs:
 
       - name: Publish E2E Coverage Report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() }}
+        if: ${{ inputs.test-script != 'test-external-database' && !cancelled() }}
         with:
           name: ${{ inputs.coverage-report-name }}
           path: 'coverage/${{ inputs.coverage-subdirectory }}'
