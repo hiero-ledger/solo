@@ -43,11 +43,32 @@ defaults:
     shell: bash
 
 jobs:
-  env-vars:
-    name: Set Environment Variables
-    uses: ./.github/workflows/zxc-env-vars.yaml
-    with:
-      custom-job-label: Set Environment Variables
+  generate_matrix:
+    runs-on: hiero-solo-linux-medium
+    outputs:
+      matrix: ${{ steps.set_matrix.outputs.matrix }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Read JSON and Set Matrix Output
+        id: set_matrix
+        run: |
+          # Install jq (a lightweight and flexible command-line JSON processor)
+          sudo apt-get update && sudo apt-get install -y jq
+
+          # Read the JSON file
+          JSON_CONTENT=$(cat .github/workflows/support/e2e-test-matrix.json | jq -c .)
+          
+          echo "JSON_CONTENT: $JSON_CONTENT"
+
+          # Set the output variable 'matrix' with the JSON content
+          echo "matrix=$JSON_CONTENT" >> $GITHUB_OUTPUT
 
   code-style:
     name: Code Style
@@ -60,6 +81,7 @@ jobs:
     uses: ./.github/workflows/zxc-unit-test.yaml
     if: ${{ github.event_name == 'push' || github.event.inputs.enable-unit-tests == 'true' }}
     needs:
+      - generate_matrix
       - code-style
     with:
       custom-job-label: Standard
@@ -69,43 +91,24 @@ jobs:
     if: ${{ github.event_name == 'push' || github.event.inputs.enable-e2e-tests == 'true' }}
     uses: ./.github/workflows/zxc-e2e-test.yaml
     needs:
-      - env-vars
       - code-style
+      - generate_matrix
     strategy:
       fail-fast: false
       matrix:
-        e2e-test-type:
-          - { name: "Integration", test-script: "test-${{ needs.env-vars.outputs.e2e-integration-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-integration-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-integration-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-integration-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
-          - { name: "Dual Cluster Full", test-script: "test-${{ needs.env-vars.outputs.e2e-dual-cluster-full-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-dual-cluster-full-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-dual-cluster-full-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-dual-cluster-full-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
-          - { name: "Node Add", test-script: "test-${{ needs.env-vars.outputs.e2e-node-add-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-add-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-add-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-node-add-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
-          - { name: "Node Local Hedera", test-script: "test-${{ needs.env-vars.outputs.e2e-node-local-hedera-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-local-hedera-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-local-hedera-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-node-local-hedera-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
-          - { name: "Node Delete", test-script: "test-${{ needs.env-vars.outputs.e2e-node-delete-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-delete-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-delete-coverage-report }}", cluster-name: "${{needs.env-vars.outputs.e2e-node-delete-test-subdir}}-${{ github.run_id }}-${{ github.run_attempt }}" }
-          - { name: "Node PEM Kill", test-script: "test-${{ needs.env-vars.outputs.e2e-node-pem-kill-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-pem-kill-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-pem-kill-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-node-pem-kill-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
-          - { name: "Standard", test-script: "test-${{ needs.env-vars.outputs.e2e-standard-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-standard-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-standard-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-standard-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
-          - { name: "Relay", test-script: "test-${{ needs.env-vars.outputs.e2e-relay-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-relay-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-relay-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-relay-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
-          - { name: "Block Node", test-script: "test-${{ needs.env-vars.outputs.e2e-block-node-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-block-node-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-block-node-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-block-node-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
-          - { name: "Node Update", test-script: "test-${{ needs.env-vars.outputs.e2e-node-update-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-update-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-update-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-node-update-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
-          - { name: "Node Upgrade", test-script: "test-${{ needs.env-vars.outputs.e2e-node-upgrade-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-upgrade-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-upgrade-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-node-upgrade-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
-          - { name: "Node PEM Stop", test-script: "test-${{ needs.env-vars.outputs.e2e-node-pem-stop-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-pem-stop-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-pem-stop-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-node-pem-stop-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
-          - { name: "Node Local PTT", test-script: "test-${{ needs.env-vars.outputs.e2e-node-local-ptt-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-local-ptt-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-local-ptt-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-node-local-ptt-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
-          - { name: "Node Add Local", test-script: "test-${{ needs.env-vars.outputs.e2e-node-add-local-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-add-local-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-add-local-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-node-add-local-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
-          - { name: "Node Update - Separate commands", test-script: "test-${{ needs.env-vars.outputs.e2e-node-update-separate-commands-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-update-separate-commands-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-update-separate-commands-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-node-update-separate-commands-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
-          - { name: "Node Delete - Separate commands", test-script: "test-${{ needs.env-vars.outputs.e2e-node-delete-separate-commands-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-delete-separate-commands-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-delete-separate-commands-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-node-delete-separate-commands-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
-          - { name: "Node Add - Separate commands", test-script: "test-${{ needs.env-vars.outputs.e2e-node-add-separate-commands-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-add-separate-commands-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-add-separate-commands-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-node-add-separate-commands-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
-          - { name: "Node Upgrade - Separate commands", test-script: "test-${{ needs.env-vars.outputs.e2e-node-upgrade-separate-commands-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-upgrade-separate-commands-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-upgrade-separate-commands-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-node-upgrade-separate-commands-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
+        e2e-test-type: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
       max-parallel: 3
     with:
       custom-job-label: ${{ matrix.e2e-test-type.name }}
       test-script: ${{ matrix.e2e-test-type.test-script }}
       coverage-subdirectory: ${{ matrix.e2e-test-type.coverage-subdirectory }}
       coverage-report-name: ${{ matrix.e2e-test-type.coverage-report-name }}
-      cluster-name: ${{ matrix.e2e-test-type.cluster-name }}
+      cluster-name: ${{ matrix.e2e-test-type.coverage-subdirectory }}-${{ github.run_id }}-${{ github.run_attempt }}
 
   analyze:
     name: Analyze
     uses: ./.github/workflows/zxc-code-analysis.yaml
     needs:
-      - env-vars
       - unit-tests
       - e2e-tests
     if: ${{ (github.event_name == 'push' || github.event.inputs.enable-unit-tests == 'true' || github.event.inputs.enable-e2e-tests == 'true') && !failure() && !cancelled() }}
@@ -115,42 +118,6 @@ jobs:
       enable-codecov-analysis: true
       enable-codacy-coverage: true
       enable-e2e-coverage-report: ${{ github.event_name == 'push' || github.event.inputs.enable-e2e-tests == 'true' }}
-      e2e-integration-test-subdir: ${{ needs.env-vars.outputs.e2e-integration-test-subdir }}
-      e2e-dual-cluster-full-test-subdir: ${{ needs.env-vars.outputs.e2e-dual-cluster-full-test-subdir }}
-      e2e-standard-test-subdir: ${{ needs.env-vars.outputs.e2e-standard-test-subdir }}
-      e2e-node-pem-stop-test-subdir: ${{ needs.env-vars.outputs.e2e-node-pem-stop-test-subdir }}
-      e2e-node-pem-kill-test-subdir: ${{ needs.env-vars.outputs.e2e-node-pem-kill-test-subdir }}
-      e2e-node-local-hedera-test-subdir: ${{ needs.env-vars.outputs.e2e-node-local-hedera-test-subdir }}
-      e2e-node-local-ptt-test-subdir: ${{ needs.env-vars.outputs.e2e-node-local-ptt-test-subdir }}
-      e2e-node-add-test-subdir: ${{ needs.env-vars.outputs.e2e-node-add-test-subdir }}
-      e2e-node-add-local-test-subdir: ${{ needs.env-vars.outputs.e2e-node-add-local-test-subdir }}
-      e2e-node-add-separate-commands-test-subdir: ${{ needs.env-vars.outputs.e2e-node-add-separate-commands-test-subdir }}
-      e2e-node-update-test-subdir: ${{ needs.env-vars.outputs.e2e-node-update-test-subdir }}
-      e2e-node-update-separate-commands-test-subdir: ${{ needs.env-vars.outputs.e2e-node-update-separate-commands-test-subdir }}
-      e2e-node-delete-test-subdir: ${{ needs.env-vars.outputs.e2e-node-delete-test-subdir }}
-      e2e-node-delete-separate-commands-test-subdir: ${{ needs.env-vars.outputs.e2e-node-delete-separate-commands-test-subdir }}
-      e2e-node-upgrade-test-subdir: ${{ needs.env-vars.outputs.e2e-node-upgrade-test-subdir }}
-      e2e-node-upgrade-separate-commands-test-subdir: ${{ needs.env-vars.outputs.e2e-node-upgrade-separate-commands-test-subdir }}
-      e2e-relay-test-subdir: ${{ needs.env-vars.outputs.e2e-relay-test-subdir }}
-      e2e-block-node-test-subdir: ${{ needs.env-vars.outputs.e2e-block-node-test-subdir }}
-      e2e-integration-coverage-report: ${{ needs.env-vars.outputs.e2e-integration-coverage-report }}
-      e2e-dual-cluster-full-coverage-report: ${{ needs.env-vars.outputs.e2e-dual-cluster-full-coverage-report }}
-      e2e-standard-coverage-report: ${{ needs.env-vars.outputs.e2e-standard-coverage-report }}
-      e2e-node-pem-stop-coverage-report: ${{ needs.env-vars.outputs.e2e-node-pem-stop-coverage-report }}
-      e2e-node-pem-kill-coverage-report: ${{ needs.env-vars.outputs.e2e-node-pem-kill-coverage-report }}
-      e2e-node-local-hedera-coverage-report: ${{ needs.env-vars.outputs.e2e-node-local-hedera-coverage-report }}
-      e2e-node-local-ptt-coverage-report: ${{ needs.env-vars.outputs.e2e-node-local-ptt-coverage-report }}
-      e2e-node-add-coverage-report: ${{ needs.env-vars.outputs.e2e-node-add-coverage-report }}
-      e2e-node-add-local-coverage-report: ${{ needs.env-vars.outputs.e2e-node-add-local-coverage-report }}
-      e2e-node-add-separate-commands-coverage-report: ${{ needs.env-vars.outputs.e2e-node-add-separate-commands-coverage-report }}
-      e2e-node-update-coverage-report: ${{ needs.env-vars.outputs.e2e-node-update-coverage-report }}
-      e2e-node-update-separate-commands-coverage-report: ${{ needs.env-vars.outputs.e2e-node-update-separate-commands-coverage-report }}
-      e2e-node-delete-coverage-report: ${{ needs.env-vars.outputs.e2e-node-delete-coverage-report }}
-      e2e-node-delete-separate-commands-coverage-report: ${{ needs.env-vars.outputs.e2e-node-delete-separate-commands-coverage-report }}
-      e2e-node-upgrade-coverage-report: ${{ needs.env-vars.outputs.e2e-node-upgrade-coverage-report }}
-      e2e-node-upgrade-separate-commands-coverage-report: ${{ needs.env-vars.outputs.e2e-node-upgrade-separate-commands-coverage-report }}
-      e2e-relay-coverage-report: ${{ needs.env-vars.outputs.e2e-relay-coverage-report }}
-      e2e-block-node-coverage-report: ${{ needs.env-vars.outputs.e2e-block-node-coverage-report }}
     secrets:
       snyk-token: ${{ secrets.SNYK_TOKEN }}
       codecov-token: ${{ secrets.CODECOV_TOKEN }}
