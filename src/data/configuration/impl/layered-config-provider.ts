@@ -10,12 +10,10 @@ import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import {IllegalArgumentError} from '../../../business/errors/illegal-argument-error.js';
 import {ConfigurationError} from '../api/configuration-error.js';
-import {container} from 'tsyringe-neo';
 
 @injectable()
 export class LayeredConfigProvider implements ConfigProvider {
   private _config: Config | undefined;
-  private readonly mapper: ObjectMapper;
 
   public constructor(@inject(InjectTokens.ObjectMapper) private readonly mapper: ObjectMapper) {
     this.mapper = patchInject(mapper, InjectTokens.ObjectMapper, LayeredConfigProvider.name);
