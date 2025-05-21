@@ -113,7 +113,7 @@ jobs:
         env:
           SOLO_TEST_CLUSTER: "solo-update-readme-${{ github.run_id }}-${{ github.run_attempt }}"
         run: |
-          .github/workflows/script/call_update_md.sh
+          .github/workflows/script/call_update_md.sh ${{ inputs.version }}
 
       - name: Import GPG key
         uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
