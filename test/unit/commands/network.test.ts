@@ -287,6 +287,9 @@ describe('NetworkCommand unit tests', () => {
         options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
         const networkCommand = container.resolve<NetworkCommand>(NetworkCommand);
+        // @ts-expect-error - to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([]);
+
         // @ts-expect-error - to access private method
         const config: NetworkDeployConfigClass = await networkCommand.prepareConfig(task, argv.build());
 
