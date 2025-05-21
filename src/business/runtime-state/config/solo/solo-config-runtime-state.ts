@@ -20,7 +20,7 @@ export class SoloConfigRuntimeState {
 
   public constructor() {
     const objectMapper: ObjectMapper = container.resolve(InjectTokens.ObjectMapper);
-    const configProvider: ConfigProvider = new LayeredConfigProvider('SOLO_SC');
+    const configProvider: ConfigProvider = new LayeredConfigProvider(container.resolve(InjectTokens.SoloConfigPrefix));
     const defaultConfigSource: DefaultConfigSource<SoloConfigSchema> = new DefaultConfigSource<SoloConfigSchema>(
       'solo-config.yaml',
       PathEx.join('resources', 'config'),

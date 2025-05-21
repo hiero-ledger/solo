@@ -19,6 +19,7 @@ describe('SoloConfigRuntimeState', (): void => {
     expect(soloConfigRuntimeState.soloConfig.helmChart).to.be.an('object');
     expect(soloConfigRuntimeState.soloConfig.helmChart.name).to.equal('solo-deployment');
     expect(soloConfigRuntimeState.soloConfig.helmChart.repository).to.equal('oci://ghcr.io/hashgraph/solo-charts');
+    expect(soloConfigRuntimeState.soloConfig.helmChart.directory).to.equal(undefined);
   });
 
   it('should throw an error if the configuration is not loaded', (): void => {
@@ -28,7 +29,7 @@ describe('SoloConfigRuntimeState', (): void => {
     );
   });
 
-  it('should return the directory', async (): Promise<void> => {
+  it('should load environment variables into solo state', async (): Promise<void> => {
     const directory: string = '../solo-charts/charts';
     process.env.SOLO_SC_HELMCHART_DIRECTORY = directory;
     await soloConfigRuntimeState.load();
@@ -37,5 +38,22 @@ describe('SoloConfigRuntimeState', (): void => {
     expect(soloConfig.helmChart).to.have.property('directory');
     expect(soloConfig.helmChart.directory).to.equal(directory);
     expect(soloConfig.helmChart.repository).to.equal(directory);
+    delete process.env.SOLO_SC_HELMCHART_DIRECTORY;
+  });
+
+  it('should overwrite runtime state with environment data', async (): Promise<void> => {
+    await soloConfigRuntimeState.load();
+    expect(soloConfigRuntimeState.soloConfig).to.have.property('helmChart');
+    expect(soloConfigRuntimeState.soloConfig.helmChart).to.have.property('repository');
+    expect(soloConfigRuntimeState.soloConfig.helmChart.repository).to.equal('oci://ghcr.io/hashgraph/solo-charts');
+
+    const overwrittenHelmChartRepository: string = 'oci://ghcr.io/overwritten/charts';
+    process.env.SOLO_SC_HELMCHART_REPOSITORY = overwrittenHelmChartRepository;
+    await soloConfigRuntimeState.load();
+
+    expect(soloConfigRuntimeState.soloConfig).to.have.property('helmChart');
+    expect(soloConfigRuntimeState.soloConfig.helmChart).to.have.property('repository');
+    expect(soloConfigRuntimeState.soloConfig.helmChart.repository).to.equal(overwrittenHelmChartRepository);
+    delete process.env.SOLO_SC_HELMCHART_REPOSITORY;
   });
 });
