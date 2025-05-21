@@ -8,6 +8,7 @@ import {DependencyManager, HelmDependencyManager} from '../dependency-managers/i
 import * as constants from '../constants.js';
 import {ChartManager} from '../chart-manager.js';
 import {ConfigManager} from '../config-manager.js';
+import {LayeredConfigProvider} from '../../data/configuration/impl/layered-config-provider.js';
 import {AccountManager} from '../account-manager.js';
 import {PlatformInstaller} from '../platform-installer.js';
 import {KeyManager} from '../key-manager.js';
@@ -51,7 +52,6 @@ import {BlockNodeCommand} from '../../commands/block-node.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {LocalConfigSource} from '../../data/configuration/impl/local-config-source.js';
 import {ClassToObjectMapper} from '../../data/mapper/impl/class-to-object-mapper.js';
-import {LayeredConfigProvider} from '../../data/configuration/impl/layered-config-provider.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
