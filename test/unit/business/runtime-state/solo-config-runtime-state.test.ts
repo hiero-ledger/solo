@@ -36,7 +36,7 @@ describe('SoloConfigRuntimeState', (): void => {
 
   it('should load environment variables into solo state', async (): Promise<void> => {
     const directory: string = '../solo-charts/charts';
-    process.env.SOLO_SC_HELMCHART_DIRECTORY = directory;
+    process.env['SOLO_HELM-CHART_DIRECTORY'] = directory;
     await soloConfigRuntimeState.load();
     const soloConfig: SoloConfig = soloConfigRuntimeState.soloConfig;
     expect(soloConfig).to.have.property('helmChart');
