@@ -196,3 +196,10 @@ tasks:
         {{ .reporter_prefix }}='coverage/e2e-dual-cluster-full'
         {{ .mocha_bin }} 'test/e2e/commands/dual-cluster-full.test.ts' 
         {{ .reporter_options_prefix }}-e2e-dual-cluster-full.xml"
+
+  test-external-database:
+    cmd: |
+        export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
+        cd examples/external-database-test
+        SOLO_CLUSTER_NAME=solo-task-test-external-database task install:external-database
+        task destroy:external-database

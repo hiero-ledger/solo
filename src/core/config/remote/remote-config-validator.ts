@@ -184,7 +184,7 @@ export class RemoteConfigValidator {
   ): Promise<void>[] {
     return Object.values(components.blockNodes).map(async component => {
       const context: Context = localConfig.configuration.clusterRefs[component.cluster];
-      const labels: string[] = [constants.SOLO_EXPLORER_LABEL]; // TODO: ADD BLOCK SELECT
+      const labels: string[] = [`app.kubernetes.io/name=${constants.BLOCK_NODE_RELEASE_NAME}`];
       try {
         const pods: Pod[] = await k8Factory.getK8(context).pods().list(namespace, labels);
 
