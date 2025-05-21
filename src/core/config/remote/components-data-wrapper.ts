@@ -155,6 +155,11 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
         break;
       }
 
+      case ComponentTypes.BlockNode: {
+        callback(this.state.blockNodes);
+        break;
+      }
+
       default: {
         throw new SoloError(`Unknown component type ${componentType}, component id: ${componentId}`);
       }

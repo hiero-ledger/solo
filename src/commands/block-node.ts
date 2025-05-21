@@ -90,7 +90,7 @@ export class BlockNodeCommand extends BaseCommand {
       valuesArgument += helpers.prepareValuesFiles(config.valuesFile);
     }
 
-    valuesArgument += helpers.populateHelmArguments({nameOverride: config.newBlockNodeComponent.metadata.id});
+    valuesArgument += helpers.populateHelmArguments({nameOverride: config.releaseName});
 
     if (config.domainName) {
       valuesArgument += helpers.populateHelmArguments({
@@ -105,7 +105,11 @@ export class BlockNodeCommand extends BaseCommand {
   }
 
   private getReleaseName(): string {
-    return constants.BLOCK_NODE_RELEASE_NAME;
+    return (
+      constants.BLOCK_NODE_RELEASE_NAME +
+      '-' +
+      this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.BlockNode)
+    );
   }
 
   private async add(argv: ArgvStruct): Promise<boolean> {
@@ -207,7 +211,7 @@ export class BlockNodeCommand extends BaseCommand {
         },
         {
           title: 'Check software',
-          task: async (context_, task): Promise<void> => {
+          task: async (context_): Promise<void> => {
             const config: BlockNodeDeployConfigClass = context_.config;
 
             const labels: string[] = [`app.kubernetes.io/instance=${config.releaseName}`];
@@ -311,7 +315,7 @@ export class BlockNodeCommand extends BaseCommand {
           .getK8(config.context)
           .pods()
           .list(config.namespace, [`app.kubernetes.io/instance=${config.releaseName}`])
-          .then(pods => pods[0].podReference);
+          .then((pods: Pod[]): PodReference => pods[0].podReference);
 
         const containerReference: ContainerReference = ContainerReference.of(
           blockNodePodReference,
@@ -342,9 +346,8 @@ export class BlockNodeCommand extends BaseCommand {
 
             success = true;
             break;
-          } catch (error) {
+          } catch {
             // Guard
-            console.error(error);
           }
 
           attempt++;
