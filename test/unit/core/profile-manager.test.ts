@@ -95,6 +95,8 @@ describe('ProfileManager', () => {
 
     // @ts-expect-error - TS2339: to mock
     profileManager.remoteConfig.getConsensusNodes = sinon.stub().returns(consensusNodes);
+    // @ts-expect-error - TS2339: to mock
+    profileManager.updateApplicationPropertiesForBlockNode = sinon.stub();
 
     const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
       InjectTokens.LocalConfigRuntimeState,

@@ -35,6 +35,7 @@ import {type CertificateManager} from '../../../src/core/certificate-manager.js'
 import {type PlatformInstaller} from '../../../src/core/platform-installer.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import {ComponentsDataWrapper} from '../../../src/core/config/remote/components-data-wrapper.js';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
@@ -175,7 +176,7 @@ describe('NetworkCommand unit tests', () => {
       });
 
       options.keyManager = container.resolve<KeyManager>(InjectTokens.KeyManager);
-      options.keyManager.prepareTLSKeyFilePaths = sinon.stub();
+      options.keyManager.prepareTlsKeyFilePaths = sinon.stub();
       options.keyManager.copyGossipKeysToStaging = sinon.stub();
       options.keyManager.copyNodeKeysToStaging = sinon.stub();
 
@@ -227,6 +228,10 @@ describe('NetworkCommand unit tests', () => {
         const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['solo-e2e', 'context1']]);
         options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([]);
+
+        // @ts-expect-error - TS2341: to access private property
         await networkCommand.deploy(argv.build());
 
         expect(options.chartManager.install.args[0][0].name).to.equal('solo-e2e');
@@ -249,6 +254,10 @@ describe('NetworkCommand unit tests', () => {
         const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['solo-e2e', 'context1']]);
         options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([]);
+
+        // @ts-expect-error - TS2341: to access private property
         await networkCommand.deploy(argv.build());
         expect(options.chartManager.install.args[0][0].name).to.equal('solo-e2e');
         expect(options.chartManager.install.args[0][1]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
@@ -274,11 +283,15 @@ describe('NetworkCommand unit tests', () => {
           .stub()
           .returns([new ConsensusNode('node1', 0, 'solo-e2e', 'cluster', 'context-1', 'base', 'pattern', 'fqdn')]);
 
+options.remoteConfigManager.remoteConfig = {components: ComponentsDataWrapper.initializeEmpty()};
         options.remoteConfig.getContexts = sinon.stub().returns(['context-1']);
         const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['cluster', 'context1']]);
         options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
-        const networkCommand = container.resolve<NetworkCommand>(NetworkCommand);
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+        // @ts-expect-error - to access private method
+        networkCommand.getBlockNodes = sinon.stub().returns([]);
+        // @ts-expect-error - to access private method
         // @ts-expect-error - to access private method
         const config: NetworkDeployConfigClass = await networkCommand.prepareConfig(task, argv.build());
 
