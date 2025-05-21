@@ -1,9 +1,10 @@
 #!/bin/bash
 
 set -xeo pipefail
+version=$1
 npm install
-echo "VERSION=${{ inputs.version }}"
-[[ -n "${{ inputs.version }}" ]] && npm version ${{ inputs.version }} -f --no-git-tag-version
+echo "VERSION=$version"
+[[ -n "$version" ]] && npm version "$version" -f --no-git-tag-version
 task build
 npm install -g @hashgraph/solo
 npm link
