@@ -388,7 +388,7 @@ export class NodeCommandTasks {
       config: {namespace},
     } = context_;
 
-    const enableDebugger = context_.config.debugNodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
+    const enableDebugger: boolean = context_.config.debugNodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
 
     const subTasks = nodeAliases.map(nodeAlias => {
       const reminder =

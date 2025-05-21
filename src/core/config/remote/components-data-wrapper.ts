@@ -26,7 +26,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
       throw new SoloError('Component must be instance of BaseState', undefined, BaseStateSchema);
     }
 
-    const addComponentCallback: (components: BaseStateSchema[]) => void = components => {
+    const addComponentCallback: (components: BaseStateSchema[]) => void = (components): void => {
       if (this.checkComponentExists(components, component)) {
         throw new SoloError('Component exists', undefined, component);
       }
@@ -54,8 +54,8 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
       throw new SoloError(`Invalid component type ${type}`);
     }
 
-    const removeComponentCallback: (components: BaseStateSchema[]) => void = components => {
-      const index: number = components.findIndex(component => component.metadata.id === componentId);
+    const removeComponentCallback: (components: BaseStateSchema[]) => void = (components): void => {
+      const index: number = components.findIndex((component): boolean => component.metadata.id === componentId);
       if (index === -1) {
         throw new SoloError(`Component ${componentId} of type ${type} not found while attempting to remove`);
       }
@@ -71,8 +71,8 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   public getComponent<T extends BaseStateSchema>(type: ComponentTypes, componentId: ComponentId): T {
     let component: T;
 
-    const getComponentCallback: (components: BaseStateSchema[]) => void = components => {
-      component = components.find(component => component.metadata.id === componentId) as T;
+    const getComponentCallback: (components: BaseStateSchema[]) => void = (components): void => {
+      component = components.find((component): boolean => component.metadata.id === componentId) as T;
 
       if (!component) {
         throw new SoloError(`Component ${componentId} of type ${type} not found while attempting to read`);
@@ -90,8 +90,8 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   ): T[] {
     let filteredComponents: T[] = [];
 
-    const getComponentsByClusterReferenceCallback: (components: T[]) => void = components => {
-      filteredComponents = components.filter(component => component.metadata.cluster === clusterReference);
+    const getComponentsByClusterReferenceCallback: (components: T[]) => void = (components): void => {
+      filteredComponents = components.filter((component): boolean => component.metadata.cluster === clusterReference);
     };
 
     this.applyCallbackToComponentGroup(type, getComponentsByClusterReferenceCallback);
@@ -102,8 +102,8 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   public getComponentById<T extends BaseStateSchema>(type: ComponentTypes, id: number): T {
     let filteredComponent: T;
 
-    const getComponentByIdCallback: (components: T[]) => void = components => {
-      filteredComponent = components.find(component => +component.metadata.id === id);
+    const getComponentByIdCallback: (components: T[]) => void = (components): void => {
+      filteredComponent = components.find((component): boolean => +component.metadata.id === id);
     };
 
     this.applyCallbackToComponentGroup(type, getComponentByIdCallback);
@@ -177,8 +177,8 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   public getNewComponentId(componentType: ComponentTypes): number {
     let newComponentId: number = 0;
 
-    const calculateNewComponentIndexCallback: (components: BaseStateSchema[]) => void = components => {
-      const componentIds: ComponentId[] = components.map(component => component.metadata.id);
+    const calculateNewComponentIndexCallback: (components: BaseStateSchema[]) => void = (components): void => {
+      const componentIds: ComponentId[] = components.map((component: BaseStateSchema): number => component.metadata.id);
 
       for (const componentId of componentIds) {
         if (newComponentId <= +componentId) {

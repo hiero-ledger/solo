@@ -94,8 +94,8 @@ export class ComponentFactory implements ComponentFactoryApi {
     const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
     const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
       id,
-      clusterReference,
       namespace.name,
+      clusterReference,
       phase,
     );
 
