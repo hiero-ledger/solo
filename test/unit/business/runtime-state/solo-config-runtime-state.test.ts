@@ -4,12 +4,17 @@ import {expect} from 'chai';
 import {SoloConfigRuntimeState} from '../../../../src/business/runtime-state/config/solo/solo-config-runtime-state.js';
 import {UnloadedConfigError} from '../../../../src/business/runtime-state/errors/unloaded-config-error.js';
 import {type SoloConfig} from '../../../../src/business/runtime-state/config/solo/solo-config.js';
+import {container} from 'tsyringe-neo';
+import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 
 describe('SoloConfigRuntimeState', (): void => {
   let soloConfigRuntimeState: SoloConfigRuntimeState;
 
   beforeEach((): void => {
-    soloConfigRuntimeState = new SoloConfigRuntimeState();
+    soloConfigRuntimeState = new SoloConfigRuntimeState(
+      container.resolve(InjectTokens.ObjectMapper),
+      container.resolve(InjectTokens.ConfigProvider),
+    );
   });
 
   it('should load the configuration', async (): Promise<void> => {
@@ -31,7 +36,7 @@ describe('SoloConfigRuntimeState', (): void => {
 
   it('should load environment variables into solo state', async (): Promise<void> => {
     const directory: string = '../solo-charts/charts';
-    process.env.SOLO_SC_HELMCHART_DIRECTORY = directory;
+    process.env['SOLO_HELM-CHART_DIRECTORY'] = directory;
     await soloConfigRuntimeState.load();
     const soloConfig: SoloConfig = soloConfigRuntimeState.soloConfig;
     expect(soloConfig).to.have.property('helmChart');
