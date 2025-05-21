@@ -14,12 +14,23 @@ describe('PathEx', () => {
 
   beforeEach(() => {
     sinon.stub(fs, 'realpathSync').callsFake((inputPath: string) => {
-      if (inputPath === baseDirectory || inputPath.startsWith(baseDirectory + path.sep)) {
+      // Normalize both paths for proper comparison on all platforms
+      const normalizedInput = path.normalize(inputPath);
+      const normalizedBaseDirectory = path.normalize(baseDirectory);
+      const normalizedInvalidPath = path.normalize(invalidPath);
+
+      // Check if path is within base directory using proper normalized comparison
+      if (
+        normalizedInput === normalizedBaseDirectory ||
+        normalizedInput.startsWith(normalizedBaseDirectory + path.sep)
+      ) {
         return inputPath;
       }
-      if (inputPath === invalidPath) {
+
+      if (normalizedInput === normalizedInvalidPath) {
         return inputPath;
       }
+
       throw new Error('Path does not exist');
     });
   });
