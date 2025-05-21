@@ -77,5 +77,23 @@ describe('ReflectAssist', () => {
       const object1: any = {key1: 'value1'};
       expect(ReflectAssist.merge(object1, null)).to.deep.equal(object1);
     });
+
+    it('should add missing properties to the first object and not delete the existing ones', () => {
+      const object1: any = {key1: 'value1', key2: {foo: 'bar'}};
+      const object2: any = {key2: {foo2: 'bar2'}};
+      expect(ReflectAssist.merge(object1, object2)).to.deep.equal({
+        key1: 'value1',
+        key2: {foo: 'bar', foo2: 'bar2'},
+      });
+    });
+
+    it('should handle camelCase properties correctly', () => {
+      const object1: any = {camelCaseKey: 'value1', nestedObject: {innerCamelCase: 'innerValue1'}};
+      const object2: any = {camelCaseKey: 'newValue1', nestedObject: {innerCamelCase2: 'innerValue2'}};
+      expect(ReflectAssist.merge(object1, object2)).to.deep.equal({
+        camelCaseKey: 'newValue1',
+        nestedObject: {innerCamelCase: 'innerValue1', innerCamelCase2: 'innerValue2'},
+      });
+    });
   });
 });
