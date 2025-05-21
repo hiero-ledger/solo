@@ -51,58 +51,6 @@ export class ReflectAssist {
     }
   }
 
-  public static lowercaseKeysDeep(object: any): any {
-    if (Array.isArray(object)) {
-      return object.map(element => ReflectAssist.lowercaseKeysDeep(element));
-    } else if (object && typeof object === 'object') {
-      return Object.fromEntries(
-        Object.entries(object).map(([key, value]) => [key.toLowerCase(), ReflectAssist.lowercaseKeysDeep(value)]),
-      );
-    }
-    return object;
-  }
-
-  public static lowercaseAndOriginalKeysDeep(object: any): any {
-    if (Array.isArray(object)) {
-      return object.map(element => ReflectAssist.lowercaseAndOriginalKeysDeep(element));
-    } else if (object && typeof object === 'object') {
-      const originalAndLowercaseKeys = Object.fromEntries(
-        Object.entries(object).flatMap(([key, value]) => [
-          [key, ReflectAssist.lowercaseAndOriginalKeysDeep(value)],
-          [key.toLowerCase(), ReflectAssist.lowercaseAndOriginalKeysDeep(value)],
-        ]),
-      );
-      return originalAndLowercaseKeys;
-    }
-    return object;
-  }
-
-  public static mapKeysToClassRecursive<T>(object: any, cls: new () => T): any {
-    const instance: T = new cls();
-    const result: Record<string, any> = {};
-
-    for (const property of Object.getOwnPropertyNames(instance)) {
-      const expectedType: any = Reflect.getMetadata('design:type', instance, property);
-      const lowerKey: string = property.toLowerCase();
-
-      if (lowerKey in object) {
-        const value: any = object[lowerKey];
-
-        // If it's a nested class (not a primitive or Array), recurse
-        const isNestedObject: boolean =
-          typeof expectedType === 'function' &&
-          !['String', 'Number', 'Boolean', 'Array', 'Object'].includes(expectedType.name);
-
-        result[property] =
-          isNestedObject && value && typeof value === 'object'
-            ? ReflectAssist.mapKeysToClassRecursive(value, expectedType)
-            : value;
-      }
-    }
-
-    return result;
-  }
-
   /**
    * Creates a clone of the firstObject of type T and merges the properties of the secondObject into it.  If either
    * object is falsy, then the other object is returned.
