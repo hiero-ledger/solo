@@ -102,9 +102,10 @@ jobs:
         with:
           go-version-file: 'docs/site/go.mod'
 
-      # TODO build latest
-      # TODO build main
-      # TODO build release
+      # TODO build latest - check to see if this is automatic as part of task build
+      # TODO build main - if branch does not start with release
+      # TODO build release - if branch starts with release
+      # TODO need to make sure the package.json is at the correct version if this is a release artifact build
       - name: Build with Hugo
         run: |
           set -xeo pipefail
