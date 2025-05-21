@@ -8,9 +8,9 @@ import sinon from 'sinon';
 import {SoloError} from '../../../../src/core/errors/solo-error.js';
 
 describe('PathEx', () => {
-  const baseDirectory = '/base/dir';
-  const validPath = '/base/dir/file.txt';
-  const invalidPath = '/outside/dir/file.txt';
+  const baseDirectory: string = path.normalize('/base/dir');
+  const validPath: string = path.join(baseDirectory, 'file.txt');
+  const invalidPath: string = path.normalize('/outside/dir/file.txt');
 
   beforeEach(() => {
     sinon.stub(fs, 'realpathSync').callsFake((inputPath: string) => {
@@ -31,7 +31,7 @@ describe('PathEx', () => {
   describe('joinWithRealPath', () => {
     it('should join paths and return the real path', () => {
       const result = PathEx.joinWithRealPath(baseDirectory, 'file.txt');
-      expect(result).to.equal(validPath);
+      expect(path.normalize(result)).to.equal(path.normalize(validPath));
     });
 
     it('should throw an error if the path does not exist', () => {
@@ -42,11 +42,11 @@ describe('PathEx', () => {
   describe('safeJoinWithBaseDirConfinement', () => {
     it('should securely join paths within the base directory', () => {
       const result = PathEx.safeJoinWithBaseDirConfinement(baseDirectory, 'file.txt');
-      expect(result).to.equal(validPath);
+      expect(path.normalize(result)).to.equal(path.normalize(validPath));
     });
 
     it('should throw SoloError for path traversal outside the base directory', () => {
-      expect(() => PathEx.safeJoinWithBaseDirConfinement(baseDirectory, '../../outside/dir/file.txt')).to.throw(
+      expect(() => PathEx.safeJoinWithBaseDirConfinement(baseDirectory, path.normalize('../../outside/dir/file.txt'))).to.throw(
         SoloError,
       );
     });
@@ -55,7 +55,7 @@ describe('PathEx', () => {
   describe('realPathSync', () => {
     it('should return the real path for an existing path', () => {
       const result = PathEx.realPathSync(validPath);
-      expect(result).to.equal(validPath);
+      expect(path.normalize(result)).to.equal(path.normalize(validPath));
     });
 
     it('should throw an error for a non-existent path', () => {
