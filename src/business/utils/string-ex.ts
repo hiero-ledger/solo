@@ -4,7 +4,7 @@ import {UnsupportedOperationError} from '../errors/unsupported-operation-error.j
 
 export class StringEx {
   public static readonly EMPTY: string = '';
-  public static readonly DASH: string = ' ';
+  public static readonly DASH: string = '-';
   public static readonly UNDERSCORE: string = '_';
   public static readonly PERIOD: string = '.';
 
@@ -84,5 +84,13 @@ export class StringEx {
     }
 
     return parts.join(separator);
+  }
+
+  public static camelCaseToKebab(key: string): string {
+    if (StringEx.isEmpty(key)) {
+      return key;
+    }
+
+    return key.replaceAll(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
   }
 }
