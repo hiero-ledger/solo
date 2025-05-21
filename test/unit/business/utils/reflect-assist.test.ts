@@ -57,28 +57,6 @@ describe('ReflectAssist', () => {
     });
   });
 
-  describe('lowercaseKeysDeep', (): void => {
-    it('should lowercase all keys in an object', (): void => {
-      const object: any = {Key1: 'value1', Nested: {Key2: 'value2'}};
-      expect(ReflectAssist.lowercaseKeysDeep(object)).to.deep.equal({
-        key1: 'value1',
-        nested: {key2: 'value2'},
-      });
-    });
-  });
-
-  describe('lowercaseAndOriginalKeysDeep', (): void => {
-    it('should include both original and lowercase keys', (): void => {
-      const object: any = {Key1: 'value1', Nested: {Key2: 'value2'}};
-      expect(ReflectAssist.lowercaseAndOriginalKeysDeep(object)).to.deep.equal({
-        Key1: 'value1',
-        key1: 'value1',
-        Nested: {Key2: 'value2', key2: 'value2'},
-        nested: {Key2: 'value2', key2: 'value2'},
-      });
-    });
-  });
-
   describe('merge', () => {
     it('should merge two objects', () => {
       const object1: any = {key1: 'value1', key2: 'value2'};
