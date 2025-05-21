@@ -95,7 +95,7 @@ interface MirrorNodeDestroyContext {
     namespace: NamespaceName;
     clusterContext: string;
     isChartInstalled: boolean;
-    clusterRef?: Optional<ClusterReference>;
+    clusterReference: ClusterReference;
   };
 }
 
@@ -749,10 +749,11 @@ export class MirrorNodeCommand extends BaseCommand {
 
             self.configManager.update(argv);
             const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
-            const clusterReference = this.configManager.getFlag<string>(flags.clusterRef) as string;
-            const clusterContext = clusterReference
-              ? this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString()
-              : this.k8Factory.default().contexts().readCurrent();
+            const clusterReference: ClusterReference =
+              (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
+              this.k8Factory.default().clusters().readCurrent();
+
+            const clusterContext = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
 
             if (!(await self.k8Factory.getK8(clusterContext).namespaces().has(namespace))) {
               throw new SoloError(`namespace ${namespace} does not exist`);
@@ -768,6 +769,7 @@ export class MirrorNodeCommand extends BaseCommand {
               clusterContext,
               namespace,
               isChartInstalled,
+              clusterReference,
             };
 
             await self.accountManager.loadNodeClient(
@@ -926,7 +928,7 @@ export class MirrorNodeCommand extends BaseCommand {
       title: 'Remove mirror node from remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        const clusterReference: ClusterReference = context_.config.clusterRef;
+        const clusterReference: ClusterReference = context_.config.clusterReference;
 
         const mirrorNodeComponents: MirrorNodeStateSchema[] =
           this.remoteConfig.configuration.components.getComponentsByClusterReference<MirrorNodeStateSchema>(

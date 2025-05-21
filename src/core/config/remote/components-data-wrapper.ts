@@ -103,7 +103,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     let filteredComponent: T;
 
     const getComponentByIdCallback: (components: T[]) => void = (components): void => {
-      filteredComponent = components.find((component): boolean => +component.metadata.id === id);
+      filteredComponent = components.find((component): boolean => +component.metadata.id === +id);
     };
 
     this.applyCallbackToComponentGroup(type, getComponentByIdCallback);
