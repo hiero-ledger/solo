@@ -46,9 +46,8 @@ describe('PathEx', () => {
     });
 
     it('should throw SoloError for path traversal outside the base directory', () => {
-      expect(() => PathEx.safeJoinWithBaseDirConfinement(baseDirectory, path.normalize('../../outside/dir/file.txt'))).to.throw(
-        SoloError,
-      );
+      const outsideDirectoryPath: string = ['..', '..', 'outside', 'dir', 'file.txt'].join(path.sep);
+      expect(() => PathEx.safeJoinWithBaseDirConfinement(baseDirectory, outsideDirectoryPath)).to.throw(SoloError);
     });
   });
 
