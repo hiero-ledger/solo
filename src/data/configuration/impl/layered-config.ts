@@ -112,8 +112,7 @@ export class LayeredConfig implements Config {
     let value: T = null;
 
     for (const source of this.sources) {
-      const currentValue = source[method.name](cls, key);
-      // TODO what if I want to merge attributes of a class that are defined?
+      const currentValue: any = source[method.name](cls, key);
       if (currentValue !== null && currentValue !== undefined) {
         value = this.mergeSourceValues ? ReflectAssist.merge(value, currentValue) : currentValue;
       }
@@ -126,7 +125,7 @@ export class LayeredConfig implements Config {
     let value: Array<T> = null;
 
     for (const source of this.sources) {
-      const currentValue = source[method.name](cls, key);
+      const currentValue: any = source[method.name](cls, key);
       if (currentValue !== null && currentValue !== undefined) {
         value = currentValue;
       }

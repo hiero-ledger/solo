@@ -173,26 +173,41 @@ describe('Lexer', () => {
     overlappingPathLexer();
   });
 
-  it('addValue works with overlapping paths', () => {
+  it('addValue works with overlapping paths', (): void => {
     const {lexer, rootNode, subObjectNode, subArrayIndexNode} = overlappingPathLexer();
 
     lexer.addValue('root.array.0.index4', '7');
     lexer.addValue('root.object.value4', '8');
+    lexer.addValue('root.object.clusterRef', 'SoloCheck');
 
     expect(lexer.rootNodes).to.have.lengthOf(2);
     expect(rootNode.children).to.have.lengthOf(2);
-    expect(subObjectNode.children).to.have.lengthOf(4);
+    expect(subObjectNode.children).to.have.lengthOf(5);
     expect(subArrayIndexNode.children).to.have.lengthOf(4);
 
-    const index4Node = subArrayIndexNode.children.find(v => v.name === 'index4') as LexerLeafNode;
+    const index4Node: LexerLeafNode = subArrayIndexNode.children.find(
+      (v: Node): boolean => v.name === 'index4',
+    ) as LexerLeafNode;
     expect(index4Node).to.not.be.undefined.and.not.be.null;
     expect(index4Node.isLeaf()).to.be.true;
     expect(index4Node.value).to.be.equal('7');
 
-    const value4Node = subObjectNode.children.find(v => v.name === 'value4') as LexerLeafNode;
+    expect(subObjectNode.children.some((v: Node): boolean => v.name === 'clusterref')).to.be.false;
+    expect(subObjectNode.children.some((v: Node): boolean => v.name === 'clusterRef')).to.be.true;
+
+    const value4Node: LexerLeafNode = subObjectNode.children.find(
+      (v: Node): boolean => v.name === 'value4',
+    ) as LexerLeafNode;
     expect(value4Node).to.not.be.undefined.and.not.be.null;
     expect(value4Node.isLeaf()).to.be.true;
     expect(value4Node.value).to.be.equal('8');
+
+    const clusterReference: LexerLeafNode = subObjectNode.children.find(
+      (v: Node): boolean => v.name === 'clusterRef',
+    ) as LexerLeafNode;
+    expect(clusterReference).to.not.be.undefined.and.not.be.null;
+    expect(clusterReference.isLeaf()).to.be.true;
+    expect(clusterReference.value).to.be.equal('SoloCheck');
   });
 
   it('replaceValue works with overlapping paths', () => {
