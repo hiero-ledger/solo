@@ -87,7 +87,7 @@ export class EnvironmentStorageBackend implements StorageBackend {
       throw new StorageBackendError(`key not found: ${key}`);
     }
 
-    return Buffer.from(value, 'utf-8');
+    return Buffer.from(value, 'utf8');
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars,unused-imports/no-unused-vars
