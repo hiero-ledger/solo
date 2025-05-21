@@ -17,7 +17,7 @@ export class LayeredConfigProvider implements ConfigProvider {
 
   public constructor(
     @inject(InjectTokens.ObjectMapper) private readonly mapper: ObjectMapper,
-    private readonly prefix?: string,
+    private readonly prefix: string = 'SOLO',
   ) {
     this.mapper = patchInject(mapper, InjectTokens.ObjectMapper, LayeredConfigProvider.name);
   }
