@@ -1,7 +1,14 @@
 #!/bin/bash
 
 set -xeo pipefail
+
 version=$1
+
+# install gettext-base for envsubst
+sudo apt-get update
+sudo apt-get install gettext-base
+
+
 npm install
 echo "VERSION=$version"
 [[ -n "$version" ]] && npm version "$version" -f --no-git-tag-version
