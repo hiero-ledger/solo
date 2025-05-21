@@ -24,6 +24,7 @@ on:
   push:
     branches:
       - main
+      - 'release/*'
     paths:
       - '**/*.mjs'
       - '**/*.js'
@@ -32,6 +33,7 @@ on:
       - 'docs/site/content/User/*.md'
       - 'DEV.md'
       - 'README.md'
+      - 'docs/site/**'
   # run in the pull request, but don't publish
   pull_request:
     types:
@@ -100,12 +102,16 @@ jobs:
         with:
           go-version-file: 'docs/site/go.mod'
 
+      # TODO build latest
+      # TODO build main
+      # TODO build release
       - name: Build with Hugo
         run: |
           set -xeo pipefail
           cd docs/site
           task build
 
+      # TODO what is the trigger and the action for this?
       # Upload the built site to GitHub Pages
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
@@ -113,6 +119,7 @@ jobs:
         with:
           path: ./docs/site/public
 
+      # TODO upload latest, main or release
       # Upload the built site to artifacts for troubleshooting or verification
       - name: Upload Artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -120,6 +127,7 @@ jobs:
         with:
           path: ./docs/site/public
 
+  # TODO what are the conditions for this job?
   # Deployment job
   deploy:
     name: Deploy
