@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type SemVer} from 'semver';
+import {SemVer} from 'semver';
 import {Version} from './version.js';
 
 /**
@@ -64,7 +64,9 @@ export class VersionRange<T extends SemVer | number> {
    * @returns the version range.
    */
   public static patchVersionBounds(version: SemVer): VersionRange<SemVer> {
-    return new VersionRange(new Version(version), new Version(version.inc('minor')));
+    // clone the version to avoid modifying the original
+    const rangeEnd: SemVer = new SemVer(version.toString());
+    return new VersionRange(new Version(version), new Version(rangeEnd.inc('minor')));
   }
 
   /**
@@ -74,7 +76,9 @@ export class VersionRange<T extends SemVer | number> {
    * @returns the version range.
    */
   public static minorVersionBounds(version: SemVer): VersionRange<SemVer> {
-    return new VersionRange(new Version(version), new Version(version.inc('major')));
+    // clone the version to avoid modifying the original
+    const rangeEnd: SemVer = new SemVer(version.toString());
+    return new VersionRange(new Version(version), new Version(rangeEnd.inc('major')));
   }
 
   public equals(other: VersionRange<T>): boolean {
