@@ -106,5 +106,11 @@
     "test-script": "test-e2e-node-upgrade-separate",
     "coverage-subdirectory": "e2e-node-upgrade-separate",
     "coverage-report-name": "E2E Node Upgrade - Separate commands Tests Coverage Report"
+  },
+  {
+    "name": "External database",
+    "test-script": "test-external-database",
+    "coverage-subdirectory": "external-database",
+    "coverage-report-name": "External Database Tests Coverage Report"
   }
 ]
