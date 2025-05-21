@@ -50,7 +50,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     //  https://github.com/hashgraph/solo/issues/1823
     //  Add logic for selecting by specific label,
     //  when multiple instances can be deployed at the same time.
-    return constants.SOLO_HEDERA_MIRROR_IMPORTER;
+    return ['app.kubernetes.io/component=importer', 'app.kubernetes.io/name=importer'];
   }
 
   private static getEnvoyProxyLabels(component: BaseStateSchema): string[] {
