@@ -168,7 +168,6 @@ export class Container {
       new ValueContainer(InjectTokens.CacheDir, cacheDirectory),
       new ValueContainer(InjectTokens.LocalConfigFileName, constants.DEFAULT_LOCAL_CONFIG_FILE),
       new ValueContainer(InjectTokens.KeyFormatter, ConfigKeyFormatter.instance()),
-      new ValueContainer(InjectTokens.SoloConfigPrefix, 'SOLO_SC'),
     ];
 
     for (const [token, override] of overrides) {
