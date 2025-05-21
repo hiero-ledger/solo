@@ -331,7 +331,7 @@ export class BlockNodeCommand extends BaseCommand {
               context_.config.clusterRef = this.k8Factory.default().clusters().readCurrent();
             }
 
-            context_.config.context = this.remoteConfigManager.getClusterRefs()[context_.config.clusterRef];
+            context_.config.context = this.remoteConfig.getClusterRefs()[context_.config.clusterRef];
 
             context_.config.releaseName = this.getReleaseName();
 
@@ -351,9 +351,10 @@ export class BlockNodeCommand extends BaseCommand {
           task: async (context_): Promise<void> => {
             const config: BlockNodeDestroyConfigClass = context_.config;
             try {
-              this.remoteConfigManager.components.getComponent<BlockNodeComponent>(
+              // TODO: Add support for multiple block nodes
+              this.remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(
                 ComponentTypes.BlockNode,
-                config.releaseName,
+                1,
               );
             } catch (error) {
               throw new SoloError(`Block node ${config.releaseName} was not found`, error);
@@ -410,13 +411,14 @@ export class BlockNodeCommand extends BaseCommand {
   private removeBlockNodeComponent(): SoloListrTask<BlockNodeDestroyContext> {
     return {
       title: 'Disable block node component in remote config',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfigManager.modify(async remoteConfig => {
-          const config: BlockNodeDestroyConfigClass = context_.config;
+        const config: BlockNodeDestroyConfigClass = context_.config;
 
-          remoteConfig.components.remove(config.releaseName, ComponentTypes.BlockNode);
-        });
+        // TODO: Add support for multiple block nodes
+        this.remoteConfig.configuration.components.removeComponent(1, ComponentTypes.BlockNode);
+
+        await this.remoteConfig.persist();
       },
     };
   }

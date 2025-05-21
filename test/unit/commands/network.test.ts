@@ -35,7 +35,6 @@ import {type CertificateManager} from '../../../src/core/certificate-manager.js'
 import {type PlatformInstaller} from '../../../src/core/platform-installer.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import {ComponentsDataWrapper} from '../../../src/core/config/remote/components-data-wrapper.js';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
@@ -283,15 +282,11 @@ describe('NetworkCommand unit tests', () => {
           .stub()
           .returns([new ConsensusNode('node1', 0, 'solo-e2e', 'cluster', 'context-1', 'base', 'pattern', 'fqdn')]);
 
-options.remoteConfigManager.remoteConfig = {components: ComponentsDataWrapper.initializeEmpty()};
         options.remoteConfig.getContexts = sinon.stub().returns(['context-1']);
         const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['cluster', 'context1']]);
         options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
-        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
-        // @ts-expect-error - to access private method
-        networkCommand.getBlockNodes = sinon.stub().returns([]);
-        // @ts-expect-error - to access private method
+        const networkCommand = container.resolve<NetworkCommand>(NetworkCommand);
         // @ts-expect-error - to access private method
         const config: NetworkDeployConfigClass = await networkCommand.prepareConfig(task, argv.build());
 

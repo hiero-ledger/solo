@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Templates} from './templates.js';
-import {type BlockNodeComponent} from './config/remote/components/block-node-component.js';
-import {type Cluster} from './config/remote/cluster.js';
-import {type ClusterReference, type ToJSON} from '../types/index.js';
+import {type ToJSON} from '../types/index.js';
 import * as constants from './constants.js';
+import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
+import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 
 interface BlockNodeConnectionData {
   address: string;
@@ -18,18 +18,20 @@ interface BlockNodesJsonStructure {
 
 export class BlockNodesJsonWrapper implements ToJSON {
   public constructor(
-    private readonly blockNodeComponents: BlockNodeComponent[],
-    private readonly clusterMapping: Record<ClusterReference, Cluster>,
+    private readonly blockNodeComponents: BlockNodeStateSchema[],
+    private readonly clusters: Readonly<ClusterSchema[]>,
   ) {}
 
   public toJSON(): string {
     const blockNodeConnectionData: BlockNodeConnectionData[] = this.blockNodeComponents.map(
       (blockNodeComponent): BlockNodeConnectionData => {
-        const cluster: Cluster = this.clusterMapping[blockNodeComponent.cluster];
+        const cluster: ClusterSchema = this.clusters.find(
+          (cluster: ClusterSchema): boolean => cluster.name === blockNodeComponent.metadata.cluster,
+        );
 
         const address: string = Templates.renderSvcFullyQualifiedDomainName(
-          blockNodeComponent.name,
-          blockNodeComponent.namespace,
+          constants.BLOCK_NODE_RELEASE_NAME + '-' + blockNodeComponent.metadata.id,
+          blockNodeComponent.metadata.namespace,
           cluster.dnsBaseDomain,
         );
 

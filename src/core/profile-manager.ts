@@ -431,7 +431,8 @@ export class ProfileManager {
   }
 
   private async updateApplicationPropertiesForBlockNode(applicationPropertiesPath: string): Promise<void> {
-    const hasDeployedBlockNodes: boolean = Object.keys(this.remoteConfigManager.components.blockNodes).length > 0;
+    const hasDeployedBlockNodes: boolean =
+      Object.keys(this.remoteConfig.configuration.components.state.blockNodes).length > 0;
     if (!hasDeployedBlockNodes) {
       return;
     }

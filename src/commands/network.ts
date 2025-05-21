@@ -37,7 +37,6 @@ import {v4 as uuidv4} from 'uuid';
 import {
   type ClusterReference,
   type ClusterReferences,
-  type Context,
   type NamespaceNameAsString,
   type CommandDefinition,
   type Context,
@@ -58,9 +57,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {ConsensusNodeStates} from '../core/config/remote/enumerations/consensus-node-states.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
-import {type BlockNodeComponent} from '../core/config/remote/components/block-node-component.js';
 import {type K8} from '../integration/kube/k8.js';
 import {BlockNodesJsonWrapper} from '../core/block-nodes-json-wrapper.js';
 import {type Lock} from '../core/lock/lock.js';
@@ -582,7 +579,7 @@ export class NetworkCommand extends BaseCommand {
       for (const clusterReference of clusterReferences) {
         const blockNodesJsonData: string = new BlockNodesJsonWrapper(
           config.blockNodeComponents,
-          this.remoteConfigManager.clusters,
+          this.remoteConfig.configuration.clusters,
         ).toJSON();
 
         const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'block-nodes.json');
@@ -1417,8 +1414,8 @@ export class NetworkCommand extends BaseCommand {
     };
   }
 
-  private getBlockNodes(): BlockNodeComponent[] {
-    return Object.values(this.remoteConfigManager.components.blockNodes);
+  private getBlockNodes(): BlockNodeStateSchema[] {
+    return this.remoteConfig.configuration.components.state.blockNodes;
   }
 
   public async close(): Promise<void> {} // no-op
