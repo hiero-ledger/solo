@@ -4,20 +4,25 @@ import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import * as helpers from '../core/helpers.js';
+import {showVersionBanner} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {showVersionBanner} from '../core/helpers.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {type AnyYargs, type ArgvStruct, type NodeAliases} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {RelayComponent} from '../core/config/remote/components/relay-component.js';
 import * as Base64 from 'js-base64';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
-import {type ClusterReference, type DeploymentName} from '../types/index.js';
-import {type CommandDefinition, type Optional, type SoloListrTask} from '../types/index.js';
+import {
+  type ClusterReference,
+  type CommandDefinition,
+  type DeploymentName,
+  type Optional,
+  type SoloListrTask,
+} from '../types/index.js';
 import {HEDERA_JSON_RPC_RELAY_VERSION} from '../../version.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -153,7 +158,7 @@ export class RelayCommand extends BaseCommand {
       valuesArgument += ` --set config.OPERATOR_KEY_MAIN=${operatorKey}`;
     } else {
       try {
-        const namespace = NamespaceName.of(this.localConfig.getDeployment(deploymentName).namespace);
+        const namespace = NamespaceName.of(this.localConfig.configuration.deploymentByName(deploymentName).namespace);
 
         const k8 = this.k8Factory.getK8(context);
         const secrets = await k8.secrets().list(namespace, [`solo.hedera.com/account-id=${operatorIdUsing}`]);
@@ -455,7 +460,7 @@ export class RelayCommand extends BaseCommand {
           task: async context_ => {
             const config = context_.config;
 
-            await this.chartManager.uninstall(config.namespace, config.releaseName, context_.config.context);
+            await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
 
             this.logger.showList(
               'Destroyed Relays',

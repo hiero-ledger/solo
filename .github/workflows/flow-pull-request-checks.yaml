@@ -32,11 +32,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  env-vars:
-    name: Set Environment Variables
-    uses: ./.github/workflows/zxc-env-vars.yaml
-    with:
-      custom-job-label: Set Environment Variables
+  generate_matrix:
+    runs-on: hiero-solo-linux-medium
+    outputs:
+      matrix: ${{ steps.set_matrix.outputs.matrix }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Read JSON and Set Matrix Output
+        id: set_matrix
+        run: |
+          # Install jq (a lightweight and flexible command-line JSON processor)
+          sudo apt-get update && sudo apt-get install -y jq
+
+          # Read the JSON file
+          JSON_CONTENT=$(cat .github/workflows/support/e2e-test-matrix.json | jq -c .)
+          
+          echo "JSON_CONTENT: $JSON_CONTENT"
+
+          # Set the output variable 'matrix' with the JSON content
+          echo "matrix=$JSON_CONTENT" >> $GITHUB_OUTPUT
 
   code-style:
     name: Code Style
@@ -49,16 +70,13 @@ jobs:
     if: ${{ !cancelled() && always() }}
     uses: ./.github/workflows/zxc-e2e-test.yaml
     needs:
-      - env-vars
+      - generate_matrix
       - code-style
     strategy:
       fail-fast: false
       matrix:
         consensus-node-version: ["v0.62.1", "v0.61.4"]
-        e2e-test-type:
-          - { name: "Node Add", test-script: "test-${{ needs.env-vars.outputs.e2e-node-add-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-add-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-add-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-node-add-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
-          - { name: "Node Delete", test-script: "test-${{ needs.env-vars.outputs.e2e-node-delete-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-delete-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-delete-coverage-report }}", cluster-name: "${{needs.env-vars.outputs.e2e-node-delete-test-subdir}}-${{ github.run_id }}-${{ github.run_attempt }}" }
-          - { name: "Node Update", test-script: "test-${{ needs.env-vars.outputs.e2e-node-update-test-subdir }}", coverage-subdirectory: "${{ needs.env-vars.outputs.e2e-node-update-test-subdir }}", coverage-report-name: "${{ needs.env-vars.outputs.e2e-node-update-coverage-report }}", cluster-name: "${{ needs.env-vars.outputs.e2e-node-update-test-subdir }}-${{ github.run_id }}-${{ github.run_attempt }}" }
+        e2e-test-type: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
       max-parallel: 5
     with:
       custom-job-label: ${{ matrix.e2e-test-type.name }}

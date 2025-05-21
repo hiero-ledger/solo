@@ -51,7 +51,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {type NodeServiceMapping} from '../types/mappings/node-service-mapping.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {NetworkNodeServicesBuilder} from './network-node-services-builder.js';
-import {LocalConfigRuntimeState} from '../business/runtime-state/local-config-runtime-state.js';
+import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 
 const REASON_FAILED_TO_GET_KEYS = 'failed to get keys for accountId';
 const REASON_SKIPPED = 'skipped since it does not have a genesis key';
@@ -1013,8 +1013,8 @@ export class AccountManager {
       client.setOperator(operatorId, operatorKey);
     }
 
-    const realm: Realm = this.localConfig.getRealm(deployment);
-    const shard: Shard = this.localConfig.getShard(deployment);
+    const realm: Realm = this.localConfig.configuration.realmForDeployment(deployment);
+    const shard: Shard = this.localConfig.configuration.shardForDeployment(deployment);
     const query: FileContentsQuery = new FileContentsQuery().setFileId(
       new FileId(shard, realm, FileId.ADDRESS_BOOK.num),
     );
@@ -1030,8 +1030,8 @@ export class AccountManager {
   ): Promise<string> {
     await this.loadNodeClient(namespace, clusterReferences, deployment, forcePortForward);
     const client = this._nodeClient;
-    const realm = this.localConfig.getRealm(deployment);
-    const shard = this.localConfig.getShard(deployment);
+    const realm = this.localConfig.configuration.realmForDeployment(deployment);
+    const shard = this.localConfig.configuration.shardForDeployment(deployment);
     const fileId = FileId.fromString(entityId(shard, realm, fileNumber));
     const queryFees = new FileContentsQuery().setFileId(fileId);
     return Buffer.from(await queryFees.execute(client)).toString('hex');
@@ -1069,23 +1069,17 @@ export class AccountManager {
   }
 
   public getAccountIdByNumber(deployment: DeploymentName, number: number | Long): AccountId {
-    const realm = this.localConfig.getRealm(deployment);
-    const shard = this.localConfig.getShard(deployment);
+    const realm = this.localConfig.configuration.realmForDeployment(deployment);
+    const shard = this.localConfig.configuration.shardForDeployment(deployment);
     return AccountId.fromString(entityId(shard, realm, number));
   }
 
   public getOperatorAccountId(deployment: DeploymentName): AccountId {
-    return this.getAccountIdByNumber(
-      deployment,
-      Number.parseInt(process.env.SOLO_OPERATOR_ID || constants.DEFAULT_OPERATOR_ID_NUMBER.toString()),
-    );
+    return this.getAccountIdByNumber(deployment, Number.parseInt(constants.DEFAULT_OPERATOR_ID_NUMBER.toString()));
   }
 
   public getFreezeAccountId(deployment: DeploymentName): AccountId {
-    return this.getAccountIdByNumber(
-      deployment,
-      Number.parseInt(process.env.FREEZE_ADMIN_ACCOUNT || constants.DEFAULT_FREEZE_ID_NUMBER.toString()),
-    );
+    return this.getAccountIdByNumber(deployment, Number.parseInt(constants.DEFAULT_FREEZE_ID_NUMBER.toString()));
   }
 
   public getTreasuryAccountId(deployment: DeploymentName): AccountId {
@@ -1093,10 +1087,7 @@ export class AccountManager {
   }
 
   public getStartAccountId(deployment: DeploymentName): AccountId {
-    return this.getAccountIdByNumber(
-      deployment,
-      Number.parseInt(process.env.SOLO_NODE_ACCOUNT_ID_START || constants.DEFAULT_START_ID_NUMBER.toString()),
-    );
+    return this.getAccountIdByNumber(deployment, Number.parseInt(constants.DEFAULT_START_ID_NUMBER.toString()));
   }
 
   /**
@@ -1107,8 +1098,8 @@ export class AccountManager {
    */
   public getNodeAccountMap(nodeAliases: NodeAliases, deploymentName: DeploymentName): Map<NodeAlias, string> {
     const accountMap: Map<NodeAlias, string> = new Map<NodeAlias, string>();
-    const realm: Realm = this.localConfig.getRealm(deploymentName);
-    const shard: Shard = this.localConfig.getShard(deploymentName);
+    const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
+    const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
     const firstAccountId: AccountId = this.getStartAccountId(deploymentName);
 
     for (const nodeAlias of nodeAliases) {

@@ -7,25 +7,32 @@ import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
+import {
+  INGRESS_CONTROLLER_PREFIX,
+  MIRROR_INGRESS_CONTROLLER,
+  MIRROR_INGRESS_TLS_SECRET_NAME,
+} from '../core/constants.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import * as helpers from '../core/helpers.js';
+import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {type AnyYargs, type ArgvStruct} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {MirrorNodeComponent} from '../core/config/remote/components/mirror-node-component.js';
 import * as fs from 'node:fs';
-import {type CommandDefinition, type Optional, type SoloListrTask} from '../types/index.js';
+import {
+  type ClusterReference,
+  type CommandDefinition,
+  type DeploymentName,
+  type Optional,
+  type SoloListrTask,
+} from '../types/index.js';
 import * as Base64 from 'js-base64';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
-import {
-  INGRESS_CONTROLLER_PREFIX,
-  MIRROR_INGRESS_TLS_SECRET_NAME,
-  MIRROR_INGRESS_CONTROLLER,
-} from '../core/constants.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
@@ -34,9 +41,7 @@ import chalk from 'chalk';
 import {type CommandFlag} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
-import {type ClusterReference, type DeploymentName} from '../types/index.js';
 import {KeyManager} from '../core/key-manager.js';
-import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
@@ -354,7 +359,7 @@ export class MirrorNodeCommand extends BaseCommand {
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
 
             context_.config.clusterContext = context_.config.clusterRef
-              ? this.localConfig.clusterRefs.get(context_.config.clusterRef)
+              ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString()
               : this.k8Factory.default().contexts().readCurrent();
 
             const deploymentName: DeploymentName = self.configManager.getFlag<DeploymentName>(flags.deployment);
@@ -744,7 +749,7 @@ export class MirrorNodeCommand extends BaseCommand {
             const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
             const clusterReference = this.configManager.getFlag<string>(flags.clusterRef) as string;
             const clusterContext = clusterReference
-              ? this.localConfig.clusterRefs.get(clusterReference)
+              ? this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString()
               : this.k8Factory.default().contexts().readCurrent();
 
             if (!(await self.k8Factory.getK8(clusterContext).namespaces().has(namespace))) {
