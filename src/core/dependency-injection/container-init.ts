@@ -51,6 +51,7 @@ import {BlockNodeCommand} from '../../commands/block-node.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {LocalConfigSource} from '../../data/configuration/impl/local-config-source.js';
 import {ClassToObjectMapper} from '../../data/mapper/impl/class-to-object-mapper.js';
+import {LayeredConfigProvider} from '../../data/configuration/impl/layered-config-provider.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -120,6 +121,7 @@ export class Container {
       new SingletonContainer(InjectTokens.Middlewares, Middlewares),
       new SingletonContainer(InjectTokens.HelpRenderer, HelpRenderer),
       new SingletonContainer(InjectTokens.AccountCommand, AccountCommand),
+      new SingletonContainer(InjectTokens.ConfigProvider, LayeredConfigProvider),
       new SingletonContainer(InjectTokens.ClusterCommand, ClusterCommand),
       new SingletonContainer(InjectTokens.NodeCommand, NodeCommand),
       new SingletonContainer(InjectTokens.DeploymentCommand, DeploymentCommand),
