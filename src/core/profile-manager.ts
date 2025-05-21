@@ -255,6 +255,8 @@ export class ProfileManager {
       this.localConfig.configuration.shardForDeployment(deploymentName),
     );
 
+    await this.updateApplicationPropertiesForBlockNode(applicationPropertiesPath);
+
     for (const flag of flags.nodeConfigFileFlags.values()) {
       const filePath = this.configManager.getFlagFile(flag);
       if (!filePath) {
@@ -430,6 +432,41 @@ export class ProfileManager {
     }
 
     await writeFile(applicationPropertiesPath, lines.join('\n'));
+  }
+
+  private async updateApplicationPropertiesForBlockNode(applicationPropertiesPath: string): Promise<void> {
+    const hasDeployedBlockNodes: boolean = Object.keys(this.remoteConfigManager.components.blockNodes).length > 0;
+    if (!hasDeployedBlockNodes) {
+      return;
+    }
+
+    const lines: string[] = (await readFile(applicationPropertiesPath, 'utf-8')).split('\n');
+
+    const streamMode: string = 'BOTH';
+    const writerMode: string = 'FILE_AND_GRPC';
+
+    let streamModeUpdated: boolean = false;
+    let writerModeUpdated: boolean = false;
+    for (const line of lines) {
+      if (line.startsWith('blockStream.streamMode=')) {
+        lines[lines.indexOf(line)] = `blockStream.streamMode=${streamMode}`;
+        streamModeUpdated = true;
+        continue;
+      }
+      if (line.startsWith('blockStream.writerMode=')) {
+        lines[lines.indexOf(line)] = `blockStream.writerMode=${writerMode}`;
+        writerModeUpdated = true;
+      }
+    }
+
+    if (!streamModeUpdated) {
+      lines.push(`blockStream.streamMode=${streamMode}`);
+    }
+    if (!writerModeUpdated) {
+      lines.push(`blockStream.writerMode=${writerMode}`);
+    }
+
+    await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
   }
 
   private async updateApplicationPropertiesWithRealmAndShard(
