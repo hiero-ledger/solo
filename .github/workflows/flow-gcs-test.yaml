@@ -75,6 +75,6 @@ jobs:
         run: |
           npm install
           task build
-          npm -g @hashgraph/solo@${{ matrix.release-tag }} --force
+          npm install -g @hashgraph/solo@${{ matrix.release-tag }} --force
           solo --version
           .github/workflows/script/launch_network.sh
