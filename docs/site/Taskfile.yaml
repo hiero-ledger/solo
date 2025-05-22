@@ -478,7 +478,7 @@ tasks:
         echo "Extracting $ARCHIVE to public/latest..."
         rm -rf public/latest
         mkdir -p public/latest
-        tar -xzf "$ARCHIVE" -C public/
+        tar -xzf --warning=no-unknown-keyword "$ARCHIVE" -C public/
 
   github:extract:versioned:
     desc: Extract ${tag}.tar.gz into public/${tag}
@@ -490,7 +490,7 @@ tasks:
           TAG=$(echo "$release" | jq -r '.tag')
           SAFE_TAG=$(echo "$TAG" | sed 's#[/:]#_#g')
           ARCHIVE="build/$SAFE_TAG/$TAG.tar.gz"
-          DEST="public/$TAG"
+          DEST="public"
   
           if [ ! -f "$ARCHIVE" ]; then
             echo "⚠️ Missing: $ARCHIVE"
@@ -499,7 +499,7 @@ tasks:
   
           echo "📦 Extracting $ARCHIVE to $DEST..."
           mkdir -p "$DEST"
-          tar -xzf "$ARCHIVE" -C "$DEST"
+          tar -xzf --warning=no-unknown-keyword "$ARCHIVE" -C "$DEST"
         done
 
   github:update:hugo:config:
