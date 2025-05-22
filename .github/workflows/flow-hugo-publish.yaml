@@ -107,6 +107,8 @@ jobs:
       # TODO build release - if branch starts with release
       # TODO need to make sure the package.json is at the correct version if this is a release artifact build
       - name: Build with Hugo
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -xeo pipefail
           cd docs/site
