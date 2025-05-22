@@ -98,7 +98,19 @@ describe('RemoteConfigV1Migration', () => {
       // Verify state was created (components are migrated to state)
       expect(result).to.have.property('state');
       expect(result.state).to.have.property('consensusNodes');
-      expect(result.state.consensusNodes).to.be.an('object');
+      expect(result.state.consensusNodes).to.be.an('array');
+      expect(result.state).to.have.property('blockNodes');
+      expect(result.state.blockNodes).to.be.an('array');
+      expect(result.state).to.have.property('mirrorNodes');
+      expect(result.state.mirrorNodes).to.be.an('array');
+      expect(result.state).to.have.property('relayNodes');
+      expect(result.state.relayNodes).to.be.an('array');
+      expect(result.state).to.have.property('haProxies');
+      expect(result.state.haProxies).to.be.an('array');
+      expect(result.state).to.have.property('envoyProxies');
+      expect(result.state.envoyProxies).to.be.an('array');
+      expect(result.state).to.have.property('explorers');
+      expect(result.state.explorers).to.be.an('array');
 
       // Verify namespace and deploymentName were removed from metadata
       expect(result.metadata).to.not.have.property('namespace');
@@ -324,6 +336,13 @@ describe('RemoteConfigV1Migration', () => {
               cluster: 'cluster1',
             },
           },
+          blockNodes: {
+            block1: {
+              name: 'block1',
+              namespace: 'namespace1',
+              cluster: 'cluster1',
+            },
+          },
         },
       };
 
@@ -333,55 +352,84 @@ describe('RemoteConfigV1Migration', () => {
       expect(result.state).to.have.property('ledgerPhase', 'initialized');
 
       // Check consensus nodes
-      expect(result.state.consensusNodes).to.have.property('node1');
-      expect(result.state.consensusNodes.node1).to.deep.include({
-        id: 1,
-        name: 'node1',
+      expect(Array.isArray(result.state.consensusNodes)).to.be.true;
+      expect(result.state.consensusNodes.length).to.equal(1);
+      
+      // Check that id exists and other properties match
+      expect(result.state.consensusNodes[0].metadata).to.have.property('id');
+      expect(result.state.consensusNodes[0].metadata).to.include({
         namespace: 'namespace1',
         cluster: 'cluster1',
         phase: 'started',
       });
 
       // Check haProxies
-      expect(result.state.haProxies).to.have.property('haproxy1');
-      expect(result.state.haProxies.haproxy1).to.deep.include({
-        name: 'haproxy1',
+      expect(Array.isArray(result.state.haProxies)).to.be.true;
+      expect(result.state.haProxies.length).to.equal(1);
+      
+      // Check that id exists and other properties match
+      expect(result.state.haProxies[0].metadata).to.have.property('id');
+      expect(result.state.haProxies[0].metadata).to.include({
         namespace: 'namespace1',
         cluster: 'cluster1',
         phase: 'started',
       });
 
       // Check envoyProxies
-      expect(result.state.envoyProxies).to.have.property('envoy1');
-      expect(result.state.envoyProxies.envoy1).to.deep.include({
-        name: 'envoy1',
+      expect(Array.isArray(result.state.envoyProxies)).to.be.true;
+      expect(result.state.envoyProxies.length).to.equal(1);
+      
+      // Check that id exists and other properties match
+      expect(result.state.envoyProxies[0].metadata).to.have.property('id');
+      expect(result.state.envoyProxies[0].metadata).to.include({
         namespace: 'namespace1',
         cluster: 'cluster1',
         phase: 'started',
       });
 
       // Check explorers
-      expect(result.state.explorers).to.have.property('explorer1');
-      expect(result.state.explorers.explorer1).to.deep.include({
-        name: 'explorer1',
+      expect(Array.isArray(result.state.explorers)).to.be.true;
+      expect(result.state.explorers.length).to.equal(1);
+      
+      // Check that id exists and other properties match
+      expect(result.state.explorers[0].metadata).to.have.property('id');
+      expect(result.state.explorers[0].metadata).to.include({
         namespace: 'namespace1',
         cluster: 'cluster1',
         phase: 'started',
       });
 
       // Check mirrorNodes
-      expect(result.state.mirrorNodes).to.have.property('mirror1');
-      expect(result.state.mirrorNodes.mirror1).to.deep.include({
-        name: 'mirror1',
+      expect(Array.isArray(result.state.mirrorNodes)).to.be.true;
+      expect(result.state.mirrorNodes.length).to.equal(1);
+      
+      // Check that id exists and other properties match
+      expect(result.state.mirrorNodes[0].metadata).to.have.property('id');
+      expect(result.state.mirrorNodes[0].metadata).to.include({
         namespace: 'namespace1',
         cluster: 'cluster1',
         phase: 'started',
       });
 
       // Check relayNodes
-      expect(result.state.relayNodes).to.have.property('relay1');
-      expect(result.state.relayNodes.relay1).to.deep.include({
-        name: 'relay1',
+      expect(Array.isArray(result.state.relayNodes)).to.be.true;
+      expect(result.state.relayNodes.length).to.equal(1);
+      
+      // Check that id exists and other properties match
+      expect(result.state.relayNodes[0].metadata).to.have.property('id');
+      expect(result.state.relayNodes[0].metadata).to.include({
+        namespace: 'namespace1',
+        cluster: 'cluster1',
+        phase: 'started',
+      });
+
+      // Check blockNodes
+      expect(Array.isArray(result.state.blockNodes)).to.be.true;
+      expect(result.state.blockNodes.length).to.equal(1);
+      
+      // Check that id exists and other properties match
+      expect(result.state.blockNodes[0].metadata).to.have.property('id');
+      expect(result.state.blockNodes[0].metadata).to.include({
         namespace: 'namespace1',
         cluster: 'cluster1',
         phase: 'started',

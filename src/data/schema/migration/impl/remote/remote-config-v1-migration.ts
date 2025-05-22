@@ -7,6 +7,8 @@ import {Version} from '../../../../../business/utils/version.js';
 import {IllegalArgumentError} from '../../../../../business/errors/illegal-argument-error.js';
 import {InvalidSchemaVersionError} from '../../api/invalid-schema-version-error.js';
 import {getSoloVersion} from '../../../../../../version.js';
+import {Templates} from '../../../../../core/templates.js';
+import {NodeAlias} from '../../../../../types/aliases.js';
 
 export class RemoteConfigV1Migration implements SchemaMigration {
   public get range(): VersionRange<number> {
@@ -32,8 +34,16 @@ export class RemoteConfigV1Migration implements SchemaMigration {
       throw new InvalidSchemaVersionError(clone.schemaVersion, 0);
     }
 
+    // Initialize metadata if it doesn't exist
+    if (!clone.metadata) {
+      clone.metadata = {};
+    }
+
+    // remove old typo property
+    delete clone.metadata.lastUpdateBy; // changed to lastUpdatedBy
+
     // Preserve the original metadata and add lastUpdated information
-    const originalMetadata = clone.metadata || {};
+    const originalMetadata = clone.metadata;
     clone.metadata = {
       ...originalMetadata,
       lastUpdatedAt: new Date(),
@@ -43,19 +53,28 @@ export class RemoteConfigV1Migration implements SchemaMigration {
       },
     };
 
-    // pull the versions from the old config, if it isn't set, then it will be set to 0.0.0 until an upgrade for the component is performed
-    // must use '||" since chart version string cannot be empty string ""
+    console.log(`\n\n clone.metadata = ${JSON.stringify(clone.metadata)}`);
+
+    // pull the versions from the old config, if it isn't set or set as empty,
+    // then it will be set to 0.0.0 until an upgrade for the component is performed
+    // Normalize version strings by removing 'v' prefix if present
+    const normalizeVersion = (version: string | undefined): string => {
+      if (!version) return '0.0.0';
+      return version.startsWith('v') ? version.substring(1) : version;
+    };
+
     clone.versions = {
-      cli: clone.metadata.soloVersion ?? getSoloVersion(),
-      chart: clone.metadata.soloChartVersion || '0.0.0',
-      consensusNode: clone.metadata.hederaPlatformVersion || '0.0.0',
-      mirrorNodeChart: clone.metadata.hederaMirrorNodeChartVersion || '0.0.0',
-      explorerChart: clone.metadata.hederaExplorerChartVersion || '0.0.0',
-      jsonRpcRelayChart: clone.metadata.hederaJsonRpcRelayChartVersion || '0.0.0',
+      cli: clone.metadata.soloVersion || getSoloVersion(),
+      chart: normalizeVersion(clone.metadata.soloChartVersion),
+      consensusNode: normalizeVersion(clone.metadata.hederaPlatformVersion),
+      mirrorNodeChart: normalizeVersion(clone.metadata.hederaMirrorNodeChartVersion),
+      explorerChart: normalizeVersion(clone.metadata.hederaExplorerChartVersion),
+      jsonRpcRelayChart: normalizeVersion(clone.metadata.hederaJsonRpcRelayChartVersion),
       blockNodeChart: '0.0.0',
     };
 
     // delete the old version structure
+    delete clone.metadata.soloVersion;
     delete clone.metadata.soloChartVersion;
     delete clone.metadata.hederaPlatformVersion;
     delete clone.metadata.hederaMirrorNodeChartVersion;
@@ -92,13 +111,13 @@ export class RemoteConfigV1Migration implements SchemaMigration {
     // migrate the components
     clone.state = {
       ledgerPhase: 'initialized',
-      consensusNodes: {},
-      blockNodes: {},
-      mirrorNodes: {},
-      relayNodes: {},
-      haProxies: {},
-      envoyProxies: {},
-      explorers: {},
+      consensusNodes: [],
+      blockNodes: [],
+      mirrorNodes: [],
+      relayNodes: [],
+      haProxies: [],
+      envoyProxies: [],
+      explorers: [],
     };
 
     // Ensure components exists to avoid errors
@@ -123,13 +142,15 @@ export class RemoteConfigV1Migration implements SchemaMigration {
           cluster: string;
         } = clone.components.consensusNodes[consensusNode];
 
-        clone.state.consensusNodes[consensusNode] = {
-          id: component.nodeId,
-          name: component.name,
-          namespace: component.namespace,
-          cluster: component.cluster,
-          phase: 'started',
-        };
+        clone.state.consensusNodes.push({
+          metadata: {
+            id: component.nodeId,
+            // name: component.name,
+            namespace: component.namespace,
+            cluster: component.cluster,
+            phase: 'started',
+          },
+        });
       }
     }
 
@@ -142,12 +163,15 @@ export class RemoteConfigV1Migration implements SchemaMigration {
           cluster: string;
         } = clone.components.haProxies[haproxy];
 
-        clone.state.haProxies[haproxy] = {
-          name: component.name,
-          namespace: component.namespace,
-          cluster: component.cluster,
-          phase: 'started',
-        };
+        clone.state.haProxies.push({
+          metadata: {
+            id: Templates.nodeIdFromNodeAlias(<NodeAlias>component.name),
+            // name: component.name,
+            namespace: component.namespace,
+            cluster: component.cluster,
+            phase: 'started',
+          },
+        });
       }
     }
 
@@ -160,12 +184,15 @@ export class RemoteConfigV1Migration implements SchemaMigration {
           cluster: string;
         } = clone.components.envoyProxies[envoyProxy];
 
-        clone.state.envoyProxies[envoyProxy] = {
-          name: component.name,
-          namespace: component.namespace,
-          cluster: component.cluster,
-          phase: 'started',
-        };
+        clone.state.envoyProxies.push({
+          metadata: {
+            id: Templates.nodeIdFromNodeAlias(<NodeAlias>component.name),
+            // name: component.name,
+            namespace: component.namespace,
+            cluster: component.cluster,
+            phase: 'started',
+          },
+        });
       }
     }
 
@@ -174,16 +201,20 @@ export class RemoteConfigV1Migration implements SchemaMigration {
       for (const explorer in clone.components.explorers) {
         const component: {
           name: string;
+          nodeId: number;
           namespace: string;
           cluster: string;
         } = clone.components.explorers[explorer];
 
-        clone.state.explorers[explorer] = {
-          name: component.name,
-          namespace: component.namespace,
-          cluster: component.cluster,
-          phase: 'started',
-        };
+        clone.state.explorers.push({
+          metadata: {
+            id: Templates.nodeIdFromNodeAlias(<NodeAlias>component.name),
+            // name: component.name,
+            namespace: component.namespace,
+            cluster: component.cluster,
+            phase: 'started',
+          },
+        });
       }
     }
 
@@ -192,16 +223,20 @@ export class RemoteConfigV1Migration implements SchemaMigration {
       for (const mirrorNode in clone.components.mirrorNodes) {
         const component: {
           name: string;
+          nodeId: number;
           namespace: string;
           cluster: string;
         } = clone.components.mirrorNodes[mirrorNode];
 
-        clone.state.mirrorNodes[mirrorNode] = {
-          name: component.name,
-          namespace: component.namespace,
-          cluster: component.cluster,
-          phase: 'started',
-        };
+        clone.state.mirrorNodes.push({
+          metadata: {
+            id: Templates.nodeIdFromNodeAlias(<NodeAlias>component.name),
+            // name: component.name,
+            namespace: component.namespace,
+            cluster: component.cluster,
+            phase: 'started',
+          },
+        });
       }
     }
 
@@ -214,12 +249,36 @@ export class RemoteConfigV1Migration implements SchemaMigration {
           cluster: string;
         } = clone.components.relayNodes[relayNode];
 
-        clone.state.relayNodes[relayNode] = {
-          name: component.name,
-          namespace: component.namespace,
-          cluster: component.cluster,
-          phase: 'started',
-        };
+        clone.state.relayNodes.push({
+          metadata: {
+            id: Templates.nodeIdFromNodeAlias(<NodeAlias>component.name),
+            // name: component.name,
+            namespace: component.namespace,
+            cluster: component.cluster,
+            phase: 'started',
+          },
+        });
+      }
+    }
+
+    // migrate block node
+    if (clone.components.blockNodes) {
+      for (const blockNode in clone.components.blockNodes) {
+        const component: {
+          name: string;
+          namespace: string;
+          cluster: string;
+        } = clone.components.blockNodes[blockNode];
+
+        clone.state.blockNodes.push({
+          metadata: {
+            id: Templates.nodeIdFromNodeAlias(<NodeAlias>component.name),
+            // name: component.name,
+            namespace: component.namespace,
+            cluster: component.cluster,
+            phase: 'started',
+          },
+        });
       }
     }
 
