@@ -93,6 +93,7 @@ tasks:
 
   build:cli:help:
     desc: "Generate the CLI help documentation"
+    silent: true
     dir: ../..
     sources:
       - src/**/*.ts
@@ -111,6 +112,7 @@ tasks:
 
   build:hugo:
     desc: "Build the Hugo site"
+    silent: true
     cmds:
       - echo "origin              $HUGO_ORIGIN"
       - echo "host                $HUGO_HOST"
@@ -135,6 +137,7 @@ tasks:
   build:typedoc:
     desc: "Generate the API documentation using TypeDoc"
     dir: ../..
+    silent: true
     sources:
       - src/**/*.ts
       - version.ts
@@ -163,6 +166,7 @@ tasks:
 
   install:hugo:
     desc: "Install Hugo extended version"
+    silent: true
     status:
       - command -v hugo
       - |
