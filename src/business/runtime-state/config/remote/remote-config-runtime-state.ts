@@ -209,7 +209,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       new RemoteConfigMetadataSchema(new Date(), userIdentity),
       new ApplicationVersionsSchema(cliVersion),
       [cluster],
-      new DeploymentStateSchema(ledgerPhase, new ComponentIdsShema(nodeAliases.length), consensusNodeStates),
+      new DeploymentStateSchema(ledgerPhase, new ComponentIdsShema(nodeAliases.length -1), consensusNodeStates),
       new DeploymentHistorySchema([command], command),
     );
 
@@ -263,7 +263,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       );
     }
 
-    this.configuration.components.componentIds.consensusNodes += nodeAliases.length;
+    this.configuration.components.componentIds.consensusNodes += nodeAliases.length - 1;
 
     await this.persist();
   }
