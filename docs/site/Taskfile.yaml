@@ -305,6 +305,10 @@ tasks:
           sed -e "s|/latest|/${SOLO_VERSION}|g" docs/site/public/index.html > docs/site/public/latest/index.html 
         else
           echo "Building for main, not redirecting to latest version..."
+          echo "TODO: temporary solution until I publish the latest version"
+          rm -Rf docs/site/public/latest 
+          mkdir -p docs/site/public/latest
+          sed -e "s|/latest|/${SOLO_VERSION}|g" docs/site/public/index.html > docs/site/public/latest/index.html 
         fi
 
   npmjs:latest:solo:version:
