@@ -14,22 +14,7 @@ export class Transformations {
   public static readonly SemVer = ({value, type}: TransformFnParams) => {
     switch (type) {
       case TransformationType.PLAIN_TO_CLASS: {
-        // Handle potentially invalid version strings
-        if (!value) {
-          return new SemVer('0.0.0');
-        }
-
-        // Remove 'v' prefix if present
-        const normalizedValue = typeof value === 'string' && value.startsWith('v')
-          ? value.substring(1)
-          : value;
-
-        try {
-          return new SemVer(normalizedValue);
-        } catch (error) {
-          // If parsing fails, use a default version
-          return new SemVer('0.0.0');
-        }
+        return new SemVer(value);
       }
       case TransformationType.CLASS_TO_PLAIN: {
         return value.toString();
