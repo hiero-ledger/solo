@@ -10,25 +10,29 @@ import {SoloError} from '../../../../src/core/errors/solo-error.js';
 describe('PathEx', () => {
   const baseDirectory: string = path.normalize('/base/dir');
   const validPath: string = path.join(baseDirectory, 'file.txt');
+  const validPathNormalized: string = path.normalize(validPath);
   const invalidPath: string = path.normalize('/outside/dir/file.txt');
 
   beforeEach(() => {
     sinon.stub(fs, 'realpathSync').callsFake((inputPath: string) => {
-      // Normalize both paths for proper comparison on all platforms
+      // Always normalize the input path for consistent comparison
       const normalizedInput = path.normalize(inputPath);
       const normalizedBaseDirectory = path.normalize(baseDirectory);
       const normalizedInvalidPath = path.normalize(invalidPath);
 
-      // Check if path is within base directory using proper normalized comparison
+      // For Windows compatibility, also check the result of resolving baseDirectory + file.txt
+      const resolvedPath = path.normalize(path.resolve(normalizedBaseDirectory, 'file.txt'));
+
       if (
         normalizedInput === normalizedBaseDirectory ||
-        normalizedInput.startsWith(normalizedBaseDirectory + path.sep)
+        normalizedInput.startsWith(normalizedBaseDirectory + path.sep) ||
+        normalizedInput === resolvedPath
       ) {
-        return inputPath;
+        return normalizedInput; // Return normalized path instead of original inputPath
       }
 
       if (normalizedInput === normalizedInvalidPath) {
-        return inputPath;
+        return normalizedInput;
       }
 
       throw new Error('Path does not exist');
@@ -42,7 +46,7 @@ describe('PathEx', () => {
   describe('joinWithRealPath', () => {
     it('should join paths and return the real path', () => {
       const result = PathEx.joinWithRealPath(baseDirectory, 'file.txt');
-      expect(path.normalize(result)).to.equal(path.normalize(validPath));
+      expect(path.normalize(result)).to.equal(validPathNormalized);
     });
 
     it('should throw an error if the path does not exist', () => {
@@ -53,7 +57,7 @@ describe('PathEx', () => {
   describe('safeJoinWithBaseDirConfinement', () => {
     it('should securely join paths within the base directory', () => {
       const result = PathEx.safeJoinWithBaseDirConfinement(baseDirectory, 'file.txt');
-      expect(path.normalize(result)).to.equal(path.normalize(validPath));
+      expect(path.normalize(result)).to.equal(validPathNormalized);
     });
 
     it('should throw SoloError for path traversal outside the base directory', () => {
@@ -65,7 +69,7 @@ describe('PathEx', () => {
   describe('realPathSync', () => {
     it('should return the real path for an existing path', () => {
       const result = PathEx.realPathSync(validPath);
-      expect(path.normalize(result)).to.equal(path.normalize(validPath));
+      expect(path.normalize(result)).to.equal(validPathNormalized);
     });
 
     it('should throw an error for a non-existent path', () => {
