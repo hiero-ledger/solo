@@ -316,18 +316,18 @@ tasks:
         echo "Run the following command to build the site with the current version: $SOLO_VERSION"
         echo "HUGO_SOLO_VERSION=$SOLO_VERSION task build" 
         cp docs/site/hugo-template.yaml docs/site/hugo.yaml
-        if [ "$HUGO_SOLO_VERSION" != "main" ]; then
-          echo "    - {version: $SOLO_VERSION, url: /$SOLO_VERSION}">> docs/site/hugo.yaml
-          echo "building latest redirect to this version..."
-          rm -Rf docs/site/public/latest 
-          mkdir -p docs/site/public/latest
-          sed -e "s|/latest|/${SOLO_VERSION}|g" docs/site/public/index.html > docs/site/public/latest/index.html 
-        else
-          echo "Building for main, not redirecting to latest version..."
-          echo "TODO: temporary solution until I publish the latest version"
-          rm -Rf docs/site/public/latest 
-          mkdir -p docs/site/public/latest
-          sed -e "s|/latest|/main|g" docs/site/public/index.html > docs/site/public/latest/index.html 
+        # if [ "$HUGO_SOLO_VERSION" != "main" ]; then
+        #  echo "    - {version: $SOLO_VERSION, url: /$SOLO_VERSION}">> docs/site/hugo.yaml
+        #  echo "building latest redirect to this version..."
+        #  rm -Rf docs/site/public/latest 
+        #  mkdir -p docs/site/public/latest
+        #  sed -e "s|/latest|/${SOLO_VERSION}|g" docs/site/public/index.html > docs/site/public/latest/index.html 
+        #else
+        #  echo "Building for main, not redirecting to latest version..."
+          # echo "TODO: temporary solution until I publish the latest version"
+          # rm -Rf docs/site/public/latest 
+          # mkdir -p docs/site/public/latest
+          # sed -e "s|/latest|/main|g" docs/site/public/index.html > docs/site/public/latest/index.html 
         fi
 
   npmjs:latest:solo:version:
@@ -382,15 +382,17 @@ tasks:
 
   # this will need adjusting once I get an artifact published
   github:list:solo:releases:
-    desc: List GitHub releases for hiero-ledger/solo using gh CLI and output as JSON
+    desc: List GitHub releases for hiero-ledger/solo using gh CLI and output as JSON (excluding empty assets)
+    silent: true
     cmds:
       - |
+        mkdir -p build
         if ! command -v gh &> /dev/null; then
           echo "Error: GitHub CLI (gh) is not installed." >&2
           exit 1
         fi
         echo "Fetching releases from GitHub with gh CLI..."
-        gh api -H "Accept: application/vnd.github+json" \
+        gh api --paginate -H "Accept: application/vnd.github+json" \
           repos/hiero-ledger/solo/releases |
         jq 'map({
           tag: ("v" + (.tag_name | ltrimstr("v"))),
@@ -399,7 +401,90 @@ tasks:
             | map(select(.name != "Source code (zip)" and .name != "Source code (tar.gz)"))
             | map({name: .name, url: .browser_download_url})
           )
-        })'
+        }) | map(select(.assets | length > 0))' | tee build/github-releases.json
+
+  github:download:solo:assets:
+    desc: Download release assets into per-tag folders under build/
+    deps: [github:list:solo:releases]
+    silent: true
+    cmds:
+      - |
+        if [ ! -f build/github-releases.json ]; then
+          echo "Error: build/github-releases.json does not exist. Run github:list:solo:releases first." >&2
+          exit 1
+        fi
+  
+        echo "Creating directories and downloading assets..."
+        jq -c '.[]' build/github-releases.json | while read -r release; do
+          tag=$(echo "$release" | jq -r '.tag' | sed 's#[/:]#_#g')
+          mkdir -p "build/$tag"
+  
+          echo "Processing release: $tag"
+          echo "$release" | jq -c '.assets[]' | while read -r asset; do
+            name=$(echo "$asset" | jq -r '.name')
+            url=$(echo "$asset" | jq -r '.url')
+            dest="build/$tag/$name"
+  
+            if [ -f "$dest" ]; then
+              echo "✔ Skipping $name (already exists)"
+            else
+              echo "⬇ Downloading $name"
+              curl -sSL --retry 3 --fail -o "$dest" "$url" || {
+                echo "❌ Failed to download $url" >&2
+                rm -f "$dest"
+              }
+            fi
+          done
+        done
+
+  github:augment:releases:
+    desc: Add npmjsLatest field to each release in github-releases.json and save to build/releases.json
+    deps: [github:list:solo:releases]
+    silent: true
+    cmds:
+      - |
+        set -e
+  
+        LATEST_FILE="build/npmjs-latest-version.txt"
+        ALL_VERSIONS_FILE="build/npmjs-versions.txt"
+        RELEASES_FILE="build/github-releases.json"
+        OUTPUT_FILE="build/releases.json"
+  
+        if [ ! -f "$RELEASES_FILE" ]; then
+          echo "Error: $RELEASES_FILE not found." >&2
+          exit 1
+        fi
+  
+        if [ ! -f "$LATEST_FILE" ]; then
+          echo "Error: $LATEST_FILE not found." >&2
+          exit 1
+        fi
+  
+        if [ ! -f "$ALL_VERSIONS_FILE" ]; then
+          echo "Error: $ALL_VERSIONS_FILE not found." >&2
+          exit 1
+        fi
+  
+        latest=$(cat "$LATEST_FILE" | tr -d '\r\n')
+  
+        # read versions into array
+        mapfile -t all_versions < "$ALL_VERSIONS_FILE"
+  
+        # convert array to jq-friendly string
+        all_versions_json=$(printf '%s\n' "${all_versions[@]}" | jq -R . | jq -s .)
+  
+        jq --arg latest "$latest" --argjson all_versions "$all_versions_json" '
+          map(. + {
+            npmjsLatest: (
+              if .tag == $latest then true
+              elif (.tag | IN($all_versions[])) then false
+              else null
+              end
+            )
+          })
+        ' "$RELEASES_FILE" > "$OUTPUT_FILE"
+  
+        echo "✅ Output written to $OUTPUT_FILE"
 
   mutate:readme:
     desc: "Mutate the README.md file to add front-matter"
