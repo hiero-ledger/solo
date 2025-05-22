@@ -23,4 +23,8 @@ export class RemoteConfigSource extends MutableModelConfigSource<RemoteConfigSch
   public async refresh(): Promise<void> {
     await this.load();
   }
+
+  public setModelData(remoteConfig: RemoteConfigSchema): void {
+    this.modelData = remoteConfig;
+  }
 }

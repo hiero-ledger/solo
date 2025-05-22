@@ -49,7 +49,7 @@ argvExecute.setArg(flags.inputDir, temporaryDirectory);
 
 endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   const {
-    opts: {k8Factory, commandInvoker, accountManager, remoteConfigManager, logger},
+    opts: {k8Factory, commandInvoker, accountManager, remoteConfig, logger},
     cmd: {nodeCmd, accountCmd, networkCmd},
   } = bootstrapResp;
 
@@ -74,6 +74,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
         argv: argv,
         command: NetworkCommand.COMMAND_NAME,
         subcommand: 'destroy',
+        // @ts-expect-error - to access private method
         callback: async argv => networkCmd.destroy(argv),
       });
 
@@ -83,7 +84,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     it('cache current version of private keys', async () => {
       existingServiceMap = await accountManager.getNodeServiceMap(
         namespace,
-        remoteConfigManager.getClusterRefs(),
+        remoteConfig.getClusterRefs(),
         argv.getArg<DeploymentName>(flags.deployment),
       );
       existingNodeIdsPrivateKeysHash = await getNodeAliasesPrivateKeysHash(
@@ -127,9 +128,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await accountManager.close();
     }).timeout(Duration.ofMinutes(12).toMillis());
 
-    balanceQueryShouldSucceed(accountManager, namespace, remoteConfigManager, logger);
+    balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
 
-    accountCreationShouldSucceed(accountManager, namespace, remoteConfigManager, logger);
+    accountCreationShouldSucceed(accountManager, namespace, remoteConfig, logger);
 
     it('existing nodes private keys should not have changed', async () => {
       const currentNodeIdsPrivateKeysHash = await getNodeAliasesPrivateKeysHash(

@@ -28,7 +28,6 @@ import {type PlatformInstaller} from '../src/core/platform-installer.js';
 import {type ProfileManager} from '../src/core/profile-manager.js';
 import {type LockManager} from '../src/core/lock/lock-manager.js';
 import {type CertificateManager} from '../src/core/certificate-manager.js';
-import {type RemoteConfigManager} from '../src/core/config/remote/remote-config-manager.js';
 import {Templates} from '../src/core/templates.js';
 import {type ConfigManager} from '../src/core/config-manager.js';
 import {type ChartManager} from '../src/core/chart-manager.js';
@@ -55,6 +54,7 @@ import {HEDERA_PLATFORM_VERSION} from '../version.js';
 import {gte as semVersionGte} from 'semver';
 import {type LocalConfigRuntimeState} from '../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type InstanceOverrides} from '../src/core/dependency-injection/container-init.js';
+import {type RemoteConfigRuntimeStateApi} from '../src/business/runtime-state/api/remote-config-runtime-state-api.js';
 
 export const BASE_TEST_DIR = PathEx.join('test', 'data', 'tmp');
 
@@ -84,6 +84,53 @@ export function getTemporaryDirectory() {
   return fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-'));
 }
 
+export function deployNetworkTest(argv: Argv, commandInvoker: CommandInvoker, networkCmd: NetworkCommand): void {
+  it('should succeed with network deploy', async () => {
+    await commandInvoker.invoke({
+      argv: argv,
+      command: NetworkCommand.COMMAND_NAME,
+      subcommand: 'deploy',
+      // @ts-expect-error - to access private property
+      callback: async argv => networkCmd.deploy(argv),
+    });
+  }).timeout(Duration.ofMinutes(5).toMillis());
+}
+
+export function startNodesTest(argv: Argv, commandInvoker: CommandInvoker, nodeCmd: NodeCommand): void {
+  it('should succeed with node setup command', async () => {
+    // cache this, because `solo node setup.finalize()` will reset it to false
+    await commandInvoker.invoke({
+      argv: argv,
+      command: NodeCommand.COMMAND_NAME,
+      subcommand: 'setup',
+      callback: async argv => nodeCmd.handlers.setup(argv),
+    });
+  }).timeout(Duration.ofMinutes(4).toMillis());
+
+  it('should succeed with node start command', async () => {
+    await commandInvoker.invoke({
+      argv: argv,
+      command: NodeCommand.COMMAND_NAME,
+      subcommand: 'start',
+      callback: async argv => nodeCmd.handlers.start(argv),
+    });
+  }).timeout(Duration.ofMinutes(30).toMillis());
+
+  it('node log command should work', async () => {
+    await commandInvoker.invoke({
+      argv: argv,
+      command: NodeCommand.COMMAND_NAME,
+      subcommand: 'logs',
+      callback: async argv => nodeCmd.handlers.logs(argv),
+    });
+
+    const soloLogPath: string = PathEx.joinWithRealPath(SOLO_LOGS_DIR, 'solo.log');
+    const soloLog: string = fs.readFileSync(soloLogPath, 'utf8');
+
+    expect(soloLog, 'Check solo.log for stale errors from previous runs').to.not.have.string(NODE_LOG_FAILURE_MSG);
+  }).timeout(Duration.ofMinutes(5).toMillis());
+}
+
 interface TestOptions {
   logger: SoloLogger;
   helm: HelmClient;
@@ -99,7 +146,7 @@ interface TestOptions {
   profileManager: ProfileManager;
   leaseManager: LockManager;
   certificateManager: CertificateManager;
-  remoteConfigManager: RemoteConfigManager;
+  remoteConfig: RemoteConfigRuntimeStateApi;
   localConfig: LocalConfigRuntimeState;
   commandInvoker: CommandInvoker;
 }
@@ -172,7 +219,7 @@ export function bootstrapTestVariables(
   const leaseManager: LockManager = container.resolve(InjectTokens.LockManager);
   const certificateManager: CertificateManager = container.resolve(InjectTokens.CertificateManager);
   const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
-  const remoteConfigManager: RemoteConfigManager = container.resolve(InjectTokens.RemoteConfigManager);
+  const remoteConfig: RemoteConfigRuntimeStateApi = container.resolve(InjectTokens.RemoteConfigRuntimeState);
   const testLogger: SoloLogger = getTestLogger();
   const commandInvoker = container.resolve(InjectTokens.CommandInvoker) as CommandInvoker;
 
@@ -192,7 +239,7 @@ export function bootstrapTestVariables(
     leaseManager,
     certificateManager,
     localConfig,
-    remoteConfigManager,
+    remoteConfig,
     commandInvoker,
   };
 
@@ -227,7 +274,8 @@ export function endToEndTestSuite(
     accountCmdArg,
     startNodes,
     containerOverrides,
-  }: Cmd & {startNodes?: boolean},
+    deployNetwork,
+  }: Cmd & {startNodes?: boolean; deployNetwork?: boolean},
   testsCallBack: (bootstrapResp: BootstrapResponse) => void = () => {},
 ): void {
   const testLogger: SoloLogger = getTestLogger();
@@ -235,6 +283,9 @@ export function endToEndTestSuite(
   resetForTest(testNamespace.name, undefined, false, containerOverrides);
   if (typeof startNodes !== 'boolean') {
     startNodes = true;
+  }
+  if (typeof deployNetwork !== 'boolean') {
+    deployNetwork = true;
   }
 
   const bootstrapResp = bootstrapTestVariables(testName, argv, {
@@ -340,48 +391,12 @@ export function endToEndTestSuite(
         });
       }).timeout(Duration.ofMinutes(2).toMillis());
 
-      it('should succeed with network deploy', async () => {
-        await commandInvoker.invoke({
-          argv: argv,
-          command: NetworkCommand.COMMAND_NAME,
-          subcommand: 'deploy',
-          callback: async argv => networkCmd.deploy(argv),
-        });
-      }).timeout(Duration.ofMinutes(5).toMillis());
+      if (deployNetwork) {
+        deployNetworkTest(argv, commandInvoker, networkCmd);
+      }
 
       if (startNodes) {
-        it('should succeed with node setup command', async () => {
-          // cache this, because `solo node setup.finalize()` will reset it to false
-          await commandInvoker.invoke({
-            argv: argv,
-            command: NodeCommand.COMMAND_NAME,
-            subcommand: 'setup',
-            callback: async argv => nodeCmd.handlers.setup(argv),
-          });
-        }).timeout(Duration.ofMinutes(4).toMillis());
-
-        it('should succeed with node start command', async () => {
-          await commandInvoker.invoke({
-            argv: argv,
-            command: NodeCommand.COMMAND_NAME,
-            subcommand: 'start',
-            callback: async argv => nodeCmd.handlers.start(argv),
-          });
-        }).timeout(Duration.ofMinutes(30).toMillis());
-
-        it('node log command should work', async () => {
-          await commandInvoker.invoke({
-            argv: argv,
-            command: NodeCommand.COMMAND_NAME,
-            subcommand: 'logs',
-            callback: async argv => nodeCmd.handlers.logs(argv),
-          });
-
-          const soloLogPath = PathEx.joinWithRealPath(SOLO_LOGS_DIR, 'solo.log');
-          const soloLog = fs.readFileSync(soloLogPath, 'utf8');
-
-          expect(soloLog).to.not.have.string(NODE_LOG_FAILURE_MSG);
-        }).timeout(Duration.ofMinutes(5).toMillis());
+        startNodesTest(argv, commandInvoker, nodeCmd);
       }
     });
 
@@ -394,7 +409,7 @@ export function endToEndTestSuite(
 export function balanceQueryShouldSucceed(
   accountManager: AccountManager,
   namespace: NamespaceName,
-  remoteConfigManager: RemoteConfigManager,
+  remoteConfig: RemoteConfigRuntimeStateApi,
   logger: SoloLogger,
   skipNodeAlias?: NodeAlias,
 ): void {
@@ -405,7 +420,7 @@ export function balanceQueryShouldSucceed(
 
       await accountManager.refreshNodeClient(
         namespace,
-        remoteConfigManager.getClusterRefs(),
+        remoteConfig.getClusterRefs(),
         skipNodeAlias,
         argv.getArg<DeploymentName>(flags.deployment),
       );
@@ -427,7 +442,7 @@ export function balanceQueryShouldSucceed(
 export function accountCreationShouldSucceed(
   accountManager: AccountManager,
   namespace: NamespaceName,
-  remoteConfigManager: RemoteConfigManager,
+  remoteConfig: RemoteConfigRuntimeStateApi,
   logger: SoloLogger,
   skipNodeAlias?: NodeAlias,
 ): void {
@@ -436,7 +451,7 @@ export function accountCreationShouldSucceed(
       const argv = Argv.getDefaultArgv(namespace);
       await accountManager.refreshNodeClient(
         namespace,
-        remoteConfigManager.getClusterRefs(),
+        remoteConfig.getClusterRefs(),
         skipNodeAlias,
         argv.getArg<DeploymentName>(flags.deployment),
       );

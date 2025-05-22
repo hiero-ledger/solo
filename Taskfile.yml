@@ -29,7 +29,7 @@ env:
   ENABLE_EXPLORER_INGRESS: "--enable-ingress"
   ENABLE_MIRROR_INGRESS: "--enable-ingress"
   EXPLORER_NAME_SPACE: "explorer-name-space"
-  EXPLORER_DEPLOYMENT: "explorer-deployment"
+  EXPLORER_DEPLOYMENT: ""
   EXPLORER_CLUSTER_CONTEXT: "kind-solo-cluster"
 
 tasks:

@@ -46,7 +46,7 @@ argv.setArg(flags.persistentVolumeClaims, true);
 
 endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   const {
-    opts: {k8Factory, logger, remoteConfigManager, commandInvoker, accountManager, keyManager},
+    opts: {k8Factory, logger, remoteConfig, commandInvoker, accountManager, keyManager},
     cmd: {nodeCmd, accountCmd},
   } = bootstrapResp;
 
@@ -72,7 +72,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     it('cache current version of private keys', async () => {
       existingServiceMap = await accountManager.getNodeServiceMap(
         namespace,
-        remoteConfigManager.getClusterRefs(),
+        remoteConfig.getClusterRefs(),
         argv.getArg<DeploymentName>(flags.deployment),
       );
       existingNodeIdsPrivateKeysHash = await getNodeAliasesPrivateKeysHash(
@@ -138,9 +138,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await accountManager.close();
     }).timeout(Duration.ofMinutes(30).toMillis());
 
-    balanceQueryShouldSucceed(accountManager, namespace, remoteConfigManager, logger, updateNodeId);
+    balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger, updateNodeId);
 
-    accountCreationShouldSucceed(accountManager, namespace, remoteConfigManager, logger, updateNodeId);
+    accountCreationShouldSucceed(accountManager, namespace, remoteConfig, logger, updateNodeId);
 
     it('signing key and tls key should not match previous one', async () => {
       const currentNodeIdsPrivateKeysHash = await getNodeAliasesPrivateKeysHash(

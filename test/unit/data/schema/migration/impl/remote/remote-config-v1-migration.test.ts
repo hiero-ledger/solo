@@ -48,7 +48,7 @@ describe('RemoteConfigV1Migration', () => {
   describe('migrate', (): void => {
     it('should migrate real config from v0-35-1-remote-config.yaml file', async (): Promise<void> => {
       const yamlContent: string = fs.readFileSync('test/data/v0-35-1-remote-config.yaml', 'utf8');
-      const config: Record<string, any> = yaml.parse(yamlContent) as Record<string, any>;
+      const config: TestObject = yaml.parse(yamlContent) as TestObject;
 
       // Set schemaVersion to 0 for migration test
       config.schemaVersion = 0;
@@ -72,7 +72,7 @@ describe('RemoteConfigV1Migration', () => {
       }
 
       // Perform migration
-      const result: Record<string, any> = (await migration.migrate(config)) as Record<string, any>;
+      const result: TestObject = (await migration.migrate(config)) as TestObject;
 
       // Verify migration was successful
       expect(result).to.have.property('schemaVersion', 1);
@@ -144,7 +144,7 @@ describe('RemoteConfigV1Migration', () => {
 
     it('should set metadata with lastUpdated information', async (): Promise<void> => {
       const source: object = {};
-      const result = (await migration.migrate(source)) as Record<string, any>;
+      const result = (await migration.migrate(source)) as TestObject;
 
       expect(result).to.have.property('metadata');
       expect(result.metadata).to.have.property('lastUpdatedAt').that.deep.equals(fixedDate);
@@ -165,14 +165,14 @@ describe('RemoteConfigV1Migration', () => {
         hederaJsonRpcRelayChartVersion: '6.0.0',
       };
 
-      const source: Record<string, any> = {
+      const source: TestObject = {
         metadata: sourceVersions,
       };
 
       // Create a direct clone of the source to keep the original values for comparison
-      const sourceClone = structuredClone(source);
+      const sourceClone: TestObject = structuredClone(source);
 
-      const result = (await migration.migrate(source)) as Record<string, any>;
+      const result = (await migration.migrate(source)) as TestObject;
 
       expect(result).to.have.property('versions');
 
@@ -184,7 +184,7 @@ describe('RemoteConfigV1Migration', () => {
       expect(result.versions.mirrorNodeChart).to.equal(sourceClone.metadata.hederaMirrorNodeChartVersion);
       expect(result.versions.explorerChart).to.equal(sourceClone.metadata.hederaExplorerChartVersion);
       expect(result.versions.jsonRpcRelayChart).to.equal(sourceClone.metadata.hederaJsonRpcRelayChartVersion);
-      expect(result.versions).to.have.property('blockNodeChart', '');
+      expect(result.versions).to.have.property('blockNodeChart', '0.0.0');
 
       // Verify old version properties are deleted
       expect(result.metadata).to.not.have.property('soloVersion');
@@ -196,11 +196,11 @@ describe('RemoteConfigV1Migration', () => {
     });
 
     it('should use default version values when metadata versions are not present', async (): Promise<void> => {
-      const source: Record<string, any> = {
+      const source: TestObject = {
         metadata: {},
       };
 
-      const result = (await migration.migrate(source)) as Record<string, any>;
+      const result = (await migration.migrate(source)) as TestObject;
 
       expect(result).to.have.property('versions');
 
@@ -211,11 +211,11 @@ describe('RemoteConfigV1Migration', () => {
       expect(result.versions).to.have.property('mirrorNodeChart', '0.0.0');
       expect(result.versions).to.have.property('explorerChart', '0.0.0');
       expect(result.versions).to.have.property('jsonRpcRelayChart', '0.0.0');
-      expect(result.versions).to.have.property('blockNodeChart', '');
+      expect(result.versions).to.have.property('blockNodeChart', '0.0.0');
     });
 
     it('should migrate clusters correctly', async (): Promise<void> => {
-      const source: Record<string, any> = {
+      const source: TestObject = {
         clusters: {
           cluster1: {
             name: 'cluster1',
@@ -234,7 +234,7 @@ describe('RemoteConfigV1Migration', () => {
         },
       };
 
-      const result = (await migration.migrate(source)) as Record<string, any>;
+      const result = (await migration.migrate(source)) as TestObject;
 
       expect(result).to.have.property('clusters');
       expect(Array.isArray(result.clusters)).to.be.true;
@@ -264,21 +264,21 @@ describe('RemoteConfigV1Migration', () => {
     });
 
     it('should delete namespace and deploymentName from metadata', async (): Promise<void> => {
-      const source: Record<string, any> = {
+      const source: TestObject = {
         metadata: {
           namespace: 'oldNamespace',
           deploymentName: 'oldDeployment',
         },
       };
 
-      const result = (await migration.migrate(source)) as Record<string, any>;
+      const result = (await migration.migrate(source)) as TestObject;
 
       expect(result.metadata).to.not.have.property('namespace');
       expect(result.metadata).to.not.have.property('deploymentName');
     });
 
     it('should migrate component state correctly', async (): Promise<void> => {
-      const source: Record<string, any> = {
+      const source: TestObject = {
         components: {
           consensusNodes: {
             node1: {
@@ -327,7 +327,7 @@ describe('RemoteConfigV1Migration', () => {
         },
       };
 
-      const result = (await migration.migrate(source)) as Record<string, any>;
+      const result = (await migration.migrate(source)) as TestObject;
 
       expect(result).to.have.property('state');
       expect(result.state).to.have.property('ledgerPhase', 'initialized');
@@ -392,7 +392,7 @@ describe('RemoteConfigV1Migration', () => {
     });
 
     it('should migrate command history correctly', async (): Promise<void> => {
-      const source: Record<string, any> = {
+      const source: TestObject = {
         commandHistory: {
           command1: 'details1',
           command2: 'details2',
@@ -400,7 +400,7 @@ describe('RemoteConfigV1Migration', () => {
         lastExecutedCommand: 'lastCommand',
       };
 
-      const result = (await migration.migrate(source)) as Record<string, any>;
+      const result = (await migration.migrate(source)) as TestObject;
 
       expect(result).to.have.property('history');
       expect(result.history).to.have.property('commands');
@@ -414,14 +414,14 @@ describe('RemoteConfigV1Migration', () => {
     });
 
     it('should set the schema version to 1', async (): Promise<void> => {
-      const source: Record<string, any> = {};
-      const result = (await migration.migrate(source)) as Record<string, any>;
+      const source: TestObject = {};
+      const result = (await migration.migrate(source)) as TestObject;
 
       expect(result).to.have.property('schemaVersion', 1);
     });
 
     it('should perform a complete migration with all properties', async (): Promise<void> => {
-      const source: Record<string, any> = {
+      const source: TestObject = {
         metadata: {
           soloVersion: '1.0.0',
           soloChartVersion: '2.0.0',
