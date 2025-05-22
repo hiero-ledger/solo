@@ -121,8 +121,8 @@ tasks:
       - echo "hugo_base_url       {{.hugo_base_url}}"
       - echo "hugo_local_base_url {{.hugo_local_base_url}}"
       - hugo version
-      - hugo config
       - printf "\r::group::Building the Hugo site"
+      - hugo config
       - hugo --cleanDestinationDir -e prod --gc --minify --baseURL "{{.hugo_base_url}}" -d public/${HUGO_SOLO_VERSION}
       - printf "\r::endgroup::"
 
@@ -159,10 +159,12 @@ tasks:
 
   install:docsy:
     cmds:
+      - printf "\r::group::Installing Docsy theme"
       - npm install -g postcss-cli # Install postcss-cli globally to get around bug: https://github.com/google/docsy/issues/235
       - npm install
       - npm install postcss # must install separately after prior items have been installed: https://www.docsy.dev/docs/get-started/docsy-as-module/installation-prerequisites/#install-postcss
       - hugo mod get github.com/google/docsy@v0.11.1-0.20250424121410-343cdec14c0a
+      - printf "\r::endgroup::"
 
   install:hugo:
     desc: "Install Hugo extended version"
@@ -219,7 +221,9 @@ tasks:
       - package.json
       - package-lock.json
     cmds:
+      - printf "\r::group::Installing Solo"
       - npm install
+      - printf "\r::endgroup::"
 
   deploy:nginx:
     desc: "Build the Hugo site, configure Nginx, then deploy Nginx to serve the Hugo site for testing multiple versions"
