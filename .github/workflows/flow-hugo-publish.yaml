@@ -102,14 +102,14 @@ jobs:
       # Upload the built site to GitHub Pages
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
-        if: ${{ endsWith(github.ref, 'release/0.35') || endsWith(github.ref, 'hugo-for-v0.35.2') }} # TODO revert before merging
+        if: ${{ endsWith(github.ref, 'release/0.35') || contains(github.ref, 'hugo-for-v0.35.2') }} # TODO revert before merging
         with:
           path: ./docs/public
 
       # Upload the built site to artifacts for troubleshooting or verification
       - name: Upload Artifact
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
-        if: ${{ !endsWith(github.ref, 'release/0.35') || endsWith(github.ref, 'hugo-for-v0.35.2') }} # TODO revert before merging
+        if: ${{ !endsWith(github.ref, 'release/0.35') || contains(github.ref, 'hugo-for-v0.35.2') }} # TODO revert before merging
         with:
           path: ./docs/public
 
@@ -122,7 +122,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     needs:
       - build
-    if: ${{ endsWith(github.ref, 'release/0.35') || endsWith(github.ref, 'hugo-for-v0.35.2') }} # TODO revert before merging
+    if: ${{ endsWith(github.ref, 'release/0.35') || contains(github.ref, 'hugo-for-v0.35.2') }} # TODO revert before merging
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
