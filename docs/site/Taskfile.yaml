@@ -67,6 +67,7 @@ tasks:
     desc: "Remove artifacts that are automatically generated"
     silent: true
     cmds:
+      - rm -Rf build
       - rm -Rf static/classes
       - rm -Rf public/${HUGO_SOLO_VERSION}
       - rm -Rf resources
@@ -79,6 +80,10 @@ tasks:
       - task: "build:cli:help"
       - task: "solo:version"
       - task: "npmjs:latest:solo:version"
+      - task: "npmjs:list:solo:versions"
+      - task: "github:list:solo:releases"
+      - task: "github:augment:releases"
+      - task: "github:prepare:site"
       - task: "build:hugo"
       - task: "build:doc:artifacts"
 
@@ -166,6 +171,12 @@ tasks:
 
   install:docsy:
     silent: true
+    deps: [solo:version]
+    sources:
+      - package.json
+      - package-lock.json
+    generates:
+      - node_modules/**/*.*
     cmds:
       - printf "\r::group::Installing Docsy theme"
       - npm install -g postcss-cli # Install postcss-cli globally to get around bug: https://github.com/google/docsy/issues/235
@@ -324,19 +335,9 @@ tasks:
         echo "Run the following command to build the site with the current version: $SOLO_VERSION"
         echo "HUGO_SOLO_VERSION=$SOLO_VERSION task build" 
         cp docs/site/hugo-template.yaml docs/site/hugo.yaml
-        # if [ "$HUGO_SOLO_VERSION" != "main" ]; then
-        #  echo "    - {version: $SOLO_VERSION, url: /$SOLO_VERSION}">> docs/site/hugo.yaml
-        #  echo "building latest redirect to this version..."
-        #  rm -Rf docs/site/public/latest 
-        #  mkdir -p docs/site/public/latest
-        #  sed -e "s|/latest|/${SOLO_VERSION}|g" docs/site/public/index.html > docs/site/public/latest/index.html 
-        #else
-        #  echo "Building for main, not redirecting to latest version..."
-          # echo "TODO: temporary solution until I publish the latest version"
-          # rm -Rf docs/site/public/latest 
-          # mkdir -p docs/site/public/latest
-          # sed -e "s|/latest|/main|g" docs/site/public/index.html > docs/site/public/latest/index.html 
-        #fi
+        if [ "$HUGO_SOLO_VERSION" != "main" ]; then
+         echo "    - {version: $SOLO_VERSION, url: /$SOLO_VERSION}">> docs/site/hugo.yaml
+        fi
 
   npmjs:latest:solo:version:
     desc: "Display the latest version of the Solo CLI from https://www.npmjs.com/package/@hashgraph/solo"
@@ -355,9 +356,9 @@ tasks:
       - |
         mkdir -p build/${HUGO_SOLO_VERSION}/latest
         sed -e "s|/latest|/${HUGO_SOLO_VERSION}|g" public/index.html > build/${HUGO_SOLO_VERSION}/latest/index.html
-        cd build
-        tar -czf ../build/${HUGO_SOLO_VERSION}/latest.tar.gz latest
-        cd ../public
+        cd build/${HUGO_SOLO_VERSION}
+        tar -czf latest.tar.gz latest
+        cd ../../public
         tar -czf ../build/${HUGO_SOLO_VERSION}/${HUGO_SOLO_VERSION}.tar.gz ${HUGO_SOLO_VERSION}
         cd ..
 
@@ -374,13 +375,18 @@ tasks:
           echo "Error: jq is not installed." >&2
           exit 1
         fi
+        if ! sort -V < /dev/null &> /dev/null; then
+          echo "Error: sort -V is not supported on this system." >&2
+          echo "Tip: On macOS, run 'brew install coreutils' and replace 'sort' with 'gsort' in this task." >&2
+          exit 1
+        fi
         echo "Fetching versions of @hashgraph/solo from NPM..."
         response=$(curl -s https://registry.npmjs.org/@hashgraph/solo)
         if [ $? -ne 0 ]; then
           echo "Error: Failed to fetch data from NPM registry." >&2
           exit 1
         fi
-        versions=$(echo "$response" | jq -r '.versions | keys[] | "v\(. )"' 2> /dev/null)
+        versions=$(echo "$response" | jq -r '.versions | keys[] | "v\(.)"' 2> /dev/null)
         if [ $? -ne 0 ]; then
           echo "Error: Failed to parse JSON response." >&2
           exit 1
@@ -390,7 +396,7 @@ tasks:
           exit 1
         fi
         echo "Available versions of @hashgraph/solo:"
-        echo "$versions" | tee build/npmjs-versions.txt 
+        echo "$versions" | sort -Vr | tee build/npmjs-versions.txt
 
   # this will need adjusting once I get an artifact published
   github:list:solo:releases:
@@ -417,7 +423,7 @@ tasks:
 
   github:download:solo:assets:
     desc: Download release assets into per-tag folders under build/
-    deps: [github:list:solo:releases]
+    deps: [github:augment:releases]
     silent: true
     cmds:
       - |
@@ -448,6 +454,76 @@ tasks:
             fi
           done
         done
+
+  github:extract:latest:
+    desc: Extract latest.tar.gz from latest version to public/latest
+    deps: [github:download:solo:assets]
+    silent: true
+    cmds:
+      - |
+        LATEST_TAG=$(jq -r '.[] | select(.npmjsLatest == true) | .tag' build/releases.json)
+        if [ -z "$LATEST_TAG" ]; then
+          echo "No latest version found in releases.json"
+          exit 0
+        fi
+  
+        SAFE_TAG=$(echo "$LATEST_TAG" | sed 's#[/:]#_#g')
+        ARCHIVE="build/$SAFE_TAG/latest.tar.gz"
+  
+        if [ ! -f "$ARCHIVE" ]; then
+          echo "Error: $ARCHIVE does not exist." >&2
+          exit 1
+        fi
+  
+        echo "Extracting $ARCHIVE to public/latest..."
+        rm -rf public/latest
+        mkdir -p public/latest
+        tar -xzf "$ARCHIVE" -C public/
+
+  github:extract:versioned:
+    desc: Extract ${tag}.tar.gz into public/${tag}
+    deps: [github:download:solo:assets]
+    silent: true
+    cmds:
+      - |
+        jq -c '.[] | select(.npmjsLatest == true or .npmjsLatest == false)' build/releases.json | while read -r release; do
+          TAG=$(echo "$release" | jq -r '.tag')
+          SAFE_TAG=$(echo "$TAG" | sed 's#[/:]#_#g')
+          ARCHIVE="build/$SAFE_TAG/$TAG.tar.gz"
+          DEST="public/$TAG"
+  
+          if [ ! -f "$ARCHIVE" ]; then
+            echo "⚠️ Missing: $ARCHIVE"
+            continue
+          fi
+  
+          echo "📦 Extracting $ARCHIVE to $DEST..."
+          mkdir -p "$DEST"
+          tar -xzf "$ARCHIVE" -C "$DEST"
+        done
+
+  github:update:hugo:config:
+    desc: Append versions from releases.json to hugo.yaml
+    silent: true
+    cmds:
+      - |
+        RELEASES="build/releases.json"
+        CONFIG="hugo.yaml"
+  
+        if [ ! -f "$RELEASES" ]; then
+          echo "❌ Error: $RELEASES not found" >&2
+          exit 1
+        fi
+  
+        jq -r '.[] | select(.npmjsLatest == true or .npmjsLatest == false) | "    - {version: \(.tag), url: /\(.tag)}"' "$RELEASES" >> "$CONFIG"
+
+  github:prepare:site:
+    desc: Run all extraction and update tasks
+    deps:
+      - github:extract:latest
+      - github:extract:versioned
+      - github:update:hugo:config
+
 
   github:augment:releases:
     desc: Add npmjsLatest field to each release in github-releases.json and save to build/releases.json
