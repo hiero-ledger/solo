@@ -328,7 +328,7 @@ tasks:
           # rm -Rf docs/site/public/latest 
           # mkdir -p docs/site/public/latest
           # sed -e "s|/latest|/main|g" docs/site/public/index.html > docs/site/public/latest/index.html 
-        fi
+        #fi
 
   npmjs:latest:solo:version:
     desc: "Display the latest version of the Solo CLI from https://www.npmjs.com/package/@hashgraph/solo"
