@@ -17,9 +17,10 @@ export class LayeredConfigProvider implements ConfigProvider {
 
   public constructor(
     @inject(InjectTokens.ObjectMapper) private readonly mapper: ObjectMapper,
-    private readonly prefix: string = 'SOLO',
+    @inject(InjectTokens.SoloConfigPrefix) private readonly prefix: string,
   ) {
     this.mapper = patchInject(mapper, InjectTokens.ObjectMapper, LayeredConfigProvider.name);
+    this.prefix = patchInject(prefix, InjectTokens.SoloConfigPrefix, LayeredConfigProvider.name);
   }
 
   public builder(): ConfigBuilder {

@@ -117,7 +117,7 @@ export class ClusterCommandTasks {
    * @param [minioEnabled] - a bool to denote whether to install minio
    */
   private prepareValuesArg(
-    chartDirectory = flags.chartDirectory.definition.defaultValue as string,
+    chartDirectory: string = '',
     prometheusStackEnabled = flags.deployPrometheusStack.definition.defaultValue as boolean,
     minioEnabled = flags.deployMinio.definition.defaultValue as boolean,
   ): string {

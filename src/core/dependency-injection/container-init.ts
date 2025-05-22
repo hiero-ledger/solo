@@ -52,6 +52,7 @@ import {BlockNodeCommand} from '../../commands/block-node.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {LocalConfigSource} from '../../data/configuration/impl/local-config-source.js';
 import {ClassToObjectMapper} from '../../data/mapper/impl/class-to-object-mapper.js';
+import {SoloConfigRuntimeState} from '../../business/runtime-state/config/solo/solo-config-runtime-state.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -139,6 +140,7 @@ export class Container {
       new SingletonContainer(InjectTokens.NodeCommandConfigs, NodeCommandConfigs),
       new SingletonContainer(InjectTokens.ErrorHandler, ErrorHandler),
       new SingletonContainer(InjectTokens.ObjectMapper, ClassToObjectMapper),
+      new SingletonContainer(InjectTokens.SoloConfigRuntimeState, SoloConfigRuntimeState),
     ];
 
     const valueContainers: ValueContainer[] = [
@@ -153,6 +155,7 @@ export class Container {
       new ValueContainer(InjectTokens.CacheDir, cacheDirectory),
       new ValueContainer(InjectTokens.LocalConfigFileName, constants.DEFAULT_LOCAL_CONFIG_FILE),
       new ValueContainer(InjectTokens.KeyFormatter, ConfigKeyFormatter.instance()),
+      new ValueContainer(InjectTokens.SoloConfigPrefix, 'SOLO'),
     ];
 
     for (const [token, override] of overrides) {

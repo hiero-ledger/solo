@@ -15,7 +15,6 @@ export const DEFAULT_FLAGS = {
 export const SETUP_FLAGS = {
   required: [],
   optional: [
-    flags.chartDirectory,
     flags.clusterRef,
     flags.clusterSetupNamespace,
     flags.deployMinio,
