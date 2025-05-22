@@ -16,6 +16,7 @@ import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
+import {SoloConfigRuntimeState} from '../business/runtime-state/config/solo/solo-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 @injectable()
@@ -27,6 +28,7 @@ export class Middlewares {
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.HelpRenderer) private readonly helpRenderer: HelpRenderer,
+    @inject(InjectTokens.SoloConfigRuntimeState) private readonly soloConfig: SoloConfigRuntimeState,
   ) {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
@@ -34,6 +36,7 @@ export class Middlewares {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.helpRenderer = patchInject(helpRenderer, InjectTokens.HelpRenderer, this.constructor.name);
+    this.soloConfig = patchInject(soloConfig, InjectTokens.SoloConfigRuntimeState, this.constructor.name);
   }
 
   public printCustomHelp(rootCmd: any) {
@@ -191,6 +194,15 @@ export class Middlewares {
         this.logger.debug('Loading local config');
         await this.localConfig.load();
       }
+      return argv;
+    };
+  }
+
+  public loadSoloConfig() {
+    return async (argv: any): Promise<AnyObject> => {
+      this.logger.debug('Loading SoloConfigRuntimeState');
+      await this.soloConfig.load();
+
       return argv;
     };
   }
