@@ -40,7 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        release-tag: ["0.35.0", "0.35.1", "0.35.2"]
+        storageType: ["gcs_only", "minio_only", "aws_only"]
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -50,11 +50,45 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
+      - name: Authenticate to Google Cloud
+        id: google-auth
+        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        with:
+          workload_identity_provider: "projects/652966097426/locations/global/workloadIdentityPools/solo-bucket-dev-pool/providers/gh-provider"
+          service_account: "solo-bucket-reader-writer@solo-bucket-dev.iam.gserviceaccount.com"
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
+
+      - name: Get Current Job Log URL
+        uses: Tiryoh/gha-jobid-action@be260d8673c9211a84cdcf37794ebd654ba81eef # v1.4.0
+        id: jobs
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          job_name: "gcs-storage-test (${{ matrix.storageType }})"
+
+      - name: Create Bucket Name and Prefix
+        run: |
+          export BUCKET_NAME="solo-ci-test-streams"
+          export PREFIX=${{ steps.jobs.outputs.job_id }}
+
+          echo "BUCKET_NAME=${BUCKET_NAME}" >> $GITHUB_ENV
+          echo "PREFIX=${PREFIX}" >> $GITHUB_ENV          
+          
+          export BACKUP_BUCKET_NAME="solo-ci-backups"
+          echo "BACKUP_BUCKET_NAME=${BACKUP_BUCKET_NAME}" >> $GITHUB_ENV
+
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: npm
+
+      - name: Install Task
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        with:
+          version: 3.39.2
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Helm
         uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
@@ -71,10 +105,31 @@ jobs:
           verbosity: 3
           wait: 120s
 
-      - name: Launch Network with Release version ${{ matrix.release-tag }}
+      - name: Install Dependencies
+        id: npm-deps
         run: |
-          npm install
-          task build
-          npm install -g @hashgraph/solo@${{ matrix.release-tag }} --force
-          solo --version
-          .github/workflows/script/launch_network.sh ${{ matrix.release-tag }}
+          npm ci
+          npm install -g @hashgraph/solo
+
+      - name: Compile Project
+        run: task build
+
+      - name: Run GCS Test Script for type ${{ matrix.storageType }}
+        env:
+          GCS_ACCESS_KEY: ${{ secrets.GCP_S3_ACCESS_KEY }}
+          GCS_SECRET_KEY: ${{ secrets.GCP_S3_SECRET_KEY }}
+          BUCKET_NAME: ${{ env.BUCKET_NAME }}
+          PREFIX: ${{ env.PREFIX }}
+          BACKUP_BUCKET_NAME: ${{ env.BACKUP_BUCKET_NAME }}/${{ steps.jobs.outputs.job_id }}
+          STORAGE_TYPE: ${{ matrix.storageType }}
+          GCP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GCP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          .github/workflows/script/gcs_test.sh
+
+      - name: Delete Test Directory after Test
+        # add always() to make sure bucket is deleted even if the test failed
+        if: always() && (matrix.storageType == 'gcs_only' || matrix.storageType == 'aws_only')
+        run: |
+          gcloud storage rm --recursive gs://${BUCKET_NAME}/${{ steps.jobs.outputs.job_id }} --project=${{ vars.GCP_S3_PROJECT_ID }}
+          gcloud storage rm --recursive gs://${BACKUP_BUCKET_NAME}/${{ steps.jobs.outputs.job_id }} --project=${{ vars.GCP_S3_PROJECT_ID }}
+
