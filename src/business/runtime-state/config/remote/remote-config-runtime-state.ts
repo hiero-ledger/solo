@@ -59,6 +59,8 @@ enum RuntimeStatePhase {
 
 @injectable()
 export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
+  private static readonly SOLO_REMOTE_CONFIGMAP_DATA_KEY: string = 'remote-config-data';
+
   private phase: RuntimeStatePhase = RuntimeStatePhase.NotLoaded;
 
   public clusterReferences: Map<Context, ClusterReference> = new Map();
@@ -66,7 +68,6 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
   private source?: RemoteConfigSource;
   private backend?: YamlConfigMapStorageBackend;
-  private objectMapper?: ObjectMapper;
 
   private _remoteConfig?: RemoteConfig;
 
@@ -76,6 +77,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
     @inject(InjectTokens.ConfigManager) private readonly configManager?: ConfigManager,
     @inject(InjectTokens.RemoteConfigValidator) private readonly remoteConfigValidator?: RemoteConfigValidatorApi,
+    @inject(InjectTokens.ObjectMapper) private readonly objectMapper?: ObjectMapper,
   ) {
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
@@ -102,12 +104,10 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       return;
     }
 
-    const configMap: ConfigMap = await this.getConfigMap(namespace, context);
-    await this.populateRemoteConfig(configMap);
+    await this.populateFromExisting(namespace, context);
   }
 
-  public async populateRemoteConfig(configMap: ConfigMap, remoteConfig?: RemoteConfigSchema): Promise<void> {
-    this.objectMapper = new ClassToObjectMapper(ConfigKeyFormatter.instance());
+  private async populateFromConfigMap(configMap: ConfigMap, remoteConfig?: RemoteConfigSchema): Promise<void> {
     this.backend = new YamlConfigMapStorageBackend(configMap);
 
     this.source = new RemoteConfigSource(
@@ -150,9 +150,12 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     }
 
     await this.source.persist();
-    const remoteConfigDataBytes: Buffer = await this.backend.readBytes(constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY);
+    const remoteConfigDataBytes: Buffer = await this.backend.readBytes(
+      RemoteConfigRuntimeState.SOLO_REMOTE_CONFIGMAP_DATA_KEY,
+    );
+
     const remoteConfigData: Record<string, string> = {
-      [constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]: remoteConfigDataBytes.toString('utf8'),
+      [RemoteConfigRuntimeState.SOLO_REMOTE_CONFIGMAP_DATA_KEY]: remoteConfigDataBytes.toString('utf8'),
     };
 
     const promises: Promise<void>[] = [];
@@ -212,7 +215,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     );
 
     const configMap: ConfigMap = await this.createConfigMap(namespace, context);
-    await this.populateRemoteConfig(configMap, remoteConfig);
+    await this.populateFromConfigMap(configMap, remoteConfig);
 
     await this.persist();
   }
@@ -228,8 +231,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     argv: ArgvStruct,
     nodeAliases: NodeAliases,
   ): Promise<void> {
-    const existingRemoteConfigConfigMap: ConfigMap = await this.getConfigMap(namespace, existingClusterContext);
-    await this.populateRemoteConfig(existingRemoteConfigConfigMap);
+    await this.populateFromExisting(namespace, existingClusterContext);
 
     this.populateClusterReferences(deploymentName);
 
@@ -280,11 +282,11 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     await this.k8Factory
       .getK8(context)
       .configMaps()
-      .create(namespace, name, labels, {[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]: '{}'});
+      .create(namespace, name, labels, {[RemoteConfigRuntimeState.SOLO_REMOTE_CONFIGMAP_DATA_KEY]: '{}'});
     return await this.k8Factory.getK8(context).configMaps().read(namespace, name);
   }
 
-  public async getConfigMap(namespace?: NamespaceName, context?: Context): Promise<ConfigMap> {
+  private async getConfigMap(namespace?: NamespaceName, context?: Context): Promise<ConfigMap> {
     const configMap: ConfigMap = await this.k8Factory
       .getK8(context)
       .configMaps()
@@ -295,6 +297,16 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     }
 
     return configMap;
+  }
+
+  public async populateFromExisting(namespace: NamespaceName, context: Context): Promise<void> {
+    const remoteConfigConfigMap: ConfigMap = await this.getConfigMap(namespace, context);
+    await this.populateFromConfigMap(remoteConfigConfigMap);
+  }
+
+  public async remoteConfigExists(namespace: NamespaceName, context: Context): Promise<boolean> {
+    const configMap: ConfigMap = await this.getConfigMap(namespace, context);
+    return !!configMap;
   }
 
   public populateClusterReferences(deploymentName: DeploymentName): Context {

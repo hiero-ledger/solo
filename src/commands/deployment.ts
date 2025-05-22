@@ -222,13 +222,13 @@ export class DeploymentCommand extends BaseCommand {
         },
         {
           title: 'Check for existing remote resources',
-          task: async (context_, task) => {
+          task: async (context_): Promise<void> => {
             const {deployment} = context_.config;
             const clusterReferences = self.localConfig.configuration.deploymentByName(deployment).clusters;
             for (const clusterReference of clusterReferences) {
               const context = self.localConfig.configuration.clusterRefs.get(clusterReference.toString()).toString();
               const namespace = NamespaceName.of(self.localConfig.configuration.deploymentByName(deployment).namespace);
-              const remoteConfigExists: ConfigMap = await self.remoteConfig.getConfigMap(namespace, context);
+              const remoteConfigExists: boolean = await self.remoteConfig.remoteConfigExists(namespace, context);
               const namespaceExists = await self.k8Factory.getK8(context).namespaces().has(namespace);
               const existingConfigMaps = await self.k8Factory
                 .getK8(context)
@@ -294,7 +294,6 @@ export class DeploymentCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error: Error | unknown) {
-      console.error(error);
       throw new SoloError('Error adding cluster to deployment', error);
     }
 
@@ -589,12 +588,7 @@ export class DeploymentCommand extends BaseCommand {
           ?.toString();
         context_.config.existingClusterContext = existingClusterContext;
 
-        const remoteConfigConfigMap: ConfigMap = await this.remoteConfig.getConfigMap(
-          namespace,
-          existingClusterContext,
-        );
-
-        await this.remoteConfig.populateRemoteConfig(remoteConfigConfigMap);
+        await this.remoteConfig.populateFromExisting(namespace, existingClusterContext);
 
         const ledgerPhase: LedgerPhase = this.remoteConfig.configuration.state.ledgerPhase;
 

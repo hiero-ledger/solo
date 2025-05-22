@@ -25,7 +25,6 @@ export interface RemoteConfigRuntimeStateApi {
 
   isLoaded(): boolean;
   load(namespace?: NamespaceName, context?: Context): Promise<void>;
-  populateRemoteConfig(configMap: ConfigMap): Promise<void>;
   persist(): Promise<void>;
 
   create(
@@ -54,7 +53,10 @@ export interface RemoteConfigRuntimeStateApi {
 
   addCommandToHistory(command: string): void;
   createConfigMap(namespace: NamespaceName, context: Context): Promise<ConfigMap>;
-  getConfigMap(namespace?: NamespaceName, context?: Context): Promise<ConfigMap>;
+
+  remoteConfigExists(namespace: NamespaceName, context: Context): Promise<boolean>;
+  populateFromExisting(namespace: NamespaceName, context: Context): Promise<void>;
+
   loadAndValidate(
     argv: {_: string[]} & AnyObject,
     validate?: boolean,
