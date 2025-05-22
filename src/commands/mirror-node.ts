@@ -955,7 +955,7 @@ export class MirrorNodeCommand extends BaseCommand {
       title: 'Remove mirror node from remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfig.configuration.components.removeById(ComponentTypes.MirrorNode, context_.config.id);
+        this.remoteConfig.configuration.components.removeComponent(context_.config.id, ComponentTypes.MirrorNode);
 
         await this.remoteConfig.persist();
       },

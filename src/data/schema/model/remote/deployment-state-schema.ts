@@ -52,6 +52,7 @@ export class DeploymentStateSchema {
 
   public constructor(
     ledgerPhase?: LedgerPhase,
+    componentIds?: ComponentIdsShema,
     consensusNodes?: ConsensusNodeStateSchema[],
     blockNodes?: BlockNodeStateSchema[],
     mirrorNodes?: MirrorNodeStateSchema[],
@@ -61,6 +62,7 @@ export class DeploymentStateSchema {
     explorers?: ExplorerStateSchema[],
   ) {
     this.ledgerPhase = ledgerPhase;
+    this.componentIds = componentIds || new ComponentIdsShema();
     this.consensusNodes = consensusNodes || [];
     this.blockNodes = blockNodes || [];
     this.mirrorNodes = mirrorNodes || [];

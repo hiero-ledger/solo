@@ -49,6 +49,7 @@ import {ConsensusNodeStateSchema} from '../../../../data/schema/model/remote/sta
 import {UserIdentitySchema} from '../../../../data/schema/model/common/user-identity-schema.js';
 import {Deployment} from '../local/deployment.js';
 import {RemoteConfig} from './remote-config.js';
+import {ComponentIdsShema} from '../../../../data/schema/model/remote/state/component-ids-shema.js';
 
 enum RuntimeStatePhase {
   Loaded = 'loaded',
@@ -208,7 +209,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       new RemoteConfigMetadataSchema(new Date(), userIdentity),
       new ApplicationVersionsSchema(cliVersion),
       [cluster],
-      new DeploymentStateSchema(ledgerPhase, consensusNodeStates),
+      new DeploymentStateSchema(ledgerPhase, new ComponentIdsShema(nodeAliases.length), consensusNodeStates),
       new DeploymentHistorySchema([command], command),
     );
 
@@ -261,6 +262,8 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
         ComponentTypes.ConsensusNode,
       );
     }
+
+    this.configuration.components.componentIds.consensusNodes += nodeAliases.length;
 
     await this.persist();
   }

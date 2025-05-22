@@ -642,7 +642,7 @@ export class ExplorerCommand extends BaseCommand {
       title: 'Remove explorer from remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfig.configuration.components.removeById(ComponentTypes.Explorer, context_.config.id);
+        this.remoteConfig.configuration.components.removeComponent(context_.config.id, ComponentTypes.Explorer);
 
         await this.remoteConfig.persist();
       },

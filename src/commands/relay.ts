@@ -578,7 +578,7 @@ export class RelayCommand extends BaseCommand {
       title: 'Remove relay component from remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfig.configuration.components.removeById(ComponentTypes.RelayNodes, context_.config.id);
+        this.remoteConfig.configuration.components.removeComponent(context_.config.id, ComponentTypes.RelayNodes);
 
         await this.remoteConfig.persist();
       },
