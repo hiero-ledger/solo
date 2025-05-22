@@ -8,10 +8,10 @@ import sinon from 'sinon';
 import {SoloError} from '../../../../src/core/errors/solo-error.js';
 
 describe('PathEx', () => {
-  const baseDirectory: string = path.normalize('/base/dir');
+  const baseDirectory: string = path.normalize(path.resolve('/base/dir'));
   const validPath: string = path.join(baseDirectory, 'file.txt');
-  const validPathNormalized: string = path.normalize(validPath);
-  const invalidPath: string = path.normalize('/outside/dir/file.txt');
+  const validPathNormalized: string = path.normalize(path.resolve(validPath));
+  const invalidPath: string = path.normalize(path.resolve('/outside/dir/file.txt'));
 
   beforeEach(() => {
     sinon.stub(fs, 'realpathSync').callsFake((inputPath: string) => {
