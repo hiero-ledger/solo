@@ -59,7 +59,6 @@ export interface DeploymentAddClusterContext {
 export class DeploymentCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks,
-    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
   ) {
     super();
 
