@@ -184,7 +184,7 @@ describe('RemoteConfigV1Migration', () => {
       expect(result.versions.mirrorNodeChart).to.equal(sourceClone.metadata.hederaMirrorNodeChartVersion);
       expect(result.versions.explorerChart).to.equal(sourceClone.metadata.hederaExplorerChartVersion);
       expect(result.versions.jsonRpcRelayChart).to.equal(sourceClone.metadata.hederaJsonRpcRelayChartVersion);
-      expect(result.versions).to.have.property('blockNodeChart', sourceClone.metadata.hederaJsonRpcRelayChartVersion);
+      expect(result.versions).to.have.property('blockNodeChart', '0.0.0');
 
       // Verify old version properties are deleted
       expect(result.metadata).to.not.have.property('soloVersion');

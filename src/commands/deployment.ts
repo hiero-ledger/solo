@@ -10,6 +10,7 @@ import {type ClusterCommandTasks} from './cluster/tasks.js';
 import {
   type ClusterReference,
   type CommandDefinition,
+  type Context,
   type DeploymentName,
   type NamespaceNameAsString,
   type Realm,
@@ -27,7 +28,6 @@ import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {DeploymentStates} from '../core/config/remote/enumerations/deployment-states.js';
 import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
-import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {StringFacade} from '../business/runtime-state/facade/string-facade.js';
 import {Deployment} from '../business/runtime-state/config/local/deployment.js';
@@ -583,9 +583,10 @@ export class DeploymentCommand extends BaseCommand {
           return;
         }
 
-        const existingClusterContext = this.localConfig.configuration.clusterRefs
+        const existingClusterContext: Context = this.localConfig.configuration.clusterRefs
           .get(existingClusterReferences.get(0)?.toString())
           ?.toString();
+
         context_.config.existingClusterContext = existingClusterContext;
 
         await this.remoteConfig.populateFromExisting(namespace, existingClusterContext);
