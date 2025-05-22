@@ -10,8 +10,6 @@ fi
 npm install -g @hashgraph/solo@"${releaseTag}" --force
 solo --version
 
-echo "Using release tag: ${releaseTag}"
-
 SOLO_CLUSTER_NAME=solo-e2e
 SOLO_NAMESPACE=solo-e2e
 SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
@@ -21,6 +19,8 @@ kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 
 rm -rf ~/.solo/*
+
+echo "Launch solo using released version ${releaseTag}"
 
 solo init
 solo cluster setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
@@ -38,6 +38,7 @@ solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 # trigger migration
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}"
 
+# uninstall components using current version
 npm run solo-test -- explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
 npm run solo-test -- relay destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 npm run solo-test -- mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --force
