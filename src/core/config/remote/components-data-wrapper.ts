@@ -151,7 +151,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
         break;
       }
 
-      case ComponentTypes.Explorers: {
+      case ComponentTypes.Explorer: {
         callback(this.state.explorers);
         break;
       }

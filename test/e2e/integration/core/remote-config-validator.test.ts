@@ -185,7 +185,7 @@ describe('RemoteConfigValidator', () => {
     {componentKey: 'mirrorNodes', displayName: 'Mirror Node', type: ComponentTypes.MirrorNode},
     {componentKey: 'envoyProxies', displayName: 'Envoy Proxy', type: ComponentTypes.EnvoyProxy},
     {componentKey: 'consensusNodes', displayName: 'Consensus Node', type: ComponentTypes.ConsensusNode},
-    {componentKey: 'explorers', displayName: 'Explorer', type: ComponentTypes.Explorers},
+    {componentKey: 'explorers', displayName: 'Explorer', type: ComponentTypes.Explorer},
   ];
 
   const remoteConfigValidator: RemoteConfigValidator = new RemoteConfigValidator(k8Factory, localConfig);

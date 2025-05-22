@@ -224,14 +224,14 @@ export class ExplorerCommand extends BaseCommand {
 
   private getReleaseName(id: ComponentId): string {
     if (!id) {
-      id = (this.remoteConfigManager as any as ComponentDataApi).getNewComponentId(ComponentTypes.Explorers);
+      id = (this.remoteConfigManager as any as ComponentDataApi).getNewComponentId(ComponentTypes.Explorer);
     }
     return `${constants.EXPLORER_RELEASE_NAME}-${id}`;
   }
 
   private getIngressReleaseName(id: ComponentId): string {
     if (!id) {
-      id = (this.remoteConfigManager as any as ComponentDataApi).getNewComponentId(ComponentTypes.Explorers);
+      id = (this.remoteConfigManager as any as ComponentDataApi).getNewComponentId(ComponentTypes.Explorer);
     }
     return `${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}-${id}`;
   }
@@ -649,7 +649,7 @@ export class ExplorerCommand extends BaseCommand {
       title: 'Remove explorer from remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfig.configuration.components.removeById(ComponentTypes.Explorers, context_.config.id);
+        await this.remoteConfig.configuration.components.removeById(ComponentTypes.Explorer, context_.config.id);
 
         await this.remoteConfig.persist();
       },
@@ -666,7 +666,7 @@ export class ExplorerCommand extends BaseCommand {
 
         this.remoteConfig.configuration.components.addNewComponent(
           this.componentFactory.createNewExplorerComponent(clusterRef, namespace),
-          ComponentTypes.Explorers,
+          ComponentTypes.Explorer,
         );
 
         // TODO REMOVE : updateHighestComponentId

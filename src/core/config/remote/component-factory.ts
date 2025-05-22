@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {ComponentTypes} from './enumerations/component-types.js';
-import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
-import {type NodeId} from '../../../types/aliases.js';
-import {ComponentStateMetadataSchema} from '../../../data/schema/model/remote/state/component-state-metadata-schema.js';
-import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
-import {type ClusterReference, type ComponentId} from '../../../types/index.js';
-import {type RemoteConfigRuntimeStateApi} from '../../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../dependency-injection/container-helper.js';
 import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
+
+import {ComponentTypes} from './enumerations/component-types.js';
+import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
+import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
+import {type NodeId} from '../../../types/aliases.js';
+import {type ClusterReference, type ComponentId} from '../../../types/index.js';
+import {type RemoteConfigRuntimeStateApi} from '../../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {type ComponentFactoryApi} from './api/component-factory-api.js';
+import {ComponentStateMetadataSchema} from '../../../data/schema/model/remote/state/component-state-metadata-schema.js';
 import {RelayNodeStateSchema} from '../../../data/schema/model/remote/state/relay-node-state-schema.js';
 import {ExplorerStateSchema} from '../../../data/schema/model/remote/state/explorer-state-schema.js';
 import {MirrorNodeStateSchema} from '../../../data/schema/model/remote/state/mirror-node-state-schema.js';
@@ -32,90 +33,36 @@ export class ComponentFactory implements ComponentFactoryApi {
     namespace: NamespaceName,
     nodeIds: NodeId[],
   ): RelayNodeStateSchema {
-    const id: ComponentId = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.RelayNodes);
-    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
-    const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
-      id,
-      namespace.name,
-      clusterReference,
-      phase,
-    );
-
-    return new RelayNodeStateSchema(metadata, nodeIds);
+    return new RelayNodeStateSchema(this.getMetadata(ComponentTypes.RelayNodes, clusterReference, namespace), nodeIds);
   }
 
   public createNewExplorerComponent(clusterReference: ClusterReference, namespace: NamespaceName): ExplorerStateSchema {
-    const id: ComponentId = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.Explorers);
-    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
-    const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
-      id,
-      namespace.name,
-      clusterReference,
-      phase,
-    );
-
-    return new ExplorerStateSchema(metadata);
+    return new ExplorerStateSchema(this.getMetadata(ComponentTypes.Explorer, clusterReference, namespace));
   }
 
   public createNewMirrorNodeComponent(
     clusterReference: ClusterReference,
     namespace: NamespaceName,
   ): MirrorNodeStateSchema {
-    const id: ComponentId = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.MirrorNode);
-    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
-    const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
-      id,
-      namespace.name,
-      clusterReference,
-      phase,
-    );
-
-    return new MirrorNodeStateSchema(metadata);
+    return new MirrorNodeStateSchema(this.getMetadata(ComponentTypes.MirrorNode, clusterReference, namespace));
   }
 
   public createNewHaProxyComponent(clusterReference: ClusterReference, namespace: NamespaceName): HAProxyStateSchema {
-    const id: ComponentId = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.HaProxy);
-    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
-    const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
-      id,
-      namespace.name,
-      clusterReference,
-      phase,
-    );
-
-    return new HAProxyStateSchema(metadata);
+    return new HAProxyStateSchema(this.getMetadata(ComponentTypes.HaProxy, clusterReference, namespace));
   }
 
   public createNewEnvoyProxyComponent(
     clusterReference: ClusterReference,
     namespace: NamespaceName,
   ): EnvoyProxyStateSchema {
-    const id: ComponentId = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.EnvoyProxy);
-    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
-    const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
-      id,
-      namespace.name,
-      clusterReference,
-      phase,
-    );
-
-    return new EnvoyProxyStateSchema(metadata);
+    return new EnvoyProxyStateSchema(this.getMetadata(ComponentTypes.EnvoyProxy, clusterReference, namespace));
   }
 
   public createNewBlockNodeComponent(
     clusterReference: ClusterReference,
     namespace: NamespaceName,
   ): BlockNodeStateSchema {
-    const id: ComponentId = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.BlockNode);
-    const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
-    const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
-      id,
-      namespace.name,
-      clusterReference,
-      phase,
-    );
-
-    return new BlockNodeStateSchema(metadata);
+    return new BlockNodeStateSchema(this.getMetadata(ComponentTypes.BlockNode, clusterReference, namespace));
   }
 
   public createNewConsensusNodeComponent(
@@ -139,19 +86,19 @@ export class ComponentFactory implements ComponentFactoryApi {
     clusterReference: ClusterReference,
     namespace: NamespaceName,
   ): ConsensusNodeStateSchema[] {
-    return nodeIds.map((nodeId: NodeId) =>
-      this.createNewConsensusNodeComponent(nodeId, clusterReference, namespace, DeploymentPhase.REQUESTED),
+    return nodeIds.map(
+      (nodeId: NodeId): ConsensusNodeStateSchema =>
+        this.createNewConsensusNodeComponent(nodeId, clusterReference, namespace, DeploymentPhase.REQUESTED),
     );
   }
 
-  // TODO: 666
   private getMetadata(
     componentType: ComponentTypes,
     clusterReference: ClusterReference,
     namespace: NamespaceName,
-  ): ComponentStateMetadata {
-    const id: ComponentId = this.remoteConfig.getNewComponentId(componentType);
+  ): ComponentStateMetadataSchema {
+    const id: ComponentId = this.remoteConfig.configuration.components.getNewComponentId(componentType);
     const phase: DeploymentPhase.DEPLOYED = DeploymentPhase.DEPLOYED;
-    return new ComponentStateMetadata(id, namespace.name, clusterReference, phase);
+    return new ComponentStateMetadataSchema(id, namespace.name, clusterReference, phase);
   }
 }
