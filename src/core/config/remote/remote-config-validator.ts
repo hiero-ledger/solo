@@ -166,9 +166,6 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       }
 
       try {
-        // print components class name
-        console.log(` class name of component = ${component.constructor.name}`);
-        console.log(`Trying to find pods with labels ${labels} in namespace ${namespace} context ${context}`);
         const pods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);
 
         if (pods.length === 0) {

@@ -31,11 +31,10 @@ export class LocalConfigRuntimeState {
     this.fileName = patchInject(fileName, InjectTokens.LocalConfigFileName, this.constructor.name);
     this.basePath = patchInject(basePath, InjectTokens.HomeDirectory, this.constructor.name);
 
-    // check if config from an old version exists
+    // check if config from an old version exists under the cache directory
     const oldConfigPath: string = PathEx.join(this.basePath, 'cache');
     const oldConfigFile: string = PathEx.join(oldConfigPath, this.fileName);
     if (existsSync(oldConfigFile)) {
-      console.log(`Copying config from ${oldConfigFile} to ${this.basePath}/${this.fileName}`);
       mkdirSync(this.basePath, {recursive: true});
       fs.copyFileSync(oldConfigFile, PathEx.join(this.basePath, this.fileName));
       fs.rmSync(oldConfigFile);

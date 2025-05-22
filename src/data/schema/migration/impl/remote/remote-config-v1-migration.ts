@@ -54,8 +54,6 @@ export class RemoteConfigV1Migration implements SchemaMigration {
       },
     };
 
-    console.log(`\n\n clone.metadata = ${JSON.stringify(clone.metadata)}`);
-
     // pull the versions from the old config, if it isn't set or set as empty,
     // then it will be set to 0.0.0 until an upgrade for the component is performed
     // Normalize version strings by removing 'v' prefix if present
