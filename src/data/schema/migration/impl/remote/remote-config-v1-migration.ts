@@ -44,18 +44,18 @@ export class RemoteConfigV1Migration implements SchemaMigration {
     };
 
     // pull the versions from the old config, if it isn't set, then it will be set to 0.0.0 until an upgrade for the component is performed
+    // must use '||" since chart version string cannot be empty string ""
     clone.versions = {
       cli: clone.metadata.soloVersion ?? getSoloVersion(),
-      chart: clone.metadata.soloChartVersion ?? '0.0.0',
-      consensusNode: clone.metadata.hederaPlatformVersion ?? '0.0.0',
-      mirrorNodeChart: clone.metadata.hederaMirrorNodeChartVersion ?? '0.0.0',
-      explorerChart: clone.metadata.hederaExplorerChartVersion ?? '0.0.0',
-      jsonRpcRelayChart: clone.metadata.hederaJsonRpcRelayChartVersion ?? '0.0.0',
+      chart: clone.metadata.soloChartVersion || '0.0.0',
+      consensusNode: clone.metadata.hederaPlatformVersion || '0.0.0',
+      mirrorNodeChart: clone.metadata.hederaMirrorNodeChartVersion || '0.0.0',
+      explorerChart: clone.metadata.hederaExplorerChartVersion || '0.0.0',
+      jsonRpcRelayChart: clone.metadata.hederaJsonRpcRelayChartVersion || '0.0.0',
       blockNodeChart: '0.0.0',
     };
 
     // delete the old version structure
-    delete clone.metadata.soloVersion;
     delete clone.metadata.soloChartVersion;
     delete clone.metadata.hederaPlatformVersion;
     delete clone.metadata.hederaMirrorNodeChartVersion;
