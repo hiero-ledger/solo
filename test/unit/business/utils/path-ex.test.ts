@@ -20,14 +20,7 @@ describe('PathEx', () => {
       const normalizedBaseDirectory = path.normalize(baseDirectory);
       const normalizedInvalidPath = path.normalize(invalidPath);
 
-      // For Windows compatibility, also check the result of resolving baseDirectory + file.txt
-      const resolvedPath = path.normalize(path.resolve(normalizedBaseDirectory, 'file.txt'));
-
-      if (
-        normalizedInput === normalizedBaseDirectory ||
-        normalizedInput.startsWith(normalizedBaseDirectory + path.sep) ||
-        normalizedInput === resolvedPath
-      ) {
+      if (normalizedInput === normalizedBaseDirectory || normalizedInput.includes(normalizedBaseDirectory + path.sep)) {
         return normalizedInput; // Return normalized path instead of original inputPath
       }
 
