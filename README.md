@@ -12,6 +12,7 @@ type: docs
 
 # Solo
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/10d4a12090e5440b91f23f21e710034a)](https://app.codacy.com/gh/hiero-ledger/solo?utm_source=github.com&utm_medium=referral&utm_content=hiero-ledger/solo&utm_campaign=Badge_Grade)
 [![NPM Version](https://img.shields.io/npm/v/%40hashgraph%2Fsolo?logo=npm)](https://www.npmjs.com/package/@hashgraph/solo)
 [![GitHub License](https://img.shields.io/github/license/hiero-ledger/solo?logo=apache\&logoColor=red)](LICENSE)
 ![node-lts](https://img.shields.io/node/v-lts/%40hashgraph%2Fsolo)
