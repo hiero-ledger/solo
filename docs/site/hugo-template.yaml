@@ -11,10 +11,10 @@ module:
     - path: github.com/google/docsy
       disable: false
   mounts:
-    - source: ../../
+    - source: build/
       target: content/docs
       includeFiles: README.md
-    - source: ../../
+    - source: build/
       target: content/development
       includeFiles: DEV.md
     - source: ../../images
