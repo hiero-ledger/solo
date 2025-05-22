@@ -16,9 +16,9 @@ describe('PathEx', () => {
   beforeEach(() => {
     sinon.stub(fs, 'realpathSync').callsFake((inputPath: string) => {
       // Always normalize the input path for consistent comparison
-      const normalizedInput = path.normalize(inputPath);
-      const normalizedBaseDirectory = path.normalize(baseDirectory);
-      const normalizedInvalidPath = path.normalize(invalidPath);
+      const normalizedInput = path.normalize(path.resolve(inputPath));
+      const normalizedBaseDirectory = path.normalize(path.resolve(baseDirectory));
+      const normalizedInvalidPath = path.normalize(path.resolve(invalidPath));
 
       if (normalizedInput === normalizedBaseDirectory || normalizedInput.includes(normalizedBaseDirectory + path.sep)) {
         return normalizedInput; // Return normalized path instead of original inputPath
