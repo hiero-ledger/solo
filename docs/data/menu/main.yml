@@ -3,6 +3,9 @@ main:
   - name: Latest Solo Docs
     ref: "https://solo.hiero.org/latest"
     external: true
+  - name: main branch Solo Docs
+    ref: "https://solo.hiero.org/main"
+    external: true
   - name: Getting Started
     ref: "/User/README/index.md"
   - name: Step-by-step guide
