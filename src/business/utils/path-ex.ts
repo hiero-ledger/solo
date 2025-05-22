@@ -31,10 +31,12 @@ export class PathEx {
    */
   public static safeJoinWithBaseDirConfinement(baseDirectory: string, ...paths: string[]): string {
     // nosemgrep: javascript_pathtraversal_rule-non-literal-fs-filename
-    const resolvedBase: string = fs.realpathSync(baseDirectory); // Ensure baseDirectory is absolute
+    const resolvedBase: string = fs.realpathSync(path.resolve(baseDirectory)); // Ensure baseDirectory is absolute
     // nosemgrep
     const resolvedPath: string = fs.realpathSync(path.resolve(resolvedBase, ...paths)); // Resolve the user path
 
+    // Note: under windows, path.resolve returns the path with the drive letter included at the start.
+    // When comparing paths both need to be resolved to the same format.
     if (!resolvedPath.startsWith(resolvedBase + path.sep)) {
       throw new SoloError(`Path traversal detected: ${resolvedPath} is outside ${resolvedBase}`);
     }
