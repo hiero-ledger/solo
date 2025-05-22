@@ -28,7 +28,6 @@ import {type PlatformInstaller} from '../src/core/platform-installer.js';
 import {type ProfileManager} from '../src/core/profile-manager.js';
 import {type LockManager} from '../src/core/lock/lock-manager.js';
 import {type CertificateManager} from '../src/core/certificate-manager.js';
-import {type RemoteConfigManager} from '../src/core/config/remote/remote-config-manager.js';
 import {Templates} from '../src/core/templates.js';
 import {type ConfigManager} from '../src/core/config-manager.js';
 import {type ChartManager} from '../src/core/chart-manager.js';
@@ -55,6 +54,7 @@ import {HEDERA_PLATFORM_VERSION} from '../version.js';
 import {gte as semVersionGte} from 'semver';
 import {type LocalConfigRuntimeState} from '../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type InstanceOverrides} from '../src/core/dependency-injection/container-init.js';
+import {type RemoteConfigRuntimeStateApi} from '../src/business/runtime-state/api/remote-config-runtime-state-api.js';
 
 export const BASE_TEST_DIR = PathEx.join('test', 'data', 'tmp');
 
@@ -146,7 +146,7 @@ interface TestOptions {
   profileManager: ProfileManager;
   leaseManager: LockManager;
   certificateManager: CertificateManager;
-  remoteConfigManager: RemoteConfigManager;
+  remoteConfig: RemoteConfigRuntimeStateApi;
   localConfig: LocalConfigRuntimeState;
   commandInvoker: CommandInvoker;
 }
@@ -219,7 +219,7 @@ export function bootstrapTestVariables(
   const leaseManager: LockManager = container.resolve(InjectTokens.LockManager);
   const certificateManager: CertificateManager = container.resolve(InjectTokens.CertificateManager);
   const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
-  const remoteConfigManager: RemoteConfigManager = container.resolve(InjectTokens.RemoteConfigManager);
+  const remoteConfig: RemoteConfigRuntimeStateApi = container.resolve(InjectTokens.RemoteConfigRuntimeState);
   const testLogger: SoloLogger = getTestLogger();
   const commandInvoker = container.resolve(InjectTokens.CommandInvoker) as CommandInvoker;
 
@@ -239,7 +239,7 @@ export function bootstrapTestVariables(
     leaseManager,
     certificateManager,
     localConfig,
-    remoteConfigManager,
+    remoteConfig,
     commandInvoker,
   };
 
@@ -409,7 +409,7 @@ export function endToEndTestSuite(
 export function balanceQueryShouldSucceed(
   accountManager: AccountManager,
   namespace: NamespaceName,
-  remoteConfigManager: RemoteConfigManager,
+  remoteConfig: RemoteConfigRuntimeStateApi,
   logger: SoloLogger,
   skipNodeAlias?: NodeAlias,
 ): void {
@@ -420,7 +420,7 @@ export function balanceQueryShouldSucceed(
 
       await accountManager.refreshNodeClient(
         namespace,
-        remoteConfigManager.getClusterRefs(),
+        remoteConfig.getClusterRefs(),
         skipNodeAlias,
         argv.getArg<DeploymentName>(flags.deployment),
       );
@@ -442,7 +442,7 @@ export function balanceQueryShouldSucceed(
 export function accountCreationShouldSucceed(
   accountManager: AccountManager,
   namespace: NamespaceName,
-  remoteConfigManager: RemoteConfigManager,
+  remoteConfig: RemoteConfigRuntimeStateApi,
   logger: SoloLogger,
   skipNodeAlias?: NodeAlias,
 ): void {
@@ -451,7 +451,7 @@ export function accountCreationShouldSucceed(
       const argv = Argv.getDefaultArgv(namespace);
       await accountManager.refreshNodeClient(
         namespace,
-        remoteConfigManager.getClusterRefs(),
+        remoteConfig.getClusterRefs(),
         skipNodeAlias,
         argv.getArg<DeploymentName>(flags.deployment),
       );

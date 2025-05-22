@@ -170,7 +170,7 @@ describe('RemoteConfigV1Migration', () => {
       };
 
       // Create a direct clone of the source to keep the original values for comparison
-      const sourceClone = structuredClone(source);
+      const sourceClone: TestObject = structuredClone(source);
 
       const result = (await migration.migrate(source)) as TestObject;
 
@@ -184,7 +184,7 @@ describe('RemoteConfigV1Migration', () => {
       expect(result.versions.mirrorNodeChart).to.equal(sourceClone.metadata.hederaMirrorNodeChartVersion);
       expect(result.versions.explorerChart).to.equal(sourceClone.metadata.hederaExplorerChartVersion);
       expect(result.versions.jsonRpcRelayChart).to.equal(sourceClone.metadata.hederaJsonRpcRelayChartVersion);
-      expect(result.versions).to.have.property('blockNodeChart', '');
+      expect(result.versions).to.have.property('blockNodeChart', '0.0.0');
 
       // Verify old version properties are deleted
       expect(result.metadata).to.not.have.property('soloVersion');
@@ -211,7 +211,7 @@ describe('RemoteConfigV1Migration', () => {
       expect(result.versions).to.have.property('mirrorNodeChart', '0.0.0');
       expect(result.versions).to.have.property('explorerChart', '0.0.0');
       expect(result.versions).to.have.property('jsonRpcRelayChart', '0.0.0');
-      expect(result.versions).to.have.property('blockNodeChart', '');
+      expect(result.versions).to.have.property('blockNodeChart', '0.0.0');
     });
 
     it('should migrate clusters correctly', async (): Promise<void> => {
