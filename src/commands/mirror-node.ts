@@ -51,6 +51,7 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {type AccountId} from '@hashgraph/sdk';
 import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 
 interface MirrorNodeDeployConfigClass {
   cacheDir: string;
@@ -321,14 +322,14 @@ export class MirrorNodeCommand extends BaseCommand {
 
   private getReleaseName(id?: ComponentId): string {
     if (!id) {
-      id = (this.remoteConfig as any as ComponentDataApi).getNewComponentId(ComponentTypes.MirrorNode);
+      id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.MirrorNode);
     }
     return `${constants.MIRROR_NODE_RELEASE_NAME}-${id}`;
   }
 
   private getIngressReleaseName(id?: ComponentId): string {
     if (!id) {
-      id = (this.remoteConfig as any as ComponentDataApi).getNewComponentId(ComponentTypes.MirrorNode);
+      id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.MirrorNode);
     }
     return `${constants.INGRESS_CONTROLLER_RELEASE_NAME}-${id}`;
   }
@@ -952,12 +953,11 @@ export class MirrorNodeCommand extends BaseCommand {
   public disableMirrorNodeComponents(): SoloListrTask<MirrorNodeDestroyContext> {
     return {
       title: 'Remove mirror node from remote config',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
         await this.remoteConfig.configuration.components.removeById(ComponentTypes.MirrorNode, context_.config.id);
 
-        // TODO: CHECK ALL PLACES THAT PERSIST IS CALLED
-        this.remoteConfig.persist();
+        await this.remoteConfig.persist();
       },
     };
   }

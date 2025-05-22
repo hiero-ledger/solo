@@ -28,9 +28,8 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {Templates} from '../core/templates.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
-import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
-import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {ComponentDataApi} from '../core/config/remote/api/component-data-api.js';
+import {CommandFlags} from '../types/flag-types.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -559,7 +558,9 @@ export class RelayCommand extends BaseCommand {
       task: async (context_): Promise<void> => {
         const {namespace, nodeAliases, clusterRef} = context_.config;
 
-        const nodeIds: NodeId[] = nodeAliases.map((nodeAlias: NodeAlias) => Templates.nodeIdFromNodeAlias(nodeAlias));
+        const nodeIds: NodeId[] = nodeAliases.map((nodeAlias: NodeAlias): number =>
+          Templates.nodeIdFromNodeAlias(nodeAlias),
+        );
 
         this.remoteConfig.configuration.components.addNewComponent(
           this.componentFactory.createNewRelayComponent(clusterRef, namespace, nodeIds),
@@ -578,6 +579,8 @@ export class RelayCommand extends BaseCommand {
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
         await this.remoteConfig.configuration.components.removeById(ComponentTypes.RelayNodes, context_.config.id);
+
+        await this.remoteConfig.persist();
       },
     };
   }

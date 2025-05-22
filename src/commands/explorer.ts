@@ -6,12 +6,6 @@ import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
-import {
-  EXPLORER_INGRESS_CONTROLLER,
-  EXPLORER_INGRESS_TLS_SECRET_NAME,
-  EXPLORER_CHART_URL,
-  INGRESS_CONTROLLER_PREFIX,
-} from '../core/constants.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -36,8 +30,8 @@ import {KeyManager} from '../core/key-manager.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
-import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {Lock} from '../core/lock/lock.js';
+import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -87,7 +81,6 @@ export class ExplorerCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
-    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
   ) {
     super();
 
@@ -224,14 +217,14 @@ export class ExplorerCommand extends BaseCommand {
 
   private getReleaseName(id: ComponentId): string {
     if (!id) {
-      id = (this.remoteConfigManager as any as ComponentDataApi).getNewComponentId(ComponentTypes.Explorer);
+      id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.Explorer);
     }
     return `${constants.EXPLORER_RELEASE_NAME}-${id}`;
   }
 
   private getIngressReleaseName(id: ComponentId): string {
     if (!id) {
-      id = (this.remoteConfigManager as any as ComponentDataApi).getNewComponentId(ComponentTypes.Explorer);
+      id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.Explorer);
     }
     return `${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}-${id}`;
   }
@@ -668,8 +661,6 @@ export class ExplorerCommand extends BaseCommand {
           this.componentFactory.createNewExplorerComponent(clusterRef, namespace),
           ComponentTypes.Explorer,
         );
-
-        // TODO REMOVE : updateHighestComponentId
 
         await this.remoteConfig.persist();
       },
