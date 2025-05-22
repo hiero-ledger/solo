@@ -2,20 +2,33 @@
 
 import {type KeyFormatter} from './key-formatter.js';
 import {IllegalArgumentError} from '../../business/errors/illegal-argument-error.js';
+import {StringEx} from '../../business/utils/string-ex.js';
 
 export class ConfigKeyFormatter implements KeyFormatter {
   private static _instance: ConfigKeyFormatter;
 
-  public readonly separator: string = '.';
+  public readonly separator: string = StringEx.PERIOD;
 
   private constructor() {}
 
   public normalize(key: string): string {
-    if (!key || key.trim().length === 0) {
+    if (StringEx.isEmpty(key)) {
       return key;
     }
 
-    return key.trim().toLowerCase().replaceAll('_', this.separator);
+    key = key.trim();
+
+    if (!StringEx.isUnderscored(key)) {
+      // This check is necessary to properly handle environment variables and prefixes.
+      // Without this check and conversion, keys and prefixes like "ENV" are converted to "eNV" which is not desired.
+      if (StringEx.isUppercase(key)) {
+        key = key.toLowerCase();
+      }
+
+      return StringEx.verbCase(key);
+    }
+
+    return StringEx.snakeToDotCase(key);
   }
 
   public split(key: string): string[] {
