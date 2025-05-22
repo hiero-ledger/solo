@@ -8,6 +8,7 @@ set -xeo pipefail
 export TARGET_DIR=docs/site/content/en/docs
 export TARGET_FILE=${TARGET_DIR}/step-by-step-guide.md
 export BUILD_DIR=docs/site/build
+mkdir -p ${BUILD_DIR}
 
 if [[ -z "${SOLO_TEST_CLUSTER}" && ${SOLO_CLUSTER_NAME} == "" ]]; then
   SOLO_CLUSTER_NAME=solo-e2e
