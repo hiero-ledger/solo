@@ -315,7 +315,7 @@ describe('RemoteConfigV1Migration', () => {
               cluster: 'cluster1',
             },
           },
-          explorers: {
+          mirrorNodeExplorers: {
             explorer1: {
               name: 'explorer1',
               namespace: 'namespace1',
@@ -329,11 +329,12 @@ describe('RemoteConfigV1Migration', () => {
               cluster: 'cluster1',
             },
           },
-          relayNodes: {
+          relays: {
             relay1: {
               name: 'relay1',
               namespace: 'namespace1',
               cluster: 'cluster1',
+              consensusNodeAliases: ['node1'],
             },
           },
           blockNodes: {
@@ -391,6 +392,9 @@ describe('RemoteConfigV1Migration', () => {
       expect(Array.isArray(result.state.explorers)).to.be.true;
       expect(result.state.explorers.length).to.equal(1);
       
+      // Check that version property exists
+      expect(result.state.explorers[0]).to.have.property('version');
+      
       // Check that id exists and other properties match
       expect(result.state.explorers[0].metadata).to.have.property('id');
       expect(result.state.explorers[0].metadata).to.include({
@@ -415,8 +419,10 @@ describe('RemoteConfigV1Migration', () => {
       expect(Array.isArray(result.state.relayNodes)).to.be.true;
       expect(result.state.relayNodes.length).to.equal(1);
       
-      // Check that id exists and other properties match
+      // Check that id and consensusNodeIds exist and other properties match
       expect(result.state.relayNodes[0].metadata).to.have.property('id');
+      expect(result.state.relayNodes[0].metadata).to.have.property('consensusNodeIds');
+      expect(result.state.relayNodes[0].metadata.consensusNodeIds).to.deep.equal(['node1']);
       expect(result.state.relayNodes[0].metadata).to.include({
         namespace: 'namespace1',
         cluster: 'cluster1',
