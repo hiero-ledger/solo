@@ -9,7 +9,6 @@ import {UserBreak} from '../core/errors/user-break.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
-import {SOLO_DEPLOYMENT_CHART} from '../core/constants.js';
 import {Templates} from '../core/templates.js';
 import {
   addDebugOptions,
@@ -31,30 +30,24 @@ import {
   type IP,
   type NodeAlias,
   type NodeAliases,
+  type NodeId,
 } from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {v4 as uuidv4} from 'uuid';
 import {
   type ClusterReference,
   type ClusterReferences,
-  type CommandDefinition,
-  type Context,
   type NamespaceNameAsString,
   type CommandDefinition,
+  type Context,
   type DeploymentName,
   type Realm,
   type Shard,
-  type SoloListrTask,
-  type SoloListrTaskWrapper,
   type PrivateKeyAndCertificateObject,
   type SoloListr,
   type SoloListrTask,
   type SoloListrTaskWrapper,
 } from '../types/index.js';
-import {NamespaceName} from '../types/namespace/namespace-name.js';
-import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
-import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
-import {type ConsensusNode} from '../core/model/consensus-node.js';
 import {Base64} from 'js-base64';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Duration} from '../core/time/duration.js';
@@ -64,11 +57,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {ConsensusNodeStates} from '../core/config/remote/enumerations/consensus-node-states.js';
-import {lt as SemVersionLessThan, SemVer} from 'semver';
-import {Deployment} from '../business/runtime-state/config/local/deployment.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
-import {type BlockNodeComponent} from '../core/config/remote/components/block-node-component.js';
 import {type K8} from '../integration/kube/k8.js';
 import {BlockNodesJsonWrapper} from '../core/block-nodes-json-wrapper.js';
 import {type Lock} from '../core/lock/lock.js';
@@ -78,6 +67,14 @@ import {ContainerReference} from '../integration/kube/resources/container/contai
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {Deployment} from '../business/runtime-state/config/local/deployment.js';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
+import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
+import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
+import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
+import {ConsensusNode} from '../core/model/consensus-node.js';
+import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 
 export interface NetworkDeployConfigClass {
   applicationEnv: string;
@@ -131,7 +128,7 @@ export interface NetworkDeployConfigClass {
   clusterRefs: ClusterReferences;
   domainNames?: string;
   domainNamesMapping?: Record<NodeAlias, string>;
-  blockNodeComponents: BlockNodeComponent[];
+  blockNodeComponents: BlockNodeStateSchema[];
   debugNodeAlias: NodeAlias;
   app: string;
 }
@@ -581,7 +578,7 @@ export class NetworkCommand extends BaseCommand {
       for (const clusterReference of clusterReferences) {
         const blockNodesJsonData: string = new BlockNodesJsonWrapper(
           config.blockNodeComponents,
-          this.remoteConfigManager.clusters,
+          this.remoteConfig.configuration.clusters,
         ).toJSON();
 
         const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'block-nodes.json');
@@ -742,9 +739,9 @@ export class NetworkCommand extends BaseCommand {
       flags.genesisThrottlesFile.definition.defaultValue as string,
     );
 
-    config.consensusNodes = this.remoteConfigManager.getConsensusNodes();
-    config.contexts = this.remoteConfigManager.getContexts();
-    config.clusterRefs = this.remoteConfigManager.getClusterRefs();
+    config.consensusNodes = this.remoteConfig.getConsensusNodes();
+    config.contexts = this.remoteConfig.getContexts();
+    config.clusterRefs = this.remoteConfig.getClusterRefs();
     config.nodeAliases = parseNodeAliases(config.nodeAliasesUnparsed, config.consensusNodes, this.configManager);
     argv[flags.nodeAliasesUnparsed.name] = config.nodeAliases.join(',');
 
@@ -973,7 +970,7 @@ export class NetworkCommand extends BaseCommand {
                 config.valuesArgMap[clusterReference],
                 config.clusterRefs.get(clusterReference),
               );
-              showVersionBanner(this.logger, SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
+              showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
             }
           },
         },
@@ -1254,7 +1251,7 @@ export class NetworkCommand extends BaseCommand {
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
               enableTimeout: this.configManager.getFlag<boolean>(flags.enableTimeout) as boolean,
               force: this.configManager.getFlag<boolean>(flags.force) as boolean,
-              contexts: this.remoteConfigManager.getContexts(),
+              contexts: this.remoteConfig.getContexts(),
             };
 
             return ListrLock.newAcquireLockTask(lease, task);
@@ -1293,7 +1290,7 @@ export class NetworkCommand extends BaseCommand {
                 } else {
                   // If the namespace is not being deleted,
                   // remove all components data from the remote configuration
-                  await this.remoteConfigManager.deleteComponents();
+                  await this.remoteConfig.deleteComponents();
                 }
               }, constants.NETWORK_DESTROY_WAIT_TIMEOUT * 1000);
 
@@ -1390,39 +1387,34 @@ export class NetworkCommand extends BaseCommand {
   public addNodesAndProxies(): SoloListrTask<NetworkDeployContext> {
     return {
       title: 'Add node and proxies to remote config',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        const {
-          config: {namespace},
-        } = context_;
+        const {namespace} = context_.config;
 
-        await this.remoteConfigManager.modify(async remoteConfig => {
-          for (const consensusNode of context_.config.consensusNodes) {
-            remoteConfig.components.edit(
-              new ConsensusNodeComponent(
-                consensusNode.name,
-                consensusNode.cluster,
-                namespace.name,
-                ConsensusNodeStates.REQUESTED,
-                consensusNode.nodeId,
-              ),
-            );
+        for (const consensusNode of context_.config.consensusNodes) {
+          const nodeId: NodeId = Templates.nodeIdFromNodeAlias(consensusNode.name);
+          const clusterReference: ClusterReference = consensusNode.cluster;
 
-            remoteConfig.components.add(
-              new EnvoyProxyComponent(`envoy-proxy-${consensusNode.name}`, consensusNode.cluster, namespace.name),
-            );
+          this.remoteConfig.configuration.components.changeNodePhase(nodeId, DeploymentPhase.REQUESTED);
 
-            remoteConfig.components.add(
-              new HaProxyComponent(`haproxy-${consensusNode.name}`, consensusNode.cluster, namespace.name),
-            );
-          }
-        });
+          this.remoteConfig.configuration.components.addNewComponent(
+            this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
+            ComponentTypes.EnvoyProxy,
+          );
+
+          this.remoteConfig.configuration.components.addNewComponent(
+            this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),
+            ComponentTypes.HaProxy,
+          );
+        }
+
+        await this.remoteConfig.persist();
       },
     };
   }
 
-  private getBlockNodes(): BlockNodeComponent[] {
-    return Object.values(this.remoteConfigManager.components.blockNodes);
+  private getBlockNodes(): BlockNodeStateSchema[] {
+    return this.remoteConfig.configuration.components.state.blockNodes;
   }
 
   public async close(): Promise<void> {} // no-op

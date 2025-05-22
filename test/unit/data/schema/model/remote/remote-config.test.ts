@@ -93,12 +93,11 @@ function migrateConsensusNodes(plainObject: MigrationCandidate): void {
     }
     const newConsensusNode = {
       id: oldConsensusNode.nodeId,
-      name: oldConsensusNode.name,
       namespace: oldConsensusNode.namespace,
       cluster: oldConsensusNode.cluster,
       phase: migratedState,
     };
-    plainObject.state.consensusNodes.push(newConsensusNode);
+    plainObject.state.consensusNodes.push({metadata: newConsensusNode});
   }
 }
 

@@ -34,10 +34,9 @@ import {type PodReference} from '../integration/kube/resources/pod/pod-reference
 import chalk from 'chalk';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
-import {type BlockNodeState} from '../data/schema/model/remote/state/block-node-state.js';
-import {type ComponentDataApi} from '../core/config/remote/api/component-data-api.js';
-import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {type RemoteConfigDataWrapper} from '../core/config/remote/remote-config-data-wrapper.js';
+import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
+import {ComponentStateMetadataSchema} from '../data/schema/model/remote/state/component-state-metadata-schema.js';
+import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {lt, SemVer} from 'semver';
 
@@ -56,7 +55,7 @@ interface BlockNodeDeployConfigClass {
   nodeAliases: NodeAliases; // from remote config
   context: string;
   valuesArg: string;
-  newBlockNodeComponent: BlockNodeState;
+  newBlockNodeComponent: BlockNodeStateSchema;
   releaseName: string;
 }
 
@@ -136,7 +135,7 @@ export class BlockNodeCommand extends BaseCommand {
     return (
       constants.BLOCK_NODE_RELEASE_NAME +
       '-' +
-      (this.remoteConfigManager as any as ComponentDataApi).getNewComponentId(ComponentTypes.BlockNode)
+      this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.BlockNode)
     );
   }
 
@@ -175,15 +174,13 @@ export class BlockNodeCommand extends BaseCommand {
               task,
             );
 
-            context_.config.nodeAliases = this.remoteConfigManager
-              .getConsensusNodes()
-              .map((node): NodeAlias => node.name);
+            context_.config.nodeAliases = this.remoteConfig.getConsensusNodes().map((node): NodeAlias => node.name);
 
             if (!context_.config.clusterRef) {
               context_.config.clusterRef = this.k8Factory.default().clusters().readCurrent();
             }
 
-            context_.config.context = this.remoteConfigManager.getClusterRefs()[context_.config.clusterRef];
+            context_.config.context = this.remoteConfig.getClusterRefs()[context_.config.clusterRef];
 
             this.logger.debug('Initialized config', {config: context_.config});
 
@@ -197,9 +194,15 @@ export class BlockNodeCommand extends BaseCommand {
 
             config.releaseName = this.getReleaseName();
 
+            // TODO: 666
             config.newBlockNodeComponent = this.componentFactory.createNewBlockNodeComponent(
               config.clusterRef,
               config.namespace,
+            );
+
+            // TODO: 666
+            config.newBlockNodeComponent = new BlockNodeStateSchema(
+              new ComponentStateMetadataSchema(1, config.namespace.name, config.clusterRef, DeploymentPhase.DEPLOYED),
             );
           },
         },
@@ -335,7 +338,7 @@ export class BlockNodeCommand extends BaseCommand {
               context_.config.clusterRef = this.k8Factory.default().clusters().readCurrent();
             }
 
-            context_.config.context = this.remoteConfigManager.getClusterRefs()[context_.config.clusterRef];
+            context_.config.context = this.remoteConfig.getClusterRefs()[context_.config.clusterRef];
 
             context_.config.releaseName = this.getReleaseName();
 
@@ -355,9 +358,10 @@ export class BlockNodeCommand extends BaseCommand {
           task: async (context_): Promise<void> => {
             const config: BlockNodeDestroyConfigClass = context_.config;
             try {
-              this.remoteConfigManager.components.getComponent<BlockNodeComponent>(
+              // TODO: Add support for multiple block nodes
+              this.remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(
                 ComponentTypes.BlockNode,
-                config.releaseName,
+                1,
               );
             } catch (error) {
               throw new SoloError(`Block node ${config.releaseName} was not found`, error);
@@ -396,15 +400,19 @@ export class BlockNodeCommand extends BaseCommand {
   private addBlockNodeComponent(): SoloListrTask<BlockNodeDeployContext> {
     return {
       title: 'Add block node component in remote config',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfigManager.modify(async (remoteConfig: RemoteConfigDataWrapper): Promise<void> => {
-          const config: BlockNodeDeployConfigClass = context_.config;
+        const config: BlockNodeDeployConfigClass = context_.config;
 
-          remoteConfig.components.add(config.newBlockNodeComponent);
+        this.remoteConfig.configuration.components.addNewComponent(
+          config.newBlockNodeComponent,
+          ComponentTypes.BlockNode,
+        );
 
-          (this.remoteConfigManager as any as ComponentDataApi).updateHighestComponentId(ComponentTypes.BlockNode);
-        });
+        // TODO
+        (this.remoteConfig as any as ComponentDataApi).updateHighestComponentId(ComponentTypes.BlockNode);
+
+        await this.remoteConfig.persist();
       },
     };
   }
@@ -413,13 +421,14 @@ export class BlockNodeCommand extends BaseCommand {
   private removeBlockNodeComponent(): SoloListrTask<BlockNodeDestroyContext> {
     return {
       title: 'Disable block node component in remote config',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfigManager.modify(async remoteConfig => {
-          const config: BlockNodeDestroyConfigClass = context_.config;
+        const config: BlockNodeDestroyConfigClass = context_.config;
 
-          remoteConfig.components.remove(config.releaseName, ComponentTypes.BlockNode);
-        });
+        // TODO: Add support for multiple block nodes
+        this.remoteConfig.configuration.components.removeComponent(1, ComponentTypes.BlockNode);
+
+        await this.remoteConfig.persist();
       },
     };
   }

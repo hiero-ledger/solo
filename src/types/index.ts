@@ -140,4 +140,4 @@ export type DeploymentName = string;
 export type Realm = number | Long;
 export type Shard = number | Long;
 export type ClusterReference = string;
-export type ClusterReferences = Map<string, string>;
+export type ClusterReferences = Map<ClusterReference, Context>;

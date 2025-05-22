@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Exclude} from 'class-transformer';
-import {BaseState} from './base-state.js';
+import {BaseStateSchema} from './base-state-schema.js';
 
 @Exclude()
-export class HAProxyState extends BaseState {}
+export class BlockNodeStateSchema extends BaseStateSchema {}
