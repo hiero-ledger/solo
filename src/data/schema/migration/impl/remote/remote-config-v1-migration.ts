@@ -9,6 +9,7 @@ import {InvalidSchemaVersionError} from '../../api/invalid-schema-version-error.
 import {getSoloVersion} from '../../../../../../version.js';
 import {Templates} from '../../../../../core/templates.js';
 import {NodeAlias} from '../../../../../types/aliases.js';
+import {SemVer} from 'semver';
 
 export class RemoteConfigV1Migration implements SchemaMigration {
   public get range(): VersionRange<number> {
@@ -73,6 +74,10 @@ export class RemoteConfigV1Migration implements SchemaMigration {
       blockNodeChart: '0.0.0',
     };
 
+    // need to keep track of the version of explorer chart since explorer label changed after
+    // some specific version.
+    const hederaExplorerChartVersion: string = clone.metadata.hederaExplorerChartVersion;
+
     // delete the old version structure
     delete clone.metadata.soloVersion;
     delete clone.metadata.soloChartVersion;
@@ -127,8 +132,8 @@ export class RemoteConfigV1Migration implements SchemaMigration {
         haProxies: {},
         envoyProxies: {},
         mirrorNodes: {},
-        relayNodes: {},
-        explorers: {},
+        relays: {},
+        mirrorNodeExplorers: {},
       };
     }
 
@@ -197,18 +202,19 @@ export class RemoteConfigV1Migration implements SchemaMigration {
     }
 
     // migrate explorers
-    if (clone.components.explorers) {
-      for (const explorer in clone.components.explorers) {
+    if (clone.components.mirrorNodeExplorers) {
+      for (const explorer in clone.components.mirrorNodeExplorers) {
         const component: {
           name: string;
           nodeId: number;
           namespace: string;
           cluster: string;
-        } = clone.components.explorers[explorer];
+        } = clone.components.mirrorNodeExplorers[explorer];
 
         clone.state.explorers.push({
+          version: hederaExplorerChartVersion,
           metadata: {
-            id: Templates.nodeIdFromNodeAlias(<NodeAlias>component.name),
+            id: 0,
             // name: component.name,
             namespace: component.namespace,
             cluster: component.cluster,
@@ -230,7 +236,7 @@ export class RemoteConfigV1Migration implements SchemaMigration {
 
         clone.state.mirrorNodes.push({
           metadata: {
-            id: Templates.nodeIdFromNodeAlias(<NodeAlias>component.name),
+            id: 0,
             // name: component.name,
             namespace: component.namespace,
             cluster: component.cluster,
@@ -241,17 +247,19 @@ export class RemoteConfigV1Migration implements SchemaMigration {
     }
 
     // migrate relay nodes
-    if (clone.components.relayNodes) {
-      for (const relayNode in clone.components.relayNodes) {
+    if (clone.components.relays) {
+      for (const relayNode in clone.components.relays) {
         const component: {
+          consensusNodeAliases: string[];
           name: string;
           namespace: string;
           cluster: string;
-        } = clone.components.relayNodes[relayNode];
+        } = clone.components.relays[relayNode];
 
         clone.state.relayNodes.push({
           metadata: {
-            id: Templates.nodeIdFromNodeAlias(<NodeAlias>component.name),
+            consensusNodeIds: component.consensusNodeAliases,
+            id: 0,
             // name: component.name,
             namespace: component.namespace,
             cluster: component.cluster,

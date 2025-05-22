@@ -74,6 +74,7 @@ export const EXPLORER_CHART_URL =
 export const EXPLORER_RELEASE_NAME = 'hiero-explorer';
 export const SOLO_RELAY_LABEL = 'app=hedera-json-rpc-relay';
 export const SOLO_EXPLORER_LABEL = 'app.kubernetes.io/component=hiero-explorer';
+export const OLD_SOLO_EXPLORER_LABEL = 'app.kubernetes.io/component=hedera-explorer';
 
 export const INGRESS_CONTROLLER_CHART_URL =
   process.env.INGRESS_CONTROLLER_CHART_URL ?? 'https://haproxy-ingress.github.io/charts';

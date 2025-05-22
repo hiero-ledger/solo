@@ -17,6 +17,11 @@ import {patchInject} from '../../dependency-injection/container-helper.js';
 import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
 import {RemoteConfigValidatorApi} from './api/remote-config-validator-api.js';
 import {DeploymentStateSchema} from '../../../data/schema/model/remote/deployment-state-schema.js';
+import {ExplorerStateSchema} from '../../../data/schema/model/remote/state/explorer-state-schema.js';
+import {SemVer} from 'semver';
+import {EXPLORER_OLD_VERSION_BEFORE_LABEL_CHANGE} from '../../../../version.js';
+import {Version} from '../../../business/utils/version.js';
+import {OLD_SOLO_EXPLORER_LABEL} from '../../constants.js';
 
 /**
  * Static class is used to validate that components in the remote config
@@ -147,9 +152,23 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       }
 
       const context: Context = this.localConfig.configuration.clusterRefs.get(component.metadata.cluster)?.toString();
-      const labels: string[] = getLabelsCallback(component);
+
+      let labels: string[] = getLabelsCallback(component);
+
+      // special handling of explorer scheme since its label changed
+      if (component instanceof ExplorerStateSchema) {
+        const explorerComponent: ExplorerStateSchema = component as ExplorerStateSchema;
+        const oldVersion: SemVer = new SemVer(EXPLORER_OLD_VERSION_BEFORE_LABEL_CHANGE);
+        const chartVersion: SemVer = new SemVer(explorerComponent.version);
+        if (chartVersion.compare(oldVersion) <= 0) {
+          labels = [constants.OLD_SOLO_EXPLORER_LABEL];
+        }
+      }
 
       try {
+        // print components class name
+        console.log(` class name of component = ${component.constructor.name}`);
+        console.log(`Trying to find pods with labels ${labels} in namespace ${namespace} context ${context}`);
         const pods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);
 
         if (pods.length === 0) {
