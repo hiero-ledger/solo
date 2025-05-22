@@ -62,7 +62,7 @@ nvm use v20.18.0
 
 ## Documentation
 
-[Getting Started](https://solo.hiero.org/docs/step-by-step-guide/)
+[Getting Started](https://solo.hiero.org/)
 
 ## Contributing
 

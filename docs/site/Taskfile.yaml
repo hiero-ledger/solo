@@ -52,6 +52,7 @@ tasks:
 
   check-doc-dir:
     desc: "Check if in the docs/site directory"
+    silent: true
     status:
       - |
         if [ "$(basename "$PWD")" != "site" ]; then
@@ -64,6 +65,7 @@ tasks:
 
   clean:
     desc: "Remove artifacts that are automatically generated"
+    silent: true
     cmds:
       - rm -Rf static/classes
       - rm -Rf public/${HUGO_SOLO_VERSION}
@@ -83,6 +85,7 @@ tasks:
   build:solo:
     desc: "Build the Solo CLI"
     dir: ../..
+    silent: true
     sources:
       - src/**/*.ts
       - version.ts
@@ -111,7 +114,7 @@ tasks:
       - chmod 755 docs/site/generate_help.sh
       - task: "build:solo"
       - docs/site/generate_help.sh
-      - printf "\r::endgroup::"
+      - printf "                        \r::endgroup::"
 
   build:hugo:
     desc: "Build the Hugo site"
@@ -127,10 +130,11 @@ tasks:
       - printf "\r::group::Building the Hugo site"
       - hugo config
       - hugo --cleanDestinationDir -e prod --gc --minify --baseURL "{{.hugo_base_url}}" -d public/${HUGO_SOLO_VERSION}
-      - printf "\r::endgroup::"
+      - printf "                        \r::endgroup::"
 
   local:
     desc: "Run the local server for only current version"
+    silent: true
     cmds:
       - task: "install:nginx"
       - task: "build"
@@ -150,7 +154,7 @@ tasks:
     cmds:
       - printf "\r::group::Generating API documentation"
       - npx typedoc --excludeExternals --out docs/site/static/classes --entryPoints ./solo.ts --entryPoints ./src/index.ts --entryPointStrategy expand ./src
-      - printf "\r::endgroup::"
+      - printf "                        \r::endgroup::"
 
   install:
     desc: "Install dependencies: Hugo, TypeDoc, Solo CLI, and Docsy theme"
@@ -161,13 +165,14 @@ tasks:
       - task: "install:docsy"
 
   install:docsy:
+    silent: true
     cmds:
       - printf "\r::group::Installing Docsy theme"
       - npm install -g postcss-cli # Install postcss-cli globally to get around bug: https://github.com/google/docsy/issues/235
       - npm install
       - npm install postcss # must install separately after prior items have been installed: https://www.docsy.dev/docs/get-started/docsy-as-module/installation-prerequisites/#install-postcss
       - hugo mod get github.com/google/docsy@v0.11.1-0.20250424121410-343cdec14c0a
-      - printf "\r::endgroup::"
+      - printf "                        \r::endgroup::"
 
   install:hugo:
     desc: "Install Hugo extended version"
@@ -210,7 +215,7 @@ tasks:
     cmds:
       - printf "\r::group::Installing Hugo extended version"
       - CGO_ENABLED=1 go install -tags extended github.com/gohugoio/hugo@v0.145.0
-      - printf "\r::endgroup::"
+      - printf "                        \r::endgroup::"
 
   install:typedoc:
     desc: "Install TypeDoc"
@@ -219,6 +224,7 @@ tasks:
 
   install:solo:
     desc: "Install the Solo CLI dependencies from the package.json"
+    silent: true
     dir: ../..
     sources:
       - package.json
@@ -226,7 +232,7 @@ tasks:
     cmds:
       - printf "\r::group::Installing Solo"
       - npm install
-      - printf "\r::endgroup::"
+      - printf "                        \r::endgroup::"
 
   deploy:nginx:
     desc: "Build the Hugo site, configure Nginx, then deploy Nginx to serve the Hugo site for testing multiple versions"
@@ -237,6 +243,7 @@ tasks:
 
   deploy:nginx:config:
     desc: "Configure Nginx to serve the Hugo site for testing multiple versions"
+    silent: true
     cmds:
       - |
         if [ ! -d "nginx" ]; then
@@ -291,6 +298,7 @@ tasks:
 
   deploy:nginx:stop:
     desc: "Stop Nginx"
+    silent: true
     cmds:
       - |
         if pgrep nginx > /dev/null; then
@@ -342,16 +350,20 @@ tasks:
 
   build:doc:artifacts:
     desc: "Builds a ./build/latest.tar.gz file and a ./build/${SOLO_VERSION}.tar.gz file from the directories in the public directory"
+    silent: true
     cmds:
       - |
-        mkdir -p build
-        cd public
-        tar -czf ../build/latest.tar.gz latest
-        tar -czf ../build/${HUGO_SOLO_VERSION}.tar.gz ${HUGO_SOLO_VERSION}
+        mkdir -p build/${HUGO_SOLO_VERSION}/latest
+        sed -e "s|/latest|/${HUGO_SOLO_VERSION}|g" public/index.html > build/${HUGO_SOLO_VERSION}/latest/index.html
+        cd build
+        tar -czf ../build/${HUGO_SOLO_VERSION}/latest.tar.gz latest
+        cd ../public
+        tar -czf ../build/${HUGO_SOLO_VERSION}/${HUGO_SOLO_VERSION}.tar.gz ${HUGO_SOLO_VERSION}
         cd ..
 
   npmjs:list:solo:versions:
     desc: Fetch and display all versions of @hashgraph/solo from NPM (with 'v' prefix)
+    silent: true
     cmds:
       - |
         if ! command -v curl &> /dev/null; then
