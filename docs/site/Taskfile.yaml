@@ -103,12 +103,14 @@ tasks:
     generates:
       - docs/site/content/en/docs/solo-commands.md
     cmds:
-      - />&2 echo "::group::Generating CLI help documentation"
+      - |
+        >&2 echo "::group::Generating CLI help documentation"
       - rm -f docs/site/content/en/docs/solo-commands.md
       - chmod 755 docs/site/generate_help.sh
       - task: "build:solo"
       - docs/site/generate_help.sh
-      - />&2 echo "::endgroup::"
+      - |
+        >&2 echo "::endgroup::"
 
   build:hugo:
     desc: "Build the Hugo site"
@@ -122,9 +124,11 @@ tasks:
       - echo "hugo_local_base_url {{.hugo_local_base_url}}"
       - hugo version
       - hugo config
-      - />&2 echo "::group::Building the Hugo site"
+      - |
+        >&2 echo "::group::Building the Hugo site"
       - hugo --cleanDestinationDir -e prod --gc --minify --baseURL "{{.hugo_base_url}}" -d public/${HUGO_SOLO_VERSION}
-      - />&2 echo "::endgroup::"
+      - |
+        >&2 echo "::endgroup::"
 
   local:
     desc: "Run the local server for only current version"
@@ -145,9 +149,11 @@ tasks:
     generates:
       - docs/site/static/classes/**/*.*
     cmds:
-      - />&2 echo "::group::Generating API documentation"
+      - |
+        >&2 echo "::group::Generating API documentation"
       - npx typedoc --excludeExternals --out docs/site/static/classes --entryPoints ./solo.ts --entryPoints ./src/index.ts --entryPointStrategy expand ./src
-      - />&2 echo "::endgroup::"
+      - |
+        >&2 echo "::endgroup::"
 
   install:
     desc: "Install dependencies: Hugo, TypeDoc, Solo CLI, and Docsy theme"
@@ -203,9 +209,10 @@ tasks:
         }
         "
     cmds:
-      - />&2 echo "::group::Installing Hugo extended version"
-      - CGO_ENABLED=1 go install -tags extended github.com/gohugoio/hugo@v0.145.0
-      - />&2 echo "::endgroup::"
+      - |
+        >&2 echo "::group::Installing Hugo extended version"
+        CGO_ENABLED=1 go install -tags extended github.com/gohugoio/hugo@v0.145.0
+        >&2 echo "::endgroup::"
 
   install:typedoc:
     desc: "Install TypeDoc"
