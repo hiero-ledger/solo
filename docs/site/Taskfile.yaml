@@ -478,7 +478,7 @@ tasks:
         echo "Extracting $ARCHIVE to public/latest..."
         rm -rf public/latest
         mkdir -p public/latest
-        tar -xzf --warning=no-unknown-keyword "$ARCHIVE" -C public/
+        tar --warning=no-unknown-keyword -xzf "$ARCHIVE" -C public/
 
   github:extract:versioned:
     desc: Extract ${tag}.tar.gz into public/${tag}
@@ -499,7 +499,7 @@ tasks:
   
           echo "📦 Extracting $ARCHIVE to $DEST..."
           mkdir -p "$DEST"
-          tar -xzf --warning=no-unknown-keyword "$ARCHIVE" -C "$DEST"
+          tar --warning=no-unknown-keyword -xzf "$ARCHIVE" -C "$DEST"
         done
 
   github:update:hugo:config:
