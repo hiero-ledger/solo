@@ -203,3 +203,7 @@ tasks:
         cd examples/external-database-test
         SOLO_CLUSTER_NAME=solo-task-test-external-database task install:external-database
         task destroy:external-database
+
+  test-update-markdown:
+    cmd: |
+      .github/workflows/script/wrapper_for_update_md.sh
