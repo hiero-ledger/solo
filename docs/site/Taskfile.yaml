@@ -80,6 +80,7 @@ tasks:
 
   build:solo:
     desc: "Build the Solo CLI"
+    dir: ../..
     sources:
       - src/**/*.ts
       - version.ts
