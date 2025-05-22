@@ -83,6 +83,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
+    this.objectMapper = patchInject(objectMapper, InjectTokens.ObjectMapper, this.constructor.name);
   }
 
   public get configuration(): RemoteConfig {
