@@ -61,6 +61,10 @@ export class RemoteConfigV1Migration implements SchemaMigration {
     // Normalize version strings by removing 'v' prefix if present
     const normalizeVersion = (version: string | undefined): string => {
       if (!version) return '0.0.0';
+      //for invalid version such v0.122  convert it to v0.122.0
+      if (version.split('.').length === 2) {
+        version = version + '.0';
+      }
       return version.startsWith('v') ? version.substring(1) : version;
     };
 
