@@ -55,7 +55,7 @@ export abstract class BaseCommand extends ShellRunner {
    * 1. Chart's default values file (if chartDirectory is set)
    * 2. Profile values file
    * 3. User's values file
-   * @param clusterRefs
+   * @param clusterReferences
    * @param valuesFileInput - the values file input string
    * @param chartDirectory - the chart directory
    * @param profileValuesFile - mapping of clusterRef to the profile values file full path

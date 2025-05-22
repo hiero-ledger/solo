@@ -6,6 +6,12 @@ import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
+import {
+  EXPLORER_INGRESS_CONTROLLER,
+  EXPLORER_INGRESS_TLS_SECRET_NAME,
+  EXPLORER_CHART_URL,
+  INGRESS_CONTROLLER_PREFIX,
+} from '../core/constants.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -502,7 +508,6 @@ export class ExplorerCommand extends BaseCommand {
             const id: ComponentId = this.configManager.getFlag(flags.id);
             const releaseName: string = this.getReleaseName(id);
             const ingressReleaseName: string = this.getIngressReleaseName(id);
-
             context_.config = {
               namespace,
               clusterContext,

@@ -266,7 +266,7 @@ export class NodeCommandTasks {
     podReferences: Record<NodeAlias, PodReference>,
     task: SoloListrTaskWrapper<AnyListrContext>,
     localBuildPath: string,
-    consensusNodes: Optional<ConsensusNode[]>,
+    consensusNodes: ConsensusNode[],
     releaseTag: string,
   ): SoloListr<AnyListrContext> {
     const subTasks: SoloListrTask<AnyListrContext>[] = [];
@@ -360,7 +360,7 @@ export class NodeCommandTasks {
     releaseTag: string,
     task: SoloListrTaskWrapper<AnyListrContext>,
     platformInstaller: PlatformInstaller,
-    consensusNodes?: Optional<ConsensusNode[]>,
+    consensusNodes: ConsensusNode[],
   ): SoloListr<AnyListrContext> {
     const subTasks: SoloListrTask<AnyListrContext>[] = [];
     for (const nodeAlias of nodeAliases) {
@@ -1347,7 +1347,7 @@ export class NodeCommandTasks {
             title: 'Copy gRPC TLS keys to staging',
             task: async () => {
               for (const nodeAlias of nodeAliases) {
-                const tlsKeyFiles = this.keyManager.prepareTLSKeyFilePaths(nodeAlias, config.keysDir);
+                const tlsKeyFiles = this.keyManager.prepareTlsKeyFilePaths(nodeAlias, config.keysDir);
                 this.keyManager.copyNodeKeysToStaging(tlsKeyFiles, config.stagingKeysDir);
               }
             },

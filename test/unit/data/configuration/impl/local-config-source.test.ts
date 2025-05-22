@@ -2,7 +2,7 @@
 
 import {expect} from 'chai';
 import {LocalConfigSource} from '../../../../../src/data/configuration/impl/local-config-source.js';
-import {LocalConfigSchema} from '../../../../../src/data/schema/migration/impl/local/local-config-schema-definition.js';
+import {LocalConfigSchemaDefinition} from '../../../../../src/data/schema/migration/impl/local/local-config-schema-definition.js';
 import {type ObjectMapper} from '../../../../../src/data/mapper/api/object-mapper.js';
 import {ClassToObjectMapper} from '../../../../../src/data/mapper/impl/class-to-object-mapper.js';
 import {ConfigKeyFormatter} from '../../../../../src/data/key/config-key-formatter.js';
@@ -24,7 +24,7 @@ describe('LocalConfigSource', () => {
     });
     const source: LocalConfigSource = new LocalConfigSource(
       'local-config',
-      new LocalConfigSchema(objectMapper),
+      new LocalConfigSchemaDefinition(objectMapper),
       objectMapper,
       new SimpleObjectStorageBackend(map),
     );

@@ -9,6 +9,7 @@ import {instanceToPlain, plainToInstance} from 'class-transformer';
 import {RemoteConfigSchema} from '../../../../../../src/data/schema/model/remote/remote-config-schema.js';
 import {LedgerPhase} from '../../../../../../src/data/schema/model/remote/ledger-phase.js';
 import {DeploymentPhase} from '../../../../../../src/data/schema/model/remote/deployment-phase.js';
+
 type MigrationCandidate = any;
 
 function migrateVersionPrefix(version: string): string {

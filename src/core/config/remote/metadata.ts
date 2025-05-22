@@ -2,8 +2,14 @@
 
 import {Migration} from './migration.js';
 import {SoloError} from '../../errors/solo-error.js';
-import {type DeploymentName, type NamespaceNameAsString, type Version} from '../../../types/index.js';
-import {type Optional, type ToObject, type Validate} from '../../../types/index.js';
+import {
+  type DeploymentName,
+  type NamespaceNameAsString,
+  type Optional,
+  type ToObject,
+  type Validate,
+  type Version,
+} from '../../../types/index.js';
 import {type UserIdentitySchema} from '../../../data/schema/model/common/user-identity-schema.js';
 import {DeploymentStates} from './enumerations/deployment-states.js';
 import {isValidEnum} from '../../util/validation-helpers.js';
@@ -106,7 +112,7 @@ export class RemoteConfigMetadata
       typeof this.lastUpdateBy.name !== 'string' ||
       typeof this.lastUpdateBy.hostname !== 'string'
     ) {
-      throw new SoloError(`Invalid lastUpdateBy: ${this.lastUpdateBy}`);
+      throw new SoloError(`Invalid lastUpdateBy: ${JSON.stringify(this.lastUpdateBy)}`);
     }
 
     if (!this.soloVersion || typeof this.soloVersion !== 'string') {

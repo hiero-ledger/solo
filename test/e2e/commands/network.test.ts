@@ -22,7 +22,7 @@ import {NetworkCommand} from '../../../src/commands/network.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import os from 'node:os';
 import {container} from 'tsyringe-neo';
-import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/local-config-runtime-state.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 
 describe('NetworkCommand', function networkCommand() {
@@ -143,6 +143,7 @@ describe('NetworkCommand', function networkCommand() {
       argv: argv,
       command: NetworkCommand.COMMAND_NAME,
       subcommand: 'deploy',
+      // @ts-expect-error - to access private method
       callback: async argv => networkCmd.deploy(argv),
     });
 
@@ -178,6 +179,7 @@ describe('NetworkCommand', function networkCommand() {
         argv: argv,
         command: NetworkCommand.COMMAND_NAME,
         subcommand: 'destroy',
+        // @ts-expect-error - to access private method
         callback: async argv => networkCmd.destroy(argv),
       });
 

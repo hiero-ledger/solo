@@ -26,10 +26,13 @@ import {Templates} from '../core/templates.js';
 import {Cluster} from '../core/config/remote/cluster.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {ConsensusNodeStates} from '../core/config/remote/enumerations/consensus-node-states.js';
 import {DeploymentStates} from '../core/config/remote/enumerations/deployment-states.js';
 import {StringFacade} from '../business/runtime-state/facade/string-facade.js';
 import {Deployment} from '../business/runtime-state/config/local/deployment.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
+import {StringFacade} from '../business/runtime-state/facade/string-facade.js';
+import {Deployment} from '../business/runtime-state/config/local/deployment.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;

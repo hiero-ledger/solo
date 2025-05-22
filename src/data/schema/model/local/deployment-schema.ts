@@ -20,7 +20,7 @@ export class DeploymentSchema {
   @Expose()
   public shard: Shard;
 
-  constructor(name?: string, namespace?: string, clusters?: string[], realm?: Realm, shard?: Shard) {
+  public constructor(name?: string, namespace?: string, clusters?: string[], realm?: Realm, shard?: Shard) {
     this.name = name ?? '';
     this.namespace = namespace ?? '';
     this.clusters = clusters ?? [];

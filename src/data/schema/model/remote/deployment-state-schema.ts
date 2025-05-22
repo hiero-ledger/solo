@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Exclude, Expose, Transform, Type} from 'class-transformer';
-import {ConsensusNodeState} from './state/consensus-node-state.js';
+import {ConsensusNodeStateSchema} from './state/consensus-node-state-schema.js';
 import {type LedgerPhase} from './ledger-phase.js';
 import {Transformations} from '../utils/transformations.js';
-import {RelayNodeState} from './state/relay-node-state.js';
-import {MirrorNodeState} from './state/mirror-node-state.js';
-import {HAProxyState} from './state/haproxy-state.js';
-import {EnvoyProxyState} from './state/envoy-proxy-state.js';
-import {ExplorerState} from './state/explorer-state.js';
-import {BlockNodeState} from './state/block-node-state.js';
+import {RelayNodeStateSchema} from './state/relay-node-state-schema.js';
+import {MirrorNodeStateSchema} from './state/mirror-node-state-schema.js';
+import {HAProxyStateSchema} from './state/haproxy-state-schema.js';
+import {EnvoyProxyStateSchema} from './state/envoy-proxy-state-schema.js';
+import {ExplorerStateSchema} from './state/explorer-state-schema.js';
+import {BlockNodeStateSchema} from './state/block-node-state-schema.js';
 
 @Exclude()
 export class DeploymentStateSchema {
@@ -18,42 +18,42 @@ export class DeploymentStateSchema {
   public ledgerPhase: LedgerPhase;
 
   @Expose()
-  @Type(() => ConsensusNodeState)
-  public consensusNodes: ConsensusNodeState[];
+  @Type(() => ConsensusNodeStateSchema)
+  public consensusNodes: ConsensusNodeStateSchema[];
 
   @Expose()
-  @Type(() => BlockNodeState)
-  public blockNodes: BlockNodeState[];
+  @Type(() => BlockNodeStateSchema)
+  public blockNodes: BlockNodeStateSchema[];
 
   @Expose()
-  @Type(() => MirrorNodeState)
-  public mirrorNodes: MirrorNodeState[];
+  @Type(() => MirrorNodeStateSchema)
+  public mirrorNodes: MirrorNodeStateSchema[];
 
   @Expose()
-  @Type(() => RelayNodeState)
-  public relayNodes: RelayNodeState[];
+  @Type(() => RelayNodeStateSchema)
+  public relayNodes: RelayNodeStateSchema[];
 
   @Expose()
-  @Type(() => HAProxyState)
-  public haProxies: HAProxyState[];
+  @Type(() => HAProxyStateSchema)
+  public haProxies: HAProxyStateSchema[];
 
   @Expose()
-  @Type(() => EnvoyProxyState)
-  public envoyProxies: EnvoyProxyState[];
+  @Type(() => EnvoyProxyStateSchema)
+  public envoyProxies: EnvoyProxyStateSchema[];
 
   @Expose()
-  @Type(() => ExplorerState)
-  public explorers: ExplorerState[];
+  @Type(() => ExplorerStateSchema)
+  public explorers: ExplorerStateSchema[];
 
   public constructor(
     ledgerPhase?: LedgerPhase,
-    consensusNodes?: ConsensusNodeState[],
-    blockNodes?: BlockNodeState[],
-    mirrorNodes?: MirrorNodeState[],
-    relayNodes?: RelayNodeState[],
-    haProxies?: HAProxyState[],
-    envoyProxies?: EnvoyProxyState[],
-    explorers?: ExplorerState[],
+    consensusNodes?: ConsensusNodeStateSchema[],
+    blockNodes?: BlockNodeStateSchema[],
+    mirrorNodes?: MirrorNodeStateSchema[],
+    relayNodes?: RelayNodeStateSchema[],
+    haProxies?: HAProxyStateSchema[],
+    envoyProxies?: EnvoyProxyStateSchema[],
+    explorers?: ExplorerStateSchema[],
   ) {
     this.ledgerPhase = ledgerPhase;
     this.consensusNodes = consensusNodes || [];
