@@ -73,6 +73,7 @@ jobs:
 
       - name: Launch Network with Release version ${{ matrix.release-tag }}
         run: |
+          npm install
           task build
           npm -g @hashgraph/solo@${{ matrix.release-tag }} --force
           solo --version
