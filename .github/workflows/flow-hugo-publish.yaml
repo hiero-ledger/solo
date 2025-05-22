@@ -117,7 +117,7 @@ jobs:
       # Upload the built site to GitHub Pages
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
-        if: ${{ endsWith(github.ref, 'nonExisting') }}
+        # if: ${{ endsWith(github.ref, 'nonExisting') }}
         with:
           path: ./docs/site/public
 
@@ -125,7 +125,7 @@ jobs:
       # Upload the built site to artifacts for troubleshooting or verification
       - name: Upload Artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !endsWith(github.ref, 'main') }}
+        # if: ${{ !endsWith(github.ref, 'main') }}
         with:
           path: |
                 ./docs/site/build
@@ -142,7 +142,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     needs:
       - build
-    if: ${{ endsWith(github.ref, 'nonExisting') }}
+    # if: ${{ endsWith(github.ref, 'nonExisting') }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
