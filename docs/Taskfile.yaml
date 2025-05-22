@@ -11,6 +11,7 @@ env:
   HUGO_ORIGIN: https://solo.hiero.org
   HUGO_HOST: solo.hiero.org
   HUGO_BASEPATH: /
+  HUGO_SOLO_VERSION: v0.35.2
 
 tasks:
   default:
@@ -50,6 +51,7 @@ tasks:
       - task: "build:typedoc"
       - task: "build:copy"
       - task: "build:hugo"
+      - task: "build:doc:artifacts"
 
   build:hugo:
     cmds:
@@ -97,3 +99,15 @@ tasks:
     cmds:
       - cd ..
       - npm install
+
+  build:doc:artifacts:
+    desc: "Builds a ./build/latest.tar.gz file and a ./build/${HUGO_SOLO_VERSION}.tar.gz file from the directories in the public directory"
+    cmds:
+      - |
+        mkdir -p build
+        mkdir -p public/latest
+        cd public
+        echo '<html><head><meta http-equiv="refresh" content="0; url=/v0.35.2"></head><body></body></html>' > latest/index.html
+        tar -czf ../build/latest.tar.gz latest
+        tar -czf ../build/${HUGO_SOLO_VERSION}.tar.gz ${HUGO_SOLO_VERSION}
+        cd ..
