@@ -51,6 +51,7 @@ import {type NodeRestartContext} from './config-interfaces/node-restart-context.
 import {type NodeSetupContext} from './config-interfaces/node-setup-context.js';
 import {type NodePrepareUpgradeContext} from './config-interfaces/node-prepare-upgrade-context.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {SoloConfigRuntimeState} from '../../business/runtime-state/config/solo/solo-config-runtime-state.js';
 
 const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
 const DOWNLOAD_GENERATED_FILES_CONFIGS_NAME = 'downloadGeneratedFilesConfig';
@@ -71,6 +72,7 @@ export class NodeCommandConfigs {
     @inject(InjectTokens.RemoteConfigManager) private readonly remoteConfigManager: RemoteConfigManager,
     @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
+    @inject(InjectTokens.SoloConfigRuntimeState) private readonly soloConfig: SoloConfigRuntimeState,
   ) {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
@@ -81,6 +83,7 @@ export class NodeCommandConfigs {
       InjectTokens.RemoteConfigManager,
       this.constructor.name,
     );
+    this.soloConfig = patchInject(soloConfig, InjectTokens.SoloConfigRuntimeState, this.constructor.name);
   }
 
   private async initializeSetup(config: AnyObject, k8Factory: K8Factory): Promise<void> {
@@ -174,8 +177,10 @@ export class NodeCommandConfigs {
       'namespace',
       'consensusNodes',
       'contexts',
+      'chartDirectory',
     ]) as NodeUpgradeConfigClass;
 
+    context_.config.chartDirectory = this.soloConfig.soloConfig.helmChart.directory;
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
     context_.config.curDate = new Date();
     context_.config.existingNodeAliases = [];
@@ -224,8 +229,10 @@ export class NodeCommandConfigs {
       'namespace',
       'consensusNodes',
       'contexts',
+      'chartDirectory',
     ]) as NodeUpdateConfigClass;
 
+    context_.config.chartDirectory = this.soloConfig.soloConfig.helmChart.directory;
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
     context_.config.curDate = new Date();
     context_.config.existingNodeAliases = [];
@@ -282,8 +289,10 @@ export class NodeCommandConfigs {
       'namespace',
       'consensusNodes',
       'contexts',
+      'chartDirectory',
     ]) as NodeDeleteConfigClass;
 
+    context_.config.chartDirectory = this.soloConfig.soloConfig.helmChart.directory;
     context_.config.curDate = new Date();
     context_.config.existingNodeAliases = [];
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
@@ -341,7 +350,10 @@ export class NodeCommandConfigs {
       'namespace',
       'consensusNodes',
       'contexts',
+      'chartDirectory',
     ]) as NodeAddConfigClass;
+
+    context_.config.chartDirectory = this.soloConfig.soloConfig.helmChart.directory;
 
     context_.adminKey = argv[flags.adminKey.name]
       ? PrivateKey.fromStringED25519(argv[flags.adminKey.name])
