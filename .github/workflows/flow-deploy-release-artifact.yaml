@@ -85,25 +85,11 @@ jobs:
           [[ "${{ github.event.inputs.dry-run-enabled }}" == true && ! -f VERSION ]] && echo -n "0.0.0-latest" > VERSION
           echo "version=$(cat VERSION | tr -d '[:space:]')" | tee -a ${GITHUB_OUTPUT}
 
-  update-readme:
-    name: "Update README.md"
-    uses: ./.github/workflows/zxc-update-readme.yaml
-    needs:
-      - prepare-release
-    with:
-      commit-changes: true
-      version: ${{ needs.prepare-release.outputs.version }}
-    secrets:
-      GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
-      GH_ACCESS_GPG_KEY: ${{ secrets.GH_ACCESS_GPG_KEY }}
-      GH_ACCESS_PASSPHRASE: ${{ secrets.GH_ACCESS_PASSPHRASE }}
-
   create-github-release:
     name: Github / Release
     runs-on: hiero-solo-linux-medium
     needs:
       - prepare-release
-      - update-readme
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -115,7 +101,6 @@ jobs:
         with:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           fetch-depth: 0
-          ref: ${{ needs.update-readme.outputs.commit-hash }}
 
       - name: Install GnuPG Tools
         run: |
@@ -201,7 +186,6 @@ jobs:
 
       - name: Publish Semantic Release
         env:
-          commit: ${{ needs.update-readme.outputs.commit-hash }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
           GIT_AUTHOR_NAME: ${{ secrets.GIT_USER_NAME }}
