@@ -11,9 +11,10 @@ import {EnvoyProxyStateSchema} from './state/envoy-proxy-state-schema.js';
 import {ExplorerStateSchema} from './state/explorer-state-schema.js';
 import {BlockNodeStateSchema} from './state/block-node-state-schema.js';
 import {ComponentIdsShema} from './state/component-ids-shema.js';
+import {DeploymentStateStructure} from './interfaces/deployment-state-structure.js';
 
 @Exclude()
-export class DeploymentStateSchema {
+export class DeploymentStateSchema implements DeploymentStateStructure {
   @Expose()
   @Transform(Transformations.LedgerPhase)
   public ledgerPhase: LedgerPhase;

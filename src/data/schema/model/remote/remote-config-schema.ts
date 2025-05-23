@@ -7,9 +7,10 @@ import {ClusterSchema} from '../common/cluster-schema.js';
 import {DeploymentStateSchema} from './deployment-state-schema.js';
 import {DeploymentHistorySchema} from './deployment-history-schema.js';
 import {Version} from '../../../../business/utils/version.js';
+import {RemoteConfigStructure} from './interfaces/remote-config-structure.js';
 
 @Exclude()
-export class RemoteConfigSchema {
+export class RemoteConfigSchema implements RemoteConfigStructure {
   public static readonly SCHEMA_VERSION: Version<number> = new Version(1);
 
   @Expose()
