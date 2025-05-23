@@ -119,7 +119,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          path: ${{ env.HOME }}/.npm/_logs
+          path: /home/runner/.npm/_logs
 
       - name: Import GPG key
         uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
