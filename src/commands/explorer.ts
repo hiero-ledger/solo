@@ -34,7 +34,6 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {Lock} from '../core/lock/lock.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {CommandFlag, CommandFlags} from '../types/flag-types.js';
-import {MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
