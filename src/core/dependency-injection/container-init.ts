@@ -56,6 +56,7 @@ import {ComponentFactory} from '../config/remote/component-factory.js';
 import {RemoteConfigValidator} from '../config/remote/remote-config-validator.js';
 import {ClassToObjectMapper} from '../../data/mapper/impl/class-to-object-mapper.js';
 import {SoloConfigRuntimeState} from '../../business/runtime-state/config/solo/solo-config-runtime-state.js';
+import {MirrorNodeConfigRuntimeState} from '../../business/runtime-state/config/mirror-node/mirror-node-config-runtime-state.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -144,6 +145,7 @@ export class Container {
       new SingletonContainer(InjectTokens.ErrorHandler, ErrorHandler),
       new SingletonContainer(InjectTokens.ObjectMapper, ClassToObjectMapper),
       new SingletonContainer(InjectTokens.SoloConfigRuntimeState, SoloConfigRuntimeState),
+      new SingletonContainer(InjectTokens.MirrorNodeConfigRuntimeState, MirrorNodeConfigRuntimeState),
       new SingletonContainer(InjectTokens.ComponentFactory, ComponentFactory),
       new SingletonContainer(InjectTokens.RemoteConfigValidator, RemoteConfigValidator),
     ];

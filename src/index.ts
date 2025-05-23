@@ -82,7 +82,7 @@ export async function main(argv: string[], context?: {logger: SoloLogger}) {
       // @ts-expect-error - TS2322: To assign middlewares
       middlewares.checkIfInitialized(),
       // @ts-expect-error - TS2322: To assign middlewares
-      middlewares.loadSoloConfig(),
+      middlewares.loadRuntimeStateConfigs(),
       // @ts-expect-error - TS2322: To assign middlewares
       middlewares.loadLocalConfig(),
       // @ts-expect-error - TS2322: To assign middlewares
