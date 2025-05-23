@@ -39,7 +39,7 @@ permissions:
 jobs:
   env-vars:
     name: ${{ inputs.custom-job-label || 'Set Environment Variables' }}
-    runs-on: solo-linux-medium
+    runs-on: hiero-solo-linux-medium
     outputs:
       # {AUTOGENERATE-JOB-OUTPUTS-SUB-DIRS}
       # {AUTOGENERATE-JOB-OUTPUTS-COVERAGE-REPORTS}
