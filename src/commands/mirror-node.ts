@@ -49,6 +49,10 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {type AccountId} from '@hashgraph/sdk';
+import {SoloConfigRuntimeState} from '../business/runtime-state/config/solo/solo-config-runtime-state.js';
+import {
+  MirrorNodeConfigRuntimeState
+} from '../business/runtime-state/config/mirror-node/mirror-node-config-runtime-state.js';
 
 interface MirrorNodeDeployConfigClass {
   cacheDir: string;
@@ -103,11 +107,17 @@ export class MirrorNodeCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
     @inject(InjectTokens.ProfileManager) private readonly profileManager?: ProfileManager,
+    @inject(InjectTokens.MirrorNodeConfigRuntimeState) private readonly mirrorNodeConfig?: MirrorNodeConfigRuntimeState,
   ) {
     super();
 
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
+    this.mirrorNodeConfig = patchInject(
+      mirrorNodeConfig,
+      InjectTokens.MirrorNodeConfigRuntimeState,
+      this.constructor.name,
+    );
   }
 
   public static readonly COMMAND_NAME = 'mirror-node';
@@ -119,7 +129,6 @@ export class MirrorNodeCommand extends BaseCommand {
     optional: [
       flags.cacheDir,
       flags.clusterRef,
-      flags.chartDirectory,
       flags.deployment,
       flags.enableIngress,
       flags.ingressControllerValueFile,
@@ -349,9 +358,11 @@ export class MirrorNodeCommand extends BaseCommand {
             context_.config = this.configManager.getConfig(MirrorNodeCommand.DEPLOY_CONFIGS_NAME, allFlags, [
               'valuesArg',
               'namespace',
+              'chartDirectory',
             ]) as MirrorNodeDeployConfigClass;
 
             context_.config.namespace = namespace;
+            context_.config.chartDirectory = this.mirrorNodeConfig.mirrorNodeConfig.helmChart.directory;
 
             // predefined values first
             context_.config.valuesArg += helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
@@ -890,7 +901,6 @@ export class MirrorNodeCommand extends BaseCommand {
             builder: y =>
               flags.setOptionalCommandFlags(
                 y,
-                flags.chartDirectory,
                 flags.clusterRef,
                 flags.force,
                 flags.quiet,

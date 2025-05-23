@@ -18,6 +18,9 @@ import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {SoloConfigRuntimeState} from '../business/runtime-state/config/solo/solo-config-runtime-state.js';
+import {
+  MirrorNodeConfigRuntimeState
+} from '../business/runtime-state/config/mirror-node/mirror-node-config-runtime-state.js';
 
 @injectable()
 export class Middlewares {
@@ -29,6 +32,7 @@ export class Middlewares {
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.HelpRenderer) private readonly helpRenderer: HelpRenderer,
     @inject(InjectTokens.SoloConfigRuntimeState) private readonly soloConfig: SoloConfigRuntimeState,
+    @inject(InjectTokens.MirrorNodeConfigRuntimeState) private readonly mirrorNodeConfig: MirrorNodeConfigRuntimeState,
   ) {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.remoteConfigManager = patchInject(
@@ -41,6 +45,11 @@ export class Middlewares {
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.helpRenderer = patchInject(helpRenderer, InjectTokens.HelpRenderer, this.constructor.name);
     this.soloConfig = patchInject(soloConfig, InjectTokens.SoloConfigRuntimeState, this.constructor.name);
+    this.mirrorNodeConfig = patchInject(
+      mirrorNodeConfig,
+      InjectTokens.MirrorNodeConfigRuntimeState,
+      this.constructor.name,
+    );
   }
 
   public printCustomHelp(rootCmd: any) {
@@ -202,10 +211,13 @@ export class Middlewares {
     };
   }
 
-  public loadSoloConfig() {
+  public loadRuntimeStateConfigs() {
     return async (argv: any): Promise<AnyObject> => {
       this.logger.debug('Loading SoloConfigRuntimeState');
       await this.soloConfig.load();
+
+      this.logger.debug('Loading MirrorNodeConfigRuntimeState');
+      await this.mirrorNodeConfig.load();
 
       return argv;
     };

@@ -15,16 +15,12 @@ import {ConfigurationError} from '../api/configuration-error.js';
 export class LayeredConfigProvider implements ConfigProvider {
   private _config: Config | undefined;
 
-  public constructor(
-    @inject(InjectTokens.ObjectMapper) private readonly mapper: ObjectMapper,
-    @inject(InjectTokens.SoloConfigPrefix) private readonly prefix: string,
-  ) {
+  public constructor(@inject(InjectTokens.ObjectMapper) private readonly mapper: ObjectMapper) {
     this.mapper = patchInject(mapper, InjectTokens.ObjectMapper, LayeredConfigProvider.name);
-    this.prefix = patchInject(prefix, InjectTokens.SoloConfigPrefix, LayeredConfigProvider.name);
   }
 
   public builder(): ConfigBuilder {
-    return new LayeredConfigBuilder(this.mapper, this.prefix);
+    return new LayeredConfigBuilder(this.mapper);
   }
 
   public config(): Config {

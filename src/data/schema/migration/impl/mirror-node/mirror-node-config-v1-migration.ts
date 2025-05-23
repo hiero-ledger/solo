@@ -7,7 +7,7 @@ import {IllegalArgumentError} from '../../../../../business/errors/illegal-argum
 import {InvalidSchemaVersionError} from '../../api/invalid-schema-version-error.js';
 import {getNewHelmChartObject} from '../../api/helm-chart-object.js';
 
-export class SoloConfigV1Migration implements SchemaMigration {
+export class MirrorNodeConfigV1Migration implements SchemaMigration {
   public get range(): VersionRange<number> {
     return VersionRange.fromIntegerVersion(0);
   }
@@ -35,18 +35,6 @@ export class SoloConfigV1Migration implements SchemaMigration {
 
     if (!clone.helmChart) {
       clone.helmChart = getNewHelmChartObject();
-    }
-
-    if (!clone.ingressControllerHelmChart) {
-      clone.ingressControllerHelmChart = getNewHelmChartObject();
-    }
-
-    if (!clone.clusterSetupHelmChart) {
-      clone.clusterSetupHelmChart = getNewHelmChartObject();
-    }
-
-    if (!clone.certManagerHelmChart) {
-      clone.certManagerHelmChart = getNewHelmChartObject();
     }
 
     return clone;
