@@ -102,10 +102,8 @@ jobs:
         with:
           go-version-file: 'docs/site/go.mod'
 
-      # TODO build latest - check to see if this is automatic as part of task build
-      # TODO build main - if branch does not start with release and is not a tagged release build
-      # TODO build release - if branch starts with release
-      # TODO need to make sure the package.json is at the correct version if this is a release artifact build
+      # TODO set HUGO_SOLO_VERSION to the input solo_version, solo_version will default to 'main', and will be a workflow input
+      # TODO attach release artifact if part of release workflow and run it after semantic-release to ensure the version is correct
       - name: Build with Hugo
         env:
           GH_TOKEN: ${{ github.token }}
@@ -114,37 +112,34 @@ jobs:
           cd docs/site
           task build
 
-      # TODO what is the trigger and the action for this?
-      # TODO before this we need to download all of the prior release docs and put them in the public folder
+      # TODO only publish on push to 'main'
       # Upload the built site to GitHub Pages
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
-        # if: ${{ endsWith(github.ref, 'nonExisting') }}
+        if: ${{ endsWith(github.ref, 'disabled') }}
         with:
           path: ./docs/site/public
 
-      # TODO upload latest + (main or release)
       # Upload the built site to artifacts for troubleshooting or verification
       - name: Upload Artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        # if: ${{ !endsWith(github.ref, 'main') }}
         with:
           path: |
                 ./docs/site/build
                 ./docs/site/public
                 ./docs/site/static
 
-  # TODO what are the new conditions for this job?
+  # TODO only publish on push to 'main'
   # Deployment job
   deploy:
     name: Deploy
     runs-on: hiero-solo-linux-medium
     environment:
-      name: github-pages
+      name: github-pages # security guard on what branch/tag can run this job
       url: ${{ steps.deployment.outputs.page_url }}
     needs:
       - build
-    # if: ${{ endsWith(github.ref, 'nonExisting') }}
+    if: ${{ endsWith(github.ref, 'disabled') }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0

@@ -16,15 +16,8 @@ vars:
   hugo_base_url: "${HUGO_ORIGIN}${HUGO_SOLO_VERSION}/"
   hugo_local_base_url: "${HUGO_LOCAL_ORIGIN}${HUGO_SOLO_VERSION}/"
 
-# TODO P0 github workflow to run the docs build for main or release
-# TODO P0 github workflow to construct the docs site and publish to gh pages, needs to either be in the same runner, or publish CI artifact to download on different runner
 # TODO P0 attach the archive to the release, can I use gh CLI in Taskfile.yaml?
-# TODO P0.5 create a bunch of issues for what needs to get done in v0.35, and assign them out to the team
-# TODO P1 for each release that has a docs attached download the docs and extract them
-# TODO P1 only extract the latest archive for the npmjs latest version
-# TODO P1 add versions to exclude
-# TODO P1 get this all working in v0.35 and get it published to release
-# TODO P1 get the v0.35 GHIs PRs created/merged
+# TODO P2 break this into multiple files
 
 tasks:
   default:
@@ -143,7 +136,6 @@ tasks:
     cmds:
       - task: "install:nginx"
       - task: "build"
-      #      - hugo server --cleanDestinationDir -e dev -DFE --minify serve --renderToMemory --baseURL "{{.hugo_local_base_url}}"
       - hugo server --cleanDestinationDir -e dev -DFE --minify serve --baseURL "{{.hugo_local_base_url}}" -d public/${HUGO_SOLO_VERSION}
 
   build:typedoc:
