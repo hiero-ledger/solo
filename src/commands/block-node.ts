@@ -34,6 +34,13 @@ import {type PodReference} from '../integration/kube/resources/pod/pod-reference
 import chalk from 'chalk';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
+import {inject, injectable} from 'tsyringe-neo';
+import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import type {ClusterCommandTasks} from './cluster/tasks.js';
+import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {
+  BlockNodeConfigRuntimeState
+} from '../business/runtime-state/config/block-node/block-node-config-runtime-state.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {ComponentStateMetadataSchema} from '../data/schema/model/remote/state/component-state-metadata-schema.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
@@ -80,6 +87,7 @@ interface BlockNodeDestroyContext {
   config: BlockNodeDestroyConfigClass;
 }
 
+@injectable()
 export class BlockNodeCommand extends BaseCommand {
   public static readonly COMMAND_NAME: string = 'block';
 
@@ -91,7 +99,6 @@ export class BlockNodeCommand extends BaseCommand {
     required: [],
     optional: [
       flags.blockNodeChartVersion,
-      flags.chartDirectory,
       flags.clusterRef,
       flags.deployment,
       flags.devMode,
@@ -107,6 +114,19 @@ export class BlockNodeCommand extends BaseCommand {
     required: [],
     optional: [flags.chartDirectory, flags.clusterRef, flags.deployment, flags.devMode, flags.force, flags.quiet],
   };
+
+  public constructor(
+    @inject(InjectTokens.BlockNodeConfigRuntimeState) private readonly blockNodeConfig: BlockNodeConfigRuntimeState,
+  ) {
+    super();
+
+    this.blockNodeConfig = patchInject(
+      blockNodeConfig,
+      InjectTokens.BlockNodeConfigRuntimeState,
+      BlockNodeCommand.name,
+    );
+  }
+
 
   private async prepareValuesArgForBlockNode(config: BlockNodeDeployConfigClass): Promise<string> {
     let valuesArgument: string = '';
@@ -161,6 +181,7 @@ export class BlockNodeCommand extends BaseCommand {
             context_.config = this.configManager.getConfig(
               BlockNodeCommand.ADD_CONFIGS_NAME,
               allFlags,
+              ['chartDirectory']
             ) as BlockNodeDeployConfigClass;
 
             const platformVersion: SemVer = new SemVer(context_.config.releaseTag);
@@ -168,6 +189,7 @@ export class BlockNodeCommand extends BaseCommand {
               throw new SoloError('Hedera platform versions less than v0.62.0 are not supported');
             }
 
+            context_.config.chartDirectory = this.blockNodeConfig.blockNodeConfig.helmChart.directory;
             context_.config.namespace = await resolveNamespaceFromDeployment(
               this.localConfig,
               this.configManager,
