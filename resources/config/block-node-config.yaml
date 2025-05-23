@@ -1,0 +1,13 @@
+#schemaVersion: 1
+helmChart:
+  name: block-node-helm-chart
+  # namespace: should come from presentation layer
+  release: block-node
+  repository: oci://ghcr.io/hiero-ledger/hiero-block-node
+  # directory: would be used via environment variable only
+  # version: should come from version.ts or presentation layer
+  labelSelector:
+  containerName: block-node-helm-chart
+  ingressClassName:
+  ingressControllerName:
+  ingressControllerPrefix:
