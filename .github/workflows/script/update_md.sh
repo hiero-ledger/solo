@@ -53,11 +53,11 @@ export SOLO_NODE_SETUP_OUTPUT=$( cat ${BUILD_DIR}/node-setup.log | tee ${BUILD_D
 solo node start -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/node-start.log
 export SOLO_NODE_START_OUTPUT=$( cat ${BUILD_DIR}/node-start.log | tee ${BUILD_DIR}/test.log )
 
-solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --release-tag "${SOLO_RELEASE_TAG}" | tee block-node-add.log
-export SOLO_BLOCK_NODE_ADD_OUTPUT=$( cat block-node-add.log | tee test.log )
+solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --release-tag "${SOLO_RELEASE_TAG}" | tee ${BUILD_DIR}/block-node-add.log
+export SOLO_BLOCK_NODE_ADD_OUTPUT=$( cat ${BUILD_DIR}/block-node-add.log | tee test.log )
 
-solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q | tee mirror-node-deploy.log
-export SOLO_MIRROR_NODE_DEPLOY_OUTPUT=$( cat mirror-node-deploy.log | tee test.log )
+solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q | tee ${BUILD_DIR}mirror-node-deploy.log
+export SOLO_MIRROR_NODE_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/mirror-node-deploy.log | tee test.log )
 
 solo relay deploy -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/relay-deploy.log
 export SOLO_RELAY_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/relay-deploy.log | tee ${BUILD_DIR}/test.log )
@@ -74,11 +74,11 @@ export SOLO_MIRROR_NODE_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/mirror-node-destroy.l
 solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/explorer-destroy.log
 export SOLO_EXPLORER_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/explorer-destroy.log | tee ${BUILD_DIR}/test.log )
 
-solo block node destroy --deployment "${SOLO_DEPLOYMENT}" | tee block-node-destroy.log
-export SOLO_BLOCK_NODE_DESTROY_OUTPUT=$( cat block-node-destroy.log | tee test.log )
+solo block node destroy --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/block-node-destroy.log
+export SOLO_BLOCK_NODE_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/block-node-destroy.log | tee test.log )
 
-solo network destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee network-destroy.log
-export SOLO_NETWORK_DESTROY_OUTPUT=$( cat network-destroy.log | tee test.log )
+solo network destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/network-destroy.log
+export SOLO_NETWORK_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/network-destroy.log | tee test.log )
 
 pushd ../
 echo "Generating ${TARGET_FILE} from ${TARGET_FILE}.template"
