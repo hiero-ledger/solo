@@ -155,7 +155,7 @@ jobs:
           set -x
           npm install
           echo "VERSION=${{ needs.prepare-release.outputs.version }}"
-          [[ -n "${{ needs.prepare-release.outputs.version }}" ]] && npm version ${{ needs.prepare-release.outputs.version }} -f --no-git-tag-version
+          [[ -n "${{ needs.prepare-release.outputs.version }}" ]] && npm version ${{ needs.prepare-release.outputs.version }} -f --no-git-tag-version --allow-same-version
           task build
 
       - name: Setup JFrog CLI
