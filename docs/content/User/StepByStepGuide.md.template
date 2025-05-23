@@ -28,6 +28,8 @@ First, use the following command to set up the environment variables:
 export SOLO_CLUSTER_NAME=solo
 export SOLO_NAMESPACE=solo
 export SOLO_CLUSTER_SETUP_NAMESPACE=solo-cluster
+export SOLO_EMAIL=john@doe.com
+export SOLO_DEPLOYMENT=solo-deployment
 ```
 
 Then run the following command to set the kubectl context to the new cluster:

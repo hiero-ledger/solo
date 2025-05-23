@@ -1,5 +1,11 @@
 ---
 main:
+  - name: Latest Solo Docs
+    ref: "https://solo.hiero.org/latest"
+    external: true
+  - name: main branch Solo Docs
+    ref: "https://solo.hiero.org/main"
+    external: true
   - name: Getting Started
     ref: "/User/README/index.md"
   - name: Step-by-step guide
@@ -27,5 +33,5 @@ main:
   - name: Use 'Task' to Launch Solo
     ref: "/Developer/Development/TaskTool.md"
   - name: Classes
-    ref: "/solo/static/Classes/index.html"
+    ref: "/v0.35.2/Classes/index.html"
     external: true
