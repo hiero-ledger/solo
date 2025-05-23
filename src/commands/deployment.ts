@@ -28,7 +28,6 @@ import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {DeploymentStates} from '../core/config/remote/enumerations/deployment-states.js';
 import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
-import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {StringFacade} from '../business/runtime-state/facade/string-facade.js';
 import {Deployment} from '../business/runtime-state/config/local/deployment.js';
 
@@ -57,9 +56,7 @@ export interface DeploymentAddClusterContext {
 
 @injectable()
 export class DeploymentCommand extends BaseCommand {
-  public constructor(
-    @inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks,
-  ) {
+  public constructor(@inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks) {
     super();
 
     this.tasks = patchInject(tasks, InjectTokens.ClusterCommandTasks, this.constructor.name);

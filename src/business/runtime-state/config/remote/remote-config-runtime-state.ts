@@ -2,8 +2,6 @@
 
 import {inject, injectable} from 'tsyringe-neo';
 import {type ObjectMapper} from '../../../../data/mapper/api/object-mapper.js';
-import {ClassToObjectMapper} from '../../../../data/mapper/impl/class-to-object-mapper.js';
-import {ConfigKeyFormatter} from '../../../../data/key/config-key-formatter.js';
 import {ReadRemoteConfigBeforeLoadError} from '../../../errors/read-remote-config-before-load-error.js';
 import {WriteRemoteConfigBeforeLoadError} from '../../../errors/write-remote-config-before-load-error.js';
 import {RemoteConfigSource} from '../../../../data/configuration/impl/remote-config-source.js';
@@ -212,7 +210,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       new RemoteConfigMetadataSchema(new Date(), userIdentity),
       new ApplicationVersionsSchema(cliVersion),
       [cluster],
-      new DeploymentStateSchema(ledgerPhase, new ComponentIdsShema(nodeAliases.length -1), consensusNodeStates),
+      new DeploymentStateSchema(ledgerPhase, new ComponentIdsShema(nodeAliases.length - 1), consensusNodeStates),
       new DeploymentHistorySchema([command], command),
     );
 
