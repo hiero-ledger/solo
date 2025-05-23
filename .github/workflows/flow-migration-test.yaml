@@ -1,0 +1,84 @@
+##
+# Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+name: "Test Migration Process"
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  test-migration-process:
+    timeout-minutes: 30
+    runs-on: hiero-solo-linux-large
+    strategy:
+      fail-fast: false
+      matrix:
+        release-tag: ["0.35.0", "0.35.1", "0.35.2"]
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Helm
+        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
+        with:
+          version: "v3.12.3" # helm version
+
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
+
+      - name: Launch Network with Release version ${{ matrix.release-tag }}
+        run: |
+          echo "Install yq..."
+          sudo add-apt-repository ppa:rmescandon/yq -y
+          sudo apt update
+          sudo apt install yq -y
+  
+          npm install
+          task build
+          npm install -g @hashgraph/solo@${{ matrix.release-tag }} --force
+          solo --version
+          .github/workflows/script/launch_network.sh ${{ matrix.release-tag }}

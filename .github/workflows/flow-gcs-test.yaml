@@ -35,6 +35,9 @@ permissions:
 
 jobs:
   gcs-storage-test:
+    if: >
+      github.actor != 'dependabot[bot]' &&
+      github.repository == 'hiero-ledger/solo'
     timeout-minutes: 20
     runs-on: hiero-solo-linux-large
     strategy:

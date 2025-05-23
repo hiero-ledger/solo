@@ -16,10 +16,9 @@ Maintainers are assigned the following scopes in this repository:
 
 | Name          | GitHub ID     | Scope      | LFID | Discord ID          | Email | Company Affiliation |
 |-------------- | ------------- | ---------- | ---- | ------------------- | ----- | ------------------- |
-| Jeromy Cannon | jeromy-cannon | Maintainer |      | jeromy_at_hashgraph |       | Hashgraph           |
+| Jeromy Cannon | jeromy-cannon | Maintainer |      | jeromy\_at\_hashgraph |       | Hashgraph           |
 | Lenin Mehedy  | leninmehedy   | Maintainer |      |                     |       | Hashgraph           |
 | Nathan Klick  | nathanklick   | Maintainer |      | nathan.hashgraph    |       | Hashgraph           |
-
 
 ## Emeritus Maintainers
 

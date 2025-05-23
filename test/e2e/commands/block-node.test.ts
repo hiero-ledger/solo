@@ -20,7 +20,6 @@ import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {BlockNodeCommand} from '../../../src/commands/block-node.js';
-import {type BlockNodeComponent} from '../../../src/core/config/remote/components/block-node-component.js';
 import {ComponentTypes} from '../../../src/core/config/remote/enumerations/component-types.js';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
@@ -30,6 +29,7 @@ import {promisify} from 'node:util';
 import * as constants from '../../../src/core/constants.js';
 import {lt, SemVer} from 'semver';
 import {type ArgvStruct} from '../../../src/types/aliases.js';
+import {type BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
 
 const execAsync = promisify(exec);
 
@@ -48,7 +48,7 @@ argv.setArg(flags.force, true);
 
 endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, bootstrapResp => {
   const {
-    opts: {k8Factory, commandInvoker, remoteConfigManager, configManager, logger},
+    opts: {k8Factory, commandInvoker, remoteConfig, configManager, logger},
     cmd: {nodeCmd, networkCmd},
   } = bootstrapResp;
 
@@ -101,7 +101,10 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
         callback: async argv => blockNodeCommand.add(argv),
       });
 
-      remoteConfigManager.components.getComponent<BlockNodeComponent>(ComponentTypes.BlockNode, blockNodeComponentName);
+      remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(
+        ComponentTypes.BlockNode,
+        blockNodeComponentName,
+      );
     });
 
     deployNetworkTest(argv, commandInvoker, networkCmd);
@@ -144,7 +147,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
       });
 
       try {
-        remoteConfigManager.components.getComponent<BlockNodeComponent>(
+        remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(
           ComponentTypes.BlockNode,
           blockNodeComponentName,
         );
