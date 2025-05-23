@@ -29,6 +29,13 @@ import {type PodReference} from '../integration/kube/resources/pod/pod-reference
 import chalk from 'chalk';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
+import {inject, injectable} from 'tsyringe-neo';
+import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import type {ClusterCommandTasks} from './cluster/tasks.js';
+import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {
+  BlockNodeConfigRuntimeState
+} from '../business/runtime-state/config/block-node/block-node-config-runtime-state.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -52,6 +59,7 @@ interface BlockNodeDeployContext {
   config: BlockNodeDeployConfigClass;
 }
 
+@injectable()
 export class BlockNodeCommand extends BaseCommand {
   public static readonly COMMAND_NAME: string = 'block';
 
@@ -61,7 +69,6 @@ export class BlockNodeCommand extends BaseCommand {
     required: [],
     optional: [
       flags.blockNodeChartVersion,
-      flags.chartDirectory,
       flags.clusterRef,
       flags.deployment,
       flags.devMode,
@@ -71,6 +78,19 @@ export class BlockNodeCommand extends BaseCommand {
       flags.valuesFile,
     ],
   };
+
+  public constructor(
+    @inject(InjectTokens.BlockNodeConfigRuntimeState) private readonly blockNodeConfig: BlockNodeConfigRuntimeState,
+  ) {
+    super();
+
+    this.blockNodeConfig = patchInject(
+      blockNodeConfig,
+      InjectTokens.BlockNodeConfigRuntimeState,
+      BlockNodeCommand.name,
+    );
+  }
+
 
   private async prepareValuesArgForBlockNode(config: BlockNodeDeployConfigClass): Promise<string> {
     let valuesArgument: string = '';
@@ -121,8 +141,10 @@ export class BlockNodeCommand extends BaseCommand {
             context_.config = this.configManager.getConfig(
               BlockNodeCommand.DEPLOY_CONFIGS_NAME,
               allFlags,
+              ['chartDirectory']
             ) as BlockNodeDeployConfigClass;
 
+            context_.config.chartDirectory = this.blockNodeConfig.blockNodeConfig.helmChart.directory;
             context_.config.namespace = await resolveNamespaceFromDeployment(
               this.localConfig,
               this.configManager,
