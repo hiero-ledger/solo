@@ -13,7 +13,7 @@ import {LocalConfigSchema} from '../../../../data/schema/model/local/local-confi
 import {RefreshLocalConfigSourceError} from '../../../errors/refresh-local-config-source-error.js';
 import {WriteLocalConfigFileError} from '../../../errors/write-local-config-file-error.js';
 import {PathEx} from '../../../utils/path-ex.js';
-import fs from 'node:fs';
+import fs, {existsSync, mkdirSync} from 'node:fs';
 import {LocalConfig} from './local-config.js';
 
 @injectable()
@@ -30,6 +30,21 @@ export class LocalConfigRuntimeState {
   ) {
     this.fileName = patchInject(fileName, InjectTokens.LocalConfigFileName, this.constructor.name);
     this.basePath = patchInject(basePath, InjectTokens.HomeDirectory, this.constructor.name);
+
+    // check if config from an old version exists under the cache directory
+    const oldConfigPath: string = PathEx.join(this.basePath, 'cache');
+    const oldConfigFile: string = PathEx.join(oldConfigPath, this.fileName);
+    const oldConfigFileExists: boolean = existsSync(oldConfigFile);
+
+    if (this.configFileExists() && oldConfigFileExists) {
+      // if both files exist, remove the old one
+      fs.rmSync(oldConfigFile);
+    } else if (existsSync(oldConfigFile)) {
+      // if only the old file exists, copy it to the new location
+      mkdirSync(this.basePath, {recursive: true});
+      fs.copyFileSync(oldConfigFile, PathEx.join(this.basePath, this.fileName));
+      fs.rmSync(oldConfigFile);
+    }
 
     this.backend = new YamlFileStorageBackend(this.basePath);
     this.objectMapper = new ClassToObjectMapper(ConfigKeyFormatter.instance());
