@@ -23,7 +23,7 @@ export interface SchemaDefinition<T> {
   /**
    * The class constructor for the model. This is used to create instances of the model from the input data.
    */
-  readonly classCtor: ClassConstructor<T>;
+  readonly classConstructor: ClassConstructor<T>;
 
   /**
    * The list of migrations which can be applied to the model data. Migrations are applied in order to bring the input data

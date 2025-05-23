@@ -36,6 +36,15 @@ export interface ConfigBuilder {
   withConverter<R extends object>(cls: ClassConstructor<R>, priority: number, converter: Converter<R>): ConfigBuilder;
 
   /**
+   * Sets whether to merge source values.  If true, the values from an objects properties if defined will be used to
+   * merge into a final instance. If false, the values from the source with the highest ordinal will be used if the
+   * object from that source is defined, even it is properties are not defined.
+   *
+   * @param mergeSourceValues - Whether to merge source values.
+   */
+  withMergeSourceValues(mergeSourceValues: boolean): ConfigBuilder;
+
+  /**
    * Builds a {@link Config} instance.
    */
   build(): Config;
