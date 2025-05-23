@@ -7,6 +7,13 @@ if [[ -z "${releaseTag}" ]]; then
   exit 1
 fi
 
+# check if yq is installed
+if ! command -v yq &> /dev/null
+then
+    echo "yq could not be found, please install it first"
+    exit 1
+fi
+
 npm install -g @hashgraph/solo@"${releaseTag}" --force
 solo --version
 
@@ -35,8 +42,30 @@ solo mirror-node deploy  --deployment "${SOLO_DEPLOYMENT}"
 solo explorer deploy -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 
+cp ~/.solo/local-config.yaml ./local-config-before.yaml
+cat ./local-config-before.yaml
+kubectl get ConfigMap solo-remote-config -n ${SOLO_NAMESPACE} -o yaml | yq '.data' > remote-config-before.yaml
+cat remote-config-before.yaml
+
 # trigger migration
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}"
+
+cp ~/.solo/local-config.yaml ./local-config-after.yaml
+cat ./local-config-after.yaml
+kubectl get ConfigMap solo-remote-config -n ${SOLO_NAMESPACE} -o yaml | yq '.data' > remote-config-after.yaml
+cat remote-config-after.yaml
+
+# check local-config-after.yaml should contains 'schemaVersion: 2'
+if ! grep -q "schemaVersion: 2" ./local-config-after.yaml; then
+  echo "schemaVersion: 2 not found in local-config-after.yaml"
+  exit 1
+fi
+
+# check remote-config-after.yaml should contains 'schemaVersion: 1'
+if ! grep -q "schemaVersion: 1" ./remote-config-after.yaml; then
+  echo "schemaVersion: 1 not found in remote-config-after.yaml"
+  exit 1
+fi
 
 # uninstall components using current version
 npm run solo-test -- explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force

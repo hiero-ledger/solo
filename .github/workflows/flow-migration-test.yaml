@@ -72,6 +72,11 @@ jobs:
 
       - name: Launch Network with Release version ${{ matrix.release-tag }}
         run: |
+          echo "Install yq..."
+          sudo add-apt-repository ppa:rmescandon/yq -y
+          sudo apt update
+          sudo apt install yq -y
+  
           npm install
           task build
           npm install -g @hashgraph/solo@${{ matrix.release-tag }} --force

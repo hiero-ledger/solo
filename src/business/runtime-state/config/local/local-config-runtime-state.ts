@@ -34,7 +34,13 @@ export class LocalConfigRuntimeState {
     // check if config from an old version exists under the cache directory
     const oldConfigPath: string = PathEx.join(this.basePath, 'cache');
     const oldConfigFile: string = PathEx.join(oldConfigPath, this.fileName);
-    if (existsSync(oldConfigFile)) {
+    const oldConfigFileExists: boolean = existsSync(oldConfigFile);
+
+    if (this.configFileExists() && oldConfigFileExists) {
+      // if both files exist, remove the old one
+      fs.rmSync(oldConfigFile);
+    } else if (existsSync(oldConfigFile)) {
+      // if only the old file exists, copy it to the new location
       mkdirSync(this.basePath, {recursive: true});
       fs.copyFileSync(oldConfigFile, PathEx.join(this.basePath, this.fileName));
       fs.rmSync(oldConfigFile);
