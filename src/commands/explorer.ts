@@ -34,6 +34,7 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {Lock} from '../core/lock/lock.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {CommandFlag, CommandFlags} from '../types/flag-types.js';
+import {MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -59,6 +60,7 @@ interface ExplorerDeployConfigClass {
   domainName: Optional<string>;
   releaseName: string;
   ingressReleaseName: string;
+  id: ComponentId; // Mirror node id
 }
 
 interface ExplorerDeployContext {
@@ -117,6 +119,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.valuesFile,
       flags.clusterSetupNamespace,
       flags.domainName,
+      flags.id,
     ],
   };
 
@@ -149,9 +152,9 @@ export class ExplorerCommand extends BaseCommand {
 
     if (config.mirrorNamespace) {
       // use fully qualified service name for mirror node since the explorer is in a different namespace
-      valuesArgument += ` --set proxyPass./api="http://${constants.MIRROR_NODE_RELEASE_NAME}-rest.${config.mirrorNamespace}.svc.cluster.local" `;
+      valuesArgument += ` --set proxyPass./api="http://${constants.MIRROR_NODE_RELEASE_NAME}-${config.id}-rest.${config.mirrorNamespace}.svc.cluster.local" `;
     } else {
-      valuesArgument += ` --set proxyPass./api="http://${constants.MIRROR_NODE_RELEASE_NAME}-rest" `;
+      valuesArgument += ` --set proxyPass./api="http://${constants.MIRROR_NODE_RELEASE_NAME}-${config.id}-rest" `;
     }
 
     if (config.domainName) {
@@ -243,17 +246,7 @@ export class ExplorerCommand extends BaseCommand {
             self.configManager.update(argv);
 
             // disable the prompts that we don't want to prompt the user for
-            flags.disablePrompts([
-              flags.enableExplorerTls,
-              flags.explorerTlsHostName,
-              flags.ingressControllerValueFile,
-              flags.explorerStaticIp,
-              flags.explorerVersion,
-              flags.mirrorNamespace,
-              flags.tlsClusterIssuerType,
-              flags.valuesFile,
-              flags.profileFile,
-            ]);
+            flags.disablePrompts(ExplorerCommand.DEPLOY_FLAGS_LIST.optional);
 
             const allFlags: CommandFlag[] = [
               ...ExplorerCommand.DEPLOY_FLAGS_LIST.optional,
@@ -276,6 +269,27 @@ export class ExplorerCommand extends BaseCommand {
 
             context_.config.releaseName = this.getReleaseName();
             context_.config.ingressReleaseName = this.getIngressReleaseName();
+
+            if (context_.config.id === undefined || context_.config.id === null) {
+              for (const node of this.remoteConfig.configuration.components.state.mirrorNodes) {
+                if (typeof node?.metadata?.id === 'number') {
+                  context_.config.id = node.metadata.id;
+                  break;
+                }
+              }
+
+              if (typeof context_.config.id !== 'number') {
+                throw new SoloError('No mirror node found in remote config');
+              }
+            } else {
+              const mirrorNodeIsFound: boolean = this.remoteConfig.configuration.components.state.mirrorNodes.some(
+                (node): boolean => node.metadata.id === context_.config.id,
+              );
+
+              if (!mirrorNodeIsFound) {
+                throw new SoloError('No mirror node found in remote config');
+              }
+            }
 
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
 
@@ -433,7 +447,7 @@ export class ExplorerCommand extends BaseCommand {
               .pods()
               .waitForReadyStatus(
                 context_.config.namespace,
-                [`app.kubernetes.io/component=${context_.config.releaseName}`],
+                [`app.kubernetes.io/instance=${context_.config.releaseName}`],
                 constants.PODS_READY_MAX_ATTEMPTS,
                 constants.PODS_READY_DELAY,
               );

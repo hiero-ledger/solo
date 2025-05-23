@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import * as constants from '../../constants.js';
-import {SoloError} from '../../errors/solo-error.js';
-import {type K8Factory} from '../../../integration/kube/k8-factory.js';
-import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
-import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
-import {type LocalConfigRuntimeState} from '../../../business/runtime-state/config/local/local-config-runtime-state.js';
-import {type Context} from '../../../types/index.js';
-import {type NodeAlias} from '../../../types/aliases.js';
-import {Templates} from '../../templates.js';
-import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
-import {type ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
-import {type BaseStateSchema} from '../../../data/schema/model/remote/state/base-state-schema.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../dependency-injection/container-helper.js';
 import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
+import * as constants from '../../constants.js';
+import {SoloError} from '../../errors/solo-error.js';
+import {Templates} from '../../templates.js';
 import {RemoteConfigValidatorApi} from './api/remote-config-validator-api.js';
 import {DeploymentStateSchema} from '../../../data/schema/model/remote/deployment-state-schema.js';
+import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
+import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
+import {type BaseStateSchema} from '../../../data/schema/model/remote/state/base-state-schema.js';
+import {type LocalConfigRuntimeState} from '../../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {type ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
+import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
+import {type Context} from '../../../types/index.js';
+import {type K8Factory} from '../../../integration/kube/k8-factory.js';
+import {type NodeAlias} from '../../../types/aliases.js';
 
 /**
  * Static class is used to validate that components in the remote config
@@ -41,12 +41,12 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     return [`app=haproxy-${nodeAlias}`, 'solo.hedera.com/type=haproxy'];
   }
 
-  private static getMirrorNodeLabels(): string[] {
-    // TODO:
-    //  https://github.com/hashgraph/solo/issues/1823
-    //  Add logic for selecting by specific label,
-    //  when multiple instances can be deployed at the same time.
-    return ['app.kubernetes.io/component=importer', 'app.kubernetes.io/name=importer'];
+  private static getMirrorNodeLabels(component: BaseStateSchema): string[] {
+    return [
+      'app.kubernetes.io/name=importer',
+      'app.kubernetes.io/component=importer',
+      `app.kubernetes.io/instance=${constants.MIRROR_NODE_RELEASE_NAME}-${component.metadata.id}`,
+    ];
   }
 
   private static getEnvoyProxyLabels(component: BaseStateSchema): string[] {
@@ -54,12 +54,8 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=envoy-proxy'];
   }
 
-  private static getMirrorNodeExplorerLabels(): string[] {
-    // TODO:
-    //  https://github.com/hashgraph/solo/issues/1823
-    //  Add logic for selecting by specific label,
-    //  when multiple instances can be deployed at the same time.
-    return [constants.SOLO_EXPLORER_LABEL];
+  private static getMirrorNodeExplorerLabels(component: BaseStateSchema): string[] {
+    return [`app.kubernetes.io/instance=${constants.EXPLORER_RELEASE_NAME}-${component.metadata.id}`];
   }
 
   private static getConsensusNodeLabels(component: BaseStateSchema): string[] {
@@ -122,7 +118,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     state: Readonly<DeploymentStateSchema>,
   ): Promise<void> {
     const validationPromises: Promise<void>[] = Object.entries(RemoteConfigValidator.componentValidationsMapping)
-      .filter(([key]) => key !== 'consensusNodes' || !skipConsensusNodes)
+      .filter(([key]): boolean => key !== 'consensusNodes' || !skipConsensusNodes)
       .flatMap(([key, {getLabelsCallback, displayName, skipCondition}]): Promise<void>[] =>
         this.validateComponentGroup(namespace, state[key], getLabelsCallback, displayName, skipCondition),
       );
