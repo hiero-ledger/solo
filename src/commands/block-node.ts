@@ -99,12 +99,11 @@ export class BlockNodeCommand extends BaseCommand {
       flags.quiet,
       flags.valuesFile,
       flags.releaseTag,
-      flags.id,
     ],
   };
 
   private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [],
+    required: [flags.id],
     optional: [flags.chartDirectory, flags.clusterRef, flags.deployment, flags.devMode, flags.force, flags.quiet],
   };
 

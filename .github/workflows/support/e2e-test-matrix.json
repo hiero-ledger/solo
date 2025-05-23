@@ -112,5 +112,11 @@
     "test-script": "test-external-database",
     "coverage-subdirectory": "external-database",
     "coverage-report-name": "External Database Tests Coverage Report"
+  },
+  {
+    "name": "Update markdown",
+    "test-script": "test-update-markdown",
+    "coverage-subdirectory": "update-markdown",
+    "coverage-report-name": "Update Markdown"
   }
 ]

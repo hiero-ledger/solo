@@ -2,6 +2,8 @@
 
 import {inject, injectable} from 'tsyringe-neo';
 import {type ObjectMapper} from '../../../../data/mapper/api/object-mapper.js';
+import {ClassToObjectMapper} from '../../../../data/mapper/impl/class-to-object-mapper.js';
+import {ConfigKeyFormatter} from '../../../../data/key/config-key-formatter.js';
 import {ReadRemoteConfigBeforeLoadError} from '../../../errors/read-remote-config-before-load-error.js';
 import {WriteRemoteConfigBeforeLoadError} from '../../../errors/write-remote-config-before-load-error.js';
 import {RemoteConfigSource} from '../../../../data/configuration/impl/remote-config-source.js';
@@ -82,6 +84,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
+    this.objectMapper = patchInject(objectMapper, InjectTokens.ObjectMapper, this.constructor.name);
   }
 
   public get configuration(): RemoteConfig {

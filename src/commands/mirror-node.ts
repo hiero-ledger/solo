@@ -111,6 +111,7 @@ export class MirrorNodeCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
     @inject(InjectTokens.ProfileManager) private readonly profileManager?: ProfileManager,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory?: ComponentFactoryApi,
   ) {
     super();
 

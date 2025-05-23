@@ -42,6 +42,7 @@ export abstract class BaseCommand extends ShellRunner {
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.componentFactory = patchInject(componentFactory, InjectTokens.ComponentFactory, this.constructor.name);
   }
 
   /**
