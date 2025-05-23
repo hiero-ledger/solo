@@ -181,6 +181,6 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   }
 
   public getNewComponentId(componentType: ComponentTypes): number {
-    return this.componentIds[componentType] + 1;
+    return this.componentIds[componentType];
   }
 }

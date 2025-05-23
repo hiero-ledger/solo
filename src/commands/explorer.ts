@@ -19,6 +19,7 @@ import {
   type ComponentId,
   type Context,
   type Optional,
+  type SoloListr,
   type SoloListrTask,
 } from '../types/index.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
@@ -32,6 +33,7 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {Lock} from '../core/lock/lock.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
+import {CommandFlag, CommandFlags} from '../types/flag-types.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -88,11 +90,11 @@ export class ExplorerCommand extends BaseCommand {
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME = 'explorer';
+  public static readonly COMMAND_NAME: string = 'explorer';
 
-  private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
+  private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
-  private static readonly DEPLOY_FLAGS_LIST = {
+  private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.cacheDir,
@@ -118,7 +120,7 @@ export class ExplorerCommand extends BaseCommand {
     ],
   };
 
-  private static readonly DESTROY_FLAGS_LIST = {
+  private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.id],
     optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.deployment],
   };
@@ -129,7 +131,7 @@ export class ExplorerCommand extends BaseCommand {
   private async prepareHederaExplorerValuesArg(config: ExplorerDeployConfigClass): Promise<string> {
     let valuesArgument: string = '';
 
-    const profileName: string = this.configManager.getFlag<string>(flags.profileName) as string;
+    const profileName: string = this.configManager.getFlag(flags.profileName);
     const profileValuesFile: string = await this.profileManager.prepareValuesHederaExplorerChart(profileName);
     if (profileValuesFile) {
       valuesArgument += prepareValuesFiles(profileValuesFile);
@@ -147,9 +149,9 @@ export class ExplorerCommand extends BaseCommand {
 
     if (config.mirrorNamespace) {
       // use fully qualified service name for mirror node since the explorer is in a different namespace
-      valuesArgument += ` --set proxyPass./api="http://${config.releaseName}-rest.${config.mirrorNamespace}.svc.cluster.local" `;
+      valuesArgument += ` --set proxyPass./api="http://${constants.MIRROR_NODE_RELEASE_NAME}-rest.${config.mirrorNamespace}.svc.cluster.local" `;
     } else {
-      valuesArgument += ` --set proxyPass./api="http://${config.releaseName}-rest" `;
+      valuesArgument += ` --set proxyPass./api="http://${constants.MIRROR_NODE_RELEASE_NAME}-rest" `;
     }
 
     if (config.domainName) {
@@ -182,7 +184,7 @@ export class ExplorerCommand extends BaseCommand {
   private async prepareCertManagerChartValuesArg(config: ExplorerDeployConfigClass): Promise<string> {
     const {tlsClusterIssuerType, namespace} = config;
 
-    let valuesArgument = '';
+    let valuesArgument: string = '';
 
     if (!['acme-staging', 'acme-prod', 'self-signed'].includes(tlsClusterIssuerType)) {
       throw new Error(
@@ -207,22 +209,22 @@ export class ExplorerCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private async prepareValuesArg(config: ExplorerDeployConfigClass) {
-    let valuesArgument = '';
+  private async prepareValuesArg(config: ExplorerDeployConfigClass): Promise<string> {
+    let valuesArgument: string = '';
     if (config.valuesFile) {
       valuesArgument += prepareValuesFiles(config.valuesFile);
     }
     return valuesArgument;
   }
 
-  private getReleaseName(id: ComponentId): string {
+  private getReleaseName(id?: ComponentId): string {
     if (!id) {
       id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.Explorer);
     }
     return `${constants.EXPLORER_RELEASE_NAME}-${id}`;
   }
 
-  private getIngressReleaseName(id: ComponentId): string {
+  private getIngressReleaseName(id?: ComponentId): string {
     if (!id) {
       id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.Explorer);
     }
@@ -230,14 +232,14 @@ export class ExplorerCommand extends BaseCommand {
   }
 
   private async deploy(argv: ArgvStruct): Promise<boolean> {
-    const self = this;
-    const lease = await self.leaseManager.create();
+    const self: this = this;
+    const lease: Lock = await self.leaseManager.create();
 
-    const tasks = new Listr<ExplorerDeployContext>(
+    const tasks: Listr<ExplorerDeployContext> = new Listr<ExplorerDeployContext>(
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
+          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
             self.configManager.update(argv);
 
             // disable the prompts that we don't want to prompt the user for
@@ -253,20 +255,29 @@ export class ExplorerCommand extends BaseCommand {
               flags.profileFile,
             ]);
 
-            const allFlags = [
+            const allFlags: CommandFlag[] = [
               ...ExplorerCommand.DEPLOY_FLAGS_LIST.optional,
               ...ExplorerCommand.DEPLOY_FLAGS_LIST.required,
             ];
+
             await self.configManager.executePrompt(task, allFlags);
 
             context_.config = this.configManager.getConfig(ExplorerCommand.DEPLOY_CONFIGS_NAME, allFlags, [
               'valuesArg',
             ]) as ExplorerDeployConfigClass;
 
+            if (!context_.config.clusterRef) {
+              context_.config.clusterRef = this.remoteConfig.currentCluster;
+            }
+
+            context_.config.clusterContext = this.localConfig.configuration.clusterRefs
+              .get(context_.config.clusterRef)
+              ?.toString();
+
+            context_.config.releaseName = this.getReleaseName();
+            context_.config.ingressReleaseName = this.getIngressReleaseName();
+
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
-            context_.config.clusterContext = context_.config.clusterRef
-              ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString()
-              : this.k8Factory.default().contexts().readCurrent();
 
             if (
               !(await self.k8Factory.getK8(context_.config.clusterContext).namespaces().has(context_.config.namespace))
@@ -280,15 +291,19 @@ export class ExplorerCommand extends BaseCommand {
         this.loadRemoteConfigTask(argv),
         {
           title: 'Install cert manager',
-          task: async context_ => {
-            const config = context_.config;
+          task: async (context_): Promise<void> => {
+            const config: ExplorerDeployConfigClass = context_.config;
             const {soloChartVersion} = config;
 
-            const soloCertManagerValuesArgument = await self.prepareCertManagerChartValuesArg(config);
+            const soloCertManagerValuesArgument: string = await self.prepareCertManagerChartValuesArg(config);
             // check if CRDs of cert-manager are already installed
-            let needInstall = false;
+            let needInstall: boolean = false;
             for (const crd of constants.CERT_MANAGER_CRDS) {
-              const crdExists = await self.k8Factory.getK8(context_.config.clusterContext).crds().ifExists(crd);
+              const crdExists: boolean = await self.k8Factory
+                .getK8(context_.config.clusterContext)
+                .crds()
+                .ifExists(crd);
+
               if (!crdExists) {
                 needInstall = true;
                 break;
@@ -303,7 +318,7 @@ export class ExplorerCommand extends BaseCommand {
                 NamespaceName.of(constants.CERT_MANAGER_NAME_SPACE),
                 constants.SOLO_CERT_MANAGER_CHART,
                 constants.SOLO_CERT_MANAGER_CHART,
-                context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
+                context_.config.chartDirectory ?? constants.SOLO_TESTING_CHART_URL,
                 soloChartVersion,
                 '  --set cert-manager.installCRDs=true',
                 context_.config.clusterContext,
@@ -326,28 +341,28 @@ export class ExplorerCommand extends BaseCommand {
               );
 
             // sleep for a few seconds to allow cert-manager to be ready
-            await new Promise(resolve => setTimeout(resolve, 10_000));
+            await new Promise((resolve): NodeJS.Timeout => setTimeout(resolve, 10_000));
 
             await self.chartManager.upgrade(
               NamespaceName.of(constants.CERT_MANAGER_NAME_SPACE),
               constants.SOLO_CERT_MANAGER_CHART,
               constants.SOLO_CERT_MANAGER_CHART,
-              context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
+              context_.config.chartDirectory ?? constants.SOLO_TESTING_CHART_URL,
               soloChartVersion,
               soloCertManagerValuesArgument,
               context_.config.clusterContext,
             );
             showVersionBanner(self.logger, constants.SOLO_CERT_MANAGER_CHART, soloChartVersion, 'Upgraded');
           },
-          skip: context_ => !context_.config.enableExplorerTls,
+          skip: (context_): boolean => !context_.config.enableExplorerTls,
         },
 
         {
           title: 'Install explorer',
-          task: async context_ => {
-            const config = context_.config;
+          task: async (context_): Promise<void> => {
+            const config: ExplorerDeployConfigClass = context_.config;
 
-            let exploreValuesArgument = prepareValuesFiles(constants.EXPLORER_VALUES_FILE);
+            let exploreValuesArgument: string = prepareValuesFiles(constants.EXPLORER_VALUES_FILE);
             exploreValuesArgument += await self.prepareHederaExplorerValuesArg(config);
 
             await self.chartManager.install(
@@ -364,8 +379,8 @@ export class ExplorerCommand extends BaseCommand {
         },
         {
           title: 'Install explorer ingress controller',
-          task: async context_ => {
-            const config = context_.config;
+          task: async (context_): Promise<void> => {
+            const config: ExplorerDeployConfigClass = context_.config;
 
             let explorerIngressControllerValuesArgument: string = '';
 
@@ -408,17 +423,17 @@ export class ExplorerCommand extends BaseCommand {
               .ingressClasses()
               .create(config.ingressReleaseName, constants.INGRESS_CONTROLLER_PREFIX + config.ingressReleaseName);
           },
-          skip: context_ => !context_.config.enableIngress,
+          skip: (context_): boolean => !context_.config.enableIngress,
         },
         {
           title: 'Check explorer pod is ready',
-          task: async context_ => {
+          task: async (context_): Promise<void> => {
             await self.k8Factory
               .getK8(context_.config.clusterContext)
               .pods()
               .waitForReadyStatus(
                 context_.config.namespace,
-                [constants.SOLO_EXPLORER_LABEL],
+                [`app.kubernetes.io/component=${context_.config.releaseName}`],
                 constants.PODS_READY_MAX_ATTEMPTS,
                 constants.PODS_READY_DELAY,
               );
@@ -426,7 +441,7 @@ export class ExplorerCommand extends BaseCommand {
         },
         {
           title: 'Check haproxy ingress controller pod is ready',
-          task: async context_ => {
+          task: async (context_): Promise<void> => {
             await self.k8Factory
               .getK8(context_.config.clusterContext)
               .pods()
@@ -440,7 +455,7 @@ export class ExplorerCommand extends BaseCommand {
                 constants.PODS_READY_DELAY,
               );
           },
-          skip: context_ => !context_.config.enableIngress,
+          skip: (context_): boolean => !context_.config.enableIngress,
         },
         this.addMirrorNodeExplorerComponents(),
       ],
