@@ -7,11 +7,7 @@ import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
-import {
-  INGRESS_CONTROLLER_PREFIX,
-  MIRROR_INGRESS_CONTROLLER,
-  MIRROR_INGRESS_TLS_SECRET_NAME,
-} from '../core/constants.js';
+
 import {type AccountManager} from '../core/account-manager.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand} from './base.js';
@@ -26,6 +22,7 @@ import * as fs from 'node:fs';
 import {
   type ClusterReference,
   type CommandDefinition,
+  type ComponentId,
   type DeploymentName,
   type Optional,
   type SoloListrTask,
@@ -48,8 +45,7 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {type AccountId} from '@hashgraph/sdk';
-import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
-import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 
 interface MirrorNodeDeployConfigClass {
   cacheDir: string;
@@ -83,6 +79,8 @@ interface MirrorNodeDeployConfigClass {
   externalDatabaseReadonlyUsername: Optional<string>;
   externalDatabaseReadonlyPassword: Optional<string>;
   domainName: Optional<string>;
+  releaseName: string;
+  ingressReleaseName: string;
 }
 
 interface MirrorNodeDeployContext {
@@ -96,6 +94,9 @@ interface MirrorNodeDestroyContext {
     clusterContext: string;
     isChartInstalled: boolean;
     clusterReference: ClusterReference;
+    id: ComponentId;
+    releaseName: string;
+    ingressReleaseName: string;
   };
 }
 
@@ -104,7 +105,6 @@ export class MirrorNodeCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
     @inject(InjectTokens.ProfileManager) private readonly profileManager?: ProfileManager,
-    @inject(InjectTokens.ComponentFactory) private readonly componentFactory?: ComponentFactoryApi,
   ) {
     super();
 
@@ -256,7 +256,7 @@ export class MirrorNodeCommand extends BaseCommand {
   private async deployMirrorNode(context_: MirrorNodeDeployContext): Promise<void> {
     await this.chartManager.install(
       context_.config.namespace,
-      constants.MIRROR_NODE_RELEASE_NAME,
+      context_.config.releaseName,
       constants.MIRROR_NODE_CHART,
       constants.MIRROR_NODE_RELEASE_NAME,
       context_.config.mirrorNodeVersion,
@@ -272,7 +272,7 @@ export class MirrorNodeCommand extends BaseCommand {
         context_.config.namespace,
         context_.config.domainName,
         context_.config.cacheDir,
-        MIRROR_INGRESS_TLS_SECRET_NAME,
+        constants.MIRROR_INGRESS_TLS_SECRET_NAME,
       );
       // patch ingressClassName of mirror ingress so it can be recognized by haproxy ingress controller
       const updated: object = {
@@ -286,7 +286,7 @@ export class MirrorNodeCommand extends BaseCommand {
           tls: [
             {
               hosts: [context_.config.domainName || 'localhost'],
-              secretName: MIRROR_INGRESS_TLS_SECRET_NAME,
+              secretName: constants.MIRROR_INGRESS_TLS_SECRET_NAME,
             },
           ],
         },
@@ -300,15 +300,32 @@ export class MirrorNodeCommand extends BaseCommand {
       await this.k8Factory
         .getK8(context_.config.clusterContext)
         .configMaps()
-        .update(context_.config.namespace, MIRROR_INGRESS_CONTROLLER, {
+        .update(context_.config.namespace, constants.MIRROR_INGRESS_CONTROLLER, {
           'backend-protocol': 'h2',
         });
 
       await this.k8Factory
         .getK8(context_.config.clusterContext)
         .ingressClasses()
-        .create(constants.MIRROR_INGRESS_CLASS_NAME, INGRESS_CONTROLLER_PREFIX + MIRROR_INGRESS_CONTROLLER);
+        .create(
+          constants.MIRROR_INGRESS_CLASS_NAME,
+          constants.INGRESS_CONTROLLER_PREFIX + constants.MIRROR_INGRESS_CONTROLLER,
+        );
     }
+  }
+
+  private getReleaseName(id?: ComponentId): string {
+    if (!id) {
+      id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.MirrorNode);
+    }
+    return `${constants.MIRROR_NODE_RELEASE_NAME}-${id}`;
+  }
+
+  private getIngressReleaseName(id?: ComponentId): string {
+    if (!id) {
+      id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.MirrorNode);
+    }
+    return `${constants.INGRESS_CONTROLLER_RELEASE_NAME}-${id}`;
   }
 
   private async deploy(argv: ArgvStruct): Promise<boolean> {
@@ -355,6 +372,9 @@ export class MirrorNodeCommand extends BaseCommand {
 
             context_.config.namespace = namespace;
 
+            context_.config.releaseName = this.getReleaseName();
+            context_.config.ingressReleaseName = this.getIngressReleaseName();
+
             // predefined values first
             context_.config.valuesArg += helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
             // user defined values later to override predefined values
@@ -364,7 +384,7 @@ export class MirrorNodeCommand extends BaseCommand {
               ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString()
               : this.k8Factory.default().contexts().readCurrent();
 
-            const deploymentName: DeploymentName = self.configManager.getFlag<DeploymentName>(flags.deployment);
+            const deploymentName: DeploymentName = self.configManager.getFlag(flags.deployment);
             await self.accountManager.loadNodeClient(
               context_.config.namespace,
               self.remoteConfig.getClusterRefs(),
@@ -476,8 +496,8 @@ export class MirrorNodeCommand extends BaseCommand {
                 {
                   title: 'Prepare address book',
                   task: async context_ => {
-                    const deployment = this.configManager.getFlag<DeploymentName>(flags.deployment);
-                    const portForward = this.configManager.getFlag<boolean>(flags.forcePortForward);
+                    const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
+                    const portForward: boolean = this.configManager.getFlag(flags.forcePortForward);
                     context_.addressBook = await self.accountManager.prepareAddressBookBase64(
                       context_.config.namespace,
                       this.remoteConfig.getClusterRefs(),
@@ -499,7 +519,7 @@ export class MirrorNodeCommand extends BaseCommand {
                     if (config.mirrorStaticIp !== '') {
                       mirrorIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${context_.config.mirrorStaticIp}`;
                     }
-                    mirrorIngressControllerValuesArgument += ` --set fullnameOverride=${MIRROR_INGRESS_CONTROLLER}`;
+                    mirrorIngressControllerValuesArgument += ` --set fullnameOverride=${constants.MIRROR_INGRESS_CONTROLLER}`;
                     mirrorIngressControllerValuesArgument += ` --set controller.ingressClass=${constants.MIRROR_INGRESS_CLASS_NAME}`;
                     mirrorIngressControllerValuesArgument += ` --set controller.extraArgs.controller-class=${constants.MIRROR_INGRESS_CONTROLLER}`;
 
@@ -508,17 +528,13 @@ export class MirrorNodeCommand extends BaseCommand {
                     await self.chartManager.install(
                       config.namespace,
                       constants.INGRESS_CONTROLLER_RELEASE_NAME,
-                      constants.INGRESS_CONTROLLER_RELEASE_NAME,
+                      config.ingressReleaseName,
                       constants.INGRESS_CONTROLLER_RELEASE_NAME,
                       INGRESS_CONTROLLER_VERSION,
                       mirrorIngressControllerValuesArgument,
                       context_.config.clusterContext,
                     );
-                    showVersionBanner(
-                      self.logger,
-                      constants.INGRESS_CONTROLLER_RELEASE_NAME,
-                      INGRESS_CONTROLLER_VERSION,
-                    );
+                    showVersionBanner(self.logger, config.ingressReleaseName, INGRESS_CONTROLLER_VERSION);
                   },
                   skip: context_ => !context_.config.enableIngress,
                 },
@@ -759,18 +775,23 @@ export class MirrorNodeCommand extends BaseCommand {
               throw new SoloError(`namespace ${namespace} does not exist`);
             }
 
-            const isChartInstalled = await this.chartManager.isChartInstalled(
-              namespace,
-              constants.MIRROR_NODE_RELEASE_NAME,
-              clusterContext,
-            );
+            const id: ComponentId = this.configManager.getFlag<ComponentId>(flags.id);
 
             context_.config = {
               clusterContext,
               namespace,
-              isChartInstalled,
               clusterReference,
+              id,
+              isChartInstalled: false,
+              releaseName: this.getReleaseName(id),
+              ingressReleaseName: this.getIngressReleaseName(id),
             };
+
+            context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
+              namespace,
+              context_.config.releaseName,
+              clusterContext,
+            );
 
             await self.accountManager.loadNodeClient(
               context_.config.namespace,
@@ -786,7 +807,7 @@ export class MirrorNodeCommand extends BaseCommand {
           task: async context_ => {
             await this.chartManager.uninstall(
               context_.config.namespace,
-              constants.MIRROR_NODE_RELEASE_NAME,
+              context_.config.releaseName,
               context_.config.clusterContext,
             );
           },
@@ -800,7 +821,7 @@ export class MirrorNodeCommand extends BaseCommand {
             const pvcs = await self.k8Factory
               .getK8(context_.config.clusterContext)
               .pvcs()
-              .list(context_.config.namespace, [`app.kubernetes.io/instance=${constants.MIRROR_NODE_RELEASE_NAME}`]);
+              .list(context_.config.namespace, [`app.kubernetes.io/instance=${context_.config.releaseName}`]);
 
             if (pvcs) {
               for (const pvc of pvcs) {
@@ -818,11 +839,11 @@ export class MirrorNodeCommand extends BaseCommand {
           task: async context_ => {
             await this.chartManager.uninstall(
               context_.config.namespace,
-              constants.INGRESS_CONTROLLER_RELEASE_NAME,
+              this.getIngressReleaseName(context_.config.id),
               context_.config.clusterContext,
             );
             // delete ingress class if found one
-            const existingIngressClasses = await this.k8Factory
+            const existingIngressClasses: IngressClass[] = await this.k8Factory
               .getK8(context_.config.clusterContext)
               .ingressClasses()
               .list();
@@ -928,20 +949,7 @@ export class MirrorNodeCommand extends BaseCommand {
       title: 'Remove mirror node from remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        const clusterReference: ClusterReference = context_.config.clusterReference;
-
-        const mirrorNodeComponents: MirrorNodeStateSchema[] =
-          this.remoteConfig.configuration.components.getComponentsByClusterReference<MirrorNodeStateSchema>(
-            ComponentTypes.MirrorNode,
-            clusterReference,
-          );
-
-        for (const mirrorNodeComponent of mirrorNodeComponents) {
-          this.remoteConfig.configuration.components.removeComponent(
-            mirrorNodeComponent.metadata.id,
-            ComponentTypes.MirrorNode,
-          );
-        }
+        this.remoteConfig.configuration.components.removeComponent(context_.config.id, ComponentTypes.MirrorNode);
 
         await this.remoteConfig.persist();
       },

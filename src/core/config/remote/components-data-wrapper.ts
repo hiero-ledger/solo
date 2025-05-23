@@ -8,12 +8,18 @@ import {type DeploymentPhase} from '../../../data/schema/model/remote/deployment
 import {type ClusterReference, type ComponentId} from '../../../types/index.js';
 import {type ComponentsDataWrapperApi} from './api/components-data-wrapper-api.js';
 import {type DeploymentStateSchema} from '../../../data/schema/model/remote/deployment-state-schema.js';
+import {type ComponentIdsShema} from '../../../data/schema/model/remote/state/component-ids-shema.js';
 
 export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   public constructor(public state: DeploymentStateSchema) {}
 
+  public get componentIds(): ComponentIdsShema {
+    return this.state.componentIds;
+  }
+
   /* -------- Modifiers -------- */
 
+  // TODO: 666 ADD MIDDLEWARE FOR INCREMENTING THE COUNT
   /** Used to add new component to their respective group. */
   public addNewComponent(component: BaseStateSchema, type: ComponentTypes): void {
     const componentId: ComponentId = component.metadata.id;
@@ -34,6 +40,9 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     };
 
     this.applyCallbackToComponentGroup(type, addComponentCallback, componentId);
+
+    // Increment the component id counter for the specified type when adding
+    this.componentIds[type] += 1;
   }
 
   public changeNodePhase(componentId: ComponentId, phase: DeploymentPhase): void {
@@ -150,7 +159,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
         break;
       }
 
-      case ComponentTypes.Explorers: {
+      case ComponentTypes.Explorer: {
         callback(this.state.explorers);
         break;
       }
@@ -171,24 +180,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     return components.some((component): boolean => component.metadata.id === newComponent.metadata.id);
   }
 
-  /**
-   * Checks all existing components of specified type and gives you a new unique index
-   */
   public getNewComponentId(componentType: ComponentTypes): number {
-    let newComponentId: number = 0;
-
-    const calculateNewComponentIndexCallback: (components: BaseStateSchema[]) => void = (components): void => {
-      const componentIds: ComponentId[] = components.map((component: BaseStateSchema): number => component.metadata.id);
-
-      for (const componentId of componentIds) {
-        if (newComponentId <= +componentId) {
-          newComponentId = +componentId + 1;
-        }
-      }
-    };
-
-    this.applyCallbackToComponentGroup(componentType, calculateNewComponentIndexCallback);
-
-    return newComponentId;
+    return this.componentIds[componentType];
   }
 }

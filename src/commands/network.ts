@@ -67,7 +67,6 @@ import {ContainerReference} from '../integration/kube/resources/container/contai
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {Deployment} from '../business/runtime-state/config/local/deployment.js';
-import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
@@ -159,7 +158,6 @@ export class NetworkCommand extends BaseCommand {
     @inject(InjectTokens.KeyManager) private readonly keyManager: KeyManager,
     @inject(InjectTokens.PlatformInstaller) private readonly platformInstaller: PlatformInstaller,
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
-    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
   ) {
     super();
 

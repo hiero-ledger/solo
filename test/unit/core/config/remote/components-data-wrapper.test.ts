@@ -62,6 +62,7 @@ export function createComponentsDataWrapper(): {
 
   const deploymentState: DeploymentStateSchema = new DeploymentStateSchema(
     LedgerPhase.INITIALIZED,
+    undefined,
     consensusNodes,
     blockNodes,
     mirrorNodes,

@@ -5,6 +5,7 @@ import {type ComponentTypes} from '../enumerations/component-types.js';
 import {type DeploymentPhase} from '../../../../data/schema/model/remote/deployment-phase.js';
 import {type ClusterReference, type ComponentId} from '../../../../types/index.js';
 import {type DeploymentStateSchema} from '../../../../data/schema/model/remote/deployment-state-schema.js';
+import {type ComponentIdsShema} from '../../../../data/schema/model/remote/state/component-ids-shema.js';
 
 export interface ComponentsDataWrapperApi {
   state: DeploymentStateSchema;
@@ -25,4 +26,6 @@ export interface ComponentsDataWrapperApi {
   getComponentById<T extends BaseStateSchema>(type: ComponentTypes, id: number): T;
 
   getNewComponentId(componentType: ComponentTypes): number;
+
+  componentIds: ComponentIdsShema;
 }
