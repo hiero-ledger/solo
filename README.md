@@ -1,11 +1,3 @@
----
-title: "Getting Started"
-weight: 1 
-description: >
-  Getting started with Solo 
-type: docs
----
-
 > \[!WARNING]
 >
 > Any version of Solo prior to `v0.35.3` will fail on Apple M3/M4 chipsets due to a known issue with Java 21 and these chipsets.
@@ -16,7 +8,8 @@ type: docs
 [![GitHub License](https://img.shields.io/github/license/hiero-ledger/solo?logo=apache\&logoColor=red)](LICENSE)
 ![node-lts](https://img.shields.io/node/v-lts/%40hashgraph%2Fsolo)
 [![Build Application](https://github.com/hiero-ledger/solo/actions/workflows/flow-build-application.yaml/badge.svg)](https://github.com/hiero-ledger/solo/actions/workflows/flow-build-application.yaml)
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/83a423a3a1c942459127b3aec62ab0b5)](https://app.codacy.com/gh/hashgraph/solo/dashboard?utm_source=gh\&utm_medium=referral\&utm_content=\&utm_campaign=Badge_grade)
+[![Codacy Grade](https://app.codacy.com/project/badge/Grade/78539e1c1b4b4d4d97277e7eeeab9d09)](https://app.codacy.com/gh/hiero-ledger/solo/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+[![Codacy Coverage](https://app.codacy.com/project/badge/Coverage/78539e1c1b4b4d4d97277e7eeeab9d09)](https://app.codacy.com/gh/hiero-ledger/solo/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_coverage)
 [![codecov](https://codecov.io/gh/hashgraph/solo/graph/badge.svg?token=hBkQdB1XO5)](https://codecov.io/gh/hashgraph/solo)
 
 An opinionated CLI tool to deploy and manage standalone test networks.
@@ -69,7 +62,7 @@ nvm use v20.18.0
 
 ## Documentation
 
-[Getting Started](https://solo.hiero.org/docs/step-by-step-guide/)
+[Getting Started](https://solo.hiero.org/)
 
 ## Contributing
 

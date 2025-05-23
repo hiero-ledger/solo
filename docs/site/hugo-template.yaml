@@ -1,6 +1,28 @@
 baseURL: https://solo.hiero.org/
 title: Solo
 
+module:
+  # Uncomment the next line to build and serve using local docsy clone declared in the named Hugo workspace:
+  # workspace: docsy.work
+  hugoVersion:
+    extended: true
+    min: 0.110.0
+  imports:
+    - path: github.com/google/docsy
+      disable: false
+  mounts:
+    - source: build/
+      target: content/docs
+      includeFiles: README.md
+    - source: build/
+      target: content/development
+      includeFiles: DEV.md
+    - source: ../../images
+      target: content/docs/readme/images
+    - source: content/en
+      target: content
+      lang: en
+
 # Language settings
 contentDir: content/en
 defaultContentLanguage: en
@@ -82,10 +104,6 @@ params:
 
   # First one is picked as the Twitter card image if not set on page.
   # images: [images/project-illustration.png]
-
-  # Menu title if your navbar has a versions selector to access old versions of your site.
-  # This menu appears only if you have at least one [params.versions] set.
-  version_menu: Releases
 
   # Flag used in the "version-banner" partial to decide whether to display a
   # banner on every page indicating that this is an archived version of the docs.
@@ -188,24 +206,9 @@ params:
     #        icon: fa fa-envelope
     #        desc: Discuss development issues around the project
 
-module:
-  # Uncomment the next line to build and serve using local docsy clone declared in the named Hugo workspace:
-  # workspace: docsy.work
-  hugoVersion:
-    extended: true
-    min: 0.110.0
-  imports:
-    - path: github.com/google/docsy
-      disable: false
-  mounts:
-    - source: ../../
-      target: content/docs
-      includeFiles: README.md
-    - source: ../../
-      target: content/development
-      includeFiles: DEV.md
-    - source: ../../images
-      target: content/docs/readme/images
-    - source: content/en
-      target: content
-      lang: en
+  # Menu title if your navbar has a versions selector to access old versions of your site.
+  # This menu appears only if you have at least one [params.versions] set.
+  version_menu: Releases
+  versions:
+    - {version: main, url: /main}
+    - {version: latest, url: /latest}
