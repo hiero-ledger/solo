@@ -18,9 +18,8 @@ import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {SoloConfigRuntimeState} from '../business/runtime-state/config/solo/solo-config-runtime-state.js';
-import {
-  MirrorNodeConfigRuntimeState
-} from '../business/runtime-state/config/mirror-node/mirror-node-config-runtime-state.js';
+import {MirrorNodeConfigRuntimeState} from '../business/runtime-state/config/mirror-node/mirror-node-config-runtime-state.js';
+import {BlockNodeConfigRuntimeState} from '../business/runtime-state/config/block-node/block-node-config-runtime-state.js';
 
 @injectable()
 export class Middlewares {
@@ -33,6 +32,7 @@ export class Middlewares {
     @inject(InjectTokens.HelpRenderer) private readonly helpRenderer: HelpRenderer,
     @inject(InjectTokens.SoloConfigRuntimeState) private readonly soloConfig: SoloConfigRuntimeState,
     @inject(InjectTokens.MirrorNodeConfigRuntimeState) private readonly mirrorNodeConfig: MirrorNodeConfigRuntimeState,
+    @inject(InjectTokens.BlockNodeConfigRuntimeState) private readonly blockNodeConfig: BlockNodeConfigRuntimeState,
   ) {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.remoteConfigManager = patchInject(
@@ -48,6 +48,11 @@ export class Middlewares {
     this.mirrorNodeConfig = patchInject(
       mirrorNodeConfig,
       InjectTokens.MirrorNodeConfigRuntimeState,
+      this.constructor.name,
+    );
+    this.blockNodeConfig = patchInject(
+      blockNodeConfig,
+      InjectTokens.BlockNodeConfigRuntimeState,
       this.constructor.name,
     );
   }
@@ -218,6 +223,9 @@ export class Middlewares {
 
       this.logger.debug('Loading MirrorNodeConfigRuntimeState');
       await this.mirrorNodeConfig.load();
+
+      this.logger.debug('Loading BlockNodeConfigRuntimeState');
+      await this.blockNodeConfig.load();
 
       return argv;
     };

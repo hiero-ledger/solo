@@ -61,5 +61,5 @@ export const InjectTokens = {
   HomeDirectory: Symbol.for('HomeDirectory'),
   SoloConfigRuntimeState: Symbol.for('SoloConfigRuntimeState'),
   MirrorNodeConfigRuntimeState: Symbol.for('MirrorNodeConfigRuntimeState'),
-  SoloConfigPrefix: Symbol.for('SoloConfigPrefix'),
+  BlockNodeConfigRuntimeState: Symbol.for('BlockNodeConfigRuntimeState'),
 };
