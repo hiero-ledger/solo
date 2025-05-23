@@ -355,7 +355,7 @@ describe('RemoteConfigV1Migration', () => {
       // Check consensus nodes
       expect(Array.isArray(result.state.consensusNodes)).to.be.true;
       expect(result.state.consensusNodes.length).to.equal(1);
-      
+
       // Check that id exists and other properties match
       expect(result.state.consensusNodes[0].metadata).to.have.property('id');
       expect(result.state.consensusNodes[0].metadata).to.include({
@@ -367,7 +367,7 @@ describe('RemoteConfigV1Migration', () => {
       // Check haProxies
       expect(Array.isArray(result.state.haProxies)).to.be.true;
       expect(result.state.haProxies.length).to.equal(1);
-      
+
       // Check that id exists and other properties match
       expect(result.state.haProxies[0].metadata).to.have.property('id');
       expect(result.state.haProxies[0].metadata).to.include({
@@ -379,7 +379,7 @@ describe('RemoteConfigV1Migration', () => {
       // Check envoyProxies
       expect(Array.isArray(result.state.envoyProxies)).to.be.true;
       expect(result.state.envoyProxies.length).to.equal(1);
-      
+
       // Check that id exists and other properties match
       expect(result.state.envoyProxies[0].metadata).to.have.property('id');
       expect(result.state.envoyProxies[0].metadata).to.include({
@@ -391,10 +391,10 @@ describe('RemoteConfigV1Migration', () => {
       // Check explorers
       expect(Array.isArray(result.state.explorers)).to.be.true;
       expect(result.state.explorers.length).to.equal(1);
-      
+
       // Check that version property exists
       expect(result.state.explorers[0]).to.have.property('version');
-      
+
       // Check that id exists and other properties match
       expect(result.state.explorers[0].metadata).to.have.property('id');
       expect(result.state.explorers[0].metadata).to.include({
@@ -406,7 +406,7 @@ describe('RemoteConfigV1Migration', () => {
       // Check mirrorNodes
       expect(Array.isArray(result.state.mirrorNodes)).to.be.true;
       expect(result.state.mirrorNodes.length).to.equal(1);
-      
+
       // Check that id exists and other properties match
       expect(result.state.mirrorNodes[0].metadata).to.have.property('id');
       expect(result.state.mirrorNodes[0].metadata).to.include({
@@ -418,7 +418,7 @@ describe('RemoteConfigV1Migration', () => {
       // Check relayNodes
       expect(Array.isArray(result.state.relayNodes)).to.be.true;
       expect(result.state.relayNodes.length).to.equal(1);
-      
+
       // Check that id and consensusNodeIds exist and other properties match
       expect(result.state.relayNodes[0].metadata).to.have.property('id');
       expect(result.state.relayNodes[0].metadata).to.have.property('consensusNodeIds');
@@ -432,7 +432,7 @@ describe('RemoteConfigV1Migration', () => {
       // Check blockNodes
       expect(Array.isArray(result.state.blockNodes)).to.be.true;
       expect(result.state.blockNodes.length).to.equal(1);
-      
+
       // Check that id exists and other properties match
       expect(result.state.blockNodes[0].metadata).to.have.property('id');
       expect(result.state.blockNodes[0].metadata).to.include({

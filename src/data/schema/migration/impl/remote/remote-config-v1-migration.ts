@@ -8,8 +8,7 @@ import {IllegalArgumentError} from '../../../../../business/errors/illegal-argum
 import {InvalidSchemaVersionError} from '../../api/invalid-schema-version-error.js';
 import {getSoloVersion} from '../../../../../../version.js';
 import {Templates} from '../../../../../core/templates.js';
-import {NodeAlias} from '../../../../../types/aliases.js';
-import {SemVer} from 'semver';
+import {type NodeAlias} from '../../../../../types/aliases.js';
 
 export class RemoteConfigV1Migration implements SchemaMigration {
   public get range(): VersionRange<number> {
@@ -58,12 +57,14 @@ export class RemoteConfigV1Migration implements SchemaMigration {
     // then it will be set to 0.0.0 until an upgrade for the component is performed
     // Normalize version strings by removing 'v' prefix if present
     const normalizeVersion = (version: string | undefined): string => {
-      if (!version) return '0.0.0';
+      if (!version) {
+        return '0.0.0';
+      }
       //for invalid version such v0.122  convert it to v0.122.0
       if (version.split('.').length === 2) {
         version = version + '.0';
       }
-      return version.startsWith('v') ? version.substring(1) : version;
+      return version.startsWith('v') ? version.slice(1) : version;
     };
 
     clone.versions = {
