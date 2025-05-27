@@ -638,7 +638,7 @@ async function verifyExplorerDeployWasSuccessful(
 
 function soloNetworkDestroyArgv(deployment: DeploymentName): string[] {
   const argv: string[] = newArgv();
-  argv.push('network', 'destroy', optionFromFlag(Flags.deployment), deployment);
+  argv.push('network', 'destroy', optionFromFlag(Flags.deployment), deployment, optionFromFlag(Flags.id), '0');
   argvPushGlobalFlags(argv, false, true);
   return argv;
 }
