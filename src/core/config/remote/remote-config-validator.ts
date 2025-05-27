@@ -3,7 +3,6 @@
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../dependency-injection/container-helper.js';
 import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
-import * as constants from '../../constants.js';
 import {SoloError} from '../../errors/solo-error.js';
 import {Templates} from '../../templates.js';
 import {RemoteConfigValidatorApi} from './api/remote-config-validator-api.js';
@@ -16,7 +15,6 @@ import {type ConsensusNodeStateSchema} from '../../../data/schema/model/remote/s
 import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
 import {type Context} from '../../../types/index.js';
 import {type K8Factory} from '../../../integration/kube/k8-factory.js';
-import {type NodeAlias} from '../../../types/aliases.js';
 
 /**
  * Static class is used to validate that components in the remote config
@@ -33,33 +31,31 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
   }
 
   private static getRelayLabels(component: BaseStateSchema): string[] {
-    return [`app.kubernetes.io/name=relay-${component.metadata.id}`];
+    return Templates.renderRelayLabels(component.metadata.id);
   }
 
   private static getHaProxyLabels(component: BaseStateSchema): string[] {
-    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(component.metadata.id + 1);
-    return [`app=haproxy-${nodeAlias}`, 'solo.hedera.com/type=haproxy'];
+    return Templates.renderHaProxyLabels(component.metadata.id);
   }
 
   private static getMirrorNodeLabels(component: BaseStateSchema): string[] {
-    return [
-      'app.kubernetes.io/name=importer',
-      'app.kubernetes.io/component=importer',
-      `app.kubernetes.io/instance=${constants.MIRROR_NODE_RELEASE_NAME}-${component.metadata.id}`,
-    ];
+    return Templates.renderMirrorNodeLabels(component.metadata.id);
   }
 
   private static getEnvoyProxyLabels(component: BaseStateSchema): string[] {
-    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(component.metadata.id + 1);
-    return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=envoy-proxy'];
+    return Templates.renderEnvoyProxyLabels(component.metadata.id);
   }
 
   private static getMirrorNodeExplorerLabels(component: BaseStateSchema): string[] {
-    return [`app.kubernetes.io/instance=${constants.EXPLORER_RELEASE_NAME}-${component.metadata.id}`];
+    return Templates.renderMirrorNodeExplorerLabels(component.metadata.id);
   }
 
   private static getConsensusNodeLabels(component: BaseStateSchema): string[] {
-    return [`app=network-${Templates.renderNodeAliasFromNumber(component.metadata.id + 1)}`];
+    return Templates.renderConsensusNodeLabels(component.metadata.id);
+  }
+
+  private static getBlockNodeLabels(component: BaseStateSchema): string[] {
+    return Templates.renderBlockNodeLabels(component.metadata.id);
   }
 
   private static consensusNodeSkipConditionCallback(nodeComponent: ConsensusNodeStateSchema): boolean {
@@ -67,10 +63,6 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       nodeComponent.metadata.phase === DeploymentPhase.REQUESTED ||
       nodeComponent.metadata.phase === DeploymentPhase.STOPPED
     );
-  }
-
-  private static getBlockNodeLabels(): string[] {
-    return [`app.kubernetes.io/name=${constants.BLOCK_NODE_RELEASE_NAME}`];
   }
 
   private static componentValidationsMapping: Record<

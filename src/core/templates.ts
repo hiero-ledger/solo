@@ -13,8 +13,9 @@ import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {GrpcProxyTlsEnums} from './enumerations.js';
 import {HEDERA_PLATFORM_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
-import {type ClusterReference, type NamespaceNameAsString} from './../types/index.js';
+import {type ClusterReference, ComponentId, type NamespaceNameAsString} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import type {BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
 
 export class Templates {
   public static renderNetworkPodName(nodeAlias: NodeAlias): PodName {
@@ -319,5 +320,41 @@ export class Templates {
     dnsBaseDomain: string,
   ): string {
     return `${serviceName}.${namespace}.svc.${dnsBaseDomain}`;
+  }
+
+  // Component Label Selectors
+
+  public static renderRelayLabels(id: ComponentId): string[] {
+    return [`app.kubernetes.io/name=relay-${id}`];
+  }
+
+  public static renderHaProxyLabels(id: ComponentId): string[] {
+    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(id + 1);
+    return [`app=haproxy-${nodeAlias}`, 'solo.hedera.com/type=haproxy'];
+  }
+
+  public static renderMirrorNodeLabels(id: ComponentId): string[] {
+    return [
+      'app.kubernetes.io/name=importer',
+      'app.kubernetes.io/component=importer',
+      `app.kubernetes.io/instance=${constants.MIRROR_NODE_RELEASE_NAME}-${id}`,
+    ];
+  }
+
+  public static renderEnvoyProxyLabels(id: ComponentId): string[] {
+    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(id + 1);
+    return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=envoy-proxy'];
+  }
+
+  public static renderMirrorNodeExplorerLabels(id: ComponentId): string[] {
+    return [`app.kubernetes.io/instance=${constants.EXPLORER_RELEASE_NAME}-${id}`];
+  }
+
+  public static renderConsensusNodeLabels(id: ComponentId): string[] {
+    return [`app=network-${Templates.renderNodeAliasFromNumber(id + 1)}`];
+  }
+
+  public static renderBlockNodeLabels(id: ComponentId): string[] {
+    return [`app.kubernetes.io/name=${constants.BLOCK_NODE_RELEASE_NAME}-${id}`];
   }
 }
