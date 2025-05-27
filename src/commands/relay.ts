@@ -471,14 +471,14 @@ export class RelayCommand extends BaseCommand {
 
             // prompt if inputs are empty and set it in the context
             context_.config = {
-              chartDirectory: this.configManager.getFlag<string>(flags.chartDirectory) as string,
+              chartDirectory: this.configManager.getFlag(flags.chartDirectory),
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
               nodeAliases: helpers.parseNodeAliases(
-                this.configManager.getFlag<string>(flags.nodeAliasesUnparsed) as string,
+                this.configManager.getFlag(flags.nodeAliasesUnparsed),
                 this.remoteConfig.getConsensusNodes(),
                 this.configManager,
               ),
-              clusterRef: this.configManager.getFlag<string>(flags.clusterRef) as string,
+              clusterRef: this.configManager.getFlag(flags.clusterRef),
               id: this.configManager.getFlag<number>(flags.id),
             } as RelayDestroyConfigClass;
 
@@ -495,6 +495,8 @@ export class RelayCommand extends BaseCommand {
               context_.config.releaseName,
               context_.config.context,
             );
+
+            console.log({od: this.configManager.getFlag(flags.id)});
 
             this.logger.debug('Initialized config', {config: context_.config});
 

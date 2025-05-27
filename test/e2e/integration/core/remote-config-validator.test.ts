@@ -85,7 +85,7 @@ function prepareComponentsData(namespace: NamespaceName): ComponentsData {
 
   const labelRecord: LabelRecord = {
     // @ts-expect-error - to access private property
-    relayNodes: RemoteConfigValidator.getRelayLabels(),
+    relayNodes: RemoteConfigValidator.getRelayLabels(components.relayNodes),
     // @ts-expect-error - to access private property
     haProxies: RemoteConfigValidator.getHaProxyLabels(components.haProxies),
     // @ts-expect-error - to access private property
@@ -97,7 +97,7 @@ function prepareComponentsData(namespace: NamespaceName): ComponentsData {
     // @ts-expect-error - to access private property
     consensusNodes: RemoteConfigValidator.getConsensusNodeLabels(components.consensusNodes),
     // @ts-expect-error - to access private property
-    blockNodes: RemoteConfigValidator.getBlockNodeLabels(),
+    blockNodes: RemoteConfigValidator.getBlockNodeLabels(components.blockNodes),
   };
 
   const podNames: Record<string, string> = {

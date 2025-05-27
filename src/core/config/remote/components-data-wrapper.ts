@@ -24,7 +24,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   public addNewComponent(component: BaseStateSchema, type: ComponentTypes): void {
     const componentId: ComponentId = component.metadata.id;
 
-    if (typeof componentId !== 'number' || componentId < 0) {
+    if (typeof componentId !== 'number') {
       throw new SoloError(`Component id is required ${componentId}`);
     }
 
@@ -55,7 +55,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
 
   /** Used to remove specific component from their respective group. */
   public removeComponent(componentId: ComponentId, type: ComponentTypes): void {
-    if (typeof componentId !== 'number' || componentId < 0) {
+    if (typeof componentId !== 'number') {
       throw new SoloError(`Component id is required ${componentId}`);
     }
 
