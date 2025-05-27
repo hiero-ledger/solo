@@ -16,6 +16,12 @@ else
   SOLO_CLUSTER_NAME=${SOLO_TEST_CLUSTER}
 fi
 
+# TBD, need to use at least version v0.62.1 for block node commands to work
+CONSENSUS_NODE_VERSION=${1:-v0.62.1}
+if [[ "${CONSENSUS_NODE_VERSION}" != "" ]]; then
+  export CONSENSUS_NODE_FLAG='--release-tag {{.CONSENSUS_NODE_VERSION}}'
+fi
+
 export SOLO_NAMESPACE=solo-e2e
 export SOLO_CLUSTER_SETUP_NAMESPACE=solo-cluster-setup
 export SOLO_DEPLOYMENT=solo-deployment
@@ -47,15 +53,16 @@ export SOLO_CLUSTER_SETUP_OUTPUT=$( cat ${BUILD_DIR}/cluster-setup.log | tee ${B
 solo network deploy -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/network-deploy.log
 export SOLO_NETWORK_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/network-deploy.log | tee ${BUILD_DIR}/test.log )
 
-solo node setup -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/node-setup.log
+solo node setup -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}" "${CONSENSUS_NODE_FLAG}" | tee ${BUILD_DIR}/node-setup.log
 export SOLO_NODE_SETUP_OUTPUT=$( cat ${BUILD_DIR}/node-setup.log | tee ${BUILD_DIR}/test.log )
 
 solo node start -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/node-start.log
 export SOLO_NODE_START_OUTPUT=$( cat ${BUILD_DIR}/node-start.log | tee ${BUILD_DIR}/test.log )
 
-solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} | tee ${BUILD_DIR}/block-node-add.log
+solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-"${SOLO_CLUSTER_NAME}" | tee ${BUILD_DIR}/block-node-add.log
 export SOLO_BLOCK_NODE_ADD_OUTPUT=$( cat ${BUILD_DIR}/block-node-add.log | tee ${BUILD_DIR}/test.log )
 
+# shellcheck disable=SC2086
 solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q | tee ${BUILD_DIR}/mirror-node-deploy.log
 export SOLO_MIRROR_NODE_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/mirror-node-deploy.log | tee ${BUILD_DIR}/test.log )
 
