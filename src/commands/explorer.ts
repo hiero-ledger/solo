@@ -35,6 +35,8 @@ import {KeyManager} from '../core/key-manager.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
+import {ListrRemoteConfig} from '../core/config/remote/listr-config-tasks.js';
+import {ExplorerConfigRuntimeState} from '../business/runtime-state/config/explorer/explorer-config-runtime-state.js';
 import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
@@ -81,12 +83,14 @@ export class ExplorerCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
+    @inject(InjectTokens.ExplorerConfigRuntimeState) private readonly explorerConfig: ExplorerConfigRuntimeState,
     @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
   ) {
     super();
 
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
+    this.explorerConfig = patchInject(explorerConfig, InjectTokens.ExplorerConfigRuntimeState, this.constructor.name);
   }
 
   public static readonly COMMAND_NAME = 'explorer';
@@ -97,7 +101,6 @@ export class ExplorerCommand extends BaseCommand {
     required: [],
     optional: [
       flags.cacheDir,
-      flags.chartDirectory,
       flags.clusterRef,
       flags.enableIngress,
       flags.ingressControllerValueFile,
@@ -121,7 +124,7 @@ export class ExplorerCommand extends BaseCommand {
 
   private static readonly DESTROY_FLAGS_LIST = {
     required: [],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.deployment],
+    optional: [flags.clusterRef, flags.force, flags.quiet, flags.deployment],
   };
 
   /**
@@ -248,8 +251,10 @@ export class ExplorerCommand extends BaseCommand {
 
             context_.config = this.configManager.getConfig(ExplorerCommand.DEPLOY_CONFIGS_NAME, allFlags, [
               'valuesArg',
+              'chartDirectory',
             ]) as ExplorerDeployConfigClass;
 
+            context_.config.chartDirectory += self.explorerConfig.explorerConfig.helmChart.directory;
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
             context_.config.clusterContext = context_.config.clusterRef
               ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString()

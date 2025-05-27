@@ -26,13 +26,15 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
+import {
+  type JsonRpcRelayConfigRuntimeState
+} from '../business/runtime-state/config/json-rpc-relay/json-rpc-relay-config-runtime-state.js';
 import {Templates} from '../core/templates.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
 interface RelayDestroyConfigClass {
-  chartDirectory: string;
   namespace: NamespaceName;
   deployment: string;
   nodeAliases: NodeAliases;
@@ -77,12 +79,14 @@ export class RelayCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
+    @inject(InjectTokens.JsonRpcRelayConfigRuntimeState) private readonly relayConfig: JsonRpcRelayConfigRuntimeState,
     @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
   ) {
     super();
 
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
+    this.relayConfig = patchInject(relayConfig, InjectTokens.JsonRpcRelayConfigRuntimeState, this.constructor.name);
   }
 
   public static readonly COMMAND_NAME = 'relay';
@@ -93,7 +97,6 @@ export class RelayCommand extends BaseCommand {
     required: [],
     optional: [
       flags.chainId,
-      flags.chartDirectory,
       flags.clusterRef,
       flags.deployment,
       flags.nodeAliasesUnparsed,
@@ -111,7 +114,7 @@ export class RelayCommand extends BaseCommand {
 
   private static readonly DESTROY_FLAGS_LIST = {
     required: [],
-    optional: [flags.chartDirectory, flags.deployment, flags.nodeAliasesUnparsed, flags.clusterRef, flags.quiet],
+    optional: [flags.deployment, flags.nodeAliasesUnparsed, flags.clusterRef, flags.quiet],
   };
 
   private async prepareValuesArgForRelay(
@@ -270,8 +273,10 @@ export class RelayCommand extends BaseCommand {
             // prompt if inputs are empty and set it in the context
             context_.config = this.configManager.getConfig(RelayCommand.DEPLOY_CONFIGS_NAME, allFlags, [
               'nodeAliases',
+              'chartDirectory',
             ]) as RelayDeployConfigClass;
 
+            context_.config.chartDirectory = this.relayConfig.jsonRpcRelayConfig.helmChart.directory;
             context_.config.namespace = await resolveNamespaceFromDeployment(
               this.localConfig,
               this.configManager,
@@ -429,7 +434,6 @@ export class RelayCommand extends BaseCommand {
 
             // prompt if inputs are empty and set it in the context
             context_.config = {
-              chartDirectory: self.configManager.getFlag<string>(flags.chartDirectory) as string,
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
               nodeAliases: helpers.parseNodeAliases(
                 self.configManager.getFlag<string>(flags.nodeAliasesUnparsed) as string,
