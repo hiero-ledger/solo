@@ -34,6 +34,8 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {Lock} from '../core/lock/lock.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {CommandFlag, CommandFlags} from '../types/flag-types.js';
+import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
+import {Templates} from '../core/templates.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -60,6 +62,7 @@ interface ExplorerDeployConfigClass {
   releaseName: string;
   ingressReleaseName: string;
   id: ComponentId; // Mirror node id
+  newExplorerComponent: ExplorerStateSchema;
 }
 
 interface ExplorerDeployContext {
@@ -289,6 +292,11 @@ export class ExplorerCommand extends BaseCommand {
               }
             }
 
+            context_.config.newExplorerComponent = this.componentFactory.createNewExplorerComponent(
+              context_.config.clusterRef,
+              context_.config.namespace,
+            );
+
             context_.config.valuesArg += await this.prepareValuesArg(context_.config);
 
             if (
@@ -445,7 +453,7 @@ export class ExplorerCommand extends BaseCommand {
               .pods()
               .waitForReadyStatus(
                 context_.config.namespace,
-                [`app.kubernetes.io/instance=${context_.config.releaseName}`],
+                Templates.renderExplorerLabels(context_.config.newExplorerComponent.metadata.id),
                 constants.PODS_READY_MAX_ATTEMPTS,
                 constants.PODS_READY_DELAY,
               );
@@ -681,10 +689,8 @@ export class ExplorerCommand extends BaseCommand {
       title: 'Add explorer to remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        const {namespace, clusterRef} = context_.config;
-
         this.remoteConfig.configuration.components.addNewComponent(
-          this.componentFactory.createNewExplorerComponent(clusterRef, namespace),
+          context_.config.newExplorerComponent,
           ComponentTypes.Explorer,
         );
 

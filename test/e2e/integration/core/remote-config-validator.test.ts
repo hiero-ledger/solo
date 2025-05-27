@@ -93,7 +93,7 @@ function prepareComponentsData(namespace: NamespaceName): ComponentsData {
     // @ts-expect-error - to access private property
     envoyProxies: RemoteConfigValidator.getEnvoyProxyLabels(components.envoyProxies),
     // @ts-expect-error - to access private property
-    explorers: RemoteConfigValidator.getMirrorNodeExplorerLabels(),
+    explorers: RemoteConfigValidator.getExplorerLabels(),
     // @ts-expect-error - to access private property
     consensusNodes: RemoteConfigValidator.getConsensusNodeLabels(components.consensusNodes),
     // @ts-expect-error - to access private property

@@ -46,8 +46,8 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     return Templates.renderEnvoyProxyLabels(component.metadata.id);
   }
 
-  private static getMirrorNodeExplorerLabels(component: BaseStateSchema): string[] {
-    return Templates.renderMirrorNodeExplorerLabels(component.metadata.id);
+  private static getExplorerLabels(component: BaseStateSchema): string[] {
+    return Templates.renderExplorerLabels(component.metadata.id);
   }
 
   private static getConsensusNodeLabels(component: BaseStateSchema): string[] {
@@ -91,7 +91,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     },
     explorers: {
       displayName: 'Explorer',
-      getLabelsCallback: RemoteConfigValidator.getMirrorNodeExplorerLabels,
+      getLabelsCallback: RemoteConfigValidator.getExplorerLabels,
     },
     consensusNodes: {
       displayName: 'Consensus Node',

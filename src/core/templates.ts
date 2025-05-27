@@ -346,7 +346,7 @@ export class Templates {
     return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=envoy-proxy'];
   }
 
-  public static renderMirrorNodeExplorerLabels(id: ComponentId): string[] {
+  public static renderExplorerLabels(id: ComponentId): string[] {
     return [`app.kubernetes.io/instance=${constants.EXPLORER_RELEASE_NAME}-${id}`];
   }
 
