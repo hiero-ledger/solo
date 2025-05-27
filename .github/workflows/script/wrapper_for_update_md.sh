@@ -11,7 +11,7 @@ sudo apt-get install gettext-base
 
 npm install
 echo "VERSION=$version"
-[[ -n "$version" ]] && npm version "$version" -f --no-git-tag-version
+[[ -n "$version" ]] && npm version "$version" -f --no-git-tag-version --allow-same-version
 task build
 npm install -g @hashgraph/solo
 npm link
