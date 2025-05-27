@@ -40,6 +40,7 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {CommandFlag, CommandFlags} from '../types/flag-types.js';
 import {Lock} from '../core/lock/lock.js';
 import {NodeServiceMapping} from '../types/mappings/node-service-mapping.js';
+import {RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -77,6 +78,7 @@ interface RelayDeployConfigClass {
   clusterRef: Optional<ClusterReference>;
   domainName: Optional<string>;
   context: Optional<string>;
+  newRelayComponent: RelayNodeStateSchema;
 }
 
 interface RelayDeployContext {
@@ -305,12 +307,24 @@ export class RelayCommand extends BaseCommand {
 
             context_.config.releaseName = this.prepareReleaseName();
 
-            if (context_.config.clusterRef) {
-              const context: Context = this.remoteConfig.getClusterRefs()[context_.config.clusterRef];
-              if (context) {
-                context_.config.context = context;
-              }
+            if (!context_.config.clusterRef) {
+              context_.config.clusterRef = this.k8Factory.default().clusters().readCurrent();
             }
+
+            const context: Context = this.remoteConfig.getClusterRefs()[context_.config.clusterRef];
+            if (context) {
+              context_.config.context = context;
+            }
+
+            const nodeIds: NodeId[] = context_.config.nodeAliases.map((nodeAlias: NodeAlias): number =>
+              Templates.nodeIdFromNodeAlias(nodeAlias),
+            );
+
+            context_.config.newRelayComponent = this.componentFactory.createNewRelayComponent(
+              context_.config.clusterRef,
+              context_.config.namespace,
+              nodeIds,
+            );
 
             this.logger.debug('Initialized config', {config: context_.config});
 
@@ -384,7 +398,7 @@ export class RelayCommand extends BaseCommand {
                 .pods()
                 .waitForRunningPhase(
                   config.namespace,
-                  [`app.kubernetes.io/name=${config.releaseName}`],
+                  Templates.renderRelayLabels(context_.config.newRelayComponent.metadata.id),
                   constants.RELAY_PODS_RUNNING_MAX_ATTEMPTS,
                   constants.RELAY_PODS_RUNNING_DELAY,
                 );
@@ -405,7 +419,7 @@ export class RelayCommand extends BaseCommand {
                 .pods()
                 .waitForReadyStatus(
                   config.namespace,
-                  [`app.kubernetes.io/name=${config.releaseName}`],
+                  Templates.renderRelayLabels(context_.config.newRelayComponent.metadata.id),
                   constants.RELAY_PODS_READY_MAX_ATTEMPTS,
                   constants.RELAY_PODS_READY_DELAY,
                 );
