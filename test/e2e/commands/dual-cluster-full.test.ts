@@ -460,13 +460,7 @@ async function verifyMirrorNodeDeployWasSuccessful(
 ): Promise<void> {
   const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
   const k8: K8 = k8Factory.getK8(contexts[1]);
-  const mirrorNodeRestPods: Pod[] = await k8
-    .pods()
-    .list(namespace, [
-      'app.kubernetes.io/instance=mirror',
-      'app.kubernetes.io/name=rest',
-      'app.kubernetes.io/component=rest',
-    ]);
+  const mirrorNodeRestPods: Pod[] = await k8.pods().list(namespace, Templates.renderMirrorNodeLabels(0));
   expect(mirrorNodeRestPods).to.have.lengthOf(1);
 
   let portForwarder: ExtendedNetServer;
@@ -576,13 +570,7 @@ async function verifyExplorerDeployWasSuccessful(
 ): Promise<void> {
   const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
   const k8: K8 = k8Factory.getK8(contexts[1]);
-  const explorerPods: Pod[] = await k8
-    .pods()
-    .list(namespace, [
-      'app.kubernetes.io/instance=hiero-explorer',
-      'app.kubernetes.io/name=hiero-explorer-chart',
-      'app.kubernetes.io/component=hiero-explorer',
-    ]);
+  const explorerPods: Pod[] = await k8.pods().list(namespace, Templates.renderExplorerLabels(0));
   expect(explorerPods).to.have.lengthOf(1);
   let portForwarder: ExtendedNetServer;
   try {
@@ -638,7 +626,7 @@ async function verifyExplorerDeployWasSuccessful(
 
 function soloNetworkDestroyArgv(deployment: DeploymentName): string[] {
   const argv: string[] = newArgv();
-  argv.push('network', 'destroy', optionFromFlag(Flags.deployment), deployment, optionFromFlag(Flags.id), '0');
+  argv.push('network', 'destroy', optionFromFlag(Flags.deployment), deployment);
   argvPushGlobalFlags(argv, false, true);
   return argv;
 }
