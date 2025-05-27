@@ -8,6 +8,6 @@ helmChart:
   # version: should come from version.ts or presentation layer
   labelSelector: app.kubernetes.io/component=hiero-explorer
   containerName:
-  ingressClassName:
+  ingressClassName: explorer-ingress-class
   ingressControllerName: explorer-haproxy-ingress
   ingressControllerPrefix: haproxy-ingress.github.io/controller/
