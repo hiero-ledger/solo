@@ -23,6 +23,7 @@ import {ClusterCommandHandlers} from '../../../src/commands/cluster/handlers.js'
 import {SoloWinstonLogger} from '../../../src/core/logging/solo-winston-logger.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
+import {SoloConfigRuntimeState} from '../../../src/business/runtime-state/config/solo/solo-config-runtime-state.js';
 
 const getBaseCommandOptions = (context: string) => {
   const options = {
@@ -59,6 +60,8 @@ describe('ClusterCommand unit tests', () => {
     resetForTest(namespace.name);
     const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
     await localConfig.load();
+    const soloConfig = container.resolve<SoloConfigRuntimeState>(InjectTokens.SoloConfigRuntimeState);
+    await soloConfig.load();
   });
 
   describe('Chart Install Function is called correctly', () => {
