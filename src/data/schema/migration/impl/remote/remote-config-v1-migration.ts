@@ -217,7 +217,7 @@ export class RemoteConfigV1Migration implements SchemaMigration {
         clone.state.explorers.push({
           version: hederaExplorerChartVersion,
           metadata: {
-            id: 0,
+            id: 1,
             // name: component.name,
             namespace: component.namespace,
             cluster: component.cluster,
@@ -239,7 +239,7 @@ export class RemoteConfigV1Migration implements SchemaMigration {
 
         clone.state.mirrorNodes.push({
           metadata: {
-            id: 0,
+            id: 1,
             // name: component.name,
             namespace: component.namespace,
             cluster: component.cluster,
@@ -262,7 +262,7 @@ export class RemoteConfigV1Migration implements SchemaMigration {
         clone.state.relayNodes.push({
           metadata: {
             consensusNodeIds: component.consensusNodeAliases,
-            id: 0,
+            id: 1,
             // name: component.name,
             namespace: component.namespace,
             cluster: component.cluster,

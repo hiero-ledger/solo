@@ -493,12 +493,12 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
         (cluster: ClusterSchema): boolean => cluster.name === node.metadata.cluster,
       );
       const context: Context = this.localConfig.configuration.clusterRefs.get(node.metadata.cluster)?.toString();
-      const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(node.metadata.id + 1);
+      const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(node.metadata.id);
 
       consensusNodes.push(
         new ConsensusNode(
           nodeAlias,
-          node.metadata.id,
+          node.metadata.id - 1,
           node.metadata.namespace,
           node.metadata.cluster,
           context,
@@ -506,7 +506,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
           cluster.dnsConsensusNodePattern,
           Templates.renderConsensusNodeFullyQualifiedDomainName(
             nodeAlias,
-            node.metadata.id,
+            node.metadata.id - 1,
             node.metadata.namespace,
             node.metadata.cluster,
             cluster.dnsBaseDomain,

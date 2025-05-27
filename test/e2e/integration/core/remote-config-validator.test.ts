@@ -105,10 +105,10 @@ function prepareComponentsData(namespace: NamespaceName): ComponentsData {
     mirrorNodes: `mirror-importer-${components.mirrorNodes.metadata.id}`,
     relayNodes: `relay-${components.relayNodes.metadata.id}`,
     consensusNodes: Templates.renderNetworkPodName(
-      Templates.renderNodeAliasFromNumber(components.consensusNodes.metadata.id + 1),
+      Templates.renderNodeAliasFromNumber(components.consensusNodes.metadata.id),
     ).name,
-    haProxies: `haproxy-node1-${Templates.renderNodeAliasFromNumber(components.haProxies.metadata.id + 1)}`,
-    envoyProxies: `envoy-proxy-${Templates.renderNodeAliasFromNumber(components.envoyProxies.metadata.id + 1)}`,
+    haProxies: `haproxy-node1-${Templates.renderNodeAliasFromNumber(components.haProxies.metadata.id)}`,
+    envoyProxies: `envoy-proxy-${Templates.renderNodeAliasFromNumber(components.envoyProxies.metadata.id)}`,
   };
 
   const state: DeploymentStateSchema = new DeploymentStateSchema();

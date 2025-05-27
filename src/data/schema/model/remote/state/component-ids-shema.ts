@@ -34,12 +34,12 @@ export class ComponentIdsShema {
     envoyProxies?: number,
     explorers?: number,
   ) {
-    this.consensusNodes = consensusNodes || 0;
-    this.blockNodes = blockNodes || 0;
-    this.mirrorNodes = mirrorNodes || 0;
-    this.relayNodes = relayNodes || 0;
-    this.haProxies = haProxies || 0;
-    this.envoyProxies = envoyProxies || 0;
-    this.explorers = explorers || 0;
+    this.consensusNodes = consensusNodes || 1;
+    this.blockNodes = blockNodes || 1;
+    this.mirrorNodes = mirrorNodes || 1;
+    this.relayNodes = relayNodes || 1;
+    this.haProxies = haProxies || 1;
+    this.envoyProxies = envoyProxies || 1;
+    this.explorers = explorers || 1;
   }
 }

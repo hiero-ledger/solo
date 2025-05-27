@@ -86,7 +86,7 @@ export class Argv implements CloneTrait<Argv> {
     argv.setArg(flags.context, new K8Client(undefined).contexts().readCurrent());
     argv.setArg(flags.chartDirectory, process.env.SOLO_CHARTS_DIR ?? undefined);
     argv.setArg(flags.quiet, true);
-    argv.setArg(flags.id, 0);
+    argv.setArg(flags.id, 1);
 
     return argv;
   }

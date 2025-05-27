@@ -13,9 +13,8 @@ import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {GrpcProxyTlsEnums} from './enumerations.js';
 import {HEDERA_PLATFORM_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
-import {type ClusterReference, ComponentId, type NamespaceNameAsString} from './../types/index.js';
+import {type ClusterReference, type ComponentId, type NamespaceNameAsString} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
-import type {BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
 
 export class Templates {
   public static renderNetworkPodName(nodeAlias: NodeAlias): PodName {
