@@ -1,0 +1,13 @@
+#schemaVersion: 1
+helmChart:
+  name: hedera-json-rpc-relay
+  # namespace: should come from presentation layer
+  release:
+  repository: https://hiero-ledger.github.io/hiero-json-rpc-relay/charts
+  # directory: would be used via environment variable only
+  # version: should come from version.ts or presentation layer
+  labelSelector:
+  containerName:
+  ingressClassName:
+  ingressControllerName:
+  ingressControllerPrefix:

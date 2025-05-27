@@ -1,0 +1,13 @@
+#schemaVersion: 1
+helmChart:
+  name: hiero-explorer # todo check if this is the correct name
+  # namespace: should come from presentation layer
+  release: hiero-explorer
+  repository: oci://ghcr.io/hiero-ledger/hiero-mirror-node-explorer/hiero-explorer-chart
+  # directory: would be used via environment variable only
+  # version: should come from version.ts or presentation layer
+  labelSelector: app.kubernetes.io/component=hiero-explorer
+  containerName:
+  ingressClassName:
+  ingressControllerName: explorer-haproxy-ingress
+  ingressControllerPrefix: haproxy-ingress.github.io/controller/

@@ -64,4 +64,6 @@ export const InjectTokens = {
   SoloConfigRuntimeState: Symbol.for('SoloConfigRuntimeState'),
   MirrorNodeConfigRuntimeState: Symbol.for('MirrorNodeConfigRuntimeState'),
   BlockNodeConfigRuntimeState: Symbol.for('BlockNodeConfigRuntimeState'),
+  JsonRpcRelayConfigRuntimeState: Symbol.for('JsonRpcRelayConfigRuntimeState'),
+  ExplorerConfigRuntimeState: Symbol.for('ExplorerConfigRuntimeState'),
 };

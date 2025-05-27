@@ -19,6 +19,8 @@ import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/lo
 import {SoloConfigRuntimeState} from '../business/runtime-state/config/solo/solo-config-runtime-state.js';
 import {MirrorNodeConfigRuntimeState} from '../business/runtime-state/config/mirror-node/mirror-node-config-runtime-state.js';
 import {BlockNodeConfigRuntimeState} from '../business/runtime-state/config/block-node/block-node-config-runtime-state.js';
+import {ExplorerConfigRuntimeState} from '../business/runtime-state/config/explorer/explorer-config-runtime-state.js';
+import {JsonRpcRelayConfigRuntimeState} from '../business/runtime-state/config/json-rpc-relay/json-rpc-relay-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 @injectable()
@@ -33,6 +35,9 @@ export class Middlewares {
     @inject(InjectTokens.SoloConfigRuntimeState) private readonly soloConfig: SoloConfigRuntimeState,
     @inject(InjectTokens.MirrorNodeConfigRuntimeState) private readonly mirrorNodeConfig: MirrorNodeConfigRuntimeState,
     @inject(InjectTokens.BlockNodeConfigRuntimeState) private readonly blockNodeConfig: BlockNodeConfigRuntimeState,
+    @inject(InjectTokens.JsonRpcRelayConfigRuntimeState)
+    private readonly jsonRpcRelayConfig: JsonRpcRelayConfigRuntimeState,
+    @inject(InjectTokens.ExplorerConfigRuntimeState) private readonly explorerConfig: ExplorerConfigRuntimeState,
   ) {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
@@ -51,6 +56,12 @@ export class Middlewares {
       InjectTokens.BlockNodeConfigRuntimeState,
       this.constructor.name,
     );
+    this.jsonRpcRelayConfig = patchInject(
+      jsonRpcRelayConfig,
+      InjectTokens.JsonRpcRelayConfigRuntimeState,
+      this.constructor.name,
+    );
+    this.explorerConfig = patchInject(explorerConfig, InjectTokens.ExplorerConfigRuntimeState, this.constructor.name);
   }
 
   public printCustomHelp(rootCmd: any) {
@@ -222,6 +233,12 @@ export class Middlewares {
 
       this.logger.debug('Loading BlockNodeConfigRuntimeState');
       await this.blockNodeConfig.load();
+
+      this.logger.debug('Loading ExplorerConfigRuntimeState');
+      await this.explorerConfig.load();
+
+      this.logger.debug('Loading JsonRpcRelayConfigRuntimeState');
+      await this.jsonRpcRelayConfig.load();
 
       return argv;
     };
