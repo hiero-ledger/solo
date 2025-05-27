@@ -337,13 +337,13 @@ export class ExplorerCommand extends BaseCommand {
             let exploreValuesArgument = prepareValuesFiles(constants.EXPLORER_VALUES_FILE);
             exploreValuesArgument += await self.prepareHederaExplorerValuesArg(config);
 
-            await self.chartManager.install(
+            await self.chartManager.upgrade(
               config.namespace,
               constants.EXPLORER_RELEASE_NAME,
               '',
               EXPLORER_CHART_URL,
               config.explorerVersion,
-              exploreValuesArgument,
+              exploreValuesArgument + ' --install ',
               context_.config.clusterContext,
             );
             showVersionBanner(self.logger, constants.EXPLORER_RELEASE_NAME, config.explorerVersion);

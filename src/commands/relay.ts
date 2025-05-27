@@ -338,13 +338,13 @@ export class RelayCommand extends BaseCommand {
           task: async context_ => {
             const config = context_.config;
 
-            await self.chartManager.install(
+            await self.chartManager.upgrade(
               config.namespace,
               config.releaseName,
               constants.JSON_RPC_RELAY_CHART,
               constants.JSON_RPC_RELAY_CHART,
               '',
-              config.valuesArg,
+              config.valuesArg + ' --install ',
               config.context,
             );
 

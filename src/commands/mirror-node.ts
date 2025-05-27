@@ -254,13 +254,13 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   private async deployMirrorNode(context_: MirrorNodeDeployContext): Promise<void> {
-    await this.chartManager.install(
+    await this.chartManager.upgrade(
       context_.config.namespace,
       constants.MIRROR_NODE_RELEASE_NAME,
       constants.MIRROR_NODE_CHART,
       constants.MIRROR_NODE_RELEASE_NAME,
       context_.config.mirrorNodeVersion,
-      context_.config.valuesArg,
+      context_.config.valuesArg + ' --install ',
       context_.config.clusterContext,
     );
 
