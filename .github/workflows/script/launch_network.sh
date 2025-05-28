@@ -42,6 +42,8 @@ solo mirror-node deploy  --deployment "${SOLO_DEPLOYMENT}"
 solo explorer deploy -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 
+.github/workflows/script/solo_smoke_test.sh
+
 cp ~/.solo/cache/local-config.yaml ./local-config-before.yaml
 cat ./local-config-before.yaml
 kubectl get ConfigMap solo-remote-config -n ${SOLO_NAMESPACE} -o yaml | yq '.data' > remote-config-before.yaml
