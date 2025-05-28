@@ -30,8 +30,8 @@ export class LocalConfigRuntimeState {
 
   public constructor(
     @inject(InjectTokens.HomeDirectory) private readonly basePath: string,
-    @inject(InjectTokens.ConfigManager) private readonly configManager?: ConfigManager,
     @inject(InjectTokens.LocalConfigFileName) private readonly fileName: string,
+    @inject(InjectTokens.ConfigManager) private readonly configManager?: ConfigManager,
   ) {
     this.fileName = patchInject(fileName, InjectTokens.LocalConfigFileName, this.constructor.name);
     this.basePath = patchInject(basePath, InjectTokens.HomeDirectory, this.constructor.name);
