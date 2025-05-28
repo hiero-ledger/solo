@@ -16,7 +16,7 @@ import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tok
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {getTestCacheDirectory} from '../../../test-utility.js';
 import {Duration} from '../../../../src/core/time/duration.js';
-import {type ClusterReference} from '../../../../src/types/index.js';
+import {type ClusterReference, ComponentId} from '../../../../src/types/index.js';
 import {DeploymentPhase} from '../../../../src/data/schema/model/remote/deployment-phase.js';
 import {Templates} from '../../../../src/core/templates.js';
 import {type BaseStateSchema} from '../../../../src/data/schema/model/remote/state/base-state-schema.js';
@@ -69,7 +69,7 @@ function prepareComponentsData(namespace: NamespaceName): ComponentsData {
 
   const clusterReference: ClusterReference = 'cluster';
   const nodeState: DeploymentPhase = DeploymentPhase.STARTED;
-  const nodeId: NodeId = 0;
+  const id: ComponentId = 1;
 
   const componentFactory: ComponentFactoryApi = new ComponentFactory(remoteConfigMock);
 
@@ -77,27 +77,20 @@ function prepareComponentsData(namespace: NamespaceName): ComponentsData {
     explorers: componentFactory.createNewExplorerComponent(clusterReference, namespace),
     mirrorNodes: componentFactory.createNewMirrorNodeComponent(clusterReference, namespace),
     relayNodes: componentFactory.createNewRelayComponent(clusterReference, namespace, [0]),
-    consensusNodes: componentFactory.createNewConsensusNodeComponent(nodeId, clusterReference, namespace, nodeState),
+    consensusNodes: componentFactory.createNewConsensusNodeComponent(id, clusterReference, namespace, nodeState),
     haProxies: componentFactory.createNewHaProxyComponent(clusterReference, namespace),
     envoyProxies: componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
     blockNodes: componentFactory.createNewBlockNodeComponent(clusterReference, namespace),
   };
 
   const labelRecord: LabelRecord = {
-    // @ts-expect-error - to access private property
-    relayNodes: RemoteConfigValidator.getRelayLabels(components.relayNodes),
-    // @ts-expect-error - to access private property
-    haProxies: RemoteConfigValidator.getHaProxyLabels(components.haProxies),
-    // @ts-expect-error - to access private property
-    mirrorNodes: RemoteConfigValidator.getMirrorNodeLabels(),
-    // @ts-expect-error - to access private property
-    envoyProxies: RemoteConfigValidator.getEnvoyProxyLabels(components.envoyProxies),
-    // @ts-expect-error - to access private property
-    explorers: RemoteConfigValidator.getExplorerLabels(),
-    // @ts-expect-error - to access private property
-    consensusNodes: RemoteConfigValidator.getConsensusNodeLabels(components.consensusNodes),
-    // @ts-expect-error - to access private property
-    blockNodes: RemoteConfigValidator.getBlockNodeLabels(components.blockNodes),
+    relayNodes: Templates.renderRelayLabels(components.relayNodes.metadata.id),
+    haProxies: Templates.renderHaProxyLabels(components.haProxies.metadata.id),
+    mirrorNodes: Templates.renderMirrorNodeLabels(components.mirrorNodes.metadata.id),
+    envoyProxies: Templates.renderEnvoyProxyLabels(components.envoyProxies.metadata.id),
+    explorers: Templates.renderExplorerLabels(components.explorers.metadata.id),
+    consensusNodes: Templates.renderConsensusNodeLabels(components.consensusNodes.metadata.id),
+    blockNodes: Templates.renderBlockNodeLabels(components.blockNodes.metadata.id),
   };
 
   const podNames: Record<string, string> = {
