@@ -42,6 +42,10 @@ solo mirror-node deploy  --deployment "${SOLO_DEPLOYMENT}"
 solo explorer deploy -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 
+kubectl port-forward -n "${SOLO_NAMESPACE}" svc/haproxy-node1-svc 50211:50211 > /dev/null 2>&1 &
+
+kubectl port-forward -n "${SOLO_NAMESPACE}" svc/relay-node1-hedera-json-rpc-relay 7546:7546 > /dev/null 2>&1 &
+
 .github/workflows/script/solo_smoke_test.sh
 
 cp ~/.solo/cache/local-config.yaml ./local-config-before.yaml
