@@ -130,7 +130,7 @@ jobs:
         env:
           CODACY_PROJECT_TOKEN: ${{ secrets.codacy-project-token }}
         if: ${{ inputs.enable-codacy-coverage && !cancelled() && !failure() }}
-        run: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l Javascript $(find . -name 'lcov.info' -printf '-r %p ')
+        run: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l Javascript $(find . -name 'lcov.info' -printf '-r "%p" ')
 
       - name: Setup Snyk
         env:
