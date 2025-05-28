@@ -35,9 +35,9 @@ export class Templates {
 
   public static renderNodeAliasesFromCount(count: number, existingNodesCount: number): NodeAliases {
     const nodeAliases: NodeAliases = [];
-    let nodeNumber = existingNodesCount + 1;
+    let nodeNumber: number = existingNodesCount + 1;
 
-    for (let index = 1; index <= count; index++) {
+    for (let index: number = 1; index <= count; index++) {
       nodeAliases.push(Templates.renderNodeAliasFromNumber(nodeNumber));
       nodeNumber++;
     }

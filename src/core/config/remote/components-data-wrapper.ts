@@ -20,7 +20,6 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
 
   /* -------- Modifiers -------- */
 
-  // TODO: 666 ADD MIDDLEWARE FOR INCREMENTING THE COUNT
   /** Used to add new component to their respective group. */
   public addNewComponent(component: BaseStateSchema, type: ComponentTypes): void {
     const componentId: ComponentId = component.metadata.id;

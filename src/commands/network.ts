@@ -30,7 +30,6 @@ import {
   type IP,
   type NodeAlias,
   type NodeAliases,
-  type NodeId,
 } from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {v4 as uuidv4} from 'uuid';
