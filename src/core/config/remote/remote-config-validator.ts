@@ -13,7 +13,7 @@ import {type BaseStateSchema} from '../../../data/schema/model/remote/state/base
 import {type LocalConfigRuntimeState} from '../../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
 import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
-import {ComponentId, type Context} from '../../../types/index.js';
+import {type ComponentId, type Context} from '../../../types/index.js';
 import {type K8Factory} from '../../../integration/kube/k8-factory.js';
 
 /**

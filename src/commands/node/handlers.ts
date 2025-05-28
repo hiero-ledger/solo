@@ -914,7 +914,7 @@ export class NodeCommandHandlers extends CommandHandler {
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_: Context): Promise<void> => {
         for (const consensusNode of context_.config.consensusNodes) {
-          const componentId: ComponentId = Templates.nodeIdFromNodeAlias(consensusNode.name);
+          const componentId: ComponentId = Templates.renderComponentIdFromNodeAlias(consensusNode.name);
           this.remoteConfig.configuration.components.changeNodePhase(componentId, phase);
         }
 

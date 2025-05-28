@@ -46,7 +46,8 @@ import {
   type PrivateKeyAndCertificateObject,
   type SoloListr,
   type SoloListrTask,
-  type SoloListrTaskWrapper, ComponentId,
+  type SoloListrTaskWrapper,
+  type ComponentId,
 } from '../types/index.js';
 import {Base64} from 'js-base64';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
@@ -959,10 +960,6 @@ export class NetworkCommand extends BaseCommand {
                   config.clusterRefs.get(clusterReference),
                 );
               }
-
-              console.log(
-                fs.readFileSync('/Users/zhanmilenkov/.solo/cache/solo-local-kind-solo-e2e.yaml').toString('utf8'),
-              );
 
               await this.chartManager.install(
                 config.namespace,

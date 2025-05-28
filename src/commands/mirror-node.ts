@@ -547,8 +547,8 @@ export class MirrorNodeCommand extends BaseCommand {
 
                     await self.chartManager.install(
                       config.namespace,
-                      constants.INGRESS_CONTROLLER_RELEASE_NAME,
                       config.ingressReleaseName,
+                      constants.INGRESS_CONTROLLER_RELEASE_NAME,
                       constants.INGRESS_CONTROLLER_RELEASE_NAME,
                       INGRESS_CONTROLLER_VERSION,
                       mirrorIngressControllerValuesArgument,

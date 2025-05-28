@@ -496,8 +496,6 @@ export class RelayCommand extends BaseCommand {
               context_.config.context,
             );
 
-            console.log({od: this.configManager.getFlag(flags.id)});
-
             this.logger.debug('Initialized config', {config: context_.config});
 
             return ListrLock.newAcquireLockTask(lease, task);

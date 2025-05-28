@@ -232,7 +232,7 @@ describe('RemoteConfigValidator', () => {
 
       for (const nodeId of nodeIds) {
         // Make sure the status is STARTED
-        componentsDataWrapper.changeNodePhase(nodeId, DeploymentPhase.STARTED);
+        componentsDataWrapper.changeNodePhase(Templates.renderComponentIdFromNodeId(nodeId), DeploymentPhase.STARTED);
       }
 
       await remoteConfigValidator.validateComponents(namespace, skipConsensusNodes, state);
@@ -253,7 +253,7 @@ describe('RemoteConfigValidator', () => {
         });
 
         for (const nodeId of nodeIds) {
-          componentsDataWrapper.changeNodePhase(nodeId, nodeState);
+          componentsDataWrapper.changeNodePhase(Templates.renderComponentIdFromNodeId(nodeId), nodeState);
         }
 
         await remoteConfigValidator.validateComponents(namespace, false, state);

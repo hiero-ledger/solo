@@ -9,6 +9,7 @@ import {type ClusterReference, type ComponentId} from '../../../types/index.js';
 import {type ComponentsDataWrapperApi} from './api/components-data-wrapper-api.js';
 import {type DeploymentStateSchema} from '../../../data/schema/model/remote/deployment-state-schema.js';
 import {type ComponentIdsShema} from '../../../data/schema/model/remote/state/component-ids-shema.js';
+import {type ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
 
 export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   public constructor(public state: DeploymentStateSchema) {}
@@ -36,7 +37,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
       if (this.checkComponentExists(components, component)) {
         throw new SoloError('Component exists', undefined, component);
       }
-      components[componentId] = component;
+      components.push(component);
     };
 
     this.applyCallbackToComponentGroup(type, addComponentCallback, componentId);
@@ -46,11 +47,15 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   }
 
   public changeNodePhase(componentId: ComponentId, phase: DeploymentPhase): void {
-    if (!this.state.consensusNodes[componentId]) {
+    if (!this.state.consensusNodes.some((component): boolean => +component.metadata.id === +componentId)) {
       throw new SoloError(`Consensus node ${componentId} doesn't exist`);
     }
 
-    this.state.consensusNodes[componentId].metadata.phase = phase;
+    const component: ConsensusNodeStateSchema = this.state.consensusNodes.find(
+      (component): boolean => +component.metadata.id === +componentId,
+    );
+
+    component.metadata.phase = phase;
   }
 
   /** Used to remove specific component from their respective group. */

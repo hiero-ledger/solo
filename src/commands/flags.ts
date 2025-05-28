@@ -735,7 +735,7 @@ export class Flags {
       describe: 'ID',
       type: 'number',
     },
-    prompt: async function promptChainId(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
+    prompt: async function promptChainId(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<number> {
       return await Flags.prompt('number', task, input, undefined, 'Enter component id: ', null, Flags.id.name);
     },
   };

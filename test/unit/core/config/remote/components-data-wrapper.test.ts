@@ -42,7 +42,7 @@ export function createComponentsDataWrapper(): {
   wrapper: {componentsDataWrapper: ComponentsDataWrapperApi};
   componentId: ComponentId;
 } {
-  const id: ComponentId = 0;
+  const id: ComponentId = 1;
   const componentId: ComponentId = id;
 
   const cluster: ClusterReference = 'cluster';
