@@ -18,8 +18,8 @@ fi
 
 # TBD, need to use at least version v0.62.1 for block node commands to work
 CONSENSUS_NODE_VERSION=${1:-v0.62.1}
-if [[ "${CONSENSUS_NODE_VERSION}" != "" ]]; then
-  export CONSENSUS_NODE_FLAG=--release-tag "${CONSENSUS_NODE_VERSION}"
+if [[ -n "${CONSENSUS_NODE_VERSION}" ]]; then
+  export CONSENSUS_NODE_FLAG="--release-tag ${CONSENSUS_NODE_VERSION}"
 fi
 
 export SOLO_NAMESPACE=solo-e2e
