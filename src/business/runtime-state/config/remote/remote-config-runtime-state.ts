@@ -210,7 +210,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       new RemoteConfigMetadataSchema(new Date(), userIdentity),
       new ApplicationVersionsSchema(cliVersion),
       [cluster],
-      new DeploymentStateSchema(ledgerPhase, new ComponentIdsShema(nodeAliases.length - 1), consensusNodeStates),
+      new DeploymentStateSchema(ledgerPhase, new ComponentIdsShema(nodeAliases.length), consensusNodeStates),
       new DeploymentHistorySchema([command], command),
     );
 
@@ -498,7 +498,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       consensusNodes.push(
         new ConsensusNode(
           nodeAlias,
-          node.metadata.id - 1,
+          node.metadata.id,
           node.metadata.namespace,
           node.metadata.cluster,
           context,
@@ -506,7 +506,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
           cluster.dnsConsensusNodePattern,
           Templates.renderConsensusNodeFullyQualifiedDomainName(
             nodeAlias,
-            node.metadata.id - 1,
+            node.metadata.id,
             node.metadata.namespace,
             node.metadata.cluster,
             cluster.dnsBaseDomain,

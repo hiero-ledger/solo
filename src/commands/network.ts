@@ -960,11 +960,13 @@ export class NetworkCommand extends BaseCommand {
                 );
               }
 
+              console.log(config.valuesArgMap);
+
               await this.chartManager.install(
                 config.namespace,
                 constants.SOLO_DEPLOYMENT_CHART,
                 constants.SOLO_DEPLOYMENT_CHART,
-                context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
+                context_.config.chartDirectory ?? constants.SOLO_TESTING_CHART_URL,
                 config.soloChartVersion,
                 config.valuesArgMap[clusterReference],
                 config.clusterRefs.get(clusterReference),
@@ -1212,6 +1214,7 @@ export class NetworkCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error) {
+      console.error(error);
       throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
     } finally {
       await lease.release();
