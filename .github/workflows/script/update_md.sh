@@ -19,7 +19,7 @@ fi
 # TBD, need to use at least version v0.62.1 for block node commands to work
 CONSENSUS_NODE_VERSION=${1:-v0.62.1}
 if [[ "${CONSENSUS_NODE_VERSION}" != "" ]]; then
-  export CONSENSUS_NODE_FLAG="--release-tag ${CONSENSUS_NODE_VERSION}"
+  export CONSENSUS_NODE_FLAG=" --release-tag ${CONSENSUS_NODE_VERSION} "
 fi
 
 export SOLO_NAMESPACE=solo-e2e
@@ -59,7 +59,7 @@ export SOLO_NODE_SETUP_OUTPUT=$( cat ${BUILD_DIR}/node-setup.log | tee ${BUILD_D
 solo node start -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/node-start.log
 export SOLO_NODE_START_OUTPUT=$( cat ${BUILD_DIR}/node-start.log | tee ${BUILD_DIR}/test.log )
 
-solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-"${SOLO_CLUSTER_NAME}" | tee ${BUILD_DIR}/block-node-add.log
+solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-"${SOLO_CLUSTER_NAME}" "${CONSENSUS_NODE_FLAG}" | tee ${BUILD_DIR}/block-node-add.log
 export SOLO_BLOCK_NODE_ADD_OUTPUT=$( cat ${BUILD_DIR}/block-node-add.log | tee ${BUILD_DIR}/test.log )
 
 # shellcheck disable=SC2086
