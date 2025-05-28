@@ -62,7 +62,7 @@ tasks:
 
   test-helm:
     cmds:
-      - "{{ .test_prefix }}=\"Helm Unit Tests\"
+      - "{{ .test_prefix }}=\"Unit Helm Tests\"
         {{ .reporter_prefix }}='coverage/unit-helm'
         {{ .mocha_bin }} 'test/unit/core/helm/**/*.ts'
         {{ .reporter_options_prefix }}.xml"
