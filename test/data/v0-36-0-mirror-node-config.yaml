@@ -1,0 +1,5 @@
+schemaVersion: 1
+helmChart:
+  name: mirror-node-deployment
+  release: mirror-node-deployment
+  repository: oci://ghcr.io/hashgraph/solo-charts
