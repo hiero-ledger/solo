@@ -45,6 +45,8 @@ solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/haproxy-node1-svc 50211:50211 > /dev/null 2>&1 &
 
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/relay-node1-node2-hedera-json-rpc-relay 7546:7546 > /dev/null 2>&1 &
+kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-grpc 5600:5600 > /dev/null 2>&1 &
+kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-rest 5551:80 > /dev/null 2>&1 &
 
 .github/workflows/script/solo_smoke_test.sh
 
