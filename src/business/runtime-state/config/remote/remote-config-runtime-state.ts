@@ -264,8 +264,6 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       );
     }
 
-    this.configuration.components.componentIds.consensusNodes += nodeAliases.length;
-
     await this.persist();
   }
 
