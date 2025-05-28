@@ -22,7 +22,7 @@ import {
   type DeploymentName,
   type NamespaceNameAsString,
 } from '../../../../types/index.js';
-import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases} from '../../../../types/aliases.js';
+import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases, NodeId} from '../../../../types/aliases.js';
 import {NamespaceName} from '../../../../types/namespace/namespace-name.js';
 import {ComponentStateMetadataSchema} from '../../../../data/schema/model/remote/state/component-state-metadata-schema.js';
 import {Templates} from '../../../../core/templates.js';
@@ -184,7 +184,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       (nodeAlias: NodeAlias): ConsensusNodeStateSchema => {
         return new ConsensusNodeStateSchema(
           new ComponentStateMetadataSchema(
-            Templates.nodeIdFromNodeAlias(nodeAlias),
+            Templates.renderComponentIdFromNodeAlias(nodeAlias),
             namespace.name,
             clusterReference,
             DeploymentPhase.REQUESTED,
@@ -210,7 +210,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       new RemoteConfigMetadataSchema(new Date(), userIdentity),
       new ApplicationVersionsSchema(cliVersion),
       [cluster],
-      new DeploymentStateSchema(ledgerPhase, new ComponentIdsShema(nodeAliases.length), consensusNodeStates),
+      new DeploymentStateSchema(ledgerPhase, new ComponentIdsShema(nodeAliases.length + 1), consensusNodeStates),
       new DeploymentHistorySchema([command], command),
     );
 
@@ -255,7 +255,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     for (const nodeAlias of nodeAliases) {
       this.configuration.components.addNewComponent(
         componentFactory.createNewConsensusNodeComponent(
-          Templates.nodeIdFromNodeAlias(nodeAlias),
+          Templates.renderComponentIdFromNodeAlias(nodeAlias),
           clusterReference,
           namespace,
           DeploymentPhase.REQUESTED,
@@ -264,7 +264,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       );
     }
 
-    this.configuration.components.componentIds.consensusNodes += nodeAliases.length - 1;
+    this.configuration.components.componentIds.consensusNodes += nodeAliases.length;
 
     await this.persist();
   }
@@ -494,11 +494,12 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       );
       const context: Context = this.localConfig.configuration.clusterRefs.get(node.metadata.cluster)?.toString();
       const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(node.metadata.id);
+      const nodeId: NodeId = Templates.renderNodeIdFromComponentId(node.metadata.id);
 
       consensusNodes.push(
         new ConsensusNode(
           nodeAlias,
-          node.metadata.id,
+          nodeId,
           node.metadata.namespace,
           node.metadata.cluster,
           context,
@@ -506,7 +507,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
           cluster.dnsConsensusNodePattern,
           Templates.renderConsensusNodeFullyQualifiedDomainName(
             nodeAlias,
-            node.metadata.id,
+            nodeId,
             node.metadata.namespace,
             node.metadata.cluster,
             cluster.dnsBaseDomain,

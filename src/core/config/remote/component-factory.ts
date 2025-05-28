@@ -19,6 +19,7 @@ import {HAProxyStateSchema} from '../../../data/schema/model/remote/state/haprox
 import {EnvoyProxyStateSchema} from '../../../data/schema/model/remote/state/envoy-proxy-state-schema.js';
 import {ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
 import {BlockNodeStateSchema} from '../../../data/schema/model/remote/state/block-node-state-schema.js';
+import {Templates} from '../../templates.js';
 
 @injectable()
 export class ComponentFactory implements ComponentFactoryApi {
@@ -66,13 +67,13 @@ export class ComponentFactory implements ComponentFactoryApi {
   }
 
   public createNewConsensusNodeComponent(
-    nodeId: NodeId,
+    id: ComponentId,
     clusterReference: ClusterReference,
     namespace: NamespaceName,
     phase: DeploymentPhase.REQUESTED | DeploymentPhase.STARTED,
   ): ConsensusNodeStateSchema {
     const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
-      nodeId,
+      id,
       namespace.name,
       clusterReference,
       phase,
@@ -88,7 +89,12 @@ export class ComponentFactory implements ComponentFactoryApi {
   ): ConsensusNodeStateSchema[] {
     return nodeIds.map(
       (nodeId: NodeId): ConsensusNodeStateSchema =>
-        this.createNewConsensusNodeComponent(nodeId, clusterReference, namespace, DeploymentPhase.REQUESTED),
+        this.createNewConsensusNodeComponent(
+          Templates.renderComponentIdFromNodeId(nodeId),
+          clusterReference,
+          namespace,
+          DeploymentPhase.REQUESTED,
+        ),
     );
   }
 

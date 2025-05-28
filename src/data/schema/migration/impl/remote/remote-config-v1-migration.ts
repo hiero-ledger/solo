@@ -173,7 +173,7 @@ export class RemoteConfigV1Migration implements SchemaMigration {
 
         clone.state.haProxies.push({
           metadata: {
-            id: Templates.nodeIdFromNodeAlias(<NodeAlias>component.name),
+            id: Templates.renderComponentIdFromNodeAlias(<NodeAlias>component.name),
             // name: component.name,
             namespace: component.namespace,
             cluster: component.cluster,
@@ -194,7 +194,7 @@ export class RemoteConfigV1Migration implements SchemaMigration {
 
         clone.state.envoyProxies.push({
           metadata: {
-            id: Templates.nodeIdFromNodeAlias(<NodeAlias>component.name),
+            id: Templates.renderComponentIdFromNodeAlias(<NodeAlias>component.name),
             // name: component.name,
             namespace: component.namespace,
             cluster: component.cluster,
@@ -283,7 +283,7 @@ export class RemoteConfigV1Migration implements SchemaMigration {
 
         clone.state.blockNodes.push({
           metadata: {
-            id: Templates.nodeIdFromNodeAlias(<NodeAlias>component.name),
+            id: Templates.renderComponentIdFromNodeAlias(<NodeAlias>component.name),
             // name: component.name,
             namespace: component.namespace,
             cluster: component.cluster,

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type ClusterReference} from '../../../../types/index.js';
+import {type ClusterReference, type ComponentId} from '../../../../types/index.js';
 import {type NodeId} from '../../../../types/aliases.js';
 import {type NamespaceName} from '../../../../types/namespace/namespace-name.js';
 import {type DeploymentPhase} from '../../../../data/schema/model/remote/deployment-phase.js';
@@ -30,7 +30,7 @@ export interface ComponentFactoryApi {
   createNewBlockNodeComponent(clusterReference: ClusterReference, namespace: NamespaceName): BlockNodeStateSchema;
 
   createNewConsensusNodeComponent(
-    nodeId: NodeId,
+    id: ComponentId,
     clusterReference: ClusterReference,
     namespace: NamespaceName,
     phase: DeploymentPhase.REQUESTED | DeploymentPhase.STARTED,

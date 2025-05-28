@@ -30,13 +30,13 @@ export class RemoteConfigV2Migration implements SchemaMigration {
 
     const componentIds: ComponentIdsShema = new ComponentIdsShema();
 
-    componentIds.consensusNodes = state?.consensusNodes?.length ?? 0;
-    componentIds.envoyProxies = state?.envoyProxies?.length ?? 0;
-    componentIds.mirrorNodes = state?.mirrorNodes?.length ?? 0;
-    componentIds.explorers = state?.explorers?.length ?? 0;
-    componentIds.haProxies = state?.haProxies?.length ?? 0;
-    componentIds.blockNodes = state?.blockNodes?.length ?? 0;
-    componentIds.relayNodes = state?.relayNodes?.length ?? 0;
+    componentIds.consensusNodes = state?.consensusNodes?.length || 1;
+    componentIds.envoyProxies = state?.envoyProxies?.length || 1;
+    componentIds.mirrorNodes = state?.mirrorNodes?.length || 1;
+    componentIds.explorers = state?.explorers?.length || 1;
+    componentIds.haProxies = state?.haProxies?.length || 1;
+    componentIds.blockNodes = state?.blockNodes?.length || 1;
+    componentIds.relayNodes = state?.relayNodes?.length || 1;
 
     clone.state.componentIds = componentIds;
 

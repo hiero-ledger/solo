@@ -13,7 +13,7 @@ import {type BaseStateSchema} from '../../../data/schema/model/remote/state/base
 import {type LocalConfigRuntimeState} from '../../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
 import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
-import {type Context} from '../../../types/index.js';
+import {ComponentId, type Context} from '../../../types/index.js';
 import {type K8Factory} from '../../../integration/kube/k8-factory.js';
 
 /**
@@ -30,34 +30,6 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
   }
 
-  private static getRelayLabels(component: BaseStateSchema): string[] {
-    return Templates.renderRelayLabels(component.metadata.id);
-  }
-
-  private static getHaProxyLabels(component: BaseStateSchema): string[] {
-    return Templates.renderHaProxyLabels(component.metadata.id);
-  }
-
-  private static getMirrorNodeLabels(component: BaseStateSchema): string[] {
-    return Templates.renderMirrorNodeLabels(component.metadata.id);
-  }
-
-  private static getEnvoyProxyLabels(component: BaseStateSchema): string[] {
-    return Templates.renderEnvoyProxyLabels(component.metadata.id);
-  }
-
-  private static getExplorerLabels(component: BaseStateSchema): string[] {
-    return Templates.renderExplorerLabels(component.metadata.id);
-  }
-
-  private static getConsensusNodeLabels(component: BaseStateSchema): string[] {
-    return Templates.renderConsensusNodeLabels(component.metadata.id);
-  }
-
-  private static getBlockNodeLabels(component: BaseStateSchema): string[] {
-    return Templates.renderBlockNodeLabels(component.metadata.id);
-  }
-
   private static consensusNodeSkipConditionCallback(nodeComponent: ConsensusNodeStateSchema): boolean {
     return (
       nodeComponent.metadata.phase === DeploymentPhase.REQUESTED ||
@@ -68,39 +40,39 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
   private static componentValidationsMapping: Record<
     string,
     {
-      getLabelsCallback: (component: BaseStateSchema) => string[];
+      getLabelsCallback: (id: ComponentId) => string[];
       displayName: string;
       skipCondition?: (component: BaseStateSchema) => boolean;
     }
   > = {
     relayNodes: {
       displayName: 'Relay Nodes',
-      getLabelsCallback: RemoteConfigValidator.getRelayLabels,
+      getLabelsCallback: Templates.renderRelayLabels,
     },
     haProxies: {
       displayName: 'HaProxy',
-      getLabelsCallback: RemoteConfigValidator.getHaProxyLabels,
+      getLabelsCallback: Templates.renderHaProxyLabels,
     },
     mirrorNodes: {
       displayName: 'Mirror Node',
-      getLabelsCallback: RemoteConfigValidator.getMirrorNodeLabels,
+      getLabelsCallback: Templates.renderMirrorNodeLabels,
     },
     envoyProxies: {
       displayName: 'Envoy Proxy',
-      getLabelsCallback: RemoteConfigValidator.getEnvoyProxyLabels,
+      getLabelsCallback: Templates.renderEnvoyProxyLabels,
     },
     explorers: {
       displayName: 'Explorer',
-      getLabelsCallback: RemoteConfigValidator.getExplorerLabels,
+      getLabelsCallback: Templates.renderExplorerLabels,
     },
     consensusNodes: {
       displayName: 'Consensus Node',
-      getLabelsCallback: RemoteConfigValidator.getConsensusNodeLabels,
+      getLabelsCallback: Templates.renderConsensusNodeLabels,
       skipCondition: RemoteConfigValidator.consensusNodeSkipConditionCallback,
     },
     blockNodes: {
       displayName: 'Block Node',
-      getLabelsCallback: RemoteConfigValidator.getBlockNodeLabels,
+      getLabelsCallback: Templates.renderBlockNodeLabels,
     },
   };
 
@@ -121,7 +93,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
   private validateComponentGroup(
     namespace: NamespaceName,
     components: BaseStateSchema[],
-    getLabelsCallback: (component: BaseStateSchema) => string[],
+    getLabelsCallback: (id: ComponentId) => string[],
     displayName: string,
     skipCondition?: (component: BaseStateSchema) => boolean,
   ): Promise<void>[] {
@@ -131,7 +103,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       }
 
       const context: Context = this.localConfig.configuration.clusterRefs.get(component.metadata.cluster)?.toString();
-      const labels: string[] = getLabelsCallback(component);
+      const labels: string[] = getLabelsCallback(component.metadata.id);
 
       try {
         const pods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);

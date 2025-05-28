@@ -37,7 +37,7 @@ export class Templates {
     const nodeAliases: NodeAliases = [];
     let nodeNumber = existingNodesCount + 1;
 
-    for (let index = 0; index < count; index++) {
+    for (let index = 1; index <= count; index++) {
       nodeAliases.push(Templates.renderNodeAliasFromNumber(nodeNumber));
       nodeNumber++;
     }
@@ -190,6 +190,18 @@ export class Templates {
     throw new SoloError(`Can't get node id from node ${nodeAlias}`);
   }
 
+  public static renderComponentIdFromNodeId(nodeId: NodeId): ComponentId {
+    return nodeId + 1;
+  }
+
+  public static renderComponentIdFromNodeAlias(nodeAlias: NodeAlias): ComponentId {
+    return this.nodeIdFromNodeAlias(nodeAlias) + 1;
+  }
+
+  public static renderNodeIdFromComponentId(componentId: ComponentId): NodeId {
+    return componentId - 1;
+  }
+
   public static renderGossipKeySecretName(nodeAlias: NodeAlias): string {
     return `network-${nodeAlias}-keys-secrets`;
   }
@@ -328,7 +340,7 @@ export class Templates {
   }
 
   public static renderHaProxyLabels(id: ComponentId): string[] {
-    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(id + 1);
+    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(id);
     return [`app=haproxy-${nodeAlias}`, 'solo.hedera.com/type=haproxy'];
   }
 
@@ -341,7 +353,7 @@ export class Templates {
   }
 
   public static renderEnvoyProxyLabels(id: ComponentId): string[] {
-    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(id + 1);
+    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(id);
     return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=envoy-proxy'];
   }
 
@@ -350,7 +362,7 @@ export class Templates {
   }
 
   public static renderConsensusNodeLabels(id: ComponentId): string[] {
-    return [`app=network-${Templates.renderNodeAliasFromNumber(id + 1)}`];
+    return [`app=network-${Templates.renderNodeAliasFromNumber(id)}`];
   }
 
   public static renderBlockNodeLabels(id: ComponentId): string[] {

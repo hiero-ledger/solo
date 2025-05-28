@@ -7,7 +7,6 @@ import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
-
 import {type AccountManager} from '../core/account-manager.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand} from './base.js';

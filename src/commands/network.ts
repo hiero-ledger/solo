@@ -46,7 +46,7 @@ import {
   type PrivateKeyAndCertificateObject,
   type SoloListr,
   type SoloListrTask,
-  type SoloListrTaskWrapper,
+  type SoloListrTaskWrapper, ComponentId,
 } from '../types/index.js';
 import {Base64} from 'js-base64';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
@@ -960,13 +960,15 @@ export class NetworkCommand extends BaseCommand {
                 );
               }
 
-              console.log(config.valuesArgMap);
+              console.log(
+                fs.readFileSync('/Users/zhanmilenkov/.solo/cache/solo-local-kind-solo-e2e.yaml').toString('utf8'),
+              );
 
               await this.chartManager.install(
                 config.namespace,
                 constants.SOLO_DEPLOYMENT_CHART,
                 constants.SOLO_DEPLOYMENT_CHART,
-                context_.config.chartDirectory ?? constants.SOLO_TESTING_CHART_URL,
+                context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
                 config.soloChartVersion,
                 config.valuesArgMap[clusterReference],
                 config.clusterRefs.get(clusterReference),
@@ -1173,7 +1175,7 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Copy block-nodes.json',
           skip: (context_): boolean => context_.config.blockNodeComponents.length === 0,
-          task: async (context_, task): Promise<void> => {
+          task: async (context_): Promise<void> => {
             const config: NetworkDeployConfigClass = context_.config;
 
             const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'block-nodes.json');
@@ -1394,10 +1396,10 @@ export class NetworkCommand extends BaseCommand {
         const {namespace} = context_.config;
 
         for (const consensusNode of context_.config.consensusNodes) {
-          const nodeId: NodeId = Templates.nodeIdFromNodeAlias(consensusNode.name);
+          const componentId: ComponentId = Templates.renderComponentIdFromNodeAlias(consensusNode.name);
           const clusterReference: ClusterReference = consensusNode.cluster;
 
-          this.remoteConfig.configuration.components.changeNodePhase(nodeId, DeploymentPhase.REQUESTED);
+          this.remoteConfig.configuration.components.changeNodePhase(componentId, DeploymentPhase.REQUESTED);
 
           this.remoteConfig.configuration.components.addNewComponent(
             this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
