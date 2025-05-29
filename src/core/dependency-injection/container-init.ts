@@ -54,7 +54,6 @@ import {LocalConfigSource} from '../../data/configuration/impl/local-config-sour
 import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {ComponentFactory} from '../config/remote/component-factory.js';
 import {RemoteConfigValidator} from '../config/remote/remote-config-validator.js';
-import {ClassToObjectMapper} from '../../data/mapper/impl/class-to-object-mapper.js';
 import {SoloConfigRuntimeState} from '../../business/runtime-state/config/solo/solo-config-runtime-state.js';
 import {MirrorNodeConfigRuntimeState} from '../../business/runtime-state/config/mirror-node/mirror-node-config-runtime-state.js';
 import {BlockNodeConfigRuntimeState} from '../../business/runtime-state/config/block-node/block-node-config-runtime-state.js';
