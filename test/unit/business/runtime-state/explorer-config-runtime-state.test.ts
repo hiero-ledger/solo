@@ -24,7 +24,9 @@ describe('ExplorerConfigRuntimeState', (): void => {
     expect(explorerConfigRuntimeState.explorerConfig.helmChart).to.be.an('object');
     expect(explorerConfigRuntimeState.explorerConfig.helmChart.name).to.equal('hiero-explorer');
     expect(explorerConfigRuntimeState.explorerConfig.helmChart.release).to.equal('hiero-explorer');
-    expect(explorerConfigRuntimeState.explorerConfig.helmChart.ingressControllerName).to.equal('explorer-haproxy-ingress');
+    expect(explorerConfigRuntimeState.explorerConfig.helmChart.ingressControllerName).to.equal(
+      'explorer-haproxy-ingress',
+    );
     expect(explorerConfigRuntimeState.explorerConfig.helmChart.repository).to.equal(
       'oci://ghcr.io/hiero-ledger/hiero-mirror-node-explorer/hiero-explorer-chart',
     );
@@ -75,9 +77,7 @@ describe('ExplorerConfigRuntimeState', (): void => {
 
       expect(explorerConfigRuntimeState.explorerConfig).to.have.property('helmChart');
       expect(explorerConfigRuntimeState.explorerConfig.helmChart).to.have.property('repository');
-      expect(explorerConfigRuntimeState.explorerConfig.helmChart.repository).to.equal(
-        overwrittenHelmChartRepository,
-      );
+      expect(explorerConfigRuntimeState.explorerConfig.helmChart.repository).to.equal(overwrittenHelmChartRepository);
     });
 
     it('should merge multiple configuration sources correctly', async (): Promise<void> => {

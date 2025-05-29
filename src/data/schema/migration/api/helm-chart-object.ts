@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 export function getNewHelmChartObject(): object {
   return {
     name: undefined,
@@ -12,4 +14,4 @@ export function getNewHelmChartObject(): object {
     ingressControllerName: undefined,
     ingressControllerPrefix: undefined,
   };
-};
+}

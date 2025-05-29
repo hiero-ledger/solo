@@ -7,9 +7,7 @@ import {instanceToPlain} from 'class-transformer';
 import {beforeEach} from 'mocha';
 import {ClassToObjectMapper} from '../../../../../../src/data/mapper/impl/class-to-object-mapper.js';
 import {ConfigKeyFormatter} from '../../../../../../src/data/key/config-key-formatter.js';
-import {
-  ExplorerConfigSchemaDefinition
-} from '../../../../../../src/data/schema/migration/impl/explorer/explorer-config-schema-definition.js';
+import {ExplorerConfigSchemaDefinition} from '../../../../../../src/data/schema/migration/impl/explorer/explorer-config-schema-definition.js';
 import {ExplorerConfigSchema} from '../../../../../../src/data/schema/model/explorer/explorer-config-schema.js';
 import {HelmChartSchema} from '../../../../../../src/data/schema/model/common/helm-chart-schema.js';
 import {nullToUndefined} from '../../../../../test-utility.js';
@@ -54,10 +52,7 @@ describe('ExplorerConfig', () => {
         'oci://ghcr.io/hashgraph/solo-charts',
       );
 
-      const ec = new ExplorerConfigSchema(
-        1,
-        helmChart
-      );
+      const ec = new ExplorerConfigSchema(1, helmChart);
 
       const newPlainObject: object = instanceToPlain(ec);
 

@@ -7,9 +7,7 @@ import {instanceToPlain} from 'class-transformer';
 import {beforeEach} from 'mocha';
 import {ClassToObjectMapper} from '../../../../../../src/data/mapper/impl/class-to-object-mapper.js';
 import {ConfigKeyFormatter} from '../../../../../../src/data/key/config-key-formatter.js';
-import {
-  SoloConfigSchemaDefinition
-} from '../../../../../../src/data/schema/migration/impl/solo/solo-config-schema-definition.js';
+import {SoloConfigSchemaDefinition} from '../../../../../../src/data/schema/migration/impl/solo/solo-config-schema-definition.js';
 import {SoloConfigSchema} from '../../../../../../src/data/schema/model/solo/solo-config-schema.js';
 import {HelmChartSchema} from '../../../../../../src/data/schema/model/common/helm-chart-schema.js';
 import {nullToUndefined} from '../../../../../test-utility.js';

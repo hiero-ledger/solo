@@ -36,8 +36,8 @@ import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-bui
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
-import type {ClusterCommandTasks} from './cluster/tasks.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {BlockNodeConfigRuntimeState} from '../business/runtime-state/config/block-node/block-node-config-runtime-state.js';
 import {
   BlockNodeConfigRuntimeState
 } from '../business/runtime-state/config/block-node/block-node-config-runtime-state.js';
@@ -126,7 +126,6 @@ export class BlockNodeCommand extends BaseCommand {
       BlockNodeCommand.name,
     );
   }
-
 
   private async prepareValuesArgForBlockNode(config: BlockNodeDeployConfigClass): Promise<string> {
     let valuesArgument: string = '';

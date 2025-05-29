@@ -7,9 +7,7 @@ import {instanceToPlain} from 'class-transformer';
 import {beforeEach} from 'mocha';
 import {ClassToObjectMapper} from '../../../../../../src/data/mapper/impl/class-to-object-mapper.js';
 import {ConfigKeyFormatter} from '../../../../../../src/data/key/config-key-formatter.js';
-import {
-  MirrorNodeConfigSchemaDefinition
-} from '../../../../../../src/data/schema/migration/impl/mirror-node/mirror-node-config-schema-definition.js';
+import {MirrorNodeConfigSchemaDefinition} from '../../../../../../src/data/schema/migration/impl/mirror-node/mirror-node-config-schema-definition.js';
 import {MirrorNodeConfigSchema} from '../../../../../../src/data/schema/model/mirror-node/mirror-node-config-schema.js';
 import {HelmChartSchema} from '../../../../../../src/data/schema/model/common/helm-chart-schema.js';
 import {nullToUndefined} from '../../../../../test-utility.js';
@@ -54,10 +52,7 @@ describe('MirrorNodeConfig', () => {
         'oci://ghcr.io/hashgraph/solo-charts',
       );
 
-      const mnc = new MirrorNodeConfigSchema(
-        1,
-        helmChart
-      );
+      const mnc = new MirrorNodeConfigSchema(1, helmChart);
 
       const newPlainObject: object = instanceToPlain(mnc);
 
