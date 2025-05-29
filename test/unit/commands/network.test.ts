@@ -11,9 +11,8 @@ import * as constants from '../../../src/core/constants.js';
 import {ROOT_DIR} from '../../../src/core/constants.js';
 import {type ConfigManager} from '../../../src/core/config-manager.js';
 import {type ChartManager} from '../../../src/core/chart-manager.js';
-import {NetworkCommand} from '../../../src/commands/network.js';
+import {NetworkCommand, type NetworkDeployConfigClass} from '../../../src/commands/network.js';
 import {type LockManager} from '../../../src/core/lock/lock-manager.js';
-import {type RemoteConfigManager} from '../../../src/core/config/remote/remote-config-manager.js';
 import {type ProfileManager} from '../../../src/core/profile-manager.js';
 import {type KeyManager} from '../../../src/core/key-manager.js';
 import {ListrLock} from '../../../src/core/lock/listr-lock.js';
@@ -41,6 +40,7 @@ import {type InstanceOverrides} from '../../../src/core/dependency-injection/con
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type ClusterReferences} from '../../../src/types/index.js';
+import {type RemoteConfigRuntimeState} from '../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {StringFacade} from '../../../src/business/runtime-state/facade/string-facade.js';
 
 const testName = 'network-cmd-unit';
@@ -81,7 +81,7 @@ describe('NetworkCommand unit tests', () => {
 
     const k8SFactoryStub = sinon.stub() as unknown as K8Factory;
     const clusterChecksStub = sinon.stub() as unknown as ClusterChecks;
-    const remoteConfigManagerStub = sinon.stub() as unknown as RemoteConfigManager;
+    const remoteConfigStub = sinon.stub() as unknown as RemoteConfigRuntimeState;
     const chartManagerStub = sinon.stub() as unknown as ChartManager;
     const certificateManagerStub = sinon.stub() as unknown as CertificateManager;
     const profileManagerStub = sinon.stub() as unknown as ProfileManager;
@@ -96,8 +96,8 @@ describe('NetworkCommand unit tests', () => {
         [InjectTokens.K8Factory, new ValueContainer(InjectTokens.K8Factory, k8SFactoryStub)],
         [InjectTokens.ClusterChecks, new ValueContainer(InjectTokens.ClusterChecks, clusterChecksStub)],
         [
-          InjectTokens.RemoteConfigManager,
-          new ValueContainer(InjectTokens.RemoteConfigManager, remoteConfigManagerStub),
+          InjectTokens.RemoteConfigRuntimeState,
+          new ValueContainer(InjectTokens.RemoteConfigRuntimeState, remoteConfigStub),
         ],
         [InjectTokens.ChartManager, new ValueContainer(InjectTokens.ChartManager, chartManagerStub)],
         [InjectTokens.CertificateManager, new ValueContainer(InjectTokens.CertificateManager, certificateManagerStub)],
@@ -175,7 +175,7 @@ describe('NetworkCommand unit tests', () => {
       });
 
       options.keyManager = container.resolve<KeyManager>(InjectTokens.KeyManager);
-      options.keyManager.prepareTLSKeyFilePaths = sinon.stub();
+      options.keyManager.prepareTlsKeyFilePaths = sinon.stub();
       options.keyManager.copyGossipKeysToStaging = sinon.stub();
       options.keyManager.copyNodeKeysToStaging = sinon.stub();
 
@@ -195,10 +195,14 @@ describe('NetworkCommand unit tests', () => {
       options.chartManager.install = sinon.stub().returns(true);
       options.chartManager.uninstall = sinon.stub().returns(true);
 
-      options.remoteConfigManager = container.resolve<RemoteConfigManager>(InjectTokens.RemoteConfigManager);
-      options.remoteConfigManager.isLoaded = sinon.stub().returns(true);
-      options.remoteConfigManager.getConfigMap = sinon.stub().returns(null);
-      options.remoteConfigManager.modify = sinon.stub();
+      options.remoteConfig = container.resolve<RemoteConfigRuntimeState>(InjectTokens.RemoteConfigRuntimeState);
+      options.remoteConfig.isLoaded = sinon.stub().returns(true);
+      options.remoteConfig.getConfigMap = sinon.stub().returns(null);
+      options.remoteConfig.persist = sinon.stub();
+
+      options.remoteConfig.configuration = {
+        components: {changeNodePhase: sinon.stub(), getNewComponentId: sinon.stub(), addNewComponent: sinon.stub()},
+      };
 
       options.localConfig.configuration.clusterRefs.set('solo-e2e', new StringFacade('context-1'));
 
@@ -218,11 +222,15 @@ describe('NetworkCommand unit tests', () => {
     it('Install function is called with expected parameters', async () => {
       try {
         const networkCommand = container.resolve<NetworkCommand>(NetworkCommand);
-        options.remoteConfigManager.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
-        options.remoteConfigManager.getContexts = sinon.stub().returns(['context1']);
+        options.remoteConfig.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
+        options.remoteConfig.getContexts = sinon.stub().returns(['context1']);
         const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['solo-e2e', 'context1']]);
-        options.remoteConfigManager.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
+        options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([]);
+
+        // @ts-expect-error - TS2341: to access private property
         await networkCommand.deploy(argv.build());
 
         expect(options.chartManager.install.args[0][0].name).to.equal('solo-e2e');
@@ -240,11 +248,15 @@ describe('NetworkCommand unit tests', () => {
         argv.setArg(flags.force, true);
         const networkCommand = container.resolve<NetworkCommand>(NetworkCommand);
 
-        options.remoteConfigManager.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
-        options.remoteConfigManager.getContexts = sinon.stub().returns(['context1']);
+        options.remoteConfig.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
+        options.remoteConfig.getContexts = sinon.stub().returns(['context1']);
         const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['solo-e2e', 'context1']]);
-        options.remoteConfigManager.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
+        options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([]);
+
+        // @ts-expect-error - TS2341: to access private property
         await networkCommand.deploy(argv.build());
         expect(options.chartManager.install.args[0][0].name).to.equal('solo-e2e');
         expect(options.chartManager.install.args[0][1]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
@@ -266,15 +278,20 @@ describe('NetworkCommand unit tests', () => {
 
         const task = sinon.stub();
 
-        options.remoteConfigManager.getConsensusNodes = sinon
+        options.remoteConfig.getConsensusNodes = sinon
           .stub()
           .returns([new ConsensusNode('node1', 0, 'solo-e2e', 'cluster', 'context-1', 'base', 'pattern', 'fqdn')]);
-        options.remoteConfigManager.getContexts = sinon.stub().returns(['context-1']);
+
+        options.remoteConfig.getContexts = sinon.stub().returns(['context-1']);
         const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['cluster', 'context1']]);
-        options.remoteConfigManager.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
+        options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
         const networkCommand = container.resolve<NetworkCommand>(NetworkCommand);
-        const config = await networkCommand.prepareConfig(task, argv.build());
+        // @ts-expect-error - to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([]);
+
+        // @ts-expect-error - to access private method
+        const config: NetworkDeployConfigClass = await networkCommand.prepareConfig(task, argv.build());
 
         expect(config.valuesArgMap).to.not.empty;
         expect(config.valuesArgMap['cluster']).to.not.empty;

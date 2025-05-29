@@ -7,8 +7,7 @@ import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ConfigManager} from './config-manager.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {type SoloLogger} from './logging/solo-logger.js';
-import {type AnyObject} from '../types/aliases.js';
-import {type RemoteConfigManager} from './config/remote/remote-config-manager.js';
+import {type AnyObject, ArgvStruct} from '../types/aliases.js';
 import {type ClusterReference} from './../types/index.js';
 import {SoloError} from './errors/solo-error.js';
 import {SilentBreak} from './errors/silent-break.js';
@@ -22,12 +21,13 @@ import {MirrorNodeConfigRuntimeState} from '../business/runtime-state/config/mir
 import {BlockNodeConfigRuntimeState} from '../business/runtime-state/config/block-node/block-node-config-runtime-state.js';
 import {ExplorerConfigRuntimeState} from '../business/runtime-state/config/explorer/explorer-config-runtime-state.js';
 import {JsonRpcRelayConfigRuntimeState} from '../business/runtime-state/config/json-rpc-relay/json-rpc-relay-config-runtime-state.js';
+import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 @injectable()
 export class Middlewares {
   constructor(
     @inject(InjectTokens.ConfigManager) private readonly configManager: ConfigManager,
-    @inject(InjectTokens.RemoteConfigManager) private readonly remoteConfigManager: RemoteConfigManager,
+    @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
@@ -40,11 +40,7 @@ export class Middlewares {
     @inject(InjectTokens.ExplorerConfigRuntimeState) private readonly explorerConfig: ExplorerConfigRuntimeState,
   ) {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
-    this.remoteConfigManager = patchInject(
-      remoteConfigManager,
-      InjectTokens.RemoteConfigManager,
-      this.constructor.name,
-    );
+    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
@@ -74,7 +70,7 @@ export class Middlewares {
     /**
      * @param argv - listr Argv
      */
-    return (argv: any) => {
+    return (argv: any): void => {
       if (!argv['help']) {
         return;
       }
@@ -86,8 +82,8 @@ export class Middlewares {
     };
   }
 
-  public setLoggerDevFlag() {
-    const logger = this.logger;
+  public setLoggerDevFlag(): (argv: ArgvStruct) => AnyObject {
+    const logger: SoloLogger = this.logger;
 
     /**
      * @param argv - listr Argv
@@ -108,9 +104,9 @@ export class Middlewares {
    * @returns callback function to be executed from listr
    */
   public processArgumentsAndDisplayHeader() {
-    const k8Factory = this.k8Factory;
-    const configManager = this.configManager;
-    const logger = this.logger;
+    const k8Factory: K8Factory = this.k8Factory;
+    const configManager: ConfigManager = this.configManager;
+    const logger: SoloLogger = this.logger;
 
     /**
      * @param argv - listr Argv
@@ -172,7 +168,7 @@ export class Middlewares {
    * @returns callback function to be executed from listr
    */
   public loadRemoteConfig() {
-    const remoteConfigManager = this.remoteConfigManager;
+    const remoteConfig = this.remoteConfig;
     const logger = this.logger;
 
     /**
@@ -202,7 +198,7 @@ export class Middlewares {
       const skipConsensusNodeValidation = command === 'network' && subCommand === 'deploy';
 
       if (!skip) {
-        await remoteConfigManager.loadAndValidate(argv, validateRemoteConfig, skipConsensusNodeValidation);
+        await remoteConfig.loadAndValidate(argv, validateRemoteConfig, skipConsensusNodeValidation);
       }
 
       return argv;

@@ -18,7 +18,6 @@ import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {type ConfigManager} from '../../core/config-manager.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {type AccountManager} from '../../core/account-manager.js';
-import {type RemoteConfigManager} from '../../core/config/remote/remote-config-manager.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {type NodeSetupConfigClass} from './config-interfaces/node-setup-config-class.js';
 import {type NodeStartConfigClass} from './config-interfaces/node-start-config-class.js';
@@ -52,6 +51,7 @@ import {type NodeSetupContext} from './config-interfaces/node-setup-context.js';
 import {type NodePrepareUpgradeContext} from './config-interfaces/node-prepare-upgrade-context.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {SoloConfigRuntimeState} from '../../business/runtime-state/config/solo/solo-config-runtime-state.js';
+import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
 const DOWNLOAD_GENERATED_FILES_CONFIGS_NAME = 'downloadGeneratedFilesConfig';
@@ -69,7 +69,7 @@ export class NodeCommandConfigs {
   public constructor(
     @inject(InjectTokens.ConfigManager) private readonly configManager: ConfigManager,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
-    @inject(InjectTokens.RemoteConfigManager) private readonly remoteConfigManager: RemoteConfigManager,
+    @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
     @inject(InjectTokens.SoloConfigRuntimeState) private readonly soloConfig: SoloConfigRuntimeState,
@@ -78,11 +78,7 @@ export class NodeCommandConfigs {
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
-    this.remoteConfigManager = patchInject(
-      remoteConfigManager,
-      InjectTokens.RemoteConfigManager,
-      this.constructor.name,
-    );
+    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.soloConfig = patchInject(soloConfig, InjectTokens.SoloConfigRuntimeState, this.constructor.name);
   }
 
@@ -125,7 +121,7 @@ export class NodeCommandConfigs {
     await this.initializeSetup(context_.config, this.k8Factory);
     context_.config.nodeClient = await this.accountManager.loadNodeClient(
       context_.config.namespace,
-      this.remoteConfigManager.getClusterRefs(),
+      this.remoteConfig.getClusterRefs(),
       context_.config.deployment,
     );
 
@@ -186,7 +182,7 @@ export class NodeCommandConfigs {
     context_.config.existingNodeAliases = [];
     context_.config.nodeAliases = helpers.parseNodeAliases(
       context_.config.nodeAliasesUnparsed,
-      this.remoteConfigManager.getConsensusNodes(),
+      this.remoteConfig.getConsensusNodes(),
       this.configManager,
     );
 
@@ -195,7 +191,7 @@ export class NodeCommandConfigs {
     if (shouldLoadNodeClient) {
       context_.config.nodeClient = await this.accountManager.loadNodeClient(
         context_.config.namespace,
-        this.remoteConfigManager.getClusterRefs(),
+        this.remoteConfig.getClusterRefs(),
         context_.config.deployment,
       );
     }
@@ -242,7 +238,7 @@ export class NodeCommandConfigs {
     if (shouldLoadNodeClient) {
       context_.config.nodeClient = await this.accountManager.loadNodeClient(
         context_.config.namespace,
-        this.remoteConfigManager.getClusterRefs(),
+        this.remoteConfig.getClusterRefs(),
         context_.config.deployment,
       );
     }
@@ -302,7 +298,7 @@ export class NodeCommandConfigs {
     if (shouldLoadNodeClient) {
       context_.config.nodeClient = await this.accountManager.loadNodeClient(
         context_.config.namespace,
-        this.remoteConfigManager.getClusterRefs(),
+        this.remoteConfig.getClusterRefs(),
         context_.config.deployment,
       );
     }
@@ -368,7 +364,7 @@ export class NodeCommandConfigs {
     if (shouldLoadNodeClient) {
       context_.config.nodeClient = await this.accountManager.loadNodeClient(
         context_.config.namespace,
-        this.remoteConfigManager.getClusterRefs(),
+        this.remoteConfig.getClusterRefs(),
         context_.config.deployment,
       );
     }
@@ -389,12 +385,12 @@ export class NodeCommandConfigs {
 
     context_.config.serviceMap = await this.accountManager.getNodeServiceMap(
       context_.config.namespace,
-      this.remoteConfigManager.getClusterRefs(),
+      this.remoteConfig.getClusterRefs(),
       context_.config.deployment,
     );
 
-    context_.config.consensusNodes = this.remoteConfigManager.getConsensusNodes();
-    context_.config.contexts = this.remoteConfigManager.getContexts();
+    context_.config.consensusNodes = this.remoteConfig.getConsensusNodes();
+    context_.config.contexts = this.remoteConfig.getContexts();
 
     if (!context_.config.clusterRef) {
       context_.config.clusterRef = this.k8Factory.default().clusters().readCurrent();
@@ -416,13 +412,13 @@ export class NodeCommandConfigs {
       namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
       nodeAliases: helpers.parseNodeAliases(
         this.configManager.getFlag(flags.nodeAliasesUnparsed),
-        this.remoteConfigManager.getConsensusNodes(),
+        this.remoteConfig.getConsensusNodes(),
         this.configManager,
       ),
       nodeAliasesUnparsed: this.configManager.getFlag(flags.nodeAliasesUnparsed),
       deployment: this.configManager.getFlag(flags.deployment),
-      consensusNodes: this.remoteConfigManager.getConsensusNodes(),
-      contexts: this.remoteConfigManager.getContexts(),
+      consensusNodes: this.remoteConfig.getConsensusNodes(),
+      contexts: this.remoteConfig.getContexts(),
     } as NodeLogsConfigClass;
 
     return context_.config;
@@ -433,7 +429,7 @@ export class NodeCommandConfigs {
     context_: NodeStatesContext,
     task: SoloListrTaskWrapper<NodeStatesContext>,
   ): Promise<NodeStatesConfigClass> {
-    const consensusNodes: ConsensusNode[] = this.remoteConfigManager.getConsensusNodes();
+    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
     context_.config = {
       namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
       nodeAliases: helpers.parseNodeAliases(
@@ -444,7 +440,7 @@ export class NodeCommandConfigs {
       nodeAliasesUnparsed: this.configManager.getFlag(flags.nodeAliasesUnparsed),
       deployment: this.configManager.getFlag(flags.deployment),
       consensusNodes,
-      contexts: this.remoteConfigManager.getContexts(),
+      contexts: this.remoteConfig.getContexts(),
     } as NodeStatesConfigClass;
 
     return context_.config;
@@ -466,7 +462,7 @@ export class NodeCommandConfigs {
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
     context_.config.nodeAliases = helpers.parseNodeAliases(
       context_.config.nodeAliasesUnparsed,
-      this.remoteConfigManager.getConsensusNodes(),
+      this.remoteConfig.getConsensusNodes(),
       this.configManager,
     );
 
@@ -491,7 +487,7 @@ export class NodeCommandConfigs {
     context_.config.curDate = new Date();
     context_.config.nodeAliases = helpers.parseNodeAliases(
       context_.config.nodeAliasesUnparsed,
-      this.remoteConfigManager.getConsensusNodes(),
+      this.remoteConfig.getConsensusNodes(),
       this.configManager,
     );
 
@@ -508,7 +504,7 @@ export class NodeCommandConfigs {
     context_: NodeStopContext,
     task: SoloListrTaskWrapper<NodeStopContext>,
   ): Promise<NodeStopConfigClass> {
-    const consensusNodes: ConsensusNode[] = this.remoteConfigManager.getConsensusNodes();
+    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
     context_.config = {
       namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
       nodeAliases: helpers.parseNodeAliases(
@@ -519,7 +515,7 @@ export class NodeCommandConfigs {
       nodeAliasesUnparsed: this.configManager.getFlag(flags.nodeAliasesUnparsed),
       deployment: this.configManager.getFlag(flags.deployment),
       consensusNodes,
-      contexts: this.remoteConfigManager.getContexts(),
+      contexts: this.remoteConfig.getContexts(),
     } as NodeStopConfigClass;
 
     await checkNamespace(context_.config.consensusNodes, this.k8Factory, context_.config.namespace);
@@ -534,8 +530,8 @@ export class NodeCommandConfigs {
     context_.config = {
       namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
       deployment: this.configManager.getFlag(flags.deployment),
-      consensusNodes: this.remoteConfigManager.getConsensusNodes(),
-      contexts: this.remoteConfigManager.getContexts(),
+      consensusNodes: this.remoteConfig.getConsensusNodes(),
+      contexts: this.remoteConfig.getContexts(),
     } as NodeFreezeConfigClass;
 
     await checkNamespace(context_.config.consensusNodes, this.k8Factory, context_.config.namespace);
@@ -562,7 +558,7 @@ export class NodeCommandConfigs {
       'contexts',
     ]) as NodeStartConfigClass;
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
-    context_.config.consensusNodes = this.remoteConfigManager.getConsensusNodes();
+    context_.config.consensusNodes = this.remoteConfig.getConsensusNodes();
 
     for (const consensusNode of context_.config.consensusNodes) {
       const k8 = this.k8Factory.getK8(consensusNode.context);
@@ -588,8 +584,8 @@ export class NodeCommandConfigs {
     context_.config = {
       namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
       deployment: this.configManager.getFlag(flags.deployment),
-      consensusNodes: this.remoteConfigManager.getConsensusNodes(),
-      contexts: this.remoteConfigManager.getContexts(),
+      consensusNodes: this.remoteConfig.getConsensusNodes(),
+      contexts: this.remoteConfig.getContexts(),
     } as NodeRestartConfigClass;
 
     await checkNamespace(context_.config.consensusNodes, this.k8Factory, context_.config.namespace);
@@ -611,7 +607,7 @@ export class NodeCommandConfigs {
     ]) as NodeSetupConfigClass;
 
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
-    context_.config.consensusNodes = this.remoteConfigManager.getConsensusNodes();
+    context_.config.consensusNodes = this.remoteConfig.getConsensusNodes();
     context_.config.nodeAliases = helpers.parseNodeAliases(
       context_.config.nodeAliasesUnparsed,
       context_.config.consensusNodes,

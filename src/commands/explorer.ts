@@ -15,9 +15,8 @@ import {
 import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {type AnyYargs, type ArgvStruct} from '../types/aliases.js';
+import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
-import {MirrorNodeExplorerComponent} from '../core/config/remote/components/mirror-node-explorer-component.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {
@@ -36,6 +35,8 @@ import {KeyManager} from '../core/key-manager.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
+import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {ListrRemoteConfig} from '../core/config/remote/listr-config-tasks.js';
 import {ExplorerConfigRuntimeState} from '../business/runtime-state/config/explorer/explorer-config-runtime-state.js';
 
@@ -83,6 +84,7 @@ export class ExplorerCommand extends BaseCommand {
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
     @inject(InjectTokens.ExplorerConfigRuntimeState) private readonly explorerConfig: ExplorerConfigRuntimeState,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
   ) {
     super();
 
@@ -267,7 +269,7 @@ export class ExplorerCommand extends BaseCommand {
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
-        ListrRemoteConfig.loadRemoteConfig(this.remoteConfigManager, argv),
+        this.loadRemoteConfigTask(argv),
         {
           title: 'Install cert manager',
           task: async context_ => {
@@ -480,7 +482,7 @@ export class ExplorerCommand extends BaseCommand {
 
             const clusterReference: ClusterReference = this.configManager.hasFlag(flags.clusterRef)
               ? this.configManager.getFlag(flags.clusterRef)
-              : this.remoteConfigManager.currentCluster;
+              : this.remoteConfig.currentCluster;
 
             const clusterContext: Context = this.localConfig.configuration.clusterRefs
               .get(clusterReference)
@@ -504,7 +506,7 @@ export class ExplorerCommand extends BaseCommand {
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
-        ListrRemoteConfig.loadRemoteConfig(this.remoteConfigManager, argv),
+        this.loadRemoteConfigTask(argv),
         {
           title: 'Destroy explorer',
           task: async context_ => {
@@ -538,7 +540,7 @@ export class ExplorerCommand extends BaseCommand {
             });
           },
         },
-        this.removeMirrorNodeExplorerComponents(),
+        this.disableMirrorNodeExplorerComponents(),
       ],
       {
         concurrent: false,
@@ -618,15 +620,37 @@ export class ExplorerCommand extends BaseCommand {
     };
   }
 
+  private loadRemoteConfigTask(argv: ArgvStruct): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Load remote config',
+      task: async (): Promise<void> => {
+        await this.remoteConfig.loadAndValidate(argv);
+      },
+    };
+  }
+
   /** Removes the explorer components from remote config. */
-  private removeMirrorNodeExplorerComponents(): SoloListrTask<ExplorerDestroyContext> {
+  private disableMirrorNodeExplorerComponents(): SoloListrTask<ExplorerDestroyContext> {
     return {
       title: 'Remove explorer from remote config',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
-      task: async (): Promise<void> => {
-        await this.remoteConfigManager.modify(async remoteConfig => {
-          remoteConfig.components.remove('mirrorNodeExplorer', ComponentTypes.MirrorNodeExplorer);
-        });
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      task: async (context_): Promise<void> => {
+        const clusterReference: ClusterReference = context_.config.clusterReference;
+
+        const explorerComponents: MirrorNodeStateSchema[] =
+          this.remoteConfig.configuration.components.getComponentsByClusterReference<MirrorNodeStateSchema>(
+            ComponentTypes.Explorers,
+            clusterReference,
+          );
+
+        for (const explorerComponent of explorerComponents) {
+          this.remoteConfig.configuration.components.removeComponent(
+            explorerComponent.metadata.id,
+            ComponentTypes.Explorers,
+          );
+        }
+
+        await this.remoteConfig.persist();
       },
     };
   }
@@ -635,16 +659,16 @@ export class ExplorerCommand extends BaseCommand {
   private addMirrorNodeExplorerComponents(): SoloListrTask<ExplorerDeployContext> {
     return {
       title: 'Add explorer to remote config',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfigManager.modify(async remoteConfig => {
-          const {
-            config: {namespace, clusterRef},
-          } = context_;
-          remoteConfig.components.add(
-            new MirrorNodeExplorerComponent('mirrorNodeExplorer', clusterRef, namespace.name),
-          );
-        });
+        const {namespace, clusterRef} = context_.config;
+
+        this.remoteConfig.configuration.components.addNewComponent(
+          this.componentFactory.createNewExplorerComponent(clusterRef, namespace),
+          ComponentTypes.Explorers,
+        );
+
+        await this.remoteConfig.persist();
       },
     };
   }

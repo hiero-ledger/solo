@@ -78,6 +78,7 @@ export const EXPLORER_CHART_URL =
 export const EXPLORER_RELEASE_NAME = 'hiero-explorer';
 export const SOLO_RELAY_LABEL = 'app=hedera-json-rpc-relay';
 export const SOLO_EXPLORER_LABEL = 'app.kubernetes.io/component=hiero-explorer';
+export const OLD_SOLO_EXPLORER_LABEL = 'app.kubernetes.io/component=hedera-explorer';
 
 // TODO: remove after migrated to resources/solo-config.yaml
 export const INGRESS_CONTROLLER_CHART_URL =
@@ -239,6 +240,8 @@ export const BLOCK_NODE_PODS_RUNNING_DELAY: number = +process.env.BLOCK_NODE_POD
 export const BLOCK_NODE_ACTIVE_MAX_ATTEMPTS: number = +process.env.NETWORK_NODE_ACTIVE_MAX_ATTEMPTS || 100;
 export const BLOCK_NODE_ACTIVE_DELAY: number = +process.env.NETWORK_NODE_ACTIVE_DELAY || 1000;
 export const BLOCK_NODE_ACTIVE_TIMEOUT: number = +process.env.NETWORK_NODE_ACTIVE_TIMEOUT || 1000;
+export const BLOCK_NODE_PORT: number = +process.env.BLOCK_NODE_PORT || 8080;
+export const BLOCK_ITEM_BATCH_SIZE: number = +process.env.BLOCK_ITEM_BATCH_SIZE || 256;
 
 export const GRPC_PORT = +process.env.GRPC_PORT || 50_211;
 export const LOCAL_BUILD_COPY_RETRY = +process.env.LOCAL_BUILD_COPY_RETRY || 3;

@@ -26,11 +26,11 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
-import {type RemoteConfigManager} from './config/remote/remote-config-manager.js';
 import {type ClusterReference, DeploymentName, Realm, Shard} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {AccountManager} from './account-manager.js';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
+import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 @injectable()
 export class ProfileManager {
@@ -38,7 +38,7 @@ export class ProfileManager {
   private readonly configManager: ConfigManager;
   private readonly cacheDir: DirectoryPath;
   private readonly k8Factory: K8Factory;
-  private readonly remoteConfigManager: RemoteConfigManager;
+  private readonly remoteConfig: RemoteConfigRuntimeStateApi;
   private readonly accountManager: AccountManager;
   private readonly localConfig: LocalConfigRuntimeState;
 
@@ -50,7 +50,7 @@ export class ProfileManager {
     @inject(InjectTokens.ConfigManager) configManager?: ConfigManager,
     @inject(InjectTokens.CacheDir) cacheDirectory?: DirectoryPath,
     @inject(InjectTokens.K8Factory) k8Factory?: K8Factory,
-    @inject(InjectTokens.RemoteConfigManager) remoteConfigManager?: RemoteConfigManager,
+    @inject(InjectTokens.RemoteConfigRuntimeState) remoteConfig?: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.AccountManager) accountManager?: AccountManager,
     @inject(InjectTokens.LocalConfigRuntimeState) localConfig?: LocalConfigRuntimeState,
   ) {
@@ -58,11 +58,7 @@ export class ProfileManager {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.cacheDir = PathEx.resolve(patchInject(cacheDirectory, InjectTokens.CacheDir, this.constructor.name));
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
-    this.remoteConfigManager = patchInject(
-      remoteConfigManager,
-      InjectTokens.RemoteConfigManager,
-      this.constructor.name,
-    );
+    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
 
@@ -255,6 +251,8 @@ export class ProfileManager {
       this.localConfig.configuration.shardForDeployment(deploymentName),
     );
 
+    await this.updateApplicationPropertiesForBlockNode(applicationPropertiesPath);
+
     for (const flag of flags.nodeConfigFileFlags.values()) {
       const filePath = this.configManager.getFlagFile(flag);
       if (!filePath) {
@@ -391,7 +389,7 @@ export class ProfileManager {
 
     const filesMapping: Record<ClusterReference, string> = {};
 
-    for (const [clusterReference] of this.remoteConfigManager.getClusterRefs()) {
+    for (const [clusterReference] of this.remoteConfig.getClusterRefs()) {
       const nodeAliases: NodeAliases = consensusNodes
         .filter(consensusNode => consensusNode.cluster === clusterReference)
         .map(consensusNode => consensusNode.name);
@@ -430,6 +428,42 @@ export class ProfileManager {
     }
 
     await writeFile(applicationPropertiesPath, lines.join('\n'));
+  }
+
+  private async updateApplicationPropertiesForBlockNode(applicationPropertiesPath: string): Promise<void> {
+    const hasDeployedBlockNodes: boolean =
+      Object.keys(this.remoteConfig.configuration.components.state.blockNodes).length > 0;
+    if (!hasDeployedBlockNodes) {
+      return;
+    }
+
+    const lines: string[] = (await readFile(applicationPropertiesPath, 'utf-8')).split('\n');
+
+    const streamMode: string = 'BOTH';
+    const writerMode: string = 'FILE_AND_GRPC';
+
+    let streamModeUpdated: boolean = false;
+    let writerModeUpdated: boolean = false;
+    for (const line of lines) {
+      if (line.startsWith('blockStream.streamMode=')) {
+        lines[lines.indexOf(line)] = `blockStream.streamMode=${streamMode}`;
+        streamModeUpdated = true;
+        continue;
+      }
+      if (line.startsWith('blockStream.writerMode=')) {
+        lines[lines.indexOf(line)] = `blockStream.writerMode=${writerMode}`;
+        writerModeUpdated = true;
+      }
+    }
+
+    if (!streamModeUpdated) {
+      lines.push(`blockStream.streamMode=${streamMode}`);
+    }
+    if (!writerModeUpdated) {
+      lines.push(`blockStream.writerMode=${writerMode}`);
+    }
+
+    await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
   }
 
   private async updateApplicationPropertiesWithRealmAndShard(

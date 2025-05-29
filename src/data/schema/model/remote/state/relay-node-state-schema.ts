@@ -1,38 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {Exclude, Expose, Transform} from 'class-transformer';
-import {Transformations} from '../../utils/transformations.js';
-import {type DeploymentPhase} from '../deployment-phase.js';
+import {Exclude, Expose} from 'class-transformer';
+import {ComponentStateMetadataSchema} from './component-state-metadata-schema.js';
+import {BaseStateSchema} from './base-state-schema.js';
+import {NodeId} from '../../../../../types/aliases.js';
 
 @Exclude()
-export class RelayNodeStateSchema {
-  @Expose()
-  public name: string;
-
-  @Expose()
-  public namespace: string;
-
-  @Expose()
-  public cluster: string;
-
+export class RelayNodeStateSchema extends BaseStateSchema {
   @Expose()
   public consensusNodeIds: number[];
 
-  @Expose()
-  @Transform(Transformations.DeploymentPhase)
-  public phase: DeploymentPhase;
-
-  public constructor(
-    name?: string,
-    namespace?: string,
-    cluster?: string,
-    consensusNodeIds?: number[],
-    phase?: DeploymentPhase,
-  ) {
-    this.name = name;
-    this.namespace = namespace;
-    this.cluster = cluster;
+  public constructor(metadata?: ComponentStateMetadataSchema, consensusNodeIds?: NodeId[]) {
+    super(metadata);
     this.consensusNodeIds = consensusNodeIds;
-    this.phase = phase;
   }
 }

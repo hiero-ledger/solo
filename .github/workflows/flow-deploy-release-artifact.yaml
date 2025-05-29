@@ -85,25 +85,11 @@ jobs:
           [[ "${{ github.event.inputs.dry-run-enabled }}" == true && ! -f VERSION ]] && echo -n "0.0.0-latest" > VERSION
           echo "version=$(cat VERSION | tr -d '[:space:]')" | tee -a ${GITHUB_OUTPUT}
 
-  update-readme:
-    name: "Update README.md"
-    uses: ./.github/workflows/zxc-update-readme.yaml
-    needs:
-      - prepare-release
-    with:
-      commit-changes: true
-      version: ${{ needs.prepare-release.outputs.version }}
-    secrets:
-      GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
-      GH_ACCESS_GPG_KEY: ${{ secrets.GH_ACCESS_GPG_KEY }}
-      GH_ACCESS_PASSPHRASE: ${{ secrets.GH_ACCESS_PASSPHRASE }}
-
   create-github-release:
     name: Github / Release
     runs-on: hiero-solo-linux-medium
     needs:
       - prepare-release
-      - update-readme
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -115,7 +101,6 @@ jobs:
         with:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           fetch-depth: 0
-          ref: ${{ needs.update-readme.outputs.commit-hash }}
 
       - name: Install GnuPG Tools
         run: |
@@ -155,8 +140,14 @@ jobs:
           set -x
           npm install
           echo "VERSION=${{ needs.prepare-release.outputs.version }}"
-          [[ -n "${{ needs.prepare-release.outputs.version }}" ]] && npm version ${{ needs.prepare-release.outputs.version }} -f --no-git-tag-version
+          [[ -n "${{ needs.prepare-release.outputs.version }}" ]] && npm version ${{ needs.prepare-release.outputs.version }} -f --no-git-tag-version --allow-same-version
           task build
+
+      - name: Upload Logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          path: /home/runner/.npm/_logs
 
       - name: Setup JFrog CLI
         uses: jfrog/setup-jfrog-cli@ff5cb544114ffc152db9cea1cd3d5978d5074946 # v4.5.11
@@ -195,7 +186,6 @@ jobs:
 
       - name: Publish Semantic Release
         env:
-          commit: ${{ needs.update-readme.outputs.commit-hash }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
           GIT_AUTHOR_NAME: ${{ secrets.GIT_USER_NAME }}

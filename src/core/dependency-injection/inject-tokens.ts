@@ -4,6 +4,8 @@
  * Dependency injection tokens
  */
 export const InjectTokens = {
+  ComponentFactory: Symbol.for('ComponentFactory'),
+  RemoteConfigValidator: Symbol.for('RemoteConfigValidator'),
   LogLevel: Symbol.for('LogLevel'),
   DevelopmentMode: Symbol.for('DevelopmentMode'),
   OsPlatform: Symbol.for('OsPlatform'),
@@ -29,7 +31,7 @@ export const InjectTokens = {
   KeyManager: Symbol.for('KeyManager'),
   ProfileManager: Symbol.for('ProfileManager'),
   CertificateManager: Symbol.for('CertificateManager'),
-  RemoteConfigManager: Symbol.for('RemoteConfigManager'),
+  RemoteConfigRuntimeState: Symbol.for('RemoteConfigRuntimeState'),
   ClusterChecks: Symbol.for('ClusterChecks'),
   NetworkNodes: Symbol.for('NetworkNodes'),
   AccountCommand: Symbol.for('AccountCommand'),

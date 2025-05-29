@@ -16,7 +16,6 @@ import {ProfileManager} from '../profile-manager.js';
 import {IntervalLockRenewalService} from '../lock/interval-lock-renewal.js';
 import {LockManager} from '../lock/lock-manager.js';
 import {CertificateManager} from '../certificate-manager.js';
-import {RemoteConfigManager} from '../config/remote/remote-config-manager.js';
 import os from 'node:os';
 import * as version from '../../../version.js';
 import {NetworkNodes} from '../network-nodes.js';
@@ -30,6 +29,7 @@ import {NodeCommandTasks} from '../../commands/node/tasks.js';
 import {ClusterCommandConfigs} from '../../commands/cluster/configs.js';
 import {NodeCommandConfigs} from '../../commands/node/configs.js';
 import {ErrorHandler} from '../error-handler.js';
+import {ClassToObjectMapper} from '../../data/mapper/impl/class-to-object-mapper.js';
 import {HelmExecutionBuilder} from '../../integration/helm/execution/helm-execution-builder.js';
 import {DefaultHelmClient} from '../../integration/helm/impl/default-helm-client.js';
 import {HelpRenderer} from '../help-renderer.js';
@@ -51,6 +51,9 @@ import {ValueContainer} from './value-container.js';
 import {BlockNodeCommand} from '../../commands/block-node.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {LocalConfigSource} from '../../data/configuration/impl/local-config-source.js';
+import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';
+import {ComponentFactory} from '../config/remote/component-factory.js';
+import {RemoteConfigValidator} from '../config/remote/remote-config-validator.js';
 import {ClassToObjectMapper} from '../../data/mapper/impl/class-to-object-mapper.js';
 import {SoloConfigRuntimeState} from '../../business/runtime-state/config/solo/solo-config-runtime-state.js';
 import {MirrorNodeConfigRuntimeState} from '../../business/runtime-state/config/mirror-node/mirror-node-config-runtime-state.js';
@@ -120,7 +123,7 @@ export class Container {
       new SingletonContainer(InjectTokens.CertificateManager, CertificateManager),
       new SingletonContainer(InjectTokens.LocalConfigRuntimeState, LocalConfigRuntimeState),
       new SingletonContainer(InjectTokens.LocalConfigSource, LocalConfigSource),
-      new SingletonContainer(InjectTokens.RemoteConfigManager, RemoteConfigManager),
+      new SingletonContainer(InjectTokens.RemoteConfigRuntimeState, RemoteConfigRuntimeState),
       new SingletonContainer(InjectTokens.ClusterChecks, ClusterChecks),
       new SingletonContainer(InjectTokens.NetworkNodes, NetworkNodes),
       new SingletonContainer(InjectTokens.Middlewares, Middlewares),
@@ -144,6 +147,8 @@ export class Container {
       new SingletonContainer(InjectTokens.NodeCommandConfigs, NodeCommandConfigs),
       new SingletonContainer(InjectTokens.ErrorHandler, ErrorHandler),
       new SingletonContainer(InjectTokens.ObjectMapper, ClassToObjectMapper),
+      new SingletonContainer(InjectTokens.ComponentFactory, ComponentFactory),
+      new SingletonContainer(InjectTokens.RemoteConfigValidator, RemoteConfigValidator),
       new SingletonContainer(InjectTokens.SoloConfigRuntimeState, SoloConfigRuntimeState),
       new SingletonContainer(InjectTokens.MirrorNodeConfigRuntimeState, MirrorNodeConfigRuntimeState),
       new SingletonContainer(InjectTokens.BlockNodeConfigRuntimeState, BlockNodeConfigRuntimeState),

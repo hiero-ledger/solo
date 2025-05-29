@@ -79,8 +79,8 @@ import {NetworkNodes} from '../../core/network-nodes.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import {
   type ClusterReference,
+  type Context,
   type DeploymentName,
-  type NamespaceNameAsString,
   type Optional,
   type SoloListr,
   type SoloListrTask,
@@ -91,11 +91,7 @@ import {ConsensusNode} from '../../core/model/consensus-node.js';
 import {type K8} from '../../integration/kube/k8.js';
 import {Base64} from 'js-base64';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
-import {type RemoteConfigManager} from '../../core/config/remote/remote-config-manager.js';
 import {BaseCommand} from '../base.js';
-import {ConsensusNodeComponent} from '../../core/config/remote/components/consensus-node-component.js';
-import {EnvoyProxyComponent} from '../../core/config/remote/components/envoy-proxy-component.js';
-import {HaProxyComponent} from '../../core/config/remote/components/ha-proxy-component.js';
 import {HEDERA_PLATFORM_VERSION} from '../../../version.js';
 import {ShellRunner} from '../../core/shell-runner.js';
 import {PathEx} from '../../business/utils/path-ex.js';
@@ -119,8 +115,12 @@ import {type NodeKeysConfigClass} from './config-interfaces/node-keys-config-cla
 import {type NodeStartConfigClass} from './config-interfaces/node-start-config-class.js';
 import {type CheckedNodesConfigClass, type CheckedNodesContext} from './config-interfaces/node-common-config-class.js';
 import {type NetworkNodeServices} from '../../core/network-node-services.js';
-import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
-import {ConsensusNodeStates} from '../../core/config/remote/enumerations/consensus-node-states.js';
+import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
+import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
+import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {type ComponentFactoryApi} from '../../core/config/remote/api/component-factory-api.js';
+import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 
 @injectable()
 export class NodeCommandTasks {
@@ -134,8 +134,9 @@ export class NodeCommandTasks {
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.ChartManager) private readonly chartManager: ChartManager,
     @inject(InjectTokens.CertificateManager) private readonly certificateManager: CertificateManager,
-    @inject(InjectTokens.RemoteConfigManager) private readonly remoteConfigManager: RemoteConfigManager,
+    @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
@@ -147,11 +148,7 @@ export class NodeCommandTasks {
     this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
     this.certificateManager = patchInject(certificateManager, InjectTokens.CertificateManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
-    this.remoteConfigManager = patchInject(
-      remoteConfigManager,
-      InjectTokens.RemoteConfigManager,
-      this.constructor.name,
-    );
+    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
@@ -266,7 +263,7 @@ export class NodeCommandTasks {
     podReferences: Record<NodeAlias, PodReference>,
     task: SoloListrTaskWrapper<AnyListrContext>,
     localBuildPath: string,
-    consensusNodes: Optional<ConsensusNode[]>,
+    consensusNodes: ConsensusNode[],
     releaseTag: string,
   ): SoloListr<AnyListrContext> {
     const subTasks: SoloListrTask<AnyListrContext>[] = [];
@@ -360,7 +357,7 @@ export class NodeCommandTasks {
     releaseTag: string,
     task: SoloListrTaskWrapper<AnyListrContext>,
     platformInstaller: PlatformInstaller,
-    consensusNodes?: Optional<ConsensusNode[]>,
+    consensusNodes: ConsensusNode[],
   ): SoloListr<AnyListrContext> {
     const subTasks: SoloListrTask<AnyListrContext>[] = [];
     for (const nodeAlias of nodeAliases) {
@@ -391,7 +388,7 @@ export class NodeCommandTasks {
       config: {namespace},
     } = context_;
 
-    const enableDebugger = context_.config.debugNodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
+    const enableDebugger: boolean = context_.config.debugNodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
 
     const subTasks = nodeAliases.map(nodeAlias => {
       const reminder =
@@ -446,7 +443,7 @@ export class NodeCommandTasks {
     const podReference = PodReference.of(namespace, podName);
     task.title = `${title} - status ${chalk.yellow('STARTING')}, attempt ${chalk.blueBright(`0/${maxAttempts}`)}`;
 
-    const consensusNodes = this.remoteConfigManager.getConsensusNodes();
+    const consensusNodes = this.remoteConfig.getConsensusNodes();
     if (!context) {
       context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
     }
@@ -638,7 +635,7 @@ export class NodeCommandTasks {
       const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
       await this.accountManager.loadNodeClient(
         namespace,
-        this.remoteConfigManager.getClusterRefs(),
+        this.remoteConfig.getClusterRefs(),
         deploymentName,
         this.configManager.getFlag<boolean>(flags.forcePortForward),
       );
@@ -849,7 +846,7 @@ export class NodeCommandTasks {
         try {
           const nodeClient = await this.accountManager.loadNodeClient(
             namespace,
-            this.remoteConfigManager.getClusterRefs(),
+            this.remoteConfig.getClusterRefs(),
             deployment,
           );
           const futureDate = new Date();
@@ -1078,7 +1075,7 @@ export class NodeCommandTasks {
       task: async (context_, task) => {
         const config = context_.config;
         config.existingNodeAliases = [];
-        const clusterReferences = this.remoteConfigManager.getClusterRefs();
+        const clusterReferences = this.remoteConfig.getClusterRefs();
         config.serviceMap = await self.accountManager.getNodeServiceMap(
           config.namespace,
           clusterReferences,
@@ -1192,7 +1189,7 @@ export class NodeCommandTasks {
       task: async context_ => {
         context_.config.serviceMap = await this.accountManager.getNodeServiceMap(
           context_.config.namespace,
-          this.remoteConfigManager.getClusterRefs(),
+          this.remoteConfig.getClusterRefs(),
           context_.config.deployment,
         );
         if (!context_.config.serviceMap.has(context_.config.nodeAlias)) {
@@ -1220,7 +1217,7 @@ export class NodeCommandTasks {
           context_.config.nodeAliases = helpers.parseNodeAliases(
             // @ts-ignore
             context_.config.nodeAliasesUnparsed,
-            this.remoteConfigManager.getConsensusNodes(),
+            this.remoteConfig.getConsensusNodes(),
             this.configManager,
           );
         }
@@ -1277,7 +1274,7 @@ export class NodeCommandTasks {
     const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
     const networkNodeServiceMap = await this.accountManager.getNodeServiceMap(
       namespace,
-      this.remoteConfigManager.getClusterRefs(),
+      this.remoteConfig.getClusterRefs(),
       deploymentName,
     );
 
@@ -1305,7 +1302,7 @@ export class NodeCommandTasks {
     const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
     const networkNodeServiceMap = await this.accountManager.getNodeServiceMap(
       namespace,
-      this.remoteConfigManager.getClusterRefs(),
+      this.remoteConfig.getClusterRefs(),
       deploymentName,
     );
 
@@ -1347,7 +1344,7 @@ export class NodeCommandTasks {
             title: 'Copy gRPC TLS keys to staging',
             task: async () => {
               for (const nodeAlias of nodeAliases) {
-                const tlsKeyFiles = this.keyManager.prepareTLSKeyFilePaths(nodeAlias, config.keysDir);
+                const tlsKeyFiles = this.keyManager.prepareTlsKeyFilePaths(nodeAlias, config.keysDir);
                 this.keyManager.copyNodeKeysToStaging(tlsKeyFiles, config.stagingKeysDir);
               }
             },
@@ -1509,7 +1506,7 @@ export class NodeCommandTasks {
 
         config.nodeClient = await self.accountManager.refreshNodeClient(
           config.namespace,
-          this.remoteConfigManager.getClusterRefs(),
+          this.remoteConfig.getClusterRefs(),
           skipNodeAlias,
           this.configManager.getFlag<DeploymentName>(flags.deployment),
         );
@@ -1569,7 +1566,7 @@ export class NodeCommandTasks {
       task: async context_ => {
         await self.accountManager.refreshNodeClient(
           context_.config.namespace,
-          this.remoteConfigManager.getClusterRefs(),
+          this.remoteConfig.getClusterRefs(),
           context_.config.nodeAlias,
           this.configManager.getFlag<DeploymentName>(flags.deployment),
           this.configManager.getFlag<boolean>(flags.forcePortForward),
@@ -1866,7 +1863,7 @@ export class NodeCommandTasks {
         if (config.existingNodeAliases.length > 1) {
           config.nodeClient = await self.accountManager.refreshNodeClient(
             config.namespace,
-            this.remoteConfigManager.getClusterRefs(),
+            this.remoteConfig.getClusterRefs(),
             config.nodeAlias,
             this.configManager.getFlag<DeploymentName>(flags.deployment),
           );
@@ -1957,7 +1954,7 @@ export class NodeCommandTasks {
         // Prepare parameter and update the network node chart
         const config = context_.config;
         const consensusNodes = context_.config.consensusNodes as ConsensusNode[];
-        const clusterReferences = this.remoteConfigManager.getClusterRefs();
+        const clusterReferences = this.remoteConfig.getClusterRefs();
 
         // Make sure valuesArgMap is initialized with empty strings
         const valuesArgumentMap: Record<ClusterReference, string> = {};
@@ -2291,7 +2288,7 @@ export class NodeCommandTasks {
       title: 'Kill nodes to pick up updated configMaps',
       task: async context_ => {
         const config = context_.config;
-        const clusterReferences = this.remoteConfigManager.getClusterRefs();
+        const clusterReferences = this.remoteConfig.getClusterRefs();
         // the updated node will have a new pod ID if its account ID changed which is a label
         config.serviceMap = await this.accountManager.getNodeServiceMap(
           config.namespace,
@@ -2531,8 +2528,8 @@ export class NodeCommandTasks {
 
         const config = await configInit(argv, context_, task, shouldLoadNodeClient);
         context_.config = config;
-        config.consensusNodes = this.remoteConfigManager.getConsensusNodes();
-        config.contexts = this.remoteConfigManager.getContexts();
+        config.consensusNodes = this.remoteConfig.getConsensusNodes();
+        config.contexts = this.remoteConfig.getContexts();
 
         for (const flag of required) {
           if (config[flag.constName] === undefined) {
@@ -2553,48 +2550,57 @@ export class NodeCommandTasks {
     return {
       title: 'Add new node to remote config',
       task: async (context_, task) => {
-        const nodeAlias = context_.config.nodeAlias;
-        const namespace: NamespaceNameAsString = context_.config.namespace.name;
-        const clusterReference = context_.config.clusterRef;
-        const context = this.localConfig.configuration.clusterRefs.get(clusterReference);
+        const nodeAlias: NodeAlias = context_.config.nodeAlias;
+        const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
+        const namespace: NamespaceName = context_.config.namespace;
+        const clusterReference: ClusterReference = context_.config.clusterRef;
+        const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
 
         task.title += `: ${nodeAlias}`;
 
-        await this.remoteConfigManager.modify(async remoteConfig => {
-          remoteConfig.components.add(
-            new ConsensusNodeComponent(
-              nodeAlias,
-              clusterReference,
-              namespace,
-              ConsensusNodeStates.STARTED,
-              Templates.nodeIdFromNodeAlias(nodeAlias),
-            ),
-          );
+        this.remoteConfig.configuration.components.addNewComponent(
+          this.componentFactory.createNewConsensusNodeComponent(
+            nodeId,
+            clusterReference,
+            namespace,
+            DeploymentPhase.STARTED,
+          ),
+          ComponentTypes.ConsensusNode,
+        );
 
-          remoteConfig.components.add(new EnvoyProxyComponent(`envoy-proxy-${nodeAlias}`, clusterReference, namespace));
+        this.remoteConfig.configuration.components.addNewComponent(
+          this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
+          ComponentTypes.EnvoyProxy,
+        );
 
-          remoteConfig.components.add(new HaProxyComponent(`haproxy-${nodeAlias}`, clusterReference, namespace));
-        });
+        this.remoteConfig.configuration.components.addNewComponent(
+          this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),
+          ComponentTypes.HaProxy,
+        );
 
-        context_.config.consensusNodes = this.remoteConfigManager.getConsensusNodes();
+        await this.remoteConfig.persist();
+
+        context_.config.consensusNodes = this.remoteConfig.getConsensusNodes();
 
         // if the consensusNodes does not contain the nodeAlias then add it
         if (!context_.config.consensusNodes.some((node: ConsensusNode) => node.name === nodeAlias)) {
-          const cluster = this.remoteConfigManager.clusters[clusterReference];
+          const cluster: ClusterSchema = this.remoteConfig.configuration.clusters.find(
+            cluster => cluster.name === clusterReference,
+          );
 
           context_.config.consensusNodes.push(
             new ConsensusNode(
               nodeAlias,
-              Templates.nodeIdFromNodeAlias(nodeAlias),
-              namespace,
+              nodeId,
+              namespace.name,
               clusterReference,
               context.toString(),
               cluster.dnsBaseDomain,
               cluster.dnsConsensusNodePattern,
               Templates.renderConsensusNodeFullyQualifiedDomainName(
                 nodeAlias,
-                Templates.nodeIdFromNodeAlias(nodeAlias),
-                namespace,
+                nodeId,
+                namespace.name,
                 clusterReference,
                 cluster.dnsBaseDomain,
                 cluster.dnsConsensusNodePattern,
