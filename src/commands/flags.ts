@@ -2199,6 +2199,18 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly awsBucketRegion: CommandFlag = {
+    constName: 'awsBucketRegion',
+    name: 'aws-bucket-region',
+    definition: {
+        defaultValue: '',
+        describe: 'name of aws bucket region',
+        type: 'string',
+        dataMask: constants.STANDARD_DATAMASK,
+    },
+    prompt: undefined,
+    };
+
   public static readonly awsBucketPrefix: CommandFlag = {
     constName: 'awsBucketPrefix',
     name: 'aws-bucket-prefix',
@@ -2567,6 +2579,7 @@ export class Flags {
     Flags.awsWriteSecrets,
     Flags.awsEndpoint,
     Flags.awsBucket,
+    Flags.awsBucketRegion,
     Flags.awsBucketPrefix,
     Flags.storageReadAccessKey,
     Flags.storageReadSecrets,
