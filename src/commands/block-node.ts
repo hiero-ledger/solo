@@ -67,7 +67,6 @@ interface BlockNodeDeployContext {
   config: BlockNodeDeployConfigClass;
 }
 
-@injectable()
 interface BlockNodeDestroyConfigClass {
   chartDirectory: string;
   clusterRef: ClusterReference;
@@ -85,6 +84,7 @@ interface BlockNodeDestroyContext {
   config: BlockNodeDestroyConfigClass;
 }
 
+@injectable()
 export class BlockNodeCommand extends BaseCommand {
   public static readonly COMMAND_NAME: string = 'block';
 
