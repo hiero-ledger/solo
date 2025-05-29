@@ -23,7 +23,7 @@ import {ClusterCommandHandlers} from '../../../src/commands/cluster/handlers.js'
 import {SoloWinstonLogger} from '../../../src/core/logging/solo-winston-logger.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
-import {SoloConfigRuntimeState} from '../../../src/business/runtime-state/config/solo/solo-config-runtime-state.js';
+import {type SoloConfigRuntimeState} from '../../../src/business/runtime-state/config/solo/solo-config-runtime-state.js';
 
 const getBaseCommandOptions = (context: string) => {
   const options = {

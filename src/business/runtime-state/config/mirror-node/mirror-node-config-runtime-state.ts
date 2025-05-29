@@ -10,9 +10,7 @@ import {type ObjectMapper} from '../../../../data/mapper/api/object-mapper.js';
 import {UnloadedConfigError} from '../../errors/unloaded-config-error.js';
 import {MirrorNodeConfig} from './mirror-node-config.js';
 import {MirrorNodeConfigSchema} from '../../../../data/schema/model/mirror-node/mirror-node-config-schema.js';
-import {
-  MirrorNodeConfigSchemaDefinition
-} from '../../../../data/schema/migration/impl/mirror-node/mirror-node-config-schema-definition.js';
+import {MirrorNodeConfigSchemaDefinition} from '../../../../data/schema/migration/impl/mirror-node/mirror-node-config-schema-definition.js';
 
 @injectable()
 export class MirrorNodeConfigRuntimeState {

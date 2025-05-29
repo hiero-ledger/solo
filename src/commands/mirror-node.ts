@@ -49,10 +49,7 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {type AccountId} from '@hashgraph/sdk';
-import {SoloConfigRuntimeState} from '../business/runtime-state/config/solo/solo-config-runtime-state.js';
-import {
-  MirrorNodeConfigRuntimeState
-} from '../business/runtime-state/config/mirror-node/mirror-node-config-runtime-state.js';
+import {MirrorNodeConfigRuntimeState} from '../business/runtime-state/config/mirror-node/mirror-node-config-runtime-state.js';
 
 interface MirrorNodeDeployConfigClass {
   cacheDir: string;
@@ -899,13 +896,7 @@ export class MirrorNodeCommand extends BaseCommand {
             command: 'destroy',
             desc: 'Destroy mirror-node components and database',
             builder: y =>
-              flags.setOptionalCommandFlags(
-                y,
-                flags.clusterRef,
-                flags.force,
-                flags.quiet,
-                flags.deployment,
-              ),
+              flags.setOptionalCommandFlags(y, flags.clusterRef, flags.force, flags.quiet, flags.deployment),
             handler: async argv => {
               self.logger.info("==== Running 'mirror-node destroy' ===");
               self.logger.info(argv);

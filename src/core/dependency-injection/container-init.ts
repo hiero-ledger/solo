@@ -54,15 +54,9 @@ import {LocalConfigSource} from '../../data/configuration/impl/local-config-sour
 import {ClassToObjectMapper} from '../../data/mapper/impl/class-to-object-mapper.js';
 import {SoloConfigRuntimeState} from '../../business/runtime-state/config/solo/solo-config-runtime-state.js';
 import {MirrorNodeConfigRuntimeState} from '../../business/runtime-state/config/mirror-node/mirror-node-config-runtime-state.js';
-import {
-  BlockNodeConfigRuntimeState
-} from '../../business/runtime-state/config/block-node/block-node-config-runtime-state.js';
-import {
-  ExplorerConfigRuntimeState
-} from '../../business/runtime-state/config/explorer/explorer-config-runtime-state.js';
-import {
-  JsonRpcRelayConfigRuntimeState
-} from '../../business/runtime-state/config/json-rpc-relay/json-rpc-relay-config-runtime-state.js';
+import {BlockNodeConfigRuntimeState} from '../../business/runtime-state/config/block-node/block-node-config-runtime-state.js';
+import {ExplorerConfigRuntimeState} from '../../business/runtime-state/config/explorer/explorer-config-runtime-state.js';
+import {JsonRpcRelayConfigRuntimeState} from '../../business/runtime-state/config/json-rpc-relay/json-rpc-relay-config-runtime-state.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 

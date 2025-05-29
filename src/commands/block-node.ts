@@ -31,11 +31,8 @@ import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-bui
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
-import type {ClusterCommandTasks} from './cluster/tasks.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {
-  BlockNodeConfigRuntimeState
-} from '../business/runtime-state/config/block-node/block-node-config-runtime-state.js';
+import {BlockNodeConfigRuntimeState} from '../business/runtime-state/config/block-node/block-node-config-runtime-state.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -91,7 +88,6 @@ export class BlockNodeCommand extends BaseCommand {
     );
   }
 
-
   private async prepareValuesArgForBlockNode(config: BlockNodeDeployConfigClass): Promise<string> {
     let valuesArgument: string = '';
 
@@ -138,11 +134,9 @@ export class BlockNodeCommand extends BaseCommand {
 
             await this.configManager.executePrompt(task, allFlags);
 
-            context_.config = this.configManager.getConfig(
-              BlockNodeCommand.DEPLOY_CONFIGS_NAME,
-              allFlags,
-              ['chartDirectory']
-            ) as BlockNodeDeployConfigClass;
+            context_.config = this.configManager.getConfig(BlockNodeCommand.DEPLOY_CONFIGS_NAME, allFlags, [
+              'chartDirectory',
+            ]) as BlockNodeDeployConfigClass;
 
             context_.config.chartDirectory = this.blockNodeConfig.blockNodeConfig.helmChart.directory;
             context_.config.namespace = await resolveNamespaceFromDeployment(

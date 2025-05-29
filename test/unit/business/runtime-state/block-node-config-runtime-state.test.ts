@@ -75,9 +75,7 @@ describe('BlockNodeConfigRuntimeState', (): void => {
 
       expect(blockNodeConfigRuntimeState.blockNodeConfig).to.have.property('helmChart');
       expect(blockNodeConfigRuntimeState.blockNodeConfig.helmChart).to.have.property('repository');
-      expect(blockNodeConfigRuntimeState.blockNodeConfig.helmChart.repository).to.equal(
-        overwrittenHelmChartRepository,
-      );
+      expect(blockNodeConfigRuntimeState.blockNodeConfig.helmChart.repository).to.equal(overwrittenHelmChartRepository);
     });
 
     it('should merge multiple configuration sources correctly', async (): Promise<void> => {
