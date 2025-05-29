@@ -48,8 +48,6 @@ kubectl port-forward -n "${SOLO_NAMESPACE}" svc/relay-node1-node2-hedera-json-rp
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-grpc 5600:5600 > /dev/null 2>&1 &
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-rest 5551:80 > /dev/null 2>&1 &
 
-.github/workflows/script/solo_smoke_test.sh
-
 cp ~/.solo/cache/local-config.yaml ./local-config-before.yaml
 cat ./local-config-before.yaml
 kubectl get ConfigMap solo-remote-config -n ${SOLO_NAMESPACE} -o yaml | yq '.data' > remote-config-before.yaml
@@ -75,6 +73,7 @@ if ! grep -q "schemaVersion: 1" ./remote-config-after.yaml; then
   exit 1
 fi
 
+# redeploy mirror-node and explorer to upgrade them to newer versions
 npm run solo-test -- mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --pinger -q --dev
 
 npm run solo-test -- explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace solo-e2e -q --dev
