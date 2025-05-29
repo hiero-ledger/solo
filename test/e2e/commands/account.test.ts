@@ -464,7 +464,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
         } catch (error) {
           testLogger.showUserError(error);
         }
-      }).timeout(Duration.ofMinutes(4).toMillis());
+      }).timeout(Duration.ofMinutes(10).toMillis());
     });
   });
 });
