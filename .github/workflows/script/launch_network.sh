@@ -36,9 +36,9 @@ solo init
 solo cluster setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 solo node keys --gossip-keys --tls-keys -i node1,node2
 solo deployment create -i node1,node2 -n "${SOLO_NAMESPACE}" --context kind-"${SOLO_CLUSTER_NAME}" --email john@doe.com --deployment-clusters kind-"${SOLO_CLUSTER_NAME}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --deployment "${SOLO_DEPLOYMENT}"
-solo network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}"
+solo network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q
 
-solo node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}"
+solo node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
 solo node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
