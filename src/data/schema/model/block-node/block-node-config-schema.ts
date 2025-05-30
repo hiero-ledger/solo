@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type HelmChartSchema} from '../common/helm-chart-schema.js';
-import {Exclude, Expose} from 'class-transformer';
+import {HelmChartSchema} from '../common/helm-chart-schema.js';
+import {Exclude, Expose, Type} from 'class-transformer';
 import {Version} from '../../../../business/utils/version.js';
 
 @Exclude()
@@ -15,6 +15,7 @@ export class BlockNodeConfigSchema {
   public schemaVersion: number;
 
   @Expose()
+  @Type(() => HelmChartSchema)
   public helmChart: HelmChartSchema | undefined;
 
   public constructor(schemaVersion?: number, helmChart?: HelmChartSchema) {

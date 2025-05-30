@@ -29,6 +29,7 @@ export class SoloConfigRuntimeState {
     );
     this.config = configProvider
       .builder()
+      .withPrefix('SOLO')
       .withDefaultSources()
       .withSources(defaultConfigSource)
       .withMergeSourceValues(true)

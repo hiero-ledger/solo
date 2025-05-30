@@ -5,6 +5,7 @@ import {VersionRange} from '../../../../../business/utils/version-range.js';
 import {Version} from '../../../../../business/utils/version.js';
 import {IllegalArgumentError} from '../../../../../business/errors/illegal-argument-error.js';
 import {InvalidSchemaVersionError} from '../../api/invalid-schema-version-error.js';
+import {getNewHelmChartObject} from '../../api/helm-chart-object.js';
 
 export class SoloConfigV1Migration implements SchemaMigration {
   public get range(): VersionRange<number> {
@@ -33,37 +34,21 @@ export class SoloConfigV1Migration implements SchemaMigration {
     clone.schemaVersion = this.version.value;
 
     if (!clone.helmChart) {
-      clone.helmChart = this.getNewHelmChartObject();
+      clone.helmChart = getNewHelmChartObject();
     }
 
     if (!clone.ingressControllerHelmChart) {
-      clone.ingressControllerHelmChart = this.getNewHelmChartObject();
+      clone.ingressControllerHelmChart = getNewHelmChartObject();
     }
 
     if (!clone.clusterSetupHelmChart) {
-      clone.clusterSetupHelmChart = this.getNewHelmChartObject();
+      clone.clusterSetupHelmChart = getNewHelmChartObject();
     }
 
     if (!clone.certManagerHelmChart) {
-      clone.certManagerHelmChart = this.getNewHelmChartObject();
+      clone.certManagerHelmChart = getNewHelmChartObject();
     }
 
     return clone;
-  }
-
-  private getNewHelmChartObject(): object {
-    return {
-      name: undefined,
-      namespace: undefined,
-      release: undefined,
-      repository: undefined,
-      directory: undefined,
-      version: undefined,
-      labelSelector: undefined,
-      containerName: undefined,
-      ingressClassName: undefined,
-      ingressControllerName: undefined,
-      ingressControllerPrefix: undefined,
-    };
   }
 }

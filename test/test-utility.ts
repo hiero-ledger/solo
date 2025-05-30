@@ -582,3 +582,21 @@ export function hederaPlatformSupportsNonZeroRealms() {
 export function localHederaPlatformSupportsNonZeroRealms() {
   return semVersionGte(TEST_LOCAL_HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
 }
+
+// Function to recursively convert null values to undefined
+export function nullToUndefined(object: any): any {
+  if (object === null) {
+    return undefined;
+  }
+  if (Array.isArray(object)) {
+    return object.map(item => nullToUndefined(item));
+  }
+  if (typeof object === 'object' && object !== null) {
+    const result = {};
+    for (const key in object) {
+      result[key] = nullToUndefined(object[key]);
+    }
+    return result;
+  }
+  return object;
+}

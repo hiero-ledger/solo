@@ -1,0 +1,5 @@
+schemaVersion: 1
+helmChart:
+  name: block-node-deployment
+  release: block-node-deployment
+  repository: oci://ghcr.io/hashgraph/solo-charts

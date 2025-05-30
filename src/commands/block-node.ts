@@ -39,6 +39,10 @@ import {ComponentStateMetadataSchema} from '../data/schema/model/remote/state/co
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {lt, SemVer} from 'semver';
+import {inject, injectable} from 'tsyringe-neo';
+import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {BlockNodeConfigRuntimeState} from '../business/runtime-state/config/block-node/block-node-config-runtime-state.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -80,6 +84,7 @@ interface BlockNodeDestroyContext {
   config: BlockNodeDestroyConfigClass;
 }
 
+@injectable()
 export class BlockNodeCommand extends BaseCommand {
   public static readonly COMMAND_NAME: string = 'block';
 
@@ -91,7 +96,6 @@ export class BlockNodeCommand extends BaseCommand {
     required: [],
     optional: [
       flags.blockNodeChartVersion,
-      flags.chartDirectory,
       flags.clusterRef,
       flags.deployment,
       flags.devMode,
@@ -107,6 +111,18 @@ export class BlockNodeCommand extends BaseCommand {
     required: [],
     optional: [flags.chartDirectory, flags.clusterRef, flags.deployment, flags.devMode, flags.force, flags.quiet],
   };
+
+  public constructor(
+    @inject(InjectTokens.BlockNodeConfigRuntimeState) private readonly blockNodeConfig: BlockNodeConfigRuntimeState,
+  ) {
+    super();
+
+    this.blockNodeConfig = patchInject(
+      blockNodeConfig,
+      InjectTokens.BlockNodeConfigRuntimeState,
+      BlockNodeCommand.name,
+    );
+  }
 
   private async prepareValuesArgForBlockNode(config: BlockNodeDeployConfigClass): Promise<string> {
     let valuesArgument: string = '';
@@ -161,6 +177,7 @@ export class BlockNodeCommand extends BaseCommand {
             context_.config = this.configManager.getConfig(
               BlockNodeCommand.ADD_CONFIGS_NAME,
               allFlags,
+              ['chartDirectory'],
             ) as BlockNodeDeployConfigClass;
 
             const platformVersion: SemVer = new SemVer(context_.config.releaseTag);
@@ -168,6 +185,7 @@ export class BlockNodeCommand extends BaseCommand {
               throw new SoloError('Hedera platform versions less than v0.62.0 are not supported');
             }
 
+            context_.config.chartDirectory = this.blockNodeConfig.blockNodeConfig.helmChart.directory;
             context_.config.namespace = await resolveNamespaceFromDeployment(
               this.localConfig,
               this.configManager,

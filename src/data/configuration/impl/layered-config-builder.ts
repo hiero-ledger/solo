@@ -12,12 +12,10 @@ import {LayeredConfig} from './layered-config.js';
 export class LayeredConfigBuilder implements ConfigBuilder {
   private readonly sources: ConfigSource[];
   private readonly converters: ConverterEntry[];
+  private prefix: string;
   private mergeSourceValues: boolean = false;
 
-  public constructor(
-    private readonly mapper: ObjectMapper,
-    private readonly prefix?: string,
-  ) {
+  public constructor(private readonly mapper: ObjectMapper) {
     this.sources = [];
     this.converters = [];
   }
@@ -47,6 +45,11 @@ export class LayeredConfigBuilder implements ConfigBuilder {
 
   public withMergeSourceValues(mergeSourceValues: boolean): ConfigBuilder {
     this.mergeSourceValues = mergeSourceValues;
+    return this;
+  }
+
+  public withPrefix(prefix: string): ConfigBuilder {
+    this.prefix = prefix;
     return this;
   }
 
