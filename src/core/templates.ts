@@ -335,10 +335,8 @@ export class Templates {
 
   // Component Label Selectors
 
-  public static renderRelayLabels(id: ComponentId, useLegacyReleaseName: boolean = false): string[] {
-    const releaseName: string = useLegacyReleaseName
-      ? constants.JSON_RPC_RELAY_RELEASE_NAME
-      : `${constants.JSON_RPC_RELAY_RELEASE_NAME}-${id}`;
+  public static renderRelayLabels(id: ComponentId, legacyReleaseName?: string): string[] {
+    const releaseName: string = legacyReleaseName ?? `${constants.JSON_RPC_RELAY_RELEASE_NAME}-${id}`;
 
     return [`app.kubernetes.io/name=${releaseName}`];
   }
@@ -348,10 +346,8 @@ export class Templates {
     return [`app=haproxy-${nodeAlias}`, 'solo.hedera.com/type=haproxy'];
   }
 
-  public static renderMirrorNodeLabels(id: ComponentId, useLegacyReleaseName: boolean = false): string[] {
-    const releaseName: string = useLegacyReleaseName
-      ? constants.MIRROR_NODE_RELEASE_NAME
-      : `${constants.MIRROR_NODE_RELEASE_NAME}-${id}`;
+  public static renderMirrorNodeLabels(id: ComponentId, legacyReleaseName?: string): string[] {
+    const releaseName: string = legacyReleaseName ?? `${constants.MIRROR_NODE_RELEASE_NAME}-${id}`;
 
     return [
       'app.kubernetes.io/name=importer',
@@ -365,10 +361,8 @@ export class Templates {
     return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=envoy-proxy'];
   }
 
-  public static renderExplorerLabels(id: ComponentId, useLegacyReleaseName: boolean = false): string[] {
-    const releaseName: string = useLegacyReleaseName
-      ? constants.EXPLORER_RELEASE_NAME
-      : `${constants.EXPLORER_RELEASE_NAME}-${id}`;
+  public static renderExplorerLabels(id: ComponentId, legacyReleaseName?: string): string[] {
+    const releaseName: string = legacyReleaseName ?? `${constants.EXPLORER_RELEASE_NAME}-${id}`;
 
     return [`app.kubernetes.io/instance=${releaseName}`];
   }
@@ -377,10 +371,8 @@ export class Templates {
     return [`app=network-${Templates.renderNodeAliasFromNumber(id)}`];
   }
 
-  public static renderBlockNodeLabels(id: ComponentId, useLegacyReleaseName: boolean = false): string[] {
-    const releaseName: string = useLegacyReleaseName
-      ? `${constants.BLOCK_NODE_RELEASE_NAME}-0`
-      : `${constants.BLOCK_NODE_RELEASE_NAME}-${id}`;
+  public static renderBlockNodeLabels(id: ComponentId, legacyReleaseName?: string): string[] {
+    const releaseName: string = legacyReleaseName ?? `${constants.BLOCK_NODE_RELEASE_NAME}-${id}`;
 
     return [`app.kubernetes.io/name=${releaseName}`];
   }

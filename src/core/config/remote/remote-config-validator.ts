@@ -17,6 +17,8 @@ import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
 import {type ComponentId, type Context} from '../../../types/index.js';
 import {type K8Factory} from '../../../integration/kube/k8-factory.js';
 import * as constants from '../../constants.js';
+import {NodeAlias, NodeAliases} from '../../../types/aliases.js';
+import {RelayNodeStateSchema} from '../../../data/schema/model/remote/state/relay-node-state-schema.js';
 
 /**
  * Static class is used to validate that components in the remote config
@@ -44,7 +46,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
   private static componentValidationsMapping: Record<
     string,
     {
-      getLabelsCallback: (id: ComponentId, useLegacyReleaseName?: boolean) => string[];
+      getLabelsCallback: (id: ComponentId, legacyReleaseName?: string) => string[];
       displayName: string;
       skipCondition?: (component: BaseStateSchema) => boolean;
       legacyReleaseName?: string;
@@ -94,6 +96,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       .filter(([key]): boolean => key !== 'consensusNodes' || !skipConsensusNodes)
       .flatMap(([key, {getLabelsCallback, displayName, skipCondition, legacyReleaseName}]): Promise<void>[] =>
         this.validateComponentGroup(
+          key,
           namespace,
           state[key],
           getLabelsCallback,
@@ -107,9 +110,10 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
   }
 
   private validateComponentGroup(
+    key: string,
     namespace: NamespaceName,
     components: BaseStateSchema[],
-    getLabelsCallback: (id: ComponentId, useLegacyReleaseName?: boolean) => string[],
+    getLabelsCallback: (id: ComponentId, legacyReleaseName?: string) => string[],
     displayName: string,
     skipCondition?: (component: BaseStateSchema) => boolean,
     legacyReleaseName?: string,
@@ -123,6 +127,14 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
 
       let useLegacyReleaseName: boolean = false;
       if (legacyReleaseName && component.metadata.id <= 1) {
+        if (key === 'relayNodes') {
+          const nodeAliases: NodeAliases = (component as RelayNodeStateSchema).consensusNodeIds.map(
+            (nodeId): NodeAlias => Templates.renderNodeAliasFromNumber(nodeId + 1),
+          );
+
+          legacyReleaseName = `${legacyReleaseName}-${nodeAliases.join('-')}`;
+        }
+
         const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
           namespace,
           legacyReleaseName,
@@ -134,7 +146,9 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
         }
       }
 
-      const labels: string[] = getLabelsCallback(component.metadata.id, useLegacyReleaseName);
+      const labels: string[] = useLegacyReleaseName
+        ? getLabelsCallback(component.metadata.id, legacyReleaseName)
+        : getLabelsCallback(component.metadata.id);
 
       try {
         const pods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);
