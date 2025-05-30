@@ -52,6 +52,7 @@ interface RelayDestroyConfigClass {
   clusterRef: Optional<ClusterReference>;
   context: Optional<string>;
   id: number;
+  useLegacyReleaseName: boolean;
 }
 
 interface RelayDestroyContext {
@@ -480,6 +481,7 @@ export class RelayCommand extends BaseCommand {
               ),
               clusterRef: this.configManager.getFlag(flags.clusterRef),
               id: this.configManager.getFlag<number>(flags.id),
+              useLegacyReleaseName: false,
             } as RelayDestroyConfigClass;
 
             if (context_.config.clusterRef) {
@@ -490,6 +492,19 @@ export class RelayCommand extends BaseCommand {
             }
 
             context_.config.releaseName = this.prepareReleaseName(context_.config.id);
+
+            if (context_.config.id === 1) {
+              const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
+                context_.config.namespace,
+                'relay',
+                context_.config.context,
+              );
+
+              if (isLegacyChartInstalled) {
+                context_.config.useLegacyReleaseName = true;
+                context_.config.releaseName = 'relay';
+              }
+            }
             context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
               context_.config.namespace,
               context_.config.releaseName,

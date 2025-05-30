@@ -74,6 +74,7 @@ interface BlockNodeDestroyConfigClass {
   valuesArg: string;
   releaseName: string;
   id: number;
+  useLegacyReleaseName: boolean;
 }
 
 interface BlockNodeDestroyContext {
@@ -321,6 +322,8 @@ export class BlockNodeCommand extends BaseCommand {
               allFlags,
             ) as BlockNodeDestroyConfigClass;
 
+            context_.config.useLegacyReleaseName = false;
+
             context_.config.namespace = await resolveNamespaceFromDeployment(
               this.localConfig,
               this.configManager,
@@ -334,6 +337,11 @@ export class BlockNodeCommand extends BaseCommand {
             context_.config.context = this.remoteConfig.getClusterRefs()[context_.config.clusterRef];
 
             context_.config.releaseName = this.getReleaseName();
+
+            if (context_.config.id <= 1) {
+              context_.config.useLegacyReleaseName = true;
+              context_.config.releaseName = `${constants.BLOCK_NODE_RELEASE_NAME}-0`;
+            }
 
             context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
               context_.config.namespace,
