@@ -12,9 +12,11 @@ import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {type BaseStateSchema} from '../../../data/schema/model/remote/state/base-state-schema.js';
 import {type LocalConfigRuntimeState} from '../../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
+import {type ChartManager} from '../../chart-manager.js';
 import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
 import {type ComponentId, type Context} from '../../../types/index.js';
 import {type K8Factory} from '../../../integration/kube/k8-factory.js';
+import * as constants from '../../constants.js';
 
 /**
  * Static class is used to validate that components in the remote config
@@ -25,9 +27,11 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
   public constructor(
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
+    @inject(InjectTokens.ChartManager) private readonly chartManager?: ChartManager,
   ) {
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
+    this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
   }
 
   private static consensusNodeSkipConditionCallback(nodeComponent: ConsensusNodeStateSchema): boolean {
@@ -43,11 +47,13 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       getLabelsCallback: (id: ComponentId, useLegacyReleaseName?: boolean) => string[];
       displayName: string;
       skipCondition?: (component: BaseStateSchema) => boolean;
+      legacyReleaseName?: string;
     }
   > = {
     relayNodes: {
       displayName: 'Relay Nodes',
       getLabelsCallback: Templates.renderRelayLabels,
+      legacyReleaseName: constants.JSON_RPC_RELAY_RELEASE_NAME,
     },
     haProxies: {
       displayName: 'HaProxy',
@@ -56,6 +62,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     mirrorNodes: {
       displayName: 'Mirror Node',
       getLabelsCallback: Templates.renderMirrorNodeLabels,
+      legacyReleaseName: constants.MIRROR_NODE_RELEASE_NAME,
     },
     envoyProxies: {
       displayName: 'Envoy Proxy',
@@ -64,6 +71,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     explorers: {
       displayName: 'Explorer',
       getLabelsCallback: Templates.renderExplorerLabels,
+      legacyReleaseName: constants.EXPLORER_RELEASE_NAME,
     },
     consensusNodes: {
       displayName: 'Consensus Node',
@@ -73,6 +81,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     blockNodes: {
       displayName: 'Block Node',
       getLabelsCallback: Templates.renderBlockNodeLabels,
+      legacyReleaseName: `${constants.BLOCK_NODE_RELEASE_NAME}-0`,
     },
   };
 
@@ -83,8 +92,15 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
   ): Promise<void> {
     const validationPromises: Promise<void>[] = Object.entries(RemoteConfigValidator.componentValidationsMapping)
       .filter(([key]): boolean => key !== 'consensusNodes' || !skipConsensusNodes)
-      .flatMap(([key, {getLabelsCallback, displayName, skipCondition}]): Promise<void>[] =>
-        this.validateComponentGroup(namespace, state[key], getLabelsCallback, displayName, skipCondition),
+      .flatMap(([key, {getLabelsCallback, displayName, skipCondition, legacyReleaseName}]): Promise<void>[] =>
+        this.validateComponentGroup(
+          namespace,
+          state[key],
+          getLabelsCallback,
+          displayName,
+          skipCondition,
+          legacyReleaseName,
+        ),
       );
 
     await Promise.all(validationPromises);
@@ -96,15 +112,28 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     getLabelsCallback: (id: ComponentId, useLegacyReleaseName?: boolean) => string[],
     displayName: string,
     skipCondition?: (component: BaseStateSchema) => boolean,
+    legacyReleaseName?: string,
   ): Promise<void>[] {
     return components.map(async (component): Promise<void> => {
       if (skipCondition?.(component)) {
         return;
       }
 
-      const useLegacyReleaseName: boolean = component.metadata.id <= 1;
-
       const context: Context = this.localConfig.configuration.clusterRefs.get(component.metadata.cluster)?.toString();
+
+      let useLegacyReleaseName: boolean = false;
+      if (legacyReleaseName && component.metadata.id <= 1) {
+        const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
+          namespace,
+          legacyReleaseName,
+          context,
+        );
+
+        if (isLegacyChartInstalled) {
+          useLegacyReleaseName = true;
+        }
+      }
+
       const labels: string[] = getLabelsCallback(component.metadata.id, useLegacyReleaseName);
 
       try {
@@ -114,7 +143,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
           throw new Error('Pod not found'); // to return the generic error message
         }
       } catch (error) {
-        throw RemoteConfigValidator.buildValidationError(displayName, component, error);
+        throw RemoteConfigValidator.buildValidationError(displayName, component, error, labels);
       }
     });
   }
@@ -125,20 +154,27 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
    * @param displayName - name to display in error message
    * @param component - component which is not found in the cluster
    * @param error - original error for the kube client
+   * @param labels - labels used to query
    */
   private static buildValidationError(
     displayName: string,
     component: BaseStateSchema,
     error: Error | unknown,
+    labels: string[],
   ): SoloError {
-    return new SoloError(RemoteConfigValidator.buildValidationErrorMessage(displayName, component), error, component);
+    return new SoloError(
+      RemoteConfigValidator.buildValidationErrorMessage(displayName, component, labels),
+      error,
+      component,
+    );
   }
 
-  public static buildValidationErrorMessage(displayName: string, component: BaseStateSchema): string {
+  public static buildValidationErrorMessage(displayName: string, component: BaseStateSchema, labels: string[]): string {
     return (
       `${displayName} in remote config with id ${component.metadata.id} was not found in ` +
       `namespace: ${component.metadata.namespace}, ` +
-      `cluster: ${component.metadata.cluster}`
+      `cluster: ${component.metadata.cluster}, ` +
+      `labels: ${labels}`
     );
   }
 }

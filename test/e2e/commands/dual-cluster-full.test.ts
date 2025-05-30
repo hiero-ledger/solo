@@ -460,7 +460,13 @@ async function verifyMirrorNodeDeployWasSuccessful(
 ): Promise<void> {
   const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
   const k8: K8 = k8Factory.getK8(contexts[1]);
-  const mirrorNodeRestPods: Pod[] = await k8.pods().list(namespace, Templates.renderMirrorNodeLabels(1));
+  const mirrorNodeRestPods: Pod[] = await k8
+    .pods()
+    .list(namespace, [
+      `app.kubernetes.io/instance=mirror-${1}`,
+      'app.kubernetes.io/name=rest',
+      'app.kubernetes.io/component=rest',
+    ]);
   expect(mirrorNodeRestPods).to.have.lengthOf(1);
 
   let portForwarder: ExtendedNetServer;
