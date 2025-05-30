@@ -288,21 +288,13 @@ export class ExplorerCommand extends BaseCommand {
             context_.config.releaseName = this.getReleaseName();
             context_.config.ingressReleaseName = this.getIngressReleaseName();
 
-            if (!context_.config.id) {
+            if (typeof context_.config.id !== 'number') {
               for (const component of this.remoteConfig.configuration.components.state.mirrorNodes) {
                 if (component.metadata.id) {
                   context_.config.id = component.metadata.id;
                   break;
                 }
               }
-            }
-
-            const mirrorNodeIsFound: boolean = this.remoteConfig.configuration.components.state.mirrorNodes.some(
-              (node): boolean => node.metadata.id === context_.config.id,
-            );
-
-            if (!mirrorNodeIsFound) {
-              throw new SoloError('No mirror node found in remote config');
             }
 
             context_.config.newExplorerComponent = this.componentFactory.createNewExplorerComponent(
