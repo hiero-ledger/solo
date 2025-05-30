@@ -15,7 +15,6 @@ import {HEDERA_PLATFORM_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterReference, type ComponentId, type NamespaceNameAsString} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
-import {JSON_RPC_RELAY_RELEASE_NAME} from './constants.js';
 
 export class Templates {
   public static renderNetworkPodName(nodeAlias: NodeAlias): PodName {
