@@ -372,7 +372,7 @@ export class ExplorerCommand extends BaseCommand {
               NamespaceName.of(constants.CERT_MANAGER_NAME_SPACE),
               constants.SOLO_CERT_MANAGER_CHART,
               constants.SOLO_CERT_MANAGER_CHART,
-              context_.config.chartDirectory ?? constants.SOLO_TESTING_CHART_URL,
+              context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
               soloChartVersion,
               soloCertManagerValuesArgument,
               context_.config.clusterContext,

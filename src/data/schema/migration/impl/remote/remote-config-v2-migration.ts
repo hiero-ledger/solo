@@ -8,9 +8,10 @@ import {IllegalArgumentError} from '../../../../../business/errors/illegal-argum
 import {type RemoteConfigStructure} from '../../../model/remote/interfaces/remote-config-structure.js';
 import {ComponentIdsShema} from '../../../model/remote/state/component-ids-shema.js';
 import {type DeploymentStateStructure} from '../../../model/remote/interfaces/deployment-state-structure.js';
-import {type NodeAliases, type NodeId} from '../../../../../types/aliases.js';
+import {NodeAlias, type NodeAliases, type NodeId} from '../../../../../types/aliases.js';
 import {Templates} from '../../../../../core/templates.js';
 import {type BaseStateSchema} from '../../../model/remote/state/base-state-schema.js';
+import {RelayNodeStateSchema} from '../../../model/remote/state/relay-node-state-schema.js';
 
 export class RemoteConfigV2Migration implements SchemaMigration {
   public get range(): VersionRange<number> {
@@ -57,6 +58,20 @@ export class RemoteConfigV2Migration implements SchemaMigration {
     incrementComponentIds(clone.state.haProxies);
     incrementComponentIds(clone.state.blockNodes);
     incrementComponentIds(clone.state.relayNodes);
+
+    for (const component of clone.state.relayNodes) {
+      if ((component as any)?.metadata?.consensusNodeAliases) {
+        if (typeof (component as any)?.metadata?.consensusNodeAliases?.[0] === 'string') {
+          (component as RelayNodeStateSchema).consensusNodeIds = (component as any).metadata.consensusNodeAliases.map(
+            (nodeAlias: NodeAlias): NodeId => Templates.nodeIdFromNodeAlias(nodeAlias),
+          );
+        } else if (typeof (component as any)?.metadata?.consensusNodeAliases?.[0] === 'number') {
+          (component as RelayNodeStateSchema).consensusNodeIds = (component as any).metadata.consensusNodeAliases;
+        }
+
+        delete (component as any).metadata.consensusNodeAliases;
+      }
+    }
 
     // Set the schema version to the new version
     clone.schemaVersion = this.version.value;
