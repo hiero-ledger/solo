@@ -62,6 +62,7 @@ interface ExplorerDeployConfigClass {
   releaseName: string;
   ingressReleaseName: string;
   id: ComponentId; // Mirror node id
+  useLegacyReleaseName: boolean;
   newExplorerComponent: ExplorerStateSchema;
 }
 
@@ -79,6 +80,7 @@ interface ExplorerDestroyContext {
     id: ComponentId;
     releaseName: string;
     ingressReleaseName: string;
+    useLegacyReleaseName: boolean;
   };
 }
 
@@ -152,11 +154,26 @@ export class ExplorerCommand extends BaseCommand {
     }
     valuesArgument += ` --set fullnameOverride=${config.releaseName}`;
 
+    let useLegacyReleaseName: boolean = false;
+    if (config.id === 1) {
+      const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
+        config.namespace,
+        constants.MIRROR_NODE_RELEASE_NAME,
+        config.clusterContext,
+      );
+
+      useLegacyReleaseName = !!isLegacyChartInstalled;
+    }
+
+    const mirrorNodeReleaseName: string = useLegacyReleaseName
+      ? constants.MIRROR_NODE_RELEASE_NAME
+      : `${constants.MIRROR_NODE_RELEASE_NAME}-${config.id}`;
+
     if (config.mirrorNamespace) {
       // use fully qualified service name for mirror node since the explorer is in a different namespace
-      valuesArgument += ` --set proxyPass./api="http://${constants.MIRROR_NODE_RELEASE_NAME}-${config.id}-rest.${config.mirrorNamespace}.svc.cluster.local" `;
+      valuesArgument += ` --set proxyPass./api="http://${mirrorNodeReleaseName}-rest.${config.mirrorNamespace}.svc.cluster.local" `;
     } else {
-      valuesArgument += ` --set proxyPass./api="http://${constants.MIRROR_NODE_RELEASE_NAME}-${config.id}-rest" `;
+      valuesArgument += ` --set proxyPass./api="http://${mirrorNodeReleaseName}-rest" `;
     }
 
     if (config.domainName) {
@@ -372,7 +389,6 @@ export class ExplorerCommand extends BaseCommand {
           },
           skip: (context_): boolean => !context_.config.enableExplorerTls,
         },
-
         {
           title: 'Install explorer',
           task: async (context_): Promise<void> => {
@@ -537,7 +553,22 @@ export class ExplorerCommand extends BaseCommand {
               releaseName,
               ingressReleaseName,
               isChartInstalled: await this.chartManager.isChartInstalled(namespace, releaseName, clusterContext),
+              useLegacyReleaseName: false,
             };
+
+            if (id === 1) {
+              const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
+                context_.config.namespace,
+                constants.MIRROR_NODE_RELEASE_NAME,
+                context_.config.clusterContext,
+              );
+
+              if (isLegacyChartInstalled) {
+                context_.config.useLegacyReleaseName = true;
+                context_.config.releaseName = constants.EXPLORER_RELEASE_NAME;
+                context_.config.ingressReleaseName = constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME;
+              }
+            }
 
             if (!(await this.k8Factory.getK8(context_.config.clusterContext).namespaces().has(namespace))) {
               throw new SoloError(`namespace ${namespace.name} does not exist`);

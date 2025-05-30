@@ -102,6 +102,7 @@ interface MirrorNodeDestroyContext {
     id: ComponentId;
     releaseName: string;
     ingressReleaseName: string;
+    useLegacyReleaseName: boolean;
   };
 }
 
@@ -824,7 +825,22 @@ export class MirrorNodeCommand extends BaseCommand {
               isChartInstalled: false,
               releaseName: this.getReleaseName(id),
               ingressReleaseName: this.getIngressReleaseName(id),
+              useLegacyReleaseName: false,
             };
+
+            if (id === 1) {
+              const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
+                context_.config.namespace,
+                constants.MIRROR_NODE_RELEASE_NAME,
+                context_.config.clusterContext,
+              );
+
+              if (isLegacyChartInstalled) {
+                context_.config.useLegacyReleaseName = true;
+                context_.config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
+                context_.config.ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
+              }
+            }
 
             context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
               namespace,
