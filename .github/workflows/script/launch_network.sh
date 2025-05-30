@@ -81,7 +81,7 @@ npm run solo-test -- explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster
 kubectl delete statefulset network-node1 network-node2 --cascade=orphan -n "${SOLO_NAMESPACE}"
 npm run solo-test -- network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}"
 npm run solo-test -- node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}"
-npm run solo-test -- node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
+npm run solo-test -- node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 
 
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/haproxy-node1-svc 50211:50211 > /dev/null 2>&1 &
