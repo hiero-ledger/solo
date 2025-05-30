@@ -128,7 +128,9 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       let useLegacyReleaseName: boolean = false;
       if (legacyReleaseName && component.metadata.id <= 1) {
         if (key === 'relayNodes') {
-          const nodeAliases: NodeAliases = (component as RelayNodeStateSchema).consensusNodeIds.map(
+          console.log(component);
+
+          const nodeAliases: NodeAliases = (component as RelayNodeStateSchema)?.consensusNodeIds.map(
             (nodeId): NodeAlias => Templates.renderNodeAliasFromNumber(nodeId + 1),
           );
 
