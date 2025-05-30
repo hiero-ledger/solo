@@ -77,6 +77,7 @@ import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 
 export interface NetworkDeployConfigClass {
+  isUpgrade: boolean;
   applicationEnv: string;
   cacheDir: string;
   chartDirectory: string;
@@ -540,6 +541,8 @@ export class NetworkCommand extends BaseCommand {
     for (const clusterReference of clusterReferences) {
       valuesArguments[clusterReference] +=
         ` --set "telemetry.prometheus.svcMonitor.enabled=${config.enablePrometheusSvcMonitor}"` +
+        ' --set "defaults.volumeClaims.node.eventStreams=400Gi"' +
+        ' --set "defaults.volumeClaims.node.recordStreams=400Gi"' +
         ` --set "defaults.volumeClaims.enabled=${config.persistentVolumeClaims}"`;
     }
 
@@ -948,27 +951,27 @@ export class NetworkCommand extends BaseCommand {
           task: async (context_): Promise<void> => {
             const config: NetworkDeployConfigClass = context_.config;
             for (const [clusterReference] of config.clusterRefs) {
-              if (
-                await this.chartManager.isChartInstalled(
-                  config.namespace,
-                  constants.SOLO_DEPLOYMENT_CHART,
-                  config.clusterRefs.get(clusterReference),
-                )
-              ) {
+              const isInstalled: boolean = await this.chartManager.isChartInstalled(
+                config.namespace,
+                constants.SOLO_DEPLOYMENT_CHART,
+                config.clusterRefs.get(clusterReference),
+              );
+              if (isInstalled) {
                 await this.chartManager.uninstall(
                   config.namespace,
                   constants.SOLO_DEPLOYMENT_CHART,
                   config.clusterRefs.get(clusterReference),
                 );
+                config.isUpgrade = true;
               }
 
-              await this.chartManager.install(
+              await this.chartManager.upgrade(
                 config.namespace,
                 constants.SOLO_DEPLOYMENT_CHART,
                 constants.SOLO_DEPLOYMENT_CHART,
                 context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
                 config.soloChartVersion,
-                config.valuesArgMap[clusterReference],
+                config.valuesArgMap[clusterReference] + ' --install ',
                 config.clusterRefs.get(clusterReference),
               );
               showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
@@ -1398,15 +1401,20 @@ export class NetworkCommand extends BaseCommand {
 
           this.remoteConfig.configuration.components.changeNodePhase(nodeId, DeploymentPhase.REQUESTED);
 
-          this.remoteConfig.configuration.components.addNewComponent(
-            this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
-            ComponentTypes.EnvoyProxy,
-          );
+          if (context_.config.isUpgrade) {
+            this.logger.info('Do not add envoy and haproxy components during upgrade');
+          } else {
+            // do not add new envoy or haproxy components if they already exist
+            this.remoteConfig.configuration.components.addNewComponent(
+              this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
+              ComponentTypes.EnvoyProxy,
+            );
 
-          this.remoteConfig.configuration.components.addNewComponent(
-            this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),
-            ComponentTypes.HaProxy,
-          );
+            this.remoteConfig.configuration.components.addNewComponent(
+              this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),
+              ComponentTypes.HaProxy,
+            );
+          }
         }
 
         await this.remoteConfig.persist();
