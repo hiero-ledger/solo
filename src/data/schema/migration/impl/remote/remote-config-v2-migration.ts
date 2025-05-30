@@ -8,9 +8,9 @@ import {IllegalArgumentError} from '../../../../../business/errors/illegal-argum
 import {type RemoteConfigStructure} from '../../../model/remote/interfaces/remote-config-structure.js';
 import {ComponentIdsShema} from '../../../model/remote/state/component-ids-shema.js';
 import {type DeploymentStateStructure} from '../../../model/remote/interfaces/deployment-state-structure.js';
-import {NodeAliases, NodeId} from '../../../../../types/aliases.js';
+import {type NodeAliases, type NodeId} from '../../../../../types/aliases.js';
 import {Templates} from '../../../../../core/templates.js';
-import {BaseStateSchema} from '../../../model/remote/state/base-state-schema.js';
+import {type BaseStateSchema} from '../../../model/remote/state/base-state-schema.js';
 
 export class RemoteConfigV2Migration implements SchemaMigration {
   public get range(): VersionRange<number> {
@@ -65,7 +65,6 @@ export class RemoteConfigV2Migration implements SchemaMigration {
     incrementComponentIds(clone.state.haProxies);
     incrementComponentIds(clone.state.blockNodes);
     incrementComponentIds(clone.state.relayNodes);
-
 
     // Set the schema version to the new version
     clone.schemaVersion = this.version.value;
