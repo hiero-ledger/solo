@@ -403,7 +403,7 @@ export class MirrorNodeCommand extends BaseCommand {
             );
 
             context_.config.newMirrorNodeComponent = this.componentFactory.createNewMirrorNodeComponent(
-              context_.config.clusterContext,
+              context_.config.clusterRef,
               context_.config.namespace,
             );
 

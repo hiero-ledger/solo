@@ -40,6 +40,10 @@ export class RemoteConfigV2Migration implements SchemaMigration {
 
     clone.state.componentIds = componentIds;
 
+    for (const component of clone.state.consensusNodes) {
+      component.metadata.id += 1;
+    }
+
     // Set the schema version to the new version
     clone.schemaVersion = this.version.value;
 
