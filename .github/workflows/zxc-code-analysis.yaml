@@ -132,7 +132,9 @@ jobs:
         env:
           CODACY_PROJECT_TOKEN: ${{ secrets.codacy-project-token }}
         if: ${{ inputs.enable-codacy-coverage && !cancelled() && !failure() }}
-        run: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l Javascript $(for file in $(find . -name 'lcov.info'); do; printf '-r "%s" ' "$(readlink -f "$file")"; done)
+        run: |
+              CODACY_PARAMS=$(for file in $(find . -name 'lcov.info'); do; printf '-r "%s" ' "$(readlink -f "$file")"; done)
+              bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l Javascript ${CODACY_PARAMS}
 
       - name: Setup Snyk
         env:
