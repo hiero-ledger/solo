@@ -8,6 +8,9 @@ import {IllegalArgumentError} from '../../../../../business/errors/illegal-argum
 import {type RemoteConfigStructure} from '../../../model/remote/interfaces/remote-config-structure.js';
 import {ComponentIdsShema} from '../../../model/remote/state/component-ids-shema.js';
 import {type DeploymentStateStructure} from '../../../model/remote/interfaces/deployment-state-structure.js';
+import {NodeAliases, NodeId} from '../../../../../types/aliases.js';
+import {Templates} from '../../../../../core/templates.js';
+import {BaseStateSchema} from '../../../model/remote/state/base-state-schema.js';
 
 export class RemoteConfigV2Migration implements SchemaMigration {
   public get range(): VersionRange<number> {
@@ -30,19 +33,39 @@ export class RemoteConfigV2Migration implements SchemaMigration {
 
     const componentIds: ComponentIdsShema = new ComponentIdsShema();
 
-    componentIds.consensusNodes = state?.consensusNodes?.length + 1 || 1;
-    componentIds.envoyProxies = state?.envoyProxies?.length + 1 || 1;
-    componentIds.mirrorNodes = state?.mirrorNodes?.length + 1 || 1;
-    componentIds.explorers = state?.explorers?.length + 1 || 1;
-    componentIds.haProxies = state?.haProxies?.length + 1 || 1;
-    componentIds.blockNodes = state?.blockNodes?.length + 1 || 1;
-    componentIds.relayNodes = state?.relayNodes?.length + 1 || 1;
+    componentIds.consensusNodes = (state?.consensusNodes?.length || 0) + 1;
+    componentIds.envoyProxies = (state?.envoyProxies?.length || 0) + 1;
+    componentIds.mirrorNodes = (state?.mirrorNodes?.length || 0) + 1;
+    componentIds.explorers = (state?.explorers?.length || 0) + 1;
+    componentIds.haProxies = (state?.haProxies?.length || 0) + 1;
+    componentIds.blockNodes = (state?.blockNodes?.length || 0) + 1;
+    componentIds.relayNodes = (state?.relayNodes?.length || 0) + 1;
 
     clone.state.componentIds = componentIds;
 
-    for (const component of clone.state.consensusNodes) {
-      component.metadata.id += 1;
+    for (const component of clone.state.relayNodes) {
+      component.consensusNodeIds = (
+        component as unknown as {consensusNodeAliases: NodeAliases}
+      ).consensusNodeAliases.map((nodeAlias): NodeId => Templates.nodeIdFromNodeAlias(nodeAlias));
+
+      delete (component as unknown as {consensusNodeAliases: NodeAliases}).consensusNodeAliases;
     }
+
+    // eslint-disable-next-line unicorn/consistent-function-scoping
+    function incrementComponentIds(components: BaseStateSchema[]): void {
+      for (const component of components) {
+        component.metadata.id++;
+      }
+    }
+
+    incrementComponentIds(clone.state.consensusNodes);
+    incrementComponentIds(clone.state.envoyProxies);
+    incrementComponentIds(clone.state.mirrorNodes);
+    incrementComponentIds(clone.state.explorers);
+    incrementComponentIds(clone.state.haProxies);
+    incrementComponentIds(clone.state.blockNodes);
+    incrementComponentIds(clone.state.relayNodes);
+
 
     // Set the schema version to the new version
     clone.schemaVersion = this.version.value;

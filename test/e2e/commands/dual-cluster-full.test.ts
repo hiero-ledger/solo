@@ -576,7 +576,7 @@ async function verifyExplorerDeployWasSuccessful(
 ): Promise<void> {
   const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
   const k8: K8 = k8Factory.getK8(contexts[1]);
-  const explorerPods: Pod[] = await k8.pods().list(namespace, Templates.renderExplorerLabels(0));
+  const explorerPods: Pod[] = await k8.pods().list(namespace, Templates.renderExplorerLabels(1));
   expect(explorerPods).to.have.lengthOf(1);
   let portForwarder: ExtendedNetServer;
   try {

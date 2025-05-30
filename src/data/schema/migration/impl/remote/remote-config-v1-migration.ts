@@ -173,7 +173,7 @@ export class RemoteConfigV1Migration implements SchemaMigration {
 
         clone.state.haProxies.push({
           metadata: {
-            id: Templates.renderComponentIdFromNodeAlias(<NodeAlias>component.name),
+            id: Templates.nodeIdFromNodeAlias(<NodeAlias>component.name),
             // name: component.name,
             namespace: component.namespace,
             cluster: component.cluster,
@@ -194,7 +194,7 @@ export class RemoteConfigV1Migration implements SchemaMigration {
 
         clone.state.envoyProxies.push({
           metadata: {
-            id: Templates.renderComponentIdFromNodeAlias(<NodeAlias>component.name),
+            id: Templates.nodeIdFromNodeAlias(<NodeAlias>component.name),
             // name: component.name,
             namespace: component.namespace,
             cluster: component.cluster,
@@ -217,7 +217,7 @@ export class RemoteConfigV1Migration implements SchemaMigration {
         clone.state.explorers.push({
           version: hederaExplorerChartVersion,
           metadata: {
-            id: 1,
+            id: 0,
             // name: component.name,
             namespace: component.namespace,
             cluster: component.cluster,
@@ -239,7 +239,7 @@ export class RemoteConfigV1Migration implements SchemaMigration {
 
         clone.state.mirrorNodes.push({
           metadata: {
-            id: 1,
+            id: 0,
             // name: component.name,
             namespace: component.namespace,
             cluster: component.cluster,
@@ -262,7 +262,7 @@ export class RemoteConfigV1Migration implements SchemaMigration {
         clone.state.relayNodes.push({
           metadata: {
             consensusNodeIds: component.consensusNodeAliases,
-            id: 1,
+            id: 0,
             // name: component.name,
             namespace: component.namespace,
             cluster: component.cluster,
@@ -283,7 +283,7 @@ export class RemoteConfigV1Migration implements SchemaMigration {
 
         clone.state.blockNodes.push({
           metadata: {
-            id: Templates.renderComponentIdFromNodeAlias(<NodeAlias>component.name),
+            id: Templates.nodeIdFromNodeAlias(<NodeAlias>component.name),
             // name: component.name,
             namespace: component.namespace,
             cluster: component.cluster,
