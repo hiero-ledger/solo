@@ -44,11 +44,9 @@ export class RemoteConfigV2Migration implements SchemaMigration {
     clone.state.componentIds = componentIds;
 
     for (const component of clone.state.relayNodes) {
-      console.log(component);
-
       component.consensusNodeIds = (
-        component as unknown as {consensusNodeAliases: NodeAliases}
-      ).consensusNodeAliases.map((nodeAlias): NodeId => Templates.nodeIdFromNodeAlias(nodeAlias));
+        component as unknown as {metadata: {consensusNodeAliases: NodeAliases}}
+      ).metadata.consensusNodeAliases.map((nodeAlias): NodeId => Templates.nodeIdFromNodeAlias(nodeAlias));
 
       delete (component as unknown as {consensusNodeAliases: NodeAliases}).consensusNodeAliases;
     }
