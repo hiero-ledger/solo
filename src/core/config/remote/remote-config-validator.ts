@@ -40,7 +40,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
   private static componentValidationsMapping: Record<
     string,
     {
-      getLabelsCallback: (id: ComponentId) => string[];
+      getLabelsCallback: (id: ComponentId, useLegacyReleaseName?: boolean) => string[];
       displayName: string;
       skipCondition?: (component: BaseStateSchema) => boolean;
     }
@@ -93,7 +93,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
   private validateComponentGroup(
     namespace: NamespaceName,
     components: BaseStateSchema[],
-    getLabelsCallback: (id: ComponentId) => string[],
+    getLabelsCallback: (id: ComponentId, useLegacyReleaseName?: boolean) => string[],
     displayName: string,
     skipCondition?: (component: BaseStateSchema) => boolean,
   ): Promise<void>[] {
@@ -102,8 +102,10 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
         return;
       }
 
+      const useLegacyReleaseName: boolean = component.metadata.id <= 1;
+
       const context: Context = this.localConfig.configuration.clusterRefs.get(component.metadata.cluster)?.toString();
-      const labels: string[] = getLabelsCallback(component.metadata.id);
+      const labels: string[] = getLabelsCallback(component.metadata.id, useLegacyReleaseName);
 
       try {
         const pods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);

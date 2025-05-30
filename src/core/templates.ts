@@ -15,6 +15,7 @@ import {HEDERA_PLATFORM_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterReference, type ComponentId, type NamespaceNameAsString} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {JSON_RPC_RELAY_RELEASE_NAME} from './constants.js';
 
 export class Templates {
   public static renderNetworkPodName(nodeAlias: NodeAlias): PodName {
@@ -335,8 +336,12 @@ export class Templates {
 
   // Component Label Selectors
 
-  public static renderRelayLabels(id: ComponentId): string[] {
-    return [`app.kubernetes.io/name=relay-${id}`];
+  public static renderRelayLabels(id: ComponentId, useLegacyReleaseName: boolean = false): string[] {
+    const releaseName: string = useLegacyReleaseName
+      ? constants.JSON_RPC_RELAY_RELEASE_NAME
+      : `${constants.JSON_RPC_RELAY_RELEASE_NAME}-${id}`;
+
+    return [`app.kubernetes.io/name=${releaseName}`];
   }
 
   public static renderHaProxyLabels(id: ComponentId): string[] {
@@ -344,11 +349,15 @@ export class Templates {
     return [`app=haproxy-${nodeAlias}`, 'solo.hedera.com/type=haproxy'];
   }
 
-  public static renderMirrorNodeLabels(id: ComponentId): string[] {
+  public static renderMirrorNodeLabels(id: ComponentId, useLegacyReleaseName: boolean = false): string[] {
+    const releaseName: string = useLegacyReleaseName
+      ? constants.MIRROR_NODE_RELEASE_NAME
+      : `${constants.MIRROR_NODE_RELEASE_NAME}-${id}`;
+
     return [
       'app.kubernetes.io/name=importer',
       'app.kubernetes.io/component=importer',
-      `app.kubernetes.io/instance=${constants.MIRROR_NODE_RELEASE_NAME}-${id}`,
+      `app.kubernetes.io/instance=${releaseName}`,
     ];
   }
 
@@ -357,15 +366,23 @@ export class Templates {
     return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=envoy-proxy'];
   }
 
-  public static renderExplorerLabels(id: ComponentId): string[] {
-    return [`app.kubernetes.io/instance=${constants.EXPLORER_RELEASE_NAME}-${id}`];
+  public static renderExplorerLabels(id: ComponentId, useLegacyReleaseName: boolean = false): string[] {
+    const releaseName: string = useLegacyReleaseName
+      ? constants.EXPLORER_RELEASE_NAME
+      : `${constants.EXPLORER_RELEASE_NAME}-${id}`;
+
+    return [`app.kubernetes.io/instance=${releaseName}`];
   }
 
   public static renderConsensusNodeLabels(id: ComponentId): string[] {
     return [`app=network-${Templates.renderNodeAliasFromNumber(id)}`];
   }
 
-  public static renderBlockNodeLabels(id: ComponentId): string[] {
-    return [`app.kubernetes.io/name=${constants.BLOCK_NODE_RELEASE_NAME}-${id}`];
+  public static renderBlockNodeLabels(id: ComponentId, useLegacyReleaseName: boolean = false): string[] {
+    const releaseName: string = useLegacyReleaseName
+      ? `${constants.BLOCK_NODE_RELEASE_NAME}-0`
+      : `${constants.BLOCK_NODE_RELEASE_NAME}-${id}`;
+
+    return [`app.kubernetes.io/name=${releaseName}`];
   }
 }
