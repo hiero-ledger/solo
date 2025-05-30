@@ -83,19 +83,12 @@ jobs:
     name: ${{ inputs.custom-job-label || 'Analyze' }}
     runs-on: hiero-solo-linux-medium
     steps:
-      - name: Download Unit Test Coverage Report
+      - name: Download All Unit Test Coverage Reports
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && !cancelled() && !failure() }}
         with:
-          name: Unit Test Coverage Report
+          pattern: "Unit*"
           path: 'coverage/unit'
-
-      - name: Download HelmClient Unit Test Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && !cancelled() && !failure() }}
-        with:
-          name: HelmClient Unit Test Coverage Report
-          path: 'coverage/unit-helm'
 
       - name: Download All E2E Coverage Report
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -112,7 +105,7 @@ jobs:
           path: "e2e_test_report"
 
       - name: Publish E2E Test Report
-        uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.18.0
+        uses: step-security/publish-unit-test-result-action@b495e9a82021fc8f34737416de688298581b847d # v2.19.0
         if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
         with:
           check_name: "E2E Test Report"
@@ -121,8 +114,8 @@ jobs:
       - name: Show downloaded file directories
         if: ${{ always() }}
         run: |
-          ls -lah coverage || true
-          ls -lah e2e_test_report || true
+          ls -lahR coverage || true
+          ls -lahR e2e_test_report || true
 
       - name: Publish To Codecov
         uses: codecov/codecov-action@5c47607acb93fed5485fdbf7232e8a31425f672a # v5.0.2
@@ -137,7 +130,7 @@ jobs:
         env:
           CODACY_PROJECT_TOKEN: ${{ secrets.codacy-project-token }}
         if: ${{ inputs.enable-codacy-coverage && !cancelled() && !failure() }}
-        run: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l Javascript $(find . -name 'lcov.info' -printf '-r %p ')
+        run: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l Javascript $(find . -name 'lcov.info' -printf '-r "%p" ')
 
       - name: Setup Snyk
         env:
