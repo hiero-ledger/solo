@@ -143,7 +143,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
           throw new Error('Pod not found'); // to return the generic error message
         }
       } catch (error) {
-        throw RemoteConfigValidator.buildValidationError(displayName, component, error, labels);
+        throw RemoteConfigValidator.buildValidationError(displayName, component, error);
       }
     });
   }
@@ -154,27 +154,20 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
    * @param displayName - name to display in error message
    * @param component - component which is not found in the cluster
    * @param error - original error for the kube client
-   * @param labels - labels used to query
    */
   private static buildValidationError(
     displayName: string,
     component: BaseStateSchema,
     error: Error | unknown,
-    labels: string[],
   ): SoloError {
-    return new SoloError(
-      RemoteConfigValidator.buildValidationErrorMessage(displayName, component, labels),
-      error,
-      component,
-    );
+    return new SoloError(RemoteConfigValidator.buildValidationErrorMessage(displayName, component), error, component);
   }
 
-  public static buildValidationErrorMessage(displayName: string, component: BaseStateSchema, labels: string[]): string {
+  public static buildValidationErrorMessage(displayName: string, component: BaseStateSchema): string {
     return (
       `${displayName} in remote config with id ${component.metadata.id} was not found in ` +
       `namespace: ${component.metadata.namespace}, ` +
-      `cluster: ${component.metadata.cluster}, ` +
-      `labels: ${labels}`
+      `cluster: ${component.metadata.cluster}, `
     );
   }
 }

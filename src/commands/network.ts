@@ -530,9 +530,9 @@ export class NetworkCommand extends BaseCommand {
     }
 
     if (config.awsBucketRegion) {
-        for (const clusterReference of clusterReferences) {
-            valuesArguments[clusterReference] += ` --set cloud.buckets.streamBucketRegion=${config.awsBucketRegion}`;
-        }
+      for (const clusterReference of clusterReferences) {
+        valuesArguments[clusterReference] += ` --set cloud.buckets.streamBucketRegion=${config.awsBucketRegion}`;
+      }
     }
 
     if (config.backupBucket) {
