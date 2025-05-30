@@ -60,16 +60,16 @@ export class RemoteConfigV2Migration implements SchemaMigration {
     incrementComponentIds(clone.state.relayNodes);
 
     for (const component of clone.state.relayNodes) {
-      if ((component as any)?.metadata?.consensusNodeAliases) {
-        if (typeof (component as any)?.metadata?.consensusNodeAliases?.[0] === 'string') {
-          (component as RelayNodeStateSchema).consensusNodeIds = (component as any).metadata.consensusNodeAliases.map(
+      if ((component as any)?.metadata?.consensusNodeIds) {
+        if (typeof (component as any)?.metadata?.consensusNodeIds?.[0] === 'string') {
+          (component as RelayNodeStateSchema).consensusNodeIds = (component as any).metadata.consensusNodeIds.map(
             (nodeAlias: NodeAlias): NodeId => Templates.nodeIdFromNodeAlias(nodeAlias),
           );
-        } else if (typeof (component as any)?.metadata?.consensusNodeAliases?.[0] === 'number') {
-          (component as RelayNodeStateSchema).consensusNodeIds = (component as any).metadata.consensusNodeAliases;
+        } else if (typeof (component as any)?.metadata?.consensusNodeIds?.[0] === 'number') {
+          (component as RelayNodeStateSchema).consensusNodeIds = (component as any).metadata.consensusNodeIds;
         }
 
-        delete (component as any).metadata.consensusNodeAliases;
+        delete (component as any).metadata.consensusNodeIds;
       }
     }
 
