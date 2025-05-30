@@ -43,14 +43,6 @@ export class RemoteConfigV2Migration implements SchemaMigration {
 
     clone.state.componentIds = componentIds;
 
-    for (const component of clone.state.relayNodes) {
-      component.consensusNodeIds = (
-        component as unknown as {metadata: {consensusNodeAliases: NodeAliases}}
-      ).metadata.consensusNodeAliases.map((nodeAlias): NodeId => Templates.nodeIdFromNodeAlias(nodeAlias));
-
-      delete (component as unknown as {consensusNodeAliases: NodeAliases}).consensusNodeAliases;
-    }
-
     // eslint-disable-next-line unicorn/consistent-function-scoping
     function incrementComponentIds(components: BaseStateSchema[]): void {
       for (const component of components) {
