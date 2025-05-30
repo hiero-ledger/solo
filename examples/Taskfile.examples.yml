@@ -48,14 +48,14 @@ tasks:
       - task: "solo:deployment:create"
       - task: "solo:deployment:add-cluster"
       - task: "solo:keys"
-      - task: "solo:block:add"
+      # - task: "solo:block:add" wait until the consensus version is bumped up to v0.62.0
       - task: "solo:network:deploy"
 
   destroy:
     deps:
       - task: "init"
     cmds:
-      - task: "solo:network:destroy"
+      # - task: "solo:network:destroy" wait until the consensus version is bumped up to v0.62.0
       - task: "solo:block:destroy"
 
   build:
