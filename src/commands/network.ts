@@ -30,7 +30,6 @@ import {
   type IP,
   type NodeAlias,
   type NodeAliases,
-  type NodeId,
 } from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {v4 as uuidv4} from 'uuid';
@@ -47,6 +46,7 @@ import {
   type SoloListr,
   type SoloListrTask,
   type SoloListrTaskWrapper,
+  type ComponentId,
 } from '../types/index.js';
 import {Base64} from 'js-base64';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
@@ -67,7 +67,6 @@ import {ContainerReference} from '../integration/kube/resources/container/contai
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {Deployment} from '../business/runtime-state/config/local/deployment.js';
-import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
@@ -160,7 +159,6 @@ export class NetworkCommand extends BaseCommand {
     @inject(InjectTokens.KeyManager) private readonly keyManager: KeyManager,
     @inject(InjectTokens.PlatformInstaller) private readonly platformInstaller: PlatformInstaller,
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
-    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
   ) {
     super();
 
@@ -532,9 +530,9 @@ export class NetworkCommand extends BaseCommand {
     }
 
     if (config.awsBucketRegion) {
-        for (const clusterReference of clusterReferences) {
-            valuesArguments[clusterReference] += ` --set cloud.buckets.streamBucketRegion=${config.awsBucketRegion}`;
-        }
+      for (const clusterReference of clusterReferences) {
+        valuesArguments[clusterReference] += ` --set cloud.buckets.streamBucketRegion=${config.awsBucketRegion}`;
+      }
     }
 
     if (config.backupBucket) {
@@ -1181,7 +1179,7 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Copy block-nodes.json',
           skip: (context_): boolean => context_.config.blockNodeComponents.length === 0,
-          task: async (context_, task): Promise<void> => {
+          task: async (context_): Promise<void> => {
             const config: NetworkDeployConfigClass = context_.config;
 
             const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'block-nodes.json');
@@ -1222,6 +1220,7 @@ export class NetworkCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error) {
+      console.error(error);
       throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
     } finally {
       await lease.release();
@@ -1401,10 +1400,10 @@ export class NetworkCommand extends BaseCommand {
         const {namespace} = context_.config;
 
         for (const consensusNode of context_.config.consensusNodes) {
-          const nodeId: NodeId = Templates.nodeIdFromNodeAlias(consensusNode.name);
+          const componentId: ComponentId = Templates.renderComponentIdFromNodeAlias(consensusNode.name);
           const clusterReference: ClusterReference = consensusNode.cluster;
 
-          this.remoteConfig.configuration.components.changeNodePhase(nodeId, DeploymentPhase.REQUESTED);
+          this.remoteConfig.configuration.components.changeNodePhase(componentId, DeploymentPhase.REQUESTED);
 
           this.remoteConfig.configuration.components.addNewComponent(
             this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),

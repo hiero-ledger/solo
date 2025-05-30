@@ -42,7 +42,7 @@ export function createComponentsDataWrapper(): {
   wrapper: {componentsDataWrapper: ComponentsDataWrapperApi};
   componentId: ComponentId;
 } {
-  const id: ComponentId = 0;
+  const id: ComponentId = 1;
   const componentId: ComponentId = id;
 
   const cluster: ClusterReference = 'cluster';
@@ -62,6 +62,7 @@ export function createComponentsDataWrapper(): {
 
   const deploymentState: DeploymentStateSchema = new DeploymentStateSchema(
     LedgerPhase.INITIALIZED,
+    undefined,
     consensusNodes,
     blockNodes,
     mirrorNodes,
@@ -111,7 +112,7 @@ describe('ComponentsDataWrapper', () => {
       wrapper: {componentsDataWrapper},
     } = createComponentsDataWrapper();
 
-    const newComponentId: ComponentId = 1;
+    const newComponentId: ComponentId = 2;
     const {id, cluster, namespace, phase} = {
       id: newComponentId,
       cluster: 'cluster',
@@ -189,7 +190,9 @@ describe('ComponentsDataWrapper', () => {
       componentId,
     );
 
-    expect(mirrorNodes[componentId].metadata.id).to.deep.equal(mirrorNodeComponent.metadata.id);
+    expect(mirrorNodes.find((component): boolean => component.metadata.id === componentId).metadata.id).to.deep.equal(
+      mirrorNodeComponent.metadata.id,
+    );
   });
 
   it("should fail if trying to get component that doesn't exist with .getComponent()", () => {

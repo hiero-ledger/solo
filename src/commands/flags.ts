@@ -728,6 +728,18 @@ export class Flags {
     },
   };
 
+  public static readonly id: CommandFlag = {
+    constName: 'id',
+    name: 'id',
+    definition: {
+      describe: 'ID',
+      type: 'number',
+    },
+    prompt: async function promptChainId(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<number> {
+      return await Flags.prompt('number', task, input, undefined, 'Enter component id: ', null, Flags.id.name);
+    },
+  };
+
   public static readonly chainId: CommandFlag = {
     constName: 'chainId',
     name: 'ledger-id',
@@ -2203,13 +2215,13 @@ export class Flags {
     constName: 'awsBucketRegion',
     name: 'aws-bucket-region',
     definition: {
-        defaultValue: '',
-        describe: 'name of aws bucket region',
-        type: 'string',
-        dataMask: constants.STANDARD_DATAMASK,
+      defaultValue: '',
+      describe: 'name of aws bucket region',
+      type: 'string',
+      dataMask: constants.STANDARD_DATAMASK,
     },
     prompt: undefined,
-    };
+  };
 
   public static readonly awsBucketPrefix: CommandFlag = {
     constName: 'awsBucketPrefix',
@@ -2616,6 +2628,7 @@ export class Flags {
     Flags.realm,
     Flags.shard,
     Flags.username,
+    Flags.id,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

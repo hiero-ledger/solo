@@ -93,6 +93,7 @@ export async function main(argv: string[], context?: {logger: SoloLogger}) {
   rootCmd.wrap(null);
 
   rootCmd.fail((message, error) => {
+    console.error(message, error);
     if (message) {
       if (
         message.includes('Unknown argument') ||

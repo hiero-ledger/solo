@@ -8,9 +8,15 @@ import {type DeploymentPhase} from '../../../data/schema/model/remote/deployment
 import {type ClusterReference, type ComponentId} from '../../../types/index.js';
 import {type ComponentsDataWrapperApi} from './api/components-data-wrapper-api.js';
 import {type DeploymentStateSchema} from '../../../data/schema/model/remote/deployment-state-schema.js';
+import {type ComponentIdsShema} from '../../../data/schema/model/remote/state/component-ids-shema.js';
+import {type ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
 
 export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   public constructor(public state: DeploymentStateSchema) {}
+
+  public get componentIds(): ComponentIdsShema {
+    return this.state.componentIds;
+  }
 
   /* -------- Modifiers -------- */
 
@@ -18,7 +24,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   public addNewComponent(component: BaseStateSchema, type: ComponentTypes): void {
     const componentId: ComponentId = component.metadata.id;
 
-    if (typeof componentId !== 'number' || componentId < 0) {
+    if (typeof componentId !== 'number') {
       throw new SoloError(`Component id is required ${componentId}`);
     }
 
@@ -30,23 +36,30 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
       if (this.checkComponentExists(components, component)) {
         throw new SoloError('Component exists', undefined, component);
       }
-      components[componentId] = component;
+      components.push(component);
     };
 
     this.applyCallbackToComponentGroup(type, addComponentCallback, componentId);
+
+    // Increment the component id counter for the specified type when adding
+    this.componentIds[type] += 1;
   }
 
   public changeNodePhase(componentId: ComponentId, phase: DeploymentPhase): void {
-    if (!this.state.consensusNodes[componentId]) {
+    if (!this.state.consensusNodes.some((component): boolean => +component.metadata.id === +componentId)) {
       throw new SoloError(`Consensus node ${componentId} doesn't exist`);
     }
 
-    this.state.consensusNodes[componentId].metadata.phase = phase;
+    const component: ConsensusNodeStateSchema = this.state.consensusNodes.find(
+      (component): boolean => +component.metadata.id === +componentId,
+    );
+
+    component.metadata.phase = phase;
   }
 
   /** Used to remove specific component from their respective group. */
   public removeComponent(componentId: ComponentId, type: ComponentTypes): void {
-    if (typeof componentId !== 'number' || componentId < 0) {
+    if (typeof componentId !== 'number') {
       throw new SoloError(`Component id is required ${componentId}`);
     }
 
@@ -150,7 +163,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
         break;
       }
 
-      case ComponentTypes.Explorers: {
+      case ComponentTypes.Explorer: {
         callback(this.state.explorers);
         break;
       }
@@ -171,24 +184,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     return components.some((component): boolean => component.metadata.id === newComponent.metadata.id);
   }
 
-  /**
-   * Checks all existing components of specified type and gives you a new unique index
-   */
   public getNewComponentId(componentType: ComponentTypes): number {
-    let newComponentId: number = 0;
-
-    const calculateNewComponentIndexCallback: (components: BaseStateSchema[]) => void = (components): void => {
-      const componentIds: ComponentId[] = components.map((component: BaseStateSchema): number => component.metadata.id);
-
-      for (const componentId of componentIds) {
-        if (newComponentId <= +componentId) {
-          newComponentId = +componentId + 1;
-        }
-      }
-    };
-
-    this.applyCallbackToComponentGroup(componentType, calculateNewComponentIndexCallback);
-
-    return newComponentId;
+    return this.componentIds[componentType];
   }
 }

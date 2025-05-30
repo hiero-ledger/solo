@@ -463,7 +463,7 @@ async function verifyMirrorNodeDeployWasSuccessful(
   const mirrorNodeRestPods: Pod[] = await k8
     .pods()
     .list(namespace, [
-      'app.kubernetes.io/instance=mirror',
+      `app.kubernetes.io/instance=mirror-${1}`,
       'app.kubernetes.io/name=rest',
       'app.kubernetes.io/component=rest',
     ]);
@@ -576,13 +576,7 @@ async function verifyExplorerDeployWasSuccessful(
 ): Promise<void> {
   const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
   const k8: K8 = k8Factory.getK8(contexts[1]);
-  const explorerPods: Pod[] = await k8
-    .pods()
-    .list(namespace, [
-      'app.kubernetes.io/instance=hiero-explorer',
-      'app.kubernetes.io/name=hiero-explorer-chart',
-      'app.kubernetes.io/component=hiero-explorer',
-    ]);
+  const explorerPods: Pod[] = await k8.pods().list(namespace, Templates.renderExplorerLabels(1));
   expect(explorerPods).to.have.lengthOf(1);
   let portForwarder: ExtendedNetServer;
   try {

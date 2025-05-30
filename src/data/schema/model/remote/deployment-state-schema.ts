@@ -10,43 +10,50 @@ import {HAProxyStateSchema} from './state/haproxy-state-schema.js';
 import {EnvoyProxyStateSchema} from './state/envoy-proxy-state-schema.js';
 import {ExplorerStateSchema} from './state/explorer-state-schema.js';
 import {BlockNodeStateSchema} from './state/block-node-state-schema.js';
+import {ComponentIdsShema} from './state/component-ids-shema.js';
+import {DeploymentStateStructure} from './interfaces/deployment-state-structure.js';
 
 @Exclude()
-export class DeploymentStateSchema {
+export class DeploymentStateSchema implements DeploymentStateStructure {
   @Expose()
   @Transform(Transformations.LedgerPhase)
   public ledgerPhase: LedgerPhase;
 
   @Expose()
-  @Type(() => ConsensusNodeStateSchema)
+  @Type((): typeof ComponentIdsShema => ComponentIdsShema)
+  public componentIds: ComponentIdsShema;
+
+  @Expose()
+  @Type((): typeof ConsensusNodeStateSchema => ConsensusNodeStateSchema)
   public consensusNodes: ConsensusNodeStateSchema[];
 
   @Expose()
-  @Type(() => BlockNodeStateSchema)
+  @Type((): typeof BlockNodeStateSchema => BlockNodeStateSchema)
   public blockNodes: BlockNodeStateSchema[];
 
   @Expose()
-  @Type(() => MirrorNodeStateSchema)
+  @Type((): typeof MirrorNodeStateSchema => MirrorNodeStateSchema)
   public mirrorNodes: MirrorNodeStateSchema[];
 
   @Expose()
-  @Type(() => RelayNodeStateSchema)
+  @Type((): typeof RelayNodeStateSchema => RelayNodeStateSchema)
   public relayNodes: RelayNodeStateSchema[];
 
   @Expose()
-  @Type(() => HAProxyStateSchema)
+  @Type((): typeof HAProxyStateSchema => HAProxyStateSchema)
   public haProxies: HAProxyStateSchema[];
 
   @Expose()
-  @Type(() => EnvoyProxyStateSchema)
+  @Type((): typeof EnvoyProxyStateSchema => EnvoyProxyStateSchema)
   public envoyProxies: EnvoyProxyStateSchema[];
 
   @Expose()
-  @Type(() => ExplorerStateSchema)
+  @Type((): typeof ExplorerStateSchema => ExplorerStateSchema)
   public explorers: ExplorerStateSchema[];
 
   public constructor(
     ledgerPhase?: LedgerPhase,
+    componentIds?: ComponentIdsShema,
     consensusNodes?: ConsensusNodeStateSchema[],
     blockNodes?: BlockNodeStateSchema[],
     mirrorNodes?: MirrorNodeStateSchema[],
@@ -56,6 +63,7 @@ export class DeploymentStateSchema {
     explorers?: ExplorerStateSchema[],
   ) {
     this.ledgerPhase = ledgerPhase;
+    this.componentIds = componentIds || new ComponentIdsShema();
     this.consensusNodes = consensusNodes || [];
     this.blockNodes = blockNodes || [];
     this.mirrorNodes = mirrorNodes || [];

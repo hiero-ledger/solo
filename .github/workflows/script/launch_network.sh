@@ -68,8 +68,8 @@ if ! grep -q "schemaVersion: 1" ./remote-config-after.yaml; then
 fi
 
 # uninstall components using current version
-npm run solo-test -- explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
-npm run solo-test -- relay destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
-npm run solo-test -- mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --force
+npm run solo-test -- explorer destroy --id 1 --deployment "${SOLO_DEPLOYMENT}" --force
+npm run solo-test -- relay destroy --id 1 -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+npm run solo-test -- mirror-node destroy --id 1 --deployment "${SOLO_DEPLOYMENT}" --force
 npm run solo-test -- node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 npm run solo-test -- network destroy --deployment "${SOLO_DEPLOYMENT}" --force
