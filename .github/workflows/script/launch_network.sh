@@ -39,7 +39,7 @@ solo deployment create -i node1,node2 -n "${SOLO_NAMESPACE}" --context kind-"${S
 solo network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q
 
 solo node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
-solo node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
+solo node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
 solo mirror-node deploy  --deployment "${SOLO_DEPLOYMENT}"
@@ -79,7 +79,7 @@ npm run solo-test -- explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster
 
 # using new solo to redeploy solo deployment chart to new version
 kubectl delete statefulset network-node1 network-node2 --cascade=orphan -n "${SOLO_NAMESPACE}"
-npm run solo-test -- network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}"
+npm run solo-test -- network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q
 npm run solo-test -- node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
 npm run solo-test -- node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 
