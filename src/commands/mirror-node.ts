@@ -160,7 +160,7 @@ export class MirrorNodeCommand extends BaseCommand {
       valuesArgument += helpers.prepareValuesFiles(profileValuesFile);
     }
 
-    valuesArgument += '--install';
+    valuesArgument += ' --install';
     if (config.valuesFile) {
       valuesArgument += helpers.prepareValuesFiles(config.valuesFile);
     }

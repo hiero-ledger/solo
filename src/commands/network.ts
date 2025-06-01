@@ -540,7 +540,7 @@ export class NetworkCommand extends BaseCommand {
 
     for (const clusterReference of clusterReferences) {
       valuesArguments[clusterReference] +=
-        '--install' +
+        ' --install' +
         ` --set "telemetry.prometheus.svcMonitor.enabled=${config.enablePrometheusSvcMonitor}"` +
         ` --set "defaults.volumeClaims.enabled=${config.persistentVolumeClaims}"`;
     }

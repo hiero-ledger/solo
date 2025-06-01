@@ -209,7 +209,7 @@ export class ExplorerCommand extends BaseCommand {
   }
 
   private async prepareValuesArg(config: ExplorerDeployConfigClass) {
-    let valuesArgument: string = '--install';
+    let valuesArgument: string = ' --install';
     if (config.valuesFile) {
       valuesArgument += prepareValuesFiles(config.valuesFile);
     }
