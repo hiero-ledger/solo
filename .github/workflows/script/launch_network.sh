@@ -51,6 +51,10 @@ cat ./local-config-before.yaml
 kubectl get ConfigMap solo-remote-config -n ${SOLO_NAMESPACE} -o yaml | yq '.data' > remote-config-before.yaml
 cat remote-config-before.yaml
 
+# must uninstall explorer before migration, because the change of explorer chart name and labels make it harder to uninstall
+# or upgrade after migration
+solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
+
 # trigger migration
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}"
 
@@ -73,8 +77,10 @@ fi
 
 # npm run solo-test -- node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 
-# redeploy mirror-node and explorer to upgrade them to newer versions
+# redeploy mirror-node to upgrade to a newer version
 npm run solo-test -- mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --pinger -q --dev
+
+# redeploy explorer
 npm run solo-test -- explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace solo-e2e -q --dev
 
 # using new solo to redeploy solo deployment chart to new version

@@ -209,7 +209,7 @@ export class ExplorerCommand extends BaseCommand {
   }
 
   private async prepareValuesArg(config: ExplorerDeployConfigClass) {
-    let valuesArgument: string = ' --install';
+    let valuesArgument = '';
     if (config.valuesFile) {
       valuesArgument += prepareValuesFiles(config.valuesFile);
     }
@@ -337,7 +337,7 @@ export class ExplorerCommand extends BaseCommand {
             let exploreValuesArgument = prepareValuesFiles(constants.EXPLORER_VALUES_FILE);
             exploreValuesArgument += await self.prepareHederaExplorerValuesArg(config);
 
-            await self.chartManager.upgrade(
+            await self.chartManager.install(
               config.namespace,
               constants.EXPLORER_RELEASE_NAME,
               '',
