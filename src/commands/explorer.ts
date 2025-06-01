@@ -209,7 +209,7 @@ export class ExplorerCommand extends BaseCommand {
   }
 
   private async prepareValuesArg(config: ExplorerDeployConfigClass) {
-    let valuesArgument = '';
+    let valuesArgument: string = '--install';
     if (config.valuesFile) {
       valuesArgument += prepareValuesFiles(config.valuesFile);
     }
@@ -343,7 +343,6 @@ export class ExplorerCommand extends BaseCommand {
               '',
               EXPLORER_CHART_URL,
               config.explorerVersion,
-              exploreValuesArgument + ' --install ',
               context_.config.clusterContext,
             );
             showVersionBanner(self.logger, constants.EXPLORER_RELEASE_NAME, config.explorerVersion);

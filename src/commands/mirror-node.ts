@@ -160,6 +160,7 @@ export class MirrorNodeCommand extends BaseCommand {
       valuesArgument += helpers.prepareValuesFiles(profileValuesFile);
     }
 
+    valuesArgument += '--install';
     if (config.valuesFile) {
       valuesArgument += helpers.prepareValuesFiles(config.valuesFile);
     }
@@ -260,7 +261,6 @@ export class MirrorNodeCommand extends BaseCommand {
       constants.MIRROR_NODE_CHART,
       constants.MIRROR_NODE_RELEASE_NAME,
       context_.config.mirrorNodeVersion,
-      context_.config.valuesArg + ' --install ',
       context_.config.clusterContext,
     );
 

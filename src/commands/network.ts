@@ -540,9 +540,8 @@ export class NetworkCommand extends BaseCommand {
 
     for (const clusterReference of clusterReferences) {
       valuesArguments[clusterReference] +=
+        '--install' +
         ` --set "telemetry.prometheus.svcMonitor.enabled=${config.enablePrometheusSvcMonitor}"` +
-        ' --set "defaults.volumeClaims.node.eventStreams=400Gi"' +
-        ' --set "defaults.volumeClaims.node.recordStreams=400Gi"' +
         ` --set "defaults.volumeClaims.enabled=${config.persistentVolumeClaims}"`;
     }
 
@@ -971,7 +970,6 @@ export class NetworkCommand extends BaseCommand {
                 constants.SOLO_DEPLOYMENT_CHART,
                 context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
                 config.soloChartVersion,
-                config.valuesArgMap[clusterReference] + ' --install ',
                 config.clusterRefs.get(clusterReference),
               );
               showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
@@ -1402,7 +1400,7 @@ export class NetworkCommand extends BaseCommand {
           this.remoteConfig.configuration.components.changeNodePhase(nodeId, DeploymentPhase.REQUESTED);
 
           if (context_.config.isUpgrade) {
-            this.logger.info('Do not add envoy and haproxy components during upgrade');
+            this.logger.info('Do not add envoy and haproxy components again during upgrade');
           } else {
             // do not add new envoy or haproxy components if they already exist
             this.remoteConfig.configuration.components.addNewComponent(

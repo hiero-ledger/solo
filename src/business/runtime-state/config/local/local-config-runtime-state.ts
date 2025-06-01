@@ -17,8 +17,9 @@ import fs, {existsSync, mkdirSync} from 'node:fs';
 import {LocalConfig} from './local-config.js';
 import path from 'node:path';
 import {Templates} from '../../../../core/templates.js';
-import type {ConfigManager} from '../../../../core/config-manager.js';
+import {type ConfigManager} from '../../../../core/config-manager.js';
 import {Flags as flags} from '../../../../commands/flags.js';
+import {SoloError} from '../../../../core/errors/solo-error.js';
 
 @injectable()
 export class LocalConfigRuntimeState {
@@ -86,14 +87,16 @@ export class LocalConfigRuntimeState {
     await this.mirgrateCacheDirectories();
   }
 
+  /**
+   * Migrates the cache directories to the new structure.
+   * It will look for directories in the format 'v0.58/staging/v0.58.10' and move them to current staging directory.
+   */
   async mirgrateCacheDirectories(): Promise<void> {
-    const cacheDir: string = PathEx.join(this.basePath, 'cache').toString();
+    const cacheDirectory: string = PathEx.join(this.basePath, 'cache').toString();
     const releaseTag: string = this.configManager.getFlag(flags.releaseTag);
-    const currentStagingDirectory: string = Templates.renderStagingDir(cacheDir, releaseTag);
-    console.log(`currentStagingDirectory = ${JSON.stringify(currentStagingDirectory)}`);
+    const currentStagingDirectory: string = Templates.renderStagingDir(cacheDirectory, releaseTag);
 
     if (fs.existsSync(currentStagingDirectory)) {
-      console.log('currentStagingDirectory exists');
       return;
     }
 
@@ -101,7 +104,6 @@ export class LocalConfigRuntimeState {
     const foundStagingDirectory: string[] = await this.findMatchingSoloCacheDirectories(
       PathEx.join(this.basePath, 'cache').toString(),
     );
-    console.log(`foundStagingDirectory = ${JSON.stringify(foundStagingDirectory)}`);
     if (foundStagingDirectory && foundStagingDirectory.length > 0) {
       for (const stagingDirectory of foundStagingDirectory) {
         fs.cpSync(stagingDirectory, currentStagingDirectory, {recursive: true, force: true});
@@ -124,55 +126,36 @@ export class LocalConfigRuntimeState {
     try {
       // 1. Read the contents of the baseCacheDir (e.g., '.solo/cache/')
       const versionDirectories = await fs.readdirSync(baseDirectory);
-      console.log(`versionDirectories = ${JSON.stringify(versionDirectories)}`);
 
       for (const versionDirectory of versionDirectories) {
         const versionMatch = versionDirectory.match(versionDirRegex);
         if (versionMatch) {
-          console.log(`versionMatch = ${JSON.stringify(versionMatch)}`);
           // If the version directory matches (e.g., 'v0.58')
           const fullVersionPath = path.join(baseDirectory, versionDirectory, 'staging');
 
-          console.log(`fullVersionPath = ${JSON.stringify(fullVersionPath)}`);
-          try {
-            // Check if 'staging' directory exists within the version directory
-            if (fs.existsSync(fullVersionPath)) {
-              // Read the contents of the 'staging' directory
-              const stagingContents = await fs.readdirSync(fullVersionPath);
+          // Check if 'staging' directory exists within the version directory
+          if (fs.existsSync(fullVersionPath)) {
+            // Read the contents of the 'staging' directory
+            const stagingContents = await fs.readdirSync(fullVersionPath);
 
-              console.log(`stagingContents = ${JSON.stringify(stagingContents)}`);
-              for (const stagingItem of stagingContents) {
-                const fullItemPath = path.join(fullVersionPath, stagingItem);
-                console.log(`fullItemPath = ${JSON.stringify(fullItemPath)}`);
-                const relativeItemPath = path.relative(baseDirectory, fullItemPath); // Get path relative to baseCacheDir
+            for (const stagingItem of stagingContents) {
+              const fullItemPath = path.join(fullVersionPath, stagingItem);
+              const relativeItemPath = path.relative(baseDirectory, fullItemPath); // Get path relative to baseCacheDir
 
-                console.log(`relativeItemPath = ${JSON.stringify(relativeItemPath)}`);
-                // Check if the full relative path matches the desired pattern
-                if (fullPathRegex.test(relativeItemPath)) {
-                  try {
-                    console.log('Found matching directory:', fullItemPath);
-                    // const itemStats = await fs.stat(fullItemPath);
-                    if (fs.existsSync(fullItemPath)) {
-                      console.log('Adding matching directory:', fullItemPath);
-                      matchingDirectories.push(fullItemPath);
-                    }
-                  } catch {
-                    // Ignore if the specific item doesn't exist or isn't a directory
-                  }
-                }
+              // Check if the full relative path matches the desired pattern
+              if (fullPathRegex.test(relativeItemPath) && fs.existsSync(fullItemPath)) {
+                matchingDirectories.push(fullItemPath);
               }
             }
-          } catch {
-            // Ignore if 'staging' directory doesn't exist within this version dir
           }
         }
       }
     } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        console.warn(`Base directory ${baseDirectory} does not exist.`);
-      } else {
-        console.error(`Error reading directory ${baseDirectory}:`, error);
-      }
+      const error_ =
+        error.code === 'ENOENT'
+          ? new SoloError(`Base directory ${baseDirectory} does not exist.`)
+          : new SoloError(`Error reading directory ${baseDirectory}:`, error);
+      throw error_;
     }
     return matchingDirectories;
   }

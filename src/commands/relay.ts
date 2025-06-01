@@ -134,6 +134,7 @@ export class RelayCommand extends BaseCommand {
       valuesArgument += helpers.prepareValuesFiles(profileValuesFile);
     }
 
+    valuesArgument += '--install';
     valuesArgument += ` --set config.MIRROR_NODE_URL=http://${constants.MIRROR_NODE_RELEASE_NAME}-rest`;
     valuesArgument += ` --set config.MIRROR_NODE_URL_WEB3=http://${constants.MIRROR_NODE_RELEASE_NAME}-web3`;
     valuesArgument += ' --set config.MIRROR_NODE_AGENT_CACHEABLE_DNS=false';
@@ -344,7 +345,6 @@ export class RelayCommand extends BaseCommand {
               constants.JSON_RPC_RELAY_CHART,
               constants.JSON_RPC_RELAY_CHART,
               '',
-              config.valuesArg + ' --install ',
               config.context,
             );
 
