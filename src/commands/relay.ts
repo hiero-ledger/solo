@@ -345,6 +345,7 @@ export class RelayCommand extends BaseCommand {
               constants.JSON_RPC_RELAY_CHART,
               constants.JSON_RPC_RELAY_CHART,
               '',
+              config.valuesArg,
               config.context,
             );
 

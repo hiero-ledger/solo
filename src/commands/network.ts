@@ -970,6 +970,7 @@ export class NetworkCommand extends BaseCommand {
                 constants.SOLO_DEPLOYMENT_CHART,
                 context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
                 config.soloChartVersion,
+                config.valuesArgMap[clusterReference],
                 config.clusterRefs.get(clusterReference),
               );
               showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);

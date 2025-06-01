@@ -261,6 +261,7 @@ export class MirrorNodeCommand extends BaseCommand {
       constants.MIRROR_NODE_CHART,
       constants.MIRROR_NODE_RELEASE_NAME,
       context_.config.mirrorNodeVersion,
+      context_.config.valuesArg,
       context_.config.clusterContext,
     );
 
