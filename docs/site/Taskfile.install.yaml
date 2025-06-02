@@ -1,0 +1,93 @@
+version: 3
+tasks:
+  install:
+    desc: "Install dependencies: Hugo, TypeDoc, Solo CLI, and Docsy theme"
+    cmds:
+      - task: "install:hugo"
+      - task: "install:typedoc"
+      - task: "install:solo"
+      - task: "install:docsy"
+
+  install:docsy:
+    silent: true
+    deps: [solo:version]
+    sources:
+      - package.json
+      - package-lock.json
+    generates:
+      - node_modules/**/*.*
+    cmds:
+      - printf "\r::group::Installing Docsy theme"
+      - npm install -g postcss-cli # Install postcss-cli globally to get around bug: https://github.com/google/docsy/issues/235
+      - npm install
+      - npm install postcss # must install separately after prior items have been installed: https://www.docsy.dev/docs/get-started/docsy-as-module/installation-prerequisites/#install-postcss
+      - hugo mod get github.com/google/docsy@v0.11.1-0.20250424121410-343cdec14c0a
+      - printf "                        \r::endgroup::"
+
+  install:hugo:
+    desc: "Install Hugo extended version"
+    silent: true
+    status:
+      - command -v hugo
+      - |
+        node -e "
+        const { execSync } = require('child_process');
+        const semver = require('semver');
+
+        try {
+          const output = execSync('hugo version').toString();
+          const versionMatch = output.match(/v(\d+\.\d+\.\d+)(\+extended)?/);
+          if (!versionMatch) {
+            console.error('❌ Could not extract Hugo version from:', output);
+            process.exit(1);
+          }
+
+          const currentVersion = versionMatch[1];
+          const isExtended = !!versionMatch[2];
+          const requiredVersion = '0.145.0';
+
+          if (!isExtended) {
+            console.error('❌ Hugo is not the extended version. Please install the extended edition.');
+            process.exit(1);
+          }
+
+          if (!semver.gte(currentVersion, requiredVersion)) {
+            console.error(\`❌ Hugo version \${currentVersion} is too old. Requires >= \${requiredVersion}\`);
+            process.exit(1);
+          }
+
+          console.log(\`✅ Hugo version \${currentVersion}+extended is OK (>= \${requiredVersion})\`);
+        } catch (err) {
+          console.error('❌ Failed to run hugo:', err.message);
+          process.exit(1);
+        }
+        "
+    cmds:
+      - printf "\r::group::Installing Hugo extended version"
+      - CGO_ENABLED=1 go install -tags extended github.com/gohugoio/hugo@v0.145.0
+      - printf "                        \r::endgroup::"
+
+  install:typedoc:
+    desc: "Install TypeDoc"
+    cmds:
+      - npx typedoc --version
+
+  install:solo:
+    desc: "Install the Solo CLI dependencies from the package.json"
+    silent: true
+    dir: ../..
+    sources:
+      - package.json
+      - package-lock.json
+    cmds:
+      - printf "\r::group::Installing Solo"
+      - npm install
+      - printf "                        \r::endgroup::"
+
+  install:nginx:
+    desc: "Install Nginx"
+    status:
+      - command -v nginx
+    cmds:
+      - brew update
+      - brew install nginx
