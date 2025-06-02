@@ -26,9 +26,7 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {
-  type JsonRpcRelayConfigRuntimeState
-} from '../business/runtime-state/config/json-rpc-relay/json-rpc-relay-config-runtime-state.js';
+import {type JsonRpcRelayConfigRuntimeState} from '../business/runtime-state/config/json-rpc-relay/json-rpc-relay-config-runtime-state.js';
 import {Templates} from '../core/templates.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';

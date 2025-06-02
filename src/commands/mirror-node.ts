@@ -48,9 +48,7 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {type AccountId} from '@hashgraph/sdk';
-import {
-  MirrorNodeConfigRuntimeState
-} from '../business/runtime-state/config/mirror-node/mirror-node-config-runtime-state.js';
+import {MirrorNodeConfigRuntimeState} from '../business/runtime-state/config/mirror-node/mirror-node-config-runtime-state.js';
 import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 

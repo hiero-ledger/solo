@@ -174,11 +174,9 @@ export class BlockNodeCommand extends BaseCommand {
 
             await this.configManager.executePrompt(task, allFlags);
 
-            context_.config = this.configManager.getConfig(
-              BlockNodeCommand.ADD_CONFIGS_NAME,
-              allFlags,
-              ['chartDirectory'],
-            ) as BlockNodeDeployConfigClass;
+            context_.config = this.configManager.getConfig(BlockNodeCommand.ADD_CONFIGS_NAME, allFlags, [
+              'chartDirectory',
+            ]) as BlockNodeDeployConfigClass;
 
             const platformVersion: SemVer = new SemVer(context_.config.releaseTag);
             if (lt(platformVersion, new SemVer('v0.62.0'))) {
