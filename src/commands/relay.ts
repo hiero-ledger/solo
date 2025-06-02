@@ -41,6 +41,7 @@ import {CommandFlag, CommandFlags} from '../types/flag-types.js';
 import {Lock} from '../core/lock/lock.js';
 import {NodeServiceMapping} from '../types/mappings/node-service-mapping.js';
 import {RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
+import {Secret} from '../integration/kube/resources/secret/secret.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -181,13 +182,7 @@ export class RelayCommand extends BaseCommand {
           this.localConfig.configuration.deploymentByName(deploymentName).namespace,
         );
 
-        const secrets: {
-          data: Record<string, string>;
-          name: string;
-          namespace: string;
-          type: string;
-          labels: Record<string, string>;
-        }[] = await this.k8Factory
+        const secrets: Secret[] = await this.k8Factory
           .getK8(context)
           .secrets()
           .list(namespace, [`solo.hedera.com/account-id=${operatorIdUsing}`]);

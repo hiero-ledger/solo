@@ -74,6 +74,7 @@ import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
+import {Secret} from '../integration/kube/resources/secret/secret.js';
 
 export interface NetworkDeployConfigClass {
   applicationEnv: string;
@@ -838,13 +839,7 @@ export class NetworkCommand extends BaseCommand {
       await Promise.all(
         context_.config.contexts.map(async context => {
           // Fetch all Secrets inside the namespace using the context
-          const secrets: {
-            data: Record<string, string>;
-            name: string;
-            namespace: NamespaceNameAsString;
-            type: string;
-            labels: Record<string, string>;
-          }[] = await this.k8Factory.getK8(context).secrets().list(context_.config.namespace);
+          const secrets: Secret[] = await this.k8Factory.getK8(context).secrets().list(context_.config.namespace);
 
           // Delete all if found
           return Promise.all(
