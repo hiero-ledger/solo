@@ -1,0 +1,44 @@
+version: 3
+tasks:
+  mutate:readme:
+    desc: "Mutate the README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - README.md
+    generates:
+      - docs/site/build/README.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/README.md << 'EOF'
+        ---
+        title: "Getting Started"
+        weight: 1
+        description: >
+          Getting started with Solo 
+        type: docs
+        ---
+        EOF
+      - cat README.md >> docs/site/build/README.md
+
+  mutate:dev:
+    desc: "Mutate the DEV.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - DEV.md
+    generates:
+      - docs/site/build/DEV.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/DEV.md << 'EOF'
+        ---
+        title: "Contributing to Solo"
+        weight: 20
+        description: "Instructions for developers working on the Solo project"
+        type: docs
+        ---
+        EOF
+      - cat DEV.md >> docs/site/build/DEV.md
