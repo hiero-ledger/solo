@@ -121,6 +121,7 @@ export class PlatformInstaller {
       const container = k8Containers.readByRef(containerReference);
 
       await container.execContainer(`chmod +x ${extractScript}`);
+      await container.execContainer(`chown root:root ${extractScript}`);
       await container.execContainer([extractScript, tag]);
 
       return true;
