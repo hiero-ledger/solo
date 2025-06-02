@@ -48,8 +48,6 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {type AccountId} from '@hashgraph/sdk';
-import {MirrorNodeConfigRuntimeState} from '../business/runtime-state/config/mirror-node/mirror-node-config-runtime-state.js';
-import {SoloConfigRuntimeState} from '../business/runtime-state/config/solo/solo-config-runtime-state.js';
 import {
   MirrorNodeConfigRuntimeState
 } from '../business/runtime-state/config/mirror-node/mirror-node-config-runtime-state.js';

@@ -37,7 +37,6 @@ import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {BlockNodeConfigRuntimeState} from '../business/runtime-state/config/block-node/block-node-config-runtime-state.js';
 import {
   BlockNodeConfigRuntimeState
 } from '../business/runtime-state/config/block-node/block-node-config-runtime-state.js';
