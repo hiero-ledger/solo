@@ -8,7 +8,7 @@ import {Templates} from '../../templates.js';
 import {RemoteConfigValidatorApi} from './api/remote-config-validator-api.js';
 import {DeploymentStateSchema} from '../../../data/schema/model/remote/deployment-state-schema.js';
 import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
-import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
+import {NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {type BaseStateSchema} from '../../../data/schema/model/remote/state/base-state-schema.js';
 import {type LocalConfigRuntimeState} from '../../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
@@ -134,7 +134,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
             (nodeId): NodeAlias => Templates.renderNodeAliasFromNumber(nodeId + 1),
           );
 
-          console.log(await this.chartManager.getInstalledCharts(NamespaceName.of(component.metadata.namespace));
+          console.log(await this.chartManager.getInstalledCharts(NamespaceName.of(component.metadata.namespace)));
 
           legacyReleaseName = `${legacyReleaseName}-${nodeAliases.join('-')}`;
         }
