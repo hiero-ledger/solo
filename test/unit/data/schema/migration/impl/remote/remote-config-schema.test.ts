@@ -29,9 +29,9 @@ describe('RemoteConfigSchema', () => {
     expect(schema.version).equal(RemoteConfigSchema.SCHEMA_VERSION);
   });
 
-  it('should return the correct classCtor', () => {
+  it('should return the correct classConstructor', () => {
     const schema: RemoteConfigSchemaDefinition = new RemoteConfigSchemaDefinition(objectMapper);
-    expect(schema.classCtor).equal(RemoteConfigSchema);
+    expect(schema.classConstructor).equal(RemoteConfigSchema);
   });
 
   it('should return a migrations array containing RemoteConfigV1Migration', () => {

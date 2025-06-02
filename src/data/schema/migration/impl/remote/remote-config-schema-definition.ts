@@ -29,7 +29,7 @@ export class RemoteConfigSchemaDefinition
     return RemoteConfigSchema.SCHEMA_VERSION;
   }
 
-  public get classCtor(): ClassConstructor<RemoteConfigSchema> {
+  public get classConstructor(): ClassConstructor<RemoteConfigSchema> {
     return RemoteConfigSchema;
   }
 
