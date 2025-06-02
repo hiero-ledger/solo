@@ -73,7 +73,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     explorers: {
       displayName: 'Explorer',
       getLabelsCallback: Templates.renderExplorerLabels,
-      legacyReleaseName: constants.EXPLORER_RELEASE_NAME,
+      legacyReleaseName: 'hedera-explorer',
     },
     consensusNodes: {
       displayName: 'Consensus Node',
