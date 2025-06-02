@@ -156,6 +156,8 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
         ? getLabelsCallback(component.metadata.id, legacyReleaseName)
         : getLabelsCallback(component.metadata.id);
 
+      console.log({legacyReleaseName, useLegacyReleaseName});
+
       try {
         const pods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);
 
@@ -163,7 +165,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
           throw new Error('Pod not found'); // to return the generic error message
         }
       } catch (error) {
-        throw RemoteConfigValidator.buildValidationError(displayName, component, error);
+        throw RemoteConfigValidator.buildValidationError(displayName, component, error, labels);
       }
     });
   }
@@ -174,20 +176,31 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
    * @param displayName - name to display in error message
    * @param component - component which is not found in the cluster
    * @param error - original error for the kube client
+   * @param labels - labels used to find the component
    */
   private static buildValidationError(
     displayName: string,
     component: BaseStateSchema,
     error: Error | unknown,
+    labels?: string[],
   ): SoloError {
-    return new SoloError(RemoteConfigValidator.buildValidationErrorMessage(displayName, component), error, component);
+    return new SoloError(
+      RemoteConfigValidator.buildValidationErrorMessage(displayName, component, labels),
+      error,
+      component,
+    );
   }
 
-  public static buildValidationErrorMessage(displayName: string, component: BaseStateSchema): string {
+  public static buildValidationErrorMessage(
+    displayName: string,
+    component: BaseStateSchema,
+    labels?: string[],
+  ): string {
     return (
       `${displayName} in remote config with id ${component.metadata.id} was not found in ` +
       `namespace: ${component.metadata.namespace}, ` +
-      `cluster: ${component.metadata.cluster}, `
+      `cluster: ${component.metadata.cluster}, ` +
+      `labels: ${labels}`
     );
   }
 }
