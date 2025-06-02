@@ -134,6 +134,8 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
             (nodeId): NodeAlias => Templates.renderNodeAliasFromNumber(nodeId + 1),
           );
 
+          console.log(await this.chartManager.getInstalledCharts(NamespaceName.of(component.metadata.namespace));
+
           legacyReleaseName = `${legacyReleaseName}-${nodeAliases.join('-')}`;
         }
 

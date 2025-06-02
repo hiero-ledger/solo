@@ -6,7 +6,7 @@ import {Version} from '../../../../../business/utils/version.js';
 
 import {IllegalArgumentError} from '../../../../../business/errors/illegal-argument-error.js';
 import {type RemoteConfigStructure} from '../../../model/remote/interfaces/remote-config-structure.js';
-import {ComponentIdsShema} from '../../../model/remote/state/component-ids-shema.js';
+import {ComponentIdsSchema} from '../../../model/remote/state/component-ids-schema.js';
 import {type DeploymentStateStructure} from '../../../model/remote/interfaces/deployment-state-structure.js';
 import {NodeAlias, type NodeAliases, type NodeId} from '../../../../../types/aliases.js';
 import {Templates} from '../../../../../core/templates.js';
@@ -32,7 +32,7 @@ export class RemoteConfigV2Migration implements SchemaMigration {
     const clone: RemoteConfigStructure = structuredClone(source) as any as RemoteConfigStructure;
     const state: DeploymentStateStructure = clone.state;
 
-    const componentIds: ComponentIdsShema = new ComponentIdsShema();
+    const componentIds: ComponentIdsSchema = new ComponentIdsSchema();
 
     componentIds.consensusNodes = (state?.consensusNodes?.length || 0) + 1;
     componentIds.envoyProxies = (state?.envoyProxies?.length || 0) + 1;

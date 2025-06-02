@@ -6,11 +6,11 @@ import {type LedgerPhase} from './ledger-phase.js';
 import {Transformations} from '../utils/transformations.js';
 import {RelayNodeStateSchema} from './state/relay-node-state-schema.js';
 import {MirrorNodeStateSchema} from './state/mirror-node-state-schema.js';
-import {HAProxyStateSchema} from './state/haproxy-state-schema.js';
+import {HaProxyStateSchema} from './state/ha-proxy-state-schema.js';
 import {EnvoyProxyStateSchema} from './state/envoy-proxy-state-schema.js';
 import {ExplorerStateSchema} from './state/explorer-state-schema.js';
 import {BlockNodeStateSchema} from './state/block-node-state-schema.js';
-import {ComponentIdsShema} from './state/component-ids-shema.js';
+import {ComponentIdsSchema} from './state/component-ids-schema.js';
 import {DeploymentStateStructure} from './interfaces/deployment-state-structure.js';
 
 @Exclude()
@@ -20,8 +20,8 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
   public ledgerPhase: LedgerPhase;
 
   @Expose()
-  @Type((): typeof ComponentIdsShema => ComponentIdsShema)
-  public componentIds: ComponentIdsShema;
+  @Type((): typeof ComponentIdsSchema => ComponentIdsSchema)
+  public componentIds: ComponentIdsSchema;
 
   @Expose()
   @Type((): typeof ConsensusNodeStateSchema => ConsensusNodeStateSchema)
@@ -40,8 +40,8 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
   public relayNodes: RelayNodeStateSchema[];
 
   @Expose()
-  @Type((): typeof HAProxyStateSchema => HAProxyStateSchema)
-  public haProxies: HAProxyStateSchema[];
+  @Type((): typeof HaProxyStateSchema => HaProxyStateSchema)
+  public haProxies: HaProxyStateSchema[];
 
   @Expose()
   @Type((): typeof EnvoyProxyStateSchema => EnvoyProxyStateSchema)
@@ -53,17 +53,17 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
 
   public constructor(
     ledgerPhase?: LedgerPhase,
-    componentIds?: ComponentIdsShema,
+    componentIds?: ComponentIdsSchema,
     consensusNodes?: ConsensusNodeStateSchema[],
     blockNodes?: BlockNodeStateSchema[],
     mirrorNodes?: MirrorNodeStateSchema[],
     relayNodes?: RelayNodeStateSchema[],
-    haProxies?: HAProxyStateSchema[],
+    haProxies?: HaProxyStateSchema[],
     envoyProxies?: EnvoyProxyStateSchema[],
     explorers?: ExplorerStateSchema[],
   ) {
     this.ledgerPhase = ledgerPhase;
-    this.componentIds = componentIds || new ComponentIdsShema();
+    this.componentIds = componentIds || new ComponentIdsSchema();
     this.consensusNodes = consensusNodes || [];
     this.blockNodes = blockNodes || [];
     this.mirrorNodes = mirrorNodes || [];

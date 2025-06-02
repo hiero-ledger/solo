@@ -15,7 +15,7 @@ import {ComponentStateMetadataSchema} from '../../../data/schema/model/remote/st
 import {RelayNodeStateSchema} from '../../../data/schema/model/remote/state/relay-node-state-schema.js';
 import {ExplorerStateSchema} from '../../../data/schema/model/remote/state/explorer-state-schema.js';
 import {MirrorNodeStateSchema} from '../../../data/schema/model/remote/state/mirror-node-state-schema.js';
-import {HAProxyStateSchema} from '../../../data/schema/model/remote/state/haproxy-state-schema.js';
+import {HaProxyStateSchema} from '../../../data/schema/model/remote/state/ha-proxy-state-schema.js';
 import {EnvoyProxyStateSchema} from '../../../data/schema/model/remote/state/envoy-proxy-state-schema.js';
 import {ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
 import {BlockNodeStateSchema} from '../../../data/schema/model/remote/state/block-node-state-schema.js';
@@ -48,8 +48,8 @@ export class ComponentFactory implements ComponentFactoryApi {
     return new MirrorNodeStateSchema(this.getMetadata(ComponentTypes.MirrorNode, clusterReference, namespace));
   }
 
-  public createNewHaProxyComponent(clusterReference: ClusterReference, namespace: NamespaceName): HAProxyStateSchema {
-    return new HAProxyStateSchema(this.getMetadata(ComponentTypes.HaProxy, clusterReference, namespace));
+  public createNewHaProxyComponent(clusterReference: ClusterReference, namespace: NamespaceName): HaProxyStateSchema {
+    return new HaProxyStateSchema(this.getMetadata(ComponentTypes.HaProxy, clusterReference, namespace));
   }
 
   public createNewEnvoyProxyComponent(

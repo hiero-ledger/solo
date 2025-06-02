@@ -3,7 +3,7 @@
 import {Exclude, Expose} from 'class-transformer';
 
 @Exclude()
-export class ComponentIdsShema {
+export class ComponentIdsSchema {
   @Expose()
   public consensusNodes: number;
 

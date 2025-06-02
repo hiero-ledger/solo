@@ -28,7 +28,7 @@ import {type ExplorerStateSchema} from '../../../../src/data/schema/model/remote
 import {type MirrorNodeStateSchema} from '../../../../src/data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type RelayNodeStateSchema} from '../../../../src/data/schema/model/remote/state/relay-node-state-schema.js';
 import {type ConsensusNodeStateSchema} from '../../../../src/data/schema/model/remote/state/consensus-node-state-schema.js';
-import {type HAProxyStateSchema} from '../../../../src/data/schema/model/remote/state/haproxy-state-schema.js';
+import {type HaProxyStateSchema} from '../../../../src/data/schema/model/remote/state/ha-proxy-state-schema.js';
 import {type EnvoyProxyStateSchema} from '../../../../src/data/schema/model/remote/state/envoy-proxy-state-schema.js';
 import {DeploymentStateSchema} from '../../../../src/data/schema/model/remote/deployment-state-schema.js';
 import {RemoteConfigSchema} from '../../../../src/data/schema/model/remote/remote-config-schema.js';
@@ -40,7 +40,7 @@ interface ComponentsRecord {
   mirrorNodes: MirrorNodeStateSchema;
   relayNodes: RelayNodeStateSchema;
   consensusNodes: ConsensusNodeStateSchema;
-  haProxies: HAProxyStateSchema;
+  haProxies: HaProxyStateSchema;
   envoyProxies: EnvoyProxyStateSchema;
   blockNodes: BlockNodeStateSchema;
 }
