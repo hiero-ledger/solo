@@ -151,11 +151,8 @@ export class LocalConfigRuntimeState {
         }
       }
     } catch (error: any) {
-      const error_ =
-        error.code === 'ENOENT'
-          ? new SoloError(`Base directory ${baseDirectory} does not exist.`)
-          : new SoloError(`Error reading directory ${baseDirectory}:`, error);
-      throw error_;
+      // Directory isn't found or any other error
+      return undefined;
     }
     return matchingDirectories;
   }
