@@ -34,17 +34,15 @@ import {type PodReference} from '../integration/kube/resources/pod/pod-reference
 import chalk from 'chalk';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
-import {inject, injectable} from 'tsyringe-neo';
-import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
-import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {
-  BlockNodeConfigRuntimeState
-} from '../business/runtime-state/config/block-node/block-node-config-runtime-state.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {ComponentStateMetadataSchema} from '../data/schema/model/remote/state/component-state-metadata-schema.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {lt, SemVer} from 'semver';
+import {inject, injectable} from 'tsyringe-neo';
+import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {BlockNodeConfigRuntimeState} from '../business/runtime-state/config/block-node/block-node-config-runtime-state.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -179,7 +177,7 @@ export class BlockNodeCommand extends BaseCommand {
             context_.config = this.configManager.getConfig(
               BlockNodeCommand.ADD_CONFIGS_NAME,
               allFlags,
-              ['chartDirectory']
+              ['chartDirectory'],
             ) as BlockNodeDeployConfigClass;
 
             const platformVersion: SemVer = new SemVer(context_.config.releaseTag);

@@ -153,6 +153,11 @@ export class Container {
       new SingletonContainer(InjectTokens.JsonRpcRelayConfigRuntimeState, JsonRpcRelayConfigRuntimeState),
       new SingletonContainer(InjectTokens.ComponentFactory, ComponentFactory),
       new SingletonContainer(InjectTokens.RemoteConfigValidator, RemoteConfigValidator),
+      new SingletonContainer(InjectTokens.SoloConfigRuntimeState, SoloConfigRuntimeState),
+      new SingletonContainer(InjectTokens.MirrorNodeConfigRuntimeState, MirrorNodeConfigRuntimeState),
+      new SingletonContainer(InjectTokens.BlockNodeConfigRuntimeState, BlockNodeConfigRuntimeState),
+      new SingletonContainer(InjectTokens.ExplorerConfigRuntimeState, ExplorerConfigRuntimeState),
+      new SingletonContainer(InjectTokens.JsonRpcRelayConfigRuntimeState, JsonRpcRelayConfigRuntimeState),
     ];
 
     const valueContainers: ValueContainer[] = [

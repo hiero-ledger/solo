@@ -80,6 +80,7 @@ export class NodeCommandConfigs {
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
     this.soloConfig = patchInject(soloConfig, InjectTokens.SoloConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.soloConfig = patchInject(soloConfig, InjectTokens.SoloConfigRuntimeState, this.constructor.name);
   }
 
   private async initializeSetup(config: AnyObject, k8Factory: K8Factory): Promise<void> {
