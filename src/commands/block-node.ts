@@ -105,8 +105,16 @@ export class BlockNodeCommand extends BaseCommand {
   };
 
   private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.id],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.deployment, flags.devMode, flags.force, flags.quiet],
+    required: [],
+    optional: [
+      flags.chartDirectory,
+      flags.clusterRef,
+      flags.deployment,
+      flags.devMode,
+      flags.force,
+      flags.quiet,
+      flags.id,
+    ],
   };
 
   private async prepareValuesArgForBlockNode(config: BlockNodeDeployConfigClass): Promise<string> {
@@ -336,27 +344,14 @@ export class BlockNodeCommand extends BaseCommand {
 
             context_.config.context = this.remoteConfig.getClusterRefs()[context_.config.clusterRef];
 
-            context_.config.releaseName = this.getReleaseName();
-
-            if (context_.config.id <= 1) {
-              context_.config.useLegacyReleaseName = true;
-              context_.config.releaseName = `${constants.BLOCK_NODE_RELEASE_NAME}-0`;
+            // Use fallback if id not provided
+            if (typeof context_.config.id !== 'number') {
+              context_.config.id = this.remoteConfig.configuration.components.state.blockNodes[0]?.metadata?.id;
             }
 
-            context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
-              context_.config.namespace,
-              context_.config.releaseName,
-              context_.config.context,
-            );
+            context_.config.releaseName = this.getReleaseName(context_.config.id);
 
-            this.logger.debug('Initialized config', {config: context_.config});
-
-            return ListrLock.newAcquireLockTask(lease, task);
-          },
-        },
-        {
-          title: 'Look-up block node',
-          task: async (context_): Promise<void> => {
+            // Lookup block node component in remote config
             try {
               this.remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(
                 ComponentTypes.BlockNode,
@@ -365,6 +360,37 @@ export class BlockNodeCommand extends BaseCommand {
             } catch (error) {
               throw new SoloError(`Block node ${context_.config.releaseName} was not found`, error);
             }
+
+            // Check if release name is legacy
+            if (context_.config.id <= 1) {
+              const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
+                context_.config.namespace,
+                `${constants.BLOCK_NODE_RELEASE_NAME}-0`,
+                context_.config.context,
+              );
+
+              if (isLegacyChartInstalled) {
+                context_.config.isChartInstalled = true;
+                context_.config.useLegacyReleaseName = true;
+                context_.config.releaseName = `${constants.BLOCK_NODE_RELEASE_NAME}-0`;
+              }
+            }
+
+            if (!context_.config.isChartInstalled) {
+              context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
+                context_.config.namespace,
+                context_.config.releaseName,
+                context_.config.context,
+              );
+            }
+
+            if (!context_.config.id) {
+              throw new SoloError('Block Node is not found');
+            }
+
+            this.logger.debug('Initialized config', {config: context_.config});
+
+            return ListrLock.newAcquireLockTask(lease, task);
           },
         },
         {

@@ -65,7 +65,7 @@ export SOLO_EXPLORER_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/explorer-deploy.log | tee
 solo relay destroy -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/relay-destroy.log
 export SOLO_RELAY_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/relay-destroy.log | tee ${BUILD_DIR}/test.log )
 
-solo mirror-node destroy --id 1 --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/mirror-node-destroy.log
+solo mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/mirror-node-destroy.log
 export SOLO_MIRROR_NODE_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/mirror-node-destroy.log | tee ${BUILD_DIR}/test.log )
 
 solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/explorer-destroy.log

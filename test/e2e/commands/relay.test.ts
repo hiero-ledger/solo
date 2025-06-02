@@ -65,8 +65,6 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
       await k8Factory.default().namespaces().delete(namespace);
     });
 
-    let relayId: ComponentId = 0;
-
     each(['node1', 'node1,node2']).describe(
       'relay and deploy and destroy for each',
       async (relayNodes: string): Promise<void> => {
@@ -89,9 +87,6 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
             expect.fail();
           }
           await sleep(Duration.ofMillis(500));
-
-          relayId++;
-          argv.setArg(flags.id, relayId);
 
           testLogger.info(`#### Running relay destroy for: ${relayNodes} ####`);
           try {

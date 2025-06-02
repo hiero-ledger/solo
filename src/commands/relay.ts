@@ -124,8 +124,15 @@ export class RelayCommand extends BaseCommand {
   };
 
   private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.id],
-    optional: [flags.chartDirectory, flags.deployment, flags.nodeAliasesUnparsed, flags.clusterRef, flags.quiet],
+    required: [],
+    optional: [
+      flags.chartDirectory,
+      flags.deployment,
+      flags.nodeAliasesUnparsed,
+      flags.clusterRef,
+      flags.quiet,
+      flags.id,
+    ],
   };
 
   private async prepareValuesArgForRelay(
@@ -254,7 +261,15 @@ export class RelayCommand extends BaseCommand {
     if (!id) {
       id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.RelayNodes);
     }
-    return `relay-${id}`;
+    return `${constants.JSON_RPC_RELAY_RELEASE_NAME}-${id}`;
+  }
+
+  private prepareLegacyReleaseName(nodeAliases: NodeAliases = []): string {
+    let releaseName: string = constants.JSON_RPC_RELAY_RELEASE_NAME;
+    for (const nodeAlias of nodeAliases) {
+      releaseName += `-${nodeAlias}`;
+    }
+    return releaseName;
   }
 
   private async deploy(argv: ArgvStruct): Promise<boolean> {
@@ -456,7 +471,7 @@ export class RelayCommand extends BaseCommand {
             this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
             this.configManager.update(argv);
 
-            flags.disablePrompts([flags.clusterRef]);
+            flags.disablePrompts([flags.clusterRef, flags.id, flags.nodeAliasesUnparsed]);
 
             const allFlags: CommandFlag[] = [
               ...RelayCommand.DESTROY_FLAGS_LIST.required,
@@ -486,25 +501,45 @@ export class RelayCommand extends BaseCommand {
               }
             }
 
+            if (typeof context_.config.id !== 'number') {
+              context_.config.id = this.remoteConfig.configuration.components.state.relayNodes[0]?.metadata?.id;
+              context_.config.nodeAliases =
+                this.remoteConfig.configuration.components.state.relayNodes[0]?.consensusNodeIds.map(
+                  (nodeId: NodeId): NodeAlias => Templates.renderNodeAliasFromNumber(nodeId + 1),
+                );
+            }
+
             context_.config.releaseName = this.prepareReleaseName(context_.config.id);
 
             if (context_.config.id === 1) {
+              context_.config.nodeAliases = this.remoteConfig.configuration.components
+                .getComponentById<RelayNodeStateSchema>(ComponentTypes.RelayNodes, context_.config.id)
+                ?.consensusNodeIds.map((nodeId: NodeId): NodeAlias => Templates.renderNodeAliasFromNumber(nodeId + 1));
+
               const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
                 context_.config.namespace,
-                'relay',
+                this.prepareLegacyReleaseName(context_.config.nodeAliases),
                 context_.config.context,
               );
 
               if (isLegacyChartInstalled) {
+                context_.config.isChartInstalled = true;
                 context_.config.useLegacyReleaseName = true;
-                context_.config.releaseName = 'relay';
+                context_.config.releaseName = this.prepareLegacyReleaseName(context_.config.nodeAliases);
               }
             }
-            context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
-              context_.config.namespace,
-              context_.config.releaseName,
-              context_.config.context,
-            );
+
+            if (!context_.config.isChartInstalled) {
+              context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
+                context_.config.namespace,
+                context_.config.releaseName,
+                context_.config.context,
+              );
+            }
+
+            if (!context_.config.id) {
+              throw new SoloError('Relay Node is not found');
+            }
 
             this.logger.debug('Initialized config', {config: context_.config});
 

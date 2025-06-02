@@ -128,8 +128,8 @@ export class ExplorerCommand extends BaseCommand {
   };
 
   private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.id],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.deployment],
+    required: [],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.deployment, flags.id],
   };
 
   /**
@@ -289,12 +289,7 @@ export class ExplorerCommand extends BaseCommand {
             context_.config.ingressReleaseName = this.getIngressReleaseName();
 
             if (typeof context_.config.id !== 'number') {
-              for (const component of this.remoteConfig.configuration.components.state.mirrorNodes) {
-                if (component.metadata.id) {
-                  context_.config.id = component.metadata.id;
-                  break;
-                }
-              }
+              context_.config.id = this.remoteConfig.configuration.components.state.mirrorNodes[0]?.metadata?.id;
             }
 
             context_.config.newExplorerComponent = this.componentFactory.createNewExplorerComponent(
@@ -548,7 +543,13 @@ export class ExplorerCommand extends BaseCommand {
               useLegacyReleaseName: false,
             };
 
-            if (id === 1) {
+            if (typeof context_.config.id !== 'number') {
+              context_.config.id = this.remoteConfig.configuration.components.state.explorers[0]?.metadata?.id;
+              context_.config.releaseName = this.getReleaseName(context_.config.id);
+              context_.config.ingressReleaseName = this.getIngressReleaseName(context_.config.id);
+            }
+
+            if (context_.config.id === 1) {
               const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
                 context_.config.namespace,
                 constants.MIRROR_NODE_RELEASE_NAME,
@@ -556,6 +557,7 @@ export class ExplorerCommand extends BaseCommand {
               );
 
               if (isLegacyChartInstalled) {
+                context_.config.isChartInstalled = true;
                 context_.config.useLegacyReleaseName = true;
                 context_.config.releaseName = constants.EXPLORER_RELEASE_NAME;
                 context_.config.ingressReleaseName = constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME;
@@ -564,6 +566,10 @@ export class ExplorerCommand extends BaseCommand {
 
             if (!(await this.k8Factory.getK8(context_.config.clusterContext).namespaces().has(namespace))) {
               throw new SoloError(`namespace ${namespace.name} does not exist`);
+            }
+
+            if (!context_.config.id) {
+              throw new SoloError('Explorer is not found');
             }
 
             return ListrLock.newAcquireLockTask(lease, task);

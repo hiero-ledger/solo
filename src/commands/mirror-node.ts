@@ -321,14 +321,14 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   private getReleaseName(id?: ComponentId): string {
-    if (!id) {
+    if (typeof id !== 'number') {
       id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.MirrorNode);
     }
     return `${constants.MIRROR_NODE_RELEASE_NAME}-${id}`;
   }
 
   private getIngressReleaseName(id?: ComponentId): string {
-    if (!id) {
+    if (typeof id !== 'number') {
       id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.MirrorNode);
     }
     return `${constants.INGRESS_CONTROLLER_RELEASE_NAME}-${id}`;
@@ -805,7 +805,7 @@ export class MirrorNodeCommand extends BaseCommand {
             );
 
             const clusterReference: ClusterReference =
-              this.configManager.getFlag<string>(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
+              this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
 
             const clusterContext: Context = this.localConfig.configuration.clusterRefs
               .get(clusterReference)
@@ -828,7 +828,13 @@ export class MirrorNodeCommand extends BaseCommand {
               useLegacyReleaseName: false,
             };
 
-            if (id === 1) {
+            if (typeof context_.config.id !== 'number') {
+              context_.config.id = this.remoteConfig.configuration.components.state.mirrorNodes[0]?.metadata?.id;
+              context_.config.releaseName = this.getReleaseName(context_.config.id);
+              context_.config.ingressReleaseName = this.getIngressReleaseName(context_.config.id);
+            }
+
+            if (context_.config.id === 1) {
               const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
                 context_.config.namespace,
                 constants.MIRROR_NODE_RELEASE_NAME,
@@ -836,6 +842,7 @@ export class MirrorNodeCommand extends BaseCommand {
               );
 
               if (isLegacyChartInstalled) {
+                context_.config.isChartInstalled = true;
                 context_.config.useLegacyReleaseName = true;
                 context_.config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
                 context_.config.ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
@@ -854,6 +861,11 @@ export class MirrorNodeCommand extends BaseCommand {
               self.configManager.getFlag<DeploymentName>(flags.deployment),
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
+
+            if (!context_.config.id) {
+              throw new SoloError('Mirror Node is not found');
+            }
+
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
@@ -975,6 +987,7 @@ export class MirrorNodeCommand extends BaseCommand {
                 flags.force,
                 flags.quiet,
                 flags.deployment,
+                flags.id,
               ),
             handler: async argv => {
               self.logger.info("==== Running 'mirror-node destroy' ===");
