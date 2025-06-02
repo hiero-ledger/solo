@@ -118,6 +118,7 @@ export interface NetworkDeployConfigClass {
   awsEndpoint: string;
   awsBucket: string;
   awsBucketPrefix: string;
+  awsBucketRegion: string;
   backupBucket: string;
   backupWriteSecrets: string;
   backupWriteAccessKey: string;
@@ -219,6 +220,7 @@ export class NetworkCommand extends BaseCommand {
       flags.awsWriteSecrets,
       flags.awsEndpoint,
       flags.awsBucket,
+      flags.awsBucketRegion,
       flags.awsBucketPrefix,
       flags.backupBucket,
       flags.backupWriteAccessKey,
@@ -528,6 +530,12 @@ export class NetworkCommand extends BaseCommand {
       for (const clusterReference of clusterReferences) {
         valuesArguments[clusterReference] += ` --set cloud.buckets.streamBucketPrefix=${config.awsBucketPrefix}`;
       }
+    }
+
+    if (config.awsBucketRegion) {
+        for (const clusterReference of clusterReferences) {
+            valuesArguments[clusterReference] += ` --set cloud.buckets.streamBucketRegion=${config.awsBucketRegion}`;
+        }
     }
 
     if (config.backupBucket) {

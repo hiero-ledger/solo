@@ -2,20 +2,21 @@
 
 import {type KeyFormatter} from './key-formatter.js';
 import {IllegalArgumentError} from '../../business/errors/illegal-argument-error.js';
+import {StringEx} from '../../business/utils/string-ex.js';
 
 export class EnvironmentKeyFormatter implements KeyFormatter {
   private static _instance: EnvironmentKeyFormatter;
 
-  public readonly separator: string = '_';
+  public readonly separator: string = StringEx.UNDERSCORE;
 
   private constructor() {}
 
   public normalize(key: string): string {
-    if (!key || key.trim().length === 0) {
+    if (StringEx.isEmpty(key)) {
       return key;
     }
 
-    return key.trim().toUpperCase().replaceAll('.', this.separator);
+    return StringEx.camelCaseToKebab(key).trim().toUpperCase().replaceAll(StringEx.PERIOD, this.separator);
   }
 
   public split(key: string): string[] {
