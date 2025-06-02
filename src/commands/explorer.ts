@@ -36,6 +36,7 @@ import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-
 import {CommandFlag, CommandFlags} from '../types/flag-types.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {Templates} from '../core/templates.js';
+import {INGRESS_CONTROLLER_RELEASE_NAME} from '../core/constants.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -467,7 +468,7 @@ export class ExplorerCommand extends BaseCommand {
               .waitForReadyStatus(
                 context_.config.namespace,
                 [
-                  `app.kubernetes.io/name=${context_.config.ingressReleaseName}`,
+                  `app.kubernetes.io/name=${constants.INGRESS_CONTROLLER_RELEASE_NAME}`,
                   `app.kubernetes.io/instance=${context_.config.ingressReleaseName}`,
                 ],
                 constants.PODS_READY_MAX_ATTEMPTS,
