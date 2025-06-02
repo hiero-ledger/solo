@@ -111,9 +111,11 @@ jobs:
           check_name: "E2E Test Report"
           files: "e2e_test_report/**/*.xml"
 
-      - name: Show downloaded file directories
+      - name: Show downloaded file directories and update permissions
         if: ${{ always() }}
         run: |
+          chmod -R 755 coverage || true
+          chmod -R 755 e2e_test_report || true
           ls -lahR coverage || true
           ls -lahR e2e_test_report || true
 
@@ -130,7 +132,11 @@ jobs:
         env:
           CODACY_PROJECT_TOKEN: ${{ secrets.codacy-project-token }}
         if: ${{ inputs.enable-codacy-coverage && !cancelled() && !failure() }}
-        run: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l Javascript $(find . -name 'lcov.info' -printf '-r "%p" ')
+        run: |
+              CODACY_PARAMS=$(for file in $(find . -name 'lcov.info'); do
+                echo -n "-r $(readlink -f "$file") "
+              done)
+              bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l Javascript ${CODACY_PARAMS}
 
       - name: Setup Snyk
         env:
