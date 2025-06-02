@@ -92,6 +92,8 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     skipConsensusNodes: boolean,
     state: Readonly<DeploymentStateSchema>,
   ): Promise<void> {
+    console.dir({state, charts: await this.chartManager.getInstalledCharts(namespace)}, {depth: null});
+
     const validationPromises: Promise<void>[] = Object.entries(RemoteConfigValidator.componentValidationsMapping)
       .filter(([key]): boolean => key !== 'consensusNodes' || !skipConsensusNodes)
       .flatMap(([key, {getLabelsCallback, displayName, skipCondition, legacyReleaseName}]): Promise<void>[] =>
