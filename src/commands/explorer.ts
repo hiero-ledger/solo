@@ -253,7 +253,7 @@ export class ExplorerCommand extends BaseCommand {
               'chartDirectory',
             ]) as ExplorerDeployConfigClass;
 
-            context_.config.chartDirectory += self.explorerConfig.explorerConfig.helmChart.directory;
+            context_.config.chartDirectory = self.explorerConfig.explorerConfig.helmChart.directory;
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
             context_.config.clusterContext = context_.config.clusterRef
               ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString()

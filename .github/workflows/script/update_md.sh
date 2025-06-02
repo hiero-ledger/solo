@@ -89,5 +89,4 @@ sed -i 's/\[33m//g' ${TARGET_FILE}
 sed -i 's/\[39m//g' ${TARGET_FILE}
 egrep -v '↓|❯|•' ${TARGET_FILE} > ${TARGET_FILE}.tmp && mv ${TARGET_FILE}.tmp ${TARGET_FILE}
 
-popd
 set +x
