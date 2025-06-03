@@ -5,16 +5,16 @@ dotenv:
 silent: false
 includes:
   github:
-    taskfile: ./Taskfile.github.yml
+    taskfile: ./Taskfile.github.yaml
     flatten: true
   install:
-    taskfile: ./Taskfile.install.yml
+    taskfile: ./Taskfile.install.yaml
     flatten: true
   mutate:
-    taskfile: ./Taskfile.mutate.yml
+    taskfile: ./Taskfile.mutate.yaml
     flatten: true
   npmjs:
-    taskfile: ./Taskfile.npmjs.yml
+    taskfile: ./Taskfile.npmjs.yaml
     flatten: true
 env:
   HUGO_ENVIRONMENT: production
