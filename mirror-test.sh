@@ -23,8 +23,8 @@ solo network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --re
 solo node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
 solo node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
-solo explorer deploy -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 solo mirror-node deploy  --deployment "${SOLO_DEPLOYMENT}"
+solo explorer deploy -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/haproxy-node1-svc 50211:50211 > /dev/null 2>&1 &
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-grpc 5600:5600 > /dev/null 2>&1 &
