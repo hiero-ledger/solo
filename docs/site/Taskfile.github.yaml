@@ -179,3 +179,53 @@ tasks:
         ' "$RELEASES_FILE" > "$OUTPUT_FILE"
         
         echo "✅ Output written to $OUTPUT_FILE"
+
+  github:upload:release:assets:
+    desc: Uploads specified .tar.gz release assets to a GitHub release for the hiero-ledger/solo repository.
+    silent: true
+    deps:
+      - install:gh
+    requires:
+      vars: [HUGO_SOLO_VERSION]
+    cmds:
+      - |
+        # Start with strict mode for the shell script
+        set -e -o pipefail
+
+        # HUGO_SOLO_VERSION is expected from the environment. Task fails if not set.
+        RELEASE_TAG=${HUGO_SOLO_VERSION}
+        # EFFECTIVE_GH_TOKEN prioritizes GITHUB_TOKEN, then GH_TOKEN. Task fails if neither is set.
+        GH_TOKEN=${GITHUB_TOKEN:-${GH_TOKEN}}
+        
+        if [[ -z "{{.GH_TOKEN}}" ]]; then
+          echo "Error: GH_TOKEN is not set. Please provide a valid GitHub token with either GH_TOKEN or GITHUB_TOKEN." >&2
+          exit 1
+        fi
+
+        echo "Preparing to upload release assets for version ${RELEASE_TAG} to hiero-ledger/solo repository..."
+
+        # Define asset paths using the RELEASE_TAG variable
+        ASSET_LATEST="./build/${RELEASE_TAG}/latest.tar.gz"
+        ASSET_VERSIONED="./build/${RELEASE_TAG}/${RELEASE_TAG}.tar.gz"
+
+        # Check if asset files exist before attempting upload
+        if [ ! -f "$ASSET_LATEST" ]; then
+          echo "Error: Asset file not found: $ASSET_LATEST" >&2
+          exit 1
+        fi
+        if [ ! -f "$ASSET_VERSIONED" ]; then
+          echo "Error: Asset file not found: $ASSET_VERSIONED" >&2
+          exit 1
+        fi
+
+        echo "Assets to be uploaded:"
+        echo "  - $ASSET_LATEST"
+        echo "  - $ASSET_VERSIONED"
+        
+        echo "Uploading assets to GitHub release ${RELEASE_TAG}..."
+        # gh release upload command. Errors will cause script to exit due to 'set -e'.
+        # The --repo flag specifies the target repository.
+        # Multiple asset files can be listed at the end of the command.
+        gh release upload "${RELEASE_TAG}" "$ASSET_LATEST" "$ASSET_VERSIONED" --repo hiero-ledger/solo --clobber
+
+        echo "Successfully uploaded assets for release ${RELEASE_TAG}."
