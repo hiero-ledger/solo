@@ -93,7 +93,7 @@ function start_sdk_test ()
 function check_monitor_log()
 {
   # get the logs of mirror-monitor
-  kubectl get pods -n solo-e2e | grep mirror-1-monitor | awk '{print $1}' | xargs -IPOD kubectl logs -n solo-e2e POD > mirror-monitor.log
+  kubectl get pods -n solo-e2e | grep ${MIRROR_RELEASE_NAME}-monitor | awk '{print $1}' | xargs -IPOD kubectl logs -n solo-e2e POD > mirror-monitor.log
 
   if grep -q "ERROR" mirror-monitor.log; then
     echo "mirror-monitor.log contains ERROR"
@@ -120,7 +120,7 @@ function check_monitor_log()
 
 function check_importer_log()
 {
-  kubectl get pods -n solo-e2e | grep mirror-1-importer | awk '{print $1}' | xargs -IPOD kubectl logs -n solo-e2e POD > mirror-importer.log
+  kubectl get pods -n solo-e2e | grep ${MIRROR_RELEASE_NAME}-importer | awk '{print $1}' | xargs -IPOD kubectl logs -n solo-e2e POD > mirror-importer.log
   if grep -q "ERROR" mirror-importer.log; then
     echo "mirror-importer.log contains ERROR"
 
