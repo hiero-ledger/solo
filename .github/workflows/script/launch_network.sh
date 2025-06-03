@@ -14,7 +14,7 @@ then
     exit 1
 fi
 
-#npm install -g @hashgraph/solo@"${releaseTag}" --force
+npm install -g @hashgraph/solo@"${releaseTag}" --force
 solo --version
 
 export SOLO_CLUSTER_NAME=solo-e2e
@@ -36,30 +36,15 @@ solo cluster setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 solo node keys --gossip-keys --tls-keys -i node1,node2
 solo deployment create -i node1,node2 -n "${SOLO_NAMESPACE}" --context kind-"${SOLO_CLUSTER_NAME}" --email john@doe.com --deployment-clusters kind-"${SOLO_CLUSTER_NAME}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --deployment "${SOLO_DEPLOYMENT}"
 
-# Migrate step by step from v0.58.10 to v0.59.5 and then to v0.60.1
 export CONSENSUS_NODE_VERSION=v0.58.10
-solo network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q
+solo network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --settings-txt ./settings.txt
 solo node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
 solo node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
-solo node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
-
-export CONSENSUS_NODE_VERSION=v0.59.5
-solo network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q || true
-solo node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
-solo node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
-solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
-solo node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
-
-export CONSENSUS_NODE_VERSION=v0.60.1
-solo network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q || true
-solo node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
-solo node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
-solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
-solo node logs -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
+#solo node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 
 solo mirror-node deploy  --deployment "${SOLO_DEPLOYMENT}"
-solo explorer deploy -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+# solo explorer deploy -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 
 cp ~/.solo/cache/local-config.yaml ./local-config-before.yaml
@@ -69,7 +54,7 @@ cat remote-config-before.yaml
 
 # must uninstall explorer before migration, because the change of explorer chart name and labels
 # make it harder to uninstall or upgrade after migration
-solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
+# solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
 
 # trigger migration
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}"
@@ -91,15 +76,15 @@ if ! grep -q "schemaVersion: 1" ./remote-config-after.yaml; then
   exit 1
 fi
 
-# redeploy mirror-node to upgrade to a newer version
-npm run solo-test -- mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --pinger -q --dev
-
-# redeploy explorer
-npm run solo-test -- explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace solo-e2e -q --dev
-
 # using new solo to redeploy solo deployment chart to new version
 kubectl delete statefulset network-node1 network-node2 --cascade=orphan -n "${SOLO_NAMESPACE}"
-npm run solo-test -- network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q
+npm run solo-test -- network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --settings-txt ./settings.txt
+
+# must kill the pods to trigger redeployment to pickup changes to new image of root-container
+# otherwise the missing of zip/unzip would make the platform extraction on nodes fail
+kubectl delete pod network-node1-0 -n solo-e2e
+kubectl delete pod network-node2-0 -n solo-e2e
+
 npm run solo-test -- node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
 npm run solo-test -- node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 
@@ -110,6 +95,12 @@ kubectl port-forward -n "${SOLO_NAMESPACE}" svc/hiero-explorer 8080:80 > /dev/nu
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-rest 5551:80 > /dev/null 2>&1 &
 
 ps -ef |grep port-forward
+
+# redeploy mirror-node to upgrade to a newer version
+npm run solo-test -- mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --pinger -q --dev
+
+# redeploy explorer
+npm run solo-test -- explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace solo-e2e -q --dev
 
 # Test transaction can still be sent and processed
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
