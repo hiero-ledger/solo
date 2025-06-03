@@ -56,7 +56,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     relayNodes: {
       displayName: 'Relay Nodes',
       getLabelsCallback: Templates.renderRelayLabels,
-      legacyReleaseName: constants.JSON_RPC_RELAY_CHART,
+      legacyReleaseName: constants.JSON_RPC_RELAY_RELEASE_NAME,
     },
     haProxies: {
       displayName: 'HaProxy',
