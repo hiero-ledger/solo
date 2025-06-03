@@ -151,8 +151,8 @@ else
     --ingress-controller-value-file "${script_dir}"/mirror-ingress-controller-values.yaml \
     --enable-ingress --domain-name localhost
 
-  kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-grpc 5600:5600 > /dev/null 2>&1 &
-  kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-rest 5551:80 > /dev/null 2>&1 &
+  kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-1-grpc 5600:5600 > /dev/null 2>&1 &
+  kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-1-rest 5551:80 > /dev/null 2>&1 &
 
   npm run solo-test -- explorer deploy -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" \
     --cluster-ref kind-${SOLO_CLUSTER_NAME} --tls-cluster-issuer-type self-signed --enable-explorer-tls \

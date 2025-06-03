@@ -337,7 +337,7 @@ tasks:
       - |
         if [[ "{{ .use_port_forwards }}" == "true" ]];then
           echo "Enable port forwarding for Hedera JSON RPC Relay"
-          /bin/bash -c "nohup kubectl port-forward -n \"${SOLO_NAMESPACE}\" svc/relay-node1-hedera-json-rpc-relay 7546:7546 > /dev/null 2>&1 &"
+          /bin/bash -c "nohup kubectl port-forward -n \"${SOLO_NAMESPACE}\" svc/relay-1 7546:7546 > /dev/null 2>&1 &"
           sleep 4
         fi
 
@@ -345,7 +345,7 @@ tasks:
     silent: true
     status:
       - |
-        {{.solo_bin_dir}}/helm list -n "${SOLO_NAMESPACE}" | grep -vqz relay-node1
+        {{.solo_bin_dir}}/helm list -n "${SOLO_NAMESPACE}" | grep -vqz relay-1
     deps:
       - task: "init"
     cmds:
@@ -518,8 +518,8 @@ tasks:
       - |
         if [[ "{{ .use_port_forwards }}" == "true" ]];then
           echo "Port forwarding for Mirror Node Network: grpc:5600, rest:5551"
-          /bin/bash -c "nohup kubectl port-forward -n \"${SOLO_NAMESPACE}\" svc/mirror-grpc 5600:5600 > /dev/null 2>&1 &"
-          /bin/bash -c "nohup kubectl port-forward -n \"${SOLO_NAMESPACE}\" svc/mirror-rest 5551:80 > /dev/null 2>&1 &"
+          /bin/bash -c "nohup kubectl port-forward -n \"${SOLO_NAMESPACE}\" svc/mirror-1-grpc 5600:5600 > /dev/null 2>&1 &"
+          /bin/bash -c "nohup kubectl port-forward -n \"${SOLO_NAMESPACE}\" svc/mirror-1-rest 5551:80 > /dev/null 2>&1 &"
           sleep 4
         fi
 

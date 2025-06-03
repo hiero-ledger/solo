@@ -36,7 +36,6 @@ import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-
 import {CommandFlag, CommandFlags} from '../types/flag-types.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {Templates} from '../core/templates.js';
-import {INGRESS_CONTROLLER_RELEASE_NAME} from '../core/constants.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;

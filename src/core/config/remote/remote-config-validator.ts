@@ -194,13 +194,17 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
   public static buildValidationErrorMessage(
     displayName: string,
     component: BaseStateSchema,
-    labels?: string[],
+    labels: string[] = [],
   ): string {
-    return (
+    let message: string =
       `${displayName} in remote config with id ${component.metadata.id} was not found in ` +
       `namespace: ${component.metadata.namespace}, ` +
-      `cluster: ${component.metadata.cluster}, ` +
-      `labels: ${labels}`
-    );
+      `cluster: ${component.metadata.cluster}`;
+
+    if (Array.isArray(labels) && labels.length > 0) {
+      message += `,    labels: ${labels}`;
+    }
+
+    return message;
   }
 }

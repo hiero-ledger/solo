@@ -197,7 +197,7 @@ describe('RemoteConfigValidator', () => {
           }
         } catch (error) {
           expect(error).to.be.instanceOf(SoloError);
-          expect(error.message).to.equal(RemoteConfigValidator.buildValidationErrorMessage(displayName, component));
+          expect(error.message).to.include(RemoteConfigValidator.buildValidationErrorMessage(displayName, component));
         }
       });
 

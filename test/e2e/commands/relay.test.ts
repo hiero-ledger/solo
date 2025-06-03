@@ -23,7 +23,6 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type ArgvStruct} from '../../../src/types/aliases.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
-import {type ComponentId} from '../../../src/types/index.js';
 
 const testName: string = 'relay-cmd-e2e';
 const namespace: NamespaceName = NamespaceName.of(testName);
