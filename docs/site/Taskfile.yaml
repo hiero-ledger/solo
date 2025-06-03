@@ -129,6 +129,7 @@ tasks:
       - printf "\r::group::Building the Hugo site"
       - hugo config
       - hugo --cleanDestinationDir -e prod --gc --minify --baseURL "{{.hugo_base_url}}" -d public/${HUGO_SOLO_VERSION}
+      - echo "Hugo site built successfully.\n"
       - printf "                        \r::endgroup::"
 
   solo:version:
