@@ -28,8 +28,6 @@ vars:
   hugo_base_url: "${HUGO_ORIGIN}${HUGO_SOLO_VERSION}/"
   hugo_local_base_url: "${HUGO_LOCAL_ORIGIN}${HUGO_SOLO_VERSION}/"
 
-# TODO P0 attach the archive to the release, can I use gh CLI in Taskfile.yaml?
-# TODO P0 update github workflows
 tasks:
   default:
     desc: "List all available tasks"

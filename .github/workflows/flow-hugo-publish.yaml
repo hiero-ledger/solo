@@ -20,6 +20,23 @@ name: Deploy Hugo site to Pages
 on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+    inputs:
+      solo-version:
+        description: "Solo Version to build docs for and attach to the release, e.g. 'v0.37.2'"
+        type: string
+        required: false
+        default: 'main' # Default to the main branch, which is the latest development version'
+  workflow_call:
+    inputs:
+      solo-version:
+        description: "Solo Version to build docs for and attach to the release, e.g. 'v0.37.2'"
+        type: string
+        required: false
+        default: 'main' # Default to the main branch, which is the latest development version'
+    secrets:
+      token:
+        description: "GitHub Token for authentication"
+        required: true
   # Runs on pushes targeting the default branch
   push:
     branches:
@@ -102,35 +119,55 @@ jobs:
         with:
           go-version-file: 'docs/site/go.mod'
 
-      # TODO set HUGO_SOLO_VERSION to the input solo_version, solo_version will default to 'main', and will be a workflow input
-      # TODO attach release artifact if part of release workflow and run it after semantic-release to ensure the version is correct
-      - name: Build with Hugo
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Build Docs with Hugo
+        if: ${{ github.ref != 'refs/heads/main' }}
         run: |
           set -xeo pipefail
           cd docs/site
-          task build
+          HUGO_SOLO_VERSION="${{ github.event.inputs.solo-version }}" task build
 
-      # TODO only publish on push to 'main'
-      # TODO what about a tag from a release branch, do we push the artifacts to the relesae, and then checkout main and do the build, publish, deploy?
-      # Upload the built site to GitHub Pages
-      - name: Upload Pages Artifact
-        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
-        # if: ${{ endsWith(github.ref, 'disabled') }} # TODO revert before merging
-        with:
-          path: ./docs/site/public
+      # If this is a manual dispatch or a release branch, we need to attach the docs as release artifacts.
+      - name: Attach Docs as Release Artifacts
+        if: ${{ github.event.inputs.solo-version != 'main' && github.ref != 'refs/heads/main' && !github.event.repository.fork }}
+        env:
+          GH_TOKEN: ${{ github.token }} # Use the GitHub token when running as workflow_dispatch
+          GITHUB_TOKEN: ${{ secrets.token }} # Use the token secret when running as workflow_call
+        run: |
+          set -xeo pipefail
+          # Ensure the release version is set
+          if [[ -z "${{ github.event.inputs.solo-version }}" ]]; then
+            echo "Error: solo-version input is required for attaching release artifacts." >&2
+            exit 1
+          fi
+          # Create the release artifact tarballs
+          HUGO_SOLO_VERSION="${{ github.event.inputs.solo-version }}" task github:upload:release:assets
+
+      # If this is a release branch or manual dispatch with a specific version, we need the 'main' branch
+      #  to also be built and deployed to GitHub Pages.
+      - name: Build Docs with Hugo for Main Branch
+        if: ${{ startsWith(github.ref, 'refs/heads/release') || github.ref == 'refs/heads/main' }}
+        run: |
+          set -xeo pipefail
+          git checkout --force main
+          cd docs/site
+          task build
 
       # Upload the built site to artifacts for troubleshooting or verification
       - name: Upload Artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           path: |
-                ./docs/site/build
-                ./docs/site/public
-                ./docs/site/static
+            ./docs/site/build
+            ./docs/site/public
+            ./docs/site/static
 
-  # TODO only publish on push to 'main'
+      # Upload the built site to GitHub Pages
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        if: ${{ (startsWith(github.ref, 'refs/heads/release') || github.ref == 'refs/heads/main') && !github.event.repository.fork }}
+        with:
+          path: ./docs/site/public
+
   # Deployment job
   deploy:
     name: Deploy
@@ -140,7 +177,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     needs:
       - build
-    # if: ${{ endsWith(github.ref, 'disabled') }} # TODO revert before merging
+    if: ${{ (startsWith(github.ref, 'refs/heads/release') || github.ref == 'refs/heads/main') && !github.event.repository.fork }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
