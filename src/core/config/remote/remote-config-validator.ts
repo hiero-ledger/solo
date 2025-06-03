@@ -19,6 +19,7 @@ import {type K8Factory} from '../../../integration/kube/k8-factory.js';
 import * as constants from '../../constants.js';
 import {NodeAlias, NodeAliases} from '../../../types/aliases.js';
 import {RelayNodeStateSchema} from '../../../data/schema/model/remote/state/relay-node-state-schema.js';
+import {JSON_RPC_RELAY_CHART} from '../../constants.js';
 
 /**
  * Static class is used to validate that components in the remote config
@@ -55,7 +56,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     relayNodes: {
       displayName: 'Relay Nodes',
       getLabelsCallback: Templates.renderRelayLabels,
-      legacyReleaseName: constants.JSON_RPC_RELAY_RELEASE_NAME,
+      legacyReleaseName: constants.JSON_RPC_RELAY_CHART,
     },
     haProxies: {
       displayName: 'HaProxy',
