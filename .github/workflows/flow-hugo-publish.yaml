@@ -120,15 +120,24 @@ jobs:
           go-version-file: 'docs/site/go.mod'
 
       - name: Build Docs with Hugo
-        if: ${{ github.ref != 'refs/heads/main' }}
+        if: github.ref != 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }} # Use the GitHub token when running as workflow_dispatch or a pull/push
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Use the token secret when running as workflow_call
         run: |
           set -xeo pipefail
+          if [[ -z "${GH_TOKEN}" ]]; then
+            GH_TOKEN="${GITHUB_TOKEN}"
+          fi
           cd docs/site
           HUGO_SOLO_VERSION="${{ github.event.inputs.solo-version }}" task build
 
       # If this is a manual dispatch or a release branch, we need to attach the docs as release artifacts.
       - name: Attach Docs as Release Artifacts
-        if: ${{ github.event.inputs.solo-version != 'main' && github.ref != 'refs/heads/main' && !github.event.repository.fork }}
+        if: >
+          github.event.inputs.solo-version != 'main' && 
+          github.ref != 'refs/heads/main' && 
+          github.repository == 'hiero-ledger/solo'
         env:
           GH_TOKEN: ${{ github.token }} # Use the GitHub token when running as workflow_dispatch
           GITHUB_TOKEN: ${{ secrets.token }} # Use the token secret when running as workflow_call
@@ -145,7 +154,11 @@ jobs:
       # If this is a release branch or manual dispatch with a specific version, we need the 'main' branch
       #  to also be built and deployed to GitHub Pages.
       - name: Build Docs with Hugo for Main Branch
-        if: ${{ startsWith(github.ref, 'refs/heads/release') || github.ref == 'refs/heads/main' }}
+        if: >
+          startsWith(github.ref, 'refs/heads/release') || 
+          github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -xeo pipefail
           git checkout --force main
@@ -164,7 +177,10 @@ jobs:
       # Upload the built site to GitHub Pages
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
-        if: ${{ (startsWith(github.ref, 'refs/heads/release') || github.ref == 'refs/heads/main') && !github.event.repository.fork }}
+        if: >
+          (startsWith(github.ref, 'refs/heads/release') || 
+          github.ref == 'refs/heads/main') && 
+          github.repository == 'hiero-ledger/solo'
         with:
           path: ./docs/site/public
 
@@ -177,7 +193,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     needs:
       - build
-    if: ${{ (startsWith(github.ref, 'refs/heads/release') || github.ref == 'refs/heads/main') && !github.event.repository.fork }}
+    if: >
+      (startsWith(github.ref, 'refs/heads/release') || 
+      github.ref == 'refs/heads/main') && 
+      github.repository == 'hiero-ledger/solo'
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
