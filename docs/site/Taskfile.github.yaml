@@ -7,6 +7,7 @@ tasks:
     deps: [install:gh]
     cmds:
       - |
+        printf "\r::group::Fetching GitHub releases for hiero-ledger/solo...\n"
         mkdir -p build
         touch build/github-releases.json
         if ! command -v gh &> /dev/null; then
@@ -24,6 +25,7 @@ tasks:
             | map({name: .name, url: .browser_download_url})
           )
         }) | map(select(.assets | length > 0))' | tee build/github-releases.json
+        printf "\r::endgroup::--------------\n"
 
   github:download:solo:assets:
     desc: Download release assets into per-tag folders under build/
