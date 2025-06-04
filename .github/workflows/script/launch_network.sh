@@ -37,7 +37,7 @@ solo node keys --gossip-keys --tls-keys -i node1,node2
 solo deployment create -i node1,node2 -n "${SOLO_NAMESPACE}" --context kind-"${SOLO_CLUSTER_NAME}" --email john@doe.com --deployment-clusters kind-"${SOLO_CLUSTER_NAME}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --deployment "${SOLO_DEPLOYMENT}"
 
 export CONSENSUS_NODE_VERSION=v0.58.10
-solo network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --settings-txt ./settings.txt
+solo network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --settings-txt .github/workflows/support/v58-test/settings.txt
 solo node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
 solo node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
