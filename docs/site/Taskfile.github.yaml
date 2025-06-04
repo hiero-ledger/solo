@@ -8,6 +8,7 @@ tasks:
     cmds:
       - |
         mkdir -p build
+        touch build/github-releases.json
         if ! command -v gh &> /dev/null; then
           echo "Error: GitHub CLI (gh) is not installed." >&2
           exit 1
