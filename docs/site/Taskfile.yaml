@@ -108,12 +108,12 @@ tasks:
     generates:
       - docs/site/content/en/docs/solo-commands.md
     cmds:
-      - printf "\r::group::Generating CLI help documentation"
+      - printf "\r::group::Generating CLI help documentation\n"
       - rm -f docs/site/content/en/docs/solo-commands.md
       - chmod 755 docs/site/generate_help.sh
       - task: "build:solo"
       - docs/site/generate_help.sh
-      - printf "                        \r::endgroup::"
+      - printf "\r::endgroup::--------------\n"
 
   build:hugo:
     desc: "Build the Hugo site"
@@ -126,11 +126,11 @@ tasks:
       - echo "hugo_base_url       {{.hugo_base_url}}"
       - echo "hugo_local_base_url {{.hugo_local_base_url}}"
       - hugo version
-      - printf "\r::group::Building the Hugo site"
+      - printf "\r::group::Building the Hugo site\n"
       - hugo config
       - hugo --cleanDestinationDir -e prod --gc --minify --baseURL "{{.hugo_base_url}}" -d public/${HUGO_SOLO_VERSION}
-      - echo "Hugo site built successfully.\n"
-      - printf "                        \r::endgroup::"
+      - echo "Hugo site built successfully. RC=${?}"
+      - printf "\r::endgroup::--------------\n"
 
   solo:version:
     desc: "Display the version of the Solo CLI from the package.json and write it to a file"
@@ -157,13 +157,31 @@ tasks:
     silent: true
     cmds:
       - |
+        printf "\r::group::Building documentation artifacts\n"
+        echo "pwd=$(pwd)"
         mkdir -p build/${HUGO_SOLO_VERSION}/latest
+        if ! [[ -f public/index.html ]]; then
+          echo "Error: public/index.html not found."
+          exit 1
+        fi
         sed -e "s|/latest|/${HUGO_SOLO_VERSION}|g" public/index.html > build/${HUGO_SOLO_VERSION}/latest/index.html
         cd build/${HUGO_SOLO_VERSION}
+        echo "pwd=$(pwd)"
         tar -czf latest.tar.gz latest
+        if [[ $? -ne 0 ]]; then
+          echo "Error: Failed to create latest.tar.gz"
+          exit 1
+        fi
         cd ../../public
+        echo "pwd=$(pwd)"
         tar -czf ../build/${HUGO_SOLO_VERSION}/${HUGO_SOLO_VERSION}.tar.gz ${HUGO_SOLO_VERSION}
+        if [[ $? -ne 0 ]]; then
+          echo "Error: Failed to create ${HUGO_SOLO_VERSION}.tar.gz"
+          exit 1
+        fi
         cd ..
+        echo "pwd=$(pwd)"
+        printf "\r::endgroup::--------------\n"
 
   build:typedoc:
     desc: "Generate the API documentation using TypeDoc"
@@ -176,9 +194,9 @@ tasks:
     generates:
       - docs/site/static/classes/**/*.*
     cmds:
-      - printf "\r::group::Generating API documentation"
+      - printf "\r::group::Generating API documentation\n"
       - npx typedoc --excludeExternals --out docs/site/static/classes --entryPoints ./solo.ts --entryPoints ./src/index.ts --entryPointStrategy expand ./src
-      - printf "                        \r::endgroup::"
+      - printf "\r::endgroup::--------------\n"
 
   local:
     desc: "Run the local server for only current version"
