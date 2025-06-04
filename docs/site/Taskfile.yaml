@@ -163,7 +163,6 @@ tasks:
     cmds:
       - |
         printf "\r::group::Building documentation artifacts\n"
-        set -xeo pipefail
         CURRENT_DIRECTORY=$(pwd) && echo "CURRENT_DIRECTORY-directory=${CURRENT_DIRECTORY}"
         mkdir -p build/${HUGO_SOLO_VERSION}/latest
         if ! [[ -f public/index.html ]]; then
