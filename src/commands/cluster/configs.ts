@@ -25,6 +25,8 @@ import {type ClusterReferenceSetupContext} from './config-interfaces/cluster-ref
 import {type ClusterReferenceSetupConfigClass} from './config-interfaces/cluster-reference-setup-config-class.js';
 import {type ClusterReferenceResetConfigClass} from './config-interfaces/cluster-reference-reset-config-class.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
+import * as helpers from '../../core/helpers.js';
+import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 @injectable()
 export class ClusterCommandConfigs {
@@ -37,12 +39,14 @@ export class ClusterCommandConfigs {
     @inject(InjectTokens.ChartManager) private readonly chartManager: ChartManager,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
+    @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
   ) {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
+    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
   }
 
   public async connectConfigBuilder(
@@ -111,6 +115,13 @@ export class ClusterCommandConfigs {
     } as ClusterReferenceSetupConfigClass;
 
     this.logger.debug('Prepare ctx.config', {config: context_.config, argv});
+
+    context_.config.soloChartVersion = helpers.resolveVersion(
+      context_.config.soloChartVersion,
+      flags.soloChartVersion,
+      this.remoteConfig.configuration.versions.chart,
+      this.localConfig.configuration.versions.chart,
+    );
 
     context_.isChartInstalled = await this.chartManager.isChartInstalled(
       context_.config.clusterSetupNamespace,

@@ -37,6 +37,7 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {SemVer} from 'semver';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -249,6 +250,20 @@ export class ExplorerCommand extends BaseCommand {
             context_.config = this.configManager.getConfig(ExplorerCommand.DEPLOY_CONFIGS_NAME, allFlags, [
               'valuesArg',
             ]) as ExplorerDeployConfigClass;
+
+            context_.config.explorerVersion = helpers.resolveVersion(
+              context_.config.explorerVersion,
+              flags.explorerVersion,
+              this.remoteConfig.configuration.versions.explorerChart,
+              this.localConfig.configuration.versions.explorerChart,
+            );
+
+            context_.config.soloChartVersion = helpers.resolveVersion(
+              context_.config.soloChartVersion,
+              flags.soloChartVersion,
+              this.remoteConfig.configuration.versions.chart,
+              this.localConfig.configuration.versions.chart,
+            );
 
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
             context_.config.clusterContext = context_.config.clusterRef
