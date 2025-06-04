@@ -155,6 +155,9 @@ tasks:
   build:doc:artifacts:
     desc: "Builds a ./build/latest.tar.gz file and a ./build/${SOLO_VERSION}.tar.gz file from the directories in the public directory"
     silent: true
+    preconditions:
+      - msg: "tar command is required to create the documentation artifacts."
+        sh: command -v tar
     cmds:
       - |
         printf "\r::group::Building documentation artifacts\n"
@@ -167,6 +170,7 @@ tasks:
         sed -e "s|/latest|/${HUGO_SOLO_VERSION}|g" public/index.html > build/${HUGO_SOLO_VERSION}/latest/index.html
         cd build/${HUGO_SOLO_VERSION}
         CURRENT_DIRECTORY=$(pwd) && echo "CURRENT_DIRECTORY-directory=${CURRENT_DIRECTORY}"
+        ls -al
         tar -czf latest.tar.gz latest
         if [[ $? -ne 0 ]]; then
           echo "Error: Failed to create latest.tar.gz"
