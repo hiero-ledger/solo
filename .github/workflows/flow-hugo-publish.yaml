@@ -140,6 +140,7 @@ jobs:
       # If this is a manual dispatch or a release branch, we need to attach the docs as release artifacts.
       - name: Attach Docs as Release Artifacts
         if: >
+          github.event.inputs.solo-version != '' &&
           github.event.inputs.solo-version != 'main' && 
           github.ref != 'refs/heads/main' && 
           github.repository == 'hiero-ledger/solo'
