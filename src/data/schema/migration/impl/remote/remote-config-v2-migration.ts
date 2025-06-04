@@ -8,10 +8,10 @@ import {IllegalArgumentError} from '../../../../../business/errors/illegal-argum
 import {type RemoteConfigStructure} from '../../../model/remote/interfaces/remote-config-structure.js';
 import {ComponentIdsSchema} from '../../../model/remote/state/component-ids-schema.js';
 import {type DeploymentStateStructure} from '../../../model/remote/interfaces/deployment-state-structure.js';
-import {NodeAlias, type NodeAliases, type NodeId} from '../../../../../types/aliases.js';
+import {type NodeAlias, type NodeId} from '../../../../../types/aliases.js';
 import {Templates} from '../../../../../core/templates.js';
 import {type BaseStateSchema} from '../../../model/remote/state/base-state-schema.js';
-import {RelayNodeStateSchema} from '../../../model/remote/state/relay-node-state-schema.js';
+import {type RelayNodeStateSchema} from '../../../model/remote/state/relay-node-state-schema.js';
 
 export class RemoteConfigV2Migration implements SchemaMigration {
   public get range(): VersionRange<number> {

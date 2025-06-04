@@ -36,7 +36,6 @@ import {v4 as uuidv4} from 'uuid';
 import {
   type ClusterReference,
   type ClusterReferences,
-  type NamespaceNameAsString,
   type CommandDefinition,
   type Context,
   type DeploymentName,
