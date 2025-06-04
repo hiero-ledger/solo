@@ -193,7 +193,7 @@ export class BlockNodeCommand extends BaseCommand {
           },
         },
         {
-          title: 'Prepare release name and block node name',
+          title: 'Prepare release name',
           task: async (context_): Promise<void> => {
             const config: BlockNodeDeployConfigClass = context_.config;
 
