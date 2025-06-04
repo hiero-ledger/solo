@@ -158,6 +158,8 @@ tasks:
     preconditions:
       - msg: "tar command is required to create the documentation artifacts."
         sh: command -v tar
+    requires:
+      vars: [HUGO_SOLO_VERSION]
     cmds:
       - |
         printf "\r::group::Building documentation artifacts\n"
@@ -172,7 +174,6 @@ tasks:
         cd build/${HUGO_SOLO_VERSION}
         CURRENT_DIRECTORY=$(pwd) && echo "CURRENT_DIRECTORY-directory=${CURRENT_DIRECTORY}"
         ls -al
-        tar --help
         tar -czf latest.tar.gz latest
         if [[ $? -ne 0 ]]; then
           echo "Error: Failed to create latest.tar.gz"

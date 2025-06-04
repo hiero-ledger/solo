@@ -132,9 +132,9 @@ jobs:
           cd docs/site
           HUGO_SOLO_VERSION="${{ github.event.inputs.solo-version }}"
           if [[ -z ${HUGO_SOLO_VERSION} ]]; then
-            HUGO_SOLO_VERSION=${HUGO_SOLO_VERSION} task build
+           task build 
           else
-            task build
+            HUGO_SOLO_VERSION=${HUGO_SOLO_VERSION} task build
           fi
 
       # If this is a manual dispatch or a release branch, we need to attach the docs as release artifacts.
