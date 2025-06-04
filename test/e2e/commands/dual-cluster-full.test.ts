@@ -597,7 +597,13 @@ async function verifyExplorerDeployWasSuccessful(
 
           response.on('data', (chunk): void => {
             // convert chunk to json object
-            const object: {accounts: {account: string}[]} = JSON.parse(chunk);
+            let object: {accounts: {account: string}[]};
+            try {
+              object = JSON.parse(chunk);
+            } catch (error) {
+              console.error(error);
+              throw error;
+            }
             expect(
               object.accounts?.length,
               "expect there to be more than one account in the hedera explorer's call to mirror node",
