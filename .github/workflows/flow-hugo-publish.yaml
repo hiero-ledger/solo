@@ -119,6 +119,7 @@ jobs:
         with:
           go-version-file: 'docs/site/go.mod'
 
+      # Run this unless the source branch is `main`
       - name: Build Docs with Hugo
         if: github.ref != 'refs/heads/main'
         env:
@@ -130,15 +131,21 @@ jobs:
             GH_TOKEN="${GITHUB_TOKEN}"
           fi
           cd docs/site
-          # HUGO_SOLO_VERSION="${{ github.event.inputs.solo-version }}"
-          HUGO_SOLO_VERSION="v0.37.1"
+          HUGO_SOLO_VERSION="${{ github.event.inputs.solo-version }}"
+          if [[ -z "${HUGO_SOLO_VERSION}" && "${GITHUB_HEAD_REF}" != "refs/heads/main" ]]; then
+            # We only want the `gh` utility calls to run for manual dispatches, workflow calls (from deploy & release), 
+            #  or workflow runs from `main` branch
+            unset GH_TOKEN
+          fi
+          # GITHUB_HEAD_REF 
           if [[ -z ${HUGO_SOLO_VERSION} ]]; then
            task build 
           else
             HUGO_SOLO_VERSION=${HUGO_SOLO_VERSION} task build
           fi
 
-      # If this is a manual dispatch or a release branch, we need to attach the docs as release artifacts.
+      # If this is a manual dispatch with a version tag or a workflow call from release and deploy, we need to attach
+      #  the docs as release artifacts.
       - name: Attach Docs as Release Artifacts
         if: >
           github.event.inputs.solo-version != '' &&
@@ -160,11 +167,11 @@ jobs:
           # Create the release artifact tarballs
           HUGO_SOLO_VERSION="${RELEASE_VERSION}" task github:upload:release:assets
 
-      # If this is a release branch or manual dispatch with a specific version, we need the 'main' branch
-      #  to also be built and deployed to GitHub Pages.
+      # If this is a workflow dispatch with a specific version, a workflow call from release and deploy, or being run
+      #  from `main` branch, we need the 'main' branch to also be built and deployed to GitHub Pages.
       - name: Build Docs with Hugo for Main Branch
         if: >
-          startsWith(github.ref, 'refs/heads/release') ||
+          github.event.inputs.solo-version != '' ||
           github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -172,6 +179,12 @@ jobs:
           set -xeo pipefail
           git checkout --force main
           cd docs/site
+          HUGO_SOLO_VERSION="${{ github.event.inputs.solo-version }}"
+          if [[ -z "${HUGO_SOLO_VERSION}" && "${GITHUB_HEAD_REF}" != "refs/heads/main" ]]; then
+            # We only want the `gh` utility calls to run for manual dispatches, workflow calls (from deploy & release), 
+            #  or workflow runs from `main` branch
+            unset GH_TOKEN
+          fi
           task build
 
       # Upload the built site to artifacts for troubleshooting or verification
@@ -187,7 +200,7 @@ jobs:
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         if: >
-          (startsWith(github.ref, 'refs/heads/release') || 
+          (github.event.inputs.solo-version != '' || 
           github.ref == 'refs/heads/main') && 
           github.repository == 'hiero-ledger/solo'
         with:
@@ -203,7 +216,7 @@ jobs:
     needs:
       - build
     if: >
-      (startsWith(github.ref, 'refs/heads/release') || 
+      (github.event.inputs.solo-version != '' || 
       github.ref == 'refs/heads/main') && 
       github.repository == 'hiero-ledger/solo'
     steps:

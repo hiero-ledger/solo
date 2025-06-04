@@ -5,6 +5,12 @@ tasks:
     desc: List GitHub releases for hiero-ledger/solo using gh CLI and output as JSON (excluding empty assets)
     silent: true
     deps: [install:gh]
+    status:
+      - |
+        if [[ -z "${GH_TOKEN}" ]]; then
+          echo "WARN: GH_TOKEN is not set. Cannot run `gh` commands, skipping step." >&2
+          exit 1
+        fi
     cmds:
       - |
         printf "\r::group::Fetching GitHub releases for hiero-ledger/solo...\n"
@@ -194,6 +200,12 @@ tasks:
     deps: [install:gh]
     requires:
       vars: [HUGO_SOLO_VERSION]
+    status:
+      - |
+        if [[ -z "${GH_TOKEN}" ]]; then
+          echo "WARN: GH_TOKEN is not set. Cannot run `gh` commands, skipping step." >&2
+          exit 1
+        fi
     cmds:
       - |
         # Start with strict mode for the shell script
@@ -201,14 +213,7 @@ tasks:
 
         # HUGO_SOLO_VERSION is expected from the environment. Task fails if not set.
         RELEASE_TAG=${HUGO_SOLO_VERSION}
-        # EFFECTIVE_GH_TOKEN prioritizes GITHUB_TOKEN, then GH_TOKEN. Task fails if neither is set.
-        GH_TOKEN=${GITHUB_TOKEN:-${GH_TOKEN}}
         
-        if [[ -z "{{.GH_TOKEN}}" ]]; then
-          echo "Error: GH_TOKEN is not set. Please provide a valid GitHub token with either GH_TOKEN or GITHUB_TOKEN." >&2
-          exit 1
-        fi
-
         echo "Preparing to upload release assets for version ${RELEASE_TAG} to hiero-ledger/solo repository..."
 
         # Define asset paths using the RELEASE_TAG variable
