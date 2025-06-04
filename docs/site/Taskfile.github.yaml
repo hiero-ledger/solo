@@ -4,6 +4,7 @@ tasks:
   github:list:solo:releases:
     desc: List GitHub releases for hiero-ledger/solo using gh CLI and output as JSON (excluding empty assets)
     silent: true
+    deps: [install:gh]
     cmds:
       - |
         mkdir -p build
@@ -187,8 +188,7 @@ tasks:
   github:upload:release:assets:
     desc: Uploads specified .tar.gz release assets to a GitHub release for the hiero-ledger/solo repository.
     silent: true
-    deps:
-      - install:gh
+    deps: [install:gh]
     requires:
       vars: [HUGO_SOLO_VERSION]
     cmds:
