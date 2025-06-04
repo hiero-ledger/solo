@@ -154,7 +154,7 @@ tasks:
 
   build:doc:artifacts:
     desc: "Builds a ./build/latest.tar.gz file and a ./build/${SOLO_VERSION}.tar.gz file from the directories in the public directory"
-#    silent: true
+    silent: true
     preconditions:
       - msg: "tar command is required to create the documentation artifacts."
         sh: command -v tar
