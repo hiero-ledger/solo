@@ -158,7 +158,7 @@ tasks:
     cmds:
       - |
         printf "\r::group::Building documentation artifacts\n"
-        echo "pwd=$(pwd)"
+        CURRENT_DIRECTORY=$(pwd) && echo "CURRENT_DIRECTORY-directory=${CURRENT_DIRECTORY}"
         mkdir -p build/${HUGO_SOLO_VERSION}/latest
         if ! [[ -f public/index.html ]]; then
           echo "Error: public/index.html not found."
@@ -166,21 +166,21 @@ tasks:
         fi
         sed -e "s|/latest|/${HUGO_SOLO_VERSION}|g" public/index.html > build/${HUGO_SOLO_VERSION}/latest/index.html
         cd build/${HUGO_SOLO_VERSION}
-        echo "pwd=$(pwd)"
+        CURRENT_DIRECTORY=$(pwd) && echo "CURRENT_DIRECTORY-directory=${CURRENT_DIRECTORY}"
         tar -czf latest.tar.gz latest
         if [[ $? -ne 0 ]]; then
           echo "Error: Failed to create latest.tar.gz"
           exit 1
         fi
         cd ../../public
-        echo "pwd=$(pwd)"
+        CURRENT_DIRECTORY=$(pwd) && echo "CURRENT_DIRECTORY-directory=${CURRENT_DIRECTORY}"
         tar -czf ../build/${HUGO_SOLO_VERSION}/${HUGO_SOLO_VERSION}.tar.gz ${HUGO_SOLO_VERSION}
         if [[ $? -ne 0 ]]; then
           echo "Error: Failed to create ${HUGO_SOLO_VERSION}.tar.gz"
           exit 1
         fi
         cd ..
-        echo "pwd=$(pwd)"
+        CURRENT_DIRECTORY=$(pwd) && echo "CURRENT_DIRECTORY-directory=${CURRENT_DIRECTORY}"
         printf "\r::endgroup::--------------\n"
 
   build:typedoc:
