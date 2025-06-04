@@ -575,7 +575,7 @@ async function throwAfter(duration: Duration, message: string = 'Timeout'): Prom
 export function resolveVersion(
   value: Optional<string>,
   flag: CommandFlag,
-  versionFromRemoteConfig: SemVer,
+  versionFromRemoteConfig: Optional<SemVer>,
   versionFromLocalConfig: SemVer,
 ): string {
   const defaultVersion: string = flag.definition.defaultValue as string;

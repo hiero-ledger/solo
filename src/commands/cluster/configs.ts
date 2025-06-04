@@ -119,7 +119,7 @@ export class ClusterCommandConfigs {
     context_.config.soloChartVersion = helpers.resolveVersion(
       context_.config.soloChartVersion,
       flags.soloChartVersion,
-      this.remoteConfig.configuration.versions.chart,
+      undefined,
       this.localConfig.configuration.versions.chart,
     );
 
