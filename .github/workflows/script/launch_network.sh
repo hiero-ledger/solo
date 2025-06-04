@@ -37,6 +37,7 @@ solo node keys --gossip-keys --tls-keys -i node1,node2
 solo deployment create -i node1,node2 -n "${SOLO_NAMESPACE}" --context kind-"${SOLO_CLUSTER_NAME}" --email john@doe.com --deployment-clusters kind-"${SOLO_CLUSTER_NAME}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --deployment "${SOLO_DEPLOYMENT}"
 
 export CONSENSUS_NODE_VERSION=v0.58.10
+# Use custom settings file for the deployment to avoid too many state saved in disk causing the no space left on device error
 solo network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --settings-txt .github/workflows/support/v58-test/settings.txt
 solo node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
 solo node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
@@ -95,6 +96,8 @@ npm run solo-test -- mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --clus
 npm run solo-test -- explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace solo-e2e -q --dev
 npm run solo-test -- relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 
+# wait a few seconds for the pods to be ready before enabling port-forwarding
+sleep 10
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/haproxy-node1-svc 50211:50211 > /dev/null 2>&1 &
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/relay-node1-node2-hedera-json-rpc-relay 7546:7546 > /dev/null 2>&1 &
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-grpc 5600:5600 > /dev/null 2>&1 &
@@ -106,7 +109,7 @@ npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amo
 
 .github/workflows/script/solo_smoke_test.sh
 
-# uninstall components using current version
+# uninstall components using current Solo version
 #
 #npm run solo-test -- explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
 #npm run solo-test -- relay destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
