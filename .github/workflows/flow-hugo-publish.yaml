@@ -140,18 +140,17 @@ jobs:
 
       # If this is a manual dispatch or a release branch, we need to attach the docs as release artifacts.
       - name: Attach Docs as Release Artifacts
-        # if: >
-        #   github.event.inputs.solo-version != '' &&
-        #   github.event.inputs.solo-version != 'main' &&
-        #   github.ref != 'refs/heads/main' &&
-        #   github.repository == 'hiero-ledger/solo'
+        if: >
+          github.event.inputs.solo-version != '' &&
+          github.event.inputs.solo-version != 'main' &&
+          github.ref != 'refs/heads/main' &&
+          github.repository == 'hiero-ledger/solo'
         env:
           GH_TOKEN: ${{ github.token }} # Use the GitHub token when running as workflow_dispatch
           GITHUB_TOKEN: ${{ secrets.token }} # Use the token secret when running as workflow_call
         run: |
           set -xeo pipefail
-          # RELEASE_VERSION="${{ github.event.inputs.solo-version }}"
-          RELEASE_VERSION="v0.37.1"
+          RELEASE_VERSION="${{ github.event.inputs.solo-version }}"
           # Ensure the release version is set
           if [[ -z "${RELEASE_VERSION}" ]]; then
             echo "Error: solo-version input is required for attaching release artifacts." >&2
@@ -164,9 +163,9 @@ jobs:
       # If this is a release branch or manual dispatch with a specific version, we need the 'main' branch
       #  to also be built and deployed to GitHub Pages.
       - name: Build Docs with Hugo for Main Branch
-        # if: >
-        #   startsWith(github.ref, 'refs/heads/release') ||
-        #   github.ref == 'refs/heads/main'
+        if: >
+          startsWith(github.ref, 'refs/heads/release') ||
+          github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
