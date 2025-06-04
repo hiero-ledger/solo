@@ -690,6 +690,27 @@ export class NodeCommandTasks {
           context_.upgradeZipFile = upgradeZipFile;
           this.logger.debug(`Using upgrade zip file: ${context_.upgradeZipFile}`);
         } else {
+          // download application.properties from the first node in the deployment
+          const nodeAlias: NodeAlias = config.existingNodeAliases[0];
+
+          const nodeFullyQualifiedPodName = Templates.renderNetworkPodName(nodeAlias);
+          const podReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
+          const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+
+          const context = helpers.extractContextFromConsensusNodes(
+            (context_ as NodeUpdateContext | NodeDeleteContext).config.nodeAlias,
+            context_.config.consensusNodes,
+          );
+
+          const templatesDirectory = PathEx.join(config.stagingDir, 'templates');
+          fs.mkdirSync(templatesDirectory, {recursive: true});
+
+          await this.k8Factory
+            .getK8(context)
+            .containers()
+            .readByRef(containerReference)
+            .copyFrom(`${constants.HEDERA_HAPI_PATH}/data/config/application.properties`, templatesDirectory);
+
           context_.upgradeZipFile = await self._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
         }
         context_.upgradeZipHash = await self._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
