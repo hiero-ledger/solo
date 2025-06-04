@@ -576,7 +576,7 @@ export function resolveVersion(
   value: Optional<string>,
   flag: CommandFlag,
   versionFromRemoteConfig: Optional<SemVer>,
-  versionFromLocalConfig: SemVer,
+  versionFromLocalConfig: Optional<SemVer>,
 ): string {
   const defaultVersion: string = flag.definition.defaultValue as string;
 
@@ -586,12 +586,12 @@ export function resolveVersion(
   }
 
   // use version from remote config if set
-  else if (versionFromRemoteConfig) {
+  else if (versionFromRemoteConfig && versionFromRemoteConfig.toString() !== '0.0.0') {
     return versionFromRemoteConfig.toString();
   }
 
   // use version from local config if set
-  else if (versionFromLocalConfig) {
+  else if (versionFromLocalConfig && versionFromLocalConfig.toString() !== '0.0.0') {
     return versionFromLocalConfig.toString();
   }
 
