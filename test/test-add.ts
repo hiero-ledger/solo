@@ -54,7 +54,7 @@ export function testNodeAdd(
 
   endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     const {
-      opts: {k8Factory, accountManager, remoteConfigManager, logger, commandInvoker},
+      opts: {k8Factory, accountManager, remoteConfig, logger, commandInvoker},
       cmd: {nodeCmd, accountCmd, networkCmd},
     } = bootstrapResp;
 
@@ -88,7 +88,7 @@ export function testNodeAdd(
       it('cache current version of private keys', async () => {
         existingServiceMap = await accountManager.getNodeServiceMap(
           namespace,
-          remoteConfigManager.getClusterRefs(),
+          remoteConfig.getClusterRefs(),
           argv.getArg<DeploymentName>(flags.deployment),
         );
         existingNodeIdsPrivateKeysHash = await getNodeAliasesPrivateKeysHash(
@@ -127,9 +127,9 @@ export function testNodeAdd(
         });
       });
 
-      balanceQueryShouldSucceed(accountManager, namespace, remoteConfigManager, logger);
+      balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
 
-      accountCreationShouldSucceed(accountManager, namespace, remoteConfigManager, logger);
+      accountCreationShouldSucceed(accountManager, namespace, remoteConfig, logger);
 
       it('existing nodes private keys should not have changed', async () => {
         const currentNodeIdsPrivateKeysHash = await getNodeAliasesPrivateKeysHash(

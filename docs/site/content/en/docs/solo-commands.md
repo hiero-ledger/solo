@@ -717,8 +717,8 @@ Options:
                                   the pod, required for node add                                                           
 -q,  --quiet-mode                 Quiet mode, do not prompt for   [boolean] [default: false]                               
                                   confirmation                                                                             
--t,  --release-tag                Release tag to be used (e.g.    [string] [default: "v0.59.5"]                            
-                                  v0.59.5)                                                                                 
+-t,  --release-tag                Release tag to be used (e.g.    [string] [default: "v0.60.1"]                            
+                                  v0.60.1)                                                                                 
      --settings-txt               settings.txt file for node      [string] [default: "templates/settings.txt"]             
      --solo-chart-version         Solo testing chart version      [string] [default: "0.52.0"]                             
      --storage-type               storage type for saving stream  [default: "minio_only"]                                  
@@ -862,8 +862,8 @@ Options:
                            (empty means all nodes)                                                      
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
--t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
-                           v0.59.5)                                                                     
+-t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.60.1"]                
+                           v0.60.1)                                                                     
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -895,8 +895,8 @@ Options:
                            (empty means all nodes)                                             
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]          
                            confirmation                                                        
--t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]       
-                           v0.59.5)                                                            
+-t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.60.1"]       
+                           v0.60.1)                                                            
      --stake-amounts       The amount to be staked in the  [string]                            
                            same order you list the node                                        
                            aliases with multiple node                                          
@@ -1053,8 +1053,8 @@ Options:
                            (empty means all nodes)                                                      
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
--t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
-                           v0.59.5)                                                                     
+-t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.60.1"]                
+                           v0.60.1)                                                                     
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -1195,8 +1195,8 @@ Options:
                            the pod, required for node add                                               
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
--t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
-                           v0.59.5)                                                                     
+-t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.60.1"]                
+                           v0.60.1)                                                                     
      --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
      --tls-keys            Generate gRPC TLS keys for      [boolean] [default: false]                   
                            nodes                                                                        
@@ -1277,8 +1277,8 @@ Options:
                            the pod, required for node add                                               
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
--t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
-                           v0.59.5)                                                                     
+-t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.60.1"]                
+                           v0.60.1)                                                                     
      --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
      --tls-keys            Generate gRPC TLS keys for      [boolean] [default: false]                   
                            nodes                                                                        
@@ -1358,8 +1358,8 @@ Options:
                            the pod, required for node add                                               
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
--t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
-                           v0.59.5)                                                                     
+-t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.60.1"]                
+                           v0.60.1)                                                                     
      --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
      --tls-keys            Generate gRPC TLS keys for      [boolean] [default: false]                   
                            nodes                                                                        
@@ -1449,8 +1449,8 @@ Options:
                            the pod, required for node add                                               
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
--t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
-                           v0.59.5)                                                                     
+-t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.60.1"]                
+                           v0.60.1)                                                                     
      --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
      --tls-keys            Generate gRPC TLS keys for      [boolean] [default: false]                   
                            nodes                                                                        
@@ -1513,8 +1513,8 @@ Options:
                            account                                                                      
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
--t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
-                           v0.59.5)                                                                     
+-t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.60.1"]                
+                           v0.60.1)                                                                     
      --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
      --tls-private-key     path and file name of the       [string]                                     
                            private TLS key to be used                                                   
@@ -1582,8 +1582,8 @@ Options:
                            account                                                                      
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
--t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
-                           v0.59.5)                                                                     
+-t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.60.1"]                
+                           v0.60.1)                                                                     
      --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
      --tls-private-key     path and file name of the       [string]                                     
                            private TLS key to be used                                                   
@@ -1640,8 +1640,8 @@ Options:
      --local-build-path    path of hedera local repo       [string]                                     
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
--t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
-                           v0.59.5)                                                                     
+-t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.60.1"]                
+                           v0.60.1)                                                                     
      --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
@@ -1694,8 +1694,8 @@ Options:
      --local-build-path    path of hedera local repo       [string]                                     
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
--t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
-                           v0.59.5)                                                                     
+-t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.60.1"]                
+                           v0.60.1)                                                                     
      --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
@@ -1741,8 +1741,8 @@ Options:
      --local-build-path    path of hedera local repo       [string]                                     
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
--t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
-                           v0.59.5)                                                                     
+-t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.60.1"]                
+                           v0.60.1)                                                                     
      --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
@@ -1791,8 +1791,8 @@ Options:
      --local-build-path    path of hedera local repo       [string]                                     
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
--t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
-                           v0.59.5)                                                                     
+-t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.60.1"]                
+                           v0.60.1)                                                                     
      --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
@@ -1841,8 +1841,8 @@ Options:
      --local-build-path    path of hedera local repo       [string]                                     
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
--t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
-                           v0.59.5)                                                                     
+-t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.60.1"]                
+                           v0.60.1)                                                                     
      --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
@@ -1891,8 +1891,8 @@ Options:
      --local-build-path    path of hedera local repo       [string]                                     
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
--t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
-                           v0.59.5)                                                                     
+-t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.60.1"]                
+                           v0.60.1)                                                                     
      --solo-chart-version  Solo testing chart version      [string] [default: "0.52.0"]                 
 -v,  --version             Show version number             [boolean]                                    
 
@@ -1921,8 +1921,8 @@ Options:
                            the network services                                                         
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
--t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
-                           v0.59.5)                                                                     
+-t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.60.1"]                
+                           v0.60.1)                                                                     
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -1950,8 +1950,8 @@ Options:
                            the network services                                                         
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
--t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
-                           v0.59.5)                                                                     
+-t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.60.1"]                
+                           v0.60.1)                                                                     
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -1963,7 +1963,7 @@ Options:
 > @hashgraph/solo@0.36.0 solo
 > node --no-deprecation --no-warnings dist/solo.js node upgrade --help
 
-Missing required arguments: deployment, release-tag, upgrade-zip-file
+Missing required arguments: deployment, release-tag, upgrade-zip-file, upgrade-version
  node upgrade
 
 upgrades all nodes on the network
@@ -1974,7 +1974,9 @@ Options:
                            reference locally to link to a                                               
                            deployment                                                                   
 -t,  --release-tag         Release tag to be used (e.g.    [string] [required]                          
-                           v0.59.5)                                                                     
+                           v0.60.1)                                                                     
+     --upgrade-version     Version to be used for the      [string] [required]                          
+                           upgrade                                                                      
      --upgrade-zip-file    A zipped file used for network  [string] [required]                          
                            upgrade                                                                      
      --app                 Testing app name                [string] [default: "HederaNode.jar"]         
@@ -2019,7 +2021,7 @@ Options:
                            the command context will be                                                  
                            saved to                                                                     
 -t,  --release-tag         Release tag to be used (e.g.    [string] [required]                          
-                           v0.59.5)                                                                     
+                           v0.60.1)                                                                     
      --upgrade-zip-file    A zipped file used for network  [string] [required]                          
                            upgrade                                                                      
      --app                 Testing app name                [string] [default: "HederaNode.jar"]         
@@ -2064,7 +2066,7 @@ Options:
                            the command context will be                                                  
                            loaded from                                                                  
 -t,  --release-tag         Release tag to be used (e.g.    [string] [required]                          
-                           v0.59.5)                                                                     
+                           v0.60.1)                                                                     
      --app                 Testing app name                [string] [default: "HederaNode.jar"]         
      --cache-dir           Local cache directory           [string] [default: "/Users/user/.solo/cache"]
      --chart-dir           Local chart directory path      [string]                                     
@@ -2107,7 +2109,7 @@ Options:
                            the command context will be                                                  
                            loaded from                                                                  
 -t,  --release-tag         Release tag to be used (e.g.    [string] [required]                          
-                           v0.59.5)                                                                     
+                           v0.60.1)                                                                     
      --app                 Testing app name                [string] [default: "HederaNode.jar"]         
      --cache-dir           Local cache directory           [string] [default: "/Users/user/.solo/cache"]
      --chart-dir           Local chart directory path      [string]                                     
@@ -2152,8 +2154,8 @@ Options:
                            the network services                                                         
 -q,  --quiet-mode          Quiet mode, do not prompt for   [boolean] [default: false]                   
                            confirmation                                                                 
--t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.59.5"]                
-                           v0.59.5)                                                                     
+-t,  --release-tag         Release tag to be used (e.g.    [string] [default: "v0.60.1"]                
+                           v0.60.1)                                                                     
 -v,  --version             Show version number             [boolean]                                    
 
 ```
@@ -2353,7 +2355,7 @@ Options:
      --ingress-controller-value-file     The value file to use for       [string]                                       
                                          ingress controller, defaults                                                   
                                          to ""                                                                          
-     --mirror-node-version               Mirror node chart version       [string] [default: "v0.126.0"]                 
+     --mirror-node-version               Mirror node chart version       [string] [default: "v0.129.1"]                 
      --mirror-static-ip                  static IP address for the       [string]                                       
                                          mirror node                                                                    
      --operator-id                       Operator ID                     [string]                                       

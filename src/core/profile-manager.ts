@@ -26,11 +26,11 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
-import {type RemoteConfigManager} from './config/remote/remote-config-manager.js';
 import {type ClusterReference, DeploymentName, Realm, Shard} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {AccountManager} from './account-manager.js';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
+import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 @injectable()
 export class ProfileManager {
@@ -38,7 +38,7 @@ export class ProfileManager {
   private readonly configManager: ConfigManager;
   private readonly cacheDir: DirectoryPath;
   private readonly k8Factory: K8Factory;
-  private readonly remoteConfigManager: RemoteConfigManager;
+  private readonly remoteConfig: RemoteConfigRuntimeStateApi;
   private readonly accountManager: AccountManager;
   private readonly localConfig: LocalConfigRuntimeState;
 
@@ -50,7 +50,7 @@ export class ProfileManager {
     @inject(InjectTokens.ConfigManager) configManager?: ConfigManager,
     @inject(InjectTokens.CacheDir) cacheDirectory?: DirectoryPath,
     @inject(InjectTokens.K8Factory) k8Factory?: K8Factory,
-    @inject(InjectTokens.RemoteConfigManager) remoteConfigManager?: RemoteConfigManager,
+    @inject(InjectTokens.RemoteConfigRuntimeState) remoteConfig?: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.AccountManager) accountManager?: AccountManager,
     @inject(InjectTokens.LocalConfigRuntimeState) localConfig?: LocalConfigRuntimeState,
   ) {
@@ -58,11 +58,7 @@ export class ProfileManager {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.cacheDir = PathEx.resolve(patchInject(cacheDirectory, InjectTokens.CacheDir, this.constructor.name));
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
-    this.remoteConfigManager = patchInject(
-      remoteConfigManager,
-      InjectTokens.RemoteConfigManager,
-      this.constructor.name,
-    );
+    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
 
@@ -393,7 +389,7 @@ export class ProfileManager {
 
     const filesMapping: Record<ClusterReference, string> = {};
 
-    for (const [clusterReference] of this.remoteConfigManager.getClusterRefs()) {
+    for (const [clusterReference] of this.remoteConfig.getClusterRefs()) {
       const nodeAliases: NodeAliases = consensusNodes
         .filter(consensusNode => consensusNode.cluster === clusterReference)
         .map(consensusNode => consensusNode.name);
@@ -435,7 +431,8 @@ export class ProfileManager {
   }
 
   private async updateApplicationPropertiesForBlockNode(applicationPropertiesPath: string): Promise<void> {
-    const hasDeployedBlockNodes: boolean = Object.keys(this.remoteConfigManager.components.blockNodes).length > 0;
+    const hasDeployedBlockNodes: boolean =
+      Object.keys(this.remoteConfig.configuration.components.state.blockNodes).length > 0;
     if (!hasDeployedBlockNodes) {
       return;
     }

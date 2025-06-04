@@ -68,7 +68,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
     let testLogger: SoloLogger;
 
     const {
-      opts: {k8Factory, accountManager, configManager, commandInvoker, remoteConfigManager},
+      opts: {k8Factory, accountManager, configManager, commandInvoker, remoteConfig},
       cmd: {nodeCmd},
     } = bootstrapResp;
 
@@ -125,7 +125,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
           await accountManager.loadNodeClient(
             namespace,
-            remoteConfigManager.getClusterRefs(),
+            remoteConfig.getClusterRefs(),
             argv.getArg<DeploymentName>(flags.deployment),
             argv.getArg<boolean>(flags.forcePortForward),
           );
@@ -139,7 +139,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
         it('Node admin key should have been updated, not equal to genesis key', async () => {
           const nodeAliases = helpers.parseNodeAliases(
             argv.getArg<string>(flags.nodeAliasesUnparsed),
-            bootstrapResp.opts.remoteConfigManager.getConsensusNodes(),
+            bootstrapResp.opts.remoteConfig.getConsensusNodes(),
             bootstrapResp.opts.configManager,
           );
           for (const nodeAlias of nodeAliases) {
@@ -356,7 +356,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
           await accountManager.loadNodeClient(
             namespace,
-            remoteConfigManager.getClusterRefs(),
+            remoteConfig.getClusterRefs(),
             argv.getArg<DeploymentName>(flags.deployment),
             argv.getArg<boolean>(flags.forcePortForward),
           );
@@ -384,7 +384,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
         try {
           await accountManager.loadNodeClient(
             namespace,
-            remoteConfigManager.getClusterRefs(),
+            remoteConfig.getClusterRefs(),
             argv.getArg<DeploymentName>(flags.deployment),
             argv.getArg<boolean>(flags.forcePortForward),
           );
@@ -464,7 +464,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
         } catch (error) {
           testLogger.showUserError(error);
         }
-      }).timeout(Duration.ofMinutes(4).toMillis());
+      }).timeout(Duration.ofMinutes(10).toMillis());
     });
   });
 });

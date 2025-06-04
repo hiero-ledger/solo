@@ -22,7 +22,6 @@ import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {type AnyYargs, type ArgvStruct} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
-import {MirrorNodeComponent} from '../core/config/remote/components/mirror-node-component.js';
 import * as fs from 'node:fs';
 import {
   type ClusterReference,
@@ -49,6 +48,8 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {type AccountId} from '@hashgraph/sdk';
+import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
 interface MirrorNodeDeployConfigClass {
   cacheDir: string;
@@ -94,7 +95,7 @@ interface MirrorNodeDestroyContext {
     namespace: NamespaceName;
     clusterContext: string;
     isChartInstalled: boolean;
-    clusterRef?: Optional<ClusterReference>;
+    clusterReference: ClusterReference;
   };
 }
 
@@ -103,6 +104,7 @@ export class MirrorNodeCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
     @inject(InjectTokens.ProfileManager) private readonly profileManager?: ProfileManager,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory?: ComponentFactoryApi,
   ) {
     super();
 
@@ -365,7 +367,7 @@ export class MirrorNodeCommand extends BaseCommand {
             const deploymentName: DeploymentName = self.configManager.getFlag<DeploymentName>(flags.deployment);
             await self.accountManager.loadNodeClient(
               context_.config.namespace,
-              self.remoteConfigManager.getClusterRefs(),
+              self.remoteConfig.getClusterRefs(),
               deploymentName,
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
@@ -478,7 +480,7 @@ export class MirrorNodeCommand extends BaseCommand {
                     const portForward = this.configManager.getFlag<boolean>(flags.forcePortForward);
                     context_.addressBook = await self.accountManager.prepareAddressBookBase64(
                       context_.config.namespace,
-                      this.remoteConfigManager.getClusterRefs(),
+                      this.remoteConfig.getClusterRefs(),
                       deployment,
                       this.configManager.getFlag(flags.operatorId),
                       this.configManager.getFlag(flags.operatorKey),
@@ -601,7 +603,7 @@ export class MirrorNodeCommand extends BaseCommand {
                     const exchangeRatesFileIdNumber = 112;
                     const timestamp = Date.now();
 
-                    const clusterReferences = this.remoteConfigManager.getClusterRefs();
+                    const clusterReferences = this.remoteConfig.getClusterRefs();
                     const deployment = this.configManager.getFlag<DeploymentName>(flags.deployment);
                     const fees = await this.accountManager.getFileContents(
                       namespace,
@@ -747,10 +749,11 @@ export class MirrorNodeCommand extends BaseCommand {
 
             self.configManager.update(argv);
             const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
-            const clusterReference = this.configManager.getFlag<string>(flags.clusterRef) as string;
-            const clusterContext = clusterReference
-              ? this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString()
-              : this.k8Factory.default().contexts().readCurrent();
+            const clusterReference: ClusterReference =
+              (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
+              this.k8Factory.default().clusters().readCurrent();
+
+            const clusterContext = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
 
             if (!(await self.k8Factory.getK8(clusterContext).namespaces().has(namespace))) {
               throw new SoloError(`namespace ${namespace} does not exist`);
@@ -766,11 +769,12 @@ export class MirrorNodeCommand extends BaseCommand {
               clusterContext,
               namespace,
               isChartInstalled,
+              clusterReference,
             };
 
             await self.accountManager.loadNodeClient(
               context_.config.namespace,
-              self.remoteConfigManager.getClusterRefs(),
+              self.remoteConfig.getClusterRefs(),
               self.configManager.getFlag<DeploymentName>(flags.deployment),
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
@@ -832,7 +836,7 @@ export class MirrorNodeCommand extends BaseCommand {
             });
           },
         },
-        this.removeMirrorNodeComponents(),
+        this.disableMirrorNodeComponents(),
       ],
       {
         concurrent: false,
@@ -919,14 +923,27 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   /** Removes the mirror node components from remote config. */
-  public removeMirrorNodeComponents(): SoloListrTask<MirrorNodeDestroyContext> {
+  public disableMirrorNodeComponents(): SoloListrTask<MirrorNodeDestroyContext> {
     return {
       title: 'Remove mirror node from remote config',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
-      task: async (): Promise<void> => {
-        await this.remoteConfigManager.modify(async remoteConfig => {
-          remoteConfig.components.remove('mirrorNode', ComponentTypes.MirrorNode);
-        });
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      task: async (context_): Promise<void> => {
+        const clusterReference: ClusterReference = context_.config.clusterReference;
+
+        const mirrorNodeComponents: MirrorNodeStateSchema[] =
+          this.remoteConfig.configuration.components.getComponentsByClusterReference<MirrorNodeStateSchema>(
+            ComponentTypes.MirrorNode,
+            clusterReference,
+          );
+
+        for (const mirrorNodeComponent of mirrorNodeComponents) {
+          this.remoteConfig.configuration.components.removeComponent(
+            mirrorNodeComponent.metadata.id,
+            ComponentTypes.MirrorNode,
+          );
+        }
+
+        await this.remoteConfig.persist();
       },
     };
   }
@@ -935,15 +952,16 @@ export class MirrorNodeCommand extends BaseCommand {
   public addMirrorNodeComponents(): SoloListrTask<MirrorNodeDeployContext> {
     return {
       title: 'Add mirror node to remote config',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfigManager.modify(async remoteConfig => {
-          const {
-            config: {namespace, clusterRef},
-          } = context_;
+        const {namespace, clusterRef} = context_.config;
 
-          remoteConfig.components.add(new MirrorNodeComponent('mirrorNode', clusterRef, namespace.name));
-        });
+        this.remoteConfig.configuration.components.addNewComponent(
+          this.componentFactory.createNewMirrorNodeComponent(clusterRef, namespace),
+          ComponentTypes.MirrorNode,
+        );
+
+        await this.remoteConfig.persist();
       },
     };
   }

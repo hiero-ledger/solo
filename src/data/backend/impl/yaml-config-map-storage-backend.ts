@@ -5,6 +5,7 @@ import {ConfigMapStorageBackend} from './config-map-storage-backend.js';
 import {type ObjectStorageBackend} from '../api/object-storage-backend.js';
 import {StorageBackendError} from '../api/storage-backend-error.js';
 import {IllegalArgumentError} from '../../../core/errors/illegal-argument-error.js';
+import {type ConfigMap} from '../../../integration/kube/resources/config-map/config-map.js';
 
 /**
  * YamlConfigMapStorageBackend is a storage backend that uses a {@link ConfigMap} to store data.
@@ -39,5 +40,9 @@ export class YamlConfigMapStorageBackend extends ConfigMapStorageBackend impleme
     } catch (error) {
       throw new StorageBackendError(`error writing yaml for key: ${key} to config map`, error);
     }
+  }
+
+  public getConfigMap(): ConfigMap {
+    return this.configMap;
   }
 }

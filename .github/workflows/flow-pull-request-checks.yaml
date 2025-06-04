@@ -65,6 +65,14 @@ jobs:
     with:
       custom-job-label: Standard
 
+  unit-tests:
+    name: Unit Tests
+    uses: ./.github/workflows/zxc-unit-test.yaml
+    needs:
+      - code-style
+    with:
+      custom-job-label: Standard
+
   e2e-tests:
     name: E2E Tests (${{matrix.consensus-node-version }} ${{ matrix.e2e-test-type.name }}})
     if: ${{ !cancelled() && always() }}

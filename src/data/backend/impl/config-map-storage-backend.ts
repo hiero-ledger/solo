@@ -11,7 +11,7 @@ import {StorageBackendError} from '../api/storage-backend-error.js';
  * The key will be the name of the property within the data object within the ConfigMap.
  */
 export class ConfigMapStorageBackend implements StorageBackend {
-  public constructor(private readonly configMap: ConfigMap) {
+  public constructor(protected readonly configMap: ConfigMap) {
     if (!this.configMap) {
       throw new MissingArgumentError('ConfigMapStorageBackend is missing the configMap argument');
     }
