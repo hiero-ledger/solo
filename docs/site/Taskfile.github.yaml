@@ -105,7 +105,11 @@ tasks:
         
           echo "📦 Extracting $ARCHIVE to $DEST..."
           mkdir -p "$DEST"
-          tar --warning=no-unknown-keyword -xzf "$ARCHIVE" -C "$DEST"
+          if [ "$(uname -s)" == "Linux" ]; then
+            tar --warning=no-unknown-keyword -xzf "$ARCHIVE" -C "$DEST"
+          else
+            tar -xzf "$ARCHIVE" -C "$DEST"
+          fi
         done
 
   github:update:hugo:config:
