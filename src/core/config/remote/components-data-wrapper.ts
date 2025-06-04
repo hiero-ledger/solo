@@ -8,13 +8,13 @@ import {type DeploymentPhase} from '../../../data/schema/model/remote/deployment
 import {type ClusterReference, type ComponentId} from '../../../types/index.js';
 import {type ComponentsDataWrapperApi} from './api/components-data-wrapper-api.js';
 import {type DeploymentStateSchema} from '../../../data/schema/model/remote/deployment-state-schema.js';
-import {type ComponentIdsSchema} from '../../../data/schema/model/remote/state/component-ids-schema.js';
 import {type ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
+import {type ComponentIdsStructure} from '../../../data/schema/model/remote/interfaces/components-ids-structure.js';
 
 export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   public constructor(public state: DeploymentStateSchema) {}
 
-  public get componentIds(): ComponentIdsSchema {
+  public get componentIds(): ComponentIdsStructure {
     return this.state.componentIds;
   }
 
