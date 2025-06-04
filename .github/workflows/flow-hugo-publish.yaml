@@ -157,6 +157,7 @@ jobs:
             echo "Error: solo-version input is required for attaching release artifacts." >&2
             exit 1
           fi
+          cd docs/site
           # Create the release artifact tarballs
           HUGO_SOLO_VERSION="${RELEASE_VERSION}" task github:upload:release:assets
 
