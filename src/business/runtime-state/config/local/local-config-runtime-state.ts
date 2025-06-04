@@ -19,7 +19,6 @@ import path from 'node:path';
 import {Templates} from '../../../../core/templates.js';
 import {type ConfigManager} from '../../../../core/config-manager.js';
 import {Flags as flags} from '../../../../commands/flags.js';
-import {SoloError} from '../../../../core/errors/solo-error.js';
 
 @injectable()
 export class LocalConfigRuntimeState {
@@ -84,14 +83,14 @@ export class LocalConfigRuntimeState {
     }
     await this.persist();
 
-    await this.mirgrateCacheDirectories();
+    await this.migrateCacheDirectories();
   }
 
   /**
    * Migrates the cache directories to the new structure.
    * It will look for directories in the format 'v0.58/staging/v0.58.10' and move them to current staging directory.
    */
-  async mirgrateCacheDirectories(): Promise<void> {
+  private async migrateCacheDirectories(): Promise<void> {
     const cacheDirectory: string = PathEx.join(this.basePath, 'cache').toString();
     const releaseTag: string = this.configManager.getFlag(flags.releaseTag);
     const currentStagingDirectory: string = Templates.renderStagingDir(cacheDirectory, releaseTag);
@@ -113,34 +112,34 @@ export class LocalConfigRuntimeState {
     }
   }
 
-  async findMatchingSoloCacheDirectories(baseDirectory: string): Promise<string[]> {
+  private async findMatchingSoloCacheDirectories(baseDirectory: string): Promise<string[]> {
     // Regex to match directory names like 'v0.58' or 'v0.60'
     // This will capture the version number.
-    const versionDirRegex = /^v(\d+\.\d+)$/;
+    const versionDirectionRegex: RegExp = /^v(\d+\.\d+)$/;
 
     // Regex to match the full path structure like 'v0.58/staging/v0.58.10'
     // This captures the major.minor version and the patch version.
-    const fullPathRegex = /^v(\d+\.\d+)\/staging\/v(\d+\.\d+\.\d+)$/;
+    const fullPathRegex: RegExp = /^v(\d+\.\d+)\/staging\/v(\d+\.\d+\.\d+)$/;
     const matchingDirectories: string[] = [];
 
     try {
       // 1. Read the contents of the baseCacheDir (e.g., '.solo/cache/')
-      const versionDirectories = await fs.readdirSync(baseDirectory);
+      const versionDirectories: string[] = await fs.readdirSync(baseDirectory);
 
       for (const versionDirectory of versionDirectories) {
-        const versionMatch = versionDirectory.match(versionDirRegex);
+        const versionMatch: string[] | null = versionDirectory.match(versionDirectionRegex);
         if (versionMatch) {
           // If the version directory matches (e.g., 'v0.58')
-          const fullVersionPath = path.join(baseDirectory, versionDirectory, 'staging');
+          const fullVersionPath: string = path.join(baseDirectory, versionDirectory, 'staging');
 
           // Check if 'staging' directory exists within the version directory
           if (fs.existsSync(fullVersionPath)) {
             // Read the contents of the 'staging' directory
-            const stagingContents = await fs.readdirSync(fullVersionPath);
+            const stagingContents: string[] = await fs.readdirSync(fullVersionPath);
 
             for (const stagingItem of stagingContents) {
-              const fullItemPath = path.join(fullVersionPath, stagingItem);
-              const relativeItemPath = path.relative(baseDirectory, fullItemPath); // Get path relative to baseCacheDir
+              const fullItemPath: string = path.join(fullVersionPath, stagingItem);
+              const relativeItemPath: string = path.relative(baseDirectory, fullItemPath); // Get path relative to baseCacheDir
 
               // Check if the full relative path matches the desired pattern
               if (fullPathRegex.test(relativeItemPath) && fs.existsSync(fullItemPath)) {
@@ -150,8 +149,8 @@ export class LocalConfigRuntimeState {
           }
         }
       }
-    } catch (error: any) {
-      // Directory isn't found or any other error
+    } catch {
+      // The Directory isn't found or any other error
       return undefined;
     }
     return matchingDirectories;

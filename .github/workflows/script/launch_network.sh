@@ -87,7 +87,7 @@ fi
 
 # using new solo to redeploy solo deployment chart to new version
 #kubectl delete statefulset network-node1 network-node2 --cascade=orphan -n "${SOLO_NAMESPACE}"
-npm run solo-test -- network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --settings-txt ./settings.txt
+npm run solo-test -- network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --settings-txt .github/workflows/support/v58-test/settings.txt
 
 kubectl get secret uploader-mirror-secrets -o jsonpath='{.data.S3_ACCESS_KEY}' -n solo-e2e
 kubectl get secret minio-secrets -o jsonpath='{.data}' -n solo-e2e
