@@ -289,7 +289,9 @@ export class ExplorerCommand extends BaseCommand {
             context_.config.ingressReleaseName = this.getIngressReleaseName();
 
             if (typeof context_.config.id !== 'number') {
-              context_.config.id = this.remoteConfig.configuration.components.state.mirrorNodes[0]?.metadata?.id;
+              context_.config.id = context_.config.mirrorNamespace
+                ? 1
+                : this.remoteConfig.configuration.components.state.mirrorNodes[0].metadata.id;
             }
 
             context_.config.newExplorerComponent = this.componentFactory.createNewExplorerComponent(

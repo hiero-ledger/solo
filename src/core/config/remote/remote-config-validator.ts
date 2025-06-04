@@ -131,13 +131,9 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       let useLegacyReleaseName: boolean = false;
       if (legacyReleaseName && component.metadata.id <= 1) {
         if (key === 'relayNodes') {
-          console.log(component);
-
           const nodeAliases: NodeAliases = (component as RelayNodeStateSchema)?.consensusNodeIds.map(
             (nodeId): NodeAlias => Templates.renderNodeAliasFromNumber(nodeId + 1),
           );
-
-          console.log(await this.chartManager.getInstalledCharts(NamespaceName.of(component.metadata.namespace)));
 
           legacyReleaseName = `${legacyReleaseName}-${nodeAliases.join('-')}`;
         }
@@ -156,8 +152,6 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       const labels: string[] = useLegacyReleaseName
         ? getLabelsCallback(component.metadata.id, legacyReleaseName)
         : getLabelsCallback(component.metadata.id);
-
-      console.log({legacyReleaseName, useLegacyReleaseName});
 
       try {
         const pods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);
