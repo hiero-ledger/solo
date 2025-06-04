@@ -15,6 +15,7 @@ echo "VERSION=$version"
 task build
 npm install -g @hashgraph/solo
 npm link
+which solo
 solo --version
 node -p -e "Boolean(process.stdout.isTTY)"
 chmod 755 ./.github/workflows/script/update_md.sh
