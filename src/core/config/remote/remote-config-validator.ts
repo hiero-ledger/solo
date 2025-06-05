@@ -81,7 +81,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
   }
 
   private static getBlockNodeLabels(): string[] {
-    return [`app.kubernetes.io/name=${constants.BLOCK_NODE_RELEASE_NAME}`];
+    return [`app.kubernetes.io/name=${constants.BLOCK_NODE_RELEASE_NAME}-0`];
   }
 
   private static componentValidationsMapping: Record<
