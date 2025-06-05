@@ -550,7 +550,7 @@ export class RelayCommand extends BaseCommand {
   public addRelayComponent(): SoloListrTask<RelayDeployContext> {
     return {
       title: 'Add relay component in remote config',
-      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      skip: context_ => !this.remoteConfig.isLoaded() || context_.config.isChartInstalled,
       task: async (context_): Promise<void> => {
         const {namespace, nodeAliases, clusterRef} = context_.config;
 
