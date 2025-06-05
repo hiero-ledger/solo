@@ -12,13 +12,21 @@ type ObjectMethod<T> = (cls: ClassConstructor<T>, key?: string) => T;
 type ObjectArrayMethod<T> = (cls: ClassConstructor<T>, key?: string) => T[];
 
 export class LayeredConfig implements Config {
+  private readonly _sources: ConfigSource[];
+
   public constructor(
-    public readonly sources: ConfigSource[],
+    sources: ConfigSource[],
     public readonly mergeSourceValues: boolean = false,
   ) {
     if (sources) {
       sources.sort(Comparators.configSource);
     }
+
+    this._sources = sources ?? [];
+  }
+
+  public get sources(): ConfigSource[] {
+    return [...this._sources];
   }
 
   public asBoolean(key: string): boolean | null {
