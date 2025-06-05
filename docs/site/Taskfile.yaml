@@ -173,14 +173,14 @@ tasks:
         cd build/${HUGO_SOLO_VERSION}
         CURRENT_DIRECTORY=$(pwd) && echo "CURRENT_DIRECTORY-directory=${CURRENT_DIRECTORY}"
         ls -al
-        tar -czf latest.tar.gz latest
+        tar -czf docs-latest.tar.gz latest
         if [[ $? -ne 0 ]]; then
           echo "Error: Failed to create latest.tar.gz"
           exit 1
         fi
         cd ../../public
         CURRENT_DIRECTORY=$(pwd) && echo "CURRENT_DIRECTORY-directory=${CURRENT_DIRECTORY}"
-        tar -czf ../build/${HUGO_SOLO_VERSION}/${HUGO_SOLO_VERSION}.tar.gz ${HUGO_SOLO_VERSION}
+        tar -czf ../build/${HUGO_SOLO_VERSION}/docs-${HUGO_SOLO_VERSION}.tar.gz ${HUGO_SOLO_VERSION}
         if [[ $? -ne 0 ]]; then
           echo "Error: Failed to create ${HUGO_SOLO_VERSION}.tar.gz"
           exit 1
