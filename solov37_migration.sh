@@ -32,23 +32,8 @@ npm run solo-test -- node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
-npm run solo-test -- node freeze --deployment "${SOLO_DEPLOYMENT}" -q
-
-echo "********************************************"
-echo " Restart with correct settings file"
-echo "********************************************"
-
-export CONSENSUS_NODE_VERSION=v0.59.5
-npm run solo-test -- network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q  || true
-npm run solo-test -- node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
-npm run solo-test -- node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
+npm run solo-test -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version v0.59.5 -q
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
-npm run solo-test -- node freeze --deployment "${SOLO_DEPLOYMENT}" -q
 
-
-export CONSENSUS_NODE_VERSION=v0.61.7
-npm run solo-test -- network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q  || true
-npm run solo-test -- node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
-npm run solo-test -- node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
+npm run solo-test -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version v0.61.7 -q
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
-npm run solo-test -- node freeze --deployment "${SOLO_DEPLOYMENT}" -q
