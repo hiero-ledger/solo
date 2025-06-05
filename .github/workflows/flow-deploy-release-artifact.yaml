@@ -199,14 +199,42 @@ jobs:
         if: ${{ github.event.inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
         run: jf npm publish
 
-  hugo-docs-buid-and-publish:
-    name: Hugo Docs Build and Publish
+  # Do a Hugo build for the docs site for the release branch
+  hugo-docs-build:
+    name: Hugo Docs Build
+    if: ${{ github.event.inputs.solo-version != 'main' && !cancelled() && !failure() }}
+    uses: ./.github/workflows/zxc-hugo-build.yaml
     needs:
       - prepare-release
       - create-github-release
-    if: ${{ github.event.inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
-    uses: ./.github/workflows/flow-hugo-publish.yaml
     with:
-      solo-version: ${{ needs.prepare-release.outputs.version }}
-    secrets:
-      token: ${{ secrets.GITHUB_TOKEN }}
+      solo-version: 'v${{ needs.prepare-release.outputs.version }}'
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Do a Hugo build for the docs site for the main branch, required to ensure that docs for the main branch get deployed
+  #  to GitHub Pages
+  hugo-docs-build-main:
+    name: Hugo Docs Build
+    uses: ./.github/workflows/zxc-hugo-build.yaml
+    needs:
+      - prepare-release
+      - create-github-release
+      - hugo-docs-build
+    with:
+      solo-version: 'main'
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Publish the Hugo docs site to GitHub Pages unless dry-run is enabled
+  hugo-docs-publish:
+    name: Hugo Docs Publish
+    if: ${{ inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
+    needs:
+      - prepare-release
+      - create-github-release
+      - hugo-docs-build
+      - hugo-docs-build-main
+    uses: ./.github/workflows/zxc-hugo-publish.yaml
+    with:
+      solo-version: 'v${{ needs.prepare-release.outputs.version }}'
+      dry-run-enabled: ${{ inputs.dry-run-enabled }}
+      attach-docs-enabled: true

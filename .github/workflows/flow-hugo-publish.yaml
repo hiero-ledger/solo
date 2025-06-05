@@ -14,49 +14,26 @@
 # limitations under the License.
 ##
 
-# Sample workflow for building and deploying a Hugo site to GitHub Pages
-name: Deploy Hugo site to Pages
+name: Deploy Hugo Build and Deploy Site to Pages
 
 on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
     inputs:
       solo-version:
-        description: "Solo Version to build docs for and attach to the release, e.g. 'v0.37.2'"
+        description: "Solo Version to build docs for and attach to the release, e.g. 'v0.37.2', 'main'"
         type: string
         required: false
-        default: 'main' # Default to the main branch, which is the latest development version'
-  workflow_call:
-    inputs:
-      solo-version:
-        description: "Solo Version to build docs for and attach to the release, e.g. 'v0.37.2'"
-        type: string
+        default: 'main' # main is used unless it is a version tag already released or about to be released
+      dry-run-enabled:
+        description: "Perform Dry Run, skipping deployment to GitHub Pages"
+        type: boolean
         required: false
-        default: 'main' # Default to the main branch, which is the latest development version'
-    secrets:
-      token:
-        description: "GitHub Token for authentication"
-        required: true
-  # Runs on pushes targeting the default branch
+        default: false
   push:
     branches:
       - main
       - 'release/*'
-    paths:
-      - '**/*.mjs'
-      - '**/*.js'
-      - '**/*.ts'
-      - '**/package*.json'
-      - 'docs/site/content/User/*.md'
-      - 'DEV.md'
-      - 'README.md'
-      - 'docs/site/**'
-  # run in the pull request, but don't publish
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
@@ -76,155 +53,69 @@ defaults:
     shell: bash
 
 jobs:
-  # Build job
-  build:
-    name: Build
+  setup:
+    name: Setup
     runs-on: hiero-solo-linux-medium
+    outputs:
+      solo-version: ${{ inputs.solo-version }}
+      dry-run-enabled: ${{ inputs.dry-run-enabled }}
+      attach-docs-enabled: ${{ inputs.attach-docs-enabled }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
         with:
           egress-policy: audit
 
-      - name: Setup Hugo
-        uses: step-security/actions-hugo@b99dc9a4cddce1866ff2c3682c01aeb27b4d91f0 # v3.0.1
-        with:
-          hugo-version: '0.145.0'
-          extended: true
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 21
-
-      - name: Setup Pages
-        id: pages
-        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
-        with:
-          enablement: true
-
-      - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
-        with:
-          version: 3.39.2
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Go
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # pinned to v5.5.0
-        with:
-          go-version-file: 'docs/site/go.mod'
-
-      # Run this unless the source branch is `main`
-      - name: Build Docs with Hugo
-        if: github.ref != 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }} # Use the GitHub token when running as workflow_dispatch or a pull/push
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Use the token secret when running as workflow_call
+      - name: Set Inputs
+        id: set-inputs
         run: |
-          set -xeo pipefail
-          if [[ -z "${GH_TOKEN}" ]]; then
-            GH_TOKEN="${GITHUB_TOKEN}"
+          SOLO_VERSION="${{ inputs.solo-version }}"
+          if [[ "${SOLO_VERSION}" == "" ]]; then
+            echo "No solo-version input provided, defaulting to 'main'."
+            SOLO_VERSION='main'
           fi
-          cd docs/site
-          HUGO_SOLO_VERSION="${{ github.event.inputs.solo-version }}"
-          if [[ -z "${HUGO_SOLO_VERSION}" && "${GITHUB_HEAD_REF}" != "refs/heads/main" ]]; then
-            # We only want the `gh` utility calls to run for manual dispatches, workflow calls (from deploy & release), 
-            #  or workflow runs from `main` branch
-            unset GH_TOKEN
-          fi
-          # GITHUB_HEAD_REF 
-          if [[ -z ${HUGO_SOLO_VERSION} ]]; then
-           task build 
+          echo "solo-version=${SOLO_VERSION}" >> $GITHUB_OUTPUT
+          
+          echo "dry-run-enabled=${{ inputs.dry-run-enabled }}" >> $GITHUB_OUTPUT
+          
+          # Only attach docs to a release if this is a workflow_dispatch running with a version tag
+          if [[ "${{ github.ref_name }}" != "main" && "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "attach-docs-enabled=true" >> $GITHUB_OUTPUT
           else
-            HUGO_SOLO_VERSION=${HUGO_SOLO_VERSION} task build
+            echo "attach-docs-enabled=false" >> $GITHUB_OUTPUT
           fi
+          echo "attach-docs-enabled=${{ inputs.attach-docs-enabled }}" >> $GITHUB_OUTPUT
 
-      # If this is a manual dispatch with a version tag or a workflow call from release and deploy, we need to attach
-      #  the docs as release artifacts.
-      - name: Attach Docs as Release Artifacts
-        if: >
-          github.event.inputs.solo-version != '' &&
-          github.event.inputs.solo-version != 'main' &&
-          github.ref != 'refs/heads/main' &&
-          github.repository == 'hiero-ledger/solo'
-        env:
-          GH_TOKEN: ${{ github.token }} # Use the GitHub token when running as workflow_dispatch
-          GITHUB_TOKEN: ${{ secrets.token }} # Use the token secret when running as workflow_call
-        run: |
-          set -xeo pipefail
-          RELEASE_VERSION="${{ github.event.inputs.solo-version }}"
-          # Ensure the release version is set
-          if [[ -z "${RELEASE_VERSION}" ]]; then
-            echo "Error: solo-version input is required for attaching release artifacts." >&2
-            exit 1
-          fi
-          cd docs/site
-          # Create the release artifact tarballs
-          HUGO_SOLO_VERSION="${RELEASE_VERSION}" task github:upload:release:assets
-
-      # If this is a workflow dispatch with a specific version, a workflow call from release and deploy, or being run
-      #  from `main` branch, we need the 'main' branch to also be built and deployed to GitHub Pages.
-      - name: Build Docs with Hugo for Main Branch
-        if: >
-          github.event.inputs.solo-version != '' ||
-          github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -xeo pipefail
-          git checkout --force main
-          cd docs/site
-          HUGO_SOLO_VERSION="${{ github.event.inputs.solo-version }}"
-          if [[ -z "${HUGO_SOLO_VERSION}" && "${GITHUB_HEAD_REF}" != "refs/heads/main" ]]; then
-            # We only want the `gh` utility calls to run for manual dispatches, workflow calls (from deploy & release), 
-            #  or workflow runs from `main` branch
-            unset GH_TOKEN
-          fi
-          task build
-
-      # Upload the built site to artifacts for troubleshooting or verification
-      - name: Upload Artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          path: |
-            ./docs/site/build
-            ./docs/site/public
-            ./docs/site/static
-
-      # Upload the built site to GitHub Pages
-      - name: Upload Pages Artifact
-        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
-        if: >
-          (github.event.inputs.solo-version != '' || 
-          github.ref == 'refs/heads/main') && 
-          github.repository == 'hiero-ledger/solo'
-        with:
-          path: ./docs/site/public
-
-  # Deployment job
-  deploy:
-    name: Deploy
-    runs-on: hiero-solo-linux-medium
-    environment:
-      name: github-pages # security guard on what branch/tag can run this job
-      url: ${{ steps.deployment.outputs.page_url }}
+  # Do a Hugo build for the docs site for a version tag
+  hugo-docs-build:
+    name: Hugo Docs Build
+    if: ${{ needs.setup.outputs.solo-version != 'main' && github.ref_name != 'main' && !cancelled() && !failure() }}
+    uses: ./.github/workflows/zxc-hugo-build.yaml
     needs:
-      - build
-    if: >
-      (github.event.inputs.solo-version != '' || 
-      github.ref == 'refs/heads/main') && 
-      github.repository == 'hiero-ledger/solo'
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
-        with:
-          egress-policy: audit
+      - setup
+    with:
+      solo-version: ${{ needs.setup.outputs.solo-version }}
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+  # Do a Hugo build for the docs site for the main branch, required to ensure that docs for the main branch get deployed
+  #  to GitHub Pages
+  hugo-docs-build-main:
+    name: Hugo Docs Build
+    uses: ./.github/workflows/zxc-hugo-build.yaml
+    needs:
+      - hugo-docs-build
+    with:
+      solo-version: 'main'
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Publish the Hugo docs site to GitHub Pages unless dry-run is enabled or if this is a merge to release/* branch
+  hugo-docs-publish:
+    name: Hugo Docs Publish
+    if: ${{ inputs.dry-run-enabled != 'true' && github.ref_name != 'release/*' && !cancelled() && !failure() }}
+    uses: ./.github/workflows/zxc-hugo-publish.yaml
+    needs:
+      - hugo-docs-build-main
+    with:
+      solo-version: ${{ needs.setup.outputs.solo-version }}
+      dry-run-enabled: ${{ inputs.dry-run-enabled }}
+      attach-docs-enabled: ${{ needs.setup.outputs.attach-docs-enabled }}
