@@ -68,7 +68,7 @@ tasks:
         done
 
   github:extract:latest:
-    desc: Extract latest.tar.gz from latest version to public/latest
+    desc: Extract docs-latest.tar.gz from latest version to public/latest
     deps: [github:download:solo:assets]
     silent: true
     cmds:
@@ -80,7 +80,7 @@ tasks:
         fi
         
         SAFE_TAG=$(echo "$LATEST_TAG" | sed 's#[/:]#_#g')
-        ARCHIVE="build/$SAFE_TAG/latest.tar.gz"
+        ARCHIVE="build/$SAFE_TAG/docs-latest.tar.gz"
         
         if [ ! -f "$ARCHIVE" ]; then
           echo "Error: $ARCHIVE does not exist." >&2
@@ -97,7 +97,7 @@ tasks:
         fi
 
   github:extract:versioned:
-    desc: Extract ${tag}.tar.gz into public/${tag}
+    desc: Extract docs-${tag}.tar.gz into public/${tag}
     deps: [github:download:solo:assets]
     silent: true
     cmds:
@@ -105,7 +105,7 @@ tasks:
         jq -c '.[] | select(.npmjsLatest == true or .npmjsLatest == false)' build/releases.json | while read -r release; do
           TAG=$(echo "$release" | jq -r '.tag')
           SAFE_TAG=$(echo "$TAG" | sed 's#[/:]#_#g')
-          ARCHIVE="build/$SAFE_TAG/$TAG.tar.gz"
+          ARCHIVE="build/$SAFE_TAG/docs-$TAG.tar.gz"
           DEST="public"
         
           if [ ! -f "$ARCHIVE" ]; then
@@ -217,8 +217,8 @@ tasks:
         echo "Preparing to upload release assets for version ${RELEASE_TAG} to hiero-ledger/solo repository..."
 
         # Define asset paths using the RELEASE_TAG variable
-        ASSET_LATEST="./build/${RELEASE_TAG}/latest.tar.gz"
-        ASSET_VERSIONED="./build/${RELEASE_TAG}/${RELEASE_TAG}.tar.gz"
+        ASSET_LATEST="./build/${RELEASE_TAG}/docs-latest.tar.gz"
+        ASSET_VERSIONED="./build/${RELEASE_TAG}/docs-${RELEASE_TAG}.tar.gz"
 
         # Check if asset files exist before attempting upload
         if [ ! -f "$ASSET_LATEST" ]; then
