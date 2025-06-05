@@ -119,3 +119,7 @@ jobs:
       enable-e2e-coverage-report: true
     secrets:
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+
+  hugo-docs-build:
+    name: Hugo Docs Build
+    uses: ./.github/workflows/zxc-hugo-build.yaml
