@@ -45,6 +45,14 @@ export interface ConfigBuilder {
   withMergeSourceValues(mergeSourceValues: boolean): ConfigBuilder;
 
   /**
+   * Sets the prefix for the configuration.
+   * Used in the EnvironmentConfigSource to filter environment variables.
+   *
+   * @param prefix - The prefix to be set.
+   */
+  withPrefix(prefix: string): ConfigBuilder;
+
+  /**
    * Builds a {@link Config} instance.
    */
   build(): Config;

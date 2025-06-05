@@ -22,11 +22,11 @@ chmod 755 ./.github/workflows/script/update_md.sh
 cd docs/
 pwd
 
-../.github/workflows/script/update_md.sh </dev/null | cat
+cd ..
+.github/workflows/script/update_md.sh </dev/null | cat
 set +x
 echo "::group::Updated step-by-step-guide.md"
 
-cd ..
 cat docs/site/content/en/docs/step-by-step-guide.md
 echo "::endgroup::"
 

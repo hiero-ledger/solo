@@ -54,6 +54,11 @@ import {LocalConfigSource} from '../../data/configuration/impl/local-config-sour
 import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {ComponentFactory} from '../config/remote/component-factory.js';
 import {RemoteConfigValidator} from '../config/remote/remote-config-validator.js';
+import {SoloConfigRuntimeState} from '../../business/runtime-state/config/solo/solo-config-runtime-state.js';
+import {MirrorNodeConfigRuntimeState} from '../../business/runtime-state/config/mirror-node/mirror-node-config-runtime-state.js';
+import {BlockNodeConfigRuntimeState} from '../../business/runtime-state/config/block-node/block-node-config-runtime-state.js';
+import {ExplorerConfigRuntimeState} from '../../business/runtime-state/config/explorer/explorer-config-runtime-state.js';
+import {JsonRpcRelayConfigRuntimeState} from '../../business/runtime-state/config/json-rpc-relay/json-rpc-relay-config-runtime-state.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -141,8 +146,18 @@ export class Container {
       new SingletonContainer(InjectTokens.NodeCommandConfigs, NodeCommandConfigs),
       new SingletonContainer(InjectTokens.ErrorHandler, ErrorHandler),
       new SingletonContainer(InjectTokens.ObjectMapper, ClassToObjectMapper),
+      new SingletonContainer(InjectTokens.SoloConfigRuntimeState, SoloConfigRuntimeState),
+      new SingletonContainer(InjectTokens.MirrorNodeConfigRuntimeState, MirrorNodeConfigRuntimeState),
+      new SingletonContainer(InjectTokens.BlockNodeConfigRuntimeState, BlockNodeConfigRuntimeState),
+      new SingletonContainer(InjectTokens.ExplorerConfigRuntimeState, ExplorerConfigRuntimeState),
+      new SingletonContainer(InjectTokens.JsonRpcRelayConfigRuntimeState, JsonRpcRelayConfigRuntimeState),
       new SingletonContainer(InjectTokens.ComponentFactory, ComponentFactory),
       new SingletonContainer(InjectTokens.RemoteConfigValidator, RemoteConfigValidator),
+      new SingletonContainer(InjectTokens.SoloConfigRuntimeState, SoloConfigRuntimeState),
+      new SingletonContainer(InjectTokens.MirrorNodeConfigRuntimeState, MirrorNodeConfigRuntimeState),
+      new SingletonContainer(InjectTokens.BlockNodeConfigRuntimeState, BlockNodeConfigRuntimeState),
+      new SingletonContainer(InjectTokens.ExplorerConfigRuntimeState, ExplorerConfigRuntimeState),
+      new SingletonContainer(InjectTokens.JsonRpcRelayConfigRuntimeState, JsonRpcRelayConfigRuntimeState),
     ];
 
     const valueContainers: ValueContainer[] = [

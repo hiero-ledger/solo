@@ -1,0 +1,13 @@
+#schemaVersion: 1
+helmChart:
+  name: hedera-mirror
+  # namespace: should come from presentation layer
+  release: mirror
+  repository: https://hashgraph.github.io/hedera-mirror-node/charts
+  # directory: would be used via environment variable only
+  # version: should come from version.ts or presentation layer
+  labelSelector:
+  containerName:
+  ingressClassName:
+  ingressControllerName:
+  ingressControllerPrefix:

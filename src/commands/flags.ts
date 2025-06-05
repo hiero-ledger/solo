@@ -2203,13 +2203,13 @@ export class Flags {
     constName: 'awsBucketRegion',
     name: 'aws-bucket-region',
     definition: {
-        defaultValue: '',
-        describe: 'name of aws bucket region',
-        type: 'string',
-        dataMask: constants.STANDARD_DATAMASK,
+      defaultValue: '',
+      describe: 'name of aws bucket region',
+      type: 'string',
+      dataMask: constants.STANDARD_DATAMASK,
     },
     prompt: undefined,
-    };
+  };
 
   public static readonly awsBucketPrefix: CommandFlag = {
     constName: 'awsBucketPrefix',

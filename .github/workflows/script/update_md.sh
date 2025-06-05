@@ -74,7 +74,6 @@ export SOLO_EXPLORER_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/explorer-destroy.log | t
 solo network destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/network-destroy.log
 export SOLO_NETWORK_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/network-destroy.log | tee ${BUILD_DIR}/test.log )
 
-pushd ../
 echo "Generating ${TARGET_FILE} from ${TARGET_FILE}.template"
 
 envsubst '$KIND_CREATE_CLUSTER_OUTPUT,$SOLO_INIT_OUTPUT,$SOLO_NODE_KEY_PEM_OUTPUT,$SOLO_CLUSTER_SETUP_OUTPUT, \
@@ -90,5 +89,4 @@ sed -i 's/\[33m//g' ${TARGET_FILE}
 sed -i 's/\[39m//g' ${TARGET_FILE}
 egrep -v '↓|❯|•' ${TARGET_FILE} > ${TARGET_FILE}.tmp && mv ${TARGET_FILE}.tmp ${TARGET_FILE}
 
-popd
 set +x

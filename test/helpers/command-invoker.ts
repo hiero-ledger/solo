@@ -50,6 +50,7 @@ export class CommandInvoker {
       this.updateConfigManager(),
 
       // Loads the remote config if needed
+      this.middlewares.loadRuntimeStateConfigs(),
       this.middlewares.loadRemoteConfig(),
     ];
 
