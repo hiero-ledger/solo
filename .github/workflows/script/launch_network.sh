@@ -79,12 +79,9 @@ fi
 
 # using new solo to redeploy solo deployment chart to new version
 npm run solo-test -- node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
-npm run solo-test -- network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --settings-txt .github/workflows/support/v58-test/settings.txt
 
-# must kill the pods to trigger redeployment to pickup changes to new image of root-container
-# otherwise the missing of zip/unzip would make the platform extraction on nodes fail
-kubectl delete pod network-node1-0 -n solo-e2e
-kubectl delete pod network-node2-0 -n solo-e2e
+kubectl apply -f .github/workflows/support/v58-test/resizable-storageclass.yaml
+npm run solo-test -- network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --settings-txt .github/workflows/support/v58-test/settings.txt --values-file .github/workflows/support/v58-test/minio_values.yaml
 
 npm run solo-test -- node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
 npm run solo-test -- node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
