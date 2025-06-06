@@ -115,6 +115,7 @@ jobs:
           name: hugo-build-artifacts
 
       - name: List Artifacts
+        if: ${{ inputs.download-artifacts && !cancelled() && !failure() }}
         run: |
           set -xeo pipefail
           echo "Listing downloaded build artifacts:"
