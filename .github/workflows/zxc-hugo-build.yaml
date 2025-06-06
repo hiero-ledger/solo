@@ -29,6 +29,12 @@ on:
         type: string
         required: false
 
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
 defaults:
   run:
     shell: bash
@@ -67,14 +73,14 @@ jobs:
 
       # Checkout default ref to build docs for a specific version or if the ref is 'main'
       - name: Checkout Code
-        if: ${{ inputs.solo-version != 'main' || github.ref_name == 'main' }}
+        if: ${{ inputs.solo-version != 'main' || github.ref_name == 'main' && !cancelled() && !failure() }}
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
       # Force checkout main branch to do a solo-version = 'main' build, unless the ref is already 'main'
       - name: Checkout Code
-        if: ${{ inputs.solo-version == 'main' && github.ref_name != 'main' }}
+        if: ${{ inputs.solo-version == 'main' && github.ref_name != 'main' && !cancelled() && !failure() }}
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
@@ -96,7 +102,9 @@ jobs:
         with:
           go-version-file: 'docs/site/go.mod'
 
-      - name: Download Previous Artifacts # Download the previous artifacts if we built a specific version and this is `main`
+      # Download the previous artifacts if we built a specific version and this is `main`
+      - name: Download Previous Artifacts
+        if: ${{ inputs.solo-version == 'main' && !cancelled() && !failure() }}
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: hugo-build-artifacts
