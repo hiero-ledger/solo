@@ -105,7 +105,9 @@ export class RemoteConfigV1Migration implements SchemaMigration {
         namespace: clusterObject.namespace,
         deployment: clusterObject.deployment,
         dnsBaseDomain: clusterObject.dnsBaseDomain,
-        dnsConsensusNodePattern: clusterObject.dnsConsensusNodePattern,
+        // change from the old "network-${nodeAlias}-svc.${namespace}.svc" to "network-{nodeAlias}-svc.{namespace}.svc"
+        // to align with the default value of the flag dnsConsensusNodePattern
+        dnsConsensusNodePattern: clusterObject.dnsConsensusNodePattern.replaceAll('${', '{'),
       });
     }
 
