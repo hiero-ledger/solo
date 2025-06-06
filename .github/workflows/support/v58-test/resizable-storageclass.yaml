@@ -1,9 +1,0 @@
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: resizable-local-path # A new, descriptive name for your StorageClass
-provisioner: rancher.io/local-path # THIS MUST MATCH YOUR CURRENT PROVISIONER EXACTLY
-reclaimPolicy: Delete # Recommended for most dynamic provisioning, but change to Retain if you need to manually manage PVs for data recovery
-volumeBindingMode: WaitForFirstConsumer # Good for local provisioners; volume won't be provisioned until a Pod tries to use it.
-allowVolumeExpansion: true # <--- This is the crucial change!
-

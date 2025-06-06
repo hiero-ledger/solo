@@ -1,6 +1,0 @@
-
-state.signedStateDisk,2 
-#addressBook.useRosterLifecycle, true
-#networkAdmin.diskNetworkExport, EVERY_BLOCK
-#networkAdmin.diskNetworkExportFile, network.json
-
