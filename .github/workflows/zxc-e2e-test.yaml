@@ -135,7 +135,11 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ inputs.node-version }}
-
+      - name: Check NPM Path
+        run: |
+          echo "PATH: $PATH"
+          which npm
+          npm --version
       - name: Install wget
         run: |
           if ! command -v wget >/dev/null 2>&1; then
