@@ -84,6 +84,10 @@ interface BlockNodeDestroyContext {
 
 @injectable()
 export class BlockNodeCommand extends BaseCommand {
+  public constructor() {
+    super();
+  }
+
   public static readonly COMMAND_NAME: string = 'block';
 
   private static readonly ADD_CONFIGS_NAME: string = 'addConfigs';
