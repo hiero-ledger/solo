@@ -7,6 +7,9 @@
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/83a423a3a1c942459127b3aec62ab0b5)](https://app.codacy.com/gh/hashgraph/solo/dashboard?utm_source=gh\&utm_medium=referral\&utm_content=\&utm_campaign=Badge_grade)
 [![codecov](https://codecov.io/gh/hashgraph/solo/graph/badge.svg?token=hBkQdB1XO5)](https://codecov.io/gh/hashgraph/solo)
 
+> \[!WARNING]
+> NOTICE: Versions of Solo **prior to `v0.36.0`** will **not deploy to a cluster correctly** if the machine is running an Apple Silicon **M3** or **M4** chipset.
+
 An opinionated CLI tool to deploy and manage standalone test networks.
 
 ## Requirements
