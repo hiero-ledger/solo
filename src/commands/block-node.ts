@@ -38,6 +38,7 @@ import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {lt, SemVer} from 'semver';
 import {Templates} from '../core/templates.js';
+import {injectable} from 'tsyringe-neo';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -81,6 +82,7 @@ interface BlockNodeDestroyContext {
   config: BlockNodeDestroyConfigClass;
 }
 
+@injectable()
 export class BlockNodeCommand extends BaseCommand {
   public static readonly COMMAND_NAME: string = 'block';
 
@@ -413,7 +415,7 @@ export class BlockNodeCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error deploying block node: ${error.message}`, error);
+      throw new SoloError(`Error destroying block node: ${error.message}`, error);
     } finally {
       await lease.release();
     }
