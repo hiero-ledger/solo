@@ -57,9 +57,9 @@ jobs:
     name: Setup
     runs-on: hiero-solo-linux-medium
     outputs:
-      solo-version: ${{ inputs.solo-version }}
-      dry-run-enabled: ${{ inputs.dry-run-enabled }}
-      attach-docs-enabled: ${{ inputs.attach-docs-enabled }}
+      solo-version: ${{ steps.set-inputs.outputs.solo-version }}
+      attach-docs-enabled: ${{ steps.set-inputs.outputs.attach-docs-enabled }}
+      download-artifacts: ${{ steps.set-inputs.outputs.download-artifacts }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -70,21 +70,22 @@ jobs:
         id: set-inputs
         run: |
           SOLO_VERSION="${{ inputs.solo-version }}"
+          DOWNLOAD_ARTIFACTS=false
+          
           if [[ "${SOLO_VERSION}" == "" ]]; then
-            echo "No solo-version input provided, defaulting to 'main'."
+            echo "No solo-version input provided for push to 'main' or 'release/*', defaulting to 'main'."
             SOLO_VERSION='main'
           fi
           echo "solo-version=${SOLO_VERSION}" >> $GITHUB_OUTPUT
           
-          echo "dry-run-enabled=${{ inputs.dry-run-enabled }}" >> $GITHUB_OUTPUT
-          
-          # Only attach docs to a release if this is a workflow_dispatch running with a version tag
+          # Only download artifacts and attach docs to a release if this is a workflow_dispatch running with a version tag
           if [[ "${{ github.ref_name }}" != "main" && "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "attach-docs-enabled=true" >> $GITHUB_OUTPUT
+            DOWNLOAD_ARTIFACTS=true
           else
             echo "attach-docs-enabled=false" >> $GITHUB_OUTPUT
           fi
-          echo "attach-docs-enabled=${{ inputs.attach-docs-enabled }}" >> $GITHUB_OUTPUT
+          echo "download-artifacts=${DOWNLOAD_ARTIFACTS}" >> $GITHUB_OUTPUT
 
   # Do a Hugo build for the docs site for a version tag
   hugo-docs-build:
@@ -107,6 +108,7 @@ jobs:
     with:
       solo-version: 'main'
       github-token: ${{ secrets.GITHUB_TOKEN }}
+      download-artifacts: ${{ needs.setup.outputs.download-artifacts }}
 
   # Publish the Hugo docs site to GitHub Pages unless dry-run is enabled or if this is a merge to release/* branch
   hugo-docs-publish:

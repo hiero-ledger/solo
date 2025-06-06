@@ -223,6 +223,7 @@ jobs:
     with:
       solo-version: 'main'
       github-token: ${{ secrets.GITHUB_TOKEN }}
+      download-artifacts: true
 
   # Publish the Hugo docs site to GitHub Pages unless dry-run is enabled
   hugo-docs-publish:
