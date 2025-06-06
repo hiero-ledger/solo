@@ -1,0 +1,243 @@
+version: 3
+tasks:
+  # this will need adjusting once I get an artifact published
+  github:list:solo:releases:
+    desc: List GitHub releases for hiero-ledger/solo using gh CLI and output as JSON (excluding empty assets)
+    silent: true
+    deps: [install:gh]
+    status:
+      - |
+        if [[ -z "${GH_TOKEN}" ]]; then
+          echo "WARN: GH_TOKEN is not set. Cannot run `gh` commands, skipping step." >&2
+          exit 1
+        fi
+    cmds:
+      - |
+        printf "\r::group::Fetching GitHub releases for hiero-ledger/solo...\n"
+        mkdir -p build
+        touch build/github-releases.json
+        if ! command -v gh &> /dev/null; then
+          echo "Error: GitHub CLI (gh) is not installed." >&2
+          exit 1
+        fi
+        echo "Fetching releases from GitHub with gh CLI..."
+        gh api --paginate -H "Accept: application/vnd.github+json" \
+          repos/hiero-ledger/solo/releases |
+        jq 'map({
+          tag: ("v" + (.tag_name | ltrimstr("v"))),
+          assets: (
+            .assets
+            | map(select(.name != "Source code (zip)" and .name != "Source code (tar.gz)"))
+            | map({name: .name, url: .browser_download_url})
+          )
+        }) | map(select(.assets | length > 0))' | tee build/github-releases.json
+        printf "\r::endgroup::--------------\n"
+
+  github:download:solo:assets:
+    desc: Download release assets into per-tag folders under build/
+    deps: [github:augment:releases]
+    silent: true
+    cmds:
+      - |
+        if [ ! -f build/github-releases.json ]; then
+          echo "Error: build/github-releases.json does not exist. Run github:list:solo:releases first." >&2
+          exit 1
+        fi
+        
+        echo "Creating directories and downloading assets..."
+        jq -c '.[]' build/github-releases.json | while read -r release; do
+          tag=$(echo "$release" | jq -r '.tag' | sed 's#[/:]#_#g')
+          mkdir -p "build/$tag"
+        
+          echo "Processing release: $tag"
+          echo "$release" | jq -c '.assets[]' | while read -r asset; do
+            name=$(echo "$asset" | jq -r '.name')
+            url=$(echo "$asset" | jq -r '.url')
+            dest="build/$tag/$name"
+        
+            if [ -f "$dest" ]; then
+              echo "✔ Skipping $name (already exists)"
+            else
+              echo "⬇ Downloading $name"
+              curl -sSL --retry 3 --fail -o "$dest" "$url" || {
+                echo "❌ Failed to download $url" >&2
+                rm -f "$dest"
+              }
+            fi
+          done
+        done
+
+  github:extract:latest:
+    desc: Extract docs-latest.tar.gz from latest version to public/latest
+    deps: [github:download:solo:assets]
+    silent: true
+    cmds:
+      - |
+        LATEST_TAG=$(jq -r '.[] | select(.npmjsLatest == true) | .tag' build/releases.json)
+        if [ -z "$LATEST_TAG" ]; then
+          echo "No latest version found in releases.json"
+          exit 0
+        fi
+        
+        SAFE_TAG=$(echo "$LATEST_TAG" | sed 's#[/:]#_#g')
+        ARCHIVE="build/$SAFE_TAG/docs-latest.tar.gz"
+        
+        if [ ! -f "$ARCHIVE" ]; then
+          echo "Error: $ARCHIVE does not exist." >&2
+          exit 1
+        fi
+        
+        echo "Extracting $ARCHIVE to public/latest..."
+        rm -rf public/latest
+        mkdir -p public/latest
+        if [ "$(uname -s)" == "Linux" ]; then
+          tar --warning=no-unknown-keyword -xzf "$ARCHIVE" -C public/
+        else
+          tar -xzf "$ARCHIVE" -C public/
+        fi
+
+  github:extract:versioned:
+    desc: Extract docs-${tag}.tar.gz into public/${tag}
+    deps: [github:download:solo:assets]
+    silent: true
+    cmds:
+      - |
+        jq -c '.[] | select(.npmjsLatest == true or .npmjsLatest == false)' build/releases.json | while read -r release; do
+          TAG=$(echo "$release" | jq -r '.tag')
+          SAFE_TAG=$(echo "$TAG" | sed 's#[/:]#_#g')
+          ARCHIVE="build/$SAFE_TAG/docs-$TAG.tar.gz"
+          DEST="public"
+        
+          if [ ! -f "$ARCHIVE" ]; then
+            echo "⚠️ Missing: $ARCHIVE"
+            continue
+          fi
+        
+          echo "📦 Extracting $ARCHIVE to $DEST..."
+          mkdir -p "$DEST"
+          if [ "$(uname -s)" == "Linux" ]; then
+            tar --warning=no-unknown-keyword -xzf "$ARCHIVE" -C "$DEST"
+          else
+            tar -xzf "$ARCHIVE" -C "$DEST"
+          fi
+        done
+
+  github:update:hugo:config:
+    desc: Append versions from releases.json to hugo.yaml
+    silent: true
+    cmds:
+      - |
+        RELEASES="build/releases.json"
+        CONFIG="hugo.yaml"
+        
+        if [ ! -f "$RELEASES" ]; then
+          echo "❌ Error: $RELEASES not found" >&2
+          exit 1
+        fi
+        
+        jq -r '.[] | select(.npmjsLatest == true or .npmjsLatest == false) | "    - {version: \(.tag), url: /\(.tag)}"' "$RELEASES" >> "$CONFIG"
+
+  github:prepare:site:
+    desc: Run all extraction and update tasks
+    deps:
+      - github:extract:latest
+      - github:extract:versioned
+      - github:update:hugo:config
+
+
+  github:augment:releases:
+    desc: Add npmjsLatest field to each release in github-releases.json and save to build/releases.json
+    deps: [github:list:solo:releases]
+    silent: true
+    cmds:
+      - |
+        set -e
+        
+        LATEST_FILE="build/npmjs-latest-version.txt"
+        ALL_VERSIONS_FILE="build/npmjs-versions.txt"
+        RELEASES_FILE="build/github-releases.json"
+        OUTPUT_FILE="build/releases.json"
+        
+        if [ ! -f "$RELEASES_FILE" ]; then
+          echo "Error: $RELEASES_FILE not found." >&2
+          exit 1
+        fi
+        
+        if [ ! -f "$LATEST_FILE" ]; then
+          echo "Error: $LATEST_FILE not found." >&2
+          exit 1
+        fi
+        
+        if [ ! -f "$ALL_VERSIONS_FILE" ]; then
+          echo "Error: $ALL_VERSIONS_FILE not found." >&2
+          exit 1
+        fi
+        
+        latest=$(cat "$LATEST_FILE" | tr -d '\r\n')
+        
+        # read versions into array
+        mapfile -t all_versions < "$ALL_VERSIONS_FILE"
+        
+        # convert array to jq-friendly string
+        all_versions_json=$(printf '%s\n' "${all_versions[@]}" | jq -R . | jq -s .)
+        
+        jq --arg latest "$latest" --argjson all_versions "$all_versions_json" '
+          map(. + {
+            npmjsLatest: (
+              if .tag == $latest then true
+              elif (.tag | IN($all_versions[])) then false
+              else null
+              end
+            )
+          })
+        ' "$RELEASES_FILE" > "$OUTPUT_FILE"
+        
+        echo "✅ Output written to $OUTPUT_FILE"
+
+  github:upload:release:assets:
+    desc: Uploads specified .tar.gz release assets to a GitHub release for the hiero-ledger/solo repository.
+    silent: true
+    deps: [install:gh]
+    requires:
+      vars: [HUGO_SOLO_VERSION]
+    status:
+      - |
+        if [[ -z "${GH_TOKEN}" ]]; then
+          echo "WARN: GH_TOKEN is not set. Cannot run `gh` commands, skipping step." >&2
+          exit 1
+        fi
+    cmds:
+      - |
+        # Start with strict mode for the shell script
+        set -e -o pipefail
+
+        # HUGO_SOLO_VERSION is expected from the environment. Task fails if not set.
+        RELEASE_TAG=${HUGO_SOLO_VERSION}
+        
+        echo "Preparing to upload release assets for version ${RELEASE_TAG} to hiero-ledger/solo repository..."
+
+        # Define asset paths using the RELEASE_TAG variable
+        ASSET_LATEST="./build/${RELEASE_TAG}/docs-latest.tar.gz"
+        ASSET_VERSIONED="./build/${RELEASE_TAG}/docs-${RELEASE_TAG}.tar.gz"
+
+        # Check if asset files exist before attempting upload
+        if [ ! -f "$ASSET_LATEST" ]; then
+          echo "Error: Asset file not found: $ASSET_LATEST" >&2
+          exit 1
+        fi
+        if [ ! -f "$ASSET_VERSIONED" ]; then
+          echo "Error: Asset file not found: $ASSET_VERSIONED" >&2
+          exit 1
+        fi
+
+        echo "Assets to be uploaded:"
+        echo "  - $ASSET_LATEST"
+        echo "  - $ASSET_VERSIONED"
+        
+        echo "Uploading assets to GitHub release ${RELEASE_TAG}..."
+        # gh release upload command. Errors will cause script to exit due to 'set -e'.
+        # The --repo flag specifies the target repository.
+        # Multiple asset files can be listed at the end of the command.
+        gh release upload "${RELEASE_TAG}" "$ASSET_LATEST" "$ASSET_VERSIONED" --repo hiero-ledger/solo --clobber
+
+        echo "Successfully uploaded assets for release ${RELEASE_TAG}."

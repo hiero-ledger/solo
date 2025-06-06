@@ -34,6 +34,7 @@ type: docs
   * [Destroy network](#destroy-network)
 
 For those who would like to have more control or need some customized setups, here are some step by step instructions of how to setup and deploy a solo network.
+
 ### Setup Kubernetes cluster
 
 #### Remote cluster
@@ -316,6 +317,7 @@ Version			: 0.53.0
 In a separate terminal, you may run `k9s` to view the pod status.
 
 #### Deploy a block node
+
 ```
 solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 ```
@@ -656,7 +658,6 @@ Version			: v0.67.0
 #### Execution Developer
 
 Next: [Execution Developer](execution-developer)
-
 
 #### Destroy relay node
 
