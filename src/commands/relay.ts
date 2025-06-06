@@ -30,6 +30,7 @@ import {Templates} from '../core/templates.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {SemVer} from 'semver';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -118,7 +119,7 @@ export class RelayCommand extends BaseCommand {
     valuesFile: string,
     nodeAliases: NodeAliases,
     chainID: string,
-    relayRelease: string,
+    relayReleaseTag: string,
     replicaCount: number,
     operatorID: string,
     operatorKey: string,
@@ -144,8 +145,8 @@ export class RelayCommand extends BaseCommand {
       valuesArgument += ` --set config.CHAIN_ID=${chainID}`;
     }
 
-    if (relayRelease) {
-      valuesArgument += ` --set image.tag=${relayRelease.replace(/^v/, '')}`;
+    if (relayReleaseTag) {
+      valuesArgument += ` --set image.tag=${relayReleaseTag.replace(/^v/, '')}`;
     }
 
     if (replicaCount) {
@@ -277,11 +278,13 @@ export class RelayCommand extends BaseCommand {
               this.configManager,
               task,
             );
+
             context_.config.nodeAliases = helpers.parseNodeAliases(
               context_.config.nodeAliasesUnparsed,
               this.remoteConfig.getConsensusNodes(),
               this.configManager,
             );
+
             context_.config.releaseName = self.prepareReleaseName(context_.config.nodeAliases);
 
             if (context_.config.clusterRef) {
@@ -290,6 +293,13 @@ export class RelayCommand extends BaseCommand {
                 context_.config.context = context;
               }
             }
+
+            context_.config.relayReleaseTag = helpers.resolveVersion(
+              context_.config.relayReleaseTag,
+              flags.relayReleaseTag,
+              this.remoteConfig.configuration.versions.jsonRpcRelayChart,
+              this.localConfig.configuration.versions.jsonRpcRelayChart,
+            );
 
             self.logger.debug('Initialized config', {config: context_.config});
 
@@ -343,7 +353,7 @@ export class RelayCommand extends BaseCommand {
               config.releaseName,
               constants.JSON_RPC_RELAY_CHART,
               constants.JSON_RPC_RELAY_CHART,
-              '',
+              config.relayReleaseTag,
               config.valuesArg,
               config.context,
             );

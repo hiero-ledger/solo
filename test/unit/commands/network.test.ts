@@ -227,6 +227,10 @@ describe('NetworkCommand unit tests', () => {
         const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['solo-e2e', 'context1']]);
         options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
+        // @ts-expect-error - to mock
+        networkCommand.remoteConfig.configuration.versions = {consensusNode: undefined};
+        networkCommand.localConfig.configuration.versions.consensusNode = undefined;
+
         // @ts-expect-error - TS2341: to mock
         networkCommand.getBlockNodes = sinon.stub().returns([]);
 
@@ -256,8 +260,13 @@ describe('NetworkCommand unit tests', () => {
         // @ts-expect-error - TS2341: to mock
         networkCommand.getBlockNodes = sinon.stub().returns([]);
 
+        // @ts-expect-error - to mock
+        networkCommand.remoteConfig.configuration.versions = {consensusNode: undefined};
+        networkCommand.localConfig.configuration.versions.consensusNode = undefined;
+
         // @ts-expect-error - TS2341: to access private property
         await networkCommand.deploy(argv.build());
+
         expect(options.chartManager.install.args[0][0].name).to.equal('solo-e2e');
         expect(options.chartManager.install.args[0][1]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
         expect(options.chartManager.install.args[0][2]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
@@ -286,9 +295,14 @@ describe('NetworkCommand unit tests', () => {
         const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['cluster', 'context1']]);
         options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
+
         const networkCommand = container.resolve<NetworkCommand>(NetworkCommand);
         // @ts-expect-error - to mock
         networkCommand.getBlockNodes = sinon.stub().returns([]);
+
+        // @ts-expect-error - to mock
+        networkCommand.remoteConfig.configuration.versions = {consensusNode: undefined};
+        networkCommand.localConfig.configuration.versions.consensusNode = undefined;
 
         // @ts-expect-error - to access private method
         const config: NetworkDeployConfigClass = await networkCommand.prepareConfig(task, argv.build());

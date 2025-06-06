@@ -31,7 +31,7 @@ import {
   type SoloListrTask,
 } from '../types/index.js';
 import * as Base64 from 'js-base64';
-import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
+import * as versions from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
@@ -50,6 +50,7 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {type AccountId} from '@hashgraph/sdk';
 import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {SemVer} from 'semver';
 
 interface MirrorNodeDeployConfigClass {
   cacheDir: string;
@@ -355,6 +356,13 @@ export class MirrorNodeCommand extends BaseCommand {
 
             context_.config.namespace = namespace;
 
+            context_.config.mirrorNodeVersion = helpers.resolveVersion(
+              context_.config.mirrorNodeVersion,
+              flags.mirrorNodeVersion,
+              this.remoteConfig.configuration.versions.mirrorNodeChart,
+              this.localConfig.configuration.versions.mirrorNodeChart,
+            );
+
             // predefined values first
             context_.config.valuesArg += helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
             // user defined values later to override predefined values
@@ -510,14 +518,14 @@ export class MirrorNodeCommand extends BaseCommand {
                       constants.INGRESS_CONTROLLER_RELEASE_NAME,
                       constants.INGRESS_CONTROLLER_RELEASE_NAME,
                       constants.INGRESS_CONTROLLER_RELEASE_NAME,
-                      INGRESS_CONTROLLER_VERSION,
+                      versions.INGRESS_CONTROLLER_VERSION,
                       mirrorIngressControllerValuesArgument,
                       context_.config.clusterContext,
                     );
                     showVersionBanner(
                       self.logger,
                       constants.INGRESS_CONTROLLER_RELEASE_NAME,
-                      INGRESS_CONTROLLER_VERSION,
+                      versions.INGRESS_CONTROLLER_VERSION,
                     );
                   },
                   skip: context_ => !context_.config.enableIngress,

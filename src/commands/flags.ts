@@ -1050,17 +1050,6 @@ export class Flags {
     },
   };
 
-  public static readonly blockNodeChartVersion: CommandFlag = {
-    constName: 'chartVersion',
-    name: 'chart-version',
-    definition: {
-      describe: 'Block nodes chart version',
-      defaultValue: version.BLOCK_NODE_VERSION,
-      type: 'string',
-    },
-    prompt: undefined,
-  };
-
   public static readonly applicationProperties: CommandFlag = {
     constName: 'applicationProperties',
     name: 'application-properties',
@@ -2611,7 +2600,6 @@ export class Flags {
     Flags.dnsConsensusNodePattern,
     Flags.domainName,
     Flags.domainNames,
-    Flags.blockNodeChartVersion,
     Flags.blockNodeVersion,
     Flags.realm,
     Flags.shard,

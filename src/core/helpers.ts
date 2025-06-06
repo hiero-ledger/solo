@@ -24,6 +24,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {type ConfigManager} from './config-manager.js';
 import {Flags as flags} from '../commands/flags.js';
 import {type Realm, type Shard} from './../types/index.js';
+import {SemVer} from 'semver';
 
 export function getInternalAddress(
   releaseVersion: semver.SemVer | string,
@@ -569,4 +570,33 @@ export async function withTimeout<T>(
 async function throwAfter(duration: Duration, message: string = 'Timeout'): Promise<never> {
   await sleep(duration);
   throw new SoloError(message);
+}
+
+export function resolveVersion(
+  value: Optional<string>,
+  flag: CommandFlag,
+  versionFromRemoteConfig: Optional<SemVer>,
+  versionFromLocalConfig: Optional<SemVer>,
+): string {
+  const defaultVersion: string = flag.definition.defaultValue as string;
+
+  // If version passed is not the default
+  if (value !== defaultVersion) {
+    return value;
+  }
+
+  // use version from remote config if set
+  else if (versionFromRemoteConfig && versionFromRemoteConfig.toString() !== '0.0.0') {
+    return versionFromRemoteConfig.toString();
+  }
+
+  // use version from local config if set
+  else if (versionFromLocalConfig && versionFromLocalConfig.toString() !== '0.0.0') {
+    return versionFromLocalConfig.toString();
+  }
+
+  // fallback to default
+  else {
+    return defaultVersion;
+  }
 }

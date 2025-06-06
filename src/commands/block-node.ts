@@ -3,7 +3,7 @@
 import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import * as helpers from '../core/helpers.js';
-import {showVersionBanner, sleep} from '../core/helpers.js';
+import {resolveVersion, showVersionBanner, sleep} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -42,7 +42,7 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
 interface BlockNodeDeployConfigClass {
-  chartVersion: string;
+  blockNodeVersion: string;
   chartDirectory: string;
   clusterRef: ClusterReference;
   deployment: DeploymentName;
@@ -95,7 +95,7 @@ export class BlockNodeCommand extends BaseCommand {
   private static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
-      flags.blockNodeChartVersion,
+      flags.blockNodeVersion,
       flags.chartDirectory,
       flags.clusterRef,
       flags.deployment,
@@ -168,6 +168,20 @@ export class BlockNodeCommand extends BaseCommand {
               allFlags,
             ) as BlockNodeDeployConfigClass;
 
+            context_.config.blockNodeVersion = helpers.resolveVersion(
+              context_.config.blockNodeVersion,
+              flags.blockNodeVersion,
+              this.remoteConfig.configuration.versions.blockNodeChart,
+              this.localConfig.configuration.versions.blockNodeChart,
+            );
+
+            context_.config.releaseTag = helpers.resolveVersion(
+              context_.config.releaseTag,
+              flags.releaseTag,
+              this.remoteConfig.configuration.versions.consensusNode,
+              this.localConfig.configuration.versions.consensusNode,
+            );
+
             const platformVersion: SemVer = new SemVer(context_.config.releaseTag);
             if (lt(platformVersion, new SemVer('v0.62.0'))) {
               throw new SoloError('Hedera platform versions less than v0.62.0 are not supported');
@@ -218,7 +232,7 @@ export class BlockNodeCommand extends BaseCommand {
               config.releaseName,
               constants.BLOCK_NODE_CHART,
               constants.BLOCK_NODE_CHART_URL,
-              config.chartVersion,
+              config.blockNodeVersion,
               config.valuesArg,
               config.context,
             );

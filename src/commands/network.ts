@@ -17,6 +17,7 @@ import {
   showVersionBanner,
   sleep,
 } from '../core/helpers.js';
+import * as helpers from '../core/helpers.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import fs from 'node:fs';
 import {type KeyManager} from '../core/key-manager.js';
@@ -532,9 +533,9 @@ export class NetworkCommand extends BaseCommand {
     }
 
     if (config.awsBucketRegion) {
-        for (const clusterReference of clusterReferences) {
-            valuesArguments[clusterReference] += ` --set cloud.buckets.streamBucketRegion=${config.awsBucketRegion}`;
-        }
+      for (const clusterReference of clusterReferences) {
+        valuesArguments[clusterReference] += ` --set cloud.buckets.streamBucketRegion=${config.awsBucketRegion}`;
+      }
     }
 
     if (config.backupBucket) {
@@ -718,8 +719,15 @@ export class NetworkCommand extends BaseCommand {
     const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
     const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
 
-    const networkNodeVersion = new SemVer(config.releaseTag);
-    const minimumVersionForNonZeroRealms = new SemVer('0.60.0');
+    config.releaseTag = helpers.resolveVersion(
+      config.releaseTag,
+      flags.releaseTag,
+      this.remoteConfig.configuration.versions.consensusNode,
+      this.localConfig.configuration.versions.consensusNode,
+    );
+
+    const networkNodeVersion: SemVer = new SemVer(config.releaseTag);
+    const minimumVersionForNonZeroRealms: SemVer = new SemVer('0.60.0');
     if ((realm !== 0 || shard !== 0) && SemVersionLessThan(networkNodeVersion, minimumVersionForNonZeroRealms)) {
       throw new SoloError(
         `The realm and shard values must be 0 when using the ${minimumVersionForNonZeroRealms} version of the network node`,
