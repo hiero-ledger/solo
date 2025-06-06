@@ -8,6 +8,9 @@ type: docs
 
 ## Solo User Guide
 
+> \[!NOTE]
+> For less than 16 GB of memory to dedicate to Docker please skip the block node add and destroy steps.
+
 ### Table of Contents
 
 * [Setup Kubernetes cluster](#setup-kubernetes-cluster)
@@ -154,7 +157,7 @@ $SOLO_DEPLOYMENT_ADD_CLUSTER_OUTPUT
 #### Generate `pem` formatted node keys
 
 ```
-solo node keys --gossip-keys --tls-keys -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
+solo node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 * Example output
@@ -186,6 +189,17 @@ $SOLO_CLUSTER_SETUP_OUTPUT
 
 In a separate terminal, you may run `k9s` to view the pod status.
 
+#### Deploy a block node
+```
+solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+```
+
+* Example output
+
+```
+$SOLO_BLOCK_NODE_ADD_OUTPUT
+```
+
 #### Deploy helm chart with Hedera network components
 
 It may take a while (5~15 minutes depending on your internet speed) to download various docker images and get the pods started.
@@ -193,7 +207,7 @@ It may take a while (5~15 minutes depending on your internet speed) to download 
 If it fails, ensure you have enough resources allocated for Docker engine and retry the command.
 
 ```
-solo network deploy -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
+solo network deploy --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 * Example output
@@ -207,7 +221,7 @@ $SOLO_NETWORK_DEPLOY_OUTPUT
 * It may take a while as it download the hedera platform code from <https://builds.hedera.com/>
 
 ```
-solo node setup -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
+solo node setup --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 * Example output
@@ -219,7 +233,7 @@ $SOLO_NODE_SETUP_OUTPUT
 * Start the nodes
 
 ```
-solo node start -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
+solo node start --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 * Example output
@@ -257,7 +271,7 @@ $SOLO_EXPLORER_DEPLOY_OUTPUT
 #### Deploy a JSON RPC relay
 
 ```
-solo relay deploy -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
+solo relay deploy -i node1 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 * Example output
@@ -270,10 +284,11 @@ $SOLO_RELAY_DEPLOY_OUTPUT
 
 Next: [Execution Developer](execution-developer)
 
+
 #### Destroy relay node
 
 ```
-solo relay destroy -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
+solo relay destroy -i node1 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 * Example output
@@ -318,6 +333,18 @@ solo network destroy --deployment "${SOLO_DEPLOYMENT}" --force
 $SOLO_NETWORK_DESTROY_OUTPUT
 ```
 
+#### Destroy block node
+
+```
+solo block node destroy --deployment "${SOLO_DEPLOYMENT}"
+```
+
+* Example output
+
+```
+$SOLO_BLOCK_NODE_DESTROY_OUTPUT
+```
+
 You may view the list of pods using `k9s` as below:
 
 ```
@@ -343,7 +370,7 @@ Context: kind-solo                                <0> all   <a>       Attach    
 │ solo                envoy-proxy-node2-667f848689-628cx                             ●  1/1   Running         0 1 │
 │ solo                envoy-proxy-node3-6bb4b4cbdf-dmwtr                             ●  1/1   Running         0 1 │
 │ solo                solo-deployment-grpc-75bb9c6c55-l7kvt                     ●  1/1   Running         0 1 │
-│ solo                solo-deployment-hedera-explorer-6565ccb4cb-9dbw2          ●  1/1   Running         0 1 │
+│ solo                solo-deployment-hiero-explorer-6565ccb4cb-9dbw2          ●  1/1   Running         0 1 │
 │ solo                solo-deployment-importer-dd74fd466-vs4mb                  ●  1/1   Running         0 1 │
 │ solo                solo-deployment-monitor-54b8f57db9-fn5qq                  ●  1/1   Running         0 1 │
 │ solo                solo-deployment-postgres-postgresql-0                     ●  1/1   Running         0 1 │
