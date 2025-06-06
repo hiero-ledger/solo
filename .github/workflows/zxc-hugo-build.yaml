@@ -28,6 +28,11 @@ on:
         description: "GitHub Token to use for authentication, e.g. 'GITHUB_TOKEN'"
         type: string
         required: false
+      download-artifacts:
+        description: "Whether to download previous artifacts for the build, e.g. 'true' or 'false'"
+        type: boolean
+        required: false
+        default: false # only enable if we are building the 'main' branch, and we already ran for a specific version
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
@@ -104,7 +109,7 @@ jobs:
 
       # Download the previous artifacts if we built a specific version and this is `main`
       - name: Download Previous Artifacts
-        if: ${{ inputs.solo-version == 'main' && !cancelled() && !failure() }}
+        if: ${{ inputs.download-artifacts && !cancelled() && !failure() }}
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: hugo-build-artifacts
