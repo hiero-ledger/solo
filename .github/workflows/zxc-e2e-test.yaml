@@ -206,7 +206,6 @@ jobs:
       - name: Build Hedera code locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-node-local-hedera' || inputs.test-script == 'test-e2e-node-local-ptt' || inputs.test-script == 'test-e2e-node-add-local') && !cancelled() && !failure() }}
         run: |
-          # if defined consensus-node-version then assign it to CONSENSUS_NODE_VERSION, otherwsie use the default from version-test.ts
           if [ -z "${{ inputs.consensus-node-version }}" ]; then
               export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
           else
@@ -232,6 +231,11 @@ jobs:
 
       - name: Run E2E Tests
         run: |
+          if [ -z "${{ inputs.consensus-node-version }}" ]; then
+              export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+          else
+              export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
+          fi
           echo SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1 > .env
           cat .env
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
