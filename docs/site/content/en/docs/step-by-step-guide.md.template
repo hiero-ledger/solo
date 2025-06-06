@@ -8,6 +8,9 @@ type: docs
 
 ## Solo User Guide
 
+> \[!NOTE]
+> For less than 16 GB of memory to dedicate to Docker please skip the block node add and destroy steps.
+
 ### Table of Contents
 
 * [Setup Kubernetes cluster](#setup-kubernetes-cluster)
