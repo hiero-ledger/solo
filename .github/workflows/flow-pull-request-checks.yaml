@@ -23,6 +23,9 @@ on:
       - reopened
       - synchronize
 
+permissions:
+  contents: read
+
 defaults:
   run:
     shell: bash
