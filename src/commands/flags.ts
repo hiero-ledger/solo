@@ -413,6 +413,17 @@ export class Flags {
     },
   };
 
+  public static readonly useLegacyReleaseName: CommandFlag = {
+    constName: 'useLegacyReleaseName',
+    name: 'use-legacy-release-name',
+    definition: {
+      describe: 'Use the legacy release name for mirror node "mirror-node"',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly enablePrometheusSvcMonitor: CommandFlag = {
     constName: 'enablePrometheusSvcMonitor',
     name: 'prometheus-svc-monitor',
@@ -725,6 +736,18 @@ export class Flags {
         null,
         Flags.replicaCount.name,
       );
+    },
+  };
+
+  public static readonly id: CommandFlag = {
+    constName: 'id',
+    name: 'id',
+    definition: {
+      describe: 'The numeric identifier for the component',
+      type: 'number',
+    },
+    prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<number> {
+      return await Flags.prompt('number', task, input, undefined, 'Enter component id: ', null, Flags.id.name);
     },
   };
 
@@ -2203,13 +2226,13 @@ export class Flags {
     constName: 'awsBucketRegion',
     name: 'aws-bucket-region',
     definition: {
-        defaultValue: '',
-        describe: 'name of aws bucket region',
-        type: 'string',
-        dataMask: constants.STANDARD_DATAMASK,
+      defaultValue: '',
+      describe: 'name of aws bucket region',
+      type: 'string',
+      dataMask: constants.STANDARD_DATAMASK,
     },
     prompt: undefined,
-    };
+  };
 
   public static readonly awsBucketPrefix: CommandFlag = {
     constName: 'awsBucketPrefix',
@@ -2616,6 +2639,8 @@ export class Flags {
     Flags.realm,
     Flags.shard,
     Flags.username,
+    Flags.id,
+    Flags.useLegacyReleaseName,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

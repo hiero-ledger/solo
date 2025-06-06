@@ -13,7 +13,7 @@ import {ComponentStateMetadataSchema} from '../../../../../src/data/schema/model
 import {LedgerPhase} from '../../../../../src/data/schema/model/remote/ledger-phase.js';
 import {type ComponentsDataWrapperApi} from '../../../../../src/core/config/remote/api/components-data-wrapper-api.js';
 import {RelayNodeStateSchema} from '../../../../../src/data/schema/model/remote/state/relay-node-state-schema.js';
-import {HAProxyStateSchema} from '../../../../../src/data/schema/model/remote/state/haproxy-state-schema.js';
+import {HaProxyStateSchema} from '../../../../../src/data/schema/model/remote/state/ha-proxy-state-schema.js';
 import {MirrorNodeStateSchema} from '../../../../../src/data/schema/model/remote/state/mirror-node-state-schema.js';
 import {EnvoyProxyStateSchema} from '../../../../../src/data/schema/model/remote/state/envoy-proxy-state-schema.js';
 import {ConsensusNodeStateSchema} from '../../../../../src/data/schema/model/remote/state/consensus-node-state-schema.js';
@@ -32,7 +32,7 @@ export function createComponentsDataWrapper(): {
   };
   components: {
     relays: RelayNodeStateSchema[];
-    haProxies: HAProxyStateSchema[];
+    haProxies: HaProxyStateSchema[];
     mirrorNodes: MirrorNodeStateSchema[];
     envoyProxies: EnvoyProxyStateSchema[];
     consensusNodes: ConsensusNodeStateSchema[];
@@ -42,7 +42,7 @@ export function createComponentsDataWrapper(): {
   wrapper: {componentsDataWrapper: ComponentsDataWrapperApi};
   componentId: ComponentId;
 } {
-  const id: ComponentId = 0;
+  const id: ComponentId = 1;
   const componentId: ComponentId = id;
 
   const cluster: ClusterReference = 'cluster';
@@ -53,7 +53,7 @@ export function createComponentsDataWrapper(): {
   const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(id, namespace, cluster, phase);
 
   const relays: RelayNodeStateSchema[] = [new RelayNodeStateSchema(metadata, consensusNodeIds)];
-  const haProxies: HAProxyStateSchema[] = [new HAProxyStateSchema(metadata)];
+  const haProxies: HaProxyStateSchema[] = [new HaProxyStateSchema(metadata)];
   const mirrorNodes: MirrorNodeStateSchema[] = [new MirrorNodeStateSchema(metadata)];
   const envoyProxies: EnvoyProxyStateSchema[] = [new EnvoyProxyStateSchema(metadata)];
   const consensusNodes: ConsensusNodeStateSchema[] = [new ConsensusNodeStateSchema(metadata)];
@@ -62,6 +62,7 @@ export function createComponentsDataWrapper(): {
 
   const deploymentState: DeploymentStateSchema = new DeploymentStateSchema(
     LedgerPhase.INITIALIZED,
+    undefined,
     consensusNodes,
     blockNodes,
     mirrorNodes,
@@ -111,7 +112,7 @@ describe('ComponentsDataWrapper', () => {
       wrapper: {componentsDataWrapper},
     } = createComponentsDataWrapper();
 
-    const newComponentId: ComponentId = 1;
+    const newComponentId: ComponentId = 2;
     const {id, cluster, namespace, phase} = {
       id: newComponentId,
       cluster: 'cluster',
@@ -189,7 +190,9 @@ describe('ComponentsDataWrapper', () => {
       componentId,
     );
 
-    expect(mirrorNodes[componentId].metadata.id).to.deep.equal(mirrorNodeComponent.metadata.id);
+    expect(mirrorNodes.find((component): boolean => component.metadata.id === componentId).metadata.id).to.deep.equal(
+      mirrorNodeComponent.metadata.id,
+    );
   });
 
   it("should fail if trying to get component that doesn't exist with .getComponent()", () => {
