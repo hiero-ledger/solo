@@ -80,8 +80,8 @@ fi
 # using new solo to redeploy solo deployment chart to new version
 npm run solo-test -- node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 
-kubectl apply -f .github/workflows/support/v58-test/resizable-storageclass.yaml
-npm run solo-test -- network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --settings-txt .github/workflows/support/v58-test/settings.txt --values-file .github/workflows/support/v58-test/minio_values.yaml
+#kubectl apply -f .github/workflows/support/v58-test/resizable-storageclass.yaml
+npm run solo-test -- network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --settings-txt .github/workflows/support/v58-test/settings.txt
 
 npm run solo-test -- node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
 npm run solo-test -- node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
@@ -102,6 +102,18 @@ kubectl port-forward -n "${SOLO_NAMESPACE}" svc/hiero-explorer 8080:80 > /dev/nu
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-rest 5551:80 > /dev/null 2>&1 &
 
 # Test transaction can still be sent and processed
+npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
+
+kubectl exec -it network-node1-0 -c root-container -n solo-e2e -- rm -rf /opt/hgcapp/services-hedera/HapiApp2.0/data/config/.archive/genesis-network.json
+kubectl exec -it network-node2-0 -c root-container -n solo-e2e -- rm -rf /opt/hgcapp/services-hedera/HapiApp2.0/data/config/.archive/genesis-network.json
+
+# Upgrade to v0.59.5
+npm run solo-test -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version v0.59.5 -q
+npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
+
+# Upgrade to latest version
+export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
+npm run solo-test -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
 .github/workflows/script/solo_smoke_test.sh
