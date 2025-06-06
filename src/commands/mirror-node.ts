@@ -160,6 +160,7 @@ export class MirrorNodeCommand extends BaseCommand {
       valuesArgument += helpers.prepareValuesFiles(profileValuesFile);
     }
 
+    valuesArgument += ' --install';
     if (config.valuesFile) {
       valuesArgument += helpers.prepareValuesFiles(config.valuesFile);
     }
@@ -254,7 +255,7 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   private async deployMirrorNode(context_: MirrorNodeDeployContext): Promise<void> {
-    await this.chartManager.install(
+    await this.chartManager.upgrade(
       context_.config.namespace,
       constants.MIRROR_NODE_RELEASE_NAME,
       constants.MIRROR_NODE_CHART,
