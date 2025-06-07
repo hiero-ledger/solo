@@ -30,7 +30,7 @@ export class BlockNodesJsonWrapper implements ToJSON {
         );
 
         const address: string = Templates.renderSvcFullyQualifiedDomainName(
-          constants.BLOCK_NODE_RELEASE_NAME + '-' + blockNodeComponent.metadata.id,
+          `${constants.BLOCK_NODE_RELEASE_NAME}-0`,
           blockNodeComponent.metadata.namespace,
           cluster.dnsBaseDomain,
         );
