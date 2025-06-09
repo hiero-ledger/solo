@@ -87,6 +87,8 @@ interface MirrorNodeDeployConfigClass {
   ingressReleaseName: string;
   newMirrorNodeComponent: MirrorNodeStateSchema;
   useLegacyReleaseName: boolean;
+  id: number;
+  redeploy: boolean;
 }
 
 interface MirrorNodeDeployContext {
@@ -156,6 +158,8 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.externalDatabaseReadonlyPassword,
       flags.domainName,
       flags.useLegacyReleaseName,
+      flags.id,
+      flags.redeploy,
     ],
   };
 
@@ -365,6 +369,7 @@ export class MirrorNodeCommand extends BaseCommand {
               flags.profileFile,
               flags.profileName,
               flags.domainName,
+              flags.id,
             ]);
 
             const allFlags: CommandFlag[] = [
@@ -388,9 +393,40 @@ export class MirrorNodeCommand extends BaseCommand {
             context_.config.releaseName = this.getReleaseName();
             context_.config.ingressReleaseName = this.getIngressReleaseName();
 
+            if (context_.config.redeploy) {
+              const existingMirrorNode: MirrorNodeStateSchema =
+                this.remoteConfig.configuration.components.state.mirrorNodes[0];
+
+              if (!existingMirrorNode) {
+                throw new SoloError('Mirror node not found in remote config to be redeployed');
+              }
+
+              if (!context_.config.id) {
+                context_.config.id = existingMirrorNode.metadata.id;
+              }
+
+              context_.config.releaseName = this.getReleaseName(context_.config.id);
+              context_.config.ingressReleaseName = this.getIngressReleaseName(context_.config.id);
+            }
+
             if (context_.config.useLegacyReleaseName) {
               context_.config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
               context_.config.ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
+            }
+
+            // On redeploy
+            else if (context_.config.id === 1) {
+              const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
+                context_.config.namespace,
+                constants.MIRROR_NODE_RELEASE_NAME,
+                context_.config.clusterContext,
+              );
+
+              if (isLegacyChartInstalled) {
+                context_.config.useLegacyReleaseName = true;
+                context_.config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
+                context_.config.ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
+              }
             }
 
             // predefined values first

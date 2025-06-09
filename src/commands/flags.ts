@@ -413,6 +413,17 @@ export class Flags {
     },
   };
 
+  public static readonly redeploy: CommandFlag = {
+    constName: 'redeploy',
+    name: 'redeploy',
+    definition: {
+      describe: 'Redeploy the specified component',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly useLegacyReleaseName: CommandFlag = {
     constName: 'useLegacyReleaseName',
     name: 'use-legacy-release-name',
@@ -2641,6 +2652,7 @@ export class Flags {
     Flags.username,
     Flags.id,
     Flags.useLegacyReleaseName,
+    Flags.redeploy,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

@@ -90,7 +90,7 @@ npm run solo-test -- node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 npm run solo-test -- node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 
 # redeploy mirror-node to upgrade to a newer version
-npm run solo-test -- mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --pinger -q --dev
+npm run solo-test -- mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --redeploy --pinger -q --dev
 
 # redeploy explorer and relay node to upgrade to a newer version
 npm run solo-test -- relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
