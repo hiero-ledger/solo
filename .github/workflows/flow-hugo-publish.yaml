@@ -133,5 +133,5 @@ jobs:
       - hugo-docs-build-main
     with:
       docs-build-label: ${{ needs.setup.outputs.docs-build-label }}
-      dry-run-enabled: ${{ inputs.dry-run-enabled }}
+      dry-run-enabled: ${{ inputs.dry-run-enabled == true }}
       attach-docs-enabled: ${{ needs.setup.outputs.attach-docs-enabled == 'true' }}

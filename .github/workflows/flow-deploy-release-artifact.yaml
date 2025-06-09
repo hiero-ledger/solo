@@ -204,6 +204,7 @@ jobs:
     name: Hugo Docs Build
     uses: ./.github/workflows/zxc-hugo-build.yaml
     needs:
+      - prepare-release
       - create-github-release
     with:
       docs-build-label: 'v${{ needs.prepare-release.outputs.version }}'
@@ -230,6 +231,7 @@ jobs:
     name: Hugo Docs Publish
     if: ${{ inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
     needs:
+      - prepare-release
       - hugo-docs-build-main
     uses: ./.github/workflows/zxc-hugo-publish.yaml
     with:
