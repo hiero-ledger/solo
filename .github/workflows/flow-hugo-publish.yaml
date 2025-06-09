@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
     inputs:
       docs-build-label:
-        description: "The docs build label to use Solo Version, can be a version tag or `main`, e.g. 'v0.37.2'"
+        description: "The docs build label to build for Solo, can be a version tag or `main`, e.g. 'v0.37.2'"
         type: string
         required: false
         default: 'main' # main is used unless it is a version tag already released or about to be released
