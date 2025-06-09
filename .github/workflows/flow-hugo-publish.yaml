@@ -111,9 +111,10 @@ jobs:
   # Do a Hugo build for the docs site for the main branch, required to ensure that docs for the main branch get deployed
   #  to GitHub Pages
   hugo-docs-build-main:
-    name: Hugo Docs Build
+    name: Hugo Docs Build Main
     uses: ./.github/workflows/zxc-hugo-build.yaml
     needs:
+      - setup
       - hugo-docs-build
     with:
       docs-build-label: 'main'
@@ -128,6 +129,7 @@ jobs:
     if: ${{ inputs.dry-run-enabled != 'true' && startsWith(github.ref_name, 'release/') && !cancelled() && !failure() }}
     uses: ./.github/workflows/zxc-hugo-publish.yaml
     needs:
+      - setup
       - hugo-docs-build-main
     with:
       docs-build-label: ${{ needs.setup.outputs.docs-build-label }}
