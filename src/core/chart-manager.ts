@@ -158,13 +158,14 @@ export class ChartManager {
     version = '',
     valuesArgument = '',
     kubeContext?: string,
+    reuseValues?: boolean,
   ) {
     try {
       this.logger.debug(chalk.cyan('> upgrading chart:'), chalk.yellow(`${chartReleaseName}`));
       const options: UpgradeChartOptions = new UpgradeChartOptions(
         namespaceName.name,
         kubeContext,
-        true,
+        reuseValues ?? true,
         valuesArgument,
         version,
       );

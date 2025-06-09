@@ -76,6 +76,7 @@ import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 
 export interface NetworkDeployConfigClass {
+  isUpgrade: boolean;
   applicationEnv: string;
   cacheDir: string;
   chartDirectory: string;
@@ -545,6 +546,7 @@ export class NetworkCommand extends BaseCommand {
 
     for (const clusterReference of clusterReferences) {
       valuesArguments[clusterReference] +=
+        ' --install' +
         ` --set "telemetry.prometheus.svcMonitor.enabled=${config.enablePrometheusSvcMonitor}"` +
         ` --set "defaults.volumeClaims.enabled=${config.persistentVolumeClaims}"`;
     }
@@ -948,21 +950,21 @@ export class NetworkCommand extends BaseCommand {
           task: async (context_): Promise<void> => {
             const config: NetworkDeployConfigClass = context_.config;
             for (const [clusterReference] of config.clusterRefs) {
-              if (
-                await this.chartManager.isChartInstalled(
-                  config.namespace,
-                  constants.SOLO_DEPLOYMENT_CHART,
-                  config.clusterRefs.get(clusterReference),
-                )
-              ) {
+              const isInstalled: boolean = await this.chartManager.isChartInstalled(
+                config.namespace,
+                constants.SOLO_DEPLOYMENT_CHART,
+                config.clusterRefs.get(clusterReference),
+              );
+              if (isInstalled) {
                 await this.chartManager.uninstall(
                   config.namespace,
                   constants.SOLO_DEPLOYMENT_CHART,
                   config.clusterRefs.get(clusterReference),
                 );
+                config.isUpgrade = true;
               }
 
-              await this.chartManager.install(
+              await this.chartManager.upgrade(
                 config.namespace,
                 constants.SOLO_DEPLOYMENT_CHART,
                 constants.SOLO_DEPLOYMENT_CHART,
@@ -1398,15 +1400,20 @@ export class NetworkCommand extends BaseCommand {
 
           this.remoteConfig.configuration.components.changeNodePhase(componentId, DeploymentPhase.REQUESTED);
 
-          this.remoteConfig.configuration.components.addNewComponent(
-            this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
-            ComponentTypes.EnvoyProxy,
-          );
+          if (context_.config.isUpgrade) {
+            this.logger.info('Do not add envoy and haproxy components again during upgrade');
+          } else {
+            // do not add new envoy or haproxy components if they already exist
+            this.remoteConfig.configuration.components.addNewComponent(
+              this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
+              ComponentTypes.EnvoyProxy,
+            );
 
-          this.remoteConfig.configuration.components.addNewComponent(
-            this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),
-            ComponentTypes.HaProxy,
-          );
+            this.remoteConfig.configuration.components.addNewComponent(
+              this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),
+              ComponentTypes.HaProxy,
+            );
+          }
         }
 
         await this.remoteConfig.persist();

@@ -156,6 +156,7 @@ export class RelayCommand extends BaseCommand {
       valuesArgument += helpers.prepareValuesFiles(profileValuesFile);
     }
 
+    valuesArgument += ' --install';
     valuesArgument += helpers.populateHelmArguments({nameOverride: releaseName});
 
     valuesArgument += ` --set config.MIRROR_NODE_URL=http://${constants.MIRROR_NODE_RELEASE_NAME}-rest`;
@@ -386,7 +387,7 @@ export class RelayCommand extends BaseCommand {
           task: async (context_): Promise<void> => {
             const config: RelayDeployConfigClass = context_.config;
 
-            await this.chartManager.install(
+            await this.chartManager.upgrade(
               config.namespace,
               config.releaseName,
               constants.JSON_RPC_RELAY_CHART,
@@ -637,7 +638,7 @@ export class RelayCommand extends BaseCommand {
   public addRelayComponent(): SoloListrTask<RelayDeployContext> {
     return {
       title: 'Add relay component in remote config',
-      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      skip: context_ => !this.remoteConfig.isLoaded() || context_.config.isChartInstalled,
       task: async (context_): Promise<void> => {
         const {namespace, nodeAliases, clusterRef} = context_.config;
 

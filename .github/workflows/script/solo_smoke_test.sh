@@ -47,7 +47,7 @@ function check_port_forward ()
   # run background task for few minutes
   for i in {1..20}
   do
-    echo "Check port forward"
+    echo "Check port forward i = $i out of 20"
     ps -ef |grep port-forward
     sleep 5
   done &

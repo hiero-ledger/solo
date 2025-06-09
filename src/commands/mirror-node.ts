@@ -14,7 +14,7 @@ import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
-import {AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
+import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as fs from 'node:fs';
@@ -168,6 +168,7 @@ export class MirrorNodeCommand extends BaseCommand {
       valuesArgument += helpers.prepareValuesFiles(profileValuesFile);
     }
 
+    valuesArgument += ' --install';
     if (config.valuesFile) {
       valuesArgument += helpers.prepareValuesFiles(config.valuesFile);
     }
@@ -198,15 +199,15 @@ export class MirrorNodeCommand extends BaseCommand {
         throw new IllegalArgumentError(`Invalid cloud storage type: ${config.storageType}`);
       }
       valuesArgument += helpers.populateHelmArguments({
-        'importer.env.HEDERA_MIRROR_IMPORTER_DOWNLOADER_CLOUDPROVIDER': storageType,
-        'importer.env.HEDERA_MIRROR_IMPORTER_DOWNLOADER_ENDPOINTOVERRIDE': config.storageEndpoint,
-        'importer.env.HEDERA_MIRROR_IMPORTER_DOWNLOADER_ACCESSKEY': config.storageReadAccessKey,
-        'importer.env.HEDERA_MIRROR_IMPORTER_DOWNLOADER_SECRETKEY': config.storageReadSecrets,
+        'importer.env.HIERO_MIRROR_IMPORTER_DOWNLOADER_CLOUDPROVIDER': storageType,
+        'importer.env.HIERO_MIRROR_IMPORTER_DOWNLOADER_ENDPOINTOVERRIDE': config.storageEndpoint,
+        'importer.env.HIERO_MIRROR_IMPORTER_DOWNLOADER_ACCESSKEY': config.storageReadAccessKey,
+        'importer.env.HIERO_MIRROR_IMPORTER_DOWNLOADER_SECRETKEY': config.storageReadSecrets,
       });
     }
 
     if (config.storageBucketRegion) {
-      valuesArgument += ` --set importer.env.HEDERA_MIRROR_IMPORTER_DOWNLOADER_REGION=${config.storageBucketRegion}`;
+      valuesArgument += ` --set importer.env.HIERO_MIRROR_IMPORTER_DOWNLOADER_REGION=${config.storageBucketRegion}`;
     }
 
     if (config.domainName) {
@@ -262,7 +263,7 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   private async deployMirrorNode(context_: MirrorNodeDeployContext): Promise<void> {
-    await this.chartManager.install(
+    await this.chartManager.upgrade(
       context_.config.namespace,
       context_.config.releaseName,
       constants.MIRROR_NODE_CHART,
@@ -729,18 +730,18 @@ export class MirrorNodeCommand extends BaseCommand {
                       .containers()
                       .readByRef(containerReference)
                       .execContainer('/bin/bash -c printenv');
-                    const mirrorEnvironmentVariablesArray: string[] = mirrorEnvironmentVariables.split('\n');
-                    const HEDERA_MIRROR_IMPORTER_DB_OWNER: string = helpers.getEnvironmentValue(
+                    const mirrorEnvironmentVariablesArray = mirrorEnvironmentVariables.split('\n');
+                    const HIERO_MIRROR_IMPORTER_DB_OWNER = helpers.getEnvironmentValue(
                       mirrorEnvironmentVariablesArray,
-                      'HEDERA_MIRROR_IMPORTER_DB_OWNER',
+                      'HIERO_MIRROR_IMPORTER_DB_OWNER',
                     );
-                    const HEDERA_MIRROR_IMPORTER_DB_OWNERPASSWORD: string = helpers.getEnvironmentValue(
+                    const HIERO_MIRROR_IMPORTER_DB_OWNERPASSWORD = helpers.getEnvironmentValue(
                       mirrorEnvironmentVariablesArray,
-                      'HEDERA_MIRROR_IMPORTER_DB_OWNERPASSWORD',
+                      'HIERO_MIRROR_IMPORTER_DB_OWNERPASSWORD',
                     );
-                    const HEDERA_MIRROR_IMPORTER_DB_NAME: string = helpers.getEnvironmentValue(
+                    const HIERO_MIRROR_IMPORTER_DB_NAME = helpers.getEnvironmentValue(
                       mirrorEnvironmentVariablesArray,
-                      'HEDERA_MIRROR_IMPORTER_DB_NAME',
+                      'HIERO_MIRROR_IMPORTER_DB_NAME',
                     );
 
                     await self.k8Factory
@@ -749,7 +750,7 @@ export class MirrorNodeCommand extends BaseCommand {
                       .readByRef(containerReference)
                       .execContainer([
                         'psql',
-                        `postgresql://${HEDERA_MIRROR_IMPORTER_DB_OWNER}:${HEDERA_MIRROR_IMPORTER_DB_OWNERPASSWORD}@localhost:5432/${HEDERA_MIRROR_IMPORTER_DB_NAME}`,
+                        `postgresql://${HIERO_MIRROR_IMPORTER_DB_OWNER}:${HIERO_MIRROR_IMPORTER_DB_OWNERPASSWORD}@localhost:5432/${HIERO_MIRROR_IMPORTER_DB_NAME}`,
                         '-c',
                         sqlQuery,
                       ]);
