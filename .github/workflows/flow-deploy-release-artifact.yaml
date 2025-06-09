@@ -209,6 +209,7 @@ jobs:
       - create-github-release
     with:
       solo-version: 'v${{ needs.prepare-release.outputs.version }}'
+    secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # Do a Hugo build for the docs site for the main branch, required to ensure that docs for the main branch get deployed
@@ -222,8 +223,9 @@ jobs:
       - hugo-docs-build
     with:
       solo-version: 'main'
-      github-token: ${{ secrets.GITHUB_TOKEN }}
       download-artifacts: true
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # Publish the Hugo docs site to GitHub Pages unless dry-run is enabled
   hugo-docs-publish:
