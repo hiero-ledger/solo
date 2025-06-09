@@ -116,7 +116,7 @@ env:
 jobs:
   e2e-test:
     name: ${{ inputs.custom-job-label || 'E2E Test' }}
-    runs-on: hiero-solo-linux-medium
+    runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -171,11 +171,7 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ inputs.node-version }}
-      - name: Check NPM Path
-        run: |
-          echo "PATH: $PATH"
-          which npm
-          npm --version
+
       - name: Install wget
         run: |
           if ! command -v wget >/dev/null 2>&1; then
