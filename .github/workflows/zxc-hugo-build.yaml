@@ -34,11 +34,9 @@ on:
         required: false
         default: false # only enable if we are building the 'main' branch, and we already ran for a specific version
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
+  id-token: read
 
 defaults:
   run:
