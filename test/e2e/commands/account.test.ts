@@ -38,7 +38,7 @@ import {type InstanceOverrides} from '../../../src/core/dependency-injection/con
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 
-const defaultTimeout = Duration.ofSeconds(20).toMillis();
+const defaultTimeout: number = Duration.ofSeconds(20).toMillis();
 
 const testName = 'account-cmd-e2e';
 const namespace: NamespaceName = NamespaceName.of(testName);
