@@ -24,7 +24,12 @@ on:
       - synchronize
 
 permissions:
+  id-token: write
   contents: read
+  actions: read
+  pull-requests: write
+  checks: write
+  statuses: write
 
 defaults:
   run:
