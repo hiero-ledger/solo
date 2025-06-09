@@ -9,7 +9,6 @@ import * as version from '../../../version.js';
 import {sleep} from '../../../src/core/helpers.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
-import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
@@ -74,8 +73,9 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
 
     after(async function (): Promise<void> {
       this.timeout(Duration.ofMinutes(5).toMillis());
-      await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
-      await k8Factory.default().namespaces().delete(namespace);
+      // TODO REMOVE this prior to MERGING
+      // await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
+      // await k8Factory.default().namespaces().delete(namespace);
     });
 
     afterEach(async (): Promise<void> => await sleep(Duration.ofMillis(5)));
