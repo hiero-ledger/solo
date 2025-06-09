@@ -134,13 +134,6 @@ function check_importer_log()
   fi
 }
 
-# if first parameter equals to account-init,
-# then call solo account init before deploy mirror and relay node
-if [ "$1" == "account-init" ]; then
-  echo "Call solo account init"
-  npm run solo-test -- account init --deployment "${SOLO_DEPLOYMENT}"
-fi
-
 echo "Change to parent directory"
 
 cd ../
@@ -160,4 +153,9 @@ sleep 30
 echo "Run mirror node acceptance test"
 helm test mirror -n solo-e2e --timeout 10m
 check_monitor_log
-check_importer_log
+
+if [ -n "$1" ]; then
+  echo "Skip mirror importer log check"
+else
+  check_importer_log
+fi

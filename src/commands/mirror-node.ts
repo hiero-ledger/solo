@@ -50,8 +50,10 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {type AccountId} from '@hashgraph/sdk';
 import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 
 interface MirrorNodeDeployConfigClass {
+  isChartInstalled: boolean;
   cacheDir: string;
   chartDirectory: string;
   clusterContext: string;
@@ -255,6 +257,35 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   private async deployMirrorNode(context_: MirrorNodeDeployContext): Promise<void> {
+    context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
+      context_.config.namespace,
+      constants.MIRROR_NODE_RELEASE_NAME,
+      context_.config.clusterContext,
+    );
+
+    if (context_.config.isChartInstalled) {
+      // migrating mirror node passwords from HEDERA_ (version 0.129.0) to HIERO_
+      const existingSecrets = await this.k8Factory
+        .getK8(context_.config.clusterContext)
+        .secrets()
+        .read(context_.config.namespace, 'mirror-passwords');
+      const updatedData: Record<string, string> = {};
+      for (const [key, value] of Object.entries(existingSecrets.data)) {
+        if (key.startsWith('HEDERA_')) {
+          updatedData[key.replace('HEDERA_', 'HIERO_')] = value;
+        } else {
+          updatedData[key] = value;
+        }
+      }
+      if (Object.keys(updatedData).length > 0) {
+        console.log(`updated configmap updatedData = ${JSON.stringify(updatedData, null, 2)}`);
+        await this.k8Factory
+          .getK8(context_.config.clusterContext)
+          .secrets()
+          .replace(context_.config.namespace, 'mirror-passwords', SecretType.OPAQUE, updatedData);
+      }
+    }
+
     await this.chartManager.upgrade(
       context_.config.namespace,
       constants.MIRROR_NODE_RELEASE_NAME,
@@ -592,6 +623,7 @@ export class MirrorNodeCommand extends BaseCommand {
         },
         {
           title: 'Seed DB data',
+          skip: context_ => context_.config.isChartInstalled,
           task: (_, parentTask) => {
             return parentTask.newListr(
               [
@@ -953,7 +985,7 @@ export class MirrorNodeCommand extends BaseCommand {
   public addMirrorNodeComponents(): SoloListrTask<MirrorNodeDeployContext> {
     return {
       title: 'Add mirror node to remote config',
-      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      skip: context_ => !this.remoteConfig.isLoaded() || context_.config.isChartInstalled,
       task: async (context_): Promise<void> => {
         const {namespace, clusterRef} = context_.config;
 
