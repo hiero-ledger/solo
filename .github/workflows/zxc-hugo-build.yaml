@@ -59,6 +59,10 @@ jobs:
         run: |
           DOCS_BUILD_LABEL="${{ inputs.docs-build-label }}"
           echo "Validating docs-build-label: ${DOCS_BUILD_LABEL}"
+          if [[ "${DOCS_BUILD_LABEL}" == "main" ]]; then
+            echo "Input is 'main', no validation needed."
+            exit 0
+          fi
           SEMVER_CHECK=$(semver validate "${DOCS_BUILD_LABEL}" 2>/dev/null || true)
           if [[ "${SEMVER_CHECK}" == "valid" ]]; then
             echo "Input '${DOCS_BUILD_LABEL}' is a valid semantic version."
