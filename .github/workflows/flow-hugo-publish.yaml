@@ -69,6 +69,7 @@ jobs:
       - name: Set Inputs
         id: set-inputs
         run: |
+          set -xeo pipefail
           SOLO_VERSION="${{ inputs.docs-build-label }}"
           DOWNLOAD_ARTIFACTS=false
           
@@ -109,16 +110,17 @@ jobs:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # Do a Hugo build for the docs site for the main branch, required to ensure that docs for the main branch get deployed
-  #  to GitHub Pages
+  #  to GitHub Pages.  This runs after hugo-docs-build if the docs-build-label is not 'main'.
   hugo-docs-build-main:
     name: Hugo Docs Build Main
+    if: ${{ needs.setup.outputs.download-artifacts == 'true' && !cancelled() && !failure() }}
     uses: ./.github/workflows/zxc-hugo-build.yaml
     needs:
       - setup
       - hugo-docs-build
     with:
       docs-build-label: 'main'
-      download-artifacts: ${{ needs.setup.outputs.download-artifacts == 'true' }}
+      download-artifacts: true
       ref: ${{ needs.setup.outputs.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -134,4 +136,32 @@ jobs:
     with:
       docs-build-label: ${{ needs.setup.outputs.docs-build-label }}
       dry-run-enabled: ${{ inputs.dry-run-enabled == true }}
-      attach-docs-enabled: ${{ needs.setup.outputs.attach-docs-enabled == 'true' }}
+      attach-docs-enabled: true
+
+  # Do a Hugo build for the docs site for the main branch, this is when the hugo-docs-build is skipped, the need clause
+  #  is different
+  hugo-docs-build-main-only:
+    name: Hugo Docs Build Main
+    if: ${{ needs.setup.outputs.download-artifacts != 'true' && !cancelled() && !failure() }}
+    uses: ./.github/workflows/zxc-hugo-build.yaml
+    needs:
+      - setup
+    with:
+      docs-build-label: 'main'
+      download-artifacts: false
+      ref: ${{ needs.setup.outputs.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Publish the Hugo docs site to GitHub Pages unless dry-run is enabled or if this is a merge to release/* branch
+  hugo-docs-publish-main-only:
+    name: Hugo Docs Publish
+    if: ${{ inputs.dry-run-enabled != 'true' && startsWith(github.ref_name, 'release/') && !cancelled() && !failure() }}
+    uses: ./.github/workflows/zxc-hugo-publish.yaml
+    needs:
+      - setup
+      - hugo-docs-build-main-only
+    with:
+      docs-build-label: ${{ needs.setup.outputs.docs-build-label }}
+      dry-run-enabled: ${{ inputs.dry-run-enabled == true }}
+      attach-docs-enabled: false
