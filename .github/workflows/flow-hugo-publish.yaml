@@ -118,7 +118,7 @@ jobs:
       - hugo-docs-build
     with:
       docs-build-label: 'main'
-      download-artifacts: ${{ needs.setup.outputs.download-artifacts }}
+      download-artifacts: ${{ needs.setup.outputs.download-artifacts == 'true' }}
       ref: ${{ needs.setup.outputs.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -134,4 +134,4 @@ jobs:
     with:
       docs-build-label: ${{ needs.setup.outputs.docs-build-label }}
       dry-run-enabled: ${{ inputs.dry-run-enabled }}
-      attach-docs-enabled: ${{ needs.setup.outputs.attach-docs-enabled }}
+      attach-docs-enabled: ${{ needs.setup.outputs.attach-docs-enabled == 'true' }}
