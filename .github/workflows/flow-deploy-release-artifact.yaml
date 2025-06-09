@@ -202,14 +202,12 @@ jobs:
   # Do a Hugo build for the docs site for the release branch
   hugo-docs-build:
     name: Hugo Docs Build
-    if: ${{ github.event.inputs.docs-build-label != 'main' && !cancelled() && !failure() }}
     uses: ./.github/workflows/zxc-hugo-build.yaml
     needs:
-      - prepare-release
       - create-github-release
     with:
       docs-build-label: 'v${{ needs.prepare-release.outputs.version }}'
-      ref: ${{ github.ref }}
+      ref: 'refs/tags/v${{ needs.prepare-release.outputs.version }}'
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -219,8 +217,6 @@ jobs:
     name: Hugo Docs Build
     uses: ./.github/workflows/zxc-hugo-build.yaml
     needs:
-      - prepare-release
-      - create-github-release
       - hugo-docs-build
     with:
       docs-build-label: 'main'
@@ -234,9 +230,6 @@ jobs:
     name: Hugo Docs Publish
     if: ${{ inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
     needs:
-      - prepare-release
-      - create-github-release
-      - hugo-docs-build
       - hugo-docs-build-main
     uses: ./.github/workflows/zxc-hugo-publish.yaml
     with:
