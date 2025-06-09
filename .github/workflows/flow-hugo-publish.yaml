@@ -34,6 +34,11 @@ on:
     branches:
       - main
       - 'release/*'
+  pull_request: # TODO - TEST / REMOVE BEFORE MERGE
+    types: # TODO - TEST / REMOVE BEFORE MERGE
+      - opened # TODO - TEST / REMOVE BEFORE MERGE
+      - reopened # TODO - TEST / REMOVE BEFORE MERGE
+      - synchronize # TODO - TEST / REMOVE BEFORE MERGE
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
