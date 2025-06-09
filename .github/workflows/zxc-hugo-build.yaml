@@ -111,11 +111,11 @@ jobs:
         run: |
           set -xeo pipefail
           cd docs/site
-          HUGO_SOLO_VERSION="${{ inputs.docs-build-label }}"
-          if [[ -z ${HUGO_SOLO_VERSION} ]]; then
+          DOCS_BUILD_LABEL="${{ inputs.docs-build-label }}"
+          if [[ -z ${DOCS_BUILD_LABEL} ]]; then
            task build 
           else
-            HUGO_SOLO_VERSION=${HUGO_SOLO_VERSION} task build
+            HUGO_SOLO_VERSION=${DOCS_BUILD_LABEL} task build
           fi
 
       # Upload the built site to artifacts
