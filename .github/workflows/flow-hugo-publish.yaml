@@ -114,6 +114,7 @@ jobs:
     name: Hugo Docs Build
     uses: ./.github/workflows/zxc-hugo-build.yaml
     needs:
+      - setup
       - hugo-docs-build
     with:
       docs-build-label: 'main'
@@ -128,6 +129,7 @@ jobs:
     if: ${{ inputs.dry-run-enabled != 'true' && startsWith(github.ref_name, 'release/') && !cancelled() && !failure() }}
     uses: ./.github/workflows/zxc-hugo-publish.yaml
     needs:
+      - setup
       - hugo-docs-build-main
     with:
       docs-build-label: ${{ needs.setup.outputs.docs-build-label }}
