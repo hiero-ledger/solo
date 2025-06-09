@@ -5,7 +5,9 @@ import {type ClassConstructor} from '../../../business/utils/class-constructor.t
 import {type ConfigSource} from '../spi/config-source.js';
 import {ReflectAssist} from '../../../business/utils/reflect-assist.js';
 import {Comparators} from '../../../business/utils/comparators.js';
-import {IllegalArgumentError} from '../../../core/errors/illegal-argument-error.js';
+
+import {DuplicateConfigSourceError} from '../api/duplicate-config-source-error.js';
+import {IllegalArgumentError} from '../../../business/errors/illegal-argument-error.js';
 
 type ScalarMethod<T> = (key: string) => T;
 type ObjectMethod<T> = (cls: ClassConstructor<T>, key?: string) => T;
@@ -27,6 +29,23 @@ export class LayeredConfig implements Config {
 
   public get sources(): ConfigSource[] {
     return [...this._sources];
+  }
+
+  public addSource(source: ConfigSource): void {
+    if (!source) {
+      throw new IllegalArgumentError('source cannot be null or undefined');
+    }
+
+    if (this._sources.includes(source)) {
+      throw new DuplicateConfigSourceError(source);
+    }
+
+    if (this._sources.some((s: ConfigSource): boolean => s.name === source.name && s.ordinal === source.ordinal)) {
+      throw new DuplicateConfigSourceError(source);
+    }
+
+    this._sources.push(source);
+    this._sources.sort(Comparators.configSource);
   }
 
   public asBoolean(key: string): boolean | null {
@@ -88,7 +107,7 @@ export class LayeredConfig implements Config {
   }
 
   private primitiveScalar<T>(method: ScalarMethod<T>, key: string, exampleInstance: unknown): T {
-    let value: T = null;
+    let value: T = undefined;
     let scalarType: string = typeof exampleInstance;
 
     if (Array.isArray(exampleInstance) && exampleInstance && exampleInstance.length > 0) {
@@ -107,33 +126,33 @@ export class LayeredConfig implements Config {
     }
 
     for (const source of this.sources) {
-      const currentValue = source[method.name](key);
+      const currentValue: T = source[method.name](key);
       if (currentValue !== null && currentValue !== undefined) {
         value = currentValue;
       }
     }
 
-    return value as T;
+    return value;
   }
 
   private objectScalar<T>(method: ObjectMethod<T>, cls: ClassConstructor<T>, key?: string): T {
-    let value: T = null;
+    let value: T = undefined;
 
     for (const source of this.sources) {
-      const currentValue: any = source[method.name](cls, key);
+      const currentValue: T = source[method.name](cls, key);
       if (currentValue !== null && currentValue !== undefined) {
         value = this.mergeSourceValues ? ReflectAssist.merge(value, currentValue) : currentValue;
       }
     }
 
-    return value as T;
+    return value;
   }
 
   private objectArray<T>(method: ObjectArrayMethod<T>, cls: ClassConstructor<T>, key?: string): Array<T> {
-    let value: Array<T> = null;
+    let value: Array<T> = undefined;
 
     for (const source of this.sources) {
-      const currentValue: any = source[method.name](cls, key);
+      const currentValue: Array<T> = source[method.name](cls, key);
       if (currentValue !== null && currentValue !== undefined) {
         value = currentValue;
       }
