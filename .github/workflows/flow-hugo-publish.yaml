@@ -72,7 +72,7 @@ jobs:
           SOLO_VERSION="${{ inputs.solo-version }}"
           DOWNLOAD_ARTIFACTS=false
           
-          if [[ "${SOLO_VERSION}" == "" ]]; then
+          if [[ -z "${SOLO_VERSION}" ]]; then
             echo "No solo-version input provided for push to 'main' or 'release/*', defaulting to 'main'."
             SOLO_VERSION='main'
           fi
@@ -96,6 +96,7 @@ jobs:
       - setup
     with:
       solo-version: ${{ needs.setup.outputs.solo-version }}
+    secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # Do a Hugo build for the docs site for the main branch, required to ensure that docs for the main branch get deployed
@@ -107,13 +108,14 @@ jobs:
       - hugo-docs-build
     with:
       solo-version: 'main'
-      github-token: ${{ secrets.GITHUB_TOKEN }}
       download-artifacts: ${{ needs.setup.outputs.download-artifacts }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # Publish the Hugo docs site to GitHub Pages unless dry-run is enabled or if this is a merge to release/* branch
   hugo-docs-publish:
     name: Hugo Docs Publish
-    if: ${{ inputs.dry-run-enabled != 'true' && github.ref_name != 'release/*' && !cancelled() && !failure() }}
+    if: ${{ inputs.dry-run-enabled != 'true' && startsWith(github.ref_name, 'release/') && !cancelled() && !failure() }}
     uses: ./.github/workflows/zxc-hugo-publish.yaml
     needs:
       - hugo-docs-build-main
