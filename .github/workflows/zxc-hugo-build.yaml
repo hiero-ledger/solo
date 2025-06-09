@@ -57,13 +57,13 @@ jobs:
 
       - name: Validate docs-build-label input
         run: |
-          SOLO_VERSION="${{ inputs.docs-build-label }}"
-          echo "Validating docs-build-label: ${SOLO_VERSION}"
-          SEMVER_CHECK=$(semver validate "${SOLO_VERSION}" 2>/dev/null || true)
+          DOCS_BUILD_LABEL="${{ inputs.docs-build-label }}"
+          echo "Validating docs-build-label: ${DOCS_BUILD_LABEL}"
+          SEMVER_CHECK=$(semver validate "${DOCS_BUILD_LABEL}" 2>/dev/null || true)
           if [[ "${SEMVER_CHECK}" == "valid" ]]; then
-            echo "Input '${SOLO_VERSION}' is a valid semantic version."
+            echo "Input '${DOCS_BUILD_LABEL}' is a valid semantic version."
           else
-            echo "Input '${SOLO_VERSION}' is not a valid semantic version."
+            echo "Input '${DOCS_BUILD_LABEL}' is not a valid semantic version."
             exit 1
           fi
 
