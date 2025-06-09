@@ -22,6 +22,42 @@ name: "ZXC: E2E Test"
 
 on:
   workflow_dispatch:
+    inputs:
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "20"
+      consensus-node-version:
+        description: "Consensus Node Version:"
+        type: string
+        required: false
+        default: ""
+      custom-job-label:
+        description: "Custom Job Label:"
+        type: string
+        required: false
+        default: "E2E Test"
+      test-script:
+        description: "NPM Test Run Script:"
+        type: string
+        required: false
+        default: "test-e2e-standard"
+      coverage-subdirectory:
+        description: "Coverage Report Subdirectory:"
+        type: string
+        required: false
+        default: "e2e"
+      coverage-report-name:
+        description: "Coverage Report Name:"
+        type: string
+        required: false
+        default: "E2E Tests Coverage Report"
+      cluster-name:
+        description: "Cluster Name:"
+        type: string
+        required: false
+        default: "solo-e2e"
   workflow_call:
     inputs:
       node-version:
