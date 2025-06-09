@@ -20,8 +20,8 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
     inputs:
-      solo-version:
-        description: "Solo Version to build docs for and attach to the release, e.g. 'v0.37.2', 'main'"
+      docs-build-label:
+        description: "The docs build label to use Solo Version, can be a version tag or `main`, e.g. 'v0.37.2'"
         type: string
         required: false
         default: 'main' # main is used unless it is a version tag already released or about to be released
@@ -57,7 +57,7 @@ jobs:
     name: Setup
     runs-on: hiero-solo-linux-medium
     outputs:
-      solo-version: ${{ steps.set-inputs.outputs.solo-version }}
+      docs-build-label: ${{ steps.set-inputs.outputs.docs-build-label }}
       attach-docs-enabled: ${{ steps.set-inputs.outputs.attach-docs-enabled }}
       download-artifacts: ${{ steps.set-inputs.outputs.download-artifacts }}
     steps:
@@ -69,14 +69,14 @@ jobs:
       - name: Set Inputs
         id: set-inputs
         run: |
-          SOLO_VERSION="${{ inputs.solo-version }}"
+          SOLO_VERSION="${{ inputs.docs-build-label }}"
           DOWNLOAD_ARTIFACTS=false
           
           if [[ -z "${SOLO_VERSION}" ]]; then
-            echo "No solo-version input provided for push to 'main' or 'release/*', defaulting to 'main'."
+            echo "No docs-build-label input provided for push to 'main' or 'release/*', defaulting to 'main'."
             SOLO_VERSION='main'
           fi
-          echo "solo-version=${SOLO_VERSION}" >> $GITHUB_OUTPUT
+          echo "docs-build-label=${SOLO_VERSION}" >> $GITHUB_OUTPUT
           
           # Only download artifacts and attach docs to a release if this is a workflow_dispatch running with a version tag
           if [[ "${{ github.ref_name }}" != "main" && "${{ github.event_name }}" == "workflow_dispatch" ]]; then
@@ -86,16 +86,25 @@ jobs:
             echo "attach-docs-enabled=false" >> $GITHUB_OUTPUT
           fi
           echo "download-artifacts=${DOWNLOAD_ARTIFACTS}" >> $GITHUB_OUTPUT
+          
+          # If the github.ref_name is `main`, then we will checkout github.ref, else checkout `main` for the 
+          #  docs-build-label = `main`
+          if [[ "${{ github.ref_name }}" == "main" ]]; then
+            echo "git-ref=${{ github.ref }}" >> $GITHUB_OUTPUT
+          else
+            echo "git-ref=main" >> $GITHUB_OUTPUT
+          fi
 
   # Do a Hugo build for the docs site for a version tag
   hugo-docs-build:
     name: Hugo Docs Build
-    if: ${{ needs.setup.outputs.solo-version != 'main' && github.ref_name != 'main' && !cancelled() && !failure() }}
+    if: ${{ needs.setup.outputs.docs-build-label != 'main' && github.ref_name != 'main' && !cancelled() && !failure() }}
     uses: ./.github/workflows/zxc-hugo-build.yaml
     needs:
       - setup
     with:
-      solo-version: ${{ needs.setup.outputs.solo-version }}
+      docs-build-label: ${{ needs.setup.outputs.docs-build-label }}
+      git-ref: ${{ github.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -107,8 +116,9 @@ jobs:
     needs:
       - hugo-docs-build
     with:
-      solo-version: 'main'
+      docs-build-label: 'main'
       download-artifacts: ${{ needs.setup.outputs.download-artifacts }}
+      git-ref: ${{ needs.setup.outputs.git-ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -120,6 +130,6 @@ jobs:
     needs:
       - hugo-docs-build-main
     with:
-      solo-version: ${{ needs.setup.outputs.solo-version }}
+      docs-build-label: ${{ needs.setup.outputs.docs-build-label }}
       dry-run-enabled: ${{ inputs.dry-run-enabled }}
       attach-docs-enabled: ${{ needs.setup.outputs.attach-docs-enabled }}

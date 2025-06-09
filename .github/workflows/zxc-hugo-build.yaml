@@ -19,20 +19,24 @@ name: Build Hugo Docs
 on:
   workflow_call:
     inputs:
-      solo-version:
-        description: "Solo Version to build docs for and attach to the release, e.g. 'v0.37.2', 'main'"
+      docs-build-label:
+        description: "The docs build label to use Solo Version, can be a version tag or `main`, e.g. 'v0.37.2'"
         type: string
         required: false
         default: 'main' # main is used unless it is a version tag already released or about to be released
-      github-token:
-        description: "GitHub Token to use for authentication, e.g. 'GITHUB_TOKEN'"
-        type: string
-        required: false
       download-artifacts:
         description: "Whether to download previous artifacts for the build, e.g. 'true' or 'false'"
         type: boolean
         required: false
         default: false # only enable if we are building the 'main' branch, and we already ran for a specific version
+      git-ref:
+        description: 'The Git reference (commit SHA, branch, or tag) to checkout.'
+        required: true # It's good practice to make this required
+        type: string
+    secrets:
+      github-token:
+        description: "GitHub Token to use for authentication, e.g. 'GITHUB_TOKEN'"
+        required: false
 
 permissions:
   contents: read
@@ -51,42 +55,25 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Validate solo-version input
+      - name: Validate docs-build-label input
         run: |
-          SOLO_VERSION="${{ inputs.solo-version }}"
-          echo "Validating solo-version: ${SOLO_VERSION}"
-
-          # Regex for vMAJOR.MINOR.PATCH (e.g., v0.37.2, v1.0.0)
-          # - ^v: starts with 'v'
-          # - [0-9]+: one or more digits (for major, minor, patch)
-          # - \.: a literal dot
-          # - $: ends the string
-          SEMVER_REGEX="^v[0-9]+\.[0-9]+\.[0-9]+$"
-
-          if [[ "${SOLO_VERSION}" == "main" ]]; then
-            echo "Input '${SOLO_VERSION}' is valid (matches 'main')."
-          elif [[ "${SOLO_VERSION}" =~ ${SEMVER_REGEX} ]]; then
-            echo "Input '${SOLO_VERSION}' is a valid semver string."
+          SOLO_VERSION="${{ inputs.docs-build-label }}"
+          echo "Validating docs-build-label: ${SOLO_VERSION}"
+          SEMVER_CHECK=$(semver validate "${SOLO_VERSION}" 2>/dev/null || true)
+          if [[ "${SEMVER_CHECK}" == "valid" ]]; then
+            echo "Input '${SOLO_VERSION}' is a valid semantic version."
           else
-            echo "::error::Invalid solo-version: '${SOLO_VERSION}'"
-            echo "It must be either the string 'main' or a semantic version prefixed with 'v' (e.g., v0.37.2)."
+            echo "Input '${SOLO_VERSION}' is not a valid semantic version."
             exit 1
           fi
 
-      # Checkout default ref to build docs for a specific version or if the ref is 'main'
+      # Force checkout main branch to do a docs-build-label = 'main' build, unless the ref is already 'main'
       - name: Checkout Code
-        if: ${{ inputs.solo-version != 'main' || github.ref_name == 'main' && !cancelled() && !failure() }}
+        if: ${{ inputs.docs-build-label == 'main' && github.ref_name != 'main' && !cancelled() && !failure() }}
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
-
-      # Force checkout main branch to do a solo-version = 'main' build, unless the ref is already 'main'
-      - name: Checkout Code
-        if: ${{ inputs.solo-version == 'main' && github.ref_name != 'main' && !cancelled() && !failure() }}
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
-          ref: 'main'
+          ref: ${{ inputs.git-ref }} # Use the git-ref input to check out the correct branch or tag
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -121,11 +108,11 @@ jobs:
 
       - name: Build Docs with Hugo
         env:
-          GH_TOKEN: ${{ inputs.github-token }} # We want this to be null unless we want to pull the existing release artifacts
+          GH_TOKEN: ${{ secrets.github-token }} # We want this to be null unless we want to pull the existing release artifacts
         run: |
           set -xeo pipefail
           cd docs/site
-          HUGO_SOLO_VERSION="${{ inputs.solo-version }}"
+          HUGO_SOLO_VERSION="${{ inputs.docs-build-label }}"
           if [[ -z ${HUGO_SOLO_VERSION} ]]; then
            task build 
           else

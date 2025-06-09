@@ -19,8 +19,8 @@ name: Publish to GitHub Pages
 on:
   workflow_call:
     inputs:
-      solo-version:
-        description: "Solo Version to build docs for and attach to the release, e.g. 'v0.37.2', 'main'"
+      docs-build-label:
+        description: "The docs build label to use Solo Version, can be a version tag or `main`, e.g. 'v0.37.2'"
         type: string
         required: false
         default: 'main' # main is used unless it is a version tag already released or about to be released
@@ -88,10 +88,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -xeo pipefail
-          RELEASE_VERSION="${{ inputs.solo-version }}"
+          RELEASE_VERSION="${{ inputs.docs-build-label }}"
           # Ensure the release version is set
           if [[ -z "${RELEASE_VERSION}" ]]; then
-            echo "Error: solo-version input is required for attaching release artifacts." >&2
+            echo "Error: docs-build-label input is required for attaching release artifacts." >&2
             exit 1
           fi
           cd docs/site

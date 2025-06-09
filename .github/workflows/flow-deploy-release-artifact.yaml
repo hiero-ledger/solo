@@ -202,13 +202,14 @@ jobs:
   # Do a Hugo build for the docs site for the release branch
   hugo-docs-build:
     name: Hugo Docs Build
-    if: ${{ github.event.inputs.solo-version != 'main' && !cancelled() && !failure() }}
+    if: ${{ github.event.inputs.docs-build-label != 'main' && !cancelled() && !failure() }}
     uses: ./.github/workflows/zxc-hugo-build.yaml
     needs:
       - prepare-release
       - create-github-release
     with:
-      solo-version: 'v${{ needs.prepare-release.outputs.version }}'
+      docs-build-label: 'v${{ needs.prepare-release.outputs.version }}'
+      git-ref: ${{ github.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -222,8 +223,9 @@ jobs:
       - create-github-release
       - hugo-docs-build
     with:
-      solo-version: 'main'
+      docs-build-label: 'main'
       download-artifacts: true
+      git-ref: 'main'
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -238,6 +240,6 @@ jobs:
       - hugo-docs-build-main
     uses: ./.github/workflows/zxc-hugo-publish.yaml
     with:
-      solo-version: 'v${{ needs.prepare-release.outputs.version }}'
+      docs-build-label: 'v${{ needs.prepare-release.outputs.version }}'
       dry-run-enabled: ${{ inputs.dry-run-enabled }}
       attach-docs-enabled: true

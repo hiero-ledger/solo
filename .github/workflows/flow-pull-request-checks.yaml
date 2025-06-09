@@ -131,3 +131,5 @@ jobs:
   hugo-docs-build:
     name: Hugo Docs Build
     uses: ./.github/workflows/zxc-hugo-build.yaml
+    with:
+      git-ref: ${{ github.ref }}
