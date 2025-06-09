@@ -121,7 +121,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
       const pod: Pod = await k8Factory
         .default()
         .pods()
-        .list(namespace, [`app.kubernetes.io/instance=${constants.BLOCK_NODE_RELEASE_NAME}`])
+        .list(namespace, [`app.kubernetes.io/instance=${constants.BLOCK_NODE_RELEASE_NAME}-0`])
         .then((pods: Pod[]): Pod => pods[0]);
 
       const srv: ExtendedNetServer = await pod.portForward(8080, 8080);
