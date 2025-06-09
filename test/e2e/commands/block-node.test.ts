@@ -86,7 +86,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
 
       try {
         await commandInvoker.invoke({
-          argv: argv,
+          argv: argvClone,
           command: BlockNodeCommand.COMMAND_NAME,
           subcommand: 'node add',
           // @ts-expect-error to access private property
