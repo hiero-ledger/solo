@@ -29,7 +29,7 @@ on:
         type: boolean
         required: false
         default: false # only enable if we are building the 'main' branch, and we already ran for a specific version
-      git-ref:
+      ref:
         description: 'The Git reference (commit SHA, branch, or tag) to checkout.'
         required: true # It's good practice to make this required
         type: string
@@ -76,7 +76,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
-          ref: ${{ inputs.git-ref }} # Use the git-ref input to check out the correct branch or tag
+          ref: ${{ inputs.ref }} # Use the ref input to check out the correct branch or tag
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0

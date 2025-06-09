@@ -209,7 +209,7 @@ jobs:
       - create-github-release
     with:
       docs-build-label: 'v${{ needs.prepare-release.outputs.version }}'
-      git-ref: ${{ github.ref }}
+      ref: ${{ github.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -225,7 +225,7 @@ jobs:
     with:
       docs-build-label: 'main'
       download-artifacts: true
-      git-ref: 'main'
+      ref: 'main'
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 

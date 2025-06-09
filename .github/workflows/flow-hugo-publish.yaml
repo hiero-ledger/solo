@@ -90,9 +90,9 @@ jobs:
           # If the github.ref_name is `main`, then we will checkout github.ref, else checkout `main` for the 
           #  docs-build-label = `main`
           if [[ "${{ github.ref_name }}" == "main" ]]; then
-            echo "git-ref=${{ github.ref }}" >> $GITHUB_OUTPUT
+            echo "ref=${{ github.ref }}" >> $GITHUB_OUTPUT
           else
-            echo "git-ref=main" >> $GITHUB_OUTPUT
+            echo "ref=main" >> $GITHUB_OUTPUT
           fi
 
   # Do a Hugo build for the docs site for a version tag
@@ -104,7 +104,7 @@ jobs:
       - setup
     with:
       docs-build-label: ${{ needs.setup.outputs.docs-build-label }}
-      git-ref: ${{ github.ref }}
+      ref: ${{ github.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -118,7 +118,7 @@ jobs:
     with:
       docs-build-label: 'main'
       download-artifacts: ${{ needs.setup.outputs.download-artifacts }}
-      git-ref: ${{ needs.setup.outputs.git-ref }}
+      ref: ${{ needs.setup.outputs.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
