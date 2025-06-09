@@ -30,14 +30,12 @@ import {
   type IP,
   type NodeAlias,
   type NodeAliases,
-  type NodeId,
 } from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {v4 as uuidv4} from 'uuid';
 import {
   type ClusterReference,
   type ClusterReferences,
-  type NamespaceNameAsString,
   type CommandDefinition,
   type Context,
   type DeploymentName,
@@ -47,6 +45,7 @@ import {
   type SoloListr,
   type SoloListrTask,
   type SoloListrTaskWrapper,
+  type ComponentId,
 } from '../types/index.js';
 import {Base64} from 'js-base64';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
@@ -67,7 +66,6 @@ import {ContainerReference} from '../integration/kube/resources/container/contai
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {Deployment} from '../business/runtime-state/config/local/deployment.js';
-import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
@@ -75,6 +73,7 @@ import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
+import {Secret} from '../integration/kube/resources/secret/secret.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -161,7 +160,6 @@ export class NetworkCommand extends BaseCommand {
     @inject(InjectTokens.KeyManager) private readonly keyManager: KeyManager,
     @inject(InjectTokens.PlatformInstaller) private readonly platformInstaller: PlatformInstaller,
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
-    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
   ) {
     super();
 
@@ -842,13 +840,7 @@ export class NetworkCommand extends BaseCommand {
       await Promise.all(
         context_.config.contexts.map(async context => {
           // Fetch all Secrets inside the namespace using the context
-          const secrets: {
-            data: Record<string, string>;
-            name: string;
-            namespace: NamespaceNameAsString;
-            type: string;
-            labels: Record<string, string>;
-          }[] = await this.k8Factory.getK8(context).secrets().list(context_.config.namespace);
+          const secrets: Secret[] = await this.k8Factory.getK8(context).secrets().list(context_.config.namespace);
 
           // Delete all if found
           return Promise.all(
@@ -1183,7 +1175,7 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Copy block-nodes.json',
           skip: (context_): boolean => context_.config.blockNodeComponents.length === 0,
-          task: async (context_, task): Promise<void> => {
+          task: async (context_): Promise<void> => {
             const config: NetworkDeployConfigClass = context_.config;
 
             const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'block-nodes.json');
@@ -1403,10 +1395,10 @@ export class NetworkCommand extends BaseCommand {
         const {namespace} = context_.config;
 
         for (const consensusNode of context_.config.consensusNodes) {
-          const nodeId: NodeId = Templates.nodeIdFromNodeAlias(consensusNode.name);
+          const componentId: ComponentId = Templates.renderComponentIdFromNodeAlias(consensusNode.name);
           const clusterReference: ClusterReference = consensusNode.cluster;
 
-          this.remoteConfig.configuration.components.changeNodePhase(nodeId, DeploymentPhase.REQUESTED);
+          this.remoteConfig.configuration.components.changeNodePhase(componentId, DeploymentPhase.REQUESTED);
 
           if (context_.config.isUpgrade) {
             this.logger.info('Do not add envoy and haproxy components again during upgrade');
