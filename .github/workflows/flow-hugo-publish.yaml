@@ -34,7 +34,7 @@ on:
     branches:
       - main
       - 'release/*'
-  zpull_request: # TODO - TEST / REMOVE BEFORE MERGE
+  pull_request: # TODO - TEST / REMOVE BEFORE MERGE
     types: # TODO - TEST / REMOVE BEFORE MERGE
       - opened # TODO - TEST / REMOVE BEFORE MERGE
       - reopened # TODO - TEST / REMOVE BEFORE MERGE
