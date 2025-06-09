@@ -214,7 +214,7 @@ jobs:
   # Do a Hugo build for the docs site for the main branch, required to ensure that docs for the main branch get deployed
   #  to GitHub Pages
   hugo-docs-build-main:
-    name: Hugo Docs Build
+    name: Hugo Docs Build Main
     uses: ./.github/workflows/zxc-hugo-build.yaml
     needs:
       - hugo-docs-build
