@@ -1072,7 +1072,12 @@ export class MirrorNodeCommand extends BaseCommand {
   public addMirrorNodeComponents(): SoloListrTask<MirrorNodeDeployContext> {
     return {
       title: 'Add mirror node to remote config',
-      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      skip: (context_): boolean => {
+        if (!this.remoteConfig.isLoaded()) {
+          return true;
+        }
+        return context_.config.redeploy;
+      },
       task: async (context_): Promise<void> => {
         this.remoteConfig.configuration.components.addNewComponent(
           context_.config.newMirrorNodeComponent,
