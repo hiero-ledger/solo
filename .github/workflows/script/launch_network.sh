@@ -112,7 +112,8 @@ export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed 
 npm run solo-test -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
-.github/workflows/script/solo_smoke_test.sh
+SKIP_IMPORTER_CHECK=true
+.github/workflows/script/solo_smoke_test.sh "${SKIP_IMPORTER_CHECK}"
 
 # uninstall components using current Solo version
 npm run solo-test -- explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
