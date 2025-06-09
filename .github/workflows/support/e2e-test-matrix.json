@@ -1,5 +1,11 @@
 [
   {
+    "name": "Block Node",
+    "test-script": "test-e2e-block-node",
+    "coverage-subdirectory": "e2e-block-node",
+    "coverage-report-name": "E2E_Block_Node_Tests_Coverage_Report"
+  },
+  {
     "name": "Integration",
     "test-script": "test-e2e-integration",
     "coverage-subdirectory": "e2e-integration",
@@ -46,12 +52,6 @@
     "test-script": "test-e2e-relay",
     "coverage-subdirectory": "e2e-relay",
     "coverage-report-name": "E2E_Relay_Tests_Coverage_Report"
-  },
-  {
-    "name": "Block Node",
-    "test-script": "test-e2e-block-node",
-    "coverage-subdirectory": "e2e-block-node",
-    "coverage-report-name": "E2E_Block_Node_Tests_Coverage_Report"
   },
   {
     "name": "Node Update",
