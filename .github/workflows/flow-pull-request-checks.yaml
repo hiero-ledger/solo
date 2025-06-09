@@ -23,6 +23,14 @@ on:
       - reopened
       - synchronize
 
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+  pull-requests: write
+  checks: write
+  statuses: write
+
 defaults:
   run:
     shell: bash
@@ -119,3 +127,9 @@ jobs:
       enable-e2e-coverage-report: true
     secrets:
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+
+  hugo-docs-build:
+    name: Hugo Docs Build
+    uses: ./.github/workflows/zxc-hugo-build.yaml
+    with:
+      ref: ${{ github.ref }}

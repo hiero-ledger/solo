@@ -1,0 +1,47 @@
+version: 3
+tasks:
+  npmjs:latest:solo:version:
+    desc: "Display the latest version of the Solo CLI from https://www.npmjs.com/package/@hashgraph/solo"
+    silent: true
+    cmds:
+      - |
+        LATEST_VERSION=$(curl -s https://registry.npmjs.org/@hashgraph/solo/latest | jq -r '.version')
+        echo "Latest version of Solo CLI from https://www.npmjs.com/package/@hashgraph/solo: $LATEST_VERSION"
+        mkdir -p build
+        echo -n "v$LATEST_VERSION" > build/npmjs-latest-version.txt
+
+  npmjs:list:solo:versions:
+    desc: Fetch and display all versions of @hashgraph/solo from NPM (with 'v' prefix)
+    silent: true
+    cmds:
+      - |
+        if ! command -v curl &> /dev/null; then
+          echo "Error: curl is not installed." >&2
+          exit 1
+        fi
+        if ! command -v jq &> /dev/null; then
+          echo "Error: jq is not installed." >&2
+          exit 1
+        fi
+        if ! sort -V < /dev/null &> /dev/null; then
+          echo "Error: sort -V is not supported on this system." >&2
+          echo "Tip: On macOS, run 'brew install coreutils' and replace 'sort' with 'gsort' in this task." >&2
+          exit 1
+        fi
+        echo "Fetching versions of @hashgraph/solo from NPM..."
+        response=$(curl -s https://registry.npmjs.org/@hashgraph/solo)
+        if [ $? -ne 0 ]; then
+          echo "Error: Failed to fetch data from NPM registry." >&2
+          exit 1
+        fi
+        versions=$(echo "$response" | jq -r '.versions | keys[] | "v\(.)"' 2> /dev/null)
+        if [ $? -ne 0 ]; then
+          echo "Error: Failed to parse JSON response." >&2
+          exit 1
+        fi
+        if [ -z "$versions" ]; then
+          echo "No versions found for @hashgraph/solo." >&2
+          exit 1
+        fi
+        echo "Available versions of @hashgraph/solo:"
+        echo "$versions" | sort -Vr | tee build/npmjs-versions.txt
