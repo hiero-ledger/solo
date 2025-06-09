@@ -12,8 +12,8 @@ import {type IP, type NodeAlias, type NodeAliases, type NodeId} from '../types/a
 import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {GrpcProxyTlsEnums} from './enumerations.js';
 import {HEDERA_PLATFORM_VERSION} from '../../version.js';
-import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
-import {type ClusterReference, type NamespaceNameAsString} from './config/remote/types.js';
+import {type NamespaceName} from '../types/namespace/namespace-name.js';
+import {type ClusterReference, type NamespaceNameAsString} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 
 export class Templates {
@@ -23,10 +23,6 @@ export class Templates {
 
   private static renderNetworkSvcName(nodeAlias: NodeAlias): string {
     return `network-${nodeAlias}-svc`;
-  }
-
-  private static nodeAliasFromNetworkSvcName(svcName: string): NodeAlias {
-    return svcName.split('-').slice(1, -1).join('-') as NodeAlias;
   }
 
   public static renderNetworkHeadlessSvcName(nodeAlias: NodeAlias): string {
@@ -184,13 +180,8 @@ export class Templates {
     return `${Templates.renderNetworkSvcName(nodeAlias)}.${namespace.name}.svc.cluster.local`;
   }
 
-  private static nodeAliasFromFullyQualifiedNetworkSvcName(svcName: string): NodeAlias {
-    const parts = svcName.split('.');
-    return this.nodeAliasFromNetworkSvcName(parts[0]);
-  }
-
   public static nodeIdFromNodeAlias(nodeAlias: NodeAlias): NodeId {
-    for (let index = nodeAlias.length - 1; index > 0; index--) {
+    for (let index: number = nodeAlias.length - 1; index > 0; index--) {
       if (Number.isNaN(Number.parseInt(nodeAlias[index]))) {
         return Number.parseInt(nodeAlias.substring(index + 1, nodeAlias.length)) - 1;
       }
@@ -249,18 +240,6 @@ export class Templates {
         return {'envoy-proxy-secret': nodeAlias};
       }
     }
-  }
-
-  public static renderEnvoyProxyName(nodeAlias: NodeAlias): string {
-    return `envoy-proxy-${nodeAlias}`;
-  }
-
-  public static renderHaProxyName(nodeAlias: NodeAlias): string {
-    return `haproxy-${nodeAlias}`;
-  }
-
-  public static renderFullyQualifiedHaProxyName(nodeAlias: NodeAlias, namespace: NamespaceName): string {
-    return `${Templates.renderHaProxyName(nodeAlias)}-svc.${namespace}.svc.cluster.local`;
   }
 
   public static parseNodeAliasToIpMapping(unparsed: string): Record<NodeAlias, IP> {
@@ -327,5 +306,18 @@ export class Templates {
     }
 
     return `${dnsConsensusNodePattern}.${dnsBaseDomain}`;
+  }
+
+  /**
+   * @param serviceName - name of the service
+   * @param namespace - the pattern to use for the consensus node
+   * @param dnsBaseDomain - the base domain of the cluster
+   */
+  public static renderSvcFullyQualifiedDomainName(
+    serviceName: string,
+    namespace: NamespaceNameAsString,
+    dnsBaseDomain: string,
+  ): string {
+    return `${serviceName}.${namespace}.svc.${dnsBaseDomain}`;
   }
 }

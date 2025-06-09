@@ -3,26 +3,26 @@
 import {describe} from 'mocha';
 
 import {Flags} from '../../../src/commands/flags.js';
-import {getTestCacheDirectory, getTestCluster} from '../../test-utility.js';
+import {getTestCacheDirectory, getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
 import {main} from '../../../src/index.js';
 import {resetForTest} from '../../test-container.js';
 import {
   type ClusterReference,
   type ClusterReferences,
+  type ExtendedNetServer,
   type DeploymentName,
-} from '../../../src/core/config/remote/types.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+  type ComponentId,
+} from '../../../src/types/index.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {type CommandFlag} from '../../../src/types/flag-types.js';
-import {type RemoteConfigManager} from '../../../src/core/config/remote/remote-config-manager.js';
 import {expect} from 'chai';
 import fs from 'node:fs';
-import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
-import {type LocalConfig} from '../../../src/core/config/local/local-config.js';
 import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
 import {type K8} from '../../../src/integration/kube/k8.js';
+import * as constants from '../../../src/core/constants.js';
 import {
   DEFAULT_LOCAL_CONFIG_FILE,
   HEDERA_HAPI_PATH,
@@ -30,7 +30,6 @@ import {
   ROOT_CONTAINER,
 } from '../../../src/core/constants.js';
 import {Duration} from '../../../src/core/time/duration.js';
-import {type ConsensusNodeComponent} from '../../../src/core/config/remote/components/consensus-node-component.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {Templates} from '../../../src/core/templates.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
@@ -38,8 +37,6 @@ import {ContainerReference} from '../../../src/integration/kube/resources/contai
 import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
 import {type SoloWinstonLogger} from '../../../src/core/logging/solo-winston-logger.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
-import * as constants from '../../../src/core/constants.js';
-import {type ExtendedNetServer} from '../../../src/types/index.js';
 import http from 'node:http';
 import {sleep} from '../../../src/core/helpers.js';
 import {type AccountManager} from '../../../src/core/account-manager.js';
@@ -52,10 +49,15 @@ import {
   type TransactionResponse,
 } from '@hashgraph/sdk';
 import {type PackageDownloader} from '../../../src/core/package-downloader.js';
+import {type RemoteConfigRuntimeStateApi} from '../../../src/business/runtime-state/api/remote-config-runtime-state-api.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
+import {type FacadeMap} from '../../../src/business/runtime-state/collection/facade-map.js';
+import {type StringFacade} from '../../../src/business/runtime-state/facade/string-facade.js';
+import {type ConsensusNodeStateSchema} from '../../../src/data/schema/model/remote/state/consensus-node-state-schema.js';
 
 const testName: string = 'dual-cluster-full';
 
-describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTest(): Promise<void> {
+describe('Dual Cluster Full E2E Test', function dualClusterFullEndToEndTest() {
   this.bail(true);
   const namespace: NamespaceName = NamespaceName.of(testName);
   const deployment: DeploymentName = `${testName}-deployment`;
@@ -67,12 +69,15 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
     `${testCluster}`,
     `${testCluster.replace(soloTestCluster.includes('-c1') ? '-c1' : '-c2', soloTestCluster.includes('-c1') ? '-c2' : '-c1')}`,
   ];
-  const testClusterReferences: ClusterReferences = {};
-  testClusterReferences[testClusterArray[0]] = contexts[0];
-  testClusterReferences[testClusterArray[1]] = contexts[1];
+  const testClusterReferences: ClusterReferences = new Map<string, string>();
+  testClusterReferences.set(testClusterArray[0], contexts[0]);
+  testClusterReferences.set(testClusterArray[1], contexts[1]);
   const testCacheDirectory: string = getTestCacheDirectory(testName);
   let testLogger: SoloWinstonLogger;
   const createdAccountIds: string[] = [];
+  const enableLocalBuildPathTesting: boolean = process.env.SOLO_LOCAL_BUILD_PATH_TESTING?.toLowerCase() === 'true';
+  const localBuildPath: string = process.env.SOLO_LOCAL_BUILD_PATH || '../hiero-consensus-node/hedera-node/data';
+  const localBuildReleaseTag: string = process.env.SOLO_LOCAL_BUILD_RELEASE_TAG || HEDERA_PLATFORM_VERSION_TAG;
 
   // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
   before(async (): Promise<void> => {
@@ -82,8 +87,8 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
     } catch {
       // allowed to fail if the file doesn't exist
     }
-    resetForTest(namespace.name, testCacheDirectory, testLogger, false);
     testLogger = container.resolve<SoloWinstonLogger>(InjectTokens.SoloLogger);
+    resetForTest(namespace.name, testCacheDirectory, false);
     for (const item of contexts) {
       const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
       await k8Client.namespaces().delete(namespace);
@@ -93,7 +98,7 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
 
   beforeEach(async (): Promise<void> => {
     testLogger.info(`${testName}: resetting containers for each test`);
-    resetForTest(namespace.name, testCacheDirectory, testLogger, false);
+    resetForTest(namespace.name, testCacheDirectory, false);
     testLogger.info(`${testName}: finished resetting containers for each test`);
   });
 
@@ -110,10 +115,12 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
     for (const [index, element] of testClusterArray.entries()) {
       await main(soloClusterReferenceConnectArgv(element, contexts[index]));
     }
-    const localConfig: LocalConfig = container.resolve<LocalConfig>(InjectTokens.LocalConfig);
-    const clusterReferences: ClusterReferences = localConfig.clusterRefs;
-    expect(clusterReferences[testClusterArray[0]]).to.equal(contexts[0]);
-    expect(clusterReferences[testClusterArray[1]]).to.equal(contexts[1]);
+    const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
+      InjectTokens.LocalConfigRuntimeState,
+    );
+    const clusterReferences: FacadeMap<string, StringFacade, string> = localConfig.configuration.clusterRefs;
+    expect(clusterReferences.get(testClusterArray[0])?.toString()).to.equal(contexts[0]);
+    expect(clusterReferences.get(testClusterArray[1])?.toString()).to.equal(contexts[1]);
     testLogger.info(`${testName}: finished solo cluster-ref connect`);
   });
 
@@ -128,12 +135,13 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
     for (const element of testClusterArray) {
       await main(soloDeploymentAddClusterArgv(deployment, element, 1));
     }
-    const remoteConfigManager: RemoteConfigManager = container.resolve(InjectTokens.RemoteConfigManager);
-    expect(remoteConfigManager.isLoaded(), 'remote config manager should be loaded').to.be.true;
-    const consensusNodes: Record<string, ConsensusNodeComponent> = remoteConfigManager.components.consensusNodes;
+    const remoteConfig: RemoteConfigRuntimeStateApi = container.resolve(InjectTokens.RemoteConfigRuntimeState);
+    expect(remoteConfig.isLoaded(), 'remote config manager should be loaded').to.be.true;
+    const consensusNodes: Record<ComponentId, ConsensusNodeStateSchema> =
+      remoteConfig.configuration.components.state.consensusNodes;
     expect(Object.entries(consensusNodes).length, 'consensus node count should be 2').to.equal(2);
-    expect(consensusNodes['node1'].cluster).to.equal(testClusterArray[0]);
-    expect(consensusNodes['node2'].cluster).to.equal(testClusterArray[1]);
+    expect(consensusNodes[0].metadata.cluster).to.equal(testClusterArray[0]);
+    expect(consensusNodes[1].metadata.cluster).to.equal(testClusterArray[1]);
     testLogger.info(`${testName}: finished solo deployment add-cluster`);
   });
 
@@ -147,7 +155,6 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
 
   it(`${testName}: node keys`, async (): Promise<void> => {
     testLogger.info(`${testName}: beginning node keys command`);
-    expect(container.resolve<SoloLogger>(InjectTokens.SoloLogger)).to.equal(testLogger);
     await main(soloNodeKeysArgv(deployment));
     const node1Key: Buffer = fs.readFileSync(
       PathEx.joinWithRealPath(testCacheDirectory, 'keys', 's-private-node1.pem'),
@@ -157,7 +164,7 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
   });
 
   it(`${testName}: network deploy`, async (): Promise<void> => {
-    await main(soloNetworkDeployArgv(deployment));
+    await main(soloNetworkDeployArgv(deployment, enableLocalBuildPathTesting, localBuildReleaseTag));
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
     for (const [index, context_] of contexts.entries()) {
       const k8: K8 = k8Factory.getK8(context_);
@@ -171,7 +178,7 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
 
   // TODO node setup still list --node-aliases
   it(`${testName}: node setup`, async (): Promise<void> => {
-    await main(soloNodeSetupArgv(deployment));
+    await main(soloNodeSetupArgv(deployment, enableLocalBuildPathTesting, localBuildPath, localBuildReleaseTag));
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
     for (const context_ of contexts) {
       const k8: K8 = k8Factory.getK8(context_);
@@ -181,10 +188,12 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
         PodReference.of(namespace, pods[0].podReference.name),
         ROOT_CONTAINER,
       );
-      expect(
-        await k8.containers().readByRef(rootContainer).hasFile(`${HEDERA_USER_HOME_DIR}/extract-platform.sh`),
-        'expect extract-platform.sh to be present on the pods',
-      ).to.be.true;
+      if (!enableLocalBuildPathTesting) {
+        expect(
+          await k8.containers().readByRef(rootContainer).hasFile(`${HEDERA_USER_HOME_DIR}/extract-platform.sh`),
+          'expect extract-platform.sh to be present on the pods',
+        ).to.be.true;
+      }
       expect(await k8.containers().readByRef(rootContainer).hasFile(`${HEDERA_HAPI_PATH}/data/apps/HederaNode.jar`)).to
         .be.true;
       expect(
@@ -220,18 +229,24 @@ describe('Dual Cluster Full E2E Test', async function dualClusterFullEndToEndTes
         );
       expect(haProxyPod).to.have.lengthOf(1);
       createdAccountIds.push(
-        await verifyAccountCreateWasSuccessful(namespace, testClusterReferences),
-        await verifyAccountCreateWasSuccessful(namespace, testClusterReferences),
+        await verifyAccountCreateWasSuccessful(namespace, testClusterReferences, deployment),
+        await verifyAccountCreateWasSuccessful(namespace, testClusterReferences, deployment),
       );
     }
     // create one more account to make sure that the last one gets pushed to mirror node
-    await verifyAccountCreateWasSuccessful(namespace, testClusterReferences);
+    await verifyAccountCreateWasSuccessful(namespace, testClusterReferences, deployment);
   }).timeout(Duration.ofMinutes(5).toMillis());
 
   it(`${testName}: mirror node deploy`, async (): Promise<void> => {
     await main(soloMirrorNodeDeployArgv(deployment, testClusterArray[1]));
-    await verifyMirrorNodeDeployWasSuccessful(contexts, namespace, testLogger, createdAccountIds);
-    // TODO validate the new accounts are showing up with the mirror node rest url
+    await verifyMirrorNodeDeployWasSuccessful(
+      contexts,
+      namespace,
+      testLogger,
+      createdAccountIds,
+      enableLocalBuildPathTesting,
+      localBuildReleaseTag,
+    );
   }).timeout(Duration.ofMinutes(10).toMillis());
 
   it(`${testName}: explorer deploy`, async (): Promise<void> => {
@@ -273,8 +288,6 @@ function soloClusterReferenceConnectArgv(clusterReference: ClusterReference, con
     clusterReference,
     optionFromFlag(Flags.context),
     context,
-    optionFromFlag(Flags.userEmailAddress),
-    'dual.full.cluster.test@host.com',
   );
   argvPushGlobalFlags(argv);
   return argv;
@@ -336,7 +349,11 @@ function soloNodeKeysArgv(deployment: DeploymentName): string[] {
   return argv;
 }
 
-function soloNetworkDeployArgv(deployment: DeploymentName): string[] {
+function soloNetworkDeployArgv(
+  deployment: DeploymentName,
+  enableLocalBuildPathTesting: boolean,
+  localBuildReleaseTag: string,
+): string[] {
   const argv: string[] = newArgv();
   argv.push(
     'network',
@@ -345,13 +362,29 @@ function soloNetworkDeployArgv(deployment: DeploymentName): string[] {
     deployment,
     optionFromFlag(Flags.loadBalancerEnabled),
   ); // have to enable load balancer to resolve cross cluster in multi-cluster
+  if (enableLocalBuildPathTesting) {
+    argv.push(optionFromFlag(Flags.releaseTag), localBuildReleaseTag);
+  }
   argvPushGlobalFlags(argv, true, true);
   return argv;
 }
 
-function soloNodeSetupArgv(deployment: DeploymentName): string[] {
+function soloNodeSetupArgv(
+  deployment: DeploymentName,
+  enableLocalBuildPathTesting: boolean,
+  localBuildPath: string,
+  localBuildReleaseTag: string,
+): string[] {
   const argv: string[] = newArgv();
   argv.push('node', 'setup', optionFromFlag(Flags.deployment), deployment);
+  if (enableLocalBuildPathTesting) {
+    argv.push(
+      optionFromFlag(Flags.localBuildPath),
+      localBuildPath,
+      optionFromFlag(Flags.releaseTag),
+      localBuildReleaseTag,
+    );
+  }
   argvPushGlobalFlags(argv, true);
   return argv;
 }
@@ -366,10 +399,11 @@ function soloNodeStartArgv(deployment: DeploymentName): string[] {
 async function verifyAccountCreateWasSuccessful(
   namespace: NamespaceName,
   clusterReferences: ClusterReferences,
+  deployment: DeploymentName,
 ): Promise<string> {
   const accountManager: AccountManager = container.resolve<AccountManager>(InjectTokens.AccountManager);
   try {
-    await accountManager.refreshNodeClient(namespace, clusterReferences);
+    await accountManager.refreshNodeClient(namespace, clusterReferences, undefined, deployment);
     expect(accountManager._nodeClient).not.to.be.null;
     const privateKey: PrivateKey = PrivateKey.generate();
     const amount: number = 777;
@@ -421,6 +455,8 @@ async function verifyMirrorNodeDeployWasSuccessful(
   namespace: NamespaceName,
   testLogger: SoloWinstonLogger,
   createdAccountIds: string[],
+  enableLocalBuildPathTesting: boolean,
+  localBuildReleaseTag: string,
 ): Promise<void> {
   const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
   const k8: K8 = k8Factory.getK8(contexts[1]);
@@ -432,11 +468,13 @@ async function verifyMirrorNodeDeployWasSuccessful(
       'app.kubernetes.io/component=rest',
     ]);
   expect(mirrorNodeRestPods).to.have.lengthOf(1);
+
   let portForwarder: ExtendedNetServer;
   try {
     portForwarder = await k8.pods().readByReference(mirrorNodeRestPods[0].podReference).portForward(5551, 5551);
     await sleep(Duration.ofSeconds(2));
     const queryUrl: string = 'http://localhost:5551/api/v1/network/nodes';
+
     let received: boolean = false;
     // wait until the transaction reached consensus and retrievable from the mirror node API
     while (!received) {
@@ -445,30 +483,36 @@ async function verifyMirrorNodeDeployWasSuccessful(
         {method: 'GET', timeout: 100, headers: {Connection: 'close'}},
         (response: http.IncomingMessage): void => {
           response.setEncoding('utf8');
+
           response.on('data', (chunk): void => {
             // convert chunk to json object
-            const object: {nodes: unknown[]} = JSON.parse(chunk);
+            const object: {nodes: {service_endpoints: unknown[]}[]} = JSON.parse(chunk);
             expect(
               object.nodes?.length,
               "expect there to be two nodes in the mirror node's copy of the address book",
             ).to.equal(2);
-            // TODO need to enable this, but looks like mirror node currently is getting no service endpoints, hopefully they will be in v0.60+
-            // expect(
-            //   obj.nodes[0].service_endpoints?.length,
-            //   'expect there to be at least one service endpoint',
-            // ).to.be.greaterThan(0);
+
+            expect(
+              object.nodes[0].service_endpoints?.length,
+              'expect there to be at least one service endpoint',
+            ).to.be.greaterThan(0);
+
             received = true;
           });
         },
       );
+
       request.on('error', (error: Error): void => {
         testLogger.debug(`problem with request: ${error.message}`, error);
       });
+
       request.end(); // make the request
       await sleep(Duration.ofSeconds(2));
     }
+
     for (const accountId of createdAccountIds) {
       const accountQueryUrl: string = `http://localhost:5551/api/v1/accounts/${accountId}`;
+
       received = false;
       // wait until the transaction reached consensus and retrievable from the mirror node API
       while (!received) {
@@ -477,27 +521,34 @@ async function verifyMirrorNodeDeployWasSuccessful(
           {method: 'GET', timeout: 100, headers: {Connection: 'close'}},
           (response: http.IncomingMessage): void => {
             response.setEncoding('utf8');
+
             response.on('data', (chunk): void => {
               // convert chunk to json object
               const object: {account: string} = JSON.parse(chunk);
+
               expect(
                 object.account,
                 'expect the created account to exist in the mirror nodes copy of the accounts',
               ).to.equal(accountId);
+
               received = true;
             });
           },
         );
+
         request.on('error', (error: Error): void => {
           testLogger.debug(`problem with request: ${error.message}`, error);
         });
+
         request.end(); // make the request
         await sleep(Duration.ofSeconds(2));
       }
+
       await sleep(Duration.ofSeconds(1));
     }
   } finally {
     if (portForwarder) {
+      // eslint-disable-next-line unicorn/no-null
       await k8.pods().readByReference(null).stopPortForward(portForwarder);
     }
   }
@@ -525,21 +576,22 @@ async function verifyExplorerDeployWasSuccessful(
 ): Promise<void> {
   const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
   const k8: K8 = k8Factory.getK8(contexts[1]);
-  const hederaExplorerPods: Pod[] = await k8
+  const explorerPods: Pod[] = await k8
     .pods()
     .list(namespace, [
-      'app.kubernetes.io/instance=hedera-explorer',
-      'app.kubernetes.io/name=hedera-explorer-chart',
-      'app.kubernetes.io/component=hedera-explorer',
+      'app.kubernetes.io/instance=hiero-explorer',
+      'app.kubernetes.io/name=hiero-explorer-chart',
+      'app.kubernetes.io/component=hiero-explorer',
     ]);
-  expect(hederaExplorerPods).to.have.lengthOf(1);
+  expect(explorerPods).to.have.lengthOf(1);
   let portForwarder: ExtendedNetServer;
   try {
-    portForwarder = await k8.pods().readByReference(hederaExplorerPods[0].podReference).portForward(8080, 8080);
+    portForwarder = await k8.pods().readByReference(explorerPods[0].podReference).portForward(8080, 8080);
     await sleep(Duration.ofSeconds(2));
     const queryUrl: string = 'http://127.0.0.1:8080/api/v1/accounts?limit=15&order=desc';
     const packageDownloader: PackageDownloader = container.resolve<PackageDownloader>(InjectTokens.PackageDownloader);
     expect(await packageDownloader.urlExists(queryUrl), 'the hedera explorer Accounts URL should exist').to.be.true;
+
     let received: boolean = false;
     // wait until the transaction reached consensus and retrievable from the mirror node API
     while (!received) {
@@ -548,6 +600,7 @@ async function verifyExplorerDeployWasSuccessful(
         {method: 'GET', timeout: 100, headers: {Connection: 'close'}},
         (response: http.IncomingMessage): void => {
           response.setEncoding('utf8');
+
           response.on('data', (chunk): void => {
             // convert chunk to json object
             const object: {accounts: {account: string}[]} = JSON.parse(chunk);
@@ -555,24 +608,29 @@ async function verifyExplorerDeployWasSuccessful(
               object.accounts?.length,
               "expect there to be more than one account in the hedera explorer's call to mirror node",
             ).to.be.greaterThan(1);
+
             for (const accountId of createdAccountIds) {
               expect(
                 object.accounts.some((account: {account: string}): boolean => account.account === accountId),
                 `expect ${accountId} to be in the response`,
               ).to.be.true;
             }
+
             received = true;
           });
         },
       );
+
       request.on('error', (error: Error): void => {
         testLogger.debug(`problem with request: ${error.message}`, error);
       });
+
       request.end(); // make the request
       await sleep(Duration.ofSeconds(2));
     }
   } finally {
     if (portForwarder) {
+      // eslint-disable-next-line unicorn/no-null
       await k8.pods().readByReference(null).stopPortForward(portForwarder);
     }
   }

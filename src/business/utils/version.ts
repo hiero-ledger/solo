@@ -3,8 +3,8 @@
 import {SemVer} from 'semver';
 
 export class Version<T extends SemVer | number> {
-  constructor(public readonly value: T) {
-    if (Version.isSemVer(value) && !value) {
+  public constructor(public readonly value: T) {
+    if (!Version.isNumeric(value) && (!value || !Version.isSemVer(value))) {
       throw new RangeError('Invalid version');
     }
 

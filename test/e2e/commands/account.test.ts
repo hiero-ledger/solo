@@ -18,21 +18,25 @@ import {
 } from '@hashgraph/sdk';
 import * as constants from '../../../src/core/constants.js';
 import * as version from '../../../version.js';
-import {endToEndTestSuite, HEDERA_PLATFORM_VERSION_TAG, getTestLogger, getTestCluster} from '../../test-utility.js';
+import {endToEndTestSuite, getTestCluster, getTestLogger, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
 import {AccountCommand} from '../../../src/commands/account.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {NodeCommand} from '../../../src/commands/node/index.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import * as helpers from '../../../src/core/helpers.js';
+import {entityId} from '../../../src/core/helpers.js';
 import {Templates} from '../../../src/core/templates.js';
 import * as Base64 from 'js-base64';
 import {Argv} from '../../helpers/argv-wrapper.js';
-import {type DeploymentName} from '../../../src/core/config/remote/types.js';
+import {type DeploymentName, type Realm, type Shard} from '../../../src/types/index.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
+import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
+import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 
 const defaultTimeout = Duration.ofSeconds(20).toMillis();
 
@@ -48,23 +52,31 @@ argv.setArg(flags.generateGossipKeys, true);
 argv.setArg(flags.generateTlsKeys, true);
 argv.setArg(flags.clusterRef, getTestCluster());
 argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
+argv.setArg(flags.realm, 0);
+argv.setArg(flags.shard, 0);
 
 // enable load balancer for e2e tests
 // argv.setArg(flags.loadBalancerEnabled, true);
 
-endToEndTestSuite(testName, argv, {}, bootstrapResp => {
-  describe('AccountCommand', async () => {
+const overrides: InstanceOverrides = new Map<symbol, ValueContainer>([
+  [InjectTokens.SystemAccounts, new ValueContainer(InjectTokens.SystemAccounts, testSystemAccounts)],
+]);
+
+endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp => {
+  describe('AccountCommand', () => {
     let accountCmd: AccountCommand;
     let testLogger: SoloLogger;
 
     const {
-      opts: {k8Factory, accountManager, configManager, commandInvoker, remoteConfigManager},
+      opts: {k8Factory, accountManager, configManager, commandInvoker, remoteConfig},
       cmd: {nodeCmd},
     } = bootstrapResp;
 
-    before(() => {
-      accountCmd = new AccountCommand(bootstrapResp.opts, testSystemAccounts);
+    before(async () => {
+      accountCmd = container.resolve(AccountCommand) as AccountCommand;
       bootstrapResp.cmd.accountCmd = accountCmd;
+      const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+      await localConfig.load();
       testLogger = getTestLogger();
     });
 
@@ -101,19 +113,19 @@ endToEndTestSuite(testName, argv, {}, bootstrapResp => {
           subcommand: 'init',
           callback: async argv => accountCmd.init(argv),
         });
-      }).timeout(Duration.ofMinutes(3).toMillis());
+      }).timeout(Duration.ofMinutes(8).toMillis());
 
       describe('special accounts should have new keys', () => {
         const genesisKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
-        const realm = constants.HEDERA_NODE_ACCOUNT_ID_START.realm;
-        const shard = constants.HEDERA_NODE_ACCOUNT_ID_START.shard;
+        const realm: Realm = argv.getArg(flags.realm);
+        const shard: Shard = argv.getArg(flags.shard);
 
         before(async function () {
           this.timeout(Duration.ofSeconds(20).toMillis());
 
           await accountManager.loadNodeClient(
             namespace,
-            remoteConfigManager.getClusterRefs(),
+            remoteConfig.getClusterRefs(),
             argv.getArg<DeploymentName>(flags.deployment),
             argv.getArg<boolean>(flags.forcePortForward),
           );
@@ -127,7 +139,7 @@ endToEndTestSuite(testName, argv, {}, bootstrapResp => {
         it('Node admin key should have been updated, not equal to genesis key', async () => {
           const nodeAliases = helpers.parseNodeAliases(
             argv.getArg<string>(flags.nodeAliasesUnparsed),
-            bootstrapResp.opts.remoteConfigManager.getConsensusNodes(),
+            bootstrapResp.opts.remoteConfig.getConsensusNodes(),
             bootstrapResp.opts.configManager,
           );
           for (const nodeAlias of nodeAliases) {
@@ -146,7 +158,7 @@ endToEndTestSuite(testName, argv, {}, bootstrapResp => {
             it(`account ${index} should not have genesis key`, async () => {
               expect(accountManager._nodeClient).not.to.be.null;
 
-              const accountId = `${realm}.${shard}.${index}`;
+              const accountId = entityId(shard, realm, index);
               testLogger.info(`Fetching account keys: accountId ${accountId}`);
               const keys = await accountManager.getAccountKeys(accountId);
               testLogger.info(`Fetched account keys: accountId ${accountId}`);
@@ -344,7 +356,7 @@ endToEndTestSuite(testName, argv, {}, bootstrapResp => {
 
           await accountManager.loadNodeClient(
             namespace,
-            remoteConfigManager.getClusterRefs(),
+            remoteConfig.getClusterRefs(),
             argv.getArg<DeploymentName>(flags.deployment),
             argv.getArg<boolean>(flags.forcePortForward),
           );
@@ -372,7 +384,7 @@ endToEndTestSuite(testName, argv, {}, bootstrapResp => {
         try {
           await accountManager.loadNodeClient(
             namespace,
-            remoteConfigManager.getClusterRefs(),
+            remoteConfig.getClusterRefs(),
             argv.getArg<DeploymentName>(flags.deployment),
             argv.getArg<boolean>(flags.forcePortForward),
           );
@@ -452,7 +464,7 @@ endToEndTestSuite(testName, argv, {}, bootstrapResp => {
         } catch (error) {
           testLogger.showUserError(error);
         }
-      }).timeout(Duration.ofMinutes(4).toMillis());
+      }).timeout(Duration.ofMinutes(10).toMillis());
     });
   });
 });

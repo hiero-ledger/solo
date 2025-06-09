@@ -4,27 +4,35 @@ import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {Listr} from 'listr2';
 import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
-import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
+import {
+  INGRESS_CONTROLLER_PREFIX,
+  MIRROR_INGRESS_CONTROLLER,
+  MIRROR_INGRESS_TLS_SECRET_NAME,
+} from '../core/constants.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {type ProfileManager} from '../core/profile-manager.js';
-import {BaseCommand, type Options} from './base.js';
+import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import * as helpers from '../core/helpers.js';
+import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {type AnyYargs, type ArgvStruct} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
-import {ComponentType} from '../core/config/remote/enumerations.js';
-import {MirrorNodeComponent} from '../core/config/remote/components/mirror-node-component.js';
 import * as fs from 'node:fs';
-import {type Optional, type SoloListrTask} from '../types/index.js';
+import {
+  type ClusterReference,
+  type CommandDefinition,
+  type DeploymentName,
+  type Optional,
+  type SoloListrTask,
+} from '../types/index.js';
 import * as Base64 from 'js-base64';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
-import {INGRESS_CONTROLLER_NAME} from '../core/constants.js';
-import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
@@ -32,17 +40,25 @@ import chalk from 'chalk';
 import {type CommandFlag} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
-import {type ClusterReference, type DeploymentName} from '../core/config/remote/types.js';
-import {showVersionBanner} from '../core/helpers.js';
+import {KeyManager} from '../core/key-manager.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {inject, injectable} from 'tsyringe-neo';
+import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
+import {type AccountId} from '@hashgraph/sdk';
+import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
 interface MirrorNodeDeployConfigClass {
+  cacheDir: string;
   chartDirectory: string;
   clusterContext: string;
   clusterRef: ClusterReference;
   namespace: NamespaceName;
   enableIngress: boolean;
+  ingressControllerValueFile: string;
   mirrorStaticIp: string;
   profileFile: string;
   profileName: string;
@@ -60,6 +76,7 @@ interface MirrorNodeDeployConfigClass {
   storageEndpoint: string;
   storageBucket: string;
   storageBucketPrefix: string;
+  storageBucketRegion: string;
   externalDatabaseHost: Optional<string>;
   externalDatabaseOwnerUsername: Optional<string>;
   externalDatabaseOwnerPassword: Optional<string>;
@@ -78,25 +95,21 @@ interface MirrorNodeDestroyContext {
     namespace: NamespaceName;
     clusterContext: string;
     isChartInstalled: boolean;
-    clusterRef?: Optional<ClusterReference>;
+    clusterReference: ClusterReference;
   };
 }
 
+@injectable()
 export class MirrorNodeCommand extends BaseCommand {
-  private readonly accountManager: AccountManager;
-  private readonly profileManager: ProfileManager;
+  public constructor(
+    @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
+    @inject(InjectTokens.ProfileManager) private readonly profileManager?: ProfileManager,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory?: ComponentFactoryApi,
+  ) {
+    super();
 
-  public constructor(options: Options) {
-    super(options);
-    if (!options || !options.accountManager) {
-      throw new IllegalArgumentError('An instance of core/AccountManager is required', options.accountManager);
-    }
-    if (!options || !options.profileManager) {
-      throw new MissingArgumentError('An instance of core/ProfileManager is required', options.downloader);
-    }
-
-    this.accountManager = options.accountManager;
-    this.profileManager = options.profileManager;
+    this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
+    this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
   }
 
   public static readonly COMMAND_NAME = 'mirror-node';
@@ -111,6 +124,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.chartDirectory,
       flags.deployment,
       flags.enableIngress,
+      flags.ingressControllerValueFile,
       flags.mirrorStaticIp,
       flags.profileFile,
       flags.profileName,
@@ -127,6 +141,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.storageEndpoint,
       flags.storageBucket,
       flags.storageBucketPrefix,
+      flags.storageBucketRegion,
       flags.externalDatabaseHost,
       flags.externalDatabaseOwnerUsername,
       flags.externalDatabaseOwnerPassword,
@@ -145,6 +160,7 @@ export class MirrorNodeCommand extends BaseCommand {
       valuesArgument += helpers.prepareValuesFiles(profileValuesFile);
     }
 
+    valuesArgument += ' --install';
     if (config.valuesFile) {
       valuesArgument += helpers.prepareValuesFiles(config.valuesFile);
     }
@@ -174,10 +190,16 @@ export class MirrorNodeCommand extends BaseCommand {
       } else {
         throw new IllegalArgumentError(`Invalid cloud storage type: ${config.storageType}`);
       }
-      valuesArgument += ` --set importer.env.HEDERA_MIRROR_IMPORTER_DOWNLOADER_SOURCES_0_TYPE=${storageType}`;
-      valuesArgument += ` --set importer.env.HEDERA_MIRROR_IMPORTER_DOWNLOADER_SOURCES_0_URI=${config.storageEndpoint}`;
-      valuesArgument += ` --set importer.env.HEDERA_MIRROR_IMPORTER_DOWNLOADER_SOURCES_0_CREDENTIALS_ACCESSKEY=${config.storageReadAccessKey}`;
-      valuesArgument += ` --set importer.env.HEDERA_MIRROR_IMPORTER_DOWNLOADER_SOURCES_0_CREDENTIALS_SECRETKEY=${config.storageReadSecrets}`;
+      valuesArgument += helpers.populateHelmArguments({
+        'importer.env.HIERO_MIRROR_IMPORTER_DOWNLOADER_CLOUDPROVIDER': storageType,
+        'importer.env.HIERO_MIRROR_IMPORTER_DOWNLOADER_ENDPOINTOVERRIDE': config.storageEndpoint,
+        'importer.env.HIERO_MIRROR_IMPORTER_DOWNLOADER_ACCESSKEY': config.storageReadAccessKey,
+        'importer.env.HIERO_MIRROR_IMPORTER_DOWNLOADER_SECRETKEY': config.storageReadSecrets,
+      });
+    }
+
+    if (config.storageBucketRegion) {
+      valuesArgument += ` --set importer.env.HIERO_MIRROR_IMPORTER_DOWNLOADER_REGION=${config.storageBucketRegion}`;
     }
 
     if (config.domainName) {
@@ -232,6 +254,64 @@ export class MirrorNodeCommand extends BaseCommand {
     return valuesArgument;
   }
 
+  private async deployMirrorNode(context_: MirrorNodeDeployContext): Promise<void> {
+    await this.chartManager.upgrade(
+      context_.config.namespace,
+      constants.MIRROR_NODE_RELEASE_NAME,
+      constants.MIRROR_NODE_CHART,
+      constants.MIRROR_NODE_RELEASE_NAME,
+      context_.config.mirrorNodeVersion,
+      context_.config.valuesArg,
+      context_.config.clusterContext,
+    );
+
+    showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, context_.config.mirrorNodeVersion);
+
+    if (context_.config.enableIngress) {
+      await KeyManager.createTlsSecret(
+        this.k8Factory,
+        context_.config.namespace,
+        context_.config.domainName,
+        context_.config.cacheDir,
+        MIRROR_INGRESS_TLS_SECRET_NAME,
+      );
+      // patch ingressClassName of mirror ingress so it can be recognized by haproxy ingress controller
+      const updated: object = {
+        metadata: {
+          annotations: {
+            'haproxy-ingress.github.io/backend-protocol': 'h1',
+          },
+        },
+        spec: {
+          ingressClassName: `${constants.MIRROR_INGRESS_CLASS_NAME}`,
+          tls: [
+            {
+              hosts: [context_.config.domainName || 'localhost'],
+              secretName: MIRROR_INGRESS_TLS_SECRET_NAME,
+            },
+          ],
+        },
+      };
+      await this.k8Factory
+        .getK8(context_.config.clusterContext)
+        .ingresses()
+        .update(context_.config.namespace, constants.MIRROR_NODE_RELEASE_NAME, updated);
+
+      // to support GRPC over HTTP/2
+      await this.k8Factory
+        .getK8(context_.config.clusterContext)
+        .configMaps()
+        .update(context_.config.namespace, MIRROR_INGRESS_CONTROLLER, {
+          'backend-protocol': 'h2',
+        });
+
+      await this.k8Factory
+        .getK8(context_.config.clusterContext)
+        .ingressClasses()
+        .create(constants.MIRROR_INGRESS_CLASS_NAME, INGRESS_CONTROLLER_PREFIX + MIRROR_INGRESS_CONTROLLER);
+    }
+  }
+
   private async deploy(argv: ArgvStruct): Promise<boolean> {
     const self = this;
     const lease = await self.leaseManager.create();
@@ -282,17 +362,18 @@ export class MirrorNodeCommand extends BaseCommand {
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
 
             context_.config.clusterContext = context_.config.clusterRef
-              ? this.localConfig.clusterRefs[context_.config.clusterRef]
+              ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString()
               : this.k8Factory.default().contexts().readCurrent();
 
+            const deploymentName: DeploymentName = self.configManager.getFlag<DeploymentName>(flags.deployment);
             await self.accountManager.loadNodeClient(
               context_.config.namespace,
-              self.remoteConfigManager.getClusterRefs(),
-              self.configManager.getFlag<DeploymentName>(flags.deployment),
+              self.remoteConfig.getClusterRefs(),
+              deploymentName,
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
             if (context_.config.pinger) {
-              const startAccumulatorId = constants.HEDERA_NODE_ACCOUNT_ID_START;
+              const startAccumulatorId: AccountId = this.accountManager.getStartAccountId(deploymentName);
               const networkPods: Pod[] = await this.k8Factory
                 .getK8(context_.config.clusterContext)
                 .pods()
@@ -304,7 +385,8 @@ export class MirrorNodeCommand extends BaseCommand {
                 context_.config.valuesArg += ` --set monitor.config.hedera.mirror.monitor.nodes.0.host=${pod.podIp}`;
                 context_.config.valuesArg += ' --set monitor.config.hedera.mirror.monitor.nodes.0.nodeId=0';
 
-                const operatorId = context_.config.operatorId || constants.OPERATOR_ID;
+                const operatorId: string =
+                  context_.config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
                 context_.config.valuesArg += ` --set monitor.config.hedera.mirror.monitor.operator.accountId=${operatorId}`;
 
                 if (context_.config.operatorKey) {
@@ -399,7 +481,7 @@ export class MirrorNodeCommand extends BaseCommand {
                     const portForward = this.configManager.getFlag<boolean>(flags.forcePortForward);
                     context_.addressBook = await self.accountManager.prepareAddressBookBase64(
                       context_.config.namespace,
-                      this.remoteConfigManager.getClusterRefs(),
+                      this.remoteConfig.getClusterRefs(),
                       deployment,
                       this.configManager.getFlag(flags.operatorId),
                       this.configManager.getFlag(flags.operatorKey),
@@ -418,7 +500,11 @@ export class MirrorNodeCommand extends BaseCommand {
                     if (config.mirrorStaticIp !== '') {
                       mirrorIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${context_.config.mirrorStaticIp}`;
                     }
-                    mirrorIngressControllerValuesArgument += ` --set fullnameOverride=${constants.MIRROR_INGRESS_CONTROLLER}`;
+                    mirrorIngressControllerValuesArgument += ` --set fullnameOverride=${MIRROR_INGRESS_CONTROLLER}`;
+                    mirrorIngressControllerValuesArgument += ` --set controller.ingressClass=${constants.MIRROR_INGRESS_CLASS_NAME}`;
+                    mirrorIngressControllerValuesArgument += ` --set controller.extraArgs.controller-class=${constants.MIRROR_INGRESS_CONTROLLER}`;
+
+                    mirrorIngressControllerValuesArgument += prepareValuesFiles(config.ingressControllerValueFile);
 
                     await self.chartManager.install(
                       config.namespace,
@@ -440,46 +526,7 @@ export class MirrorNodeCommand extends BaseCommand {
                 {
                   title: 'Deploy mirror-node',
                   task: async context_ => {
-                    await self.chartManager.install(
-                      context_.config.namespace,
-                      constants.MIRROR_NODE_RELEASE_NAME,
-                      constants.MIRROR_NODE_CHART,
-                      constants.MIRROR_NODE_RELEASE_NAME,
-                      context_.config.mirrorNodeVersion,
-                      context_.config.valuesArg,
-                      context_.config.clusterContext,
-                    );
-
-                    showVersionBanner(
-                      self.logger,
-                      constants.MIRROR_NODE_RELEASE_NAME,
-                      context_.config.mirrorNodeVersion,
-                    );
-
-                    if (context_.config.enableIngress) {
-                      // patch ingressClassName of mirror ingress so it can be recognized by haproxy ingress controller
-                      await this.k8Factory
-                        .getK8(context_.config.clusterContext)
-                        .ingresses()
-                        .update(context_.config.namespace, constants.MIRROR_NODE_RELEASE_NAME, {
-                          spec: {
-                            ingressClassName: `${constants.MIRROR_INGRESS_CLASS_NAME}`,
-                          },
-                        });
-
-                      // to support GRPC over HTTP/2
-                      await this.k8Factory
-                        .getK8(context_.config.clusterContext)
-                        .configMaps()
-                        .update(context_.config.namespace, constants.MIRROR_INGRESS_CONTROLLER, {
-                          'backend-protocol': 'h2',
-                        });
-
-                      await this.k8Factory
-                        .getK8(context_.config.clusterContext)
-                        .ingressClasses()
-                        .create(constants.MIRROR_INGRESS_CLASS_NAME, INGRESS_CONTROLLER_NAME);
-                    }
+                    await self.deployMirrorNode(context_);
                   },
                 },
               ],
@@ -557,7 +604,7 @@ export class MirrorNodeCommand extends BaseCommand {
                     const exchangeRatesFileIdNumber = 112;
                     const timestamp = Date.now();
 
-                    const clusterReferences = this.remoteConfigManager.getClusterRefs();
+                    const clusterReferences = this.remoteConfig.getClusterRefs();
                     const deployment = this.configManager.getFlag<DeploymentName>(flags.deployment);
                     const fees = await this.accountManager.getFileContents(
                       namespace,
@@ -627,17 +674,17 @@ export class MirrorNodeCommand extends BaseCommand {
                       .readByRef(containerReference)
                       .execContainer('/bin/bash -c printenv');
                     const mirrorEnvironmentVariablesArray = mirrorEnvironmentVariables.split('\n');
-                    const HEDERA_MIRROR_IMPORTER_DB_OWNER = helpers.getEnvironmentValue(
+                    const HIERO_MIRROR_IMPORTER_DB_OWNER = helpers.getEnvironmentValue(
                       mirrorEnvironmentVariablesArray,
-                      'HEDERA_MIRROR_IMPORTER_DB_OWNER',
+                      'HIERO_MIRROR_IMPORTER_DB_OWNER',
                     );
-                    const HEDERA_MIRROR_IMPORTER_DB_OWNERPASSWORD = helpers.getEnvironmentValue(
+                    const HIERO_MIRROR_IMPORTER_DB_OWNERPASSWORD = helpers.getEnvironmentValue(
                       mirrorEnvironmentVariablesArray,
-                      'HEDERA_MIRROR_IMPORTER_DB_OWNERPASSWORD',
+                      'HIERO_MIRROR_IMPORTER_DB_OWNERPASSWORD',
                     );
-                    const HEDERA_MIRROR_IMPORTER_DB_NAME = helpers.getEnvironmentValue(
+                    const HIERO_MIRROR_IMPORTER_DB_NAME = helpers.getEnvironmentValue(
                       mirrorEnvironmentVariablesArray,
-                      'HEDERA_MIRROR_IMPORTER_DB_NAME',
+                      'HIERO_MIRROR_IMPORTER_DB_NAME',
                     );
 
                     await self.k8Factory
@@ -646,7 +693,7 @@ export class MirrorNodeCommand extends BaseCommand {
                       .readByRef(containerReference)
                       .execContainer([
                         'psql',
-                        `postgresql://${HEDERA_MIRROR_IMPORTER_DB_OWNER}:${HEDERA_MIRROR_IMPORTER_DB_OWNERPASSWORD}@localhost:5432/${HEDERA_MIRROR_IMPORTER_DB_NAME}`,
+                        `postgresql://${HIERO_MIRROR_IMPORTER_DB_OWNER}:${HIERO_MIRROR_IMPORTER_DB_OWNERPASSWORD}@localhost:5432/${HIERO_MIRROR_IMPORTER_DB_NAME}`,
                         '-c',
                         sqlQuery,
                       ]);
@@ -703,10 +750,11 @@ export class MirrorNodeCommand extends BaseCommand {
 
             self.configManager.update(argv);
             const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
-            const clusterReference = this.configManager.getFlag<string>(flags.clusterRef) as string;
-            const clusterContext = clusterReference
-              ? this.localConfig.clusterRefs[clusterReference]
-              : this.k8Factory.default().contexts().readCurrent();
+            const clusterReference: ClusterReference =
+              (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
+              this.k8Factory.default().clusters().readCurrent();
+
+            const clusterContext = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
 
             if (!(await self.k8Factory.getK8(clusterContext).namespaces().has(namespace))) {
               throw new SoloError(`namespace ${namespace} does not exist`);
@@ -722,11 +770,12 @@ export class MirrorNodeCommand extends BaseCommand {
               clusterContext,
               namespace,
               isChartInstalled,
+              clusterReference,
             };
 
             await self.accountManager.loadNodeClient(
               context_.config.namespace,
-              self.remoteConfigManager.getClusterRefs(),
+              self.remoteConfig.getClusterRefs(),
               self.configManager.getFlag<DeploymentName>(flags.deployment),
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
@@ -788,7 +837,7 @@ export class MirrorNodeCommand extends BaseCommand {
             });
           },
         },
-        this.removeMirrorNodeComponents(),
+        this.disableMirrorNodeComponents(),
       ],
       {
         concurrent: false,
@@ -809,8 +858,8 @@ export class MirrorNodeCommand extends BaseCommand {
     return true;
   }
 
-  public getCommandDefinition() {
-    const self = this;
+  public getCommandDefinition(): CommandDefinition {
+    const self: this = this;
     return {
       command: MirrorNodeCommand.COMMAND_NAME,
       desc: 'Manage Hedera Mirror Node in solo network',
@@ -875,14 +924,27 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   /** Removes the mirror node components from remote config. */
-  public removeMirrorNodeComponents(): SoloListrTask<MirrorNodeDestroyContext> {
+  public disableMirrorNodeComponents(): SoloListrTask<MirrorNodeDestroyContext> {
     return {
       title: 'Remove mirror node from remote config',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
-      task: async (): Promise<void> => {
-        await this.remoteConfigManager.modify(async remoteConfig => {
-          remoteConfig.components.remove('mirrorNode', ComponentType.MirrorNode);
-        });
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      task: async (context_): Promise<void> => {
+        const clusterReference: ClusterReference = context_.config.clusterReference;
+
+        const mirrorNodeComponents: MirrorNodeStateSchema[] =
+          this.remoteConfig.configuration.components.getComponentsByClusterReference<MirrorNodeStateSchema>(
+            ComponentTypes.MirrorNode,
+            clusterReference,
+          );
+
+        for (const mirrorNodeComponent of mirrorNodeComponents) {
+          this.remoteConfig.configuration.components.removeComponent(
+            mirrorNodeComponent.metadata.id,
+            ComponentTypes.MirrorNode,
+          );
+        }
+
+        await this.remoteConfig.persist();
       },
     };
   }
@@ -891,15 +953,16 @@ export class MirrorNodeCommand extends BaseCommand {
   public addMirrorNodeComponents(): SoloListrTask<MirrorNodeDeployContext> {
     return {
       title: 'Add mirror node to remote config',
-      skip: (): boolean => !this.remoteConfigManager.isLoaded(),
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        await this.remoteConfigManager.modify(async remoteConfig => {
-          const {
-            config: {namespace, clusterRef},
-          } = context_;
+        const {namespace, clusterRef} = context_.config;
 
-          remoteConfig.components.add(new MirrorNodeComponent('mirrorNode', clusterRef, namespace.name));
-        });
+        this.remoteConfig.configuration.components.addNewComponent(
+          this.componentFactory.createNewMirrorNodeComponent(clusterRef, namespace),
+          ComponentTypes.MirrorNode,
+        );
+
+        await this.remoteConfig.persist();
       },
     };
   }

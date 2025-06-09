@@ -3,7 +3,7 @@
 import {describe} from 'mocha';
 
 import {Flags as flags} from '../../../src/commands/flags.js';
-import {endToEndTestSuite, getTestCluster} from '../../test-utility.js';
+import {endToEndTestSuite, getTestCluster, localHederaPlatformSupportsNonZeroRealms} from '../../test-utility.js';
 import {sleep} from '../../../src/core/helpers.js';
 import {SOLO_LOGS_DIR} from '../../../src/core/constants.js';
 import {expect} from 'chai';
@@ -11,11 +11,11 @@ import {AccountBalanceQuery, AccountCreateTransaction, Hbar, HbarUnit, PrivateKe
 import {Duration} from '../../../src/core/time/duration.js';
 import {AccountCommand} from '../../../src/commands/account.js';
 import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../../../version-test.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
-import {type DeploymentName} from '../../../src/core/config/remote/types.js';
+import {type DeploymentName} from '../../../src/types/index.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {NodeCommand} from '../../../src/commands/node/index.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
@@ -27,6 +27,8 @@ argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2');
 argv.setArg(flags.generateGossipKeys, true);
 argv.setArg(flags.generateTlsKeys, true);
 argv.setArg(flags.clusterRef, getTestCluster());
+argv.setArg(flags.realm, 0);
+argv.setArg(flags.shard, localHederaPlatformSupportsNonZeroRealms() ? 1023 : 0);
 
 console.log('Starting local build for Hedera app');
 argv.setArg(
@@ -39,7 +41,7 @@ argv.setArg(flags.releaseTag, TEST_LOCAL_HEDERA_PLATFORM_VERSION);
 endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   describe('Node for hedera app should have started successfully', () => {
     const {
-      opts: {k8Factory, commandInvoker, remoteConfigManager},
+      opts: {k8Factory, commandInvoker, remoteConfig},
       cmd: {nodeCmd, accountCmd},
       manager: {accountManager},
     } = bootstrapResp;
@@ -48,7 +50,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       // create an account so later we can verify its balance after restart
       await accountManager.loadNodeClient(
         namespace,
-        remoteConfigManager.getClusterRefs(),
+        remoteConfig.getClusterRefs(),
         argv.getArg<DeploymentName>(flags.deployment),
         argv.getArg<boolean>(flags.forcePortForward),
       );
@@ -114,7 +116,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       // check balance of accountInfo.accountId
       await accountManager.loadNodeClient(
         namespace,
-        remoteConfigManager.getClusterRefs(),
+        remoteConfig.getClusterRefs(),
         argv.getArg<DeploymentName>(flags.deployment),
         argv.getArg<boolean>(flags.forcePortForward),
       );

@@ -16,9 +16,10 @@ import {NodeCommand} from '../src/commands/node/index.js';
 import {type DependencyManager} from '../src/core/dependency-managers/index.js';
 import {sleep} from '../src/core/helpers.js';
 import {AccountBalanceQuery, AccountCreateTransaction, Hbar, HbarUnit, PrivateKey} from '@hashgraph/sdk';
+import * as constants from '../src/core/constants.js';
 import {NODE_LOG_FAILURE_MSG, ROOT_CONTAINER, SOLO_LOGS_DIR} from '../src/core/constants.js';
 import crypto from 'node:crypto';
-import {AccountCommand} from '../src/commands/account.js';
+import {type AccountCommand} from '../src/commands/account.js';
 import {type SoloLogger} from '../src/core/logging/solo-logger.js';
 import {type NodeAlias} from '../src/types/aliases.js';
 import {type K8Factory} from '../src/integration/kube/k8-factory.js';
@@ -27,9 +28,6 @@ import {type PlatformInstaller} from '../src/core/platform-installer.js';
 import {type ProfileManager} from '../src/core/profile-manager.js';
 import {type LockManager} from '../src/core/lock/lock-manager.js';
 import {type CertificateManager} from '../src/core/certificate-manager.js';
-import {type LocalConfig} from '../src/core/config/local/local-config.js';
-import {type RemoteConfigManager} from '../src/core/config/remote/remote-config-manager.js';
-import * as constants from '../src/core/constants.js';
 import {Templates} from '../src/core/templates.js';
 import {type ConfigManager} from '../src/core/config-manager.js';
 import {type ChartManager} from '../src/core/chart-manager.js';
@@ -39,22 +37,24 @@ import {type KeyManager} from '../src/core/key-manager.js';
 import {Duration} from '../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';
 import {resetForTest} from './test-container.js';
-import {NamespaceName} from '../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../src/types/namespace/namespace-name.js';
 import {PodReference} from '../src/integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../src/integration/kube/resources/container/container-reference.js';
 import {type NetworkNodes} from '../src/core/network-nodes.js';
 import {InjectTokens} from '../src/core/dependency-injection/inject-tokens.js';
 import {DeploymentCommand} from '../src/commands/deployment.js';
 import {Argv} from './helpers/argv-wrapper.js';
-import {
-  type ClusterReference,
-  type DeploymentName,
-  type NamespaceNameAsString,
-} from '../src/core/config/remote/types.js';
-import {CommandInvoker} from './helpers/command-invoker.js';
+import {type ClusterReference, type DeploymentName, type NamespaceNameAsString} from '../src/types/index.js';
+import {type CommandInvoker} from './helpers/command-invoker.js';
 import {PathEx} from '../src/business/utils/path-ex.js';
 import {type HelmClient} from '../src/integration/helm/helm-client.js';
 import {type NodeServiceMapping} from '../src/types/mappings/node-service-mapping.js';
+import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../version-test.js';
+import {HEDERA_PLATFORM_VERSION} from '../version.js';
+import {gte as semVersionGte} from 'semver';
+import {type LocalConfigRuntimeState} from '../src/business/runtime-state/config/local/local-config-runtime-state.js';
+import {type InstanceOverrides} from '../src/core/dependency-injection/container-init.js';
+import {type RemoteConfigRuntimeStateApi} from '../src/business/runtime-state/api/remote-config-runtime-state-api.js';
 
 export const BASE_TEST_DIR = PathEx.join('test', 'data', 'tmp');
 
@@ -84,6 +84,53 @@ export function getTemporaryDirectory() {
   return fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-'));
 }
 
+export function deployNetworkTest(argv: Argv, commandInvoker: CommandInvoker, networkCmd: NetworkCommand): void {
+  it('should succeed with network deploy', async () => {
+    await commandInvoker.invoke({
+      argv: argv,
+      command: NetworkCommand.COMMAND_NAME,
+      subcommand: 'deploy',
+      // @ts-expect-error - to access private property
+      callback: async argv => networkCmd.deploy(argv),
+    });
+  }).timeout(Duration.ofMinutes(5).toMillis());
+}
+
+export function startNodesTest(argv: Argv, commandInvoker: CommandInvoker, nodeCmd: NodeCommand): void {
+  it('should succeed with node setup command', async () => {
+    // cache this, because `solo node setup.finalize()` will reset it to false
+    await commandInvoker.invoke({
+      argv: argv,
+      command: NodeCommand.COMMAND_NAME,
+      subcommand: 'setup',
+      callback: async argv => nodeCmd.handlers.setup(argv),
+    });
+  }).timeout(Duration.ofMinutes(4).toMillis());
+
+  it('should succeed with node start command', async () => {
+    await commandInvoker.invoke({
+      argv: argv,
+      command: NodeCommand.COMMAND_NAME,
+      subcommand: 'start',
+      callback: async argv => nodeCmd.handlers.start(argv),
+    });
+  }).timeout(Duration.ofMinutes(30).toMillis());
+
+  it('node log command should work', async () => {
+    await commandInvoker.invoke({
+      argv: argv,
+      command: NodeCommand.COMMAND_NAME,
+      subcommand: 'logs',
+      callback: async argv => nodeCmd.handlers.logs(argv),
+    });
+
+    const soloLogPath: string = PathEx.joinWithRealPath(SOLO_LOGS_DIR, 'solo.log');
+    const soloLog: string = fs.readFileSync(soloLogPath, 'utf8');
+
+    expect(soloLog, 'Check solo.log for stale errors from previous runs').to.not.have.string(NODE_LOG_FAILURE_MSG);
+  }).timeout(Duration.ofMinutes(5).toMillis());
+}
+
 interface TestOptions {
   logger: SoloLogger;
   helm: HelmClient;
@@ -99,12 +146,12 @@ interface TestOptions {
   profileManager: ProfileManager;
   leaseManager: LockManager;
   certificateManager: CertificateManager;
-  remoteConfigManager: RemoteConfigManager;
-  localConfig: LocalConfig;
+  remoteConfig: RemoteConfigRuntimeStateApi;
+  localConfig: LocalConfigRuntimeState;
   commandInvoker: CommandInvoker;
 }
 
-interface BootstrapResponse {
+export interface BootstrapResponse {
   deployment: string;
   namespace: NamespaceName;
   opts: TestOptions;
@@ -129,7 +176,14 @@ interface Cmd {
   nodeCmdArg?: NodeCommand;
   accountCmdArg?: AccountCommand;
   deploymentCmdArg?: DeploymentCommand;
+  containerOverrides?: InstanceOverrides;
 }
+
+function getTestNamespace(argv: Argv): NamespaceName {
+  return NamespaceName.of(argv.getArg<NamespaceNameAsString>(flags.namespace) || 'bootstrap-ns');
+}
+
+let shouldReset: boolean = true;
 
 /** Initialize common test variables */
 export function bootstrapTestVariables(
@@ -137,13 +191,19 @@ export function bootstrapTestVariables(
   argv: Argv,
   {k8FactoryArg, initCmdArg, clusterCmdArg, networkCmdArg, nodeCmdArg, accountCmdArg, deploymentCmdArg}: Cmd,
 ): BootstrapResponse {
-  const namespace: NamespaceName = NamespaceName.of(
-    argv.getArg<NamespaceNameAsString>(flags.namespace) || 'bootstrap-ns',
-  );
+  const namespace: NamespaceName = getTestNamespace(argv);
 
   const deployment: string = argv.getArg<DeploymentName>(flags.deployment) || `${namespace.name}-deployment`;
   const cacheDirectory: string = argv.getArg<string>(flags.cacheDir) || getTestCacheDirectory(testName);
-  resetForTest(namespace.name, cacheDirectory);
+
+  // Make sure the container is reset only once per CI run.
+  // When multiple test suites are loaded simultaniously, as is the case with `task test-e2e-standard`
+  // the container will be reset multiple times, which causes issues with the loading of LocalConfigRuntimeState.
+  // A better solution would be to run bootstraping during the before hook of the test suite.
+  if (shouldReset) {
+    resetForTest(namespace.name, cacheDirectory);
+    shouldReset = false;
+  }
   const configManager: ConfigManager = container.resolve(InjectTokens.ConfigManager);
   configManager.update(argv.build());
 
@@ -158,10 +218,10 @@ export function bootstrapTestVariables(
   const profileManager: ProfileManager = container.resolve(InjectTokens.ProfileManager);
   const leaseManager: LockManager = container.resolve(InjectTokens.LockManager);
   const certificateManager: CertificateManager = container.resolve(InjectTokens.CertificateManager);
-  const localConfig: LocalConfig = container.resolve(InjectTokens.LocalConfig);
-  const remoteConfigManager: RemoteConfigManager = container.resolve(InjectTokens.RemoteConfigManager);
+  const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
+  const remoteConfig: RemoteConfigRuntimeStateApi = container.resolve(InjectTokens.RemoteConfigRuntimeState);
   const testLogger: SoloLogger = getTestLogger();
-  const commandInvoker = new CommandInvoker({configManager, remoteConfigManager, k8Factory, logger: testLogger});
+  const commandInvoker = container.resolve(InjectTokens.CommandInvoker) as CommandInvoker;
 
   const options: TestOptions = {
     logger: testLogger,
@@ -179,7 +239,7 @@ export function bootstrapTestVariables(
     leaseManager,
     certificateManager,
     localConfig,
-    remoteConfigManager,
+    remoteConfig,
     commandInvoker,
   };
 
@@ -191,12 +251,12 @@ export function bootstrapTestVariables(
       accountManager,
     },
     cmd: {
-      initCmd: initCmdArg || new InitCommand(options),
-      clusterCmd: clusterCmdArg || new ClusterCommand(options),
-      networkCmd: networkCmdArg || new NetworkCommand(options),
-      nodeCmd: nodeCmdArg || new NodeCommand(options),
-      accountCmd: accountCmdArg || new AccountCommand(options, constants.SHORTER_SYSTEM_ACCOUNTS),
-      deploymentCmd: deploymentCmdArg || new DeploymentCommand(options),
+      initCmd: initCmdArg || container.resolve(InjectTokens.InitCommand),
+      clusterCmd: clusterCmdArg || container.resolve(InjectTokens.ClusterCommand),
+      networkCmd: networkCmdArg || container.resolve(InjectTokens.NetworkCommand),
+      nodeCmd: nodeCmdArg || container.resolve(InjectTokens.NodeCommand),
+      accountCmd: accountCmdArg || container.resolve(InjectTokens.AccountCommand),
+      deploymentCmd: deploymentCmdArg || container.resolve(InjectTokens.DeploymentCommand),
     },
   };
 }
@@ -213,11 +273,19 @@ export function endToEndTestSuite(
     nodeCmdArg,
     accountCmdArg,
     startNodes,
-  }: Cmd & {startNodes?: boolean},
+    containerOverrides,
+    deployNetwork,
+  }: Cmd & {startNodes?: boolean; deployNetwork?: boolean},
   testsCallBack: (bootstrapResp: BootstrapResponse) => void = () => {},
 ): void {
+  const testLogger: SoloLogger = getTestLogger();
+  const testNamespace: NamespaceName = getTestNamespace(argv);
+  resetForTest(testNamespace.name, undefined, false, containerOverrides);
   if (typeof startNodes !== 'boolean') {
     startNodes = true;
+  }
+  if (typeof deployNetwork !== 'boolean') {
+    deployNetwork = true;
   }
 
   const bootstrapResp = bootstrapTestVariables(testName, argv, {
@@ -235,16 +303,17 @@ export function endToEndTestSuite(
     opts: {k8Factory, chartManager, commandInvoker},
   } = bootstrapResp;
 
-  const testLogger: SoloLogger = getTestLogger();
-
   describe(`E2E Test Suite for '${testName}'`, function () {
+    before(async (): Promise<void> => {
+      const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+      await localConfig.load();
+    });
+
     this.bail(true); // stop on first failure, nothing else will matter if network doesn't come up correctly
 
     describe(`Bootstrap network for test [release ${argv.getArg<string>(flags.releaseTag)}]`, () => {
       before(() => {
-        bootstrapResp.opts.logger.showUser(
-          `------------------------- START: bootstrap (${testName}) ----------------------------`,
-        );
+        testLogger.showUser(`------------------------- START: bootstrap (${testName}) ----------------------------`);
       });
 
       // TODO: add rest of prerequisites for setup
@@ -252,9 +321,7 @@ export function endToEndTestSuite(
       after(async function () {
         this.timeout(Duration.ofMinutes(5).toMillis());
         await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
-        bootstrapResp.opts.logger.showUser(
-          `------------------------- END: bootstrap (${testName}) ----------------------------`,
-        );
+        testLogger.showUser(`------------------------- END: bootstrap (${testName}) ----------------------------`);
       });
 
       it('should cleanup previous deployment', async () => {
@@ -286,6 +353,8 @@ export function endToEndTestSuite(
       }).timeout(Duration.ofMinutes(2).toMillis());
 
       it("should success with 'cluster-ref connect'", async () => {
+        const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+        await localConfig.load();
         await commandInvoker.invoke({
           argv: argv,
           command: ClusterCommand.COMMAND_NAME,
@@ -313,6 +382,7 @@ export function endToEndTestSuite(
       });
 
       it('generate key files', async () => {
+        const localConfig = container.resolve(InjectTokens.LocalConfigRuntimeState);
         await commandInvoker.invoke({
           argv: argv,
           command: NodeCommand.COMMAND_NAME,
@@ -321,48 +391,12 @@ export function endToEndTestSuite(
         });
       }).timeout(Duration.ofMinutes(2).toMillis());
 
-      it('should succeed with network deploy', async () => {
-        await commandInvoker.invoke({
-          argv: argv,
-          command: NetworkCommand.COMMAND_NAME,
-          subcommand: 'deploy',
-          callback: async argv => networkCmd.deploy(argv),
-        });
-      }).timeout(Duration.ofMinutes(5).toMillis());
+      if (deployNetwork) {
+        deployNetworkTest(argv, commandInvoker, networkCmd);
+      }
 
       if (startNodes) {
-        it('should succeed with node setup command', async () => {
-          // cache this, because `solo node setup.finalize()` will reset it to false
-          await commandInvoker.invoke({
-            argv: argv,
-            command: NodeCommand.COMMAND_NAME,
-            subcommand: 'setup',
-            callback: async argv => nodeCmd.handlers.setup(argv),
-          });
-        }).timeout(Duration.ofMinutes(4).toMillis());
-
-        it('should succeed with node start command', async () => {
-          await commandInvoker.invoke({
-            argv: argv,
-            command: NodeCommand.COMMAND_NAME,
-            subcommand: 'start',
-            callback: async argv => nodeCmd.handlers.start(argv),
-          });
-        }).timeout(Duration.ofMinutes(30).toMillis());
-
-        it('node log command should work', async () => {
-          await commandInvoker.invoke({
-            argv: argv,
-            command: NodeCommand.COMMAND_NAME,
-            subcommand: 'logs',
-            callback: async argv => nodeCmd.handlers.logs(argv),
-          });
-
-          const soloLogPath = PathEx.joinWithRealPath(SOLO_LOGS_DIR, 'solo.log');
-          const soloLog = fs.readFileSync(soloLogPath, 'utf8');
-
-          expect(soloLog).to.not.have.string(NODE_LOG_FAILURE_MSG);
-        }).timeout(Duration.ofMinutes(5).toMillis());
+        startNodesTest(argv, commandInvoker, nodeCmd);
       }
     });
 
@@ -375,7 +409,7 @@ export function endToEndTestSuite(
 export function balanceQueryShouldSucceed(
   accountManager: AccountManager,
   namespace: NamespaceName,
-  remoteConfigManager: RemoteConfigManager,
+  remoteConfig: RemoteConfigRuntimeStateApi,
   logger: SoloLogger,
   skipNodeAlias?: NodeAlias,
 ): void {
@@ -386,7 +420,7 @@ export function balanceQueryShouldSucceed(
 
       await accountManager.refreshNodeClient(
         namespace,
-        remoteConfigManager.getClusterRefs(),
+        remoteConfig.getClusterRefs(),
         skipNodeAlias,
         argv.getArg<DeploymentName>(flags.deployment),
       );
@@ -408,7 +442,7 @@ export function balanceQueryShouldSucceed(
 export function accountCreationShouldSucceed(
   accountManager: AccountManager,
   namespace: NamespaceName,
-  remoteConfigManager: RemoteConfigManager,
+  remoteConfig: RemoteConfigRuntimeStateApi,
   logger: SoloLogger,
   skipNodeAlias?: NodeAlias,
 ): void {
@@ -417,7 +451,7 @@ export function accountCreationShouldSucceed(
       const argv = Argv.getDefaultArgv(namespace);
       await accountManager.refreshNodeClient(
         namespace,
-        remoteConfigManager.getClusterRefs(),
+        remoteConfig.getClusterRefs(),
         skipNodeAlias,
         argv.getArg<DeploymentName>(flags.deployment),
       );
@@ -508,20 +542,29 @@ async function addKeyHashToMap(
 }
 
 export const testLocalConfigData = {
-  userEmailAddress: 'john.doe@example.com',
+  userIdentity: {
+    name: 'john',
+    host: 'doe',
+  },
   soloVersion: '1.0.0',
   deployments: {
     deployment: {
       clusters: ['cluster-1'],
       namespace: 'solo-e2e',
+      realm: 0,
+      shard: 0,
     },
     'deployment-2': {
       clusters: ['cluster-2'],
       namespace: 'solo-2',
+      realm: 0,
+      shard: 0,
     },
     'deployment-3': {
       clusters: ['cluster-3'],
       namespace: 'solo-3',
+      realm: 0,
+      shard: 0,
     },
   },
   clusterRefs: {
@@ -531,3 +574,11 @@ export const testLocalConfigData = {
 };
 
 export {HEDERA_PLATFORM_VERSION as HEDERA_PLATFORM_VERSION_TAG} from '../version.js';
+
+export function hederaPlatformSupportsNonZeroRealms() {
+  return semVersionGte(HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
+}
+
+export function localHederaPlatformSupportsNonZeroRealms() {
+  return semVersionGte(TEST_LOCAL_HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
+}

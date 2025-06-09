@@ -2,7 +2,7 @@
 
 import {type Secrets} from '../../../resources/secret/secrets.js';
 import {type CoreV1Api, V1ObjectMeta, V1Secret} from '@kubernetes/client-node';
-import {type NamespaceName} from '../../../resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {type Optional} from '../../../../../types/index.js';
 import {KubeApiResponse} from '../../../kube-api-response.js';
 import {

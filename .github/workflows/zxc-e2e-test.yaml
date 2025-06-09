@@ -75,10 +75,10 @@ env:
 jobs:
   e2e-test:
     name: ${{ inputs.custom-job-label || 'E2E Test' }}
-    runs-on: solo-linux-large
+    runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c6295a65d1254861815972266d5933fd6e532bdf # v2.11.1
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
         with:
           egress-policy: audit
 
@@ -127,7 +127,7 @@ jobs:
 #          echo "::endgroup::"
 
       - name: Setup Node
-        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.3.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ inputs.node-version }}
 
@@ -163,6 +163,15 @@ jobs:
           version: 3.39.2
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Setup Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: '1.22.3'
+
+      - name: Install grpcurl
+        run: |
+          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+
       - name: Compile Project
         run: task build
 
@@ -171,7 +180,7 @@ jobs:
 
       - name: Setup Java
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-node-local-hedera' || inputs.test-script == 'test-e2e-node-local-ptt' || inputs.test-script == 'test-e2e-node-add-local') && !cancelled() && !failure() }}
-        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
           java-version: 21.0.1
@@ -201,10 +210,15 @@ jobs:
           cd ../solo
 
       - name: Setup E2E Tests
-        run: | 
-          npm link
-          echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
-          SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${{ env.CG_EXEC }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
+        if: ${{ inputs.test-script != 'test-external-database' && inputs.test-script != 'test-update-markdown' && !cancelled() }}
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
+        with:
+          max_attempts: 3
+          timeout_minutes: 10
+          command: |
+            npm link
+            echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
+            SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${{ env.CG_EXEC }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
 
       - name: Run E2E Tests
         run: |
@@ -213,7 +227,7 @@ jobs:
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
 
       - name: Upload E2E Logs to GitHub
-        if: ${{ !cancelled() }}
+        if: ${{ inputs.test-script != 'test-external-database' && inputs.test-script != 'test-update-markdown' && !cancelled() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: solo-${{ inputs.test-script }}.log
@@ -223,7 +237,7 @@ jobs:
 
       - name: Upload E2E Test Report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ steps.npm-deps.conclusion == 'success' && !cancelled() }}
+        if: ${{ inputs.test-script != 'test-external-database' && inputs.test-script != 'test-update-markdown' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
         with:
           name: e2e_test_report_${{ inputs.test-script }}
           path: "junit-${{ inputs.coverage-subdirectory }}.xml"
@@ -232,7 +246,7 @@ jobs:
 
       - name: Publish E2E Coverage Report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() }}
+        if: ${{ inputs.test-script != 'test-external-database' && inputs.test-script != 'test-update-markdown' && !cancelled() }}
         with:
           name: ${{ inputs.coverage-report-name }}
           path: 'coverage/${{ inputs.coverage-subdirectory }}'

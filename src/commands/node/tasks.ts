@@ -12,10 +12,8 @@ import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
 import {
   DEFAULT_NETWORK_NODE_NAME,
-  FREEZE_ADMIN_ACCOUNT,
   HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
   IGNORED_NODE_ACCOUNT_ID,
-  TREASURY_ACCOUNT_ID,
 } from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
@@ -24,6 +22,7 @@ import {
   AccountUpdateTransaction,
   type Client,
   FileAppendTransaction,
+  FileId,
   FileUpdateTransaction,
   FreezeTransaction,
   FreezeType,
@@ -33,6 +32,8 @@ import {
   NodeUpdateTransaction,
   PrivateKey,
   Timestamp,
+  TransactionReceipt,
+  TransactionResponse,
 } from '@hashgraph/sdk';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {MissingArgumentError} from '../../core/errors/missing-argument-error.js';
@@ -42,7 +43,7 @@ import crypto from 'node:crypto';
 import * as helpers from '../../core/helpers.js';
 import {
   addDebugOptions,
-  getNodeAccountMap,
+  entityId,
   prepareEndpoints,
   renameAndCopyFile,
   showVersionBanner,
@@ -71,29 +72,26 @@ import {Duration} from '../../core/time/duration.js';
 import {type NodeAddConfigClass} from './config-interfaces/node-add-config-class.js';
 import {GenesisNetworkDataConstructor} from '../../core/genesis-network-models/genesis-network-data-constructor.js';
 import {NodeOverridesModel} from '../../core/node-overrides-model.js';
-import {type NamespaceName} from '../../integration/kube/resources/namespace/namespace-name.js';
+import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {PodReference} from '../../integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../../integration/kube/resources/container/container-reference.js';
 import {NetworkNodes} from '../../core/network-nodes.js';
 import {container, inject, injectable} from 'tsyringe-neo';
-import {type Optional, type SoloListr, type SoloListrTask, type SoloListrTaskWrapper} from '../../types/index.js';
 import {
   type ClusterReference,
+  type Context,
   type DeploymentName,
-  type NamespaceNameAsString,
-} from '../../core/config/remote/types.js';
+  type Optional,
+  type SoloListr,
+  type SoloListrTask,
+  type SoloListrTaskWrapper,
+} from '../../types/index.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {ConsensusNode} from '../../core/model/consensus-node.js';
 import {type K8} from '../../integration/kube/k8.js';
 import {Base64} from 'js-base64';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
-import {type RemoteConfigManager} from '../../core/config/remote/remote-config-manager.js';
-import {type LocalConfig} from '../../core/config/local/local-config.js';
 import {BaseCommand} from '../base.js';
-import {ConsensusNodeComponent} from '../../core/config/remote/components/consensus-node-component.js';
-import {ConsensusNodeStates} from '../../core/config/remote/enumerations.js';
-import {EnvoyProxyComponent} from '../../core/config/remote/components/envoy-proxy-component.js';
-import {HaProxyComponent} from '../../core/config/remote/components/ha-proxy-component.js';
 import {HEDERA_PLATFORM_VERSION} from '../../../version.js';
 import {ShellRunner} from '../../core/shell-runner.js';
 import {PathEx} from '../../business/utils/path-ex.js';
@@ -104,7 +102,7 @@ import {type NodeAddContext} from './config-interfaces/node-add-context.js';
 import {type NodeDeleteContext} from './config-interfaces/node-delete-context.js';
 import {type NodeUpdateContext} from './config-interfaces/node-update-context.js';
 import {type NodeStatesContext} from './config-interfaces/node-states-context.js';
-import {type NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
+import {NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
 import {type NodeRefreshContext} from './config-interfaces/node-refresh-context.js';
 import {type NodeStopContext} from './config-interfaces/node-stop-context.js';
 import {type NodeFreezeContext} from './config-interfaces/node-freeze-context.js';
@@ -117,6 +115,12 @@ import {type NodeKeysConfigClass} from './config-interfaces/node-keys-config-cla
 import {type NodeStartConfigClass} from './config-interfaces/node-start-config-class.js';
 import {type CheckedNodesConfigClass, type CheckedNodesContext} from './config-interfaces/node-common-config-class.js';
 import {type NetworkNodeServices} from '../../core/network-node-services.js';
+import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
+import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
+import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {type ComponentFactoryApi} from '../../core/config/remote/api/component-factory-api.js';
+import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 
 @injectable()
 export class NodeCommandTasks {
@@ -130,8 +134,9 @@ export class NodeCommandTasks {
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.ChartManager) private readonly chartManager: ChartManager,
     @inject(InjectTokens.CertificateManager) private readonly certificateManager: CertificateManager,
-    @inject(InjectTokens.RemoteConfigManager) private readonly remoteConfigManager: RemoteConfigManager,
-    @inject(InjectTokens.LocalConfig) private readonly localConfig: LocalConfig,
+    @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
+    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
@@ -142,16 +147,17 @@ export class NodeCommandTasks {
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
     this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
     this.certificateManager = patchInject(certificateManager, InjectTokens.CertificateManager, this.constructor.name);
-    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfig, this.constructor.name);
-    this.remoteConfigManager = patchInject(
-      remoteConfigManager,
-      InjectTokens.RemoteConfigManager,
-      this.constructor.name,
-    );
-    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfig, this.constructor.name);
+    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
+    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
   }
 
-  private async _prepareUpgradeZip(stagingDirectory: string): Promise<string> {
+  private getFileUpgradeId(deploymentName: DeploymentName): FileId {
+    const realm = this.localConfig.configuration.realmForDeployment(deploymentName);
+    const shard = this.localConfig.configuration.shardForDeployment(deploymentName);
+    return FileId.fromString(entityId(shard, realm, constants.UPGRADE_FILE_ID_NUM));
+  }
+
+  private async _prepareUpgradeZip(stagingDirectory: string, upgradeVersion: string): Promise<string> {
     // we build a mock upgrade.zip file as we really don't need to upgrade the network
     // also the platform zip file is ~80Mb in size requiring a lot of transactions since the max
     // transaction size is 6Kb and in practice we need to send the file as 4Kb chunks.
@@ -162,7 +168,7 @@ export class NodeCommandTasks {
       fs.mkdirSync(upgradeConfigDirectory, {recursive: true});
     }
 
-    // bump field hedera.config.version
+    // bump field hedera.config.version or use the version passed in
     const fileBytes = fs.readFileSync(PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.properties'));
     const lines = fileBytes.toString().split('\n');
     const newLines = [];
@@ -171,8 +177,8 @@ export class NodeCommandTasks {
       const parts = line.split('=');
       if (parts.length === 2) {
         if (parts[0] === 'hedera.config.version') {
-          let version = Number.parseInt(parts[1]);
-          line = `hedera.config.version=${++version}`;
+          const version: string = upgradeVersion ?? String(Number.parseInt(parts[1]) + 1);
+          line = `hedera.config.version=${version}`;
         }
         newLines.push(line);
       }
@@ -185,7 +191,11 @@ export class NodeCommandTasks {
     );
   }
 
-  private async _uploadUpgradeZip(upgradeZipFile: string, nodeClient: Client): Promise<string> {
+  private async _uploadUpgradeZip(
+    upgradeZipFile: string,
+    nodeClient: Client,
+    deploymentName: DeploymentName,
+  ): Promise<string> {
     // get byte value of the zip file
     const zipBytes = fs.readFileSync(upgradeZipFile);
     const zipHash = crypto.createHash('sha384').update(zipBytes).digest('hex');
@@ -203,12 +213,12 @@ export class NodeCommandTasks {
 
         fileTransaction =
           start === 0
-            ? new FileUpdateTransaction().setFileId(constants.UPGRADE_FILE_ID).setContents(zipBytesChunk)
-            : new FileAppendTransaction().setFileId(constants.UPGRADE_FILE_ID).setContents(zipBytesChunk);
+            ? new FileUpdateTransaction().setFileId(this.getFileUpgradeId(deploymentName)).setContents(zipBytesChunk)
+            : new FileAppendTransaction().setFileId(this.getFileUpgradeId(deploymentName)).setContents(zipBytesChunk);
         const resp = await fileTransaction.execute(nodeClient);
         const receipt = await resp.getReceipt(nodeClient);
         this.logger.debug(
-          `updated file ${constants.UPGRADE_FILE_ID} [chunkSize= ${zipBytesChunk.length}, txReceipt = ${receipt.toString()}]`,
+          `updated file ${this.getFileUpgradeId(deploymentName)} [chunkSize= ${zipBytesChunk.length}, txReceipt = ${receipt.toString()}]`,
         );
 
         start += constants.UPGRADE_FILE_CHUNK_SIZE;
@@ -253,7 +263,7 @@ export class NodeCommandTasks {
     podReferences: Record<NodeAlias, PodReference>,
     task: SoloListrTaskWrapper<AnyListrContext>,
     localBuildPath: string,
-    consensusNodes: Optional<ConsensusNode[]>,
+    consensusNodes: ConsensusNode[],
     releaseTag: string,
   ): SoloListr<AnyListrContext> {
     const subTasks: SoloListrTask<AnyListrContext>[] = [];
@@ -347,7 +357,7 @@ export class NodeCommandTasks {
     releaseTag: string,
     task: SoloListrTaskWrapper<AnyListrContext>,
     platformInstaller: PlatformInstaller,
-    consensusNodes?: Optional<ConsensusNode[]>,
+    consensusNodes: ConsensusNode[],
   ): SoloListr<AnyListrContext> {
     const subTasks: SoloListrTask<AnyListrContext>[] = [];
     for (const nodeAlias of nodeAliases) {
@@ -378,7 +388,7 @@ export class NodeCommandTasks {
       config: {namespace},
     } = context_;
 
-    const enableDebugger = context_.config.debugNodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
+    const enableDebugger: boolean = context_.config.debugNodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
 
     const subTasks = nodeAliases.map(nodeAlias => {
       const reminder =
@@ -433,7 +443,7 @@ export class NodeCommandTasks {
     const podReference = PodReference.of(namespace, podName);
     task.title = `${title} - status ${chalk.yellow('STARTING')}, attempt ${chalk.blueBright(`0/${maxAttempts}`)}`;
 
-    const consensusNodes = this.remoteConfigManager.getConsensusNodes();
+    const consensusNodes = this.remoteConfig.getConsensusNodes();
     if (!context) {
       context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
     }
@@ -625,21 +635,22 @@ export class NodeCommandTasks {
       const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
       await this.accountManager.loadNodeClient(
         namespace,
-        this.remoteConfigManager.getClusterRefs(),
+        this.remoteConfig.getClusterRefs(),
         deploymentName,
         this.configManager.getFlag<boolean>(flags.forcePortForward),
       );
       const client = this.accountManager._nodeClient;
-      const treasuryKey = await this.accountManager.getTreasuryAccountKeys(namespace);
+      const treasuryKey = await this.accountManager.getTreasuryAccountKeys(namespace, deploymentName);
       const treasuryPrivateKey = PrivateKey.fromStringED25519(treasuryKey.privateKey);
-      client.setOperator(TREASURY_ACCOUNT_ID, treasuryPrivateKey);
+      const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deploymentName);
+      client.setOperator(treasuryAccountId, treasuryPrivateKey);
 
       // check balance
-      const treasuryBalance = await new AccountBalanceQuery().setAccountId(TREASURY_ACCOUNT_ID).execute(client);
-      this.logger.debug(`Account ${TREASURY_ACCOUNT_ID} balance: ${treasuryBalance.hbars}`);
+      const treasuryBalance = await new AccountBalanceQuery().setAccountId(treasuryAccountId).execute(client);
+      this.logger.debug(`Account ${treasuryAccountId} balance: ${treasuryBalance.hbars}`);
 
       // get some initial balance
-      await this.accountManager.transferAmount(constants.TREASURY_ACCOUNT_ID, accountId, stakeAmount);
+      await this.accountManager.transferAmount(treasuryAccountId, accountId, stakeAmount);
 
       // check balance
       const balance = await new AccountBalanceQuery().setAccountId(accountId).execute(client);
@@ -674,14 +685,14 @@ export class NodeCommandTasks {
       title: 'Prepare upgrade zip file for node upgrade process',
       task: async context_ => {
         const config = context_.config;
-        const {upgradeZipFile} = context_.config;
+        const {upgradeZipFile, deployment} = context_.config;
         if (upgradeZipFile) {
-          this.logger.debug(`Using upgrade zip file: ${context_.upgradeZipFile}`);
           context_.upgradeZipFile = upgradeZipFile;
+          this.logger.debug(`Using upgrade zip file: ${context_.upgradeZipFile}`);
         } else {
-          context_.upgradeZipFile = await self._prepareUpgradeZip(config.stagingDir);
+          context_.upgradeZipFile = await self._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
         }
-        context_.upgradeZipHash = await self._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient);
+        context_.upgradeZipHash = await self._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
       },
     };
   }
@@ -729,10 +740,12 @@ export class NodeCommandTasks {
         const config = context_.config;
 
         // Transfer some hbar to the node for staking purpose
-        const accountMap = getNodeAccountMap(config.existingNodeAliases);
+        const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+        const accountMap = this.accountManager.getNodeAccountMap(config.existingNodeAliases, deploymentName);
+        const treasuryAccountId = this.accountManager.getTreasuryAccountId(deploymentName);
         for (const nodeAlias of config.existingNodeAliases) {
           const accountId = accountMap.get(nodeAlias);
-          await self.accountManager.transferAmount(constants.TREASURY_ACCOUNT_ID, accountId, 1);
+          await self.accountManager.transferAmount(treasuryAccountId, accountId, 1);
         }
       },
     };
@@ -746,26 +759,29 @@ export class NodeCommandTasks {
       title: 'Send prepare upgrade transaction',
       task: async context_ => {
         const {upgradeZipHash} = context_;
-        const {nodeClient, freezeAdminPrivateKey} = context_.config;
+        const {nodeClient, freezeAdminPrivateKey, deployment} = context_.config;
         try {
+          const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
+          const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
+
           // query the balance
-          const balance = await new AccountBalanceQuery().setAccountId(FREEZE_ADMIN_ACCOUNT).execute(nodeClient);
+          const balance = await new AccountBalanceQuery().setAccountId(freezeAccountId).execute(nodeClient);
           self.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
 
           // transfer some tiny amount to the freeze admin account
-          await self.accountManager.transferAmount(constants.TREASURY_ACCOUNT_ID, FREEZE_ADMIN_ACCOUNT, 100_000);
+          await self.accountManager.transferAmount(treasuryAccountId, freezeAccountId, 100_000);
 
           // set operator of freeze transaction as freeze admin account
-          nodeClient.setOperator(FREEZE_ADMIN_ACCOUNT, freezeAdminPrivateKey);
+          nodeClient.setOperator(freezeAccountId, freezeAdminPrivateKey);
 
-          const prepareUpgradeTx = await new FreezeTransaction()
+          const prepareUpgradeTx: TransactionResponse = await new FreezeTransaction()
             .setFreezeType(FreezeType.PrepareUpgrade)
-            .setFileId(constants.UPGRADE_FILE_ID)
+            .setFileId(this.getFileUpgradeId(deployment))
             .setFileHash(upgradeZipHash)
             .freezeWith(nodeClient)
             .execute(nodeClient);
 
-          const prepareUpgradeReceipt = await prepareUpgradeTx.getReceipt(nodeClient);
+          const prepareUpgradeReceipt: TransactionReceipt = await prepareUpgradeTx.getReceipt(nodeClient);
 
           self.logger.debug(
             `sent prepare upgrade transaction [id: ${prepareUpgradeTx.transactionId.toString()}]`,
@@ -786,7 +802,7 @@ export class NodeCommandTasks {
       title: 'Send freeze upgrade transaction',
       task: async context_ => {
         const {upgradeZipHash} = context_;
-        const {freezeAdminPrivateKey, nodeClient} = context_.config;
+        const {freezeAdminPrivateKey, nodeClient, deployment} = context_.config;
         try {
           const futureDate = new Date();
           self.logger.debug(`Current time: ${futureDate}`);
@@ -794,15 +810,17 @@ export class NodeCommandTasks {
           futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
           self.logger.debug(`Freeze time: ${futureDate}`);
 
+          const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
+
           // query the balance
-          const balance = await new AccountBalanceQuery().setAccountId(FREEZE_ADMIN_ACCOUNT).execute(nodeClient);
+          const balance = await new AccountBalanceQuery().setAccountId(freezeAdminAccountId).execute(nodeClient);
           self.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
 
-          nodeClient.setOperator(FREEZE_ADMIN_ACCOUNT, freezeAdminPrivateKey);
+          nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
           const freezeUpgradeTx = await new FreezeTransaction()
             .setFreezeType(FreezeType.FreezeUpgrade)
             .setStartTimestamp(Timestamp.fromDate(futureDate))
-            .setFileId(constants.UPGRADE_FILE_ID)
+            .setFileId(this.getFileUpgradeId(deployment))
             .setFileHash(upgradeZipHash)
             .freezeWith(nodeClient)
             .execute(nodeClient);
@@ -824,12 +842,12 @@ export class NodeCommandTasks {
     return {
       title: 'Send freeze only transaction',
       task: async context_ => {
-        const {freezeAdminPrivateKey} = context_.config;
+        const {freezeAdminPrivateKey, deployment, namespace} = context_.config;
         try {
           const nodeClient = await this.accountManager.loadNodeClient(
-            context_.config.namespace,
-            this.remoteConfigManager.getClusterRefs(),
-            context_.config.deployment,
+            namespace,
+            this.remoteConfig.getClusterRefs(),
+            deployment,
           );
           const futureDate = new Date();
           self.logger.debug(`Current time: ${futureDate}`);
@@ -837,7 +855,8 @@ export class NodeCommandTasks {
           futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
           self.logger.debug(`Freeze time: ${futureDate}`);
 
-          nodeClient.setOperator(FREEZE_ADMIN_ACCOUNT, freezeAdminPrivateKey);
+          const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
+          nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
           const freezeOnlyTransaction = await new FreezeTransaction()
             .setFreezeType(FreezeType.FreezeOnly)
             .setStartTimestamp(Timestamp.fromDate(futureDate))
@@ -1056,13 +1075,16 @@ export class NodeCommandTasks {
       task: async (context_, task) => {
         const config = context_.config;
         config.existingNodeAliases = [];
-        const clusterReferences = this.remoteConfigManager.getClusterRefs();
+        const clusterReferences = this.remoteConfig.getClusterRefs();
         config.serviceMap = await self.accountManager.getNodeServiceMap(
           config.namespace,
           clusterReferences,
           config.deployment,
         );
         for (const networkNodeServices of config.serviceMap.values()) {
+          if (networkNodeServices.accountId === constants.IGNORED_NODE_ACCOUNT_ID) {
+            continue;
+          }
           config.existingNodeAliases.push(networkNodeServices.nodeAlias);
         }
         config.allNodeAliases = [...config.existingNodeAliases];
@@ -1123,13 +1145,23 @@ export class NodeCommandTasks {
 
   public fetchPlatformSoftware(
     aliasesField: string,
-  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext | NodeSetupContext> {
+  ): SoloListrTask<
+    NodeUpgradeContext | NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext | NodeSetupContext
+  > {
     const self = this;
     return {
       title: 'Fetch platform software into network nodes',
       task: (context_, task) => {
-        const {podRefs, releaseTag, localBuildPath} = context_.config;
+        const {podRefs, localBuildPath} = context_.config;
+        let {releaseTag} = context_.config;
 
+        if ('upgradeVersion' in context_.config) {
+          if (!context_.config.upgradeVersion) {
+            this.logger.info('Skip, no need to update the platform software');
+            return Promise.resolve();
+          }
+          releaseTag = context_.config.upgradeVersion;
+        }
         return localBuildPath === ''
           ? self._fetchPlatformSoftware(
               context_.config[aliasesField],
@@ -1157,7 +1189,7 @@ export class NodeCommandTasks {
       task: async context_ => {
         context_.config.serviceMap = await this.accountManager.getNodeServiceMap(
           context_.config.namespace,
-          this.remoteConfigManager.getClusterRefs(),
+          this.remoteConfig.getClusterRefs(),
           context_.config.deployment,
         );
         if (!context_.config.serviceMap.has(context_.config.nodeAlias)) {
@@ -1185,7 +1217,7 @@ export class NodeCommandTasks {
           context_.config.nodeAliases = helpers.parseNodeAliases(
             // @ts-ignore
             context_.config.nodeAliasesUnparsed,
-            this.remoteConfigManager.getConsensusNodes(),
+            this.remoteConfig.getConsensusNodes(),
             this.configManager,
           );
         }
@@ -1242,7 +1274,7 @@ export class NodeCommandTasks {
     const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
     const networkNodeServiceMap = await this.accountManager.getNodeServiceMap(
       namespace,
-      this.remoteConfigManager.getClusterRefs(),
+      this.remoteConfig.getClusterRefs(),
       deploymentName,
     );
 
@@ -1270,7 +1302,7 @@ export class NodeCommandTasks {
     const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
     const networkNodeServiceMap = await this.accountManager.getNodeServiceMap(
       namespace,
-      this.remoteConfigManager.getClusterRefs(),
+      this.remoteConfig.getClusterRefs(),
       deploymentName,
     );
 
@@ -1312,7 +1344,7 @@ export class NodeCommandTasks {
             title: 'Copy gRPC TLS keys to staging',
             task: async () => {
               for (const nodeAlias of nodeAliases) {
-                const tlsKeyFiles = this.keyManager.prepareTLSKeyFilePaths(nodeAlias, config.keysDir);
+                const tlsKeyFiles = this.keyManager.prepareTlsKeyFilePaths(nodeAlias, config.keysDir);
                 this.keyManager.copyNodeKeysToStaging(tlsKeyFiles, config.stagingKeysDir);
               }
             },
@@ -1448,7 +1480,8 @@ export class NodeCommandTasks {
           'sleep 60 seconds for the handler to be able to trigger the network node stake weight recalculate',
         );
         await sleep(Duration.ofSeconds(60));
-        const accountMap = getNodeAccountMap(config.allNodeAliases);
+        const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+        const accountMap = this.accountManager.getNodeAccountMap(config.allNodeAliases, deploymentName);
         let skipNodeAlias: NodeAlias;
 
         switch (transactionType) {
@@ -1473,16 +1506,17 @@ export class NodeCommandTasks {
 
         config.nodeClient = await self.accountManager.refreshNodeClient(
           config.namespace,
-          this.remoteConfigManager.getClusterRefs(),
+          this.remoteConfig.getClusterRefs(),
           skipNodeAlias,
           this.configManager.getFlag<DeploymentName>(flags.deployment),
         );
 
         // send some write transactions to invoke the handler that will trigger the stake weight recalculate
+        const treasuryAccountId = this.accountManager.getTreasuryAccountId(deploymentName);
         for (const nodeAlias of accountMap.keys()) {
           const accountId = accountMap.get(nodeAlias);
-          config.nodeClient.setOperator(TREASURY_ACCOUNT_ID, config.treasuryKey);
-          await self.accountManager.transferAmount(constants.TREASURY_ACCOUNT_ID, accountId, 1);
+          config.nodeClient.setOperator(treasuryAccountId, config.treasuryKey);
+          await self.accountManager.transferAmount(treasuryAccountId, accountId, 1);
         }
       },
     };
@@ -1496,7 +1530,8 @@ export class NodeCommandTasks {
         if (context_.config.app === '' || context_.config.app === constants.HEDERA_APP_NAME) {
           const subTasks: SoloListrTask<NodeStartContext>[] = [];
 
-          const accountMap = getNodeAccountMap(context_.config.nodeAliases);
+          const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+          const accountMap = this.accountManager.getNodeAccountMap(context_.config.nodeAliases, deploymentName);
           // @ts-expect-error - TS2339: Property stakeAmount does not exist on type NodeStartConfigClass
           // TODO: 'ctx.config.stakeAmount' is never initialized in the config
           const stakeAmountParsed = context_.config.stakeAmount ? splitFlagInput(context_.config.stakeAmount) : [];
@@ -1531,7 +1566,7 @@ export class NodeCommandTasks {
       task: async context_ => {
         await self.accountManager.refreshNodeClient(
           context_.config.namespace,
-          this.remoteConfigManager.getClusterRefs(),
+          this.remoteConfig.getClusterRefs(),
           context_.config.nodeAlias,
           this.configManager.getFlag<DeploymentName>(flags.deployment),
           this.configManager.getFlag<boolean>(flags.forcePortForward),
@@ -1691,9 +1726,10 @@ export class NodeCommandTasks {
           lastNodeAlias = lastNodeAlias.replace(/\d+$/, incremented.toString()) as NodeAlias;
         }
 
+        const deploymentName: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
         context_.maxNum = maxNumber.add(1);
         context_.newNode = {
-          accountId: `${constants.HEDERA_NODE_ACCOUNT_ID_START.realm}.${constants.HEDERA_NODE_ACCOUNT_ID_START.shard}.${context_.maxNum}`,
+          accountId: this.accountManager.getAccountIdByNumber(deploymentName, context_.maxNum).toString(),
           name: lastNodeAlias,
         };
         config.nodeAlias = lastNodeAlias as NodeAlias;
@@ -1827,7 +1863,7 @@ export class NodeCommandTasks {
         if (config.existingNodeAliases.length > 1) {
           config.nodeClient = await self.accountManager.refreshNodeClient(
             config.namespace,
-            this.remoteConfigManager.getClusterRefs(),
+            this.remoteConfig.getClusterRefs(),
             config.nodeAlias,
             this.configManager.getFlag<DeploymentName>(flags.deployment),
           );
@@ -1918,11 +1954,11 @@ export class NodeCommandTasks {
         // Prepare parameter and update the network node chart
         const config = context_.config;
         const consensusNodes = context_.config.consensusNodes as ConsensusNode[];
-        const clusterReferences = this.remoteConfigManager.getClusterRefs();
+        const clusterReferences = this.remoteConfig.getClusterRefs();
 
         // Make sure valuesArgMap is initialized with empty strings
         const valuesArgumentMap: Record<ClusterReference, string> = {};
-        for (const clusterReference of Object.keys(clusterReferences)) {
+        for (const [clusterReference] of clusterReferences) {
           valuesArgumentMap[clusterReference] = '';
         }
 
@@ -1944,7 +1980,7 @@ export class NodeCommandTasks {
 
         const clusterNodeIndexMap: Record<ClusterReference, Record<NodeId, /* index in the chart -> */ number>> = {};
 
-        for (const clusterReference of Object.keys(clusterReferences)) {
+        for (const [clusterReference] of clusterReferences) {
           clusterNodeIndexMap[clusterReference] = {};
 
           for (const [index, node] of consensusNodes
@@ -1971,7 +2007,6 @@ export class NodeCommandTasks {
             this.prepareValuesArgForNodeDelete(
               consensusNodes,
               valuesArgumentMap,
-              nodeId,
               config.nodeAlias,
               config.serviceMap,
               clusterNodeIndexMap,
@@ -2026,11 +2061,16 @@ export class NodeCommandTasks {
           config.debugNodeAlias,
         );
 
+        const clusterReferencesList: ClusterReference[] = [];
+        for (const [clusterReference] of clusterReferences) {
+          clusterReferencesList.push(clusterReference);
+        }
+
         // Update all charts
         await Promise.all(
-          Object.keys(clusterReferences).map(async clusterReference => {
+          clusterReferencesList.map(async clusterReference => {
             const valuesArguments = valuesArgumentMap[clusterReference];
-            const context = this.localConfig.clusterRefs[clusterReference];
+            const context = this.localConfig.configuration.clusterRefs.get(clusterReference);
 
             await self.chartManager.upgrade(
               config.namespace,
@@ -2039,7 +2079,7 @@ export class NodeCommandTasks {
               context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
               config.soloChartVersion,
               valuesArguments,
-              context,
+              context.toString(),
             );
             showVersionBanner(self.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
           }),
@@ -2152,7 +2192,6 @@ export class NodeCommandTasks {
   private prepareValuesArgForNodeDelete(
     consensusNodes: ConsensusNode[],
     valuesArgumentMap: Record<ClusterReference, string>,
-    nodeId: NodeId,
     nodeAlias: NodeAlias,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
     clusterNodeIndexMap: Record<ClusterReference, Record<NodeId, /* index in the chart -> */ number>>,
@@ -2162,7 +2201,7 @@ export class NodeCommandTasks {
 
       // The index inside the chart
       const index = clusterNodeIndexMap[clusterReference][consensusNode.nodeId];
-
+      const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
       // For nodes that are not being deleted
       if (consensusNode.nodeId !== nodeId) {
         valuesArgumentMap[clusterReference] +=
@@ -2249,7 +2288,7 @@ export class NodeCommandTasks {
       title: 'Kill nodes to pick up updated configMaps',
       task: async context_ => {
         const config = context_.config;
-        const clusterReferences = this.remoteConfigManager.getClusterRefs();
+        const clusterReferences = this.remoteConfig.getClusterRefs();
         // the updated node will have a new pod ID if its account ID changed which is a label
         config.serviceMap = await this.accountManager.getNodeServiceMap(
           config.namespace,
@@ -2340,17 +2379,19 @@ export class NodeCommandTasks {
         );
 
         const k8 = this.k8Factory.getK8(context);
+        const container = await k8.containers().readByRef(containerReference);
+
+        const archiveCommand: string =
+          'cd "${states[0]}" && zip -rq "${states[0]}.zip" . && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
 
         // zip the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
-        const zipFileName = await k8
-          .containers()
-          .readByRef(containerReference)
-          .execContainer([
-            'bash',
-            '-c',
-            `cd ${upgradeDirectory} && mapfile -t states < <(ls -1t .) && jar cf "\${states[0]}.zip" -C "\${states[0]}" . && echo -n \${states[0]}.zip`,
-          ]);
+        const zipFileName = await container.execContainer([
+          'bash',
+          '-c',
+          `cd ${upgradeDirectory} && mapfile -t states < <(ls -1t .) && ${archiveCommand} && echo -n \${states[0]}.zip`,
+        ]);
 
+        this.logger.debug(`state zip file to download is = ${zipFileName}`);
         await k8
           .containers()
           .readByRef(containerReference)
@@ -2375,10 +2416,9 @@ export class NodeCommandTasks {
         const context = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
         const k8 = this.k8Factory.getK8(context);
 
-        await k8
-          .containers()
-          .readByRef(containerReference)
-          .execContainer(['bash', '-c', `mkdir -p ${savedStatePath}`]);
+        const container = k8.containers().readByRef(containerReference);
+
+        await container.execContainer(['bash', '-c', `mkdir -p ${savedStatePath}`]);
         await k8.containers().readByRef(containerReference).copyTo(config.lastStateZipPath, savedStatePath);
 
         await this.platformInstaller.setPathPermission(
@@ -2390,13 +2430,15 @@ export class NodeCommandTasks {
           context,
         );
 
+        const extractCommand = `unzip ${path.basename(config.lastStateZipPath)}`;
+
         await k8
           .containers()
           .readByRef(containerReference)
           .execContainer([
             'bash',
             '-c',
-            `cd ${savedStatePath} && jar xf ${path.basename(config.lastStateZipPath)} && rm -f ${path.basename(config.lastStateZipPath)}`,
+            `cd ${savedStatePath} && ${extractCommand} && rm -f ${path.basename(config.lastStateZipPath)}`,
           ]);
       },
     };
@@ -2409,7 +2451,8 @@ export class NodeCommandTasks {
         const config: NodeDeleteConfigClass = context_.config;
 
         try {
-          const accountMap = getNodeAccountMap(config.existingNodeAliases);
+          const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+          const accountMap = this.accountManager.getNodeAccountMap(config.existingNodeAliases, deploymentName);
           const deleteAccountId = accountMap.get(config.nodeAlias);
           this.logger.debug(`Deleting node: ${config.nodeAlias} with account: ${deleteAccountId}`);
           const nodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
@@ -2485,8 +2528,8 @@ export class NodeCommandTasks {
 
         const config = await configInit(argv, context_, task, shouldLoadNodeClient);
         context_.config = config;
-        config.consensusNodes = this.remoteConfigManager.getConsensusNodes();
-        config.contexts = this.remoteConfigManager.getContexts();
+        config.consensusNodes = this.remoteConfig.getConsensusNodes();
+        config.contexts = this.remoteConfig.getContexts();
 
         for (const flag of required) {
           if (config[flag.constName] === undefined) {
@@ -2507,48 +2550,57 @@ export class NodeCommandTasks {
     return {
       title: 'Add new node to remote config',
       task: async (context_, task) => {
-        const nodeAlias = context_.config.nodeAlias;
-        const namespace: NamespaceNameAsString = context_.config.namespace.name;
-        const clusterReference = context_.config.clusterRef;
-        const context = this.localConfig.clusterRefs[clusterReference];
+        const nodeAlias: NodeAlias = context_.config.nodeAlias;
+        const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
+        const namespace: NamespaceName = context_.config.namespace;
+        const clusterReference: ClusterReference = context_.config.clusterRef;
+        const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
 
         task.title += `: ${nodeAlias}`;
 
-        await this.remoteConfigManager.modify(async remoteConfig => {
-          remoteConfig.components.add(
-            new ConsensusNodeComponent(
-              nodeAlias,
-              clusterReference,
-              namespace,
-              ConsensusNodeStates.STARTED,
-              Templates.nodeIdFromNodeAlias(nodeAlias),
-            ),
-          );
+        this.remoteConfig.configuration.components.addNewComponent(
+          this.componentFactory.createNewConsensusNodeComponent(
+            nodeId,
+            clusterReference,
+            namespace,
+            DeploymentPhase.STARTED,
+          ),
+          ComponentTypes.ConsensusNode,
+        );
 
-          remoteConfig.components.add(new EnvoyProxyComponent(`envoy-proxy-${nodeAlias}`, clusterReference, namespace));
+        this.remoteConfig.configuration.components.addNewComponent(
+          this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
+          ComponentTypes.EnvoyProxy,
+        );
 
-          remoteConfig.components.add(new HaProxyComponent(`haproxy-${nodeAlias}`, clusterReference, namespace));
-        });
+        this.remoteConfig.configuration.components.addNewComponent(
+          this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),
+          ComponentTypes.HaProxy,
+        );
 
-        context_.config.consensusNodes = this.remoteConfigManager.getConsensusNodes();
+        await this.remoteConfig.persist();
+
+        context_.config.consensusNodes = this.remoteConfig.getConsensusNodes();
 
         // if the consensusNodes does not contain the nodeAlias then add it
         if (!context_.config.consensusNodes.some((node: ConsensusNode) => node.name === nodeAlias)) {
-          const cluster = this.remoteConfigManager.clusters[clusterReference];
+          const cluster: ClusterSchema = this.remoteConfig.configuration.clusters.find(
+            cluster => cluster.name === clusterReference,
+          );
 
           context_.config.consensusNodes.push(
             new ConsensusNode(
               nodeAlias,
-              Templates.nodeIdFromNodeAlias(nodeAlias),
-              namespace,
+              nodeId,
+              namespace.name,
               clusterReference,
-              context,
+              context.toString(),
               cluster.dnsBaseDomain,
               cluster.dnsConsensusNodePattern,
               Templates.renderConsensusNodeFullyQualifiedDomainName(
                 nodeAlias,
-                Templates.nodeIdFromNodeAlias(nodeAlias),
-                namespace,
+                nodeId,
+                namespace.name,
                 clusterReference,
                 cluster.dnsBaseDomain,
                 cluster.dnsConsensusNodePattern,

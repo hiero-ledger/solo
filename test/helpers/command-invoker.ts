@@ -2,31 +2,30 @@
 
 import {type Middlewares} from '../../src/core/middlewares.js';
 import {Flags as flags} from '../../src/commands/flags.js';
-import {type RemoteConfigManager} from '../../src/core/config/remote/remote-config-manager.js';
 import {type AnyObject, type ArgvStruct} from '../../src/types/aliases.js';
 import {type Argv} from './argv-wrapper.js';
 import {type ConfigManager} from '../../src/core/config-manager.js';
 import {type SoloLogger} from '../../src/core/logging/solo-logger.js';
-import {container} from 'tsyringe-neo';
-import {InjectTokens} from '../../src/core/dependency-injection/inject-tokens.js';
 import {type K8Factory} from '../../src/integration/kube/k8-factory.js';
+import {InjectTokens} from '../../src/core/dependency-injection/inject-tokens.js';
+import {inject, injectable} from 'tsyringe-neo';
+import {patchInject} from '../../src/core/dependency-injection/container-helper.js';
+import {type RemoteConfigRuntimeStateApi} from '../../src/business/runtime-state/api/remote-config-runtime-state-api.js';
 
+@injectable()
 export class CommandInvoker {
-  private readonly middlewares: Middlewares;
-  private readonly remoteConfigManager: RemoteConfigManager;
-  private readonly configManager: ConfigManager;
-  private readonly k8Factory: K8Factory;
-
-  public constructor(options: {
-    configManager: ConfigManager;
-    remoteConfigManager: RemoteConfigManager;
-    k8Factory: K8Factory;
-    logger: SoloLogger;
-  }) {
-    this.middlewares = container.resolve(InjectTokens.Middlewares);
-    this.configManager = options.configManager;
-    this.k8Factory = options.k8Factory;
-    this.remoteConfigManager = options.remoteConfigManager;
+  public constructor(
+    @inject(InjectTokens.Middlewares) private readonly middlewares?: Middlewares,
+    @inject(InjectTokens.ConfigManager) private readonly configManager?: ConfigManager,
+    @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig?: RemoteConfigRuntimeStateApi,
+    @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
+    @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
+  ) {
+    this.middlewares = patchInject(middlewares, InjectTokens.Middlewares, this.constructor.name);
+    this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
+    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
+    this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
   public async invoke({
@@ -41,7 +40,7 @@ export class CommandInvoker {
     subcommand?: string;
   }): Promise<void> {
     // unload the remote config from the manager
-    this.remoteConfigManager.unload();
+    // this.remoteConfig.unload(); // TODO: unload using runtime state
 
     if (!argv.getArg<string>(flags.context)) {
       argv.setArg(flags.context, this.k8Factory.default().contexts().readCurrent());
@@ -60,11 +59,16 @@ export class CommandInvoker {
       await executable(argv.build());
     }
 
-    await callback(argv.build());
+    try {
+      await callback(argv.build());
+    } catch (error) {
+      this.logger.showUserError(error);
+      throw error;
+    }
   }
 
-  private updateConfigManager() {
-    const self = this;
+  private updateConfigManager(): (argv: ArgvStruct) => Promise<AnyObject> {
+    const self: this = this;
 
     return async (argv: ArgvStruct): Promise<AnyObject> => {
       self.configManager.update(argv);

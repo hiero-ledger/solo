@@ -35,15 +35,18 @@ permissions:
 
 jobs:
   gcs-storage-test:
+    if: >
+      github.actor != 'dependabot[bot]' &&
+      github.repository == 'hiero-ledger/solo'
     timeout-minutes: 20
-    runs-on: solo-linux-large
+    runs-on: hiero-solo-linux-large
     strategy:
       fail-fast: false
       matrix:
         storageType: ["gcs_only", "minio_only", "aws_only"]
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c6295a65d1254861815972266d5933fd6e532bdf # v2.11.1
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
         with:
           egress-policy: audit
 
@@ -52,7 +55,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: google-auth
-        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/652966097426/locations/global/workloadIdentityPools/solo-bucket-dev-pool/providers/gh-provider"
           service_account: "solo-bucket-reader-writer@solo-bucket-dev.iam.gserviceaccount.com"
@@ -79,7 +82,7 @@ jobs:
           echo "BACKUP_BUCKET_NAME=${BACKUP_BUCKET_NAME}" >> $GITHUB_ENV
 
       - name: Setup Node
-        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.3.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: npm
@@ -127,7 +130,8 @@ jobs:
           .github/workflows/script/gcs_test.sh
 
       - name: Delete Test Directory after Test
-        if: matrix.storageType == 'gcs_only' || matrix.storageType == 'aws_only'
+        # add always() to make sure bucket is deleted even if the test failed
+        if: always() && (matrix.storageType == 'gcs_only' || matrix.storageType == 'aws_only')
         run: |
           gcloud storage rm --recursive gs://${BUCKET_NAME}/${{ steps.jobs.outputs.job_id }} --project=${{ vars.GCP_S3_PROJECT_ID }}
           gcloud storage rm --recursive gs://${BACKUP_BUCKET_NAME}/${{ steps.jobs.outputs.job_id }} --project=${{ vars.GCP_S3_PROJECT_ID }}

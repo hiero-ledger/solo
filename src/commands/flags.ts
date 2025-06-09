@@ -2,7 +2,7 @@
 
 import * as constants from '../core/constants.js';
 import * as version from '../../version.js';
-import {type CommandFlag} from '../types/flag-types.js';
+import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import fs from 'node:fs';
 import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
 import {SoloError} from '../core/errors/solo-error.js';
@@ -13,12 +13,12 @@ import {
   number as numberPrompt,
   confirm as confirmPrompt,
 } from '@inquirer/prompts';
-import validator from 'validator';
 import {type AnyListrContext, type AnyObject, type AnyYargs} from '../types/aliases.js';
-import {type ClusterReference} from '../core/config/remote/types.js';
+import {type ClusterReference} from '../types/index.js';
 import {type Optional, type SoloListrTaskWrapper} from '../types/index.js';
 import chalk from 'chalk';
 import {PathEx} from '../business/utils/path-ex.js';
+import validator from 'validator';
 
 export class Flags {
   public static KEY_COMMON = '_COMMON_';
@@ -567,6 +567,17 @@ export class Flags {
     },
   };
 
+  public static readonly upgradeVersion: CommandFlag = {
+    constName: 'upgradeVersion',
+    name: 'upgrade-version',
+    definition: {
+      describe: 'Version to be used for the upgrade',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly relayReleaseTag: CommandFlag = {
     constName: 'relayReleaseTag',
     name: 'relay-release',
@@ -722,7 +733,7 @@ export class Flags {
     name: 'ledger-id',
     definition: {
       describe: 'Ledger ID (a.k.a. Chain ID)',
-      defaultValue: constants.HEDERA_CHAIN_ID, // Ref: https://github.com/hashgraph/hedera-json-rpc-relay#configuration
+      defaultValue: constants.HEDERA_CHAIN_ID, // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay#configuration
       alias: 'l',
       type: 'string',
     },
@@ -738,7 +749,7 @@ export class Flags {
     },
   };
 
-  // Ref: https://github.com/hashgraph/hedera-json-rpc-relay/blob/main/docs/configuration.md
+  // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay/blob/main/docs/configuration.md
   public static readonly operatorId: CommandFlag = {
     constName: 'operatorId',
     name: 'operator-id',
@@ -762,7 +773,7 @@ export class Flags {
     },
   };
 
-  // Ref: https://github.com/hashgraph/hedera-json-rpc-relay/blob/main/docs/configuration.md
+  // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay/blob/main/docs/configuration.md
   public static readonly operatorKey: CommandFlag = {
     constName: 'operatorKey',
     name: 'operator-key',
@@ -899,60 +910,71 @@ export class Flags {
     },
   };
 
-  public static readonly enableHederaExplorerTls: CommandFlag = {
-    constName: 'enableHederaExplorerTls',
-    name: 'enable-hedera-explorer-tls',
+  public static readonly enableExplorerTls: CommandFlag = {
+    constName: 'enableExplorerTls',
+    name: 'enable-explorer-tls',
     definition: {
       describe:
-        'Enable the Hedera Explorer TLS, defaults to false, requires certManager and certManagerCrds, which can be deployed through solo-cluster-setup chart or standalone',
+        'Enable Explorer TLS, defaults to false, requires certManager and certManagerCrds, which can be deployed through solo-cluster-setup chart or standalone',
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: async function promptEnableHederaExplorerTls(
+    prompt: async function promptEnableExplorerTls(
       task: SoloListrTaskWrapper<AnyListrContext>,
       input: boolean,
     ): Promise<boolean> {
       return await Flags.promptToggle(
         task,
         input,
-        Flags.enableHederaExplorerTls.definition.defaultValue as boolean,
-        'Would you like to enable the Hedera Explorer TLS? ',
+        Flags.enableExplorerTls.definition.defaultValue as boolean,
+        'Would you like to enable the Explorer TLS? ',
         null,
-        Flags.enableHederaExplorerTls.name,
+        Flags.enableExplorerTls.name,
       );
     },
   };
 
-  public static readonly hederaExplorerStaticIp: CommandFlag = {
-    constName: 'hederaExplorerStaticIp',
-    name: 'hedera-explorer-static-ip',
+  public static readonly ingressControllerValueFile: CommandFlag = {
+    constName: 'ingressControllerValueFile',
+    name: 'ingress-controller-value-file',
     definition: {
-      describe: 'The static IP address to use for the Hedera Explorer load balancer, defaults to ""',
+      describe: 'The value file to use for ingress controller, defaults to ""',
       defaultValue: '',
       type: 'string',
     },
     prompt: undefined,
   };
 
-  public static readonly hederaExplorerTlsHostName: CommandFlag = {
-    constName: 'hederaExplorerTlsHostName',
-    name: 'hedera-explorer-tls-host-name',
+  public static readonly explorerStaticIp: CommandFlag = {
+    constName: 'explorerStaticIp',
+    name: 'explorer-static-ip',
     definition: {
-      describe: 'The host name to use for the Hedera Explorer TLS, defaults to "explorer.solo.local"',
+      describe: 'The static IP address to use for the Explorer load balancer, defaults to ""',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly explorerTlsHostName: CommandFlag = {
+    constName: 'explorerTlsHostName',
+    name: 'explorer-tls-host-name',
+    definition: {
+      describe: 'The host name to use for the Explorer TLS, defaults to "explorer.solo.local"',
       defaultValue: 'explorer.solo.local',
       type: 'string',
     },
-    prompt: async function promptHederaExplorerTlsHostName(
+    prompt: async function promptExplorerTlsHostName(
       task: SoloListrTaskWrapper<AnyListrContext>,
       input: string,
     ): Promise<string> {
       return await Flags.promptText(
         task,
         input,
-        Flags.hederaExplorerTlsHostName.definition.defaultValue as string,
-        'Enter the host name to use for the Hedera Explorer TLS: ',
+        Flags.explorerTlsHostName.definition.defaultValue as string,
+        'Enter the host name to use for the Explorer TLS: ',
         null,
-        Flags.hederaExplorerTlsHostName.name,
+        Flags.explorerTlsHostName.name,
       );
     },
   };
@@ -1026,6 +1048,17 @@ export class Flags {
         Flags.soloChartVersion.name,
       );
     },
+  };
+
+  public static readonly blockNodeChartVersion: CommandFlag = {
+    constName: 'chartVersion',
+    name: 'chart-version',
+    definition: {
+      describe: 'Block nodes chart version',
+      defaultValue: version.BLOCK_NODE_VERSION,
+      type: 'string',
+    },
+    prompt: undefined,
   };
 
   public static readonly applicationProperties: CommandFlag = {
@@ -1598,6 +1631,26 @@ export class Flags {
     },
   };
 
+  public static readonly blockNodeVersion: CommandFlag = {
+    constName: 'blockNodeVersion',
+    name: 'block-node-version',
+    definition: {
+      describe: 'Block nodes chart version',
+      defaultValue: version.BLOCK_NODE_VERSION,
+      type: 'string',
+    },
+    prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: boolean): Promise<boolean> {
+      return await Flags.promptToggle(
+        task,
+        input,
+        Flags.blockNodeVersion.definition.defaultValue as boolean,
+        'Would you like to choose mirror node version? ',
+        null,
+        Flags.blockNodeVersion.name,
+      );
+    },
+  };
+
   public static readonly enableIngress: CommandFlag = {
     constName: 'enableIngress',
     name: 'enable-ingress',
@@ -1620,57 +1673,26 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly hederaExplorerVersion: CommandFlag = {
-    constName: 'hederaExplorerVersion',
-    name: 'hedera-explorer-version',
+  public static readonly explorerVersion: CommandFlag = {
+    constName: 'explorerVersion',
+    name: 'explorer-version',
     definition: {
-      describe: 'Hedera explorer chart version',
-      defaultValue: version.HEDERA_EXPLORER_VERSION,
+      describe: 'Explorer chart version',
+      defaultValue: version.EXPLORER_VERSION,
       type: 'string',
     },
-    prompt: async function promptHederaExplorerVersion(
+    prompt: async function promptExplorerVersion(
       task: SoloListrTaskWrapper<AnyListrContext>,
       input: boolean,
     ): Promise<boolean> {
       return await Flags.promptToggle(
         task,
         input,
-        Flags.hederaExplorerVersion.definition.defaultValue as boolean,
-        'Would you like to choose hedera explorer version? ',
+        Flags.explorerVersion.definition.defaultValue as boolean,
+        'Would you like to choose explorer version? ',
         null,
-        Flags.hederaExplorerVersion.name,
+        Flags.explorerVersion.name,
       );
-    },
-  };
-
-  public static readonly userEmailAddress: CommandFlag = {
-    constName: 'userEmailAddress',
-    name: 'email',
-    definition: {
-      defaultValue: 'john@doe.com',
-      describe: 'User email address used for local configuration',
-      type: 'string',
-    },
-    prompt: async function promptUserEmailAddress(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: string,
-    ): Promise<string> {
-      if (input?.length) {
-        return input;
-      }
-
-      const promptForInput = async () => {
-        return await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
-          message: 'Please enter your email address:',
-        });
-      };
-
-      input = await promptForInput();
-      while (!validator.isEmail(input)) {
-        input = await promptForInput();
-      }
-
-      return input;
     },
   };
 
@@ -1938,6 +1960,36 @@ export class Flags {
 
   //* ------------------------------------------------------------------------------------------- *//
 
+  public static readonly username: CommandFlag = {
+    constName: 'username',
+    name: 'user',
+    definition: {
+      describe:
+        'Optional user name used for local configuration. Only accepts letters and numbers. Defaults to the username provided by the OS',
+      type: 'string',
+      alias: 'u',
+    },
+    prompt: async function promptUsername(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
+      const promptForInput = async () => {
+        return await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
+          message: 'Please enter your username. Can only contain letters and numbers:',
+        });
+      };
+
+      input = await promptForInput();
+
+      while (!Flags.username.validate(input)) {
+        input = await promptForInput();
+      }
+
+      return input;
+    },
+    validate: (input: string): boolean => {
+      // only allow letters and numbers
+      return validator.isAlphanumeric(input);
+    },
+  };
+
   public static readonly grpcTlsKeyPath: CommandFlag = {
     constName: 'grpcTlsKeyPath',
     name: 'grpc-tls-key',
@@ -2147,6 +2199,18 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly awsBucketRegion: CommandFlag = {
+    constName: 'awsBucketRegion',
+    name: 'aws-bucket-region',
+    definition: {
+      defaultValue: '',
+      describe: 'name of aws bucket region',
+      type: 'string',
+      dataMask: constants.STANDARD_DATAMASK,
+    },
+    prompt: undefined,
+  };
+
   public static readonly awsBucketPrefix: CommandFlag = {
     constName: 'awsBucketPrefix',
     name: 'aws-bucket-prefix',
@@ -2213,7 +2277,17 @@ export class Flags {
       defaultValue: 'us-central1',
       describe: 'backup storage region',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+    },
+    prompt: undefined,
+  };
+
+  public static readonly backupProvider: CommandFlag = {
+    constName: 'backupProvider',
+    name: 'backup-provider',
+    definition: {
+      defaultValue: 'GCS',
+      describe: 'backup storage service provider, GCS or AWS',
+      type: 'string',
     },
     prompt: undefined,
   };
@@ -2272,6 +2346,17 @@ export class Flags {
     definition: {
       defaultValue: '',
       describe: 'path prefix of storage bucket mirror node importer',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly storageBucketRegion: CommandFlag = {
+    constName: 'storageBucketRegion',
+    name: 'storage-bucket-region',
+    definition: {
+      defaultValue: '',
+      describe: 'region of storage bucket mirror node importer',
       type: 'string',
     },
     prompt: undefined,
@@ -2376,6 +2461,28 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly realm: CommandFlag = {
+    constName: 'realm',
+    name: 'realm',
+    definition: {
+      describe: 'Realm number. Requires network-node > v61.0 for non-zero values',
+      type: 'number',
+      defaultValue: 0,
+    },
+    prompt: undefined,
+  };
+
+  public static readonly shard: CommandFlag = {
+    constName: 'shard',
+    name: 'shard',
+    definition: {
+      describe: 'Shard number. Requires network-node > v61.0 for non-zero values',
+      type: 'number',
+      defaultValue: 0,
+    },
+    prompt: undefined,
+  };
+
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.adminKey,
@@ -2408,7 +2515,7 @@ export class Flags {
     Flags.ecdsaPrivateKey,
     Flags.ed25519PrivateKey,
     Flags.enableIngress,
-    Flags.enableHederaExplorerTls,
+    Flags.enableExplorerTls,
     Flags.enablePrometheusSvcMonitor,
     Flags.enableTimeout,
     Flags.endpointType,
@@ -2427,9 +2534,10 @@ export class Flags {
     Flags.grpcWebTlsCertificatePath,
     Flags.grpcWebTlsKeyPath,
     Flags.haproxyIps,
-    Flags.hederaExplorerTlsHostName,
-    Flags.hederaExplorerStaticIp,
-    Flags.hederaExplorerVersion,
+    Flags.ingressControllerValueFile,
+    Flags.explorerTlsHostName,
+    Flags.explorerStaticIp,
+    Flags.explorerVersion,
     Flags.inputDir,
     Flags.loadBalancerEnabled,
     Flags.localBuildPath,
@@ -2454,6 +2562,7 @@ export class Flags {
     Flags.quiet,
     Flags.relayReleaseTag,
     Flags.releaseTag,
+    Flags.upgradeVersion,
     Flags.replicaCount,
     Flags.setAlias,
     Flags.settingTxt,
@@ -2470,23 +2579,25 @@ export class Flags {
     Flags.awsWriteSecrets,
     Flags.awsEndpoint,
     Flags.awsBucket,
+    Flags.awsBucketRegion,
     Flags.awsBucketPrefix,
     Flags.storageReadAccessKey,
     Flags.storageReadSecrets,
     Flags.storageEndpoint,
     Flags.storageBucket,
     Flags.storageBucketPrefix,
+    Flags.storageBucketRegion,
     Flags.backupBucket,
     Flags.backupWriteAccessKey,
     Flags.backupWriteSecrets,
     Flags.backupEndpoint,
     Flags.backupRegion,
+    Flags.backupProvider,
     Flags.tlsClusterIssuerType,
     Flags.tlsPrivateKey,
     Flags.tlsPublicKey,
     Flags.updateAccountKeys,
     Flags.upgradeZipFile,
-    Flags.userEmailAddress,
     Flags.valuesFile,
     Flags.useExternalDatabase,
     Flags.externalDatabaseHost,
@@ -2500,6 +2611,11 @@ export class Flags {
     Flags.dnsConsensusNodePattern,
     Flags.domainName,
     Flags.domainNames,
+    Flags.blockNodeChartVersion,
+    Flags.blockNodeVersion,
+    Flags.realm,
+    Flags.shard,
+    Flags.username,
   ];
 
   /** Resets the definition.disablePrompt for all flags */
@@ -2526,7 +2642,7 @@ export class Flags {
 
   public static readonly integerFlags = new Map([Flags.replicaCount].map(f => [f.name, f]));
 
-  public static readonly DEFAULT_FLAGS = {
+  public static readonly DEFAULT_FLAGS: CommandFlags = {
     required: [],
     optional: [Flags.namespace, Flags.cacheDir, Flags.releaseTag, Flags.devMode, Flags.quiet],
   };

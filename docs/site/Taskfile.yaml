@@ -7,25 +7,45 @@ silent: false
 env:
   HUGO_ENVIRONMENT: production
   HUGO_ENV: production
-  HUGO_BASE_URL: https://hashgraph.github.io/solo
-  HUGO_ORIGIN: https://hashgraph.github.io
-  HUGO_HOST: hashgraph.github.io
-  HUGO_BASEPATH: /solo
+  HUGO_ORIGIN: https://solo.hiero.org/
+  HUGO_LOCAL_ORIGIN: http://localhost:1313/
+  HUGO_HOST: solo.hiero.org
+  HUGO_SOLO_VERSION: main
+  HUGO_BASEPATH: /
+vars:
+  hugo_base_url: "${HUGO_ORIGIN}${HUGO_SOLO_VERSION}/"
+  hugo_local_base_url: "${HUGO_LOCAL_ORIGIN}${HUGO_SOLO_VERSION}/"
+
+# TODO P0 attach the archive to the release, can I use gh CLI in Taskfile.yaml?
+# TODO P2 break this into multiple files
 
 tasks:
   default:
+    desc: "List all available tasks"
+    cmds:
+      - task --list
+
+  build:
+    desc: "Build the documentation site"
     cmds:
       - task: "check-doc-dir"
       - task: "clean"
       - task: "install"
+      - task: "mutate:readme"
+      - task: "mutate:dev"
       - task: "build:all"
 
-  start:
+  install:nginx:
+    desc: "Install Nginx"
+    status:
+      - command -v nginx
     cmds:
-      - task: "default"
-      - hugo server --disableFastRender --ignoreCache
+      - brew update
+      - brew install nginx
 
   check-doc-dir:
+    desc: "Check if in the docs/site directory"
+    silent: true
     status:
       - |
         if [ "$(basename "$PWD")" != "site" ]; then
@@ -37,80 +57,554 @@ tasks:
         exit 1
 
   clean:
+    desc: "Remove artifacts that are automatically generated"
+    silent: true
     cmds:
-      - rm -Rf content/Classes
-      - rm -f content/Developer/DEV.md
-      - rm -f content/User/README.md
-      - rm -f content/User/SoloCommands.md
-      - rm -Rf public
-      - rm -Rf themes
+      - rm -Rf build
+      - rm -Rf static/classes
+      - rm -Rf public/${HUGO_SOLO_VERSION}
+      - rm -Rf resources
       - rm -f .hugo_build.lock
 
   build:all:
+    desc: "Perform the build operations: typedoc, cli help, and hugo"
     cmds:
       - task: "build:typedoc"
-      - task: "build:copy"
-      - task: "build:help"
+      - task: "build:cli:help"
+      - task: "solo:version"
+      - task: "npmjs:latest:solo:version"
+      - task: "npmjs:list:solo:versions"
+      - task: "github:list:solo:releases"
+      - task: "github:augment:releases"
+      - task: "github:prepare:site"
       - task: "build:hugo"
+      - task: "build:doc:artifacts"
 
-  build:
+  build:solo:
+    desc: "Build the Solo CLI"
+    dir: ../..
+    silent: true
+    sources:
+      - src/**/*.ts
+      - version.ts
+      - solo.ts
+    generates:
+      - dist/**/*.js
     cmds:
       - rm -Rf dist
       - npx tsc
       - node {{.TASKFILE_DIR}}/../../resources/post-build-script.js
 
-  build:help:
+  build:cli:help:
+    desc: "Generate the CLI help documentation"
+    silent: true
     dir: ../..
-    cmds:
-      - chmod 755 docs/site/generate_help.sh
-      - task: "build"
+    sources:
+      - src/**/*.ts
+      - version.ts
+      - solo.ts
       - docs/site/generate_help.sh
+    generates:
+      - docs/site/content/en/docs/solo-commands.md
+    cmds:
+      - printf "\r::group::Generating CLI help documentation"
+      - rm -f docs/site/content/en/docs/solo-commands.md
+      - chmod 755 docs/site/generate_help.sh
+      - task: "build:solo"
+      - docs/site/generate_help.sh
+      - printf "                        \r::endgroup::"
 
   build:hugo:
+    desc: "Build the Hugo site"
+    silent: true
     cmds:
-      - echo "base_url  $HUGO_BASE_URL"
-      - echo "origin    $HUGO_ORIGIN"
-      - echo "host      $HUGO_HOST"
-      - echo "base_path $HUGO_BASEPATH"
-      - mkdir -p themes/hugo-geekdoc
-      - curl -L https://github.com/thegeeklab/hugo-geekdoc/releases/latest/download/hugo-geekdoc.tar.gz | tar -xz -C themes/hugo-geekdoc/ --strip-components=1
+      - echo "origin              $HUGO_ORIGIN"
+      - echo "host                $HUGO_HOST"
+      - echo "base_path           $HUGO_BASEPATH"
+      - echo "solo vers           $HUGO_SOLO_VERSION"
+      - echo "hugo_base_url       {{.hugo_base_url}}"
+      - echo "hugo_local_base_url {{.hugo_local_base_url}}"
       - hugo version
+      - printf "\r::group::Building the Hugo site"
       - hugo config
-      - hugo --gc --minify --baseURL "$HUGO_BASE_URL/"
+      - hugo --cleanDestinationDir -e prod --gc --minify --baseURL "{{.hugo_base_url}}" -d public/${HUGO_SOLO_VERSION}
+      - printf "                        \r::endgroup::"
+
+  local:
+    desc: "Run the local server for only current version"
+    silent: true
+    cmds:
+      - task: "install:nginx"
+      - task: "build"
+      - hugo server --cleanDestinationDir -e dev -DFE --minify serve --baseURL "{{.hugo_local_base_url}}" -d public/${HUGO_SOLO_VERSION}
 
   build:typedoc:
+    desc: "Generate the API documentation using TypeDoc"
     dir: ../..
+    silent: true
+    sources:
+      - src/**/*.ts
+      - version.ts
+      - solo.ts
+    generates:
+      - docs/site/static/classes/**/*.*
     cmds:
-      - npx typedoc --excludeExternals --out docs/site/public/static/Classes --entryPoints ./solo.ts --entryPoints ./src/index.ts --entryPointStrategy expand ./src
-
-  build:copy:
-    cmds:
-      - mkdir -p content/Developer
-      - cp ../../DEV.md content/Developer/DEV.md
-      - mkdir -p content/User
-      - mkdir -p content/User/README
-      - cp ../../README.md content/User/README/README.md
-      - mkdir -p content/User/README/README/images
-      - cp ../../images/DockerDesktop.png content/User/README/README/images/DockerDesktop.png
-      - chmod -R 755 content/User/README
+      - printf "\r::group::Generating API documentation"
+      - npx typedoc --excludeExternals --out docs/site/static/classes --entryPoints ./solo.ts --entryPoints ./src/index.ts --entryPointStrategy expand ./src
+      - printf "                        \r::endgroup::"
 
   install:
+    desc: "Install dependencies: Hugo, TypeDoc, Solo CLI, and Docsy theme"
     cmds:
       - task: "install:hugo"
       - task: "install:typedoc"
       - task: "install:solo"
+      - task: "install:docsy"
+
+  install:docsy:
+    silent: true
+    deps: [solo:version]
+    sources:
+      - package.json
+      - package-lock.json
+    generates:
+      - node_modules/**/*.*
+    cmds:
+      - printf "\r::group::Installing Docsy theme"
+      - npm install -g postcss-cli # Install postcss-cli globally to get around bug: https://github.com/google/docsy/issues/235
+      - npm install
+      - npm install postcss # must install separately after prior items have been installed: https://www.docsy.dev/docs/get-started/docsy-as-module/installation-prerequisites/#install-postcss
+      - hugo mod get github.com/google/docsy@v0.11.1-0.20250424121410-343cdec14c0a
+      - printf "                        \r::endgroup::"
 
   install:hugo:
+    desc: "Install Hugo extended version"
+    silent: true
     status:
       - command -v hugo
+      - |
+        node -e "
+        const { execSync } = require('child_process');
+        const semver = require('semver');
+
+        try {
+          const output = execSync('hugo version').toString();
+          const versionMatch = output.match(/v(\d+\.\d+\.\d+)(\+extended)?/);
+          if (!versionMatch) {
+            console.error('❌ Could not extract Hugo version from:', output);
+            process.exit(1);
+          }
+
+          const currentVersion = versionMatch[1];
+          const isExtended = !!versionMatch[2];
+          const requiredVersion = '0.145.0';
+
+          if (!isExtended) {
+            console.error('❌ Hugo is not the extended version. Please install the extended edition.');
+            process.exit(1);
+          }
+
+          if (!semver.gte(currentVersion, requiredVersion)) {
+            console.error(\`❌ Hugo version \${currentVersion} is too old. Requires >= \${requiredVersion}\`);
+            process.exit(1);
+          }
+
+          console.log(\`✅ Hugo version \${currentVersion}+extended is OK (>= \${requiredVersion})\`);
+        } catch (err) {
+          console.error('❌ Failed to run hugo:', err.message);
+          process.exit(1);
+        }
+        "
     cmds:
-      - go install github.com/gohugoio/hugo@v0.124.1
+      - printf "\r::group::Installing Hugo extended version"
+      - CGO_ENABLED=1 go install -tags extended github.com/gohugoio/hugo@v0.145.0
+      - printf "                        \r::endgroup::"
 
   install:typedoc:
+    desc: "Install TypeDoc"
     cmds:
       - npx typedoc --version
 
   install:solo:
+    desc: "Install the Solo CLI dependencies from the package.json"
+    silent: true
     dir: ../..
+    sources:
+      - package.json
+      - package-lock.json
     cmds:
+      - printf "\r::group::Installing Solo"
       - npm install
+      - printf "                        \r::endgroup::"
+
+  deploy:nginx:
+    desc: "Build the Hugo site, configure Nginx, then deploy Nginx to serve the Hugo site for testing multiple versions"
+    cmds:
+      - task: "build"
+      - task: "deploy:nginx:config"
+      - task: "deploy:nginx:start"
+
+  deploy:nginx:config:
+    desc: "Configure Nginx to serve the Hugo site for testing multiple versions"
+    silent: true
+    cmds:
+      - |
+        if [ ! -d "nginx" ]; then
+          mkdir -p nginx
+        fi
+      - |
+        cat > nginx/nginx.conf << 'EOF'
+        worker_processes  1;
+
+        events {
+            worker_connections  1024;
+        }
+
+        http {
+            include       mime.types;
+            default_type  application/octet-stream;
+
+            sendfile        on;
+            keepalive_timeout  65;
+
+            server {
+                listen       7777;
+                server_name  localhost;
+
+                root   {{.TASKFILE_DIR}}/public;
+                index  index.html index.htm;
+
+                location / {
+                    try_files $uri $uri/ /index.html;
+                }
+
+                error_page   500 502 503 504  /50x.html;
+                location = /50x.html {
+                    root   html;
+                }
+            }
+        }
+        EOF
+
+  deploy:nginx:start:
+    desc: "Start Nginx with the Hugo site configuration for testing multiple versions"
+    silent: true
+    cmds:
+      - |
+        if pgrep nginx > /dev/null; then
+          echo "Stopping existing Nginx..."
+          nginx -s stop
+        fi
+      - |
+        echo "Starting Nginx... on http://localhost:7777"
+        nginx -c {{.TASKFILE_DIR}}/nginx/nginx.conf
+
+  deploy:nginx:stop:
+    desc: "Stop Nginx"
+    silent: true
+    cmds:
+      - |
+        if pgrep nginx > /dev/null; then
+          echo "Stopping Nginx..."
+          nginx -s stop
+        else
+          echo "Nginx is not running"
+        fi
+
+  solo:version:
+    desc: "Display the version of the Solo CLI from the package.json and write it to a file"
+    dir: ../..
+    silent: true
+    cmds:
+      - |
+        BUILD_DIR=docs/site/build
+        SOLO_VERSION_FILE=$BUILD_DIR/version.txt
+        mkdir -p $BUILD_DIR
+        echo -n "v$(node -p "require('./package.json').version")" > $SOLO_VERSION_FILE
+        SOLO_VERSION=$(<"$SOLO_VERSION_FILE")
+        SOLO_VERSION=$(echo "$SOLO_VERSION" | tr -d '\r\n[:space:]')
+        echo "Solo CLI version: $SOLO_VERSION"
+        echo "Run the following command to build the site with the current version: $SOLO_VERSION"
+        echo "HUGO_SOLO_VERSION=$SOLO_VERSION task build" 
+        cp docs/site/hugo-template.yaml docs/site/hugo.yaml
+        if [ "$HUGO_SOLO_VERSION" != "main" ]; then
+         echo "    - {version: $SOLO_VERSION, url: /$SOLO_VERSION}">> docs/site/hugo.yaml
+        fi
+
+  npmjs:latest:solo:version:
+    desc: "Display the latest version of the Solo CLI from https://www.npmjs.com/package/@hashgraph/solo"
+    silent: true
+    cmds:
+      - |
+        LATEST_VERSION=$(curl -s https://registry.npmjs.org/@hashgraph/solo/latest | jq -r '.version')
+        echo "Latest version of Solo CLI from https://www.npmjs.com/package/@hashgraph/solo: $LATEST_VERSION"
+        mkdir -p build
+        echo -n "v$LATEST_VERSION" > build/npmjs-latest-version.txt
+
+  build:doc:artifacts:
+    desc: "Builds a ./build/latest.tar.gz file and a ./build/${SOLO_VERSION}.tar.gz file from the directories in the public directory"
+    silent: true
+    cmds:
+      - |
+        mkdir -p build/${HUGO_SOLO_VERSION}/latest
+        sed -e "s|/latest|/${HUGO_SOLO_VERSION}|g" public/index.html > build/${HUGO_SOLO_VERSION}/latest/index.html
+        cd build/${HUGO_SOLO_VERSION}
+        tar -czf latest.tar.gz latest
+        cd ../../public
+        tar -czf ../build/${HUGO_SOLO_VERSION}/${HUGO_SOLO_VERSION}.tar.gz ${HUGO_SOLO_VERSION}
+        cd ..
+
+  npmjs:list:solo:versions:
+    desc: Fetch and display all versions of @hashgraph/solo from NPM (with 'v' prefix)
+    silent: true
+    cmds:
+      - |
+        if ! command -v curl &> /dev/null; then
+          echo "Error: curl is not installed." >&2
+          exit 1
+        fi
+        if ! command -v jq &> /dev/null; then
+          echo "Error: jq is not installed." >&2
+          exit 1
+        fi
+        if ! sort -V < /dev/null &> /dev/null; then
+          echo "Error: sort -V is not supported on this system." >&2
+          echo "Tip: On macOS, run 'brew install coreutils' and replace 'sort' with 'gsort' in this task." >&2
+          exit 1
+        fi
+        echo "Fetching versions of @hashgraph/solo from NPM..."
+        response=$(curl -s https://registry.npmjs.org/@hashgraph/solo)
+        if [ $? -ne 0 ]; then
+          echo "Error: Failed to fetch data from NPM registry." >&2
+          exit 1
+        fi
+        versions=$(echo "$response" | jq -r '.versions | keys[] | "v\(.)"' 2> /dev/null)
+        if [ $? -ne 0 ]; then
+          echo "Error: Failed to parse JSON response." >&2
+          exit 1
+        fi
+        if [ -z "$versions" ]; then
+          echo "No versions found for @hashgraph/solo." >&2
+          exit 1
+        fi
+        echo "Available versions of @hashgraph/solo:"
+        echo "$versions" | sort -Vr | tee build/npmjs-versions.txt
+
+  # this will need adjusting once I get an artifact published
+  github:list:solo:releases:
+    desc: List GitHub releases for hiero-ledger/solo using gh CLI and output as JSON (excluding empty assets)
+    silent: true
+    cmds:
+      - |
+        mkdir -p build
+        if ! command -v gh &> /dev/null; then
+          echo "Error: GitHub CLI (gh) is not installed." >&2
+          exit 1
+        fi
+        echo "Fetching releases from GitHub with gh CLI..."
+        gh api --paginate -H "Accept: application/vnd.github+json" \
+          repos/hiero-ledger/solo/releases |
+        jq 'map({
+          tag: ("v" + (.tag_name | ltrimstr("v"))),
+          assets: (
+            .assets
+            | map(select(.name != "Source code (zip)" and .name != "Source code (tar.gz)"))
+            | map({name: .name, url: .browser_download_url})
+          )
+        }) | map(select(.assets | length > 0))' | tee build/github-releases.json
+
+  github:download:solo:assets:
+    desc: Download release assets into per-tag folders under build/
+    deps: [github:augment:releases]
+    silent: true
+    cmds:
+      - |
+        if [ ! -f build/github-releases.json ]; then
+          echo "Error: build/github-releases.json does not exist. Run github:list:solo:releases first." >&2
+          exit 1
+        fi
+  
+        echo "Creating directories and downloading assets..."
+        jq -c '.[]' build/github-releases.json | while read -r release; do
+          tag=$(echo "$release" | jq -r '.tag' | sed 's#[/:]#_#g')
+          mkdir -p "build/$tag"
+  
+          echo "Processing release: $tag"
+          echo "$release" | jq -c '.assets[]' | while read -r asset; do
+            name=$(echo "$asset" | jq -r '.name')
+            url=$(echo "$asset" | jq -r '.url')
+            dest="build/$tag/$name"
+  
+            if [ -f "$dest" ]; then
+              echo "✔ Skipping $name (already exists)"
+            else
+              echo "⬇ Downloading $name"
+              curl -sSL --retry 3 --fail -o "$dest" "$url" || {
+                echo "❌ Failed to download $url" >&2
+                rm -f "$dest"
+              }
+            fi
+          done
+        done
+
+  github:extract:latest:
+    desc: Extract latest.tar.gz from latest version to public/latest
+    deps: [github:download:solo:assets]
+    silent: true
+    cmds:
+      - |
+        LATEST_TAG=$(jq -r '.[] | select(.npmjsLatest == true) | .tag' build/releases.json)
+        if [ -z "$LATEST_TAG" ]; then
+          echo "No latest version found in releases.json"
+          exit 0
+        fi
+  
+        SAFE_TAG=$(echo "$LATEST_TAG" | sed 's#[/:]#_#g')
+        ARCHIVE="build/$SAFE_TAG/latest.tar.gz"
+  
+        if [ ! -f "$ARCHIVE" ]; then
+          echo "Error: $ARCHIVE does not exist." >&2
+          exit 1
+        fi
+  
+        echo "Extracting $ARCHIVE to public/latest..."
+        rm -rf public/latest
+        mkdir -p public/latest
+        tar --warning=no-unknown-keyword -xzf "$ARCHIVE" -C public/
+
+  github:extract:versioned:
+    desc: Extract ${tag}.tar.gz into public/${tag}
+    deps: [github:download:solo:assets]
+    silent: true
+    cmds:
+      - |
+        jq -c '.[] | select(.npmjsLatest == true or .npmjsLatest == false)' build/releases.json | while read -r release; do
+          TAG=$(echo "$release" | jq -r '.tag')
+          SAFE_TAG=$(echo "$TAG" | sed 's#[/:]#_#g')
+          ARCHIVE="build/$SAFE_TAG/$TAG.tar.gz"
+          DEST="public"
+  
+          if [ ! -f "$ARCHIVE" ]; then
+            echo "⚠️ Missing: $ARCHIVE"
+            continue
+          fi
+  
+          echo "📦 Extracting $ARCHIVE to $DEST..."
+          mkdir -p "$DEST"
+          tar --warning=no-unknown-keyword -xzf "$ARCHIVE" -C "$DEST"
+        done
+
+  github:update:hugo:config:
+    desc: Append versions from releases.json to hugo.yaml
+    silent: true
+    cmds:
+      - |
+        RELEASES="build/releases.json"
+        CONFIG="hugo.yaml"
+  
+        if [ ! -f "$RELEASES" ]; then
+          echo "❌ Error: $RELEASES not found" >&2
+          exit 1
+        fi
+  
+        jq -r '.[] | select(.npmjsLatest == true or .npmjsLatest == false) | "    - {version: \(.tag), url: /\(.tag)}"' "$RELEASES" >> "$CONFIG"
+
+  github:prepare:site:
+    desc: Run all extraction and update tasks
+    deps:
+      - github:extract:latest
+      - github:extract:versioned
+      - github:update:hugo:config
+
+
+  github:augment:releases:
+    desc: Add npmjsLatest field to each release in github-releases.json and save to build/releases.json
+    deps: [github:list:solo:releases]
+    silent: true
+    cmds:
+      - |
+        set -e
+  
+        LATEST_FILE="build/npmjs-latest-version.txt"
+        ALL_VERSIONS_FILE="build/npmjs-versions.txt"
+        RELEASES_FILE="build/github-releases.json"
+        OUTPUT_FILE="build/releases.json"
+  
+        if [ ! -f "$RELEASES_FILE" ]; then
+          echo "Error: $RELEASES_FILE not found." >&2
+          exit 1
+        fi
+  
+        if [ ! -f "$LATEST_FILE" ]; then
+          echo "Error: $LATEST_FILE not found." >&2
+          exit 1
+        fi
+  
+        if [ ! -f "$ALL_VERSIONS_FILE" ]; then
+          echo "Error: $ALL_VERSIONS_FILE not found." >&2
+          exit 1
+        fi
+  
+        latest=$(cat "$LATEST_FILE" | tr -d '\r\n')
+  
+        # read versions into array
+        mapfile -t all_versions < "$ALL_VERSIONS_FILE"
+  
+        # convert array to jq-friendly string
+        all_versions_json=$(printf '%s\n' "${all_versions[@]}" | jq -R . | jq -s .)
+  
+        jq --arg latest "$latest" --argjson all_versions "$all_versions_json" '
+          map(. + {
+            npmjsLatest: (
+              if .tag == $latest then true
+              elif (.tag | IN($all_versions[])) then false
+              else null
+              end
+            )
+          })
+        ' "$RELEASES_FILE" > "$OUTPUT_FILE"
+  
+        echo "✅ Output written to $OUTPUT_FILE"
+
+  mutate:readme:
+    desc: "Mutate the README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - README.md
+    generates:
+      - docs/site/build/README.md
+    cmds:
+        - |
+          mkdir -p docs/site/build
+          cat > docs/site/build/README.md << 'EOF'
+          ---
+          title: "Getting Started"
+          weight: 1
+          description: >
+            Getting started with Solo 
+          type: docs
+          ---
+          EOF
+        - cat README.md >> docs/site/build/README.md
+
+  mutate:dev:
+    desc: "Mutate the DEV.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - DEV.md
+    generates:
+      - docs/site/build/DEV.md
+    cmds:
+        - |
+          mkdir -p docs/site/build
+          cat > docs/site/build/DEV.md << 'EOF'
+          ---
+          title: "Contributing to Solo"
+          weight: 20
+          description: "Instructions for developers working on the Solo project"
+          type: docs
+          ---
+          EOF
+        - cat DEV.md >> docs/site/build/DEV.md

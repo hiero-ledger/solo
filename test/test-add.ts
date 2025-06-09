@@ -15,12 +15,12 @@ import {
 import {type NodeAlias} from '../src/types/aliases.js';
 import {Duration} from '../src/core/time/duration.js';
 import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../version-test.js';
-import {NamespaceName} from '../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../src/types/namespace/namespace-name.js';
 import {type NetworkNodes} from '../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from './helpers/argv-wrapper.js';
-import {type DeploymentName} from '../src/core/config/remote/types.js';
+import {type DeploymentName} from '../src/types/index.js';
 import {NodeCommand} from '../src/commands/node/index.js';
 import {NetworkCommand} from '../src/commands/network.js';
 import {AccountCommand} from '../src/commands/account.js';
@@ -49,10 +49,12 @@ export function testNodeAdd(
   argv.setArg(flags.force, true);
   argv.setArg(flags.persistentVolumeClaims, true);
   argv.setArg(flags.localBuildPath, localBuildPath);
+  argv.setArg(flags.realm, 0);
+  argv.setArg(flags.shard, 0);
 
   endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     const {
-      opts: {k8Factory, accountManager, remoteConfigManager, logger, commandInvoker},
+      opts: {k8Factory, accountManager, remoteConfig, logger, commandInvoker},
       cmd: {nodeCmd, accountCmd, networkCmd},
     } = bootstrapResp;
 
@@ -77,6 +79,7 @@ export function testNodeAdd(
           argv: argv,
           command: NetworkCommand.COMMAND_NAME,
           subcommand: 'destroy',
+          // @ts-expect-error - to access private method
           callback: async argv => networkCmd.destroy(argv),
         });
         await k8Factory.default().namespaces().delete(namespace);
@@ -85,7 +88,7 @@ export function testNodeAdd(
       it('cache current version of private keys', async () => {
         existingServiceMap = await accountManager.getNodeServiceMap(
           namespace,
-          remoteConfigManager.getClusterRefs(),
+          remoteConfig.getClusterRefs(),
           argv.getArg<DeploymentName>(flags.deployment),
         );
         existingNodeIdsPrivateKeysHash = await getNodeAliasesPrivateKeysHash(
@@ -115,9 +118,18 @@ export function testNodeAdd(
         await accountManager.close();
       }).timeout(Duration.ofMinutes(12).toMillis());
 
-      balanceQueryShouldSucceed(accountManager, namespace, remoteConfigManager, logger);
+      it('should be able to create account after a node add', async () => {
+        await commandInvoker.invoke({
+          argv: argv,
+          command: AccountCommand.COMMAND_NAME,
+          subcommand: 'create',
+          callback: async argv => accountCmd.create(argv),
+        });
+      });
 
-      accountCreationShouldSucceed(accountManager, namespace, remoteConfigManager, logger);
+      balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
+
+      accountCreationShouldSucceed(accountManager, namespace, remoteConfig, logger);
 
       it('existing nodes private keys should not have changed', async () => {
         const currentNodeIdsPrivateKeysHash = await getNodeAliasesPrivateKeysHash(

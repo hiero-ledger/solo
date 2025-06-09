@@ -12,10 +12,21 @@ type ObjectMethod<T> = (cls: ClassConstructor<T>, key?: string) => T;
 type ObjectArrayMethod<T> = (cls: ClassConstructor<T>, key?: string) => T[];
 
 export class LayeredConfig implements Config {
-  public constructor(public readonly sources: ConfigSource[]) {
+  private readonly _sources: ConfigSource[];
+
+  public constructor(
+    sources: ConfigSource[],
+    public readonly mergeSourceValues: boolean = false,
+  ) {
     if (sources) {
       sources.sort(Comparators.configSource);
     }
+
+    this._sources = sources ?? [];
+  }
+
+  public get sources(): ConfigSource[] {
+    return [...this._sources];
   }
 
   public asBoolean(key: string): boolean | null {
@@ -109,9 +120,9 @@ export class LayeredConfig implements Config {
     let value: T = null;
 
     for (const source of this.sources) {
-      const currentValue = source[method.name](cls, key);
+      const currentValue: any = source[method.name](cls, key);
       if (currentValue !== null && currentValue !== undefined) {
-        value = currentValue;
+        value = this.mergeSourceValues ? ReflectAssist.merge(value, currentValue) : currentValue;
       }
     }
 
@@ -122,7 +133,7 @@ export class LayeredConfig implements Config {
     let value: Array<T> = null;
 
     for (const source of this.sources) {
-      const currentValue = source[method.name](cls, key);
+      const currentValue: any = source[method.name](cls, key);
       if (currentValue !== null && currentValue !== undefined) {
         value = currentValue;
       }

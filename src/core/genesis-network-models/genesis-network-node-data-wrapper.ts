@@ -8,7 +8,7 @@ import {
   type ToObject,
 } from '../../types/index.js';
 import {GenesisNetworkDataWrapper} from './genesis-network-data-wrapper.js';
-import {isIPv4Address} from '../helpers.js';
+import {ipv4ToBase64, isIPv4Address} from '../helpers.js';
 
 export class GenesisNetworkNodeDataWrapper
   extends GenesisNetworkDataWrapper
@@ -17,10 +17,10 @@ export class GenesisNetworkNodeDataWrapper
   public accountId: AccountId;
   public serviceEndpoint: ServiceEndpoint[] = [];
   public grpcCertificateHash: string;
-  public readonly deleted = false;
+  public readonly deleted: boolean = false;
 
-  constructor(
-    public readonly nodeId: number,
+  public constructor(
+    public override readonly nodeId: number,
     public readonly adminKey: PublicKey,
     public readonly description: string,
   ) {
@@ -36,14 +36,29 @@ export class GenesisNetworkNodeDataWrapper
     this.serviceEndpoint.push({
       domainName: isIpV4Address ? '' : address,
       port,
-      ipAddressV4: isIpV4Address ? address : '',
+      ipAddressV4: isIpV4Address ? ipv4ToBase64(address) : undefined,
     });
   }
 
-  public toObject() {
+  public toObject(): {
+    accountId: NodeAccountId;
+    adminKey: PublicKey;
+    deleted: boolean;
+    description: string;
+    gossipCaCertificate: string;
+    gossipEndpoint: ServiceEndpoint[];
+    grpcCertificateHash: string;
+    nodeId: number;
+    serviceEndpoint: ServiceEndpoint[];
+    weight: number;
+  } {
     return {
       nodeId: this.nodeId,
-      accountId: {accountNum: `${this.accountId.num}`} as unknown as NodeAccountId,
+      accountId: {
+        realmNum: `${this.accountId.realm}`,
+        shardNum: `${this.accountId.shard}`,
+        accountNum: `${this.accountId.num}`,
+      } as unknown as NodeAccountId,
       description: this.description,
       gossipEndpoint: this.gossipEndpoint,
       serviceEndpoint: this.serviceEndpoint,
@@ -55,3 +70,4 @@ export class GenesisNetworkNodeDataWrapper
     };
   }
 }
+//

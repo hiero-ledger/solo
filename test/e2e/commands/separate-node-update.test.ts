@@ -14,13 +14,13 @@ import {
   HEDERA_PLATFORM_VERSION_TAG,
 } from '../../test-utility.js';
 import {Duration} from '../../../src/core/time/duration.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
-import {type DeploymentName} from '../../../src/core/config/remote/types.js';
+import {type DeploymentName} from '../../../src/types/index.js';
 import {NodeCommand} from '../../../src/commands/node/index.js';
 import {AccountCommand} from '../../../src/commands/account.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
@@ -46,7 +46,7 @@ argv.setArg(flags.persistentVolumeClaims, true);
 
 endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   const {
-    opts: {k8Factory, logger, remoteConfigManager, commandInvoker, accountManager, keyManager},
+    opts: {k8Factory, logger, remoteConfig, commandInvoker, accountManager, keyManager},
     cmd: {nodeCmd, accountCmd},
   } = bootstrapResp;
 
@@ -72,7 +72,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     it('cache current version of private keys', async () => {
       existingServiceMap = await accountManager.getNodeServiceMap(
         namespace,
-        remoteConfigManager.getClusterRefs(),
+        remoteConfig.getClusterRefs(),
         argv.getArg<DeploymentName>(flags.deployment),
       );
       existingNodeIdsPrivateKeysHash = await getNodeAliasesPrivateKeysHash(
@@ -138,9 +138,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await accountManager.close();
     }).timeout(Duration.ofMinutes(30).toMillis());
 
-    balanceQueryShouldSucceed(accountManager, namespace, remoteConfigManager, logger, updateNodeId);
+    balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger, updateNodeId);
 
-    accountCreationShouldSucceed(accountManager, namespace, remoteConfigManager, logger, updateNodeId);
+    accountCreationShouldSucceed(accountManager, namespace, remoteConfig, logger, updateNodeId);
 
     it('signing key and tls key should not match previous one', async () => {
       const currentNodeIdsPrivateKeysHash = await getNodeAliasesPrivateKeysHash(

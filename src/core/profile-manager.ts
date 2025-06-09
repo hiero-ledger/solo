@@ -16,20 +16,21 @@ import {Templates} from './templates.js';
 import * as constants from './constants.js';
 import {type ConfigManager} from './config-manager.js';
 import * as helpers from './helpers.js';
-import {getNodeAccountMap} from './helpers.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type AnyObject, type DirectoryPath, type NodeAlias, type NodeAliases, type Path} from '../types/aliases.js';
 import {type Optional} from '../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
 import * as versions from '../../version.js';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
-import {type RemoteConfigManager} from './config/remote/remote-config-manager.js';
-import {type ClusterReference} from './config/remote/types.js';
+import {type ClusterReference, DeploymentName, Realm, Shard} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {AccountManager} from './account-manager.js';
+import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
+import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 @injectable()
 export class ProfileManager {
@@ -37,7 +38,9 @@ export class ProfileManager {
   private readonly configManager: ConfigManager;
   private readonly cacheDir: DirectoryPath;
   private readonly k8Factory: K8Factory;
-  private readonly remoteConfigManager: RemoteConfigManager;
+  private readonly remoteConfig: RemoteConfigRuntimeStateApi;
+  private readonly accountManager: AccountManager;
+  private readonly localConfig: LocalConfigRuntimeState;
 
   private profiles: Map<string, AnyObject>;
   private profileFile: Optional<string>;
@@ -47,17 +50,17 @@ export class ProfileManager {
     @inject(InjectTokens.ConfigManager) configManager?: ConfigManager,
     @inject(InjectTokens.CacheDir) cacheDirectory?: DirectoryPath,
     @inject(InjectTokens.K8Factory) k8Factory?: K8Factory,
-    @inject(InjectTokens.RemoteConfigManager) remoteConfigManager?: RemoteConfigManager,
+    @inject(InjectTokens.RemoteConfigRuntimeState) remoteConfig?: RemoteConfigRuntimeStateApi,
+    @inject(InjectTokens.AccountManager) accountManager?: AccountManager,
+    @inject(InjectTokens.LocalConfigRuntimeState) localConfig?: LocalConfigRuntimeState,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.cacheDir = PathEx.resolve(patchInject(cacheDirectory, InjectTokens.CacheDir, this.constructor.name));
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
-    this.remoteConfigManager = patchInject(
-      remoteConfigManager,
-      InjectTokens.RemoteConfigManager,
-      this.constructor.name,
-    );
+    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
+    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
 
     this.profiles = new Map();
   }
@@ -202,12 +205,17 @@ export class ProfileManager {
     nodeAliases: NodeAliases,
     yamlRoot: AnyObject,
     domainNamesMapping: Record<NodeAlias, string>,
+    deploymentName: DeploymentName,
+    applicationPropertiesPath: string,
   ): Promise<AnyObject> {
     if (!profile) {
       throw new MissingArgumentError('profile is required');
     }
 
-    const accountMap: Map<NodeAlias, string> = getNodeAccountMap(consensusNodes.map(node => node.name));
+    const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
+      consensusNodes.map(node => node.name),
+      deploymentName,
+    );
 
     // set consensus pod level resources
     for (const [nodeIndex, nodeAlias] of nodeAliases.entries()) {
@@ -235,6 +243,15 @@ export class ProfileManager {
       this.configManager.getFlag(flags.chainId),
       this.configManager.getFlag(flags.loadBalancerEnabled),
     );
+
+    // Update application.properties with shard and realm
+    await this.updateApplicationPropertiesWithRealmAndShard(
+      applicationPropertiesPath,
+      this.localConfig.configuration.realmForDeployment(deploymentName),
+      this.localConfig.configuration.shardForDeployment(deploymentName),
+    );
+
+    await this.updateApplicationPropertiesForBlockNode(applicationPropertiesPath);
 
     for (const flag of flags.nodeConfigFileFlags.values()) {
       const filePath = this.configManager.getFlagFile(flag);
@@ -354,12 +371,16 @@ export class ProfileManager {
    * @param profileName - resource profile name
    * @param consensusNodes - the list of consensus nodes
    * @param domainNamesMapping
+   * @param deploymentName
+   * @param applicationPropertiesPath
    * @returns mapping of cluster-ref to the full path to the values file
    */
   public async prepareValuesForSoloChart(
     profileName: string,
     consensusNodes: ConsensusNode[],
     domainNamesMapping: Record<NodeAlias, string>,
+    deploymentName: DeploymentName,
+    applicationPropertiesPath: string,
   ): Promise<Record<ClusterReference, string>> {
     if (!profileName) {
       throw new MissingArgumentError('profileName is required');
@@ -368,14 +389,22 @@ export class ProfileManager {
 
     const filesMapping: Record<ClusterReference, string> = {};
 
-    for (const clusterReference of Object.keys(this.remoteConfigManager.getClusterRefs())) {
+    for (const [clusterReference] of this.remoteConfig.getClusterRefs()) {
       const nodeAliases: NodeAliases = consensusNodes
         .filter(consensusNode => consensusNode.cluster === clusterReference)
         .map(consensusNode => consensusNode.name);
 
       // generate the YAML
       const yamlRoot = {};
-      await this.resourcesForConsensusPod(profile, consensusNodes, nodeAliases, yamlRoot, domainNamesMapping);
+      await this.resourcesForConsensusPod(
+        profile,
+        consensusNodes,
+        nodeAliases,
+        yamlRoot,
+        domainNamesMapping,
+        deploymentName,
+        applicationPropertiesPath,
+      );
       this.resourcesForHaProxyPod(profile, yamlRoot);
       this.resourcesForEnvoyProxyPod(profile, yamlRoot);
       this.resourcesForMinioTenantPod(profile, yamlRoot);
@@ -399,6 +428,73 @@ export class ProfileManager {
     }
 
     await writeFile(applicationPropertiesPath, lines.join('\n'));
+  }
+
+  private async updateApplicationPropertiesForBlockNode(applicationPropertiesPath: string): Promise<void> {
+    const hasDeployedBlockNodes: boolean =
+      Object.keys(this.remoteConfig.configuration.components.state.blockNodes).length > 0;
+    if (!hasDeployedBlockNodes) {
+      return;
+    }
+
+    const lines: string[] = (await readFile(applicationPropertiesPath, 'utf-8')).split('\n');
+
+    const streamMode: string = 'BOTH';
+    const writerMode: string = 'FILE_AND_GRPC';
+
+    let streamModeUpdated: boolean = false;
+    let writerModeUpdated: boolean = false;
+    for (const line of lines) {
+      if (line.startsWith('blockStream.streamMode=')) {
+        lines[lines.indexOf(line)] = `blockStream.streamMode=${streamMode}`;
+        streamModeUpdated = true;
+        continue;
+      }
+      if (line.startsWith('blockStream.writerMode=')) {
+        lines[lines.indexOf(line)] = `blockStream.writerMode=${writerMode}`;
+        writerModeUpdated = true;
+      }
+    }
+
+    if (!streamModeUpdated) {
+      lines.push(`blockStream.streamMode=${streamMode}`);
+    }
+    if (!writerModeUpdated) {
+      lines.push(`blockStream.writerMode=${writerMode}`);
+    }
+
+    await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
+  }
+
+  private async updateApplicationPropertiesWithRealmAndShard(
+    applicationPropertiesPath: string,
+    realm: Realm,
+    shard: Shard,
+  ) {
+    const lines = (await readFile(applicationPropertiesPath, 'utf-8')).split('\n');
+
+    let realmUpdated: boolean = false;
+    let shardUpdated: boolean = false;
+    for (const line of lines) {
+      if (line.startsWith('hedera.realm=')) {
+        lines[lines.indexOf(line)] = `hedera.realm=${realm}`;
+        realmUpdated = true;
+        continue;
+      }
+      if (line.startsWith('hedera.shard=')) {
+        lines[lines.indexOf(line)] = `hedera.shard=${shard}`;
+        shardUpdated = true;
+      }
+    }
+
+    if (!realmUpdated) {
+      lines.push(`hedera.realm=${realm}`);
+    }
+    if (!shardUpdated) {
+      lines.push(`hedera.shard=${shard}`);
+    }
+
+    await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
   }
 
   public async prepareValuesForNodeTransaction(configTxtPath: string, applicationPropertiesPath: string) {

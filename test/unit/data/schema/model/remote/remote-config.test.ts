@@ -6,21 +6,22 @@ import {expect} from 'chai';
 import {beforeEach} from 'mocha';
 import os from 'node:os';
 import {instanceToPlain, plainToInstance} from 'class-transformer';
-import {RemoteConfig} from '../../../../../../src/data/schema/model/remote/remote-config.js';
+import {RemoteConfigSchema} from '../../../../../../src/data/schema/model/remote/remote-config-schema.js';
 import {LedgerPhase} from '../../../../../../src/data/schema/model/remote/ledger-phase.js';
 import {DeploymentPhase} from '../../../../../../src/data/schema/model/remote/deployment-phase.js';
+
 type MigrationCandidate = any;
 
 function migrateVersionPrefix(version: string): string {
   const strippedVersionPrefix: string = version.replace(/^v/, '');
-  const parts = strippedVersionPrefix.split('.').map(Number); // Split and convert to numbers
+  const parts: number[] = strippedVersionPrefix.split('.').map(Number); // Split and convert to numbers
   while (parts.length < 3) {
     parts.push(0); // Add missing minor/patch as 0
   }
   return parts.join('.');
 }
 
-function migrateVersions(plainObject: MigrationCandidate) {
+function migrateVersions(plainObject: MigrationCandidate): void {
   plainObject.versions = {};
   plainObject.versions.cli = migrateVersionPrefix(plainObject.metadata?.soloVersion || '0.0.0');
   plainObject.versions.chart = migrateVersionPrefix(plainObject.metadata?.soloChartVersion || '0.0.0');
@@ -31,7 +32,7 @@ function migrateVersions(plainObject: MigrationCandidate) {
     plainObject.metadata?.hederaMirrorNodeChartVersion || plainObject.flags?.mirrorNodeVersion || '0.0.0',
   );
   plainObject.versions.explorerChart = migrateVersionPrefix(
-    plainObject.metadata?.hederaExplorerChartVersion || plainObject.flags?.hederaExplorerVersion || '0.0.0',
+    plainObject.metadata?.explorerChartVersion || plainObject.flags?.explorerVersion || '0.0.0',
   );
   plainObject.versions.jsonRpcRelayChart = migrateVersionPrefix(
     plainObject.metadata?.hederaJsonRpcRelayChartVersion || plainObject.flags?.relayReleaseTag || '0.0.0',
@@ -40,7 +41,7 @@ function migrateVersions(plainObject: MigrationCandidate) {
   plainObject.versions.blockNodeChart = 'v0.0.0';
 }
 
-function migrateClusters(plainObject: MigrationCandidate) {
+function migrateClusters(plainObject: MigrationCandidate): void {
   const clusters: object = plainObject.clusters;
   const clustersArray: object[] = [];
   for (const key in clusters) {
@@ -51,7 +52,7 @@ function migrateClusters(plainObject: MigrationCandidate) {
   plainObject.clusters = clustersArray;
 }
 
-function migrateHistory(plainObject: MigrationCandidate) {
+function migrateHistory(plainObject: MigrationCandidate): void {
   plainObject.history = {};
   plainObject.history.commands = [];
   for (const historyItem of plainObject.commandHistory) {
@@ -59,7 +60,7 @@ function migrateHistory(plainObject: MigrationCandidate) {
   }
 }
 
-function migrateConsensusNodes(plainObject: MigrationCandidate) {
+function migrateConsensusNodes(plainObject: MigrationCandidate): void {
   plainObject.state.consensusNodes = [];
   for (const plainConsensusNodeKey of Object.keys(plainObject.components?.consensusNodes)) {
     const oldConsensusNode = plainObject.components.consensusNodes[plainConsensusNodeKey];
@@ -92,36 +93,35 @@ function migrateConsensusNodes(plainObject: MigrationCandidate) {
     }
     const newConsensusNode = {
       id: oldConsensusNode.nodeId,
-      name: oldConsensusNode.name,
       namespace: oldConsensusNode.namespace,
       cluster: oldConsensusNode.cluster,
       phase: migratedState,
     };
-    plainObject.state.consensusNodes.push(newConsensusNode);
+    plainObject.state.consensusNodes.push({metadata: newConsensusNode});
   }
 }
 
-function migrateHaProxies(plainObject: MigrationCandidate) {
+function migrateHaProxies(plainObject: MigrationCandidate): void {
   plainObject.state.haProxies = [];
 }
 
-function migrateEnvoyProxies(plainObject: MigrationCandidate) {
+function migrateEnvoyProxies(plainObject: MigrationCandidate): void {
   plainObject.state.envoyProxies = [];
 }
 
-function migrateMirrorNodes(plainObject: MigrationCandidate) {
+function migrateMirrorNodes(plainObject: MigrationCandidate): void {
   plainObject.state.mirrorNodes = [];
 }
 
-function migrateExplorers(plainObject: MigrationCandidate) {
+function migrateExplorers(plainObject: MigrationCandidate): void {
   plainObject.state.explorers = [];
 }
 
-function migrateJsonRpcRelays(plainObject: MigrationCandidate) {
+function migrateJsonRpcRelays(plainObject: MigrationCandidate): void {
   plainObject.state.relayNodes = [];
 }
 
-function migrateState(plainObject: MigrationCandidate) {
+function migrateState(plainObject: MigrationCandidate): void {
   plainObject.state = {};
   plainObject.state.ledgerPhase = LedgerPhase.UNINITIALIZED;
   migrateConsensusNodes(plainObject);
@@ -147,14 +147,14 @@ function migrate(plainObject: MigrationCandidate): void {
   migrateState(plainObject);
 }
 
-describe('RemoteConfig', () => {
-  const remoteConfigPath = 'test/data/v0-35-1-remote-config.yaml';
+describe('RemoteConfig', (): void => {
+  const remoteConfigPath: string = 'test/data/v0-35-1-remote-config.yaml';
 
-  describe('Class Transformer', () => {
+  describe('Class Transformer', (): void => {
     let yamlData: string;
     let plainObject: MigrationCandidate;
 
-    beforeEach(() => {
+    beforeEach((): void => {
       yamlData = readFileSync(remoteConfigPath, 'utf8');
       expect(yamlData).to.not.be.undefined.and.to.not.be.null;
 
@@ -164,67 +164,58 @@ describe('RemoteConfig', () => {
       migrate(plainObject);
     });
 
-    it('should transform plain to class', async () => {
-      const rc: RemoteConfig = plainToInstance(RemoteConfig, plainObject);
+    function expectRemoteConfigClass(rc: RemoteConfigSchema) {
       expect(rc).to.not.be.undefined.and.to.not.be.null;
-      expect(rc.history.commands.length).to.be.equal(1);
+      expect(rc.history.commands.length).to.be.equal(9);
       expect(rc.versions.cli.version).to.equal('0.34.0');
-      expect(rc.versions.chart.version).to.equal('0.0.0');
+      expect(rc.versions.chart.version).to.equal('0.44.0');
       expect(rc.versions.consensusNode.version).to.equal('0.58.10');
       expect(rc.versions.mirrorNodeChart.version).to.equal('0.122.0');
       expect(rc.versions.explorerChart.version).to.equal('24.12.0');
       expect(rc.versions.jsonRpcRelayChart.version).to.equal('0.63.2');
       expect(rc.clusters.length).to.be.equal(1);
       expect(rc.state.consensusNodes.length).to.be.equal(4);
-      expect(rc.state.consensusNodes[0].id).to.be.equal(0);
-      expect(rc.state.consensusNodes[0].name).to.be.equal('node1');
-      expect(rc.state.consensusNodes[0].namespace).to.be.equal('solo-alpha-prod');
-      expect(rc.state.consensusNodes[0].cluster).to.be.equal('gke-alpha-prod-us-central1');
-      expect(rc.state.consensusNodes[0].phase).to.be.equal(DeploymentPhase.REQUESTED);
+      expect(rc.state.consensusNodes[0].metadata.id).to.be.equal(0);
+      expect(rc.state.consensusNodes[0].metadata.namespace).to.be.equal('solo-alpha-prod');
+      expect(rc.state.consensusNodes[0].metadata.cluster).to.be.equal('gke-alpha-prod-us-central1');
+      expect(rc.state.consensusNodes[0].metadata.phase).to.be.equal(DeploymentPhase.STARTED);
       expect(rc.state.ledgerPhase).to.be.equal(LedgerPhase.UNINITIALIZED);
+    }
+
+    function expectRemoteConfigPlain(object: any) {
+      expect(object).to.not.be.undefined.and.to.not.be.null;
+      expect(object.history.commands.length).to.be.equal(9);
+      expect(object.versions.cli).to.equal('0.34.0');
+      expect(object.versions.chart).to.equal('0.44.0');
+      expect(object.versions.consensusNode).to.equal('0.58.10');
+      expect(object.versions.mirrorNodeChart).to.equal('0.122.0');
+      expect(object.versions.explorerChart).to.equal('24.12.0');
+      expect(object.versions.jsonRpcRelayChart).to.equal('0.63.2');
+      expect(object.clusters.length).to.be.equal(1);
+      expect(object.state.consensusNodes.length).to.be.equal(4);
+      expect(object.state.consensusNodes[0].metadata.id).to.be.equal(0);
+      expect(object.state.consensusNodes[0].metadata.namespace).to.be.equal('solo-alpha-prod');
+      expect(object.state.consensusNodes[0].metadata.cluster).to.be.equal('gke-alpha-prod-us-central1');
+      expect(object.state.consensusNodes[0].metadata.phase).to.be.equal(DeploymentPhase.STARTED);
+      expect(object.state.ledgerPhase).to.be.equal(LedgerPhase.UNINITIALIZED);
+    }
+
+    it('should transform plain to class', async (): Promise<void> => {
+      const rc: RemoteConfigSchema = plainToInstance(RemoteConfigSchema, plainObject);
+      expectRemoteConfigClass(rc);
     });
 
-    it('should transform class to plain', async () => {
-      const rc: RemoteConfig = plainToInstance(RemoteConfig, plainObject);
+    it('should transform class to plain', async (): Promise<void> => {
+      const rc: RemoteConfigSchema = plainToInstance(RemoteConfigSchema, plainObject);
       const plainRemoteConfigObject = instanceToPlain(rc);
-      expect(plainRemoteConfigObject).to.not.be.undefined.and.to.not.be.null;
-      expect(plainRemoteConfigObject.history.commands.length).to.be.equal(1);
-      expect(plainRemoteConfigObject.versions.cli).to.equal('0.34.0');
-      expect(plainRemoteConfigObject.versions.chart).to.equal('0.0.0');
-      expect(plainRemoteConfigObject.versions.consensusNode).to.equal('0.58.10');
-      expect(plainRemoteConfigObject.versions.mirrorNodeChart).to.equal('0.122.0');
-      expect(plainRemoteConfigObject.versions.explorerChart).to.equal('24.12.0');
-      expect(plainRemoteConfigObject.versions.jsonRpcRelayChart).to.equal('0.63.2');
-      expect(plainRemoteConfigObject.clusters.length).to.be.equal(1);
-      expect(plainRemoteConfigObject.state.consensusNodes.length).to.be.equal(4);
-      expect(plainRemoteConfigObject.state.consensusNodes[0].id).to.be.equal(0);
-      expect(plainRemoteConfigObject.state.consensusNodes[0].name).to.be.equal('node1');
-      expect(plainRemoteConfigObject.state.consensusNodes[0].namespace).to.be.equal('solo-alpha-prod');
-      expect(plainRemoteConfigObject.state.consensusNodes[0].cluster).to.be.equal('gke-alpha-prod-us-central1');
-      expect(plainRemoteConfigObject.state.consensusNodes[0].phase).to.be.equal(DeploymentPhase.REQUESTED);
-      expect(plainRemoteConfigObject.state.ledgerPhase).to.be.equal(LedgerPhase.UNINITIALIZED);
+      expectRemoteConfigPlain(plainRemoteConfigObject);
     });
 
-    it('should be able to go from a class to an object back to a class', async () => {
-      const rc: RemoteConfig = plainToInstance(RemoteConfig, plainObject);
+    it('should be able to go from a class to an object back to a class', async (): Promise<void> => {
+      const rc: RemoteConfigSchema = plainToInstance(RemoteConfigSchema, plainObject);
       const plainRemoteConfigObject = instanceToPlain(rc);
-      const rc2: RemoteConfig = plainToInstance(RemoteConfig, plainRemoteConfigObject);
-      expect(rc2).to.not.be.undefined.and.to.not.be.null;
-      expect(rc2.history.commands.length).to.be.equal(1);
-      expect(rc2.versions.cli.version).to.equal('0.34.0');
-      expect(rc2.versions.chart.version).to.equal('0.0.0');
-      expect(rc2.versions.consensusNode.version).to.equal('0.58.10');
-      expect(rc2.versions.mirrorNodeChart.version).to.equal('0.122.0');
-      expect(rc2.versions.explorerChart.version).to.equal('24.12.0');
-      expect(rc2.versions.jsonRpcRelayChart.version).to.equal('0.63.2');
-      expect(rc2.clusters.length).to.be.equal(1);
-      expect(rc2.state.consensusNodes.length).to.be.equal(4);
-      expect(rc2.state.consensusNodes[0].id).to.be.equal(0);
-      expect(rc2.state.consensusNodes[0].name).to.be.equal('node1');
-      expect(rc2.state.consensusNodes[0].namespace).to.be.equal('solo-alpha-prod');
-      expect(rc2.state.consensusNodes[0].cluster).to.be.equal('gke-alpha-prod-us-central1');
-      expect(rc2.state.consensusNodes[0].phase).to.be.equal(DeploymentPhase.REQUESTED);
-      expect(rc2.state.ledgerPhase).to.be.equal(LedgerPhase.UNINITIALIZED);
+      const rc2: RemoteConfigSchema = plainToInstance(RemoteConfigSchema, plainRemoteConfigObject);
+      expectRemoteConfigClass(rc2);
     });
   });
 });

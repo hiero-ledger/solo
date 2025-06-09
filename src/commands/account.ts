@@ -1,25 +1,34 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import chalk from 'chalk';
-import {BaseCommand, type Options} from './base.js';
+import {BaseCommand} from './base.js';
 import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {Flags as flags} from './flags.js';
 import {Listr} from 'listr2';
 import * as constants from '../core/constants.js';
-import {FREEZE_ADMIN_ACCOUNT} from '../core/constants.js';
 import * as helpers from '../core/helpers.js';
+import {entityId} from '../core/helpers.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {type AccountId, AccountInfo, HbarUnit, Long, NodeUpdateTransaction, PrivateKey} from '@hashgraph/sdk';
 import {ListrLock} from '../core/lock/listr-lock.js';
-import {type ArgvStruct, type AnyYargs, type NodeAliases} from '../types/aliases.js';
+import {type AnyYargs, type ArgvStruct, type NodeAliases} from '../types/aliases.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {type NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
-import {type ClusterReference, type DeploymentName} from '../core/config/remote/types.js';
-import {type SoloListrTask} from '../types/index.js';
+import {type NamespaceName} from '../types/namespace/namespace-name.js';
+import {
+  type ClusterReference,
+  type CommandDefinition,
+  type DeploymentName,
+  type Realm,
+  type Shard,
+  type SoloListrTask,
+} from '../types/index.js';
 import {Templates} from '../core/templates.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Base64} from 'js-base64';
+import {inject, injectable} from 'tsyringe-neo';
+import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {patchInject} from '../core/dependency-injection/container-helper.js';
 
 interface UpdateAccountConfig {
   accountId: string;
@@ -37,8 +46,8 @@ interface UpdateAccountContext {
   accountInfo: {accountId: AccountId | string; balance: number; publicKey: string; privateKey?: string};
 }
 
+@injectable()
 export class AccountCommand extends BaseCommand {
-  private readonly accountManager: AccountManager;
   private accountInfo: {
     accountId: string;
     balance: number;
@@ -46,18 +55,16 @@ export class AccountCommand extends BaseCommand {
     privateKey?: string;
     accountAlias?: string;
   } | null;
-  private readonly systemAccounts: number[][];
 
-  public constructor(options: Options, systemAccounts: number[][] = constants.SYSTEM_ACCOUNTS) {
-    super(options);
+  public constructor(
+    @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
+    @inject(InjectTokens.SystemAccounts) private readonly systemAccounts: number[][],
+  ) {
+    super();
 
-    if (!options || !options.accountManager) {
-      throw new IllegalArgumentError('An instance of core/AccountManager is required', options.accountManager);
-    }
-
-    this.accountManager = options.accountManager;
+    this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
     this.accountInfo = null;
-    this.systemAccounts = systemAccounts;
+    this.systemAccounts = patchInject(systemAccounts, InjectTokens.SystemAccounts, this.constructor.name);
   }
 
   public static readonly COMMAND_NAME = 'account';
@@ -196,7 +203,8 @@ export class AccountCommand extends BaseCommand {
     }
 
     if (hbarAmount > 0) {
-      if (!(await this.transferAmountFromOperator(context_.accountInfo.accountId, hbarAmount))) {
+      const deployment: DeploymentName = context_.config.deployment;
+      if (!(await this.transferAmountFromOperator(context_.accountInfo.accountId, hbarAmount, deployment))) {
         throw new SoloError(`failed to transfer amount for accountId ${context_.accountInfo.accountId}`);
       }
       this.logger.debug(`sent transfer amount for account ${context_.accountInfo.accountId}`);
@@ -204,8 +212,13 @@ export class AccountCommand extends BaseCommand {
     return true;
   }
 
-  private async transferAmountFromOperator(toAccountId: AccountId | string, amount: number): Promise<boolean> {
-    return await this.accountManager.transferAmount(constants.TREASURY_ACCOUNT_ID, toAccountId, amount);
+  private async transferAmountFromOperator(
+    toAccountId: AccountId | string,
+    amount: number,
+    deploymentName: DeploymentName,
+  ): Promise<boolean> {
+    const operatorAccountId = this.accountManager.getOperatorAccountId(deploymentName);
+    return await this.accountManager.transferAmount(operatorAccountId, toAccountId, amount);
   }
 
   public async init(argv: ArgvStruct): Promise<boolean> {
@@ -245,13 +258,14 @@ export class AccountCommand extends BaseCommand {
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
               nodeAliases: helpers.parseNodeAliases(
                 this.configManager.getFlag(flags.nodeAliasesUnparsed),
-                this.remoteConfigManager.getConsensusNodes(),
+                this.remoteConfig.getConsensusNodes(),
                 this.configManager,
               ),
             } as Config;
 
             config.contextName =
-              this.localConfig.clusterRefs[config.clusterRef] ?? self.k8Factory.default().contexts().readCurrent();
+              this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString() ??
+              self.k8Factory.default().contexts().readCurrent();
 
             if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
               throw new SoloError(`namespace ${config.namespace.name} does not exist`);
@@ -264,7 +278,7 @@ export class AccountCommand extends BaseCommand {
 
             await self.accountManager.loadNodeClient(
               config.namespace,
-              self.remoteConfigManager.getClusterRefs(),
+              self.remoteConfig.getClusterRefs(),
               self.configManager.getFlag<DeploymentName>(flags.deployment),
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
@@ -293,19 +307,22 @@ export class AccountCommand extends BaseCommand {
                     };
 
                     // do a write transaction to trigger the handler and generate the system accounts to complete genesis
-                    await self.accountManager.transferAmount(constants.TREASURY_ACCOUNT_ID, FREEZE_ADMIN_ACCOUNT, 1);
+                    const deployment: DeploymentName = context_.config.deployment;
+                    const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
+                    const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
+                    await self.accountManager.transferAmount(treasuryAccountId, freezeAccountId, 1);
                   },
                 },
                 {
                   title: 'Update special account key sets',
                   task: context_ => {
                     const subTasks: SoloListrTask<Context>[] = [];
-                    const realm = constants.HEDERA_NODE_ACCOUNT_ID_START.realm;
-                    const shard = constants.HEDERA_NODE_ACCOUNT_ID_START.shard;
+                    const realm: Realm = this.localConfig.configuration.realmForDeployment(context_.config.deployment);
+                    const shard: Shard = this.localConfig.configuration.shardForDeployment(context_.config.deployment);
 
                     for (const currentSet of context_.accountsBatchedSet) {
-                      const accountStart = `${realm}.${shard}.${currentSet[0]}`;
-                      const accountEnd = `${realm}.${shard}.${currentSet.at(-1)}`;
+                      const accountStart = entityId(shard, realm, currentSet[0]);
+                      const accountEnd = entityId(shard, realm, currentSet.at(-1));
                       const rangeString =
                         accountStart === accountEnd
                           ? `${chalk.yellow(accountStart)}`
@@ -319,6 +336,7 @@ export class AccountCommand extends BaseCommand {
                             currentSet,
                             context_.updateSecrets,
                             context_.resultTracker,
+                            context_.config.deployment,
                           );
                         },
                       });
@@ -341,7 +359,7 @@ export class AccountCommand extends BaseCommand {
                       const nodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
                       const nodeClient = await self.accountManager.refreshNodeClient(
                         context_.config.namespace,
-                        self.remoteConfigManager.getClusterRefs(),
+                        self.remoteConfig.getClusterRefs(),
                         nodeAlias,
                         context_.config.deployment,
                       );
@@ -482,7 +500,8 @@ export class AccountCommand extends BaseCommand {
             } as Config;
 
             config.contextName =
-              this.localConfig.clusterRefs[config.clusterRef] ?? self.k8Factory.default().contexts().readCurrent();
+              this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString() ??
+              self.k8Factory.default().contexts().readCurrent();
 
             if (!config.amount) {
               config.amount = flags.amount.definition.defaultValue as number;
@@ -499,7 +518,7 @@ export class AccountCommand extends BaseCommand {
 
             await self.accountManager.loadNodeClient(
               context_.config.namespace,
-              self.remoteConfigManager.getClusterRefs(),
+              self.remoteConfig.getClusterRefs(),
               config.deployment,
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
@@ -577,7 +596,8 @@ export class AccountCommand extends BaseCommand {
             } as UpdateAccountConfig;
 
             config.contextName =
-              this.localConfig.clusterRefs[config.clusterRef] ?? self.k8Factory.default().contexts().readCurrent();
+              this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString() ??
+              self.k8Factory.default().contexts().readCurrent();
 
             if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
               throw new SoloError(`namespace ${config.namespace} does not exist`);
@@ -588,7 +608,7 @@ export class AccountCommand extends BaseCommand {
 
             await self.accountManager.loadNodeClient(
               config.namespace,
-              self.remoteConfigManager.getClusterRefs(),
+              self.remoteConfig.getClusterRefs(),
               config.deployment,
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
@@ -678,7 +698,8 @@ export class AccountCommand extends BaseCommand {
             } as Config;
 
             config.contextName =
-              this.localConfig.clusterRefs[config.clusterRef] ?? self.k8Factory.default().contexts().readCurrent();
+              this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString() ??
+              self.k8Factory.default().contexts().readCurrent();
 
             if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
               throw new SoloError(`namespace ${config.namespace} does not exist`);
@@ -689,7 +710,7 @@ export class AccountCommand extends BaseCommand {
 
             await self.accountManager.loadNodeClient(
               config.namespace,
-              self.remoteConfigManager.getClusterRefs(),
+              self.remoteConfig.getClusterRefs(),
               config.deployment,
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
@@ -726,8 +747,8 @@ export class AccountCommand extends BaseCommand {
     return true;
   }
 
-  public getCommandDefinition() {
-    const self = this;
+  public getCommandDefinition(): CommandDefinition {
+    const self: this = this;
     return {
       command: AccountCommand.COMMAND_NAME,
       desc: 'Manage Hedera accounts in solo network',

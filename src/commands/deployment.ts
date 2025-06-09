@@ -2,24 +2,35 @@
 
 import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
-import {BaseCommand, type Options} from './base.js';
+import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
 import chalk from 'chalk';
-import {ClusterCommandTasks} from './cluster/tasks.js';
-import {type ClusterReference, type DeploymentName, type NamespaceNameAsString} from '../core/config/remote/types.js';
-import {type SoloListrTask} from '../types/index.js';
+import {type ClusterCommandTasks} from './cluster/tasks.js';
+import {
+  type ClusterReference,
+  type CommandDefinition,
+  type Context,
+  type DeploymentName,
+  type NamespaceNameAsString,
+  type Realm,
+  type Shard,
+  type SoloListrTask,
+} from '../types/index.js';
 import {ErrorMessages} from '../core/error-messages.js';
-import {NamespaceName} from '../integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterChecks} from '../core/cluster-checks.js';
-import {container} from 'tsyringe-neo';
+import {container, inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
-import {type ArgvStruct, type AnyYargs, type NodeAliases} from '../types/aliases.js';
-import {ConsensusNodeStates, DeploymentStates} from '../core/config/remote/enumerations.js';
+import {type AnyYargs, type ArgvStruct, type NodeAliases} from '../types/aliases.js';
 import {Templates} from '../core/templates.js';
-import {ConsensusNodeComponent} from '../core/config/remote/components/consensus-node-component.js';
-import {Cluster} from '../core/config/remote/cluster.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
+import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {DeploymentStates} from '../core/config/remote/enumerations/deployment-states.js';
+import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {StringFacade} from '../business/runtime-state/facade/string-facade.js';
+import {Deployment} from '../business/runtime-state/config/local/deployment.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -33,7 +44,7 @@ interface DeploymentAddClusterConfig {
   dnsBaseDomain: string;
   dnsConsensusNodePattern: string;
 
-  state?: DeploymentStates;
+  ledgerPhase?: LedgerPhase;
   nodeAliases: NodeAliases;
 
   existingNodesCount: number;
@@ -44,20 +55,22 @@ export interface DeploymentAddClusterContext {
   config: DeploymentAddClusterConfig;
 }
 
+@injectable()
 export class DeploymentCommand extends BaseCommand {
-  readonly tasks: ClusterCommandTasks;
+  public constructor(
+    @inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
+  ) {
+    super();
 
-  constructor(options: Options) {
-    super(options);
-
-    this.tasks = container.resolve(ClusterCommandTasks);
+    this.tasks = patchInject(tasks, InjectTokens.ClusterCommandTasks, this.constructor.name);
   }
 
   public static readonly COMMAND_NAME = 'deployment';
 
   private static CREATE_FLAGS_LIST = {
     required: [],
-    optional: [flags.quiet, flags.namespace, flags.deployment],
+    optional: [flags.quiet, flags.namespace, flags.deployment, flags.realm, flags.shard],
   };
 
   private static DELETE_FLAGS_LIST = {
@@ -93,6 +106,8 @@ export class DeploymentCommand extends BaseCommand {
       quiet: boolean;
       namespace: NamespaceName;
       deployment: DeploymentName;
+      realm: Realm;
+      shard: Shard;
     }
 
     interface Context {
@@ -112,9 +127,16 @@ export class DeploymentCommand extends BaseCommand {
               quiet: self.configManager.getFlag<boolean>(flags.quiet),
               namespace: self.configManager.getFlag<NamespaceName>(flags.namespace),
               deployment: self.configManager.getFlag<DeploymentName>(flags.deployment),
+              realm: self.configManager.getFlag<Realm>(flags.realm) || flags.realm.definition.defaultValue,
+              shard: self.configManager.getFlag<Shard>(flags.shard) || flags.shard.definition.defaultValue,
             } as Config;
 
-            if (self.localConfig.deployments && self.localConfig.deployments[context_.config.deployment]) {
+            if (
+              self.localConfig.configuration.deployments &&
+              self.localConfig.configuration.deployments.some(
+                (d: Deployment): boolean => d.name === context_.config.deployment,
+              )
+            ) {
               throw new SoloError(ErrorMessages.DEPLOYMENT_NAME_ALREADY_EXISTS(context_.config.deployment));
             }
 
@@ -124,16 +146,20 @@ export class DeploymentCommand extends BaseCommand {
         {
           title: 'Add deployment to local config',
           task: async (context_, task) => {
-            const {namespace, deployment} = context_.config;
+            const {namespace, deployment, realm, shard} = context_.config;
             task.title = `Adding deployment: ${deployment} with namespace: ${namespace.name} to local config`;
 
-            if (this.localConfig.deployments[deployment]) {
+            if (this.localConfig.configuration.deployments.some((d: Deployment): boolean => d.name === deployment)) {
               throw new SoloError(`Deployment ${deployment} is already added to local config`);
             }
 
-            await this.localConfig.modify(async localConfigData => {
-              localConfigData.addDeployment(deployment, namespace);
-            });
+            const actualDeployment: Deployment = this.localConfig.configuration.deployments.addNew();
+            actualDeployment.name = deployment;
+            actualDeployment.namespace = namespace.name;
+            actualDeployment.realm = realm;
+            actualDeployment.shard = shard;
+
+            await this.localConfig.persist();
           },
         },
       ],
@@ -182,7 +208,12 @@ export class DeploymentCommand extends BaseCommand {
               deployment: self.configManager.getFlag<DeploymentName>(flags.deployment),
             } as Config;
 
-            if (!self.localConfig.deployments || !self.localConfig.deployments[context_.config.deployment]) {
+            if (
+              !self.localConfig.configuration.deployments ||
+              !self.localConfig.configuration.deployments.some(
+                (d: Deployment): boolean => d.name === context_.config.deployment,
+              )
+            ) {
               throw new SoloError(ErrorMessages.DEPLOYMENT_NAME_ALREADY_EXISTS(context_.config.deployment));
             }
 
@@ -191,13 +222,13 @@ export class DeploymentCommand extends BaseCommand {
         },
         {
           title: 'Check for existing remote resources',
-          task: async (context_, task) => {
+          task: async (context_): Promise<void> => {
             const {deployment} = context_.config;
-            const clusterReferences = self.localConfig.deployments[deployment].clusters;
+            const clusterReferences = self.localConfig.configuration.deploymentByName(deployment).clusters;
             for (const clusterReference of clusterReferences) {
-              const context = self.localConfig.clusterRefs[clusterReference];
-              const namespace = NamespaceName.of(self.localConfig.deployments[deployment].namespace);
-              const remoteConfigExists = await self.remoteConfigManager.get(context);
+              const context = self.localConfig.configuration.clusterRefs.get(clusterReference.toString()).toString();
+              const namespace = NamespaceName.of(self.localConfig.configuration.deploymentByName(deployment).namespace);
+              const remoteConfigExists: boolean = await self.remoteConfig.remoteConfigExists(namespace, context);
               const namespaceExists = await self.k8Factory.getK8(context).namespaces().has(namespace);
               const existingConfigMaps = await self.k8Factory
                 .getK8(context)
@@ -214,9 +245,12 @@ export class DeploymentCommand extends BaseCommand {
           task: async context_ => {
             const {deployment} = context_.config;
 
-            await this.localConfig.modify(async localConfigData => {
-              localConfigData.removeDeployment(deployment);
-            });
+            const actualDeployment: Deployment = this.localConfig.configuration.deploymentByName(deployment);
+            if (actualDeployment) {
+              this.localConfig.configuration.deployments.remove(actualDeployment);
+            }
+
+            await this.localConfig.persist();
           },
         },
       ],
@@ -297,7 +331,7 @@ export class DeploymentCommand extends BaseCommand {
           task: async context_ => {
             const clusterName = context_.config.clusterName;
 
-            const context = self.localConfig.clusterRefs[clusterName];
+            const context = self.localConfig.configuration.clusterRefs.get(clusterName)?.toString();
 
             self.k8Factory.default().contexts().updateCurrent(context);
 
@@ -332,8 +366,8 @@ export class DeploymentCommand extends BaseCommand {
     return true;
   }
 
-  public getCommandDefinition() {
-    const self = this;
+  public getCommandDefinition(): CommandDefinition {
+    const self: this = this;
     return {
       command: DeploymentCommand.COMMAND_NAME,
       desc: 'Manage solo network deployment',
@@ -490,17 +524,19 @@ export class DeploymentCommand extends BaseCommand {
       task: async context_ => {
         const {clusterRef, deployment} = context_.config;
 
-        if (!this.localConfig.clusterRefs.hasOwnProperty(clusterRef)) {
+        if (!this.localConfig.configuration.clusterRefs.get(clusterRef)) {
           throw new SoloError(`Cluster ref ${clusterRef} not found in local config`);
         }
 
-        context_.config.context = this.localConfig.clusterRefs[clusterRef];
+        context_.config.context = this.localConfig.configuration.clusterRefs.get(clusterRef)?.toString();
 
-        if (!this.localConfig.deployments.hasOwnProperty(deployment)) {
+        if (!this.localConfig.configuration.deploymentByName(deployment)) {
           throw new SoloError(`Deployment ${deployment} not found in local config`);
         }
 
-        if (this.localConfig.deployments[deployment].clusters.includes(clusterRef)) {
+        if (
+          this.localConfig.configuration.deploymentByName(deployment).clusters.includes(new StringFacade(clusterRef))
+        ) {
           throw new SoloError(`Cluster ref ${clusterRef} is already added for deployment`);
         }
       },
@@ -508,8 +544,8 @@ export class DeploymentCommand extends BaseCommand {
   }
 
   /**
-   * Checks the network state:
-   * - if remote config is found check's the state field to see if it's pre or post genesis.
+   * Checks the ledger phase:
+   * - if remote config is found check's the ledgerPhase field to see if it's pre or post genesis.
    *   - pre genesis:
    *     - prompts user if needed.
    *     - generates node aliases based on '--number-of-consensus-nodes'
@@ -521,15 +557,15 @@ export class DeploymentCommand extends BaseCommand {
    */
   public checkNetworkState(): SoloListrTask<DeploymentAddClusterContext> {
     return {
-      title: 'check network state',
+      title: 'check ledger phase',
       task: async (context_, task) => {
-        const {deployment, numberOfConsensusNodes, quiet} = context_.config;
+        const {deployment, numberOfConsensusNodes, quiet, namespace} = context_.config;
 
-        const existingClusterReferences = this.localConfig.deployments[deployment].clusters;
+        const existingClusterReferences = this.localConfig.configuration.deploymentByName(deployment).clusters;
 
-        // if there is no remote config don't validate deployment state
+        // if there is no remote config don't validate deployment ledger phase
         if (existingClusterReferences.length === 0) {
-          context_.config.state = DeploymentStates.PRE_GENESIS;
+          context_.config.ledgerPhase = LedgerPhase.UNINITIALIZED;
 
           // if the user can't be prompted for '--num-consensus-nodes' fail
           if (!numberOfConsensusNodes && quiet) {
@@ -547,25 +583,29 @@ export class DeploymentCommand extends BaseCommand {
           return;
         }
 
-        const existingClusterContext = this.localConfig.clusterRefs[existingClusterReferences[0]];
+        const existingClusterContext: Context = this.localConfig.configuration.clusterRefs
+          .get(existingClusterReferences.get(0)?.toString())
+          ?.toString();
+
         context_.config.existingClusterContext = existingClusterContext;
 
-        const remoteConfig = await this.remoteConfigManager.get(existingClusterContext);
+        await this.remoteConfig.populateFromExisting(namespace, existingClusterContext);
 
-        const state = remoteConfig.metadata.state;
-        context_.config.state = state;
+        const ledgerPhase: LedgerPhase = this.remoteConfig.configuration.state.ledgerPhase;
 
-        const existingNodesCount = Object.keys(remoteConfig.components.consensusNodes).length;
+        context_.config.ledgerPhase = ledgerPhase;
+
+        const existingNodesCount: number = Object.keys(this.remoteConfig.configuration.state.consensusNodes).length;
 
         context_.config.nodeAliases = Templates.renderNodeAliasesFromCount(numberOfConsensusNodes, existingNodesCount);
 
-        // If state is pre-genesis and user can't be prompted for the '--num-consensus-nodes' fail
-        if (state === DeploymentStates.PRE_GENESIS && !numberOfConsensusNodes && quiet) {
-          throw new SoloError(`--${flags.numberOfConsensusNodes} must be specified ${DeploymentStates.PRE_GENESIS}`);
+        // If ledgerPhase is pre-genesis and user can't be prompted for the '--num-consensus-nodes' fail
+        if (ledgerPhase === LedgerPhase.UNINITIALIZED && !numberOfConsensusNodes && quiet) {
+          throw new SoloError(`--${flags.numberOfConsensusNodes} must be specified ${LedgerPhase.UNINITIALIZED}`);
         }
 
-        // If state is pre-genesis prompt the user for the '--num-consensus-nodes'
-        else if (state === DeploymentStates.PRE_GENESIS && !numberOfConsensusNodes) {
+        // If ledgerPhase is pre-genesis prompt the user for the '--num-consensus-nodes'
+        else if (ledgerPhase === LedgerPhase.UNINITIALIZED && !numberOfConsensusNodes) {
           await this.configManager.executePrompt(task, [flags.numberOfConsensusNodes]);
           context_.config.numberOfConsensusNodes = this.configManager.getFlag<number>(flags.numberOfConsensusNodes);
           context_.config.nodeAliases = Templates.renderNodeAliasesFromCount(
@@ -574,10 +614,10 @@ export class DeploymentCommand extends BaseCommand {
           );
         }
 
-        // if the state is post-genesis and '--num-consensus-nodes' is specified throw
-        else if (state === DeploymentStates.POST_GENESIS && numberOfConsensusNodes) {
+        // if the ledgerPhase is post-genesis and '--num-consensus-nodes' is specified throw
+        else if (ledgerPhase === LedgerPhase.INITIALIZED && numberOfConsensusNodes) {
           throw new SoloError(
-            `--${flags.numberOfConsensusNodes.name}=${numberOfConsensusNodes} shouldn't be specified ${state}`,
+            `--${flags.numberOfConsensusNodes.name}=${numberOfConsensusNodes} shouldn't be specified ${ledgerPhase}`,
           );
         }
       },
@@ -590,12 +630,12 @@ export class DeploymentCommand extends BaseCommand {
   public testClusterConnection(): SoloListrTask<DeploymentAddClusterContext> {
     return {
       title: 'Test cluster connection',
-      task: async (context_, task) => {
+      task: async (context_, task): Promise<void> => {
         const {clusterRef, context} = context_.config;
 
         task.title += `: ${clusterRef}, context: ${context}`;
 
-        const isConnected = await this.k8Factory
+        const isConnected: boolean = await this.k8Factory
           .getK8(context)
           .namespaces()
           .list()
@@ -612,7 +652,7 @@ export class DeploymentCommand extends BaseCommand {
   public verifyClusterAddPrerequisites(): SoloListrTask<DeploymentAddClusterContext> {
     return {
       title: 'Verify prerequisites',
-      task: async () => {
+      task: async (): Promise<void> => {
         // TODO: Verifies Kubernetes cluster & namespace-level prerequisites (e.g., cert-manager, HAProxy, etc.)
       },
     };
@@ -624,14 +664,13 @@ export class DeploymentCommand extends BaseCommand {
   public addClusterRefToDeployments(): SoloListrTask<DeploymentAddClusterContext> {
     return {
       title: 'add cluster-ref in local config deployments',
-      task: async (context_, task) => {
+      task: async (context_, task): Promise<void> => {
         const {clusterRef, deployment} = context_.config;
 
         task.title = `add cluster-ref: ${clusterRef} for deployment: ${deployment} in local config`;
 
-        await this.localConfig.modify(async localConfigData => {
-          localConfigData.addClusterRefToDeployment(clusterRef, deployment);
-        });
+        this.localConfig.configuration.deploymentByName(deployment).clusters.add(new StringFacade(clusterRef));
+        await this.localConfig.persist();
       },
     };
   }
@@ -643,12 +682,12 @@ export class DeploymentCommand extends BaseCommand {
   public createOrEditRemoteConfigForNewDeployment(argv: ArgvStruct): SoloListrTask<DeploymentAddClusterContext> {
     return {
       title: 'create remote config for deployment',
-      task: async (context_, task) => {
+      task: async (context_, task): Promise<void> => {
         const {
           deployment,
           clusterRef,
           context,
-          state,
+          ledgerPhase,
           nodeAliases,
           namespace,
           existingClusterContext,
@@ -664,50 +703,29 @@ export class DeploymentCommand extends BaseCommand {
           await this.k8Factory.getK8(context).namespaces().create(namespace);
         }
 
-        if (!existingClusterContext) {
-          await this.remoteConfigManager.create(
-            argv,
-            state,
-            nodeAliases,
-            namespace,
-            deployment,
-            clusterRef,
-            context,
-            dnsBaseDomain,
-            dnsConsensusNodePattern,
-          );
-
-          return;
-        }
-
-        await this.remoteConfigManager.get(existingClusterContext);
-
-        //? Create copy of the existing remote config inside the new cluster
-        await this.remoteConfigManager.createConfigMap(context);
-
-        //? Update remote configs inside the clusters
-        await this.remoteConfigManager.modify(async remoteConfig => {
-          //* update the command history
-          remoteConfig.addCommandToHistory(argv._.join(' '));
-
-          //* add the new clusters
-          remoteConfig.addCluster(
-            new Cluster(clusterRef, namespace.name, deployment, dnsBaseDomain, dnsConsensusNodePattern),
-          );
-
-          //* add the new nodes to components
-          for (const nodeAlias of nodeAliases) {
-            remoteConfig.components.add(
-              new ConsensusNodeComponent(
-                nodeAlias,
-                clusterRef,
-                namespace.name,
-                ConsensusNodeStates.NON_DEPLOYED,
-                Templates.nodeIdFromNodeAlias(nodeAlias),
-              ),
-            );
-          }
-        });
+        await (existingClusterContext
+          ? this.remoteConfig.createFromExisting(
+              namespace,
+              clusterRef,
+              deployment,
+              this.componentFactory,
+              dnsBaseDomain,
+              dnsConsensusNodePattern,
+              existingClusterContext,
+              argv,
+              nodeAliases,
+            )
+          : this.remoteConfig.create(
+              argv,
+              ledgerPhase,
+              nodeAliases,
+              namespace,
+              deployment,
+              clusterRef,
+              context,
+              dnsBaseDomain,
+              dnsConsensusNodePattern,
+            ));
       },
     };
   }

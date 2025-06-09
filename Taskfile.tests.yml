@@ -62,7 +62,7 @@ tasks:
 
   test-helm:
     cmds:
-      - "{{ .test_prefix }}=\"Helm Unit Tests\"
+      - "{{ .test_prefix }}=\"Unit Helm Tests\"
         {{ .reporter_prefix }}='coverage/unit-helm'
         {{ .mocha_bin }} 'test/unit/core/helm/**/*.ts'
         {{ .reporter_options_prefix }}.xml"
@@ -77,6 +77,7 @@ tasks:
           --ignore 'test/e2e/commands/node*.ts' 
           --ignore 'test/e2e/commands/separate-node*.ts' 
           --ignore 'test/e2e/commands/relay*.ts' 
+          --ignore 'test/e2e/commands/block-node.test.ts' 
           --ignore 'test/e2e/commands/dual-*.ts'
           --ignore 'test/e2e/commands/separate-node-add.test.ts' 
           --ignore 'test/e2e/commands/separate-node-delete.test.ts' 
@@ -182,9 +183,27 @@ tasks:
         {{ .mocha_bin }} 'test/e2e/commands/relay.test.ts'
         {{ .reporter_options_prefix }}-e2e-relay.xml"
 
+  test-e2e-block-node:
+    cmds:
+      - "{{ .test_prefix }}=\"Mocha E2E Block Nodes Tests\"
+        {{ .reporter_prefix }}='coverage/e2e-block-node'
+        {{ .mocha_bin }} 'test/e2e/commands/block-node.test.ts'
+        {{ .reporter_options_prefix }}-e2e-block-node.xml"
+
   test-e2e-dual-cluster-full:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Dual Cluster Full Test\"
         {{ .reporter_prefix }}='coverage/e2e-dual-cluster-full'
         {{ .mocha_bin }} 'test/e2e/commands/dual-cluster-full.test.ts' 
         {{ .reporter_options_prefix }}-e2e-dual-cluster-full.xml"
+
+  test-external-database:
+    cmd: |
+        export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
+        cd examples/external-database-test
+        SOLO_CLUSTER_NAME=solo-task-test-external-database task install:external-database
+        task destroy:external-database
+
+  test-update-markdown:
+    cmd: |
+      .github/workflows/script/wrapper_for_update_md.sh

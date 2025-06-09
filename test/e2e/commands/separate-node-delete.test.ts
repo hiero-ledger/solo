@@ -13,7 +13,7 @@ import {
 import {HEDERA_HAPI_PATH, ROOT_CONTAINER} from '../../../src/core/constants.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
 import {Duration} from '../../../src/core/time/duration.js';
-import {NamespaceName} from '../../../src/integration/kube/resources/namespace/namespace-name.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../../../src/integration/kube/resources/container/container-reference.js';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';
@@ -45,7 +45,7 @@ argvExecute.setArg(flags.inputDir, temporaryDirectory);
 
 endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   const {
-    opts: {k8Factory, accountManager, remoteConfigManager, logger, commandInvoker},
+    opts: {k8Factory, accountManager, remoteConfig, logger, commandInvoker},
     cmd: {nodeCmd, accountCmd},
   } = bootstrapResp;
 
@@ -91,9 +91,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await accountManager.close();
     }).timeout(Duration.ofMinutes(10).toMillis());
 
-    balanceQueryShouldSucceed(accountManager, namespace, remoteConfigManager, logger, nodeAlias);
+    balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger, nodeAlias);
 
-    accountCreationShouldSucceed(accountManager, namespace, remoteConfigManager, logger, nodeAlias);
+    accountCreationShouldSucceed(accountManager, namespace, remoteConfig, logger, nodeAlias);
 
     it('deleted consensus node should not be running', async () => {
       // read config.txt file from first node, read config.txt line by line, it should not contain value of nodeAlias
