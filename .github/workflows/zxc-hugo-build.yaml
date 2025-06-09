@@ -36,7 +36,6 @@ on:
 
 permissions:
   contents: read
-  id-token: read
 
 defaults:
   run:
