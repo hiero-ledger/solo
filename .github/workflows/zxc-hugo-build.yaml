@@ -67,7 +67,6 @@ jobs:
             exit 1
           fi
 
-      # Force checkout main branch to do a docs-build-label = 'main' build, unless the ref is already 'main'
       - name: Checkout Code
         if: ${{ inputs.docs-build-label == 'main' && github.ref_name != 'main' && !cancelled() && !failure() }}
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
