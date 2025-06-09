@@ -71,11 +71,10 @@ export class ReflectAssist {
 
     for (const key in secondObject) {
       if (secondObject.hasOwnProperty(key) && secondObject[key] !== null && secondObject[key] !== undefined) {
-        if (typeof secondObject[key] === 'object' && !Array.isArray(secondObject[key])) {
-          mergedObject[key] = ReflectAssist.merge(mergedObject[key], secondObject[key]);
-        } else {
-          mergedObject[key] = secondObject[key];
-        }
+        mergedObject[key] =
+          typeof secondObject[key] === 'object' && !Array.isArray(secondObject[key])
+            ? ReflectAssist.merge(mergedObject[key], secondObject[key])
+            : secondObject[key];
       }
     }
 

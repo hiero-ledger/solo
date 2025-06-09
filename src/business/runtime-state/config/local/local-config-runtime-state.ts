@@ -15,6 +15,10 @@ import {WriteLocalConfigFileError} from '../../../errors/write-local-config-file
 import {PathEx} from '../../../utils/path-ex.js';
 import fs, {existsSync, mkdirSync} from 'node:fs';
 import {LocalConfig} from './local-config.js';
+import path from 'node:path';
+import {Templates} from '../../../../core/templates.js';
+import {type ConfigManager} from '../../../../core/config-manager.js';
+import {Flags as flags} from '../../../../commands/flags.js';
 
 @injectable()
 export class LocalConfigRuntimeState {
@@ -27,9 +31,11 @@ export class LocalConfigRuntimeState {
   public constructor(
     @inject(InjectTokens.HomeDirectory) private readonly basePath: string,
     @inject(InjectTokens.LocalConfigFileName) private readonly fileName: string,
+    @inject(InjectTokens.ConfigManager) private readonly configManager?: ConfigManager,
   ) {
     this.fileName = patchInject(fileName, InjectTokens.LocalConfigFileName, this.constructor.name);
     this.basePath = patchInject(basePath, InjectTokens.HomeDirectory, this.constructor.name);
+    this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
 
     // check if config from an old version exists under the cache directory
     const oldConfigPath: string = PathEx.join(this.basePath, 'cache');
@@ -75,8 +81,79 @@ export class LocalConfigRuntimeState {
     } catch (error) {
       throw new RefreshLocalConfigSourceError('Failed to refresh local config source', error);
     }
-
     await this.persist();
+
+    await this.migrateCacheDirectories();
+  }
+
+  /**
+   * Migrates the cache directories to the new structure.
+   * It will look for directories in the format 'v0.58/staging/v0.58.10' and move them to current staging directory.
+   */
+  private async migrateCacheDirectories(): Promise<void> {
+    const cacheDirectory: string = PathEx.join(this.basePath, 'cache').toString();
+    const releaseTag: string = this.configManager.getFlag(flags.releaseTag);
+    const currentStagingDirectory: string = Templates.renderStagingDir(cacheDirectory, releaseTag);
+
+    if (fs.existsSync(currentStagingDirectory)) {
+      return;
+    }
+
+    // migrate the staging directory if it exists
+    const foundStagingDirectory: string[] = await this.findMatchingSoloCacheDirectories(
+      PathEx.join(this.basePath, 'cache').toString(),
+    );
+    if (foundStagingDirectory && foundStagingDirectory.length > 0) {
+      for (const stagingDirectory of foundStagingDirectory) {
+        fs.cpSync(stagingDirectory, currentStagingDirectory, {recursive: true, force: true});
+        // remove the old staging directory
+        fs.rmSync(stagingDirectory, {recursive: true, force: true});
+      }
+    }
+  }
+
+  private async findMatchingSoloCacheDirectories(baseDirectory: string): Promise<string[]> {
+    // Regex to match directory names like 'v0.58' or 'v0.60'
+    // This will capture the version number.
+    const versionDirectionRegex: RegExp = /^v(\d+\.\d+)$/;
+
+    // Regex to match the full path structure like 'v0.58/staging/v0.58.10'
+    // This captures the major.minor version and the patch version.
+    const fullPathRegex: RegExp = /^v(\d+\.\d+)\/staging\/v(\d+\.\d+\.\d+)$/;
+    const matchingDirectories: string[] = [];
+
+    try {
+      // 1. Read the contents of the baseCacheDir (e.g., '.solo/cache/')
+      const versionDirectories: string[] = await fs.readdirSync(baseDirectory);
+
+      for (const versionDirectory of versionDirectories) {
+        const versionMatch: string[] | null = versionDirectory.match(versionDirectionRegex);
+        if (versionMatch) {
+          // If the version directory matches (e.g., 'v0.58')
+          const fullVersionPath: string = path.join(baseDirectory, versionDirectory, 'staging');
+
+          // Check if 'staging' directory exists within the version directory
+          if (fs.existsSync(fullVersionPath)) {
+            // Read the contents of the 'staging' directory
+            const stagingContents: string[] = await fs.readdirSync(fullVersionPath);
+
+            for (const stagingItem of stagingContents) {
+              const fullItemPath: string = path.join(fullVersionPath, stagingItem);
+              const relativeItemPath: string = path.relative(baseDirectory, fullItemPath); // Get path relative to baseCacheDir
+
+              // Check if the full relative path matches the desired pattern
+              if (fullPathRegex.test(relativeItemPath) && fs.existsSync(fullItemPath)) {
+                matchingDirectories.push(fullItemPath);
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // The Directory isn't found or any other error
+      return undefined;
+    }
+    return matchingDirectories;
   }
 
   public async persist(): Promise<void> {
