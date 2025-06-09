@@ -198,3 +198,41 @@ jobs:
       - name: Deploy to JFrog Registry
         if: ${{ github.event.inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
         run: jf npm publish
+
+  # Do a Hugo build for the docs site for the release branch
+  hugo-docs-build:
+    name: Hugo Docs Build
+    uses: ./.github/workflows/zxc-hugo-build.yaml
+    needs:
+      - create-github-release
+    with:
+      docs-build-label: 'v${{ needs.prepare-release.outputs.version }}'
+      ref: 'refs/tags/v${{ needs.prepare-release.outputs.version }}'
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Do a Hugo build for the docs site for the main branch, required to ensure that docs for the main branch get deployed
+  #  to GitHub Pages
+  hugo-docs-build-main:
+    name: Hugo Docs Build
+    uses: ./.github/workflows/zxc-hugo-build.yaml
+    needs:
+      - hugo-docs-build
+    with:
+      docs-build-label: 'main'
+      download-artifacts: true
+      ref: 'main'
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Publish the Hugo docs site to GitHub Pages unless dry-run is enabled
+  hugo-docs-publish:
+    name: Hugo Docs Publish
+    if: ${{ inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
+    needs:
+      - hugo-docs-build-main
+    uses: ./.github/workflows/zxc-hugo-publish.yaml
+    with:
+      docs-build-label: 'v${{ needs.prepare-release.outputs.version }}'
+      dry-run-enabled: ${{ inputs.dry-run-enabled }}
+      attach-docs-enabled: true

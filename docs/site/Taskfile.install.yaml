@@ -1,0 +1,172 @@
+version: 3
+tasks:
+  install:
+    desc: "Install dependencies: Hugo, TypeDoc, Solo CLI, and Docsy theme"
+    cmds:
+      - task: "install:hugo"
+      - task: "install:typedoc"
+      - task: "install:solo"
+      - task: "install:docsy"
+
+  install:docsy:
+    silent: true
+    deps: [solo:version]
+    sources:
+      - package.json
+      - package-lock.json
+    generates:
+      - node_modules/**/*.*
+    cmds:
+      - printf "\r::group::Installing Docsy theme"
+      - npm install -g postcss-cli # Install postcss-cli globally to get around bug: https://github.com/google/docsy/issues/235
+      - npm install
+      - npm install postcss # must install separately after prior items have been installed: https://www.docsy.dev/docs/get-started/docsy-as-module/installation-prerequisites/#install-postcss
+      - hugo mod get github.com/google/docsy@v0.11.1-0.20250424121410-343cdec14c0a
+      - printf "\r::endgroup::--------------\n"
+
+  install:hugo:
+    desc: "Install Hugo extended version"
+    silent: true
+    status:
+      - command -v hugo
+      - |
+        node -e "
+        const { execSync } = require('child_process');
+        const semver = require('semver');
+
+        try {
+          const output = execSync('hugo version').toString();
+          const versionMatch = output.match(/v(\d+\.\d+\.\d+)(\+extended)?/);
+          if (!versionMatch) {
+            console.error('❌ Could not extract Hugo version from:', output);
+            process.exit(1);
+          }
+
+          const currentVersion = versionMatch[1];
+          const isExtended = !!versionMatch[2];
+          const requiredVersion = '0.145.0';
+
+          if (!isExtended) {
+            console.error('❌ Hugo is not the extended version. Please install the extended edition.');
+            process.exit(1);
+          }
+
+          if (!semver.gte(currentVersion, requiredVersion)) {
+            console.error(\`❌ Hugo version \${currentVersion} is too old. Requires >= \${requiredVersion}\`);
+            process.exit(1);
+          }
+
+          console.log(\`✅ Hugo version \${currentVersion}+extended is OK (>= \${requiredVersion})\`);
+        } catch (err) {
+          console.error('❌ Failed to run hugo:', err.message);
+          process.exit(1);
+        }
+        "
+    cmds:
+      - printf "\r::group::Installing Hugo extended version"
+      - CGO_ENABLED=1 go install -tags extended github.com/gohugoio/hugo@v0.145.0
+      - printf "\r::endgroup::--------------\n"
+
+  install:typedoc:
+    desc: "Install TypeDoc"
+    cmds:
+      - npx typedoc --version
+
+  install:solo:
+    desc: "Install the Solo CLI dependencies from the package.json"
+    silent: true
+    dir: ../..
+    sources:
+      - package.json
+      - package-lock.json
+    cmds:
+      - printf "\r::group::Installing Solo"
+      - npm install
+      - printf "\r::endgroup::--------------\n"
+
+  install:nginx:
+    desc: "Install Nginx"
+    status:
+      - command -v nginx
+    cmds:
+      - brew update
+      - brew install nginx
+
+  install:gh:
+    desc: Ensures the GitHub CLI (gh) is installed and available in the system's PATH.
+    silent: true
+    cmds:
+      - |
+        # Start with strict mode for the shell script
+        set -e -o pipefail
+
+        # Check if gh is already installed using the specified command
+        if command -v gh >/dev/null 2>&1; then
+          echo "GitHub CLI (gh) is already installed."
+          gh --version # Display version as confirmation
+          exit 0 # Successfully exit; no further action needed
+        fi
+
+        echo "GitHub CLI (gh) not found. Attempting installation..."
+
+        {{if eq OS "darwin"}}
+          # macOS Installation
+          echo "Detected macOS. Installing gh via Homebrew..."
+          if ! command -v brew >/dev/null 2>&1; then
+            echo "Error: Homebrew (brew) is not installed. Please install Homebrew first." >&2
+            exit 1
+          fi
+          brew install gh
+        {{else if eq OS "linux"}}
+          # Linux Installation (Debian/Ubuntu focused)
+          echo "Detected Linux. Installing gh for Debian/Ubuntu like systems..."
+        
+          # Determine if sudo is needed and available
+          SUDO_CMD=""
+          if [ "$(id -u)" -ne 0 ]; then # If not running as root
+            if command -v sudo >/dev/null 2>&1; then
+              SUDO_CMD="sudo"
+            else
+              echo "Error: Running as non-root and 'sudo' command not found. Please install sudo or run as root." >&2
+              exit 1
+            fi
+          fi
+
+          # Ensure essential tools are present for the installation script
+          # Using 'command -v' for consistency with the initial check
+          for tool in curl dpkg apt tee chmod dd mkdir; do
+            if ! command -v $tool >/dev/null 2>&1; then
+              echo "Error: Required tool '$tool' not found on this Linux system. Please install it." >&2
+              exit 1
+            fi
+          done
+        
+          echo "Configuring apt repository for GitHub CLI..."
+          # Create directory for keyring if it doesn't exist
+          $SUDO_CMD mkdir -p /usr/share/keyrings
+          # Add GitHub CLI GPG key
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | $SUDO_CMD dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          $SUDO_CMD chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+        
+          # Add the GitHub CLI apt repository
+          $SUDO_CMD mkdir -p /etc/apt/sources.list.d # Ensure directory exists
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | $SUDO_CMD tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+        
+          echo "Updating package list..."
+          $SUDO_CMD apt update
+        
+          echo "Installing gh..."
+          $SUDO_CMD apt install -y gh
+        {{else}}
+          echo "Unsupported OS: {{.OS}}. Please install GitHub CLI (gh) manually from https://github.com/cli/cli#installation" >&2
+          exit 1
+        {{end}}
+
+        # Verification step after attempting installation
+        echo "Verifying gh installation..."
+        if ! command -v gh >/dev/null 2>&1; then
+            echo "Error: GitHub CLI (gh) installation process completed, but the 'gh' command is still not found in PATH. This could indicate an installation failure or a PATH configuration issue." >&2
+            exit 1
+        fi
+        echo "GitHub CLI (gh) installed successfully."
+        gh --version
