@@ -24,6 +24,8 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {type ConfigManager} from './config-manager.js';
 import {Flags as flags} from '../commands/flags.js';
 import {type Realm, type Shard} from './../types/index.js';
+import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
+import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 
 export function getInternalAddress(
   releaseVersion: semver.SemVer | string,
@@ -569,4 +571,18 @@ export async function withTimeout<T>(
 async function throwAfter(duration: Duration, message: string = 'Timeout'): Promise<never> {
   await sleep(duration);
   throw new SoloError(message);
+}
+
+export async function getNetworkNodePodStatus(
+  k8: K8,
+  podReference: PodReference,
+): Promise<string> {
+  return k8
+    .containers()
+    .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
+    .execContainer([
+      'bash',
+      '-c',
+      String.raw`curl -s http://localhost:9999/metrics | grep platform_PlatformStatus | grep -v \#`,
+    ]);
 }

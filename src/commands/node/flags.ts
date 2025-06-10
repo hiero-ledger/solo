@@ -40,13 +40,13 @@ const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS = [
 ];
 
 export const UPGRADE_FLAGS = {
-  required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.upgradeZipFile, flags.upgradeVersion],
-  optional: COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS,
+  required: COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS,
+  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS, flags.upgradeZipFile, flags.upgradeVersion],
 };
 
 export const UPGRADE_PREPARE_FLAGS = {
-  required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.upgradeZipFile, flags.outputDir],
-  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS],
+  required: COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS,
+  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS, flags.upgradeZipFile, flags.outputDir],
 };
 
 export const UPGRADE_SUBMIT_TRANSACTIONS_FLAGS = {
