@@ -99,6 +99,7 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: hugo-build-artifacts
+          path: docs/site
 
       - name: List Artifacts
         if: ${{ inputs.download-artifacts && !cancelled() && !failure() }}
@@ -128,7 +129,7 @@ jobs:
           name: hugo-build-artifacts
           overwrite: true
           path: |
-            ./docs/site/build # what to upload as a release artifact
-            ./docs/site/public # what to upload to GitHub Pages
-            ./docs/site/content # the documentation to be rendered by Hugo
-            ./docs/site/static # the typedoc class files
+            docs/site/build
+            docs/site/public
+            docs/site/content
+            docs/site/static
