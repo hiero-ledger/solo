@@ -74,6 +74,7 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: hugo-build-artifacts
+          path: docs/site
 
       - name: List Artifacts
         run: |
@@ -101,7 +102,7 @@ jobs:
         if: ${{ inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
-          path: ./docs/site/public
+          path: docs/site/public
 
       - name: Deploy to GitHub Pages
         id: deployment
