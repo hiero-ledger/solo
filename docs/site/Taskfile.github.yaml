@@ -1,10 +1,9 @@
 version: 3
 tasks:
-  # this will need adjusting once I get an artifact published
   github:list:solo:releases:
     desc: List GitHub releases for hiero-ledger/solo using gh CLI and output as JSON (excluding empty assets)
     silent: true
-    deps: [install:gh]
+    deps: [solo:version,install:gh]
     status:
       - |
         if [[ -z "${GH_TOKEN}" ]]; then
@@ -147,7 +146,7 @@ tasks:
 
   github:augment:releases:
     desc: Add npmjsLatest field to each release in github-releases.json and save to build/releases.json
-    deps: [github:list:solo:releases]
+    deps: [npmjs:latest:solo:version,npmjs:list:solo:versions,github:list:solo:releases]
     silent: true
     cmds:
       - |

@@ -141,6 +141,7 @@ tasks:
         BUILD_DIR=docs/site/build
         SOLO_VERSION_FILE=$BUILD_DIR/version.txt
         mkdir -p $BUILD_DIR
+        touch $BUILD_DIR/github-releases.json
         echo -n "v$(node -p "require('./package.json').version")" > $SOLO_VERSION_FILE
         SOLO_VERSION=$(<"$SOLO_VERSION_FILE")
         SOLO_VERSION=$(echo "$SOLO_VERSION" | tr -d '\r\n[:space:]')
