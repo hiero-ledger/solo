@@ -79,9 +79,9 @@ jobs:
   
           npm install
           task build
-          .github/workflows/script/launch_network.sh ${{ matrix.release-tag }} || RC=$? || true
+          timeout --kill-after=1s --preserve-status 25m bash -c '.github/workflows/script/launch_network.sh ${{ matrix.release-tag }}' || RC=$? || true
           if [[ "$RC" != "0" ]]; then
-            npm run solo-test -- node logs --deployment solo-e2e -q --dev || true
+            npm run solo-test -- node logs --deployment solo-e2e --node-aliases -q --dev || true
             echo "Failed to launch network with release version ${{ matrix.release-tag }}"
             exit $RC
           fi
