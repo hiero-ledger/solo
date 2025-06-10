@@ -15,7 +15,7 @@ syntax = "proto3";
 
 package com.hedera.hapi.platform.event;
 
-/*
+/*z
  * Hedera Network Services Protobuf
  *
  * Copyright (C) 2024 Hedera Hashgraph, LLC
