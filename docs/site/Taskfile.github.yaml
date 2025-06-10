@@ -3,15 +3,13 @@ tasks:
   github:list:solo:releases:
     desc: List GitHub releases for hiero-ledger/solo using gh CLI and output as JSON (excluding empty assets)
     silent: true
-    deps: [solo:version,install:gh]
-    status:
+    deps: [install:gh]
+    cmds:
       - |
         if [[ -z "${GH_TOKEN}" ]]; then
           echo "WARN: GH_TOKEN is not set. Cannot run `gh` commands, skipping step." >&2
           exit 1
         fi
-    cmds:
-      - |
         printf "\r::group::Fetching GitHub releases for hiero-ledger/solo...\n"
         mkdir -p build
         touch build/github-releases.json
@@ -146,7 +144,6 @@ tasks:
 
   github:augment:releases:
     desc: Add npmjsLatest field to each release in github-releases.json and save to build/releases.json
-    deps: [npmjs:latest:solo:version,npmjs:list:solo:versions,github:list:solo:releases]
     silent: true
     cmds:
       - |
