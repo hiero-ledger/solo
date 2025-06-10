@@ -96,10 +96,16 @@ jobs:
           fi
          
           # Only download artifacts and attach docs to a release if this is a workflow_dispatch running with a version tag
-          if [[ "${{ github.ref_name }}" != "main" && "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "Running with a version tag and via workflow_dispatch, this is a versioned release."
-            VERSIONED_RELEASE=true
-            echo "setting: VERSIONED_RELEASE=${VERSIONED_RELEASE}"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "${{ github.ref_name }}" != "main" || "${{ inputs.docs-build-label }}" != "main" ]]; then
+              echo "Running with a version tag and via workflow_dispatch, this is a versioned release."
+              VERSIONED_RELEASE=true
+              echo "setting: VERSIONED_RELEASE=${VERSIONED_RELEASE}"
+            else
+              echo "Running with 'main' branch and not a versioned release."
+              VERSIONED_RELEASE=false
+              echo "setting: VERSIONED_RELEASE=${VERSIONED_RELEASE}"
+            fi
           else
             echo "Running with 'main' or 'release/*' branch."
             VERSIONED_RELEASE=false
