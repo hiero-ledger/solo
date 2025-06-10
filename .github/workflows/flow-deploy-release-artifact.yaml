@@ -83,7 +83,9 @@ jobs:
         run: |
           cat VERSION
           [[ "${{ github.event.inputs.dry-run-enabled }}" == true && ! -f VERSION ]] && echo -n "0.0.0-latest" > VERSION
-          echo "version=$(cat VERSION | tr -d '[:space:]')" | tee -a ${GITHUB_OUTPUT}
+          TRIMMED_VERSION=$(cat VERSION | tr -d '[:space:]')
+          echo "version=${TRIMMED_VERSION}" >> $GITHUB_OUTPUT
+          echo "version=${TRIMMED_VERSION}"
 
   create-github-release:
     name: Github / Release
@@ -203,7 +205,7 @@ jobs:
     name: Hugo Docs Setup
     runs-on: hiero-solo-linux-medium
     outputs:
-      tag-ref: ${{ steps.set-inputs.outputs.tag-ref }}
+      tag-ref: ${{ steps.set-inputs.outputs.tag_ref }}
     needs:
       - prepare-release
     steps:
@@ -218,10 +220,12 @@ jobs:
           set -xeo pipefail
           if [[ "${{ inputs.dry-run-enabled }}" == 'true' ]]; then
             echo "Dry run enabled, setting ref to `github.ref` since tag won't exist."
-            echo "tag-ref=${{ github.ref }}" >> $GITHUB_OUTPUT
+            echo "tag_ref=${{ github.ref }}" >> $GITHUB_OUTPUT
+            echo "tag_ref=${{ github.ref }}"
           else
             echo "Dry run not enabled, setting ref to 'refs/tags/v${{ needs.prepare-release.outputs.version }}'."
-            echo "tag-ref='refs/tags/v${{ needs.prepare-release.outputs.version }}'" >> $GITHUB_OUTPUT
+            echo "tag_ref='refs/tags/v${{ needs.prepare-release.outputs.version }}'" >> $GITHUB_OUTPUT
+            echo "tag_ref='refs/tags/v${{ needs.prepare-release.outputs.version }}'"
           fi
 
   # Do a Hugo build for the docs site for the release branch
