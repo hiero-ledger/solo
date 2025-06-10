@@ -177,6 +177,7 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     let storageType = '';
+    const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
     if (
       config.storageType !== constants.StorageType.MINIO_ONLY &&
       config.storageReadAccessKey &&
@@ -193,17 +194,20 @@ export class MirrorNodeCommand extends BaseCommand {
       } else {
         throw new IllegalArgumentError(`Invalid cloud storage type: ${config.storageType}`);
       }
-      const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
+
       const mapping: Record<string, string | boolean | number> = {};
-      mapping[`${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_CLOUDPROVIDER`] = storageType;
-      mapping[`${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_ENDPOINTOVERRIDE`] = config.storageEndpoint;
-      mapping[`${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_ACCESSKEY`] = config.storageReadAccessKey;
-      mapping[`${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_SECRETKEY`] = config.storageReadSecrets;
+      mapping[`importer.env.${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_CLOUDPROVIDER`] = storageType;
+      mapping[`importer.env.${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_ENDPOINTOVERRIDE`] =
+        config.storageEndpoint;
+      mapping[`importer.env.${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_ACCESSKEY`] =
+        config.storageReadAccessKey;
+      mapping[`importer.env.${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_SECRETKEY`] =
+        config.storageReadSecrets;
       valuesArgument += helpers.populateHelmArguments(mapping);
     }
 
     if (config.storageBucketRegion) {
-      valuesArgument += ` --set importer.env.HIERO_MIRROR_IMPORTER_DOWNLOADER_REGION=${config.storageBucketRegion}`;
+      valuesArgument += ` --set importer.env.${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_REGION=${config.storageBucketRegion}`;
     }
 
     if (config.domainName) {
