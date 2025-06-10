@@ -70,25 +70,25 @@ jobs:
         id: set-inputs
         run: |
           set -xeo pipefail
-          echo ":::group::Set Inputs"
+          echo "::group::Set Inputs"
           echo "Inputs:"
           echo "docs-build-label=${{ inputs.docs-build-label }}"
           echo "dry-run-enabled=${{ inputs.dry-run-enabled }}"
           echo "github.ref=${{ github.ref }}"
           echo "github.ref_name=${{ github.ref_name }}"
           echo "github.event_name=${{ github.event_name }}"
-          echo ":::endgroup::"
+          echo "::endgroup::"
           
-          echo ":::group::Default Output Values"
+          echo "::group::Default Output Values"
           DOCS_BUILD_LABEL="${{ inputs.docs-build-label }}"
           echo "defaulting: DOCS_BUILD_LABEL=${DOCS_BUILD_LABEL}"
           MAIN_REF="main"
           echo "defaulting: MAIN_REF=${MAIN_REF}"
           VERSIONED_RELEASE=false
           echo "defaulting: VERSIONED_RELEASE=${VERSIONED_RELEASE}"
-          echo ":::endgroup::"
+          echo "::endgroup::"
          
-          echo ":::group::Setting Inputs" 
+          echo "::group::Setting Inputs" 
           if [[ -z "${DOCS_BUILD_LABEL}" ]]; then
             echo "No docs-build-label input provided for push to 'main' or 'release/*', defaulting to 'main'."
             DOCS_BUILD_LABEL='main'
@@ -117,16 +117,16 @@ jobs:
             MAIN_REF="main"
             echo "setting: MAIN_REF=${MAIN_REF}"
           fi
-          echo ":::endgroup::"
+          echo "::endgroup::"
           
-          echo ":::group::Output Values"
+          echo "::group::Output Values"
           echo "docs_build_label=${DOCS_BUILD_LABEL}" >> $GITHUB_OUTPUT
           echo "output: docs_build_label=${DOCS_BUILD_LABEL}"
           echo "main_ref=${MAIN_REF}" >> $GITHUB_OUTPUT
           echo "output: main_ref=${MAIN_REF}"
           echo "versioned_release=${VERSIONED_RELEASE}" >> $GITHUB_OUTPUT
           echo "output: versioned_release=${VERSIONED_RELEASE}"
-          echo ":::endgroup::"
+          echo "::endgroup::"
 
   # ------- Hugo Build and Publish for Version Tag and Main Branch -------
 
