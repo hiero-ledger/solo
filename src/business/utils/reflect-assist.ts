@@ -50,4 +50,34 @@ export class ReflectAssist {
       return v;
     }
   }
+
+  /**
+   * Creates a clone of the firstObject of type T and merges the properties of the secondObject into it.  If either
+   * object is falsy, then the other object is returned.
+   * @returns The merged object of type T.
+   * @param firstObject
+   * @param secondObject
+   */
+  public static merge<T>(firstObject: T, secondObject: T): T {
+    if (!firstObject) {
+      return secondObject;
+    }
+
+    if (!secondObject) {
+      return firstObject;
+    }
+
+    const mergedObject: T = structuredClone(firstObject);
+
+    for (const key in secondObject) {
+      if (secondObject.hasOwnProperty(key) && secondObject[key] !== null && secondObject[key] !== undefined) {
+        mergedObject[key] =
+          typeof secondObject[key] === 'object' && !Array.isArray(secondObject[key])
+            ? ReflectAssist.merge(mergedObject[key], secondObject[key])
+            : secondObject[key];
+      }
+    }
+
+    return mergedObject;
+  }
 }

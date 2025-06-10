@@ -1,0 +1,53 @@
+version: 3
+includes:
+  main:
+    taskfile: ../Taskfile.examples.yml
+    flatten: true
+vars:
+  use_port_forwards: "true"
+env:
+  SOLO_NETWORK_SIZE: "1"
+  SOLO_DEPLOYMENT: "solo-deployment"
+  SOLO_NAMESPACE: "solo-e2e"
+  SOLO_CLUSTER_NAME: "solo-e2e"
+  MIRROR_RELEASE_NAME: mirror-1
+  SOLO_CLUSTER_RELEASE_NAME: solo-cluster-setup
+  SOLO_CLUSTER_SETUP_NAMESPACE: solo-setup
+
+  BLOCK_NODE_ADD_EXTRA_FLAGS: |
+    --release-tag v0.62.0
+
+  HEDERA_SERVICES_ROOT: "/Users/user/source/hiero-consensus-node"
+  ENABLE_EXPLORER_TLS_FLAG: "--enable-explorer-tls"
+  TLS_CLUSTER_ISSUER_TYPE_FLAG: "--tls-cluster-issuer-type acme-staging"
+  ENABLE_EXPLORER_INGRESS: "--enable-ingress"
+  ENABLE_MIRROR_INGRESS: "--enable-ingress"
+  EXPLORER_NAME_SPACE: "explorer-name-space"
+  EXPLORER_DEPLOYMENT: ""
+  EXPLORER_CLUSTER_CONTEXT: "kind-solo-cluster"
+tasks:
+  install:network-with-block-node:
+    desc: creates network with block nodes
+    deps:
+      - task: "init"
+    cmds:
+      - task: "cluster:create"
+      - task: "solo:init"
+      - task: "solo:cluster:setup"
+      - task: "solo:cluster-ref:connect"
+      - task: "solo:deployment:create"
+      - task: "solo:deployment:add-cluster"
+      - task: "solo:block:add"
+      - task: "solo:keys"
+      - task: "solo:network:deploy"
+      - task: "solo:node:setup"
+      - task: "solo:node:start"
+      - task: "solo:mirror-node"
+      - task: "solo:explorer"
+
+  destroy:network-with-block-node:
+    desc: destroy network
+    deps:
+      - task: "init"
+    cmds:
+      - task: "cluster:destroy"

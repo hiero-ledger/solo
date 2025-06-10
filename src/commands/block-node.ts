@@ -35,10 +35,11 @@ import chalk from 'chalk';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
-import {ComponentStateMetadataSchema} from '../data/schema/model/remote/state/component-state-metadata-schema.js';
-import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {lt, SemVer} from 'semver';
+import {inject, injectable} from 'tsyringe-neo';
+import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -55,7 +56,6 @@ interface BlockNodeDeployConfigClass {
   nodeAliases: NodeAliases; // from remote config
   context: string;
   valuesArg: string;
-  newBlockNodeComponent: BlockNodeStateSchema;
   releaseName: string;
 }
 
@@ -80,7 +80,12 @@ interface BlockNodeDestroyContext {
   config: BlockNodeDestroyConfigClass;
 }
 
+@injectable()
 export class BlockNodeCommand extends BaseCommand {
+  public constructor(@inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi) {
+    super();
+  }
+
   public static readonly COMMAND_NAME: string = 'block';
 
   private static readonly ADD_CONFIGS_NAME: string = 'addConfigs';
@@ -131,7 +136,7 @@ export class BlockNodeCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private getReleaseName(): string {
+  private getNextReleaseName(): string {
     return (
       constants.BLOCK_NODE_RELEASE_NAME +
       '-' +
@@ -188,15 +193,11 @@ export class BlockNodeCommand extends BaseCommand {
           },
         },
         {
-          title: 'Prepare release name and block node name',
+          title: 'Prepare release name',
           task: async (context_): Promise<void> => {
             const config: BlockNodeDeployConfigClass = context_.config;
 
-            config.releaseName = this.getReleaseName();
-
-            config.newBlockNodeComponent = new BlockNodeStateSchema(
-              new ComponentStateMetadataSchema(1, config.namespace.name, config.clusterRef, DeploymentPhase.DEPLOYED),
-            );
+            config.releaseName = this.getNextReleaseName();
           },
         },
         {
@@ -333,13 +334,26 @@ export class BlockNodeCommand extends BaseCommand {
 
             context_.config.context = this.remoteConfig.getClusterRefs()[context_.config.clusterRef];
 
-            context_.config.releaseName = this.getReleaseName();
+            const existingBlockNodeComponents: BlockNodeStateSchema[] =
+              this.remoteConfig.configuration.components.getComponentsByClusterReference<BlockNodeStateSchema>(
+                ComponentTypes.BlockNode,
+                context_.config.clusterRef,
+              );
 
-            context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
-              context_.config.namespace,
-              context_.config.releaseName,
-              context_.config.context,
-            );
+            // check if any of the block node components are installed
+            for (const blockNodeComponent of existingBlockNodeComponents) {
+              const releaseName: string = constants.BLOCK_NODE_RELEASE_NAME + '-' + blockNodeComponent.metadata.id;
+              const installed: boolean = await this.chartManager.isChartInstalled(
+                context_.config.namespace,
+                releaseName,
+                context_.config.context,
+              );
+              if (installed) {
+                context_.config.isChartInstalled = installed;
+                context_.config.releaseName = releaseName;
+                break;
+              }
+            }
 
             this.logger.debug('Initialized config', {config: context_.config});
 
@@ -354,7 +368,7 @@ export class BlockNodeCommand extends BaseCommand {
               // TODO: Add support for multiple block nodes
               this.remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(
                 ComponentTypes.BlockNode,
-                1,
+                0,
               );
             } catch (error) {
               throw new SoloError(`Block node ${config.releaseName} was not found`, error);
@@ -381,7 +395,7 @@ export class BlockNodeCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error deploying block node: ${error.message}`, error);
+      throw new SoloError(`Error destroying block node: ${error.message}`, error);
     } finally {
       await lease.release();
     }
@@ -395,10 +409,9 @@ export class BlockNodeCommand extends BaseCommand {
       title: 'Add block node component in remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        const config: BlockNodeDeployConfigClass = context_.config;
-
+        const {namespace, clusterRef} = context_.config;
         this.remoteConfig.configuration.components.addNewComponent(
-          config.newBlockNodeComponent,
+          this.componentFactory.createNewBlockNodeComponent(clusterRef, namespace),
           ComponentTypes.BlockNode,
         );
 
@@ -413,10 +426,8 @@ export class BlockNodeCommand extends BaseCommand {
       title: 'Disable block node component in remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        const config: BlockNodeDestroyConfigClass = context_.config;
-
         // TODO: Add support for multiple block nodes
-        this.remoteConfig.configuration.components.removeComponent(1, ComponentTypes.BlockNode);
+        this.remoteConfig.configuration.components.removeComponent(0, ComponentTypes.BlockNode);
 
         await this.remoteConfig.persist();
       },

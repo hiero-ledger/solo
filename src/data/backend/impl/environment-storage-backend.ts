@@ -7,6 +7,7 @@ import {StorageBackendError} from '../api/storage-backend-error.js';
 import {IllegalArgumentError} from '../../../core/errors/illegal-argument-error.js';
 import {Prefix} from '../../key/prefix.js';
 import {EnvironmentKeyFormatter} from '../../key/environment-key-formatter.js';
+import {StringEx} from '../../../business/utils/string-ex.js';
 
 export class EnvironmentStorageBackend implements StorageBackend {
   public constructor(public readonly prefix?: string) {}
@@ -72,7 +73,7 @@ export class EnvironmentStorageBackend implements StorageBackend {
   }
 
   public async readBytes(key: string): Promise<Buffer> {
-    if (!key || key.trim().length === 0) {
+    if (StringEx.isEmpty(key)) {
       throw new IllegalArgumentError('key must not be null, undefined, or empty');
     }
 
@@ -87,7 +88,7 @@ export class EnvironmentStorageBackend implements StorageBackend {
       throw new StorageBackendError(`key not found: ${key}`);
     }
 
-    return Buffer.from(value, 'utf-8');
+    return Buffer.from(value, 'utf8');
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars,unused-imports/no-unused-vars

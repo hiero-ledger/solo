@@ -29,7 +29,7 @@ export class LocalConfigSchemaDefinition
     return LocalConfigSchema.SCHEMA_VERSION;
   }
 
-  public get classCtor(): ClassConstructor<LocalConfigSchema> {
+  public get classConstructor(): ClassConstructor<LocalConfigSchema> {
     return LocalConfigSchema;
   }
 

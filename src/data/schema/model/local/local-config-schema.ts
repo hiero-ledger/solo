@@ -5,14 +5,7 @@ import {DeploymentSchema} from './deployment-schema.js';
 import {UserIdentitySchema} from '../common/user-identity-schema.js';
 import {Version} from '../../../../business/utils/version.js';
 import {ApplicationVersionsSchema} from '../common/application-versions-schema.js';
-import {
-  type ClusterReference,
-  type ClusterReferences,
-  type DeploymentName,
-  type Realm,
-  type Shard,
-} from '../../../../types/index.js';
-import {type NamespaceName} from '../../../../types/namespace/namespace-name.js';
+import {type ClusterReferences} from '../../../../types/index.js';
 
 @Exclude()
 export class LocalConfigSchema {
@@ -56,28 +49,5 @@ export class LocalConfigSchema {
     this.deployments = deployments ?? [];
     this.clusterRefs = clusterReferences ?? new Map<string, string>();
     this.userIdentity = userIdentity ?? new UserIdentitySchema();
-  }
-
-  public addClusterRef(clusterReference: ClusterReference, context: string): void {
-    this.clusterRefs.set(clusterReference, context);
-  }
-
-  public removeClusterRef(clusterReference: ClusterReference): void {
-    this.clusterRefs.delete(clusterReference);
-  }
-
-  public addDeployment(deployment: DeploymentName, namespace: NamespaceName, realm: Realm, shard: Shard): void {
-    this.deployments.push(new DeploymentSchema(deployment, namespace.name, [], realm, shard));
-  }
-
-  public removeDeployment(deployment: DeploymentName): void {
-    this.deployments = this.deployments.filter((d): boolean => d.name !== deployment);
-  }
-
-  public addClusterRefToDeployment(clusterReference: ClusterReference, deployment: DeploymentName): void {
-    const deploymentObject: DeploymentSchema = this.deployments.find(d => d.name === deployment);
-    if (deploymentObject) {
-      deploymentObject.clusters.push(clusterReference);
-    }
   }
 }

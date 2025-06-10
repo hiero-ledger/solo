@@ -21,15 +21,15 @@ export class ClassToObjectMapper implements ObjectMapper {
     this.flatMapper = new FlatKeyMapper(patchInject(formatter, InjectTokens.KeyFormatter, ClassToObjectMapper.name));
   }
 
-  public fromArray<T extends R, R>(cls: ClassConstructor<T>, array: object[]): R[] {
-    const result: R[] = [];
+  public fromArray<T>(cls: ClassConstructor<T>, array: object[]): T[] {
+    const result: T[] = [];
     for (const item of array) {
       result.push(this.fromObject(cls, item));
     }
     return result;
   }
 
-  public fromObject<T extends R, R>(cls: ClassConstructor<T>, object: object): R {
+  public fromObject<T>(cls: ClassConstructor<T>, object: object): T {
     try {
       return plainToInstance(cls, object);
     } catch (error) {

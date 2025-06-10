@@ -8,7 +8,7 @@ import {type ObjectMapper} from '../../../mapper/api/object-mapper.js';
 import {SchemaValidationError} from './schema-validation-error.js';
 
 export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
-  public abstract get classCtor(): ClassConstructor<T>;
+  public abstract get classConstructor(): ClassConstructor<T>;
   public abstract get migrations(): SchemaMigration[];
   public abstract get name(): string;
   public abstract get version(): Version<number>;
@@ -27,7 +27,7 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
     }
 
     const migrated = await this.applyMigrations(clone, new Version(dataVersion));
-    return this.mapper.fromObject(this.classCtor, migrated);
+    return this.mapper.fromObject(this.classConstructor, migrated);
   }
 
   public async validateMigrations(): Promise<void> {

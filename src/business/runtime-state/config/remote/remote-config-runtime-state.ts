@@ -379,10 +379,12 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       (command === 'node' && subcommand === 'delete') ||
       (command === 'node' && subcommand === 'delete-execute');
 
+    // TBD how to update remoteConfig.versions.cli
+
     if (argv[flags.soloChartVersion.name]) {
-      remoteConfig.versions.cli = new SemVer(argv[flags.soloChartVersion.name]);
+      remoteConfig.versions.chart = new SemVer(argv[flags.soloChartVersion.name]);
     } else if (isCommandUsingSoloChartVersionFlag) {
-      remoteConfig.versions.cli = new SemVer(flags.soloChartVersion.definition.defaultValue as string);
+      remoteConfig.versions.chart = new SemVer(flags.soloChartVersion.definition.defaultValue as string);
     }
 
     const isCommandUsingReleaseTagVersionFlag: boolean =

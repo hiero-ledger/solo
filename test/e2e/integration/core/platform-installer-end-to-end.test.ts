@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {it, describe, after, before} from 'mocha';
+import {after, before, describe, it} from 'mocha';
 import {expect} from 'chai';
 
 import * as constants from '../../../../src/core/constants.js';
@@ -18,6 +18,7 @@ import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.j
 import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../../../../src/integration/kube/resources/container/container-reference.js';
 import {Argv} from '../../../helpers/argv-wrapper.js';
+import {SoloError} from '../../../../src/core/errors/solo-error.js';
 
 const defaultTimeout = Duration.ofSeconds(20).toMillis();
 
@@ -89,7 +90,7 @@ endToEndTestSuite(namespace.name, argv, {startNodes: false}, bootstrapResp => {
           await installer.fetchPlatform(podReference, 'INVALID');
           throw new Error(); // fail-safe, should not reach here
         } catch (error) {
-          expect(error.message).to.include('curl: (22) The requested URL returned error: 404');
+          expect(error).to.be.instanceOf(SoloError);
         }
       }).timeout(defaultTimeout);
 

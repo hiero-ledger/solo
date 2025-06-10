@@ -30,6 +30,6 @@ export class ClusterSchema {
     this.namespace = namespace ?? '';
     this.deployment = deployment ?? '';
     this.dnsBaseDomain = dnsBaseDomain ?? 'cluster.local';
-    this.dnsConsensusNodePattern = dnsConsensusNodePattern ?? 'network-${nodeAlias}-svc.${namespace}.svc';
+    this.dnsConsensusNodePattern = dnsConsensusNodePattern ?? 'network-{nodeAlias}-svc.{namespace}.svc';
   }
 }
