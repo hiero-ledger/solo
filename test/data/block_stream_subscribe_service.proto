@@ -7,7 +7,7 @@ option java_package = "org.hiero.block.api.protoc";
 // <<<pbj.java_package = "org.hiero.block.api">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "block-node/api/shared_message_types.proto";
+import "shared_message_types.proto";
 
 /**
  * A request to stream block items from block node to a client.
