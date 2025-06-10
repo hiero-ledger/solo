@@ -146,7 +146,7 @@ jobs:
   # Do a Hugo build for the docs site for the main branch, required to ensure that docs for the main branch get deployed
   #  to GitHub Pages.  This runs after hugo-docs-build if the docs-build-label is not 'main'.
   hugo-docs-build-main:
-    name: Hugo Docs Build Main
+    name: Hugo Docs Build - Main
     uses: ./.github/workflows/zxc-hugo-build.yaml
     needs:
       - setup
@@ -176,7 +176,7 @@ jobs:
   # Do a Hugo build for the docs site for the main branch, this is when the hugo-docs-build is skipped, the need clause
   #  is different
   hugo-docs-build-main-only:
-    name: Hugo Docs Build Main
+    name: Hugo Docs Build - Main Only
     if: ${{ needs.setup.outputs.versioned-release == 'false' && !cancelled() && !failure() }}
     uses: ./.github/workflows/zxc-hugo-build.yaml
     needs:
@@ -189,12 +189,12 @@ jobs:
 
   # Publish the Hugo docs site to GitHub Pages unless dry-run is enabled or if this is a merge to release/* branch
   hugo-docs-publish-main-only:
-    name: Hugo Docs Publish
-    if: ${{ inputs.dry-run-enabled != 'true' && startsWith(github.ref_name, 'release/') && !cancelled() && !failure() }}
+    name: Hugo Docs Publish - Main Only
     uses: ./.github/workflows/zxc-hugo-publish.yaml
     needs:
       - setup
       - hugo-docs-build-main-only
     with:
       docs-build-label: ${{ needs.setup.outputs.docs-build-label }}
-      dry-run-enabled: ${{ inputs.dry-run-enabled == true }} # compare to true, because it could be an empty string which throws an error
+      # compare to true, because it could be an empty string which throws an error
+      dry-run-enabled: ${{ inputs.dry-run-enabled == true || startsWith(github.ref_name, 'release/') }}
