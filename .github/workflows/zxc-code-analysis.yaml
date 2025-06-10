@@ -110,7 +110,7 @@ jobs:
           path: "e2e_test_report"
 
       - name: Publish E2E Test Report
-        uses: step-security/publish-unit-test-result-action@b495e9a82021fc8f34737416de688298581b847d # v2.19.0
+        uses: step-security/publish-unit-test-result-action@e88bfc6c0dffc68a1067d63526c80c81f248da11 # v2.20.0
         if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
         with:
           check_name: "E2E Test Report"
