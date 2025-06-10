@@ -51,6 +51,7 @@ import {type AccountId} from '@hashgraph/sdk';
 import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
+import * as semver from 'semver';
 
 interface MirrorNodeDeployConfigClass {
   isChartInstalled: boolean;
@@ -192,12 +193,13 @@ export class MirrorNodeCommand extends BaseCommand {
       } else {
         throw new IllegalArgumentError(`Invalid cloud storage type: ${config.storageType}`);
       }
-      valuesArgument += helpers.populateHelmArguments({
-        'importer.env.HIERO_MIRROR_IMPORTER_DOWNLOADER_CLOUDPROVIDER': storageType,
-        'importer.env.HIERO_MIRROR_IMPORTER_DOWNLOADER_ENDPOINTOVERRIDE': config.storageEndpoint,
-        'importer.env.HIERO_MIRROR_IMPORTER_DOWNLOADER_ACCESSKEY': config.storageReadAccessKey,
-        'importer.env.HIERO_MIRROR_IMPORTER_DOWNLOADER_SECRETKEY': config.storageReadSecrets,
-      });
+      const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
+      const mapping: Record<string, string | boolean | number> = {};
+      mapping[`${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_CLOUDPROVIDER`] = storageType;
+      mapping[`${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_ENDPOINTOVERRIDE`] = config.storageEndpoint;
+      mapping[`${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_ACCESSKEY`] = config.storageReadAccessKey;
+      mapping[`${environmentVariablePrefix}_MIRROR_IMPORTER_DOWNLOADER_SECRETKEY`] = config.storageReadSecrets;
+      valuesArgument += helpers.populateHelmArguments(mapping);
     }
 
     if (config.storageBucketRegion) {
@@ -263,7 +265,7 @@ export class MirrorNodeCommand extends BaseCommand {
       context_.config.clusterContext,
     );
 
-    if (context_.config.isChartInstalled) {
+    if (context_.config.isChartInstalled && semver.gte(context_.config.mirrorNodeVersion, '0.130.0')) {
       // migrating mirror node passwords from HEDERA_ (version 0.129.0) to HIERO_
       const existingSecrets = await this.k8Factory
         .getK8(context_.config.clusterContext)
@@ -278,7 +280,6 @@ export class MirrorNodeCommand extends BaseCommand {
         }
       }
       if (Object.keys(updatedData).length > 0) {
-        console.log(`updated configmap updatedData = ${JSON.stringify(updatedData, null, 2)}`);
         await this.k8Factory
           .getK8(context_.config.clusterContext)
           .secrets()
@@ -706,17 +707,21 @@ export class MirrorNodeCommand extends BaseCommand {
                       .readByRef(containerReference)
                       .execContainer('/bin/bash -c printenv');
                     const mirrorEnvironmentVariablesArray = mirrorEnvironmentVariables.split('\n');
-                    const HIERO_MIRROR_IMPORTER_DB_OWNER = helpers.getEnvironmentValue(
-                      mirrorEnvironmentVariablesArray,
-                      'HIERO_MIRROR_IMPORTER_DB_OWNER',
+                    const environmentVariablePrefix = this.getEnvironmentVariablePrefix(
+                      context_.config.mirrorNodeVersion,
                     );
-                    const HIERO_MIRROR_IMPORTER_DB_OWNERPASSWORD = helpers.getEnvironmentValue(
+
+                    const MIRROR_IMPORTER_DB_OWNER = helpers.getEnvironmentValue(
                       mirrorEnvironmentVariablesArray,
-                      'HIERO_MIRROR_IMPORTER_DB_OWNERPASSWORD',
+                      `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_OWNER`,
                     );
-                    const HIERO_MIRROR_IMPORTER_DB_NAME = helpers.getEnvironmentValue(
+                    const MIRROR_IMPORTER_DB_OWNERPASSWORD = helpers.getEnvironmentValue(
                       mirrorEnvironmentVariablesArray,
-                      'HIERO_MIRROR_IMPORTER_DB_NAME',
+                      `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`,
+                    );
+                    const MIRROR_IMPORTER_DB_NAME = helpers.getEnvironmentValue(
+                      mirrorEnvironmentVariablesArray,
+                      `${environmentVariablePrefix}_MIRROR_IMPORTER_DB_NAME`,
                     );
 
                     await self.k8Factory
@@ -725,7 +730,7 @@ export class MirrorNodeCommand extends BaseCommand {
                       .readByRef(containerReference)
                       .execContainer([
                         'psql',
-                        `postgresql://${HIERO_MIRROR_IMPORTER_DB_OWNER}:${HIERO_MIRROR_IMPORTER_DB_OWNERPASSWORD}@localhost:5432/${HIERO_MIRROR_IMPORTER_DB_NAME}`,
+                        `postgresql://${MIRROR_IMPORTER_DB_OWNER}:${MIRROR_IMPORTER_DB_OWNERPASSWORD}@localhost:5432/${MIRROR_IMPORTER_DB_NAME}`,
                         '-c',
                         sqlQuery,
                       ]);
@@ -758,6 +763,10 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     return true;
+  }
+
+  private getEnvironmentVariablePrefix(version: string): string {
+    return semver.lt(version, '0.130.0') ? 'HEDERA' : 'HIERO';
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
