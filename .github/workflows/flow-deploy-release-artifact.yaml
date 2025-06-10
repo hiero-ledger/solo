@@ -83,7 +83,9 @@ jobs:
         run: |
           cat VERSION
           [[ "${{ github.event.inputs.dry-run-enabled }}" == true && ! -f VERSION ]] && echo -n "0.0.0-latest" > VERSION
-          echo "version=$(cat VERSION | tr -d '[:space:]')" | tee -a ${GITHUB_OUTPUT}
+          TRIMMED_VERSION=$(cat VERSION | tr -d '[:space:]')
+          echo "version=${TRIMMED_VERSION}" >> $GITHUB_OUTPUT
+          echo "version=${TRIMMED_VERSION}"
 
   create-github-release:
     name: Github / Release
@@ -199,6 +201,33 @@ jobs:
         if: ${{ github.event.inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
         run: jf npm publish
 
+  setup:
+    name: Hugo Docs Setup
+    runs-on: hiero-solo-linux-medium
+    outputs:
+      tag-ref: ${{ steps.set-inputs.outputs.tag_ref }}
+    needs:
+      - prepare-release
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - name: Set Inputs
+        id: set-inputs
+        run: |
+          set -xeo pipefail
+          if [[ "${{ inputs.dry-run-enabled }}" == 'true' ]]; then
+            echo "Dry run enabled, setting ref to `github.ref` since tag won't exist."
+            echo "tag_ref=${{ github.ref }}" >> $GITHUB_OUTPUT
+            echo "tag_ref=${{ github.ref }}"
+          else
+            echo "Dry run not enabled, setting ref to 'refs/tags/v${{ needs.prepare-release.outputs.version }}'."
+            echo "tag_ref='refs/tags/v${{ needs.prepare-release.outputs.version }}'" >> $GITHUB_OUTPUT
+            echo "tag_ref='refs/tags/v${{ needs.prepare-release.outputs.version }}'"
+          fi
+
   # Do a Hugo build for the docs site for the release branch
   hugo-docs-build:
     name: Hugo Docs Build
@@ -206,9 +235,10 @@ jobs:
     needs:
       - prepare-release
       - create-github-release
+      - setup
     with:
       docs-build-label: 'v${{ needs.prepare-release.outputs.version }}'
-      ref: 'refs/tags/v${{ needs.prepare-release.outputs.version }}'
+      ref: ${{ needs.setup.outputs.tag-ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
