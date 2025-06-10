@@ -77,17 +77,15 @@ jobs:
 
       - name: List Artifacts
         run: |
-          set -xeo pipefail
+          set -eo pipefail
           echo "Listing downloaded build artifacts:"
           ls -la ./docs/site/build # what to upload as a release artifact
           ls -la ./docs/site/public # what to upload to GitHub Pages
 
       - name: Attach Docs as Release Artifacts
         if: ${{ inputs.attach-docs-enabled && !inputs.dry-run-enabled && !cancelled() && !failure() }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -xeo pipefail
+          set -eo pipefail
           RELEASE_VERSION="${{ inputs.docs-build-label }}"
           # Ensure the release version is set
           if [[ -z "${RELEASE_VERSION}" ]]; then
@@ -96,7 +94,7 @@ jobs:
           fi
           cd docs/site
           # Create the release artifact tarballs
-          HUGO_SOLO_VERSION="${RELEASE_VERSION}" task github:upload:release:assets
+          GH_TOKEN=${{ secrets.GITHUB_TOKEN }} HUGO_SOLO_VERSION="${RELEASE_VERSION}" task github:upload:release:assets
 
       # Upload / stage the built site to GitHub Pages
       - name: Upload Pages Artifact

@@ -103,7 +103,7 @@ jobs:
       - name: List Artifacts
         if: ${{ inputs.download-artifacts && !cancelled() && !failure() }}
         run: |
-          set -xeo pipefail
+          set -eo pipefail
           echo "Listing downloaded build artifacts:"
           ls -la ./docs/site/build # what to upload as a release artifact
           ls -la ./docs/site/public # what to upload to GitHub Pages
@@ -112,13 +112,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.github-token }} # We want this to be null unless we want to pull the existing release artifacts
         run: |
-          set -xeo pipefail
+          set -eo pipefail
           cd docs/site
           DOCS_BUILD_LABEL="${{ inputs.docs-build-label }}"
           if [[ -z ${DOCS_BUILD_LABEL} ]]; then
-           task build 
+           GH_TOKEN=${{ secrets.github-token }} task build 
           else
-            HUGO_SOLO_VERSION=${DOCS_BUILD_LABEL} task build
+            GH_TOKEN=${{ secrets.github-token }} HUGO_SOLO_VERSION=${DOCS_BUILD_LABEL} task build
           fi
 
       # Upload the built site to artifacts

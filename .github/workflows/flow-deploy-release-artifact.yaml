@@ -139,7 +139,7 @@ jobs:
 
       - name: Build Production Distribution
         run: |
-          set -x
+          set -eo pipefail
           npm install
           echo "VERSION=${{ needs.prepare-release.outputs.version }}"
           [[ -n "${{ needs.prepare-release.outputs.version }}" ]] && npm version ${{ needs.prepare-release.outputs.version }} -f --no-git-tag-version --allow-same-version
@@ -217,7 +217,7 @@ jobs:
       - name: Set Inputs
         id: set-inputs
         run: |
-          set -xeo pipefail
+          set -eo pipefail
           if [[ "${{ inputs.dry-run-enabled }}" == 'true' ]]; then
             echo "Dry run enabled, setting ref to `github.ref` since tag won't exist."
             echo "tag_ref=${{ github.ref }}" >> $GITHUB_OUTPUT

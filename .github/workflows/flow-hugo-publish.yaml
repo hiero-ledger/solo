@@ -69,7 +69,7 @@ jobs:
       - name: Set Inputs
         id: set-inputs
         run: |
-          set -xeo pipefail
+          set -eo pipefail
           echo "::group::Set Inputs"
           echo "Inputs:"
           echo "docs-build-label=${{ inputs.docs-build-label }}"
