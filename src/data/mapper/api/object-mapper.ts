@@ -14,7 +14,7 @@ export interface ObjectMapper {
    * Converts a plain javascript object into an instance of the specified class.
    *
    * @param cls - The desired class of the resulting object instance.
-   * @param obj - The plain javascript object to be converted.
+   * @param object - The plain javascript object to be converted.
    * @throws ObjectMappingError if the mapping or a type conversion fails.
    */
   fromObject<T>(cls: ClassConstructor<T>, object: object): T;
@@ -31,7 +31,7 @@ export interface ObjectMapper {
    * Converts an array of plain javascript objects into an array of instances of the specified class.
    *
    * @param cls - The desired class of the resulting object instances.
-   * @param arr - The array of plain javascript objects to be converted.
+   * @param array - The array of plain javascript objects to be converted.
    * @throws ObjectMappingError if the mapping or a type conversion fails.
    */
   fromArray<T>(cls: ClassConstructor<T>, array: object[]): T[];
@@ -55,7 +55,7 @@ export interface ObjectMapper {
   /**
    * Sets the value of a property on an object hierarchy as specified by the key.
    *
-   * @param obj - The object on which to set the property value.
+   * @param object - The object on which to set the property value.
    * @param key - The key specifying the property to set.
    * @param value - The value to set.
    */

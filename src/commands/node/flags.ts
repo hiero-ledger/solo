@@ -7,7 +7,7 @@ export const DEFAULT_FLAGS = {
   optional: [flags.quiet, flags.devMode, flags.cacheDir, flags.releaseTag],
 };
 
-const COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS = [flags.deployment, flags.releaseTag];
+const COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS = [flags.deployment];
 const COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS = [
   flags.app,
   flags.cacheDir,
@@ -19,6 +19,7 @@ const COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS = [
   flags.quiet,
   flags.localBuildPath,
   flags.force,
+  flags.upgradeZipFile,
 ];
 
 const COMMON_UPDATE_FLAGS_REQUIRED_FLAGS = [flags.deployment];
@@ -40,13 +41,13 @@ const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS = [
 ];
 
 export const UPGRADE_FLAGS = {
-  required: COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS,
-  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS, flags.upgradeZipFile, flags.upgradeVersion],
+  required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.upgradeVersion],
+  optional: COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS,
 };
 
 export const UPGRADE_PREPARE_FLAGS = {
-  required: COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS,
-  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS, flags.upgradeZipFile, flags.outputDir],
+  required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.outputDir],
+  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS],
 };
 
 export const UPGRADE_SUBMIT_TRANSACTIONS_FLAGS = {

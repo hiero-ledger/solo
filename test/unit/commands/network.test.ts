@@ -192,7 +192,7 @@ describe('NetworkCommand unit tests', () => {
       options.chartManager = container.resolve<ChartManager>(InjectTokens.ChartManager);
       options.chartManager.isChartInstalled = sinon.stub().returns(true);
       options.chartManager.isChartInstalled.onSecondCall().returns(false);
-      options.chartManager.install = sinon.stub().returns(true);
+      options.chartManager.upgrade = sinon.stub().returns(true);
       options.chartManager.uninstall = sinon.stub().returns(true);
 
       options.remoteConfig = container.resolve<RemoteConfigRuntimeState>(InjectTokens.RemoteConfigRuntimeState);
@@ -233,10 +233,10 @@ describe('NetworkCommand unit tests', () => {
         // @ts-expect-error - TS2341: to access private property
         await networkCommand.deploy(argv.build());
 
-        expect(options.chartManager.install.args[0][0].name).to.equal('solo-e2e');
-        expect(options.chartManager.install.args[0][1]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
-        expect(options.chartManager.install.args[0][2]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
-        expect(options.chartManager.install.args[0][3]).to.equal(constants.SOLO_TESTING_CHART_URL);
+        expect(options.chartManager.upgrade.args[0][0].name).to.equal('solo-e2e');
+        expect(options.chartManager.upgrade.args[0][1]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
+        expect(options.chartManager.upgrade.args[0][2]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
+        expect(options.chartManager.upgrade.args[0][3]).to.equal(constants.SOLO_TESTING_CHART_URL);
       } finally {
         sinon.restore();
       }
@@ -258,10 +258,10 @@ describe('NetworkCommand unit tests', () => {
 
         // @ts-expect-error - TS2341: to access private property
         await networkCommand.deploy(argv.build());
-        expect(options.chartManager.install.args[0][0].name).to.equal('solo-e2e');
-        expect(options.chartManager.install.args[0][1]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
-        expect(options.chartManager.install.args[0][2]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
-        expect(options.chartManager.install.args[0][3]).to.equal(PathEx.join(ROOT_DIR, 'test-directory'));
+        expect(options.chartManager.upgrade.args[0][0].name).to.equal('solo-e2e');
+        expect(options.chartManager.upgrade.args[0][1]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
+        expect(options.chartManager.upgrade.args[0][2]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
+        expect(options.chartManager.upgrade.args[0][3]).to.equal(PathEx.join(ROOT_DIR, 'test-directory'));
       } finally {
         sinon.restore();
       }

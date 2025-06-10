@@ -39,7 +39,7 @@ export class LayeredConfigProvider implements ConfigProvider {
       throw new IllegalArgumentError('config must not be null or undefined');
     }
 
-    if (!this._config) {
+    if (this._config) {
       throw new ConfigurationError('config already registered');
     }
 
