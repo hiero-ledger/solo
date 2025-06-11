@@ -244,7 +244,7 @@ solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-
 solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-Example output
+Example output:
 
 ```
 ******************************* Solo *********************************************
@@ -307,7 +307,43 @@ solo deployment add-cluster
 You need to generate keys for your nodes, or in this case single node. 
 
 ```bash
-solo node keys --gossip-keys --tls-keys --deployment solo-deployment
+solo node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
+```
+
+Example output:
+
+```
+******************************* Solo *********************************************
+Version			: 0.37.1
+Kubernetes Context	: kind-solo-e2e
+Kubernetes Cluster	: kind-solo-e2e
+Current Command		: node keys --gossip-keys --tls-keys --deployment solo-deployment
+**********************************************************************************
+❯ Initialize
+✔ Initialize
+❯ Generate gossip keys
+❯ Backup old files
+✔ Backup old files
+❯ Gossip key for node: node1
+✔ Gossip key for node: node1
+✔ Generate gossip keys
+❯ Generate gRPC TLS Keys
+❯ Backup old files
+❯ TLS key for node: node1
+✔ Backup old files
+✔ TLS key for node: node1
+✔ Generate gRPC TLS Keys
+❯ Finalize
+✔ Finalize
+```
+
+PEM key files are generated in `~/.solo/cache/keys` directory.
+
+```
+hedera-node1.crt    hedera-node3.crt    s-private-node1.pem s-public-node1.pem  unused-gossip-pem
+hedera-node1.key    hedera-node3.key    s-private-node2.pem s-public-node2.pem  unused-tls
+hedera-node2.crt    hedera-node4.crt    s-private-node3.pem s-public-node3.pem
+hedera-node2.key    hedera-node4.key    s-private-node4.pem s-public-node4.pem
 ```
 
 {{< /details >}}
@@ -714,49 +750,6 @@ Current Command		: cluster-ref connect --cluster-ref kind-solo-e2e --context kin
 {.goToTableOfContents font-size=smaller, vertical-align=sub}
 
 {{< /details >}}
-
-### Generate `pem` formatted node keys
-
-```
-solo node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
-```
-
-* Example output
-
-```
-
-******************************* Solo *********************************************
-Version			: 0.37.1
-Kubernetes Context	: kind-solo-e2e
-Kubernetes Cluster	: kind-solo-e2e
-Current Command		: node keys --gossip-keys --tls-keys --deployment solo-deployment
-**********************************************************************************
-❯ Initialize
-✔ Initialize
-❯ Generate gossip keys
-❯ Backup old files
-✔ Backup old files
-❯ Gossip key for node: node1
-✔ Gossip key for node: node1
-✔ Generate gossip keys
-❯ Generate gRPC TLS Keys
-❯ Backup old files
-❯ TLS key for node: node1
-✔ Backup old files
-✔ TLS key for node: node1
-✔ Generate gRPC TLS Keys
-❯ Finalize
-✔ Finalize
-```
-
-PEM key files are generated in `~/.solo/cache/keys` directory.
-
-```
-hedera-node1.crt    hedera-node3.crt    s-private-node1.pem s-public-node1.pem  unused-gossip-pem
-hedera-node1.key    hedera-node3.key    s-private-node2.pem s-public-node2.pem  unused-tls
-hedera-node2.crt    hedera-node4.crt    s-private-node3.pem s-public-node3.pem
-hedera-node2.key    hedera-node4.key    s-private-node4.pem s-public-node4.pem
-```
 
 ### Setup cluster with shared components
 
