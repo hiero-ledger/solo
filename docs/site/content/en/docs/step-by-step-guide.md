@@ -134,7 +134,31 @@ export SOLO_DEPLOYMENT=solo-deployment
 {{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
 
 ```bash
-kind create cluster -n solo
+kind create cluster -n "${SOLO_CLUSTER_NAME}"
+```
+
+Example output
+
+```
+Creating cluster "solo-e2e" ...
+ • Ensuring node image (kindest/node:v1.32.2) 🖼  ...
+ ✓ Ensuring node image (kindest/node:v1.32.2) 🖼
+ • Preparing nodes 📦   ...
+ ✓ Preparing nodes 📦 
+ • Writing configuration 📜  ...
+ ✓ Writing configuration 📜
+ • Starting control-plane 🕹️  ...
+ ✓ Starting control-plane 🕹️
+ • Installing CNI 🔌  ...
+ ✓ Installing CNI 🔌
+ • Installing StorageClass 💾  ...
+ ✓ Installing StorageClass 💾
+Set kubectl context to "kind-solo-e2e"
+You can now use your cluster with:
+
+kubectl cluster-info --context kind-solo-e2e
+
+Have a nice day! 👋
 ```
 
 {{< /details >}}
@@ -586,87 +610,7 @@ Happy coding with Solo! 🚀
 
 {{< /details >}}
 
-### Create a local cluster
-
-{{< details >}}
-
-* You may use [kind](https://kind.sigs.k8s.io/) or [microk8s](https://microk8s.io/) to create a cluster. In this case,
-  ensure your Docker engine has enough resources (e.g. Memory >=8Gb, CPU: >=4). Below we show how you can use `kind` to create a cluster
-
-First, use the following command to set up the environment variables:
-
-```bash
-export SOLO_CLUSTER_NAME=solo-cluster
-export SOLO_NAMESPACE=solo-e2e
-export SOLO_CLUSTER_SETUP_NAMESPACE=solo-cluster-setup
-export SOLO_DEPLOYMENT=solo-deployment
-
-```
-
-Then run the following command to set the kubectl context to the new cluster:
-
-```bash
-kind create cluster -n "${SOLO_CLUSTER_NAME}"
-```
-
-Example output
-
-```
-Creating cluster "solo-e2e" ...
- • Ensuring node image (kindest/node:v1.32.2) 🖼  ...
- ✓ Ensuring node image (kindest/node:v1.32.2) 🖼
- • Preparing nodes 📦   ...
- ✓ Preparing nodes 📦 
- • Writing configuration 📜  ...
- ✓ Writing configuration 📜
- • Starting control-plane 🕹️  ...
- ✓ Starting control-plane 🕹️
- • Installing CNI 🔌  ...
- ✓ Installing CNI 🔌
- • Installing StorageClass 💾  ...
- ✓ Installing StorageClass 💾
-Set kubectl context to "kind-solo-e2e"
-You can now use your cluster with:
-
-kubectl cluster-info --context kind-solo-e2e
-
-Have a nice day! 👋
-```
-
-You may now view pods in your cluster using `k9s -A` as below:
-
-```
- Context: kind-solo                                <0> all   <a>       Attach       <ctr… ____  __.________
- Cluster: kind-solo                                          <ctrl-d>  Delete       <l>  |    |/ _/   __   \______
- User:    kind-solo                                          <d>       Describe     <p>  |      < \____    /  ___/
- K9s Rev: v0.32.5                                            <e>       Edit         <shif|    |  \   /    /\___ \
- K8s Rev: v1.27.3                                            <?>       Help         <z>  |____|__ \ /____//____  >
- CPU:     n/a                                                <shift-j> Jump Owner   <s>          \/            \/
- MEM:     n/a
-┌───────────────────────────────────────────────── Pods(all)[11] ─────────────────────────────────────────────────┐
-│ NAMESPACE↑          NAME                                        PF READY STATUS   RESTARTS IP          NODE     │
-│ solo-setup     console-557956d575-4r5xm                    ●  1/1   Running         0 10.244.0.5  solo-con │
-│ solo-setup     minio-operator-7d575c5f84-8shc9             ●  1/1   Running         0 10.244.0.6  solo-con │
-│ kube-system         coredns-5d78c9869d-6cfbg                    ●  1/1   Running         0 10.244.0.4  solo-con │
-│ kube-system         coredns-5d78c9869d-gxcjz                    ●  1/1   Running         0 10.244.0.3  solo-con │
-│ kube-system         etcd-solo-control-plane                     ●  1/1   Running         0 172.18.0.2  solo-con │
-│ kube-system         kindnet-k75z6                               ●  1/1   Running         0 172.18.0.2  solo-con │
-│ kube-system         kube-apiserver-solo-control-plane           ●  1/1   Running         0 172.18.0.2  solo-con │
-│ kube-system         kube-controller-manager-solo-control-plane  ●  1/1   Running         0 172.18.0.2  solo-con │
-│ kube-system         kube-proxy-cct7t                            ●  1/1   Running         0 172.18.0.2  solo-con │
-│ kube-system         kube-scheduler-solo-control-plane           ●  1/1   Running         0 172.18.0.2  solo-con │
-│ local-path-storage  local-path-provisioner-6bc4bddd6b-gwdp6     ●  1/1   Running         0 10.244.0.2  solo-con │
-│                                                                                                                 │
-│                                                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-```
-
-[Go to Table of Contents](#table-of-contents) 
-{.goToTableOfContents font-size=smaller, vertical-align=sub}
-
-{{< /details >}}
-
-## Step-by-Step Instructions
+# Step-by-Step Instructions
 
 ### Initialize `solo` directories:
 
