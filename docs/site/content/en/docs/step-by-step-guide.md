@@ -561,7 +561,52 @@ Now that everything is set up you need to start them.
 ```bash
 bash
 # start your node/nodes 
-solo node start --deployment solo-deployment
+solo node start --deployment "${SOLO_DEPLOYMENT}"
+```
+
+Example output:
+
+```
+******************************* Solo *********************************************
+Version			: 0.37.1
+Kubernetes Context	: kind-solo-e2e
+Kubernetes Cluster	: kind-solo-e2e
+Current Command		: node start --deployment solo-deployment
+**********************************************************************************
+❯ Initialize
+❯ Acquire lock
+✔ Acquire lock - lock acquired successfully, attempt: 1/10
+✔ Initialize
+❯ Validate nodes states
+❯ Validating state for node node1
+✔ Validating state for node node1 - valid state: configured
+✔ Validate nodes states
+❯ Identify existing network nodes
+❯ Check network pod: node1
+✔ Check network pod: node1
+✔ Identify existing network nodes
+❯ Upload state files network nodes
+↓ Upload state files network nodes [SKIPPED: Upload state files network nodes]
+❯ Starting nodes
+❯ Start node: node1
+✔ Start node: node1
+✔ Starting nodes
+❯ Enable port forwarding for JVM debugger
+↓ Enable port forwarding for JVM debugger [SKIPPED: Enable port forwarding for JVM debugger]
+❯ Check all nodes are ACTIVE
+❯ Check network pod: node1 
+✔ Check network pod: node1  - status ACTIVE, attempt: 16/300
+✔ Check all nodes are ACTIVE
+❯ Check node proxies are ACTIVE
+❯ Check proxy for node: node1
+✔ Check proxy for node: node1
+✔ Check node proxies are ACTIVE
+❯ Change node state to started in remote config
+✔ Change node state to started in remote config
+❯ Add node stakes
+❯ Adding stake for node: node1
+✔ Adding stake for node: node1
+✔ Add node stakes
 ```
 
 {{< /details >}}
@@ -914,60 +959,6 @@ Current Command		: cluster-ref connect --cluster-ref kind-solo-e2e --context kin
 {.goToTableOfContents font-size=smaller, vertical-align=sub}
 
 {{< /details >}}
-
-* Start the nodes
-
-```
-solo node start --deployment "${SOLO_DEPLOYMENT}"
-```
-
-Example output:
-
-```
-
-******************************* Solo *********************************************
-Version			: 0.37.1
-Kubernetes Context	: kind-solo-e2e
-Kubernetes Cluster	: kind-solo-e2e
-Current Command		: node start --deployment solo-deployment
-**********************************************************************************
-❯ Initialize
-❯ Acquire lock
-✔ Acquire lock - lock acquired successfully, attempt: 1/10
-✔ Initialize
-❯ Validate nodes states
-❯ Validating state for node node1
-✔ Validating state for node node1 - valid state: configured
-✔ Validate nodes states
-❯ Identify existing network nodes
-❯ Check network pod: node1
-✔ Check network pod: node1
-✔ Identify existing network nodes
-❯ Upload state files network nodes
-↓ Upload state files network nodes [SKIPPED: Upload state files network nodes]
-❯ Starting nodes
-❯ Start node: node1
-✔ Start node: node1
-✔ Starting nodes
-❯ Enable port forwarding for JVM debugger
-↓ Enable port forwarding for JVM debugger [SKIPPED: Enable port forwarding for JVM debugger]
-❯ Check all nodes are ACTIVE
-❯ Check network pod: node1 
-✔ Check network pod: node1  - status ACTIVE, attempt: 16/300
-✔ Check all nodes are ACTIVE
-❯ Check node proxies are ACTIVE
-❯ Check proxy for node: node1
-✔ Check proxy for node: node1
-✔ Check node proxies are ACTIVE
-❯ Change node state to started in remote config
-✔ Change node state to started in remote config
-❯ Add node stakes
-❯ Adding stake for node: node1
-✔ Adding stake for node: node1
-✔ Add node stakes
-```
-
-***
 
 ### Deploy mirror node
 
