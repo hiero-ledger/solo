@@ -618,9 +618,52 @@ Current Command		: node start --deployment solo-deployment
 This is the most memory intensive step from a resource perspective. If you have issues at this step try checking your local resource utilization and make sure there's memory available for docker (close all unessential applications). Likewise, you can consider lowering your swap in docker settings to ease the swap demand, and try again.
 
 ```bash
-bash
 # Deploy with explicit configuration
-solo mirror-node deploy --deployment solo-deployment --cluster-ref kind-solo-cluster
+solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} 
+```
+
+Example output:
+
+```
+******************************* Solo *********************************************
+Version			: 0.37.1
+Kubernetes Context	: kind-solo-e2e
+Kubernetes Cluster	: kind-solo-e2e
+Current Command		: mirror-node deploy --deployment solo-deployment --cluster-ref kind-solo-e2e --quiet-mode
+**********************************************************************************
+❯ Initialize
+❯ Acquire lock
+✔ Acquire lock - lock acquired successfully, attempt: 1/10
+✔ Initialize
+❯ Enable mirror-node
+❯ Prepare address book
+✔ Prepare address book
+❯ Install mirror ingress controller
+↓ Install mirror ingress controller [SKIPPED: Install mirror ingress controller]
+❯ Deploy mirror-node
+**************************** Installed mirror chart ****************************
+Version			: v0.129.1
+********************************************************************************
+✔ Deploy mirror-node
+✔ Enable mirror-node
+❯ Check pods are ready
+❯ Check Postgres DB
+❯ Check REST API
+❯ Check GRPC
+❯ Check Monitor
+❯ Check Importer
+✔ Check Postgres DB
+✔ Check Monitor
+✔ Check GRPC
+✔ Check Importer
+✔ Check REST API
+✔ Check pods are ready
+❯ Seed DB data
+❯ Insert data in public.file_data
+✔ Insert data in public.file_data
+✔ Seed DB data
+❯ Add mirror node to remote config
+✔ Add mirror node to remote config
 ```
 
 {{< /details >}}
@@ -959,57 +1002,6 @@ Current Command		: cluster-ref connect --cluster-ref kind-solo-e2e --context kin
 {.goToTableOfContents font-size=smaller, vertical-align=sub}
 
 {{< /details >}}
-
-### Deploy mirror node
-
-```
-solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
-```
-
-Example output:
-
-```
-
-******************************* Solo *********************************************
-Version			: 0.37.1
-Kubernetes Context	: kind-solo-e2e
-Kubernetes Cluster	: kind-solo-e2e
-Current Command		: mirror-node deploy --deployment solo-deployment --cluster-ref kind-solo-e2e --quiet-mode
-**********************************************************************************
-❯ Initialize
-❯ Acquire lock
-✔ Acquire lock - lock acquired successfully, attempt: 1/10
-✔ Initialize
-❯ Enable mirror-node
-❯ Prepare address book
-✔ Prepare address book
-❯ Install mirror ingress controller
-↓ Install mirror ingress controller [SKIPPED: Install mirror ingress controller]
-❯ Deploy mirror-node
-**************************** Installed mirror chart ****************************
-Version			: v0.129.1
-********************************************************************************
-✔ Deploy mirror-node
-✔ Enable mirror-node
-❯ Check pods are ready
-❯ Check Postgres DB
-❯ Check REST API
-❯ Check GRPC
-❯ Check Monitor
-❯ Check Importer
-✔ Check Postgres DB
-✔ Check Monitor
-✔ Check GRPC
-✔ Check Importer
-✔ Check REST API
-✔ Check pods are ready
-❯ Seed DB data
-❯ Insert data in public.file_data
-✔ Insert data in public.file_data
-✔ Seed DB data
-❯ Add mirror node to remote config
-✔ Add mirror node to remote config
-```
 
 ### Deploy explorer mode
 
