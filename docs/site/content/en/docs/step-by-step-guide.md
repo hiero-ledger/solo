@@ -382,6 +382,54 @@ Version			: 0.53.0
 
 Now comes the exciting part – deploying your Hedera test network!
 
+### *Deploy a block node (experimental)
+
+{{< details summary="Details <click to expand/collapse>" >}}<br/>
+
+> ⚠️ Block Node is experimental in Solo.  It requires a minimum of 16 GB of memory allocated to Docker. If you have less than 16 GB of memory, skip this step.
+
+As mentioned in the warning, Block Node uses a lot of memory.  In addition, it requires a version of Consensus Node to be at least v0.62.3.  You will need to augment the `solo network deploy` command with the `--release-tag v0.62.3` option to ensure that the Consensus Node is at the correct version.
+
+```
+solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-"${SOLO_CLUSTER_NAME}" --release-tag v0.62.6
+```
+
+Example output:
+
+```
+******************************* Solo *********************************************
+Version			: 0.37.1
+Kubernetes Context	: kind-solo-e2e
+Kubernetes Cluster	: kind-solo-e2e
+Current Command		: block node add --deployment solo-deployment --cluster-ref kind-solo-e2e --release-tag v0.62.6
+**********************************************************************************
+❯ Initialize
+❯ Acquire lock
+✔ Acquire lock - lock acquired successfully, attempt: 1/10
+✔ Initialize
+❯ Prepare release name
+✔ Prepare release name
+❯ Prepare chart values
+✔ Prepare chart values
+❯ Deploy block node
+************************* Installed block-node-0 chart *************************
+Version			: 0.11.0
+********************************************************************************
+✔ Deploy block node
+❯ Check block node pod is running
+✔ Check block node pod is running
+❯ Check software
+✔ Check software
+❯ Check block node pod is ready
+✔ Check block node pod is ready
+❯ Check block node readiness
+✔ Check block node readiness - [1/100] success
+❯ Add block node component in remote config
+✔ Add block node component in remote config
+```
+
+{{< /details >}}
+
 ### 1. Deploy the network
 
 {{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
@@ -771,47 +819,6 @@ Current Command		: cluster-ref connect --cluster-ref kind-solo-e2e --context kin
 
 {{< /details >}}
 
-### Deploy a block node
-
-```
-solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
-```
-
-Example output:
-
-```
-
-******************************* Solo *********************************************
-Version			: 0.37.1
-Kubernetes Context	: kind-solo-e2e
-Kubernetes Cluster	: kind-solo-e2e
-Current Command		: block node add --deployment solo-deployment --cluster-ref kind-solo-e2e --release-tag v0.62.6
-**********************************************************************************
-❯ Initialize
-❯ Acquire lock
-✔ Acquire lock - lock acquired successfully, attempt: 1/10
-✔ Initialize
-❯ Prepare release name
-✔ Prepare release name
-❯ Prepare chart values
-✔ Prepare chart values
-❯ Deploy block node
-************************* Installed block-node-0 chart *************************
-Version			: 0.9.0
-********************************************************************************
-✔ Deploy block node
-❯ Check block node pod is running
-✔ Check block node pod is running
-❯ Check software
-✔ Check software
-❯ Check block node pod is ready
-✔ Check block node pod is ready
-❯ Check block node readiness
-✔ Check block node readiness - [1/100] success
-❯ Add block node component in remote config
-✔ Add block node component in remote config
-```
-
 ### Deploy helm chart with Hedera network components
 
 It may take a while (5~15 minutes depending on your internet speed) to download various docker images and get the pods started.
@@ -899,7 +906,7 @@ Example output:
 Version			: 0.37.1
 Kubernetes Context	: kind-solo-e2e
 Kubernetes Cluster	: kind-solo-e2e
-Current Command		: node setup --deployment solo-deployment --release-tag v0.62.6
+Current Command		: node setup --deployment solo-deployment --release-tag v0.62.1
 **********************************************************************************
 ❯ Initialize
 ❯ Acquire lock
@@ -914,8 +921,8 @@ Current Command		: node setup --deployment solo-deployment --release-tag v0.62.6
 ✔ Check network pod: node1
 ✔ Identify network pods
 ❯ Fetch platform software into network nodes
-❯ Update node: node1 [ platformVersion = v0.62.6, context = kind-solo-e2e ]
-✔ Update node: node1 [ platformVersion = v0.62.6, context = kind-solo-e2e ]
+❯ Update node: node1 [ platformVersion = v0.62.1, context = kind-solo-e2e ]
+✔ Update node: node1 [ platformVersion = v0.62.1, context = kind-solo-e2e ]
 ✔ Fetch platform software into network nodes
 ❯ Setup network nodes
 ❯ Node: node1
