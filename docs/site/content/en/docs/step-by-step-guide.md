@@ -330,7 +330,7 @@ solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_
 Version			: 0.37.1
 Kubernetes Context	: kind-solo-e2e
 Kubernetes Cluster	: kind-solo-e2e
-Current Command		: block node add --deployment solo-deployment --cluster-ref kind-solo-e2e --release-tag v0.62.1
+Current Command		: block node add --deployment solo-deployment --cluster-ref kind-solo-e2e --release-tag v0.62.6
 **********************************************************************************
 ❯ Initialize
 ❯ Acquire lock
@@ -444,7 +444,7 @@ solo node setup --deployment "${SOLO_DEPLOYMENT}"
 Version			: 0.37.1
 Kubernetes Context	: kind-solo-e2e
 Kubernetes Cluster	: kind-solo-e2e
-Current Command		: node setup --deployment solo-deployment --release-tag v0.62.1
+Current Command		: node setup --deployment solo-deployment --release-tag v0.62.6
 **********************************************************************************
 ❯ Initialize
 ❯ Acquire lock
@@ -459,8 +459,8 @@ Current Command		: node setup --deployment solo-deployment --release-tag v0.62.1
 ✔ Check network pod: node1
 ✔ Identify network pods
 ❯ Fetch platform software into network nodes
-❯ Update node: node1 [ platformVersion = v0.62.1, context = kind-solo-e2e ]
-✔ Update node: node1 [ platformVersion = v0.62.1, context = kind-solo-e2e ]
+❯ Update node: node1 [ platformVersion = v0.62.6, context = kind-solo-e2e ]
+✔ Update node: node1 [ platformVersion = v0.62.6, context = kind-solo-e2e ]
 ✔ Fetch platform software into network nodes
 ❯ Setup network nodes
 ❯ Node: node1

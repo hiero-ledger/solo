@@ -1,24 +1,28 @@
 #!/bin/bash
 
-usage_error() {
-  echo "Usage: $0 <integer>"
-  exit 1
-}
+PROTO_DIR=$(dirname "$(realpath $0)")/proto
 
-# An integer is expected as the first parameter
-if [ "$#" -lt 1 ] || ! [[ "$1" =~ ^[0-9]+$ ]]; then
-  usage_error
+if [ "$(uname -s)" == "Linux" ]; then
+  tar --warning=no-unknown-keyword -xzf proto.zip -C proto
+else
+  tar -xzf proto.zip -C proto
+fi
+RC=$?
+if [[ $RC -ne 0 ]]; then
+  echo "Failed to extract proto files: ${RC}"
+  exit 1
 fi
 
-# If the script reaches here, the parameters are valid
-echo "Param is: $1"
+# block-access, getBlock --> should work as is.
+grpcurl -plaintext \
+  -import-path "$PROTO_DIR" \
+  -proto "$PROTO_DIR/block_access_service.proto" \
+  -d '{"retrieveLatest": true}' \
+  localhost:8080 \
+  org.hiero.block.api.BlockAccessService/getBlock
+RC=$?
 
-# Use environment variables or default values
-GRPC_SERVER=${GRPC_SERVER:-"localhost:8080"}
-GRPC_METHOD=${GRPC_METHOD:-"com.hedera.hapi.block.BlockAccessService/singleBlock"}
-PATH_TO_PROTO="./block_service.proto"
-
-echo "Requesting block $1..."
-
-# Response block messages from the gRPC server are printed to stdout.
-echo "{\"block_number\": $1}" | grpcurl -plaintext -proto $PATH_TO_PROTO -d @ $GRPC_SERVER $GRPC_METHOD
+if [[ $RC -ne 0 ]]; then
+  echo "Job failed block-access: ${RC}"
+  exit 1
+fi

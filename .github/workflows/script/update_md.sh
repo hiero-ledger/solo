@@ -16,8 +16,8 @@ else
   SOLO_CLUSTER_NAME=${SOLO_TEST_CLUSTER}
 fi
 
-# TBD, need to use at least version v0.62.1 for block node commands to work
-CONSENSUS_NODE_VERSION=${1:-v0.62.1}
+# TBD, need to use at least version v0.62.6 for block node commands to work
+CONSENSUS_NODE_VERSION=${1:-v0.62.6}
 CONSENSUS_NODE_FLAG=() # Initialize an empty array
 
 if [[ -n "${CONSENSUS_NODE_VERSION}" ]]; then
