@@ -1,45 +1,147 @@
 ---
-title: "Step By Step Guide"
+title: "Solo User Guide"
 weight: 20
 description: >
-    This guide provides step by step instructions to set up a solo network using Kubernetes.
+  Learn how to set up your first Hedera test network using Solo. This step-by-step guide covers installation, deployment, and your first transaction.
 type: docs
 ---
 
-## Solo User Guide
+> 📝 For less than 16 GB of memory to dedicate to Docker please skip the block node add and destroy steps.
 
-> \[!NOTE]
-> For less than 16 GB of memory to dedicate to Docker please skip the block node add and destroy steps.
+> 📝 There should be a table of contents on the right side of your screen if your browser width is large enough
 
-### Table of Contents
+## Introduction
+Welcome to the world of Hedera development! If you're looking to build and test applications on the Hedera network but don't want to spend HBAR on testnet or mainnet transactions, you've come to the right place. Solo is your gateway to running your own local Hedera test network, giving you complete control over your development environment.
 
-* [Setup Kubernetes cluster](#setup-kubernetes-cluster)
-  * [Remote cluster](#remote-cluster)
-  * [Local cluster](#local-cluster)
-* [Step by Step Instructions](#step-by-step-instructions)
-  * [Initialize solo directories](#initialize-solo-directories)
-  * [Generate pem formatted node keys](#generate-pem-formatted-node-keys)
-  * [Create a deployment in the specified clusters](#create-a-deployment-in-the-specified-clusters-generate-remoteconfig-and-localconfig-objects)
-  * [Setup cluster with shared components](#setup-cluster-with-shared-components)
-  * [Create a solo deployment](#create-a-solo-deployment)
-  * [Deploy helm chart with Hedera network components](#deploy-helm-chart-with-hedera-network-components)
-  * [Setup node with Hedera platform software](#setup-node-with-hedera-platform-software)
-  * [Deploy mirror node](#deploy-mirror-node)
-  * [Deploy explorer mode](#deploy-explorer-mode)
-  * [Deploy a JSON RPC relay](#deploy-a-json-rpc-relay)
-  * [Execution Developer](#execution-developer)
-  * [Destroy relay node](#destroy-relay-node)
-  * [Destroy mirror node](#destroy-mirror-node)
-  * [Destroy explorer node](#destroy-explorer-node)
-  * [Destroy network](#destroy-network)
+Solo is an opinionated command-line interface (CLI) tool designed to deploy and manage standalone Hedera test networks. Think of it as your personal Hedera sandbox where you can experiment, test features, and develop applications without any external dependencies or costs. Whether you're building smart contracts, testing consensus mechanisms, or developing DApps, Solo provides the infrastructure you need.
 
-For those who would like to have more control or need some customized setups, here are some step by step instructions of how to setup and deploy a solo network.
+By the end of this tutorial, you'll have your own Hedera test network running locally, complete with consensus nodes, mirror nodes, and all the infrastructure needed to submit transactions and test your applications. Let's dive in!
 
-### Setup Kubernetes cluster
+## Prerequisites
 
-#### Select an existing Remote cluster
+Before we begin, let's ensure your system meets the requirements and has all the necessary software installed. Don't worry if this seems like a lot – we'll walk through each step together.
 
-{{< details >}}
+### System Requirements(for a bare minimum install running 1 node)
+
+First, check that your computer meets these minimum specifications:
+
+- **Memory**: At least 8GB of RAM (16GB recommended for smoother performance)
+- **CPU**: Minimum 4 cores (8 cores recommended)
+- **Storage**: At least 20GB of free disk space
+- **Operating System**: macOS, Linux, or Windows with WSL2
+
+### Required Software
+
+You'll need to install a few tools before we can set up Solo. Here's what you need and how to get it:
+
+### 1. Node.js (≥20.18.0)
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+Solo is built on Node.js, so you'll need version 20.18.0 or higher. We recommend using Node Version Manager (nvm) for easy version management:
+
+```bash
+
+bash
+# Install nvm (macOS/Linux)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+
+# Install nvm (Windows - use nvm-windows)# Download from: https://github.com/coreybutler/nvm-windows# Install Node.js
+nvm install 20.18.0
+nvm use 20.18.0
+
+# Verify installation
+node --version
+
+```
+
+{{< /details >}}
+
+### 2. Docker Desktop
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+Docker is essential for running the containerized Hedera network components:
+
+- **macOS/Windows**: Download Docker Desktop from [docker.com](https://www.docker.com/products/docker-desktop)
+- **Linux**: Follow the installation guide for your distribution at [docs.docker.com](https://docs.docker.com/engine/install/)
+
+After installation, ensure Docker is running:
+
+```bash
+bash
+docker --version
+docker ps
+```
+
+{{< /details >}}
+
+## Step-by-Step Installation
+
+Now that we have all prerequisites in place, let's install Solo and set up our environment.
+
+One thing to consider, old installs can really hamper your ability to get a new install up and running. If you have an old install of Solo, or if you are having issues with the install, please run the following commands to clean up your environment before proceeding.
+
+### 1. Installing Solo
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+Open your terminal and install Solo globally using npm:
+
+```bash
+npm install -g @hashgraph/solo
+
+# Verify the installation
+solo --version
+```
+
+You should see output showing the latest version which should match our NPM package version: <https://www.npmjs.com/package/@hashgraph/solo>
+
+{{< /details >}}
+
+### *Cleaning up an old install
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+The team is presently working on a number of fixes and automation that will relegate the need for this, but currently as deployed Solo can be finnicky with artifacts from prior installs. A quick command to prep your station for a new install is a good idea.
+
+```bash
+for cluster in $(kind get clusters);do;kind delete cluster -n $cluster;done
+rm -Rf ~/.solo
+```
+
+{{< /details >}}
+
+### 2. Setting up your environmental variables
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+You need to declare some environmental variables. Keep note that unless you intentionally include these in your zsh config when you close your terminal you may lose them.
+
+*throughout the remainder of this walkthrough for simplicity sake I will assume in commands these are the values in your .env
+
+```bash
+export SOLO_CLUSTER_NAME=solo
+export SOLO_NAMESPACE=solo
+export SOLO_CLUSTER_SETUP_NAMESPACE=solo-cluster
+export SOLO_DEPLOYMENT=solo-deployment
+```
+
+{{< /details >}}
+
+### 3. Create a cluster
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+```bash
+kind create cluster -n solo
+```
+
+{{< /details >}}
+
+### *Connecting to a remote cluster
+
+{{< details summary="Details <click to expand/collapse>" >}}<br/>
 
 * You may use a remote Kubernetes cluster. In this case, ensure Kubernetes context is set up correctly.
 
@@ -48,12 +150,443 @@ kubectl config get-contexts
 kubectl config use-context <context-name>
 ```
 
-[Go to Table of Contents](#table-of-contents)
-{.goToTableOfContents font-size=smaller, vertical-align=sub}
+{{< /details >}}
+
+### 4. Initialize solo:
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+```bash
+bash
+# reset .solo directory before initializing 
+solo init
+```
 
 {{< /details >}}
 
-#### Create a local cluster
+### 5. Connect the cluster and create a deployment
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+This command will create a deployment in the specified clusters, and generate the LocalConfig and RemoteConfig used by k8s.
+
+The deployment will:
+
+- Create a namespace (usually matching the deployment name)
+- Set up ConfigMaps and secrets
+- Deploy network infrastructure
+- Create persistent volumes if needed
+
+> 📝 notice that the `--cluster-ref` value is `kind-solo`, when you created the Kind cluster it created a cluster reference in the Kubernetes config with the name `kind-solo`. If you used a different name, replace `kind-solo` with your cluster name, but prefixing with `kind-`.  If you are working with a remote cluster, you can use the name of your cluster reference which can be gathered with the command: `kubectl config get-contexts`.
+
+```bash
+# connect to the cluster you created in a previous command
+solo cluster-ref connect --cluster-ref kind-solo
+
+#create the deployment
+solo deployment create -n solo --deployment solo-deployment
+```
+
+> 📝 Note: Solo stores various artifacts (config, logs, keys etc.) in its home directory: ~/.solo. If you need a full reset, delete this directory before running solo init ag
+>
+
+{{< /details >}}
+
+### 6. Add a cluster to the deployment you created
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+*This command is the first command that will specify how many nodes you want to add to your deployment. For the sake of resource
+
+```bash
+# Add a cluster to the deployment you created
+solo deployment add-cluster --deployment solo-deployment --cluster-ref solo-cluster --num-consensus-nodes 1
+# If the command line command is unresponsive there's also a handy cluster add configurator you can run
+solo deployment add-cluster
+```
+
+{{< /details >}}
+
+### 7. Generate keys
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+You need to generate keys for your nodes, or in this case single node. 
+
+```bash
+solo node keys --gossip-keys --tls-keys --deployment solo-deployment
+```
+
+{{< /details >}}
+
+### 8. Setup cluster with shared components
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+```bash
+solo cluster-ref setup -s solo-cluster
+```
+
+{{< /details >}}
+
+## Deploying Helm chart with network components
+
+Now comes the exciting part – deploying your Hedera test network!
+
+### 1. Deploy the network
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+Deploying the network runs risks of timeouts as images are downloaded, and pods are starting. If you experience a failure double check the resources you've allocated in docker engine and give it another try.
+
+```bash
+solo network deploy --deployment solo-deployment
+```
+
+{{< /details >}}
+
+### 2. Setup node with Hedera platform software
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+This step downloads the hedera platform code and sets up your node/nodes. *note you can add additional nodes here make sure they match the number of nodes associated with previous commands.
+
+```bash
+# node setup
+solo node setup --deployment solo-deployment
+
+```
+
+{{< /details >}}
+
+### 3. Start the nodes up!
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+Now that everything is set up you need to start them.
+
+```bash
+bash
+# start your node/nodes 
+solo node start --deployment solo-deployment
+```
+
+{{< /details >}}
+
+### 4. Deploy a mirror node
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+This is the most memory intensive step from a resource perspective. If you have issues at this step try checking your local resource utilization and make sure there's memory available for docker (close all unessential applications). Likewise, you can consider lowering your swap in docker settings to ease the swap demand, and try again.
+
+```bash
+bash
+# Deploy with explicit configuration
+solo mirror-node deploy --deployment solo-deployment --cluster-ref kind-solo-cluster
+```
+
+{{< /details >}}
+
+### 5. Explorer mode
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+Watch the deployment progress:
+
+```bash
+# deploy explorer
+solo explorer deploy --deployment solo-deployment --cluster-ref kind-solo-cluster
+```
+
+{{< /details >}}
+
+### 6. Deploy a JSON RPC relay
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+The JSON RPC relay allows you to interact with your Hedera network using standard JSON RPC calls. This is useful for integrating with existing tools and libraries.
+
+```bash
+#deploy a solo JSON RPC relay
+solo relay deploy -i node1 --deployment solo-deployment
+```
+
+{{< /details >}}
+
+### *Check Pod Status
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+Here is a command if you want to check the status of your Solo Kubernetes pods:
+
+```bash
+# Check pod status
+kubectl get pods -n solo
+```
+
+{{< /details >}}
+
+## Working with Your Network
+
+### Network Endpoints
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+At this time Solo doesn't automatically set up port forwarding for you, so you'll need to do that manually. 
+
+The port forwarding can be done using `kubectl port-forward` command. For example, to forward the consensus service port:
+
+```bash
+# Consensus Service for node1 (node ID = 0): localhost:50211
+kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &
+# Explorer UI: http://localhost:8080
+kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:80 > /dev/null 2>&1 &
+# Mirror Node gRPC: localhost:5600
+kubectl port-forward svc/mirror-grpc -n "${SOLO_NAMESPACE}" 5600:5600 &
+# Mirror Node REST API: http://localhost:5551
+kubectl port-forward svc/mirror-rest -n "${SOLO_NAMESPACE}" svc/mirror-rest 5551:80 &
+# Mirror Node REST Java API http://localhost:8084
+kubectl port-forward service/mirror-restjava -n "${SOLO_NAMESPACE}" 8084:80 &
+# JSON RPC Relay: localhost:7546
+kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n "${SOLO_NAMESPACE}" 7546:7546 > /dev/null 2>&1 &
+```
+
+{{< /details >}}
+
+### ❌ BELOW THIS LINE IS A WORK IN PROGRESS VENTURE AT YOUR OWN RISK
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+Connecting with the Hedera SDK
+
+Here's a simple example to connect to your local network:
+
+```javascript
+// test-connection.js
+const { Client, AccountBalanceQuery } = require("@hashgraph/sdk");
+
+async function main() {
+// Create client for local network
+    const client = Client.forNetwork({
+        "127.0.0.1:50211": "0.0.3"
+    });
+
+// Set operator (treasury account for local network)
+    client.setOperator("0.0.2", "302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137");
+
+// Query account balance
+    const balance = await new AccountBalanceQuery()
+        .setAccountId("0.0.2")
+        .execute(client);
+
+    console.log("Account balance:", balance.hbars.toString());
+}
+
+main().catch(console.error);
+```
+
+{{< /details >}}
+
+### Submitting Transactions
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+Create and submit your first transaction:
+
+```javascript
+// submit-transaction.js
+const {
+    Client,
+    TransferTransaction,
+    Hbar,
+    PrivateKey
+} = require("@hashgraph/sdk");
+
+async function main() {
+// Setup client (same as above)
+    const client = Client.forNetwork({
+        "127.0.0.1:50211": "0.0.3"
+    });
+
+    const treasuryKey = PrivateKey.fromString("302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137");
+    client.setOperator("0.0.2", treasuryKey);
+
+// Create new account
+    const newAccountPrivateKey = PrivateKey.generateED25519();
+    const newAccountPublicKey = newAccountPrivateKey.publicKey;
+
+// Create transaction
+    const transaction = await new TransferTransaction()
+        .addHbarTransfer("0.0.2", new Hbar(-10))
+        .addHbarTransfer("0.0.1001", new Hbar(10))
+        .execute(client);
+
+// Get receipt
+    const receipt = await transaction.getReceipt(client);
+
+    console.log("Transaction status:", receipt.status.toString());
+}
+
+main().catch(console.error);
+```
+
+{{< /details >}}
+
+## Managing Your Network
+
+### Stopping and Starting Nodes
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+You can control individual nodes or the entire network:
+
+```bash
+bash
+# Stop all nodes
+solo node stop --deployment solo-deployment
+
+# Stop a specific node
+solo node stop --node-id node-0 --deployment solo-deployment
+
+# Restart nodes
+solo node restart --deployment solo-deployment
+
+# Start nodes again
+solo node start --deployment solo-deployment
+```
+
+{{< /details >}}
+
+### Viewing Logs
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+Access Solo and Consensus Node logs for troubleshooting:
+
+```bash 
+# Download logs from all nodes
+
+# Logs are saved to ~/.solo/logs/<namespace>/<pod-name>/# You can also use kubectl directly:
+solo node logs --node-aliases node1 --deployment solo-deployment
+```
+
+{{< /details >}}
+
+### Updating the Network
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+To update nodes to a new Hedera version, you need up upgrade to one minor version higher at a time:
+
+```bash
+solo node upgrade --deployment solo-deployment --upgrade-version v0.62.6
+```
+
+{{< /details >}}
+
+## Troubleshooting: Common Issues and Solutions
+
+### 1. Pods Not Starting
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+If pods remain in `Pending` or `CrashLoopBackOff` state:
+
+```bash
+# Check pod events
+kubectl describe pod -n solo network-node-0
+
+# Common fixes:# - Increase Docker resources (memory/CPU)# - Check disk space# - Restart Docker and kind cluster
+```
+
+{{< /details >}}
+
+### 2. Connection Refused Errors
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+If you can't connect to network endpoints:
+
+```bash
+# Check service endpoints
+kubectl get svc -n solo
+
+# Manually forward ports if needed
+kubectl port-forward -n solo svc/network-node-0 50211:50211
+```
+
+{{< /details >}}
+
+### 3. Node Synchronization Issues
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+If nodes aren't forming consensus:
+
+```bash
+# Check node status
+solo node states --deployment solo-deployment --node-aliases node1
+
+# Look for gossip connectivity issues
+kubectl logs -n solo network-node-0 | grep -i gossip
+
+# Restart problematic nodes
+solo node refresh --node-aliases node1 --deployment solo-deployment
+```
+
+{{< /details >}}
+
+## Getting Help
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+When you need assistance:
+
+1. **Check the logs**: Use `solo node logs --deployment solo-deployment --node-aliases node1` and examine `~/.solo/logs/`
+2. **Documentation**: Visit https://solo.hiero.org/latest/docs/
+3. **GitHub Issues**: Report bugs at https://github.com/hiero-ledger/solo/issues
+4. **Community Support**: Join the Hedera Discord community: https://discord.gg/Ysruf53q
+
+{{< /details >}}
+
+## Cleanup
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+When you're done with your test network:
+
+```bash
+# Destroy the network (keeps cluster)
+solo network destroy --deployment solo-deployment
+
+# Remove all persistent data
+solo network destroy --deployment solo-deployment --delete-pvcs --delete-secrets
+
+# Delete the entire kind cluster
+kind delete cluster --name solo
+```
+
+{{< /details >}}
+
+## Next Steps
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+Congratulations! You now have a working Hedera test network. Here are some suggestions for what to explore next:
+
+1. **Deploy Smart Contracts**: Test your Solidity contracts on the local network
+2. **Mirror Node Queries**: Explore the REST API at `http://localhost:5551`
+3. **Multi-Node Testing**: Add more nodes to test scalability
+4. **Network Upgrades**: Practice upgrading the Hedera platform version
+5. **Integration Testing**: Connect your applications to the local network
+
+Remember, this is your personal Hedera playground. Experiment freely, break things, learn, and have fun building on Hedera!
+
+Happy coding with Solo! 🚀
+
+{{< /details >}}
+
+### Create a local cluster
 
 {{< details >}}
 
@@ -133,9 +666,9 @@ You may now view pods in your cluster using `k9s -A` as below:
 
 {{< /details >}}
 
-### Step-by-Step Instructions
+## Step-by-Step Instructions
 
-#### Initialize `solo` directories:
+### Initialize `solo` directories:
 
 {{< details >}}
 
@@ -183,9 +716,9 @@ If a full reset is needed, delete the directory or relevant sub-directories befo
 
 {{< /details >}}
 
-#### Create a deployment in the specified clusters, generate RemoteConfig and LocalConfig objects.
+### Create a deployment in the specified clusters, generate RemoteConfig and LocalConfig objects.
 
-##### Associates a cluster reference to a k8s context
+#### Associates a cluster reference to a k8s context
 
 {{< details >}}
 
@@ -217,7 +750,7 @@ Current Command		: cluster-ref connect --cluster-ref kind-solo-e2e --context kin
 
 {{< /details >}}
 
-##### Create a deployment
+#### Create a deployment
 
 {{< details >}}
 
@@ -279,7 +812,7 @@ Current Command		: deployment add-cluster --deployment solo-deployment --cluster
 ✔ create remote config for deployment: solo-deployment in cluster: kind-solo-e2e
 ```
 
-#### Generate `pem` formatted node keys
+### Generate `pem` formatted node keys
 
 ```
 solo node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
@@ -322,7 +855,7 @@ hedera-node2.crt    hedera-node4.crt    s-private-node3.pem s-public-node3.pem
 hedera-node2.key    hedera-node4.key    s-private-node4.pem s-public-node4.pem
 ```
 
-#### Setup cluster with shared components
+### Setup cluster with shared components
 
 ```
 solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
@@ -351,7 +884,7 @@ Version			: 0.53.0
 
 In a separate terminal, you may run `k9s` to view the pod status.
 
-#### Deploy a block node
+### Deploy a block node
 
 ```
 solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
@@ -392,7 +925,7 @@ Version			: 0.9.0
 ✔ Add block node component in remote config
 ```
 
-#### Deploy helm chart with Hedera network components
+### Deploy helm chart with Hedera network components
 
 It may take a while (5~15 minutes depending on your internet speed) to download various docker images and get the pods started.
 
@@ -463,7 +996,7 @@ Version			: 0.53.0
 ✔ Copy block-nodes.json
 ```
 
-#### Setup node with Hedera platform software.
+### Setup node with Hedera platform software.
 
 * It may take a while as it download the hedera platform code from <https://builds.hedera.com/>
 
@@ -563,7 +1096,7 @@ Current Command		: node start --deployment solo-deployment
 
 ***
 
-#### Deploy mirror node
+### Deploy mirror node
 
 ```
 solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
@@ -614,7 +1147,7 @@ Version			: v0.129.1
 ✔ Add mirror node to remote config
 ```
 
-#### Deploy explorer mode
+### Deploy explorer mode
 
 ```
 solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
@@ -653,7 +1186,7 @@ Version			: 24.15.0
 ✔ Add explorer to remote config
 ```
 
-#### Deploy a JSON RPC relay
+### Deploy a JSON RPC relay
 
 ```
 solo relay deploy -i node1 --deployment "${SOLO_DEPLOYMENT}"
@@ -690,11 +1223,11 @@ Version			: v0.67.0
 ✔ Add relay component in remote config
 ```
 
-#### Execution Developer
+### Execution Developer
 
 Next: [Execution Developer](execution-developer)
 
-#### Destroy relay node
+### Destroy relay node
 
 ```
 solo relay destroy -i node1 --deployment "${SOLO_DEPLOYMENT}"
@@ -729,7 +1262,7 @@ Current Command		: relay destroy --node-aliases node1 --deployment solo-deployme
 ✔ Remove relay component from remote config
 ```
 
-#### Destroy mirror node
+### Destroy mirror node
 
 ```
 solo mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --force
@@ -759,7 +1292,7 @@ Current Command		: mirror-node destroy --deployment solo-deployment --quiet-mode
 ✔ Remove mirror node from remote config
 ```
 
-#### Destroy explorer node
+### Destroy explorer node
 
 ```
 solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
@@ -789,7 +1322,7 @@ Current Command		: explorer destroy --deployment solo-deployment --quiet-mode
 ✔ Remove explorer from remote config
 ```
 
-#### Destroy network
+### Destroy network
 
 ```
 solo network destroy --deployment "${SOLO_DEPLOYMENT}" --force
@@ -815,7 +1348,7 @@ Current Command		: network destroy --deployment solo-deployment --quiet-mode
 ✔ Deleting the RemoteConfig configmap in namespace solo-e2e
 ```
 
-#### Destroy block node
+### Destroy block node
 
 ```
 solo block node destroy --deployment "${SOLO_DEPLOYMENT}"
