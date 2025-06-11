@@ -37,22 +37,32 @@ For those who would like to have more control or need some customized setups, he
 
 ### Setup Kubernetes cluster
 
-#### Remote cluster
+#### Select an existing Remote cluster
 
-* You may use remote kubernetes cluster. In this case, ensure kubernetes context is set up correctly.
+{{< details >}}
 
-```
+* You may use a remote Kubernetes cluster. In this case, ensure Kubernetes context is set up correctly.
+
+```bash
+kubectl config get-contexts
 kubectl config use-context <context-name>
 ```
 
-#### Local cluster
+[Go to Table of Contents](#table-of-contents)
+{.goToTableOfContents font-size=smaller, vertical-align=sub}
+
+{{< /details >}}
+
+#### Create a local cluster
+
+{{< details >}}
 
 * You may use [kind](https://kind.sigs.k8s.io/) or [microk8s](https://microk8s.io/) to create a cluster. In this case,
   ensure your Docker engine has enough resources (e.g. Memory >=8Gb, CPU: >=4). Below we show how you can use `kind` to create a cluster
 
 First, use the following command to set up the environment variables:
 
-```
+```bash
 export SOLO_CLUSTER_NAME=solo-cluster
 export SOLO_NAMESPACE=solo-e2e
 export SOLO_CLUSTER_SETUP_NAMESPACE=solo-cluster-setup
@@ -118,11 +128,18 @@ You may now view pods in your cluster using `k9s -A` as below:
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Step by Step Instructions
+[Go to Table of Contents](#table-of-contents) 
+{.goToTableOfContents font-size=smaller, vertical-align=sub}
+
+{{< /details >}}
+
+### Step-by-Step Instructions
 
 #### Initialize `solo` directories:
 
-```
+{{< details >}}
+
+```bash
 # reset .solo directory
 rm -rf ~/.solo
 
@@ -161,18 +178,24 @@ If a full reset is needed, delete the directory or relevant sub-directories befo
 ✔ Copy templates in '/Users/user/.solo/cache'
 ```
 
+[Go to Table of Contents](#table-of-contents)
+{.goToTableOfContents font-size=smaller, vertical-align=sub}
+
+{{< /details >}}
+
 #### Create a deployment in the specified clusters, generate RemoteConfig and LocalConfig objects.
 
-* Associates a cluster reference to a k8s context
+##### Associates a cluster reference to a k8s context
 
-```
+{{< details >}}
+
+```bash
 solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
 ```
 
 * Example output
 
 ```
-
 ******************************* Solo *********************************************
 Version			: 0.37.1
 Kubernetes Context	: kind-solo-e2e
@@ -189,9 +212,16 @@ Current Command		: cluster-ref connect --cluster-ref kind-solo-e2e --context kin
 ✔ Associate a context with a cluster reference: kind-solo-e2e
 ```
 
-* Create a deployment
+[Go to Table of Contents](#table-of-contents)
+{.goToTableOfContents font-size=smaller, vertical-align=sub}
 
-```
+{{< /details >}}
+
+##### Create a deployment
+
+{{< details >}}
+
+```bash
 solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 ```
 
@@ -211,6 +241,11 @@ Kubernetes Namespace	: solo-e2e
 ❯ Add deployment to local config
 ✔ Adding deployment: solo-deployment with namespace: solo-e2e to local config
 ```
+
+[Go to Table of Contents](#table-of-contents)
+{.goToTableOfContents font-size=smaller, vertical-align=sub}
+
+{{< /details >}}
 
 * Add a cluster to deployment
 
