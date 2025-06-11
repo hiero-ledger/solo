@@ -27,7 +27,7 @@
     "@inquirer/prompts": "^7.5.3",
     "@kubernetes/client-node": "^0.22.3",
     "@listr2/prompt-adapter-inquirer": "^2.0.22",
-    "@peculiar/x509": "^1.12.3",
+    "@peculiar/x509": "^1.12.4",
     "adm-zip": "^0.5.16",
     "chalk": "^5.4.1",
     "class-transformer": "^0.5.1",
