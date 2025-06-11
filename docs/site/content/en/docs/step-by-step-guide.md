@@ -180,10 +180,42 @@ kubectl config use-context <context-name>
 
 {{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
 
+Reset the `.solo` directory before initializing Solo. This step is crucial to ensure a clean setup without any leftover artifacts from previous installations. See: [*Cleaning up an old install](#cleaning-up-an-old-install)
+
 ```bash
-bash
-# reset .solo directory before initializing 
 solo init
+```
+
+Example output
+
+```
+
+******************************* Solo *********************************************
+Version			: 0.37.1
+Kubernetes Context	: kind-solo-e2e
+Kubernetes Cluster	: kind-solo-e2e
+Current Command		: init
+**********************************************************************************
+❯ Setup home directory and cache
+✔ Setup home directory and cache
+❯ Check dependencies
+❯ Check dependency: helm [OS: darwin, Release: 23.6.0, Arch: arm64]
+✔ Check dependency: helm [OS: darwin, Release: 23.6.0, Arch: arm64]
+✔ Check dependencies
+❯ Create local configuration
+✔ Create local configuration
+❯ Setup chart manager
+push repo hedera-json-rpc-relay -> https://hiero-ledger.github.io/hiero-json-rpc-relay/charts
+push repo mirror -> https://hashgraph.github.io/hedera-mirror-node/charts
+push repo haproxy-ingress -> https://haproxy-ingress.github.io/charts
+✔ Setup chart manager
+❯ Copy templates in '/Users/user/.solo/cache'
+
+***************************************************************************************
+Note: solo stores various artifacts (config, logs, keys etc.) in its home directory: /Users/user/.solo
+If a full reset is needed, delete the directory or relevant sub-directories before running 'solo init'.
+***************************************************************************************
+✔ Copy templates in '/Users/user/.solo/cache'
 ```
 
 {{< /details >}}
@@ -611,54 +643,6 @@ Happy coding with Solo! 🚀
 {{< /details >}}
 
 # Step-by-Step Instructions
-
-### Initialize `solo` directories:
-
-{{< details >}}
-
-```bash
-# reset .solo directory
-rm -rf ~/.solo
-
-solo init
-```
-
-* Example output
-
-```
-
-******************************* Solo *********************************************
-Version			: 0.37.1
-Kubernetes Context	: kind-solo-e2e
-Kubernetes Cluster	: kind-solo-e2e
-Current Command		: init
-**********************************************************************************
-❯ Setup home directory and cache
-✔ Setup home directory and cache
-❯ Check dependencies
-❯ Check dependency: helm [OS: darwin, Release: 23.6.0, Arch: arm64]
-✔ Check dependency: helm [OS: darwin, Release: 23.6.0, Arch: arm64]
-✔ Check dependencies
-❯ Create local configuration
-✔ Create local configuration
-❯ Setup chart manager
-push repo hedera-json-rpc-relay -> https://hiero-ledger.github.io/hiero-json-rpc-relay/charts
-push repo mirror -> https://hashgraph.github.io/hedera-mirror-node/charts
-push repo haproxy-ingress -> https://haproxy-ingress.github.io/charts
-✔ Setup chart manager
-❯ Copy templates in '/Users/user/.solo/cache'
-
-***************************************************************************************
-Note: solo stores various artifacts (config, logs, keys etc.) in its home directory: /Users/user/.solo
-If a full reset is needed, delete the directory or relevant sub-directories before running 'solo init'.
-***************************************************************************************
-✔ Copy templates in '/Users/user/.solo/cache'
-```
-
-[Go to Table of Contents](#table-of-contents)
-{.goToTableOfContents font-size=smaller, vertical-align=sub}
-
-{{< /details >}}
 
 ### Create a deployment in the specified clusters, generate RemoteConfig and LocalConfig objects.
 
