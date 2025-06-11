@@ -57,9 +57,9 @@ jobs:
     name: Setup
     runs-on: hiero-solo-linux-medium
     outputs:
-      docs-build-label: ${{ steps.set-inputs.outputs.docs-build-label }}
-      attach-docs-enabled: ${{ steps.set-inputs.outputs.attach-docs-enabled }}
-      download-artifacts: ${{ steps.set-inputs.outputs.download-artifacts }}
+      docs-build-label: ${{ steps.set-inputs.outputs.docs_build_label }}
+      main-ref: ${{ steps.set-inputs.outputs.main_ref }}
+      versioned-release: ${{ steps.set-inputs.outputs.versioned_release }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -69,36 +69,77 @@ jobs:
       - name: Set Inputs
         id: set-inputs
         run: |
-          SOLO_VERSION="${{ inputs.docs-build-label }}"
-          DOWNLOAD_ARTIFACTS=false
+          set -eo pipefail
+          echo "::group::Set Inputs"
+          echo "Inputs:"
+          echo "docs-build-label=${{ inputs.docs-build-label }}"
+          echo "dry-run-enabled=${{ inputs.dry-run-enabled }}"
+          echo "github.ref=${{ github.ref }}"
+          echo "github.ref_name=${{ github.ref_name }}"
+          echo "github.event_name=${{ github.event_name }}"
+          echo "::endgroup::"
           
-          if [[ -z "${SOLO_VERSION}" ]]; then
+          echo "::group::Default Output Values"
+          DOCS_BUILD_LABEL="${{ inputs.docs-build-label }}"
+          echo "defaulting: DOCS_BUILD_LABEL=${DOCS_BUILD_LABEL}"
+          MAIN_REF="main"
+          echo "defaulting: MAIN_REF=${MAIN_REF}"
+          VERSIONED_RELEASE=false
+          echo "defaulting: VERSIONED_RELEASE=${VERSIONED_RELEASE}"
+          echo "::endgroup::"
+         
+          echo "::group::Setting Inputs" 
+          if [[ -z "${DOCS_BUILD_LABEL}" ]]; then
             echo "No docs-build-label input provided for push to 'main' or 'release/*', defaulting to 'main'."
-            SOLO_VERSION='main'
+            DOCS_BUILD_LABEL='main'
+            echo "setting: DOCS_BUILD_LABEL=${DOCS_BUILD_LABEL}"
           fi
-          echo "docs-build-label=${SOLO_VERSION}" >> $GITHUB_OUTPUT
-          
+         
           # Only download artifacts and attach docs to a release if this is a workflow_dispatch running with a version tag
-          if [[ "${{ github.ref_name }}" != "main" && "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "attach-docs-enabled=true" >> $GITHUB_OUTPUT
-            DOWNLOAD_ARTIFACTS=true
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "${{ github.ref_name }}" != "main" || "${{ inputs.docs-build-label }}" != "main" ]]; then
+              echo "Running with a version tag and via workflow_dispatch, this is a versioned release."
+              VERSIONED_RELEASE=true
+              echo "setting: VERSIONED_RELEASE=${VERSIONED_RELEASE}"
+            else
+              echo "Running with 'main' branch and not a versioned release."
+              VERSIONED_RELEASE=false
+              echo "setting: VERSIONED_RELEASE=${VERSIONED_RELEASE}"
+            fi
           else
-            echo "attach-docs-enabled=false" >> $GITHUB_OUTPUT
+            echo "Running with 'main' or 'release/*' branch."
+            VERSIONED_RELEASE=false
+            echo "setting: VERSIONED_RELEASE=${VERSIONED_RELEASE}"
           fi
-          echo "download-artifacts=${DOWNLOAD_ARTIFACTS}" >> $GITHUB_OUTPUT
           
           # If the github.ref_name is `main`, then we will checkout github.ref, else checkout `main` for the 
           #  docs-build-label = `main`
           if [[ "${{ github.ref_name }}" == "main" ]]; then
-            echo "ref=${{ github.ref }}" >> $GITHUB_OUTPUT
+            echo "Running on 'main' branch, setting MAIN_REF to github.ref."
+            MAIN_REF="${{ github.ref }}"
+            echo "setting: MAIN_REF=${MAIN_REF}"
           else
-            echo "ref=main" >> $GITHUB_OUTPUT
+            echo "Running on a branch or tag other than 'main', setting MAIN_REF to 'main'."
+            MAIN_REF="main"
+            echo "setting: MAIN_REF=${MAIN_REF}"
           fi
+          echo "::endgroup::"
+          
+          echo "::group::Output Values"
+          echo "docs_build_label=${DOCS_BUILD_LABEL}" >> $GITHUB_OUTPUT
+          echo "output: docs_build_label=${DOCS_BUILD_LABEL}"
+          echo "main_ref=${MAIN_REF}" >> $GITHUB_OUTPUT
+          echo "output: main_ref=${MAIN_REF}"
+          echo "versioned_release=${VERSIONED_RELEASE}" >> $GITHUB_OUTPUT
+          echo "output: versioned_release=${VERSIONED_RELEASE}"
+          echo "::endgroup::"
+
+  # ------- Hugo Build and Publish for Version Tag and Main Branch -------
 
   # Do a Hugo build for the docs site for a version tag
   hugo-docs-build:
     name: Hugo Docs Build
-    if: ${{ needs.setup.outputs.docs-build-label != 'main' && github.ref_name != 'main' && !cancelled() && !failure() }}
+    if: ${{ needs.setup.outputs.versioned-release == 'true' && !cancelled() && !failure() }}
     uses: ./.github/workflows/zxc-hugo-build.yaml
     needs:
       - setup
@@ -109,17 +150,17 @@ jobs:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # Do a Hugo build for the docs site for the main branch, required to ensure that docs for the main branch get deployed
-  #  to GitHub Pages
+  #  to GitHub Pages.  This runs after hugo-docs-build if the docs-build-label is not 'main'.
   hugo-docs-build-main:
-    name: Hugo Docs Build Main
+    name: Hugo Docs Build - Main
     uses: ./.github/workflows/zxc-hugo-build.yaml
     needs:
       - setup
       - hugo-docs-build
     with:
       docs-build-label: 'main'
-      download-artifacts: ${{ needs.setup.outputs.download-artifacts == 'true' }}
-      ref: ${{ needs.setup.outputs.ref }}
+      download-artifacts: true
+      ref: ${{ needs.setup.outputs.main-ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -133,5 +174,33 @@ jobs:
       - hugo-docs-build-main
     with:
       docs-build-label: ${{ needs.setup.outputs.docs-build-label }}
+      attach-docs-enabled: true
       dry-run-enabled: ${{ inputs.dry-run-enabled == true }}
-      attach-docs-enabled: ${{ needs.setup.outputs.attach-docs-enabled == 'true' }}
+
+  # ------- Hugo Build and Publish for Main Branch Only -------
+
+  # Do a Hugo build for the docs site for the main branch, this is when the hugo-docs-build is skipped, the need clause
+  #  is different
+  hugo-docs-build-main-only:
+    name: Hugo Docs Build - Main Only
+    if: ${{ needs.setup.outputs.versioned-release == 'false' && !cancelled() && !failure() }}
+    uses: ./.github/workflows/zxc-hugo-build.yaml
+    needs:
+      - setup
+    with:
+      docs-build-label: 'main'
+      ref: ${{ needs.setup.outputs.main-ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Publish the Hugo docs site to GitHub Pages unless dry-run is enabled or if this is a merge to release/* branch
+  hugo-docs-publish-main-only:
+    name: Hugo Docs Publish - Main Only
+    uses: ./.github/workflows/zxc-hugo-publish.yaml
+    needs:
+      - setup
+      - hugo-docs-build-main-only
+    with:
+      docs-build-label: ${{ needs.setup.outputs.docs-build-label }}
+      # compare to true, because it could be an empty string which throws an error
+      dry-run-enabled: ${{ inputs.dry-run-enabled == true || startsWith(github.ref_name, 'release/') }}
