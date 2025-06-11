@@ -437,7 +437,67 @@ Version			: 0.11.0
 Deploying the network runs risks of timeouts as images are downloaded, and pods are starting. If you experience a failure double check the resources you've allocated in docker engine and give it another try.
 
 ```bash
-solo network deploy --deployment solo-deployment
+solo network deploy --deployment "${SOLO_DEPLOYMENT}"
+```
+
+Example output:
+
+```
+******************************* Solo *********************************************
+Version			: 0.37.1
+Kubernetes Context	: kind-solo-e2e
+Kubernetes Cluster	: kind-solo-e2e
+Current Command		: network deploy --deployment solo-deployment
+**********************************************************************************
+❯ Initialize
+❯ Acquire lock
+✔ Acquire lock - lock acquired successfully, attempt: 1/10
+✔ Initialize
+❯ Copy gRPC TLS Certificates
+↓ Copy gRPC TLS Certificates [SKIPPED: Copy gRPC TLS Certificates]
+❯ Check if cluster setup chart is installed
+✔ Check if cluster setup chart is installed
+❯ Prepare staging directory
+❯ Copy Gossip keys to staging
+✔ Copy Gossip keys to staging
+❯ Copy gRPC TLS keys to staging
+✔ Copy gRPC TLS keys to staging
+✔ Prepare staging directory
+❯ Copy node keys to secrets
+❯ Copy TLS keys
+❯ Node: node1, cluster: kind-solo-e2e
+❯ Copy Gossip keys
+✔ Copy TLS keys
+✔ Copy Gossip keys
+✔ Node: node1, cluster: kind-solo-e2e
+✔ Copy node keys to secrets
+❯ Install chart 'solo-deployment'
+*********************** Installed solo-deployment chart ************************
+Version			: 0.53.0
+********************************************************************************
+✔ Install chart 'solo-deployment'
+❯ Check for load balancer
+↓ Check for load balancer [SKIPPED: Check for load balancer]
+❯ Redeploy chart with external IP address config
+↓ Redeploy chart with external IP address config [SKIPPED: Redeploy chart with external IP address config]
+❯ Check node pods are running
+❯ Check Node: node1, Cluster: kind-solo-e2e
+✔ Check Node: node1, Cluster: kind-solo-e2e
+✔ Check node pods are running
+❯ Check proxy pods are running
+❯ Check HAProxy for: node1, cluster: kind-solo-e2e
+❯ Check Envoy Proxy for: node1, cluster: kind-solo-e2e
+✔ Check Envoy Proxy for: node1, cluster: kind-solo-e2e
+✔ Check HAProxy for: node1, cluster: kind-solo-e2e
+✔ Check proxy pods are running
+❯ Check auxiliary pods are ready
+❯ Check MinIO
+✔ Check MinIO
+✔ Check auxiliary pods are ready
+❯ Add node and proxies to remote config
+✔ Add node and proxies to remote config
+❯ Copy block-nodes.json
+✔ Copy block-nodes.json
 ```
 
 {{< /details >}}
@@ -818,77 +878,6 @@ Current Command		: cluster-ref connect --cluster-ref kind-solo-e2e --context kin
 {.goToTableOfContents font-size=smaller, vertical-align=sub}
 
 {{< /details >}}
-
-### Deploy helm chart with Hedera network components
-
-It may take a while (5~15 minutes depending on your internet speed) to download various docker images and get the pods started.
-
-If it fails, ensure you have enough resources allocated for Docker engine and retry the command.
-
-```
-solo network deploy --deployment "${SOLO_DEPLOYMENT}"
-```
-
-Example output:
-
-```
-
-******************************* Solo *********************************************
-Version			: 0.37.1
-Kubernetes Context	: kind-solo-e2e
-Kubernetes Cluster	: kind-solo-e2e
-Current Command		: network deploy --deployment solo-deployment
-**********************************************************************************
-❯ Initialize
-❯ Acquire lock
-✔ Acquire lock - lock acquired successfully, attempt: 1/10
-✔ Initialize
-❯ Copy gRPC TLS Certificates
-↓ Copy gRPC TLS Certificates [SKIPPED: Copy gRPC TLS Certificates]
-❯ Check if cluster setup chart is installed
-✔ Check if cluster setup chart is installed
-❯ Prepare staging directory
-❯ Copy Gossip keys to staging
-✔ Copy Gossip keys to staging
-❯ Copy gRPC TLS keys to staging
-✔ Copy gRPC TLS keys to staging
-✔ Prepare staging directory
-❯ Copy node keys to secrets
-❯ Copy TLS keys
-❯ Node: node1, cluster: kind-solo-e2e
-❯ Copy Gossip keys
-✔ Copy TLS keys
-✔ Copy Gossip keys
-✔ Node: node1, cluster: kind-solo-e2e
-✔ Copy node keys to secrets
-❯ Install chart 'solo-deployment'
-*********************** Installed solo-deployment chart ************************
-Version			: 0.53.0
-********************************************************************************
-✔ Install chart 'solo-deployment'
-❯ Check for load balancer
-↓ Check for load balancer [SKIPPED: Check for load balancer]
-❯ Redeploy chart with external IP address config
-↓ Redeploy chart with external IP address config [SKIPPED: Redeploy chart with external IP address config]
-❯ Check node pods are running
-❯ Check Node: node1, Cluster: kind-solo-e2e
-✔ Check Node: node1, Cluster: kind-solo-e2e
-✔ Check node pods are running
-❯ Check proxy pods are running
-❯ Check HAProxy for: node1, cluster: kind-solo-e2e
-❯ Check Envoy Proxy for: node1, cluster: kind-solo-e2e
-✔ Check Envoy Proxy for: node1, cluster: kind-solo-e2e
-✔ Check HAProxy for: node1, cluster: kind-solo-e2e
-✔ Check proxy pods are running
-❯ Check auxiliary pods are ready
-❯ Check MinIO
-✔ Check MinIO
-✔ Check auxiliary pods are ready
-❯ Add node and proxies to remote config
-✔ Add node and proxies to remote config
-❯ Copy block-nodes.json
-✔ Copy block-nodes.json
-```
 
 ### Setup node with Hedera platform software.
 
