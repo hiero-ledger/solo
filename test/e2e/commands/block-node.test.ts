@@ -73,9 +73,8 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
 
     after(async function (): Promise<void> {
       this.timeout(Duration.ofMinutes(5).toMillis());
-      // TODO REMOVE this prior to MERGING
-      // await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
-      // await k8Factory.default().namespaces().delete(namespace);
+      await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
+      await k8Factory.default().namespaces().delete(namespace);
     });
 
     afterEach(async (): Promise<void> => await sleep(Duration.ofMillis(5)));
