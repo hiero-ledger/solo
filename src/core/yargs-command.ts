@@ -46,6 +46,7 @@ export class YargsCommand {
         builder: (y: any) => {
           commandFlags.setRequiredCommandFlags(y, ...required);
           commandFlags.setOptionalCommandFlags(y, ...optional);
+          y.help(); // Enable help for this subcommand
         },
         handler: async (argv: any) => {
           commandDef.logger.info(`==== Running '${commandNamespace} ${command}' ===`);
