@@ -31,6 +31,7 @@ import * as helpers from '../../../src/core/helpers.js';
 import {type Container} from '../../../src/integration/kube/resources/container/container.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {Templates} from '../../../src/core/templates.js';
+import {NodeStatusCodes} from '../../../src/core/enumerations.js';
 
 const namespace = NamespaceName.of('node-upgrade');
 const realm = 0;
@@ -145,7 +146,11 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
         k8Factory.default(),
         PodReference.of(namespace, pods[0].podReference.name),
       );
-      expect(response).to.equal('All network nodes are running');
+      expect(response).to.not.be.undefined;
+      const statusLine = response.split('\n').find(line => line.startsWith('platform_PlatformStatus'));
+      expect(statusLine).to.not.be.undefined;
+      const statusNumber = Number.parseInt(statusLine.split(' ').pop());
+      expect(statusNumber).to.equal(NodeStatusCodes.ACTIVE, 'All network nodes are running');
     });
 
     balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
