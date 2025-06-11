@@ -388,7 +388,7 @@ Now comes the exciting part – deploying your Hedera test network!
 
 > ⚠️ Block Node is experimental in Solo.  It requires a minimum of 16 GB of memory allocated to Docker. If you have less than 16 GB of memory, skip this step.
 
-As mentioned in the warning, Block Node uses a lot of memory.  In addition, it requires a version of Consensus Node to be at least v0.62.3.  You will need to augment the `solo network deploy` command with the `--release-tag v0.62.3` option to ensure that the Consensus Node is at the correct version.
+As mentioned in the warning, Block Node uses a lot of memory.  In addition, it requires a version of Consensus Node to be at least v0.62.3.  You will need to augment the `solo network deploy` & `solo node setup` command with the `--release-tag v0.62.6` option to ensure that the Consensus Node is at the correct version. *note: v0.62.6 is the latest patch for v0.62
 
 ```
 solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-"${SOLO_CLUSTER_NAME}" --release-tag v0.62.6
@@ -502,16 +502,52 @@ Version			: 0.53.0
 
 {{< /details >}}
 
-### 2. Setup node with Hedera platform software
+### 2. Set up a node with Hedera platform software
 
 {{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
 
-This step downloads the hedera platform code and sets up your node/nodes. *note you can add additional nodes here make sure they match the number of nodes associated with previous commands.
+This step downloads the hedera platform code and sets up your node/nodes.
 
 ```bash
 # node setup
-solo node setup --deployment solo-deployment
+solo node setup --deployment "${SOLO_DEPLOYMENT}" "${CONSENSUS_NODE_FLAG[@]}"
+```
 
+Example output:
+
+```
+******************************* Solo *********************************************
+Version			: 0.37.1
+Kubernetes Context	: kind-solo-e2e
+Kubernetes Cluster	: kind-solo-e2e
+Current Command		: node setup --deployment solo-deployment --release-tag v0.62.1
+**********************************************************************************
+❯ Initialize
+❯ Acquire lock
+✔ Acquire lock - lock acquired successfully, attempt: 1/10
+✔ Initialize
+❯ Validate nodes states
+❯ Validating state for node node1
+✔ Validating state for node node1 - valid state: requested
+✔ Validate nodes states
+❯ Identify network pods
+❯ Check network pod: node1
+✔ Check network pod: node1
+✔ Identify network pods
+❯ Fetch platform software into network nodes
+❯ Update node: node1 [ platformVersion = v0.62.1, context = kind-solo-e2e ]
+✔ Update node: node1 [ platformVersion = v0.62.1, context = kind-solo-e2e ]
+✔ Fetch platform software into network nodes
+❯ Setup network nodes
+❯ Node: node1
+❯ Copy configuration files
+✔ Copy configuration files
+❯ Set file permissions
+✔ Set file permissions
+✔ Node: node1
+✔ Setup network nodes
+❯ Change node state to configured in remote config
+✔ Change node state to configured in remote config
 ```
 
 {{< /details >}}
@@ -878,52 +914,6 @@ Current Command		: cluster-ref connect --cluster-ref kind-solo-e2e --context kin
 {.goToTableOfContents font-size=smaller, vertical-align=sub}
 
 {{< /details >}}
-
-### Setup node with Hedera platform software.
-
-* It may take a while as it download the hedera platform code from <https://builds.hedera.com/>
-
-```
-solo node setup --deployment "${SOLO_DEPLOYMENT}"
-```
-
-Example output:
-
-```
-
-******************************* Solo *********************************************
-Version			: 0.37.1
-Kubernetes Context	: kind-solo-e2e
-Kubernetes Cluster	: kind-solo-e2e
-Current Command		: node setup --deployment solo-deployment --release-tag v0.62.1
-**********************************************************************************
-❯ Initialize
-❯ Acquire lock
-✔ Acquire lock - lock acquired successfully, attempt: 1/10
-✔ Initialize
-❯ Validate nodes states
-❯ Validating state for node node1
-✔ Validating state for node node1 - valid state: requested
-✔ Validate nodes states
-❯ Identify network pods
-❯ Check network pod: node1
-✔ Check network pod: node1
-✔ Identify network pods
-❯ Fetch platform software into network nodes
-❯ Update node: node1 [ platformVersion = v0.62.1, context = kind-solo-e2e ]
-✔ Update node: node1 [ platformVersion = v0.62.1, context = kind-solo-e2e ]
-✔ Fetch platform software into network nodes
-❯ Setup network nodes
-❯ Node: node1
-❯ Copy configuration files
-✔ Copy configuration files
-❯ Set file permissions
-✔ Set file permissions
-✔ Node: node1
-✔ Setup network nodes
-❯ Change node state to configured in remote config
-✔ Change node state to configured in remote config
-```
 
 * Start the nodes
 
