@@ -137,7 +137,7 @@ export SOLO_DEPLOYMENT=solo-deployment
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 ```
 
-Example output
+Example output:
 
 ```
 Creating cluster "solo-e2e" ...
@@ -186,7 +186,7 @@ Reset the `.solo` directory before initializing Solo. This step is crucial to en
 solo init
 ```
 
-Example output
+Example output:
 
 ```
 
@@ -234,17 +234,54 @@ The deployment will:
 - Create persistent volumes if needed
 
 > 📝 notice that the `--cluster-ref` value is `kind-solo`, when you created the Kind cluster it created a cluster reference in the Kubernetes config with the name `kind-solo`. If you used a different name, replace `kind-solo` with your cluster name, but prefixing with `kind-`.  If you are working with a remote cluster, you can use the name of your cluster reference which can be gathered with the command: `kubectl config get-contexts`.
+> 📝 Note: Solo stores various artifacts (config, logs, keys etc.) in its home directory: ~/.solo. If you need a full reset, delete this directory before running solo init ag
 
 ```bash
 # connect to the cluster you created in a previous command
-solo cluster-ref connect --cluster-ref kind-solo
+solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
 
 #create the deployment
-solo deployment create -n solo --deployment solo-deployment
+solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-> 📝 Note: Solo stores various artifacts (config, logs, keys etc.) in its home directory: ~/.solo. If you need a full reset, delete this directory before running solo init ag
->
+Example output
+
+```
+******************************* Solo *********************************************
+Version			: 0.37.1
+Kubernetes Context	: kind-solo-e2e
+Kubernetes Cluster	: kind-solo-e2e
+Current Command		: deployment create --namespace solo-e2e --deployment solo-deployment --realm 0 --shard 0
+Kubernetes Namespace	: solo-e2e
+**********************************************************************************
+❯ Initialize
+✔ Initialize
+❯ Add deployment to local config
+✔ Adding deployment: solo-deployment with namespace: solo-e2e to local config
+```
+
+```
+******************************* Solo *********************************************
+Version			: 0.37.1
+Kubernetes Context	: kind-solo-e2e
+Kubernetes Cluster	: kind-solo-e2e
+Current Command		: deployment add-cluster --deployment solo-deployment --cluster-ref kind-solo-e2e --num-consensus-nodes 1
+**********************************************************************************
+❯ Initialize
+✔ Initialize
+❯ Verify args
+✔ Verify args
+❯ check ledger phase
+✔ check ledger phase
+❯ Test cluster connection
+✔ Test cluster connection: kind-solo-e2e, context: kind-solo-e2e
+❯ Verify prerequisites
+✔ Verify prerequisites
+❯ add cluster-ref in local config deployments
+✔ add cluster-ref: kind-solo-e2e for deployment: solo-deployment in local config
+❯ create remote config for deployment
+✔ create remote config for deployment: solo-deployment in cluster: kind-solo-e2e
+```
 
 {{< /details >}}
 
@@ -677,68 +714,6 @@ Current Command		: cluster-ref connect --cluster-ref kind-solo-e2e --context kin
 {.goToTableOfContents font-size=smaller, vertical-align=sub}
 
 {{< /details >}}
-
-#### Create a deployment
-
-{{< details >}}
-
-```bash
-solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-```
-
-* Example output
-
-```
-
-******************************* Solo *********************************************
-Version			: 0.37.1
-Kubernetes Context	: kind-solo-e2e
-Kubernetes Cluster	: kind-solo-e2e
-Current Command		: deployment create --namespace solo-e2e --deployment solo-deployment --realm 0 --shard 0
-Kubernetes Namespace	: solo-e2e
-**********************************************************************************
-❯ Initialize
-✔ Initialize
-❯ Add deployment to local config
-✔ Adding deployment: solo-deployment with namespace: solo-e2e to local config
-```
-
-[Go to Table of Contents](#table-of-contents)
-{.goToTableOfContents font-size=smaller, vertical-align=sub}
-
-{{< /details >}}
-
-* Add a cluster to deployment
-
-```
-solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
-```
-
-* Example output
-
-```
-
-******************************* Solo *********************************************
-Version			: 0.37.1
-Kubernetes Context	: kind-solo-e2e
-Kubernetes Cluster	: kind-solo-e2e
-Current Command		: deployment add-cluster --deployment solo-deployment --cluster-ref kind-solo-e2e --num-consensus-nodes 1
-**********************************************************************************
-❯ Initialize
-✔ Initialize
-❯ Verify args
-✔ Verify args
-❯ check ledger phase
-✔ check ledger phase
-❯ Test cluster connection
-✔ Test cluster connection: kind-solo-e2e, context: kind-solo-e2e
-❯ Verify prerequisites
-✔ Verify prerequisites
-❯ add cluster-ref in local config deployments
-✔ add cluster-ref: kind-solo-e2e for deployment: solo-deployment in local config
-❯ create remote config for deployment
-✔ create remote config for deployment: solo-deployment in cluster: kind-solo-e2e
-```
 
 ### Generate `pem` formatted node keys
 
