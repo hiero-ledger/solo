@@ -353,7 +353,27 @@ hedera-node2.key    hedera-node4.key    s-private-node4.pem s-public-node4.pem
 {{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
 
 ```bash
-solo cluster-ref setup -s solo-cluster
+solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+```
+
+Example output:
+
+```
+******************************* Solo *********************************************
+Version			: 0.37.1
+Kubernetes Context	: kind-solo-e2e
+Kubernetes Cluster	: kind-solo-e2e
+Current Command		: cluster-ref setup --cluster-setup-namespace solo-cluster-setup
+**********************************************************************************
+❯ Initialize
+✔ Initialize
+❯ Prepare chart values
+✔ Prepare chart values
+❯ Install 'solo-cluster-setup' chart
+********************** Installed solo-cluster-setup chart **********************
+Version			: 0.53.0
+********************************************************************************
+✔ Install 'solo-cluster-setup' chart
 ```
 
 {{< /details >}}
@@ -750,34 +770,6 @@ Current Command		: cluster-ref connect --cluster-ref kind-solo-e2e --context kin
 {.goToTableOfContents font-size=smaller, vertical-align=sub}
 
 {{< /details >}}
-
-### Setup cluster with shared components
-
-```
-solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
-```
-
-Example output:
-
-```
-******************************* Solo *********************************************
-Version			: 0.37.1
-Kubernetes Context	: kind-solo-e2e
-Kubernetes Cluster	: kind-solo-e2e
-Current Command		: cluster-ref setup --cluster-setup-namespace solo-cluster-setup
-**********************************************************************************
-❯ Initialize
-✔ Initialize
-❯ Prepare chart values
-✔ Prepare chart values
-❯ Install 'solo-cluster-setup' chart
-********************** Installed solo-cluster-setup chart **********************
-Version			: 0.53.0
-********************************************************************************
-✔ Install 'solo-cluster-setup' chart
-```
-
-In a separate terminal, you may run `k9s` to view the pod status.
 
 ### Deploy a block node
 
