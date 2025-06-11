@@ -668,7 +668,7 @@ Version			: v0.129.1
 
 {{< /details >}}
 
-### 5. Explorer mode
+### 5. Deploy the explorer
 
 {{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
 
@@ -676,7 +676,39 @@ Watch the deployment progress:
 
 ```bash
 # deploy explorer
-solo explorer deploy --deployment solo-deployment --cluster-ref kind-solo-cluster
+solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+```
+
+Example output:
+
+```
+******************************* Solo *********************************************
+Version			: 0.37.1
+Kubernetes Context	: kind-solo-e2e
+Kubernetes Cluster	: kind-solo-e2e
+Current Command		: explorer deploy --deployment solo-deployment --cluster-ref kind-solo-e2e --quiet-mode
+**********************************************************************************
+❯ Initialize
+❯ Acquire lock
+✔ Acquire lock - lock acquired successfully, attempt: 1/10
+✔ Initialize
+❯ Load remote config
+✔ Load remote config
+❯ Install cert manager
+↓ Install cert manager [SKIPPED: Install cert manager]
+❯ Install explorer
+************************ Installed hiero-explorer chart ************************
+Version			: 24.15.0
+********************************************************************************
+✔ Install explorer
+❯ Install explorer ingress controller
+↓ Install explorer ingress controller [SKIPPED: Install explorer ingress controller]
+❯ Check explorer pod is ready
+✔ Check explorer pod is ready
+❯ Check haproxy ingress controller pod is ready
+↓ Check haproxy ingress controller pod is ready [SKIPPED: Check haproxy ingress controller pod is ready]
+❯ Add explorer to remote config
+✔ Add explorer to remote config
 ```
 
 {{< /details >}}
@@ -689,7 +721,38 @@ The JSON RPC relay allows you to interact with your Hedera network using standar
 
 ```bash
 #deploy a solo JSON RPC relay
-solo relay deploy -i node1 --deployment solo-deployment
+solo relay deploy -i node1 --deployment "${SOLO_DEPLOYMENT}" 
+```
+
+Example output:
+
+```
+
+******************************* Solo *********************************************
+Version			: 0.37.1
+Kubernetes Context	: kind-solo-e2e
+Kubernetes Cluster	: kind-solo-e2e
+Current Command		: relay deploy --node-aliases node1 --deployment solo-deployment
+**********************************************************************************
+❯ Initialize
+❯ Acquire lock
+✔ Acquire lock - lock acquired successfully, attempt: 1/10
+✔ Initialize
+❯ Check chart is installed
+✔ Check chart is installed
+❯ Prepare chart values
+✔ Prepare chart values
+❯ Deploy JSON RPC Relay
+************************* Installed relay-node1 chart **************************
+Version			: v0.67.0
+********************************************************************************
+✔ Deploy JSON RPC Relay
+❯ Check relay is running
+✔ Check relay is running
+❯ Check relay is ready
+✔ Check relay is ready
+❯ Add relay component in remote config
+✔ Add relay component in remote config
 ```
 
 {{< /details >}}
@@ -1002,82 +1065,6 @@ Current Command		: cluster-ref connect --cluster-ref kind-solo-e2e --context kin
 {.goToTableOfContents font-size=smaller, vertical-align=sub}
 
 {{< /details >}}
-
-### Deploy explorer mode
-
-```
-solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
-```
-
-Example output:
-
-```
-
-******************************* Solo *********************************************
-Version			: 0.37.1
-Kubernetes Context	: kind-solo-e2e
-Kubernetes Cluster	: kind-solo-e2e
-Current Command		: explorer deploy --deployment solo-deployment --cluster-ref kind-solo-e2e --quiet-mode
-**********************************************************************************
-❯ Initialize
-❯ Acquire lock
-✔ Acquire lock - lock acquired successfully, attempt: 1/10
-✔ Initialize
-❯ Load remote config
-✔ Load remote config
-❯ Install cert manager
-↓ Install cert manager [SKIPPED: Install cert manager]
-❯ Install explorer
-************************ Installed hiero-explorer chart ************************
-Version			: 24.15.0
-********************************************************************************
-✔ Install explorer
-❯ Install explorer ingress controller
-↓ Install explorer ingress controller [SKIPPED: Install explorer ingress controller]
-❯ Check explorer pod is ready
-✔ Check explorer pod is ready
-❯ Check haproxy ingress controller pod is ready
-↓ Check haproxy ingress controller pod is ready [SKIPPED: Check haproxy ingress controller pod is ready]
-❯ Add explorer to remote config
-✔ Add explorer to remote config
-```
-
-### Deploy a JSON RPC relay
-
-```
-solo relay deploy -i node1 --deployment "${SOLO_DEPLOYMENT}"
-```
-
-Example output:
-
-```
-
-******************************* Solo *********************************************
-Version			: 0.37.1
-Kubernetes Context	: kind-solo-e2e
-Kubernetes Cluster	: kind-solo-e2e
-Current Command		: relay deploy --node-aliases node1 --deployment solo-deployment
-**********************************************************************************
-❯ Initialize
-❯ Acquire lock
-✔ Acquire lock - lock acquired successfully, attempt: 1/10
-✔ Initialize
-❯ Check chart is installed
-✔ Check chart is installed
-❯ Prepare chart values
-✔ Prepare chart values
-❯ Deploy JSON RPC Relay
-************************* Installed relay-node1 chart **************************
-Version			: v0.67.0
-********************************************************************************
-✔ Deploy JSON RPC Relay
-❯ Check relay is running
-✔ Check relay is running
-❯ Check relay is ready
-✔ Check relay is ready
-❯ Add relay component in remote config
-✔ Add relay component in remote config
-```
 
 ### Execution Developer
 
