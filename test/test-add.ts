@@ -121,6 +121,7 @@ export function testNodeAdd(
           callback: async argv => nodeCmd.handlers.add(argv),
         });
 
+        argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
         await accountManager.close();
       }).timeout(Duration.ofMinutes(12).toMillis());
 
