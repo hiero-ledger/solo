@@ -40,7 +40,7 @@ import {lt, SemVer} from 'semver';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
-import {MINIMUM_HEDERA_PLATFORM_VERSION_FOR_BLOCK_NODE} from '../../version.js';
+import {MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} from '../../version.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -170,9 +170,9 @@ export class BlockNodeCommand extends BaseCommand {
             ) as BlockNodeDeployConfigClass;
 
             const platformVersion: SemVer = new SemVer(context_.config.releaseTag);
-            if (lt(platformVersion, new SemVer(MINIMUM_HEDERA_PLATFORM_VERSION_FOR_BLOCK_NODE))) {
+            if (lt(platformVersion, new SemVer(MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE))) {
               throw new SoloError(
-                `Hedera platform versions less than ${MINIMUM_HEDERA_PLATFORM_VERSION_FOR_BLOCK_NODE} are not supported`,
+                `Hedera platform versions less than ${MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} are not supported`,
               );
             }
 
