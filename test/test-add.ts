@@ -110,17 +110,7 @@ export function testNodeAdd(
       }).timeout(Duration.ofMinutes(8).toMillis());
 
       it('should add a new node to the network successfully', async () => {
-        await commandInvoker.invoke({
-          argv: argv,
-          command: NodeCommand.COMMAND_NAME,
-          subcommand: 'add',
-          callback: async argv => nodeCmd.handlers.add(argv),
-        });
-
-        await accountManager.close();
-      }).timeout(Duration.ofMinutes(12).toMillis());
-
-      it('should add a new node to the network successfully if staging directory does not exist', async () => {
+        // staging directory does not need to exist
         const stagingDirectory = Templates.renderStagingDir(cacheDir, argv.getArg<string>(flags.releaseTag));
         fs.rmSync(stagingDirectory, {recursive: true, force: true});
 
