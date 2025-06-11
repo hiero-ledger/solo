@@ -245,6 +245,22 @@ solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 Example output:
+```
+******************************* Solo *********************************************
+Version			: 0.37.1
+Kubernetes Context	: kind-solo-e2e
+Kubernetes Cluster	: kind-solo-e2e
+Current Command		: cluster-ref connect --cluster-ref kind-solo-e2e --context kind-solo-e2e
+**********************************************************************************
+❯ Initialize
+✔ Initialize
+❯ Validating cluster ref: 
+✔ kind-solo-e2e
+❯ Test connection to cluster: 
+✔ Test connection to cluster: kind-solo-e2e
+❯ Associate a context with a cluster reference: 
+✔ Associate a context with a cluster reference: kind-solo-e2e
+```
 
 ```
 ******************************* Solo *********************************************
@@ -259,6 +275,22 @@ Kubernetes Namespace	: solo-e2e
 ❯ Add deployment to local config
 ✔ Adding deployment: solo-deployment with namespace: solo-e2e to local config
 ```
+
+{{< /details >}}
+
+### 6. Add a cluster to the deployment you created
+
+{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
+
+*This command is the first command that will specify how many nodes you want to add to your deployment. For the sake of resource
+
+```bash
+# Add a cluster to the deployment you created
+solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
+# If the command line command is unresponsive there's also a handy cluster add configurator you can run `solo deployment add-cluster` without any arguments to get a guided setup.
+```
+
+Example output:
 
 ```
 ******************************* Solo *********************************************
@@ -281,21 +313,6 @@ Current Command		: deployment add-cluster --deployment solo-deployment --cluster
 ✔ add cluster-ref: kind-solo-e2e for deployment: solo-deployment in local config
 ❯ create remote config for deployment
 ✔ create remote config for deployment: solo-deployment in cluster: kind-solo-e2e
-```
-
-{{< /details >}}
-
-### 6. Add a cluster to the deployment you created
-
-{{< details summary="Details <click to expand/collapse>" open=true >}}<br/>
-
-*This command is the first command that will specify how many nodes you want to add to your deployment. For the sake of resource
-
-```bash
-# Add a cluster to the deployment you created
-solo deployment add-cluster --deployment solo-deployment --cluster-ref solo-cluster --num-consensus-nodes 1
-# If the command line command is unresponsive there's also a handy cluster add configurator you can run
-solo deployment add-cluster
 ```
 
 {{< /details >}}
@@ -1029,46 +1046,6 @@ Remember, this is your personal Hedera playground. Experiment freely, break thin
 Happy coding with Solo! 🚀
 
 {{< /details >}}
-
-# Step-by-Step Instructions
-
-### Create a deployment in the specified clusters, generate RemoteConfig and LocalConfig objects.
-
-#### Associates a cluster reference to a k8s context
-
-{{< details >}}
-
-```bash
-solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
-```
-
-* Example output
-
-```
-******************************* Solo *********************************************
-Version			: 0.37.1
-Kubernetes Context	: kind-solo-e2e
-Kubernetes Cluster	: kind-solo-e2e
-Current Command		: cluster-ref connect --cluster-ref kind-solo-e2e --context kind-solo-e2e
-**********************************************************************************
-❯ Initialize
-✔ Initialize
-❯ Validating cluster ref: 
-✔ kind-solo-e2e
-❯ Test connection to cluster: 
-✔ Test connection to cluster: kind-solo-e2e
-❯ Associate a context with a cluster reference: 
-✔ Associate a context with a cluster reference: kind-solo-e2e
-```
-
-[Go to Table of Contents](#table-of-contents)
-{.goToTableOfContents font-size=smaller, vertical-align=sub}
-
-{{< /details >}}
-
-### Execution Developer
-
-Next: [Execution Developer](execution-developer)
 
 ### Destroy relay node
 
