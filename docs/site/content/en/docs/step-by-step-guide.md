@@ -757,10 +757,9 @@ Current Command		: cluster-ref connect --cluster-ref kind-solo-e2e --context kin
 solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 ```
 
-* Example output
+Example output:
 
 ```
-
 ******************************* Solo *********************************************
 Version			: 0.37.1
 Kubernetes Context	: kind-solo-e2e
@@ -786,7 +785,7 @@ In a separate terminal, you may run `k9s` to view the pod status.
 solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 ```
 
-* Example output
+Example output:
 
 ```
 
@@ -831,7 +830,7 @@ If it fails, ensure you have enough resources allocated for Docker engine and re
 solo network deploy --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-* Example output
+Example output:
 
 ```
 
@@ -900,7 +899,7 @@ Version			: 0.53.0
 solo node setup --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-* Example output
+Example output:
 
 ```
 
@@ -944,7 +943,7 @@ Current Command		: node setup --deployment solo-deployment --release-tag v0.62.6
 solo node start --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-* Example output
+Example output:
 
 ```
 
@@ -998,7 +997,7 @@ Current Command		: node start --deployment solo-deployment
 solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 ```
 
-* Example output
+Example output:
 
 ```
 
@@ -1049,7 +1048,7 @@ Version			: v0.129.1
 solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 ```
 
-* Example output
+Example output:
 
 ```
 
@@ -1088,7 +1087,7 @@ Version			: 24.15.0
 solo relay deploy -i node1 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-* Example output
+Example output:
 
 ```
 
@@ -1129,7 +1128,7 @@ Next: [Execution Developer](execution-developer)
 solo relay destroy -i node1 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-* Example output
+Example output:
 
 ```
 
@@ -1164,7 +1163,7 @@ Current Command		: relay destroy --node-aliases node1 --deployment solo-deployme
 solo mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --force
 ```
 
-* Example output
+Example output:
 
 ```
 
@@ -1194,7 +1193,7 @@ Current Command		: mirror-node destroy --deployment solo-deployment --quiet-mode
 solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
 ```
 
-* Example output
+Example output:
 
 ```
 
@@ -1224,7 +1223,7 @@ Current Command		: explorer destroy --deployment solo-deployment --quiet-mode
 solo network destroy --deployment "${SOLO_DEPLOYMENT}" --force
 ```
 
-* Example output
+Example output:
 
 ```
 
@@ -1250,7 +1249,7 @@ Current Command		: network destroy --deployment solo-deployment --quiet-mode
 solo block node destroy --deployment "${SOLO_DEPLOYMENT}"
 ```
 
-* Example output
+Example output:
 
 ```
 
