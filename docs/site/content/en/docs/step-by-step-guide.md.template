@@ -42,8 +42,6 @@ You'll need to install a few tools before we can set up Solo. Here's what you ne
 Solo is built on Node.js, so you'll need version 20.18.0 or higher. We recommend using Node Version Manager (nvm) for easy version management:
 
 ```bash
-
-bash
 # Install nvm (macOS/Linux)
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
 
@@ -70,7 +68,6 @@ Docker is essential for running the containerized Hedera network components:
 After installation, ensure Docker is running:
 
 ```bash
-bash
 docker --version
 docker ps
 ```
@@ -362,7 +359,6 @@ $SOLO_NODE_SETUP_OUTPUT
 Now that everything is set up you need to start them.
 
 ```bash
-bash
 # start your node/nodes
 solo node start --deployment "${SOLO_DEPLOYMENT}"
 ```
@@ -560,7 +556,6 @@ main().catch(console.error);
 You can control individual nodes or the entire network:
 
 ```bash
-bash
 # Stop all nodes
 solo node stop --deployment solo-deployment
 
