@@ -231,7 +231,7 @@ tasks:
         else
           export CLUSTER_REF="kind-${SOLO_CLUSTER_NAME}"
         fi
-        SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- deployment create -n {{ .SOLO_NAMESPACE }} --deployment "${SOLO_DEPLOYMENT}"
+        SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 
   solo:deployment:add-cluster:
     silent: true
@@ -408,7 +408,7 @@ tasks:
       - echo "Cleaning up port forwards..."
       - |
         if [[ "{{ .use_port_forwards }}" == "true" ]];then
-          pkill -f "kubectl port-forward -n {{ .SOLO_NAMESPACE }}" | grep -w ${UID} || true
+          pkill -f "kubectl port-forward -n ${SOLO_CLUSTER_NAME}" | grep -w ${UID} || true
         fi
 
   run:build:
