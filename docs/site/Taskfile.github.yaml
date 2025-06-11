@@ -1,18 +1,15 @@
 version: 3
 tasks:
-  # this will need adjusting once I get an artifact published
   github:list:solo:releases:
     desc: List GitHub releases for hiero-ledger/solo using gh CLI and output as JSON (excluding empty assets)
     silent: true
     deps: [install:gh]
-    status:
+    cmds:
       - |
         if [[ -z "${GH_TOKEN}" ]]; then
           echo "WARN: GH_TOKEN is not set. Cannot run `gh` commands, skipping step." >&2
-          exit 1
+          exit 0
         fi
-    cmds:
-      - |
         printf "\r::group::Fetching GitHub releases for hiero-ledger/solo...\n"
         mkdir -p build
         touch build/github-releases.json
@@ -147,7 +144,6 @@ tasks:
 
   github:augment:releases:
     desc: Add npmjsLatest field to each release in github-releases.json and save to build/releases.json
-    deps: [github:list:solo:releases]
     silent: true
     cmds:
       - |
@@ -200,16 +196,15 @@ tasks:
     deps: [install:gh]
     requires:
       vars: [HUGO_SOLO_VERSION]
-    status:
-      - |
-        if [[ -z "${GH_TOKEN}" ]]; then
-          echo "WARN: GH_TOKEN is not set. Cannot run `gh` commands, skipping step." >&2
-          exit 1
-        fi
     cmds:
       - |
         # Start with strict mode for the shell script
         set -e -o pipefail
+
+        if [[ -z "${GH_TOKEN}" ]]; then
+          echo "WARN: GH_TOKEN is not set. Cannot run `gh` commands, skipping step." >&2
+          exit 0
+        fi
 
         # HUGO_SOLO_VERSION is expected from the environment. Task fails if not set.
         RELEASE_TAG=${HUGO_SOLO_VERSION}
