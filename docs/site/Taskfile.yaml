@@ -34,11 +34,20 @@ tasks:
     cmds:
       - task --list
 
+  build:clean:
+    desc: "Clean then build the documentation site"
+    cmds:
+      - task: "check-doc-dir"
+      - task: "clean"
+      - task: "install"
+      - task: "mutate:readme"
+      - task: "mutate:dev"
+      - task: "build"
+
   build:
     desc: "Build the documentation site"
     cmds:
       - task: "check-doc-dir"
-      - task: "clean"
       - task: "install"
       - task: "mutate:readme"
       - task: "mutate:dev"
@@ -77,7 +86,10 @@ tasks:
       - task: "npmjs:list:solo:versions"
       - task: "github:list:solo:releases"
       - task: "github:augment:releases"
-      - task: "github:prepare:site"
+      - task: "github:download:solo:assets"
+      - task: "github:extract:latest"
+      - task: "github:extract:versioned"
+      - task: "github:update:hugo:config"
       - task: "build:hugo"
       - task: "build:doc:artifacts"
 
