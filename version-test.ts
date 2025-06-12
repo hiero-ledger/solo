@@ -3,3 +3,4 @@
 
 export const TEST_LOCAL_HEDERA_PLATFORM_VERSION: string = 'v0.60.1';
 export const TEST_UPGRADE_VERSION: string = 'v0.62.6';
+export const TEST_LOCAL_BLOCK_NODE_VERSION: string = 'v0.12.0';

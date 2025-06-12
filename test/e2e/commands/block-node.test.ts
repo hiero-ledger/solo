@@ -15,7 +15,6 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {BlockNodeCommand} from '../../../src/commands/block-node.js';
 import {ComponentTypes} from '../../../src/core/config/remote/enumerations/component-types.js';
-import {SoloError} from '../../../src/core/errors/solo-error.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type ClusterReference, type ExtendedNetServer} from '../../../src/types/index.js';
 import {exec} from 'node:child_process';
@@ -25,6 +24,7 @@ import * as SemVer from 'semver';
 import {type ArgvStruct} from '../../../src/types/aliases.js';
 import {type BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
 import {HEDERA_PLATFORM_VERSION, MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} from '../../../version.js';
+import {TEST_LOCAL_BLOCK_NODE_VERSION} from '../../../version-test.js';
 
 // eslint-disable-next-line @typescript-eslint/typedef
 const execAsync = promisify(exec);
@@ -50,6 +50,7 @@ argv.setArg(flags.generateTlsKeys, true);
 argv.setArg(flags.clusterRef, clusterReference);
 argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
 argv.setArg(flags.force, true);
+argv.setArg(flags.blockLocalTag, TEST_LOCAL_BLOCK_NODE_VERSION);
 
 endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, bootstrapResp => {
   describe('BlockNodeCommand', async (): Promise<void> => {
