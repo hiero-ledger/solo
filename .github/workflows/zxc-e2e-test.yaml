@@ -229,6 +229,9 @@ jobs:
           cd hiero-block-node
           ./gradlew :block-node-app:createDockerImage
           kind get clusters
+
+          # remove 'v' from TEST_LOCAL_BLOCK_NODE_VERSION
+          TEST_LOCAL_BLOCK_NODE_VERSION=${TEST_LOCAL_BLOCK_NODE_VERSION#v}
           kind load docker-image block-node-server:${TEST_LOCAL_BLOCK_NODE_VERSION} --name ${{ inputs.cluster-name }}-c1
           ${{ env.CG_EXEC }} ./gradlew :block-node-app:createDockerImage
           cd ../solo
