@@ -226,9 +226,10 @@ jobs:
           export TEST_LOCAL_BLOCK_NODE_VERSION=$(grep 'TEST_LOCAL_BLOCK_NODE_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")          
           cd ..
           git clone https://github.com/hiero-ledger/hiero-block-node.git --depth 1 --branch ${TEST_LOCAL_BLOCK_NODE_VERSION}
+          cd hiero-block-node
+          ./gradlew :block-node-app:createDockerImage
           kind get clusters
           kind load docker-image block-node-server:${TEST_LOCAL_BLOCK_NODE_VERSION} --name ${{ inputs.cluster-name }}-c1
-          cd hiero-block-node
           ${{ env.CG_EXEC }} ./gradlew :block-node-app:createDockerImage
           cd ../solo
 
