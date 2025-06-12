@@ -111,7 +111,7 @@
     "remark-preset-lint-recommended": "^7.0.1",
     "sinon": "^20.0.0",
     "sinon-chai": "^4.0.0",
-    "tsx": "^4.20.1",
+    "tsx": "^4.20.2",
     "typedoc": "^0.28.5",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.34.0"
