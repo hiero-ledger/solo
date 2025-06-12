@@ -41,6 +41,7 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} from '../../version.js';
+import {K8} from '../integration/kube/k8.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -53,6 +54,7 @@ interface BlockNodeDeployConfigClass {
   quiet: boolean;
   valuesFile: Optional<string>;
   releaseTag: string;
+  blockLocalTag: string;
   namespace: NamespaceName;
   nodeAliases: NodeAliases; // from remote config
   context: string;
@@ -106,6 +108,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.quiet,
       flags.valuesFile,
       flags.releaseTag,
+      flags.blockLocalTag,
     ],
   };
 
@@ -131,6 +134,14 @@ export class BlockNodeCommand extends BaseCommand {
         'ingress.hosts[0].host': config.domainName,
         'ingress.hosts[0].paths[0].path': '/',
         'ingress.hosts[0].paths[0].pathType': 'ImplementationSpecific',
+      });
+    }
+
+    if (config.blockLocalTag) {
+      valuesArgument += helpers.populateHelmArguments({
+        '--set image.repository': 'block-node-server',
+        'image.tag': config.blockLocalTag,
+        'image.pullPolicy': 'Never',
       });
     }
 
@@ -226,6 +237,12 @@ export class BlockNodeCommand extends BaseCommand {
               config.context,
             );
 
+            if (config.blockLocalTag) {
+              const k8: K8 = this.k8Factory.getK8(config.context);
+              await k8.configMaps().update(config.namespace, 'block-node-0-config', {
+                VERSION: config.blockLocalTag,
+              });
+            }
             showVersionBanner(this.logger, config.releaseName, versions.BLOCK_NODE_VERSION);
           },
         },

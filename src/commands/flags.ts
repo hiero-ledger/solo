@@ -578,6 +578,17 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly blockLocalTag: CommandFlag = {
+    constName: 'blockLocalTag',
+    name: 'block-local-tag',
+    definition: {
+      describe: 'Version of local built block node docker image',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly relayReleaseTag: CommandFlag = {
     constName: 'relayReleaseTag',
     name: 'relay-release',
