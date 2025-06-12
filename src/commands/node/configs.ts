@@ -181,6 +181,27 @@ export class NodeCommandConfigs {
       this.configManager,
     );
 
+    // check if the intended package version exists
+    if (context_.config.upgradeVersion) {
+      const versionPrefix: string = context_.config.upgradeVersion.split('.').slice(0, 2).join('.');
+      const HEDERA_BUILDS_URL: string = 'https://builds.hedera.com';
+      const BUILD_ZIP_URL: string = `${HEDERA_BUILDS_URL}/node/software/${versionPrefix}/build-${context_.config.upgradeVersion}.zip`;
+      try {
+        // do not fetch or download, ust check if URL exists or not
+        const response = await fetch(BUILD_ZIP_URL, {
+          method: 'HEAD',
+          headers: {
+            'User-Agent': 'Solo CLI',
+          },
+        });
+        if (!response.ok) {
+          throw new SoloError(`Upgrade version ${context_.config.upgradeVersion} does not exist.`);
+        }
+      } catch (error) {
+        throw new SoloError(`Failed to fetch upgrade version ${context_.config.upgradeVersion}: ${error.message}`);
+      }
+    }
+
     await this.initializeSetup(context_.config, this.k8Factory);
 
     if (shouldLoadNodeClient) {
