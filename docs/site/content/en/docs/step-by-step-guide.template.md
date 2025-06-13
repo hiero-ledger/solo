@@ -730,6 +730,24 @@ $SOLO_EXPLORER_DESTROY_OUTPUT
 
 {{< /details >}}<br/>
 
+### \*Destroy block node (Experimental)
+
+{{< details summary="Details \<click to expand/collapse>" >}}<br/>
+
+Block Node destroy should run prior to network destroy, since network destroy removes the remote config.  To destroy the block node (if you deployed it), you can use the following command:
+
+```
+solo block node destroy --deployment "${SOLO_DEPLOYMENT}"
+```
+
+Example output:
+
+```
+$SOLO_BLOCK_NODE_DESTROY_OUTPUT
+```
+
+{{< /details >}}<br/>
+
 ### 4. Destroy network
 
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
@@ -746,23 +764,6 @@ $SOLO_NETWORK_DESTROY_OUTPUT
 
 {{< /details >}}<br/>
 
-### \*Destroy block node (Experimental)
-
-{{< details summary="Details \<click to expand/collapse>" >}}<br/>
-
-To destroy the block node (if you deployed it), you can use the following command:
-
-```
-solo block node destroy --deployment "${SOLO_DEPLOYMENT}"
-```
-
-Example output:
-
-```
-$SOLO_BLOCK_NODE_DESTROY_OUTPUT
-```
-
-{{< /details >}}<br/>
 {{< /details >}}<br/>
 
 ## Next Steps

@@ -84,11 +84,11 @@ export SOLO_MIRROR_NODE_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/mirror-node-destroy.l
 solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/explorer-destroy.log
 export SOLO_EXPLORER_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/explorer-destroy.log | tee ${BUILD_DIR}/test.log )
 
-solo network destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/network-destroy.log
-export SOLO_NETWORK_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/network-destroy.log | tee ${BUILD_DIR}/test.log )
-
 solo block node destroy --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/block-node-destroy.log
 export SOLO_BLOCK_NODE_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/block-node-destroy.log | tee ${BUILD_DIR}/test.log )
+
+solo network destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/network-destroy.log
+export SOLO_NETWORK_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/network-destroy.log | tee ${BUILD_DIR}/test.log )
 
 pushd ../
 echo "Generating ${TARGET_FILE} from ${TEMPLATE_FILE}"
