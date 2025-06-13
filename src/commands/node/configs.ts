@@ -187,7 +187,7 @@ export class NodeCommandConfigs {
       const HEDERA_BUILDS_URL: string = 'https://builds.hedera.com';
       const BUILD_ZIP_URL: string = `${HEDERA_BUILDS_URL}/node/software/${versionPrefix}/build-${context_.config.upgradeVersion}.zip`;
       try {
-        // do not fetch or download, ust check if URL exists or not
+        // do not fetch or download, just check if URL exists or not
         const response = await fetch(BUILD_ZIP_URL, {
           method: 'HEAD',
           headers: {
