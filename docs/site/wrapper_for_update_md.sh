@@ -18,9 +18,9 @@ npm link
 which solo
 solo --version
 node -p -e "Boolean(process.stdout.isTTY)"
-chmod 755 ./.github/workflows/script/update_md.sh
+chmod 755 docs/site/update_md.sh
 
-.github/workflows/script/update_md.sh </dev/null | cat
+docs/site/update_md.sh </dev/null | cat
 set +x
 
 echo "::group::Updated step-by-step-guide.md"
