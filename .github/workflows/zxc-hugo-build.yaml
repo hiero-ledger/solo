@@ -117,9 +117,9 @@ jobs:
           cd docs/site
           DOCS_BUILD_LABEL="${{ inputs.docs-build-label }}"
           if [[ -z ${DOCS_BUILD_LABEL} ]]; then
-           GH_TOKEN=${{ secrets.github-token }} task build 
+            SOLO_CI=true GH_TOKEN=${{ secrets.github-token }} task build 
           else
-            GH_TOKEN=${{ secrets.github-token }} HUGO_SOLO_VERSION=${DOCS_BUILD_LABEL} task build
+            SOLO_CI=true GH_TOKEN=${{ secrets.github-token }} HUGO_SOLO_VERSION=${DOCS_BUILD_LABEL} task build
           fi
 
       # Upload the built site to artifacts
