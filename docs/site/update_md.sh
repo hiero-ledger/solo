@@ -101,9 +101,18 @@ $SOLO_BLOCK_NODE_DESTROY_OUTPUT,$SOLO_NETWORK_DESTROY_OUTPUT'\
 
 echo "Remove color codes and lines showing intermediate progress"
 
-sed -i '' 's/\[32m//g' ${TARGET_FILE}
-sed -i '' 's/\[33m//g' ${TARGET_FILE}
-sed -i '' 's/\[39m//g' ${TARGET_FILE}
+if [ "$(uname -s)" == "Linux" ]; then
+  sed -i 's/\[32m//g' ${TARGET_FILE}
+  sed -i 's/\[33m//g' ${TARGET_FILE}
+  sed -i 's/\[39m//g' ${TARGET_FILE}
+else
+  # For macOS the -i requires a parameter
+  sed -i '' 's/\[32m//g' ${TARGET_FILE}
+  sed -i '' 's/\[33m//g' ${TARGET_FILE}
+  sed -i '' 's/\[39m//g' ${TARGET_FILE}
+fi
+
+
 egrep -v '↓|❯|•' ${TARGET_FILE} > ${TARGET_FILE}.tmp && mv ${TARGET_FILE}.tmp ${TARGET_FILE}
 
 set +x
