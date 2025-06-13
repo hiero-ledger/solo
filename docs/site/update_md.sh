@@ -7,14 +7,11 @@ set -xeo pipefail
 
 export TARGET_DIR=docs/site/content/en/docs
 export TARGET_FILE=${TARGET_DIR}/step-by-step-guide.md
+export TEMPLATE_FILE=${TARGET_DIR}/step-by-step-guide.template.md
 export BUILD_DIR=docs/site/build
 mkdir -p ${BUILD_DIR}
+pwd
 
-if [[ -z "${SOLO_TEST_CLUSTER}" && ${SOLO_CLUSTER_NAME} == "" ]]; then
-  SOLO_CLUSTER_NAME=solo-e2e
-else
-  SOLO_CLUSTER_NAME=${SOLO_TEST_CLUSTER}
-fi
 
 # TBD, need to use at least version v0.62.6 for block node commands to work
 CONSENSUS_NODE_VERSION=${1:-v0.62.6}
@@ -24,10 +21,14 @@ if [[ -n "${CONSENSUS_NODE_VERSION}" ]]; then
   CONSENSUS_NODE_FLAG=(--release-tag "${CONSENSUS_NODE_VERSION}")
 fi
 
-export SOLO_NAMESPACE=solo-e2e
-export SOLO_CLUSTER_SETUP_NAMESPACE=solo-cluster-setup
+export SOLO_CLUSTER_NAME=solo
+export SOLO_NAMESPACE=solo
+export SOLO_CLUSTER_SETUP_NAMESPACE=solo-cluster
 export SOLO_DEPLOYMENT=solo-deployment
-export SOLO_EMAIL=john@doe.com
+
+kind delete cluster -n "${SOLO_CLUSTER_NAME}" || true
+rm -Rf ~/.solo/cache || true
+rm ~/.solo/local-config.yaml || true
 
 echo "Perform the following kind and solo commands and save output to environment variables"
 
@@ -90,14 +91,14 @@ solo block node destroy --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/blo
 export SOLO_BLOCK_NODE_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/block-node-destroy.log | tee ${BUILD_DIR}/test.log )
 
 pushd ../
-echo "Generating ${TARGET_FILE} from ${TARGET_FILE}.template"
+echo "Generating ${TARGET_FILE} from ${TEMPLATE_FILE}"
 
 envsubst '$KIND_CREATE_CLUSTER_OUTPUT,$SOLO_INIT_OUTPUT,$SOLO_NODE_KEY_PEM_OUTPUT,$SOLO_CLUSTER_SETUP_OUTPUT, \
 $SOLO_DEPLOYMENT_CREATE_OUTPUT,$SOLO_NETWORK_DEPLOY_OUTPUT,$SOLO_NODE_SETUP_OUTPUT,$SOLO_NODE_START_OUTPUT,\
 $SOLO_MIRROR_NODE_DEPLOY_OUTPUT,$SOLO_RELAY_DEPLOY_OUTPUT,$SOLO_CLUSTER_REF_CONNECT_OUTPUT,$SOLO_DEPLOYMENT_ADD_CLUSTER_OUTPUT,\
 $SOLO_EXPLORER_DEPLOY_OUTPUT,$SOLO_BLOCK_NODE_ADD_OUTPUT,$SOLO_RELAY_DESTROY_OUTPUT,$SOLO_MIRROR_NODE_DESTROY_OUTPUT,$SOLO_EXPLORER_DESTROY_OUTPUT,\
 $SOLO_BLOCK_NODE_DESTROY_OUTPUT,$SOLO_NETWORK_DESTROY_OUTPUT'\
-< ${TARGET_FILE}.template > ${TARGET_FILE}
+< ${TEMPLATE_FILE} > ${TARGET_FILE}
 
 echo "Remove color codes and lines showing intermediate progress"
 

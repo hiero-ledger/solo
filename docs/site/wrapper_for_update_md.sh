@@ -8,7 +8,7 @@ version=$1
 sudo apt-get update
 sudo apt-get install gettext-base
 
-
+pwd
 npm install
 echo "VERSION=$version"
 [[ -n "$version" ]] && npm version "$version" -f --no-git-tag-version --allow-same-version
