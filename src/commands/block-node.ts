@@ -139,7 +139,7 @@ export class BlockNodeCommand extends BaseCommand {
 
     if (config.blockLocalTag) {
       valuesArgument += helpers.populateHelmArguments({
-        '--set image.repository': 'block-node-server',
+        'image.repository': 'block-node-server',
         'image.tag': config.blockLocalTag,
         'image.pullPolicy': 'Never',
       });
@@ -224,7 +224,7 @@ export class BlockNodeCommand extends BaseCommand {
         },
         {
           title: 'Deploy block node',
-          task: async (context_): Promise<void> => {
+          task: async (context_, task): Promise<void> => {
             const config: BlockNodeDeployConfigClass = context_.config;
 
             await this.chartManager.install(
@@ -242,6 +242,7 @@ export class BlockNodeCommand extends BaseCommand {
               await k8.configMaps().update(config.namespace, 'block-node-0-config', {
                 VERSION: config.blockLocalTag,
               });
+              task.title += ` with local built image (${config.blockLocalTag})`;
             }
             showVersionBanner(this.logger, config.releaseName, versions.BLOCK_NODE_VERSION);
           },

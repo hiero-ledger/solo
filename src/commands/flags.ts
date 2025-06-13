@@ -2571,6 +2571,7 @@ export class Flags {
     Flags.profileFile,
     Flags.profileName,
     Flags.quiet,
+    Flags.blockLocalTag,
     Flags.relayReleaseTag,
     Flags.releaseTag,
     Flags.upgradeVersion,
