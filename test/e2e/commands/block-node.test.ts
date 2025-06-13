@@ -51,6 +51,10 @@ argv.setArg(flags.generateTlsKeys, true);
 argv.setArg(flags.clusterRef, clusterReference);
 argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
 argv.setArg(flags.force, true);
+
+// Notes: need to check out block node repo and build the block node image first.
+// Then use the following command to load image into the kind cluster after cluster creation
+// kind load docker-image block-node-server:<tag> --name <cluster-name>
 argv.setArg(flags.blockLocalTag, TEST_LOCAL_BLOCK_NODE_VERSION);
 
 endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, bootstrapResp => {

@@ -3,7 +3,7 @@
 import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import * as helpers from '../core/helpers.js';
-import {showVersionBanner, sleep} from '../core/helpers.js';
+import {checkDockerImageExists, showVersionBanner, sleep} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -19,6 +19,7 @@ import {ListrLock} from '../core/lock/listr-lock.js';
 import {
   type ClusterReference,
   type CommandDefinition,
+  ComponentId,
   type DeploymentName,
   type Optional,
   type SoloListrTask,
@@ -42,6 +43,7 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} from '../../version.js';
 import {K8} from '../integration/kube/k8.js';
+import {BLOCK_NODE_IMAGE_NAME} from '../core/constants.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -138,8 +140,12 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     if (config.blockLocalTag) {
+      if (!checkDockerImageExists(BLOCK_NODE_IMAGE_NAME, config.blockLocalTag)) {
+        throw new SoloError(`Local block node image with tag "${config.blockLocalTag}" does not exist.`);
+      }
+      // use local image from docker engine
       valuesArgument += helpers.populateHelmArguments({
-        'image.repository': 'block-node-server',
+        'image.repository': BLOCK_NODE_IMAGE_NAME,
         'image.tag': config.blockLocalTag,
         'image.pullPolicy': 'Never',
       });
@@ -238,8 +244,15 @@ export class BlockNodeCommand extends BaseCommand {
             );
 
             if (config.blockLocalTag) {
+              // update config map with new VERSION info since
+              // it will be used as a critical environment variable by block node
+              const blockNodeStateSchema: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
+                config.clusterRef,
+                config.namespace,
+              );
+              const blockNodeId: ComponentId = blockNodeStateSchema.metadata.id;
               const k8: K8 = this.k8Factory.getK8(config.context);
-              await k8.configMaps().update(config.namespace, 'block-node-0-config', {
+              await k8.configMaps().update(config.namespace, `block-node-${blockNodeId}-config`, {
                 VERSION: config.blockLocalTag,
               });
               task.title += ` with local built image (${config.blockLocalTag})`;
