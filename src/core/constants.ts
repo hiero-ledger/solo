@@ -169,6 +169,10 @@ export const LISTR_DEFAULT_RENDERER_TIMER_OPTION = {
 export const LISTR_DEFAULT_RENDERER_OPTION = {
   collapseSubtasks: false,
   timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+  persistentOutput: true,
+  collapseErrors: false,
+  showErrorMessage: false,
+  formatOutput: 'wrap',
 } as {
   collapseSubtasks: boolean;
   timer: {
@@ -178,6 +182,10 @@ export const LISTR_DEFAULT_RENDERER_OPTION = {
     args?: [number];
   };
   logger: ListrLogger;
+  persistentOutput: boolean;
+  collapseErrors: boolean;
+  showErrorMessage: boolean;
+  formatOutput: 'wrap' | 'truncate';
 };
 
 export const SIGNING_KEY_PREFIX = 's';
