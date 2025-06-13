@@ -54,7 +54,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
           egress-policy: audit
 
@@ -74,20 +74,19 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: hugo-build-artifacts
+          path: docs/site
 
       - name: List Artifacts
         run: |
-          set -xeo pipefail
+          set -eo pipefail
           echo "Listing downloaded build artifacts:"
           ls -la ./docs/site/build # what to upload as a release artifact
           ls -la ./docs/site/public # what to upload to GitHub Pages
 
       - name: Attach Docs as Release Artifacts
         if: ${{ inputs.attach-docs-enabled && !inputs.dry-run-enabled && !cancelled() && !failure() }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -xeo pipefail
+          set -eo pipefail
           RELEASE_VERSION="${{ inputs.docs-build-label }}"
           # Ensure the release version is set
           if [[ -z "${RELEASE_VERSION}" ]]; then
@@ -96,16 +95,16 @@ jobs:
           fi
           cd docs/site
           # Create the release artifact tarballs
-          HUGO_SOLO_VERSION="${RELEASE_VERSION}" task github:upload:release:assets
+          GH_TOKEN=${{ secrets.GITHUB_TOKEN }} HUGO_SOLO_VERSION="${RELEASE_VERSION}" task github:upload:release:assets
 
       # Upload / stage the built site to GitHub Pages
       - name: Upload Pages Artifact
-        if: ${{ inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
+        if: ${{ !inputs.dry-run-enabled && !cancelled() && !failure() }}
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
-          path: ./docs/site/public
+          path: docs/site/public
 
       - name: Deploy to GitHub Pages
         id: deployment
-        if: ${{ inputs.dry-run-enabled != 'true' && !cancelled() && !failure() }}
+        if: ${{ !inputs.dry-run-enabled && !cancelled() && !failure() }}
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

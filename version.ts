@@ -16,10 +16,11 @@ export const SOLO_CHART_VERSION: string = '0.53.0';
 export const HEDERA_PLATFORM_VERSION: string = process.env.CONSENSUS_NODE_VERSION || 'v0.61.7';
 export const MIRROR_NODE_VERSION: string = 'v0.131.0';
 export const EXPLORER_VERSION: string = '24.15.0';
-export const EXPLORER_OLD_VERSION_BEFORE_LABEL_CHANGE = '24.12.0';
+export const EXPLORER_OLD_VERSION_BEFORE_LABEL_CHANGE: string = '24.12.0';
 export const HEDERA_JSON_RPC_RELAY_VERSION: string = 'v0.67.0';
 export const INGRESS_CONTROLLER_VERSION: string = '0.14.5';
-export const BLOCK_NODE_VERSION: string = '0.9.0';
+export const BLOCK_NODE_VERSION: string = '0.11.0';
+export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE: string = 'v0.62.3';
 
 export function getSoloVersion(): Version {
   if (process.env.npm_package_version) {

@@ -17,9 +17,9 @@ describe('LayeredConfigProvider', (): void => {
     expect((): Config => provider.config()).to.throw(ConfigurationError);
 
     const config: Config = provider.builder().build();
-    expect((): Config => provider.config()).to.throw(ConfigurationError);
+    expect((): Config => provider.config()).to.not.throw();
 
-    expect((): void => provider.register(config)).to.not.throw();
+    expect((): void => provider.register(config)).to.throw(ConfigurationError);
     expect((): Config => provider.config()).to.not.throw();
   });
 });

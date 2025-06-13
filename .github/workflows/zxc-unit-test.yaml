@@ -58,7 +58,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
           egress-policy: audit
 
@@ -113,7 +113,7 @@ jobs:
           files: "junit.xml"
 
       - name: Publish Linux Unit Test Report
-        uses: step-security/publish-unit-test-result-action@b495e9a82021fc8f34737416de688298581b847d # v2.19.0
+        uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1
         if: ${{ runner.os == 'linux' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
         with:
           check_name: 'Unit Test Results - ${{ runner.os }}'

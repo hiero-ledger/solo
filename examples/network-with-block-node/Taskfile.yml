@@ -15,7 +15,7 @@ env:
   SOLO_CLUSTER_SETUP_NAMESPACE: solo-setup
 
   BLOCK_NODE_ADD_EXTRA_FLAGS: |
-    --release-tag v0.62.0
+    --release-tag v0.62.6
 
   HEDERA_SERVICES_ROOT: "/Users/user/source/hiero-consensus-node"
   ENABLE_EXPLORER_TLS_FLAG: "--enable-explorer-tls"

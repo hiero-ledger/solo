@@ -45,7 +45,7 @@ jobs:
       version: ${{ steps.tag.outputs.version }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
           egress-policy: audit
 
@@ -94,7 +94,7 @@ jobs:
       - prepare-release
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
           egress-policy: audit
 
@@ -139,7 +139,7 @@ jobs:
 
       - name: Build Production Distribution
         run: |
-          set -x
+          set -eo pipefail
           npm install
           echo "VERSION=${{ needs.prepare-release.outputs.version }}"
           [[ -n "${{ needs.prepare-release.outputs.version }}" ]] && npm version ${{ needs.prepare-release.outputs.version }} -f --no-git-tag-version --allow-same-version
@@ -210,14 +210,14 @@ jobs:
       - prepare-release
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
           egress-policy: audit
 
       - name: Set Inputs
         id: set-inputs
         run: |
-          set -xeo pipefail
+          set -eo pipefail
           if [[ "${{ inputs.dry-run-enabled }}" == 'true' ]]; then
             echo "Dry run enabled, setting ref to `github.ref` since tag won't exist."
             echo "tag_ref=${{ github.ref }}" >> $GITHUB_OUTPUT

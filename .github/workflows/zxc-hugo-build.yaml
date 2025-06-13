@@ -51,7 +51,7 @@ jobs:
     runs-on: hiero-solo-linux-medium
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
           egress-policy: audit
 
@@ -99,11 +99,12 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: hugo-build-artifacts
+          path: docs/site
 
       - name: List Artifacts
         if: ${{ inputs.download-artifacts && !cancelled() && !failure() }}
         run: |
-          set -xeo pipefail
+          set -eo pipefail
           echo "Listing downloaded build artifacts:"
           ls -la ./docs/site/build # what to upload as a release artifact
           ls -la ./docs/site/public # what to upload to GitHub Pages
@@ -112,13 +113,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.github-token }} # We want this to be null unless we want to pull the existing release artifacts
         run: |
-          set -xeo pipefail
+          set -eo pipefail
           cd docs/site
           DOCS_BUILD_LABEL="${{ inputs.docs-build-label }}"
           if [[ -z ${DOCS_BUILD_LABEL} ]]; then
-           task build 
+           GH_TOKEN=${{ secrets.github-token }} task build 
           else
-            HUGO_SOLO_VERSION=${DOCS_BUILD_LABEL} task build
+            GH_TOKEN=${{ secrets.github-token }} HUGO_SOLO_VERSION=${DOCS_BUILD_LABEL} task build
           fi
 
       # Upload the built site to artifacts
@@ -128,7 +129,7 @@ jobs:
           name: hugo-build-artifacts
           overwrite: true
           path: |
-            ./docs/site/build # what to upload as a release artifact
-            ./docs/site/public # what to upload to GitHub Pages
-            ./docs/site/content # the documentation to be rendered by Hugo
-            ./docs/site/static # the typedoc class files
+            docs/site/build
+            docs/site/public
+            docs/site/content
+            docs/site/static

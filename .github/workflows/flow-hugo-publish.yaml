@@ -62,14 +62,14 @@ jobs:
       versioned-release: ${{ steps.set-inputs.outputs.versioned_release }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
           egress-policy: audit
 
       - name: Set Inputs
         id: set-inputs
         run: |
-          set -xeo pipefail
+          set -eo pipefail
           echo "::group::Set Inputs"
           echo "Inputs:"
           echo "docs-build-label=${{ inputs.docs-build-label }}"
@@ -96,10 +96,16 @@ jobs:
           fi
          
           # Only download artifacts and attach docs to a release if this is a workflow_dispatch running with a version tag
-          if [[ "${{ github.ref_name }}" != "main" && "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "Running with a version tag and via workflow_dispatch, this is a versioned release."
-            VERSIONED_RELEASE=true
-            echo "setting: VERSIONED_RELEASE=${VERSIONED_RELEASE}"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "${{ github.ref_name }}" != "main" || "${{ inputs.docs-build-label }}" != "main" ]]; then
+              echo "Running with a version tag and via workflow_dispatch, this is a versioned release."
+              VERSIONED_RELEASE=true
+              echo "setting: VERSIONED_RELEASE=${VERSIONED_RELEASE}"
+            else
+              echo "Running with 'main' branch and not a versioned release."
+              VERSIONED_RELEASE=false
+              echo "setting: VERSIONED_RELEASE=${VERSIONED_RELEASE}"
+            fi
           else
             echo "Running with 'main' or 'release/*' branch."
             VERSIONED_RELEASE=false
@@ -146,7 +152,7 @@ jobs:
   # Do a Hugo build for the docs site for the main branch, required to ensure that docs for the main branch get deployed
   #  to GitHub Pages.  This runs after hugo-docs-build if the docs-build-label is not 'main'.
   hugo-docs-build-main:
-    name: Hugo Docs Build Main
+    name: Hugo Docs Build - Main
     uses: ./.github/workflows/zxc-hugo-build.yaml
     needs:
       - setup
@@ -176,7 +182,7 @@ jobs:
   # Do a Hugo build for the docs site for the main branch, this is when the hugo-docs-build is skipped, the need clause
   #  is different
   hugo-docs-build-main-only:
-    name: Hugo Docs Build Main
+    name: Hugo Docs Build - Main Only
     if: ${{ needs.setup.outputs.versioned-release == 'false' && !cancelled() && !failure() }}
     uses: ./.github/workflows/zxc-hugo-build.yaml
     needs:
@@ -189,12 +195,12 @@ jobs:
 
   # Publish the Hugo docs site to GitHub Pages unless dry-run is enabled or if this is a merge to release/* branch
   hugo-docs-publish-main-only:
-    name: Hugo Docs Publish
-    if: ${{ inputs.dry-run-enabled != 'true' && startsWith(github.ref_name, 'release/') && !cancelled() && !failure() }}
+    name: Hugo Docs Publish - Main Only
     uses: ./.github/workflows/zxc-hugo-publish.yaml
     needs:
       - setup
       - hugo-docs-build-main-only
     with:
       docs-build-label: ${{ needs.setup.outputs.docs-build-label }}
-      dry-run-enabled: ${{ inputs.dry-run-enabled == true }} # compare to true, because it could be an empty string which throws an error
+      # compare to true, because it could be an empty string which throws an error
+      dry-run-enabled: ${{ inputs.dry-run-enabled == true || startsWith(github.ref_name, 'release/') }}
