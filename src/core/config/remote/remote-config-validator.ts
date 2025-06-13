@@ -35,12 +35,13 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
   }
 
-  private static getRelayLabels(): string[] {
+  private static getRelayLabels(component: BaseStateSchema): string[] {
     // TODO:
     //  https://github.com/hashgraph/solo/issues/1823
     //  Add logic for selecting by specific label,
     //  when multiple instances can be deployed at the same time.
-    return [constants.SOLO_RELAY_LABEL];
+    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(component.metadata.id + 1);
+    return [`app.kubernetes.io/instance=relay-${nodeAlias}`];
   }
 
   private static getHaProxyLabels(component: BaseStateSchema): string[] {
