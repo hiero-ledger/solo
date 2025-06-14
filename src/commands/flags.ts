@@ -578,11 +578,11 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly blockLocalTag: CommandFlag = {
-    constName: 'blockLocalTag',
-    name: 'block-local-tag',
+  public static readonly imageTag: CommandFlag = {
+    constName: 'imageTag',
+    name: 'image-tag',
     definition: {
-      describe: 'Version of local built block node docker image',
+      describe: 'The Docker image tag to override what is in the Helm Chart',
       defaultValue: '',
       type: 'string',
     },
