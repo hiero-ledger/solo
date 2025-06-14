@@ -578,6 +578,17 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly imageTag: CommandFlag = {
+    constName: 'imageTag',
+    name: 'image-tag',
+    definition: {
+      describe: 'The Docker image tag to override what is in the Helm Chart',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly relayReleaseTag: CommandFlag = {
     constName: 'relayReleaseTag',
     name: 'relay-release',
@@ -2560,6 +2571,7 @@ export class Flags {
     Flags.profileFile,
     Flags.profileName,
     Flags.quiet,
+    Flags.imageTag,
     Flags.relayReleaseTag,
     Flags.releaseTag,
     Flags.upgradeVersion,

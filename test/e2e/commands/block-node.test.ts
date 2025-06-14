@@ -25,6 +25,7 @@ import * as SemVer from 'semver';
 import {type ArgvStruct} from '../../../src/types/aliases.js';
 import {type BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
 import {HEDERA_PLATFORM_VERSION, MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} from '../../../version.js';
+import {TEST_LOCAL_BLOCK_NODE_VERSION} from '../../../version-test.js';
 
 // eslint-disable-next-line @typescript-eslint/typedef
 const execAsync = promisify(exec);
@@ -50,6 +51,11 @@ argv.setArg(flags.generateTlsKeys, true);
 argv.setArg(flags.clusterRef, clusterReference);
 argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
 argv.setArg(flags.force, true);
+
+// Notes: need to check out block node repo and build the block node image first.
+// Then use the following command to load image into the kind cluster after cluster creation
+// kind load docker-image block-node-server:<tag> --name <cluster-name>
+argv.setArg(flags.imageTag, TEST_LOCAL_BLOCK_NODE_VERSION);
 
 endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, bootstrapResp => {
   describe('BlockNodeCommand', async (): Promise<void> => {
