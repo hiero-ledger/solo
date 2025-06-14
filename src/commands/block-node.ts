@@ -65,7 +65,6 @@ interface BlockNodeDeployContext {
 }
 
 interface BlockNodeDestroyConfigClass {
-  chartDirectory: string;
   clusterRef: ClusterReference;
   deployment: DeploymentName;
   devMode: boolean;
@@ -111,7 +110,7 @@ export class BlockNodeCommand extends BaseCommand {
 
   private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.deployment, flags.devMode, flags.force, flags.quiet],
+    optional: [flags.clusterRef, flags.deployment, flags.devMode, flags.force, flags.quiet],
   };
 
   private async prepareValuesArgForBlockNode(config: BlockNodeDeployConfigClass): Promise<string> {
@@ -220,7 +219,7 @@ export class BlockNodeCommand extends BaseCommand {
               config.namespace,
               config.releaseName,
               constants.BLOCK_NODE_CHART,
-              constants.BLOCK_NODE_CHART_URL,
+              context_.config.chartDirectory ? context_.config.chartDirectory : constants.BLOCK_NODE_CHART_URL,
               config.chartVersion,
               config.valuesArg,
               config.context,
