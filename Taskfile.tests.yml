@@ -206,4 +206,4 @@ tasks:
 
   test-update-markdown:
     cmd: |
-      .github/workflows/script/wrapper_for_update_md.sh
+      docs/site/wrapper_for_update_md.sh

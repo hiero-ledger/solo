@@ -466,11 +466,6 @@ export class RelayCommand extends BaseCommand {
 
             await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
 
-            this.logger.showList(
-              'Destroyed Relays',
-              await self.chartManager.getInstalledCharts(config.namespace, config.context),
-            );
-
             // reset nodeAliasesUnparsed
             self.configManager.setFlag(flags.nodeAliasesUnparsed, '');
           },
