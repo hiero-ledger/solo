@@ -25,6 +25,8 @@ import {NodeCommand} from '../src/commands/node/index.js';
 import {NetworkCommand} from '../src/commands/network.js';
 import {AccountCommand} from '../src/commands/account.js';
 import {type NodeServiceMapping} from '../src/types/mappings/node-service-mapping.js';
+import {Templates} from '../src/core/templates.js';
+import fs from 'node:fs';
 
 const defaultTimeout = Duration.ofMinutes(2).toMillis();
 
@@ -54,7 +56,7 @@ export function testNodeAdd(
 
   endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     const {
-      opts: {k8Factory, accountManager, remoteConfig, logger, commandInvoker},
+      opts: {k8Factory, accountManager, remoteConfig, logger, commandInvoker, cacheDir},
       cmd: {nodeCmd, accountCmd, networkCmd},
     } = bootstrapResp;
 
@@ -108,6 +110,10 @@ export function testNodeAdd(
       }).timeout(Duration.ofMinutes(8).toMillis());
 
       it('should add a new node to the network successfully', async () => {
+        // staging directory does not need to exist
+        const stagingDirectory = Templates.renderStagingDir(cacheDir, argv.getArg<string>(flags.releaseTag));
+        fs.rmSync(stagingDirectory, {recursive: true, force: true});
+
         await commandInvoker.invoke({
           argv: argv,
           command: NodeCommand.COMMAND_NAME,
@@ -115,6 +121,7 @@ export function testNodeAdd(
           callback: async argv => nodeCmd.handlers.add(argv),
         });
 
+        argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
         await accountManager.close();
       }).timeout(Duration.ofMinutes(12).toMillis());
 
