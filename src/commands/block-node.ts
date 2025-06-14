@@ -56,7 +56,7 @@ interface BlockNodeDeployConfigClass {
   quiet: boolean;
   valuesFile: Optional<string>;
   releaseTag: string;
-  blockLocalTag: string;
+  imageTag: string;
   namespace: NamespaceName;
   nodeAliases: NodeAliases; // from remote config
   context: string;
@@ -110,7 +110,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.quiet,
       flags.valuesFile,
       flags.releaseTag,
-      flags.blockLocalTag,
+      flags.imageTag,
     ],
   };
 
@@ -139,14 +139,14 @@ export class BlockNodeCommand extends BaseCommand {
       });
     }
 
-    if (config.blockLocalTag) {
-      if (!checkDockerImageExists(BLOCK_NODE_IMAGE_NAME, config.blockLocalTag)) {
-        throw new SoloError(`Local block node image with tag "${config.blockLocalTag}" does not exist.`);
+    if (config.imageTag) {
+      if (!checkDockerImageExists(BLOCK_NODE_IMAGE_NAME, config.imageTag)) {
+        throw new SoloError(`Local block node image with tag "${config.imageTag}" does not exist.`);
       }
       // use local image from docker engine
       valuesArgument += helpers.populateHelmArguments({
         'image.repository': BLOCK_NODE_IMAGE_NAME,
-        'image.tag': config.blockLocalTag,
+        'image.tag': config.imageTag,
         'image.pullPolicy': 'Never',
       });
     }
@@ -243,7 +243,7 @@ export class BlockNodeCommand extends BaseCommand {
               config.context,
             );
 
-            if (config.blockLocalTag) {
+            if (config.imageTag) {
               // update config map with new VERSION info since
               // it will be used as a critical environment variable by block node
               const blockNodeStateSchema: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
@@ -253,9 +253,9 @@ export class BlockNodeCommand extends BaseCommand {
               const blockNodeId: ComponentId = blockNodeStateSchema.metadata.id;
               const k8: K8 = this.k8Factory.getK8(config.context);
               await k8.configMaps().update(config.namespace, `block-node-${blockNodeId}-config`, {
-                VERSION: config.blockLocalTag,
+                VERSION: config.imageTag,
               });
-              task.title += ` with local built image (${config.blockLocalTag})`;
+              task.title += ` with local built image (${config.imageTag})`;
             }
             showVersionBanner(this.logger, config.releaseName, versions.BLOCK_NODE_VERSION);
           },
