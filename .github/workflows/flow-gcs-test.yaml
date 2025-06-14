@@ -125,7 +125,20 @@ jobs:
           STORAGE_TYPE: ${{ matrix.storageType }}
           GCP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GCP_SERVICE_ACCOUNT_TOKEN }}
         run: |
-          .github/workflows/script/gcs_test.sh
+          .github/workflows/script/gcs_test.sh || RC=$? || true
+          if [[ "${RC}" != "0" ]]; then
+            echo "GCS test failed with exit code ${RC}"
+            npm run solo-test -- node logs --deployment solo-e2e --node-aliases -q --dev || true
+            exit ${RC}
+          fi
+
+      - name: Upload Logs to GitHub
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: solo-logs-${{ matrix.storageType }}
+          path: ~/.solo/logs/*
+          if-no-files-found: error
 
       - name: Delete Test Directory after Test
         # add always() to make sure bucket is deleted even if the test failed

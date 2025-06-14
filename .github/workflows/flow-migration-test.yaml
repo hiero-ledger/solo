@@ -79,4 +79,17 @@ jobs:
   
           npm install
           task build
-          .github/workflows/script/launch_network.sh ${{ matrix.release-tag }}
+          timeout --kill-after=1s --preserve-status 25m bash -c '.github/workflows/script/launch_network.sh ${{ matrix.release-tag }}' || RC=$? || true
+          if [[ "$RC" != "0" ]]; then
+            npm run solo-test -- node logs --deployment solo-e2e --node-aliases -q --dev || true
+            echo "Failed to launch network with release version ${{ matrix.release-tag }}"
+            exit $RC
+          fi
+
+      - name: Upload Logs to GitHub
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: solo-logs
+          path: ~/.solo/logs/*
+          if-no-files-found: error
