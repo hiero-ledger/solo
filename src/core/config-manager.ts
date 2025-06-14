@@ -298,10 +298,11 @@ export class ConfigManager {
   }
 
   public getFlagFile(flag: CommandFlag): string {
-    if (this.getFlag(flag) === flag.definition.defaultValue) {
+    const value = this.getFlag(flag);
+    if (value === flag.definition.defaultValue || !value) {
       const cacheDirectory: string =
-        this.getFlag<string>(flags.cacheDir) || (flags.cacheDir.definition.defaultValue as string);
-      return PathEx.join(cacheDirectory, this.getFlag(flag));
+        (this.getFlag(flags.cacheDir) as string) || (flags.cacheDir.definition.defaultValue as string);
+      return PathEx.join(cacheDirectory, flag.definition.defaultValue as string);
     }
     return this.getFlag(flag);
   }

@@ -247,6 +247,8 @@ export class NodeCommandHandlers extends CommandHandler {
       argv,
       [
         this.tasks.initialize(argv, this.configs.prepareUpgradeConfigBuilder.bind(this.configs), lease),
+        this.tasks.identifyExistingNodes(),
+        this.tasks.prepareStagingDirectory('existingNodeAliases'),
         this.tasks.prepareUpgradeZip(),
         this.tasks.sendPrepareUpgradeTransaction(),
       ],
