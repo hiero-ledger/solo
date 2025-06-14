@@ -22,6 +22,42 @@ name: "ZXC: E2E Test"
 
 on:
   workflow_dispatch:
+    inputs:
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "20"
+      consensus-node-version:
+        description: "Consensus Node Version:"
+        type: string
+        required: false
+        default: ""
+      custom-job-label:
+        description: "Custom Job Label:"
+        type: string
+        required: false
+        default: "E2E Test"
+      test-script:
+        description: "NPM Test Run Script:"
+        type: string
+        required: false
+        default: "test-e2e-standard"
+      coverage-subdirectory:
+        description: "Coverage Report Subdirectory:"
+        type: string
+        required: false
+        default: "e2e"
+      coverage-report-name:
+        description: "Coverage Report Name:"
+        type: string
+        required: false
+        default: "E2E Tests Coverage Report"
+      cluster-name:
+        description: "Cluster Name:"
+        type: string
+        required: false
+        default: "solo-e2e"
   workflow_call:
     inputs:
       node-version:
@@ -29,6 +65,11 @@ on:
         type: string
         required: false
         default: "20"
+      consensus-node-version:
+        description: "Consensus Node Version:"
+        type: string
+        required: false
+        default: ""
       custom-job-label:
         description: "Custom Job Label:"
         type: string
@@ -201,7 +242,11 @@ jobs:
       - name: Build Hedera code locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-node-local-hedera' || inputs.test-script == 'test-e2e-node-local-ptt' || inputs.test-script == 'test-e2e-node-add-local') && !cancelled() && !failure() }}
         run: |
-          export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+          if [ -z "${{ inputs.consensus-node-version }}" ]; then
+              export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+          else
+              export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
+          fi
           cd ..
           git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
           cd hiero-consensus-node
@@ -222,6 +267,11 @@ jobs:
 
       - name: Run E2E Tests
         run: |
+          if [ -z "${{ inputs.consensus-node-version }}" ]; then
+              export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+          else
+              export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
+          fi
           echo SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1 > .env
           cat .env
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
