@@ -197,9 +197,9 @@ export function bootstrapTestVariables(
   const cacheDirectory: string = argv.getArg<string>(flags.cacheDir) || getTestCacheDirectory(testName);
 
   // Make sure the container is reset only once per CI run.
-  // When multiple test suites are loaded simultaniously, as is the case with `task test-e2e-standard`
+  // When multiple test suites are loaded simultaneously, as is the case with `task test-e2e-standard`
   // the container will be reset multiple times, which causes issues with the loading of LocalConfigRuntimeState.
-  // A better solution would be to run bootstraping during the before hook of the test suite.
+  // A better solution would be to run bootstrapping during the before hook of the test suite.
   if (shouldReset) {
     resetForTest(namespace.name, cacheDirectory);
     shouldReset = false;
