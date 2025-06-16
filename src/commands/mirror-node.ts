@@ -445,7 +445,7 @@ export class MirrorNodeCommand extends BaseCommand {
             }
 
             // On redeploy
-            else if (context_.config.id === 1) {
+            if (context_.config.id === 1) {
               const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
                 context_.config.namespace,
                 constants.MIRROR_NODE_RELEASE_NAME,

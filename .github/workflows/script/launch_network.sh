@@ -44,7 +44,7 @@ solo node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
 
-solo mirror-node deploy  --deployment "${SOLO_DEPLOYMENT}"
+solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}"
 solo explorer deploy -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 
@@ -55,7 +55,7 @@ cat remote-config-before.yaml
 
 # must uninstall explorer before migration, because the change of explorer chart name and labels
 # make it harder to uninstall or upgrade after migration
- solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
+solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
 
 # trigger migration
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}"
