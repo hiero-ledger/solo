@@ -44,7 +44,7 @@ solo node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
 
-solo mirror-node deploy  --deployment "${SOLO_DEPLOYMENT}"
+solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}"
 solo explorer deploy -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 
@@ -55,7 +55,7 @@ cat remote-config-before.yaml
 
 # must uninstall explorer before migration, because the change of explorer chart name and labels
 # make it harder to uninstall or upgrade after migration
- solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
+solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
 
 # trigger migration
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}"
@@ -71,9 +71,9 @@ if ! grep -q "schemaVersion: 2" ./local-config-after.yaml; then
   exit 1
 fi
 
-# check remote-config-after.yaml should contains 'schemaVersion: 1'
-if ! grep -q "schemaVersion: 1" ./remote-config-after.yaml; then
-  echo "schemaVersion: 1 not found in remote-config-after.yaml"
+# check remote-config-after.yaml should contains 'schemaVersion: 2'
+if ! grep -q "schemaVersion: 2" ./remote-config-after.yaml; then
+  echo "schemaVersion: 2 not found in remote-config-after.yaml"
   exit 1
 fi
 
@@ -86,7 +86,7 @@ npm run solo-test -- node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 npm run solo-test -- node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 
 # redeploy mirror-node to upgrade to a newer version
-npm run solo-test -- mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --pinger -q --dev
+npm run solo-test -- mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --redeploy --pinger -q --dev
 
 # redeploy explorer and relay node to upgrade to a newer version
 npm run solo-test -- relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev

@@ -34,13 +34,12 @@ import {type PodReference} from '../integration/kube/resources/pod/pod-reference
 import chalk from 'chalk';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
-import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
+import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {lt, SemVer} from 'semver';
-import {inject, injectable} from 'tsyringe-neo';
-import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
-import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {injectable} from 'tsyringe-neo';
 import {MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} from '../../version.js';
+import {Templates} from '../core/templates.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -57,6 +56,7 @@ interface BlockNodeDeployConfigClass {
   nodeAliases: NodeAliases; // from remote config
   context: string;
   valuesArg: string;
+  newBlockNodeComponent: BlockNodeStateSchema;
   releaseName: string;
 }
 
@@ -75,6 +75,8 @@ interface BlockNodeDestroyConfigClass {
   isChartInstalled: boolean;
   valuesArg: string;
   releaseName: string;
+  id: number;
+  useLegacyReleaseName: boolean;
 }
 
 interface BlockNodeDestroyContext {
@@ -83,7 +85,7 @@ interface BlockNodeDestroyContext {
 
 @injectable()
 export class BlockNodeCommand extends BaseCommand {
-  public constructor(@inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi) {
+  public constructor() {
     super();
   }
 
@@ -111,7 +113,15 @@ export class BlockNodeCommand extends BaseCommand {
 
   private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.deployment, flags.devMode, flags.force, flags.quiet],
+    optional: [
+      flags.chartDirectory,
+      flags.clusterRef,
+      flags.deployment,
+      flags.devMode,
+      flags.force,
+      flags.quiet,
+      flags.id,
+    ],
   };
 
   private async prepareValuesArgForBlockNode(config: BlockNodeDeployConfigClass): Promise<string> {
@@ -137,12 +147,11 @@ export class BlockNodeCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private getNextReleaseName(): string {
-    return (
-      constants.BLOCK_NODE_RELEASE_NAME +
-      '-' +
-      this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.BlockNode)
-    );
+  private getReleaseName(id?: number): string {
+    if (!id) {
+      id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.BlockNode);
+    }
+    return `${constants.BLOCK_NODE_RELEASE_NAME}-${id}`;
   }
 
   private async add(argv: ArgvStruct): Promise<boolean> {
@@ -196,11 +205,16 @@ export class BlockNodeCommand extends BaseCommand {
           },
         },
         {
-          title: 'Prepare release name',
+          title: 'Prepare release name and block node name',
           task: async (context_): Promise<void> => {
             const config: BlockNodeDeployConfigClass = context_.config;
 
-            config.releaseName = this.getNextReleaseName();
+            config.releaseName = this.getReleaseName();
+
+            config.newBlockNodeComponent = this.componentFactory.createNewBlockNodeComponent(
+              config.clusterRef,
+              config.namespace,
+            );
           },
         },
         {
@@ -239,7 +253,7 @@ export class BlockNodeCommand extends BaseCommand {
               .pods()
               .waitForRunningPhase(
                 config.namespace,
-                [`app.kubernetes.io/instance=${config.releaseName}`],
+                Templates.renderBlockNodeLabels(config.newBlockNodeComponent.metadata.id),
                 constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS,
                 constants.BLOCK_NODE_PODS_RUNNING_DELAY,
               );
@@ -250,7 +264,7 @@ export class BlockNodeCommand extends BaseCommand {
           task: async (context_): Promise<void> => {
             const config: BlockNodeDeployConfigClass = context_.config;
 
-            const labels: string[] = [`app.kubernetes.io/instance=${config.releaseName}`];
+            const labels: string[] = Templates.renderBlockNodeLabels(config.newBlockNodeComponent.metadata.id);
 
             const blockNodePods: Pod[] = await this.k8Factory
               .getK8(config.context)
@@ -272,7 +286,7 @@ export class BlockNodeCommand extends BaseCommand {
                 .pods()
                 .waitForReadyStatus(
                   config.namespace,
-                  [`app.kubernetes.io/instance=${config.releaseName}`],
+                  Templates.renderBlockNodeLabels(config.newBlockNodeComponent.metadata.id),
                   constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS,
                   constants.BLOCK_NODE_PODS_RUNNING_DELAY,
                 );
@@ -325,6 +339,8 @@ export class BlockNodeCommand extends BaseCommand {
               allFlags,
             ) as BlockNodeDestroyConfigClass;
 
+            context_.config.useLegacyReleaseName = false;
+
             context_.config.namespace = await resolveNamespaceFromDeployment(
               this.localConfig,
               this.configManager,
@@ -337,45 +353,53 @@ export class BlockNodeCommand extends BaseCommand {
 
             context_.config.context = this.remoteConfig.getClusterRefs()[context_.config.clusterRef];
 
-            const existingBlockNodeComponents: BlockNodeStateSchema[] =
-              this.remoteConfig.configuration.components.getComponentsByClusterReference<BlockNodeStateSchema>(
-                ComponentTypes.BlockNode,
-                context_.config.clusterRef,
-              );
+            // Use fallback if id not provided
+            if (typeof context_.config.id !== 'number') {
+              context_.config.id = this.remoteConfig.configuration.components.state.blockNodes[0]?.metadata?.id;
+            }
 
-            // check if any of the block node components are installed
-            for (const blockNodeComponent of existingBlockNodeComponents) {
-              const releaseName: string = constants.BLOCK_NODE_RELEASE_NAME + '-' + blockNodeComponent.metadata.id;
-              const installed: boolean = await this.chartManager.isChartInstalled(
+            context_.config.releaseName = this.getReleaseName(context_.config.id);
+
+            // Lookup block node component in remote config
+            try {
+              this.remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(
+                ComponentTypes.BlockNode,
+                context_.config.id,
+              );
+            } catch (error) {
+              throw new SoloError(`Block node ${context_.config.releaseName} was not found`, error);
+            }
+
+            // Check if release name is legacy
+            if (context_.config.id <= 1) {
+              const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
                 context_.config.namespace,
-                releaseName,
+                `${constants.BLOCK_NODE_RELEASE_NAME}-0`,
                 context_.config.context,
               );
-              if (installed) {
-                context_.config.isChartInstalled = installed;
-                context_.config.releaseName = releaseName;
-                break;
+
+              if (isLegacyChartInstalled) {
+                context_.config.isChartInstalled = true;
+                context_.config.useLegacyReleaseName = true;
+                context_.config.releaseName = `${constants.BLOCK_NODE_RELEASE_NAME}-0`;
               }
+            }
+
+            if (!context_.config.isChartInstalled) {
+              context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
+                context_.config.namespace,
+                context_.config.releaseName,
+                context_.config.context,
+              );
+            }
+
+            if (!context_.config.id) {
+              throw new SoloError('Block Node is not found');
             }
 
             this.logger.debug('Initialized config', {config: context_.config});
 
             return ListrLock.newAcquireLockTask(lease, task);
-          },
-        },
-        {
-          title: 'Look-up block node',
-          task: async (context_): Promise<void> => {
-            const config: BlockNodeDestroyConfigClass = context_.config;
-            try {
-              // TODO: Add support for multiple block nodes
-              this.remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(
-                ComponentTypes.BlockNode,
-                0,
-              );
-            } catch (error) {
-              throw new SoloError(`Block node ${config.releaseName} was not found`, error);
-            }
           },
         },
         {
@@ -412,9 +436,10 @@ export class BlockNodeCommand extends BaseCommand {
       title: 'Add block node component in remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        const {namespace, clusterRef} = context_.config;
+        const config: BlockNodeDeployConfigClass = context_.config;
+
         this.remoteConfig.configuration.components.addNewComponent(
-          this.componentFactory.createNewBlockNodeComponent(clusterRef, namespace),
+          config.newBlockNodeComponent,
           ComponentTypes.BlockNode,
         );
 
@@ -429,8 +454,7 @@ export class BlockNodeCommand extends BaseCommand {
       title: 'Disable block node component in remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        // TODO: Add support for multiple block nodes
-        this.remoteConfig.configuration.components.removeComponent(0, ComponentTypes.BlockNode);
+        this.remoteConfig.configuration.components.removeComponent(context_.config.id, ComponentTypes.BlockNode);
 
         await this.remoteConfig.persist();
       },
@@ -468,7 +492,7 @@ export class BlockNodeCommand extends BaseCommand {
         const blockNodePodReference: PodReference = await this.k8Factory
           .getK8(config.context)
           .pods()
-          .list(config.namespace, [`app.kubernetes.io/instance=${config.releaseName}`])
+          .list(config.namespace, Templates.renderBlockNodeLabels(config.newBlockNodeComponent.metadata.id))
           .then((pods: Pod[]): PodReference => pods[0].podReference);
 
         const containerReference: ContainerReference = ContainerReference.of(
