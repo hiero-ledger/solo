@@ -31,4 +31,5 @@ node-option:
   - 'import=tsx'
 full-trace: true
 enable-source-maps: true
+sort: true
 ui: bdd

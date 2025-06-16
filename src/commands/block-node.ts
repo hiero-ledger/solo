@@ -37,8 +37,9 @@ import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {lt, SemVer} from 'semver';
-import {Templates} from '../core/templates.js';
 import {injectable} from 'tsyringe-neo';
+import {MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} from '../../version.js';
+import {Templates} from '../core/templates.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -178,8 +179,10 @@ export class BlockNodeCommand extends BaseCommand {
             ) as BlockNodeDeployConfigClass;
 
             const platformVersion: SemVer = new SemVer(context_.config.releaseTag);
-            if (lt(platformVersion, new SemVer('v0.62.0'))) {
-              throw new SoloError('Hedera platform versions less than v0.62.0 are not supported');
+            if (lt(platformVersion, new SemVer(MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE))) {
+              throw new SoloError(
+                `Hedera platform versions less than ${MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} are not supported`,
+              );
             }
 
             context_.config.namespace = await resolveNamespaceFromDeployment(

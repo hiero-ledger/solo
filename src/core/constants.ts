@@ -29,6 +29,7 @@ export const SKIP_NODE_PING = Boolean(process.env.SKIP_NODE_PING) || false;
 export const DEFAULT_LOCK_ACQUIRE_ATTEMPTS = +process.env.SOLO_LEASE_ACQUIRE_ATTEMPTS || 10;
 export const DEFAULT_LEASE_DURATION = +process.env.SOLO_LEASE_DURATION || 20;
 
+export const SOLO_USER_AGENT_HEADER = 'Solo-User-Agent';
 // --------------- Hedera network and node related constants --------------------------------------------------------------------
 export const HEDERA_CHAIN_ID = process.env.SOLO_CHAIN_ID || '298';
 export const HEDERA_HGCAPP_DIR = '/opt/hgcapp';
@@ -170,6 +171,10 @@ export const LISTR_DEFAULT_RENDERER_TIMER_OPTION = {
 export const LISTR_DEFAULT_RENDERER_OPTION = {
   collapseSubtasks: false,
   timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+  persistentOutput: true,
+  collapseErrors: false,
+  showErrorMessage: false,
+  formatOutput: 'wrap',
 } as {
   collapseSubtasks: boolean;
   timer: {
@@ -179,6 +184,10 @@ export const LISTR_DEFAULT_RENDERER_OPTION = {
     args?: [number];
   };
   logger: ListrLogger;
+  persistentOutput: boolean;
+  collapseErrors: boolean;
+  showErrorMessage: boolean;
+  formatOutput: 'wrap' | 'truncate';
 };
 
 export const SIGNING_KEY_PREFIX = 's';

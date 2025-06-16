@@ -51,6 +51,8 @@ import {type NodeSetupContext} from './config-interfaces/node-setup-context.js';
 import {type NodePrepareUpgradeContext} from './config-interfaces/node-prepare-upgrade-context.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {SOLO_USER_AGENT_HEADER} from '../../core/constants.js';
+import {SemVer} from 'semver';
 
 const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
 const DOWNLOAD_GENERATED_FILES_CONFIGS_NAME = 'downloadGeneratedFilesConfig';
@@ -180,6 +182,27 @@ export class NodeCommandConfigs {
       this.remoteConfig.getConsensusNodes(),
       this.configManager,
     );
+
+    // check if the intended package version exists
+    if (context_.config.upgradeVersion) {
+      const semVersion: SemVer = new SemVer(context_.config.upgradeVersion);
+      const HEDERA_BUILDS_URL: string = 'https://builds.hedera.com';
+      const BUILD_ZIP_URL: string = `${HEDERA_BUILDS_URL}/node/software/v${semVersion.major}.${semVersion.minor}/build-${context_.config.upgradeVersion}.zip`;
+      try {
+        // do not fetch or download, just check if URL exists or not
+        const response = await fetch(BUILD_ZIP_URL, {
+          method: 'HEAD',
+          headers: {
+            'User-Agent': SOLO_USER_AGENT_HEADER,
+          },
+        });
+        if (!response.ok) {
+          throw new SoloError(`Upgrade version ${context_.config.upgradeVersion} does not exist.`);
+        }
+      } catch (error) {
+        throw new SoloError(`Failed to fetch upgrade version ${context_.config.upgradeVersion}: ${error.message}`);
+      }
+    }
 
     await this.initializeSetup(context_.config, this.k8Factory);
 

@@ -14,36 +14,30 @@
 # limitations under the License.
 ##
 
-# Sample workflow for building and deploying a Hugo site to GitHub Pages
-name: Deploy Hugo site to Pages
+name: Deploy Hugo Build and Deploy Site to Pages
 
 on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
-  # Runs on pushes targeting the default branch
+    inputs:
+      docs-build-label:
+        description: "The docs build label to build for Solo, can be a version tag or `main`, e.g. 'v0.37.2'"
+        type: string
+        required: false
+        default: 'main' # main is used unless it is a version tag already released or about to be released
+      dry-run-enabled:
+        description: "Perform Dry Run, skipping deployment to GitHub Pages"
+        type: boolean
+        required: false
+        default: false
   push:
     branches:
       - main
       - 'release/*'
-    paths:
-      - '**/*.mjs'
-      - '**/*.js'
-      - '**/*.ts'
-      - '**/package*.json'
-      - 'docs/site/content/User/*.md'
-      - 'DEV.md'
-      - 'README.md'
-      - 'docs/site/**'
-  # run in the pull request, but don't publish
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -59,93 +53,154 @@ defaults:
     shell: bash
 
 jobs:
-  # Build job
-  build:
-    name: Build
+  setup:
+    name: Setup
     runs-on: hiero-solo-linux-medium
+    outputs:
+      docs-build-label: ${{ steps.set-inputs.outputs.docs_build_label }}
+      main-ref: ${{ steps.set-inputs.outputs.main_ref }}
+      versioned-release: ${{ steps.set-inputs.outputs.versioned_release }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
           egress-policy: audit
 
-      - name: Setup Hugo
-        uses: step-security/actions-hugo@b99dc9a4cddce1866ff2c3682c01aeb27b4d91f0 # v3.0.1
-        with:
-          hugo-version: '0.145.0'
-          extended: true
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 21
-
-      - name: Setup Pages
-        id: pages
-        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
-        with:
-          enablement: true
-
-      - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
-        with:
-          version: 3.39.2
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Go
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # pinned to v5.5.0
-        with:
-          go-version-file: 'docs/site/go.mod'
-
-      # TODO set HUGO_SOLO_VERSION to the input solo_version, solo_version will default to 'main', and will be a workflow input
-      # TODO attach release artifact if part of release workflow and run it after semantic-release to ensure the version is correct
-      - name: Build with Hugo
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Set Inputs
+        id: set-inputs
         run: |
-          set -xeo pipefail
-          cd docs/site
-          task build
+          set -eo pipefail
+          echo "::group::Set Inputs"
+          echo "Inputs:"
+          echo "docs-build-label=${{ inputs.docs-build-label }}"
+          echo "dry-run-enabled=${{ inputs.dry-run-enabled }}"
+          echo "github.ref=${{ github.ref }}"
+          echo "github.ref_name=${{ github.ref_name }}"
+          echo "github.event_name=${{ github.event_name }}"
+          echo "::endgroup::"
+          
+          echo "::group::Default Output Values"
+          DOCS_BUILD_LABEL="${{ inputs.docs-build-label }}"
+          echo "defaulting: DOCS_BUILD_LABEL=${DOCS_BUILD_LABEL}"
+          MAIN_REF="main"
+          echo "defaulting: MAIN_REF=${MAIN_REF}"
+          VERSIONED_RELEASE=false
+          echo "defaulting: VERSIONED_RELEASE=${VERSIONED_RELEASE}"
+          echo "::endgroup::"
+         
+          echo "::group::Setting Inputs" 
+          if [[ -z "${DOCS_BUILD_LABEL}" ]]; then
+            echo "No docs-build-label input provided for push to 'main' or 'release/*', defaulting to 'main'."
+            DOCS_BUILD_LABEL='main'
+            echo "setting: DOCS_BUILD_LABEL=${DOCS_BUILD_LABEL}"
+          fi
+         
+          # Only download artifacts and attach docs to a release if this is a workflow_dispatch running with a version tag
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "${{ github.ref_name }}" != "main" || "${{ inputs.docs-build-label }}" != "main" ]]; then
+              echo "Running with a version tag and via workflow_dispatch, this is a versioned release."
+              VERSIONED_RELEASE=true
+              echo "setting: VERSIONED_RELEASE=${VERSIONED_RELEASE}"
+            else
+              echo "Running with 'main' branch and not a versioned release."
+              VERSIONED_RELEASE=false
+              echo "setting: VERSIONED_RELEASE=${VERSIONED_RELEASE}"
+            fi
+          else
+            echo "Running with 'main' or 'release/*' branch."
+            VERSIONED_RELEASE=false
+            echo "setting: VERSIONED_RELEASE=${VERSIONED_RELEASE}"
+          fi
+          
+          # If the github.ref_name is `main`, then we will checkout github.ref, else checkout `main` for the 
+          #  docs-build-label = `main`
+          if [[ "${{ github.ref_name }}" == "main" ]]; then
+            echo "Running on 'main' branch, setting MAIN_REF to github.ref."
+            MAIN_REF="${{ github.ref }}"
+            echo "setting: MAIN_REF=${MAIN_REF}"
+          else
+            echo "Running on a branch or tag other than 'main', setting MAIN_REF to 'main'."
+            MAIN_REF="main"
+            echo "setting: MAIN_REF=${MAIN_REF}"
+          fi
+          echo "::endgroup::"
+          
+          echo "::group::Output Values"
+          echo "docs_build_label=${DOCS_BUILD_LABEL}" >> $GITHUB_OUTPUT
+          echo "output: docs_build_label=${DOCS_BUILD_LABEL}"
+          echo "main_ref=${MAIN_REF}" >> $GITHUB_OUTPUT
+          echo "output: main_ref=${MAIN_REF}"
+          echo "versioned_release=${VERSIONED_RELEASE}" >> $GITHUB_OUTPUT
+          echo "output: versioned_release=${VERSIONED_RELEASE}"
+          echo "::endgroup::"
 
-      # TODO only publish on push to 'main'
-      # Upload the built site to GitHub Pages
-      - name: Upload Pages Artifact
-        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
-        if: ${{ endsWith(github.ref, 'disabled') }}
-        with:
-          path: ./docs/site/public
+  # ------- Hugo Build and Publish for Version Tag and Main Branch -------
 
-      # Upload the built site to artifacts for troubleshooting or verification
-      - name: Upload Artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          path: |
-                ./docs/site/build
-                ./docs/site/public
-                ./docs/site/static
-
-  # TODO only publish on push to 'main'
-  # Deployment job
-  deploy:
-    name: Deploy
-    runs-on: hiero-solo-linux-medium
-    environment:
-      name: github-pages # security guard on what branch/tag can run this job
-      url: ${{ steps.deployment.outputs.page_url }}
+  # Do a Hugo build for the docs site for a version tag
+  hugo-docs-build:
+    name: Hugo Docs Build
+    if: ${{ needs.setup.outputs.versioned-release == 'true' && !cancelled() && !failure() }}
+    uses: ./.github/workflows/zxc-hugo-build.yaml
     needs:
-      - build
-    if: ${{ endsWith(github.ref, 'disabled') }}
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
-        with:
-          egress-policy: audit
+      - setup
+    with:
+      docs-build-label: ${{ needs.setup.outputs.docs-build-label }}
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+  # Do a Hugo build for the docs site for the main branch, required to ensure that docs for the main branch get deployed
+  #  to GitHub Pages.  This runs after hugo-docs-build if the docs-build-label is not 'main'.
+  hugo-docs-build-main:
+    name: Hugo Docs Build - Main
+    uses: ./.github/workflows/zxc-hugo-build.yaml
+    needs:
+      - setup
+      - hugo-docs-build
+    with:
+      docs-build-label: 'main'
+      download-artifacts: true
+      ref: ${{ needs.setup.outputs.main-ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Publish the Hugo docs site to GitHub Pages unless dry-run is enabled or if this is a merge to release/* branch
+  hugo-docs-publish:
+    name: Hugo Docs Publish
+    if: ${{ inputs.dry-run-enabled != 'true' && startsWith(github.ref_name, 'release/') && !cancelled() && !failure() }}
+    uses: ./.github/workflows/zxc-hugo-publish.yaml
+    needs:
+      - setup
+      - hugo-docs-build-main
+    with:
+      docs-build-label: ${{ needs.setup.outputs.docs-build-label }}
+      attach-docs-enabled: true
+      dry-run-enabled: ${{ inputs.dry-run-enabled == true }}
+
+  # ------- Hugo Build and Publish for Main Branch Only -------
+
+  # Do a Hugo build for the docs site for the main branch, this is when the hugo-docs-build is skipped, the need clause
+  #  is different
+  hugo-docs-build-main-only:
+    name: Hugo Docs Build - Main Only
+    if: ${{ needs.setup.outputs.versioned-release == 'false' && !cancelled() && !failure() }}
+    uses: ./.github/workflows/zxc-hugo-build.yaml
+    needs:
+      - setup
+    with:
+      docs-build-label: 'main'
+      ref: ${{ needs.setup.outputs.main-ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Publish the Hugo docs site to GitHub Pages unless dry-run is enabled or if this is a merge to release/* branch
+  hugo-docs-publish-main-only:
+    name: Hugo Docs Publish - Main Only
+    uses: ./.github/workflows/zxc-hugo-publish.yaml
+    needs:
+      - setup
+      - hugo-docs-build-main-only
+    with:
+      docs-build-label: ${{ needs.setup.outputs.docs-build-label }}
+      # compare to true, because it could be an empty string which throws an error
+      dry-run-enabled: ${{ inputs.dry-run-enabled == true || startsWith(github.ref_name, 'release/') }}
