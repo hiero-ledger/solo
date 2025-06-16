@@ -98,6 +98,7 @@ jobs:
       test-script: ${{ matrix.e2e-test-type.test-script }}
       coverage-subdirectory: ${{ matrix.e2e-test-type.coverage-subdirectory }}
       coverage-report-name: ${{ matrix.e2e-test-type.coverage-report-name }}
+      local-java-build: ${{ matrix.e2e-test-type.local-java-build }}
       cluster-name: ${{ matrix.e2e-test-type.coverage-subdirectory }}-${{ github.run_id }}-${{ github.run_attempt }}
 
   codecov:
