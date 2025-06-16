@@ -19,7 +19,7 @@ import {Zippy} from '../../../src/core/zippy.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../../../src/integration/kube/resources/container/container-reference.js';
-import {type NetworkNodes} from '../../../src/core/network-nodes.js';
+import {NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
@@ -27,7 +27,6 @@ import {NodeCommand} from '../../../src/commands/node/index.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {TEST_UPGRADE_VERSION} from '../../../version-test.js';
 import {AccountId, AccountInfoQuery} from '@hashgraph/sdk';
-import * as helpers from '../../../src/core/helpers.js';
 import {type Container} from '../../../src/integration/kube/resources/container/container.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {Templates} from '../../../src/core/templates.js';
@@ -142,10 +141,10 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
 
     it('all network pods should be running', async () => {
       const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
-      const response: string = await helpers.getNetworkNodePodStatus(
-        k8Factory.default(),
-        PodReference.of(namespace, pods[0].podReference.name),
-      );
+      const response: string = await container
+        .resolve<NetworkNodes>(NetworkNodes)
+        .getNetworkNodePodStatus(PodReference.of(namespace, pods[0].podReference.name));
+
       expect(response).to.not.be.undefined;
       const statusLine = response.split('\n').find(line => line.startsWith('platform_PlatformStatus'));
       expect(statusLine).to.not.be.undefined;

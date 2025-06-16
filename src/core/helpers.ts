@@ -572,17 +572,3 @@ async function throwAfter(duration: Duration, message: string = 'Timeout'): Prom
   await sleep(duration);
   throw new SoloError(message);
 }
-
-export async function getNetworkNodePodStatus(
-  k8: K8,
-  podReference: PodReference,
-): Promise<string> {
-  return k8
-    .containers()
-    .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
-    .execContainer([
-      'bash',
-      '-c',
-      String.raw`curl -s http://localhost:9999/metrics | grep platform_PlatformStatus | grep -v \#`,
-    ]);
-}

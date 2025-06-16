@@ -459,7 +459,9 @@ export class NodeCommandTasks {
       }, timeout);
 
       try {
-        const response: string = await helpers.getNetworkNodePodStatus(this.k8Factory.getK8(context), podReference);
+        const response: string = await container
+          .resolve<NetworkNodes>(NetworkNodes)
+          .getNetworkNodePodStatus(podReference, context);
 
         if (!response) {
           task.title = `${title} - status ${chalk.yellow('UNKNOWN')}, attempt ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
