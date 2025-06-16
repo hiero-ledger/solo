@@ -270,8 +270,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           endToEndTestSuite.namespace,
           endToEndTestSuite.testLogger,
           endToEndTestSuite.createdAccountIds,
-          endToEndTestSuite.enableLocalBuildPathTesting,
-          endToEndTestSuite.localBuildReleaseTag,
         );
       }).timeout(Duration.ofMinutes(10).toMillis());
 
@@ -491,8 +489,6 @@ async function verifyMirrorNodeDeployWasSuccessful(
   namespace: NamespaceName,
   testLogger: SoloLogger,
   createdAccountIds: string[],
-  enableLocalBuildPathTesting: boolean,
-  localBuildReleaseTag: string,
 ): Promise<void> {
   const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
   const k8: K8 = k8Factory.getK8(contexts[1]);

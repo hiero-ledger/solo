@@ -13,13 +13,17 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
-interface QuickStartDeployConfigClass {}
+interface QuickStartDeployConfigClass {
+  dummyVariable?: string; // Placeholder for actual configuration properties
+}
 
 interface QuickStartDeployContext {
   config: QuickStartDeployConfigClass;
 }
 
-interface QuickStartDestroyConfigClass {}
+interface QuickStartDestroyConfigClass {
+  dummyVariable?: string; // Placeholder for actual configuration properties
+}
 
 interface QuickStartDestroyContext {
   config: QuickStartDestroyConfigClass;
@@ -74,6 +78,7 @@ export class QuickStartCommand extends BaseCommand {
               QuickStartCommand.ADD_CONFIGS_NAME,
               allFlags,
             ) as QuickStartDeployConfigClass;
+            return null;
           },
         },
       ],
