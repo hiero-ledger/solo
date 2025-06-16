@@ -75,6 +75,7 @@ markup:
     parser:
       attribute:
         block: true
+        title: true
     renderer:
       unsafe: true
   highlight:
@@ -82,6 +83,10 @@ markup:
     style: tango
     # Uncomment if you want your chosen highlight style used for code blocks without a specified language
     # guessSyntax: true
+  tableOfContents:
+    endLevel: 5
+    ordered: false
+    startLevel: 2
 
 # Everything below this are Site Params
 
