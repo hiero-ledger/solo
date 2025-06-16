@@ -3,7 +3,7 @@
 import {describe} from 'mocha';
 
 import {Flags} from '../../../src/commands/flags.js';
-import {getTestCacheDirectory, getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
+import {getTestCacheDirectory, getTestCluster} from '../../test-utility.js';
 import {main} from '../../../src/index.js';
 import {resetForTest} from '../../test-container.js';
 import {
@@ -54,37 +54,31 @@ import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/
 import {type FacadeMap} from '../../../src/business/runtime-state/collection/facade-map.js';
 import {type StringFacade} from '../../../src/business/runtime-state/facade/string-facade.js';
 import {type ConsensusNodeStateSchema} from '../../../src/data/schema/model/remote/state/consensus-node-state-schema.js';
-import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
 import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
+import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
 
-const testName: string = 'dual-cluster-full';
+const testName: string = 'quick-start';
 
-describe('Dual Cluster Full E2E Test', (): void => {
+describe('Quick Start E2E Test', (): void => {
   const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
     .withTestName(testName)
-    .withTestSuiteName('Dual Cluster Full E2E Test Suite')
+    .withTestSuiteName('Quick Start E2E Test')
     .withTestSuiteCallback((): void => {})
     .withNamespace(testName)
     .withDeployment(`${testName}-deployment`)
     .build();
   endToEndTestSuite.testSuite();
-  const testClusterArray: ClusterReference[] = ['e2e-cluster-alpha', 'e2e-cluster-beta'];
+  const testClusterArray: ClusterReference[] = ['e2e-cluster-alpha'];
   const soloTestCluster: string = getTestCluster();
   const testCluster: string =
     soloTestCluster.includes('c1') || soloTestCluster.includes('c2') ? soloTestCluster : `${soloTestCluster}-c1`;
-  const contexts: string[] = [
-    `${testCluster}`,
-    `${testCluster.replace(soloTestCluster.includes('-c1') ? '-c1' : '-c2', soloTestCluster.includes('-c1') ? '-c2' : '-c1')}`,
-  ];
+  const contexts: string[] = [`${testCluster}`];
   const testClusterReferences: ClusterReferences = new Map<string, string>();
   testClusterReferences.set(testClusterArray[0], contexts[0]);
-  testClusterReferences.set(testClusterArray[1], contexts[1]);
   const testCacheDirectory: string = getTestCacheDirectory(testName);
   let testLogger: SoloWinstonLogger;
   const createdAccountIds: string[] = [];
   const enableLocalBuildPathTesting: boolean = process.env.SOLO_LOCAL_BUILD_PATH_TESTING?.toLowerCase() === 'true';
-  const localBuildPath: string = process.env.SOLO_LOCAL_BUILD_PATH || '../hiero-consensus-node/hedera-node/data';
-  const localBuildReleaseTag: string = process.env.SOLO_LOCAL_BUILD_RELEASE_TAG || HEDERA_PLATFORM_VERSION_TAG;
 
   // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
   before(async (): Promise<void> => {
