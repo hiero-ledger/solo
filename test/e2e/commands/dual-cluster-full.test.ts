@@ -95,17 +95,17 @@ describe('Dual Cluster Full E2E Test', (): void => {
       // allowed to fail if the file doesn't exist
     }
     testLogger = container.resolve<SoloWinstonLogger>(InjectTokens.SoloLogger);
-    resetForTest(namespace.name, testCacheDirectory, false);
+    resetForTest(endToEndTestSuite.namespace.name, testCacheDirectory, false);
     for (const item of contexts) {
       const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
-      await k8Client.namespaces().delete(namespace);
+      await k8Client.namespaces().delete(endToEndTestSuite.namespace);
     }
     testLogger.info(`${testName}: starting ${testName} e2e test`);
   }).timeout(Duration.ofMinutes(5).toMillis());
 
   beforeEach(async (): Promise<void> => {
     testLogger.info(`${testName}: resetting containers for each test`);
-    resetForTest(namespace.name, testCacheDirectory, false);
+    resetForTest(endToEndTestSuite.namespace.name, testCacheDirectory, false);
     testLogger.info(`${testName}: finished resetting containers for each test`);
   });
 
@@ -133,14 +133,14 @@ describe('Dual Cluster Full E2E Test', (): void => {
 
   it(`${testName}: solo deployment create`, async (): Promise<void> => {
     testLogger.info(`${testName}: beginning solo deployment create`);
-    await main(soloDeploymentCreateArgv(deployment, namespace));
+    await main(soloDeploymentCreateArgv(endToEndTestSuite.deployment, endToEndTestSuite.namespace));
     testLogger.info(`${testName}: finished solo deployment create`);
   });
 
   it(`${testName}: solo deployment add-cluster`, async (): Promise<void> => {
     testLogger.info(`${testName}: beginning solo deployment add-cluster`);
     for (const element of testClusterArray) {
-      await main(soloDeploymentAddClusterArgv(deployment, element, 1));
+      await main(soloDeploymentAddClusterArgv(endToEndTestSuite.deployment, element, 1));
     }
     const remoteConfig: RemoteConfigRuntimeStateApi = container.resolve(InjectTokens.RemoteConfigRuntimeState);
     expect(remoteConfig.isLoaded(), 'remote config manager should be loaded').to.be.true;
@@ -162,7 +162,7 @@ describe('Dual Cluster Full E2E Test', (): void => {
 
   it(`${testName}: node keys`, async (): Promise<void> => {
     testLogger.info(`${testName}: beginning node keys command`);
-    await main(soloNodeKeysArgv(deployment));
+    await main(soloNodeKeysArgv(endToEndTestSuite.deployment));
     const node1Key: Buffer = fs.readFileSync(
       PathEx.joinWithRealPath(testCacheDirectory, 'keys', 's-private-node1.pem'),
     );
@@ -171,12 +171,15 @@ describe('Dual Cluster Full E2E Test', (): void => {
   });
 
   it(`${testName}: network deploy`, async (): Promise<void> => {
-    await main(soloNetworkDeployArgv(deployment, enableLocalBuildPathTesting, localBuildReleaseTag));
+    await main(soloNetworkDeployArgv(endToEndTestSuite.deployment, enableLocalBuildPathTesting, localBuildReleaseTag));
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
     for (const [index, context_] of contexts.entries()) {
       const k8: K8 = k8Factory.getK8(context_);
-      expect(await k8.namespaces().has(namespace), `namespace ${namespace} should exist in ${context}`).to.be.true;
-      const pods: Pod[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
+      expect(
+        await k8.namespaces().has(endToEndTestSuite.namespace),
+        `namespace ${endToEndTestSuite.namespace} should exist in ${context}`,
+      ).to.be.true;
+      const pods: Pod[] = await k8.pods().list(endToEndTestSuite.namespace, ['solo.hedera.com/type=network-node']);
       expect(pods).to.have.lengthOf(1);
       const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(index + 1);
       expect(pods[0].labels['solo.hedera.com/node-name']).to.equal(nodeAlias);
@@ -184,14 +187,21 @@ describe('Dual Cluster Full E2E Test', (): void => {
   }).timeout(Duration.ofMinutes(5).toMillis());
 
   it(`${testName}: node setup`, async (): Promise<void> => {
-    await main(soloNodeSetupArgv(deployment, enableLocalBuildPathTesting, localBuildPath, localBuildReleaseTag));
+    await main(
+      soloNodeSetupArgv(
+        endToEndTestSuite.deployment,
+        enableLocalBuildPathTesting,
+        localBuildPath,
+        localBuildReleaseTag,
+      ),
+    );
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
     for (const context_ of contexts) {
       const k8: K8 = k8Factory.getK8(context_);
-      const pods: Pod[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
+      const pods: Pod[] = await k8.pods().list(endToEndTestSuite.namespace, ['solo.hedera.com/type=network-node']);
       expect(pods, 'expect this cluster to have one network node').to.have.lengthOf(1);
       const rootContainer: ContainerReference = ContainerReference.of(
-        PodReference.of(namespace, pods[0].podReference.name),
+        PodReference.of(endToEndTestSuite.namespace, pods[0].podReference.name),
         ROOT_CONTAINER,
       );
       if (!enableLocalBuildPathTesting) {
@@ -215,16 +225,18 @@ describe('Dual Cluster Full E2E Test', (): void => {
   }).timeout(Duration.ofMinutes(2).toMillis());
 
   it(`${testName}: node start`, async (): Promise<void> => {
-    await main(soloNodeStartArgv(deployment));
+    await main(soloNodeStartArgv(endToEndTestSuite.deployment));
     for (const context_ of contexts) {
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
       const k8: K8 = k8Factory.getK8(context_);
-      const networkNodePod: Pod[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
+      const networkNodePod: Pod[] = await k8
+        .pods()
+        .list(endToEndTestSuite.namespace, ['solo.hedera.com/type=network-node']);
       expect(networkNodePod).to.have.lengthOf(1);
       const haProxyPod: Pod[] = await k8
         .pods()
         .waitForReadyStatus(
-          namespace,
+          endToEndTestSuite.namespace,
           [
             `app=haproxy-${Templates.extractNodeAliasFromPodName(networkNodePod[0].podReference.name)}`,
             'solo.hedera.com/type=haproxy',
@@ -234,19 +246,31 @@ describe('Dual Cluster Full E2E Test', (): void => {
         );
       expect(haProxyPod).to.have.lengthOf(1);
       createdAccountIds.push(
-        await verifyAccountCreateWasSuccessful(namespace, testClusterReferences, deployment),
-        await verifyAccountCreateWasSuccessful(namespace, testClusterReferences, deployment),
+        await verifyAccountCreateWasSuccessful(
+          endToEndTestSuite.namespace,
+          testClusterReferences,
+          endToEndTestSuite.deployment,
+        ),
+        await verifyAccountCreateWasSuccessful(
+          endToEndTestSuite.namespace,
+          testClusterReferences,
+          endToEndTestSuite.deployment,
+        ),
       );
     }
     // create one more account to make sure that the last one gets pushed to mirror node
-    await verifyAccountCreateWasSuccessful(namespace, testClusterReferences, deployment);
+    await verifyAccountCreateWasSuccessful(
+      endToEndTestSuite.namespace,
+      testClusterReferences,
+      endToEndTestSuite.deployment,
+    );
   }).timeout(Duration.ofMinutes(5).toMillis());
 
   it(`${testName}: mirror node deploy`, async (): Promise<void> => {
-    await main(soloMirrorNodeDeployArgv(deployment, testClusterArray[1]));
+    await main(soloMirrorNodeDeployArgv(endToEndTestSuite.deployment, testClusterArray[1]));
     await verifyMirrorNodeDeployWasSuccessful(
       contexts,
-      namespace,
+      endToEndTestSuite.namespace,
       testLogger,
       createdAccountIds,
       enableLocalBuildPathTesting,
@@ -255,8 +279,8 @@ describe('Dual Cluster Full E2E Test', (): void => {
   }).timeout(Duration.ofMinutes(10).toMillis());
 
   it(`${testName}: explorer deploy`, async (): Promise<void> => {
-    await main(soloExplorerDeployArgv(deployment, testClusterArray[1]));
-    await verifyExplorerDeployWasSuccessful(contexts, namespace, createdAccountIds, testLogger);
+    await main(soloExplorerDeployArgv(endToEndTestSuite.deployment, testClusterArray[1]));
+    await verifyExplorerDeployWasSuccessful(contexts, endToEndTestSuite.namespace, createdAccountIds, testLogger);
   }).timeout(Duration.ofMinutes(5).toMillis());
 
   // TODO json rpc relay deploy
@@ -265,7 +289,7 @@ describe('Dual Cluster Full E2E Test', (): void => {
   // TODO mirror node destroy
   // TODO network destroy
   xit(`${testName}: network destroy`, async (): Promise<void> => {
-    await main(soloNetworkDestroyArgv(deployment));
+    await main(soloNetworkDestroyArgv(endToEndTestSuite.deployment));
   });
 });
 
