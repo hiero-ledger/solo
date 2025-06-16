@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {describe} from 'mocha';
+import {describe, type Suite} from 'mocha';
 
 import {Flags} from '../../../src/commands/flags.js';
-import {getTestCacheDirectory, getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
+import {getTestCacheDirectory} from '../../test-utility.js';
 import {main} from '../../../src/index.js';
 import {resetForTest} from '../../test-container.js';
 import {
-  type ClusterReference,
+  type ClusterReferenceName,
   type ClusterReferences,
   type ExtendedNetServer,
   type DeploymentName,
@@ -35,7 +35,6 @@ import {Templates} from '../../../src/core/templates.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {ContainerReference} from '../../../src/integration/kube/resources/container/container-reference.js';
 import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
-import {type SoloWinstonLogger} from '../../../src/core/logging/solo-winston-logger.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
 import http from 'node:http';
 import {sleep} from '../../../src/core/helpers.js';
@@ -56,242 +55,250 @@ import {type StringFacade} from '../../../src/business/runtime-state/facade/stri
 import {type ConsensusNodeStateSchema} from '../../../src/data/schema/model/remote/state/consensus-node-state-schema.js';
 import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
 import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
+import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 
 const testName: string = 'dual-cluster-full';
 
-describe('Dual Cluster Full E2E Test', (): void => {
-  const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
-    .withTestName(testName)
-    .withTestSuiteName('Dual Cluster Full E2E Test Suite')
-    .withTestSuiteCallback((): void => {})
-    .withNamespace(testName)
-    .withDeployment(`${testName}-deployment`)
-    .build();
-  endToEndTestSuite.testSuite();
-  const testClusterArray: ClusterReference[] = ['e2e-cluster-alpha', 'e2e-cluster-beta'];
-  const soloTestCluster: string = getTestCluster();
-  const testCluster: string =
-    soloTestCluster.includes('c1') || soloTestCluster.includes('c2') ? soloTestCluster : `${soloTestCluster}-c1`;
-  const contexts: string[] = [
-    `${testCluster}`,
-    `${testCluster.replace(soloTestCluster.includes('-c1') ? '-c1' : '-c2', soloTestCluster.includes('-c1') ? '-c2' : '-c1')}`,
-  ];
-  const testClusterReferences: ClusterReferences = new Map<string, string>();
-  testClusterReferences.set(testClusterArray[0], contexts[0]);
-  testClusterReferences.set(testClusterArray[1], contexts[1]);
-  const testCacheDirectory: string = getTestCacheDirectory(testName);
-  let testLogger: SoloWinstonLogger;
-  const createdAccountIds: string[] = [];
-  const enableLocalBuildPathTesting: boolean = process.env.SOLO_LOCAL_BUILD_PATH_TESTING?.toLowerCase() === 'true';
-  const localBuildPath: string = process.env.SOLO_LOCAL_BUILD_PATH || '../hiero-consensus-node/hedera-node/data';
-  const localBuildReleaseTag: string = process.env.SOLO_LOCAL_BUILD_RELEASE_TAG || HEDERA_PLATFORM_VERSION_TAG;
+const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
+  .withTestName(testName)
+  .withTestSuiteName('Dual Cluster Full E2E Test Suite')
+  .withNamespace(testName)
+  .withDeployment(`${testName}-deployment`)
+  .withClusterCount(2)
+  .withTestSuiteCallback((endToEndTestSuite: EndToEndTestSuite): Suite => {
+    return describe('Dual Cluster Full E2E Test', (): void => {
+      // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
+      before(async (): Promise<void> => {
+        fs.rmSync(endToEndTestSuite.testCacheDirectory, {recursive: true, force: true});
+        try {
+          fs.rmSync(PathEx.joinWithRealPath(endToEndTestSuite.testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {
+            force: true,
+          });
+        } catch {
+          // allowed to fail if the file doesn't exist
+        }
+        resetForTest(endToEndTestSuite.namespace.name, endToEndTestSuite.testCacheDirectory, false);
+        for (const item of endToEndTestSuite.contexts) {
+          const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
+          await k8Client.namespaces().delete(endToEndTestSuite.namespace);
+        }
+        endToEndTestSuite.testLogger.info(`${testName}: starting ${testName} e2e test`);
+      }).timeout(Duration.ofMinutes(5).toMillis());
 
-  // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
-  before(async (): Promise<void> => {
-    fs.rmSync(testCacheDirectory, {recursive: true, force: true});
-    try {
-      fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {force: true});
-    } catch {
-      // allowed to fail if the file doesn't exist
-    }
-    testLogger = container.resolve<SoloWinstonLogger>(InjectTokens.SoloLogger);
-    resetForTest(endToEndTestSuite.namespace.name, testCacheDirectory, false);
-    for (const item of contexts) {
-      const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
-      await k8Client.namespaces().delete(endToEndTestSuite.namespace);
-    }
-    testLogger.info(`${testName}: starting ${testName} e2e test`);
-  }).timeout(Duration.ofMinutes(5).toMillis());
+      beforeEach(async (): Promise<void> => {
+        endToEndTestSuite.testLogger.info(`${testName}: resetting containers for each test`);
+        resetForTest(endToEndTestSuite.namespace.name, endToEndTestSuite.testCacheDirectory, false);
+        endToEndTestSuite.testLogger.info(`${testName}: finished resetting containers for each test`);
+      });
 
-  beforeEach(async (): Promise<void> => {
-    testLogger.info(`${testName}: resetting containers for each test`);
-    resetForTest(endToEndTestSuite.namespace.name, testCacheDirectory, false);
-    testLogger.info(`${testName}: finished resetting containers for each test`);
-  });
+      // TODO after all test are done delete the namespace for the next test
 
-  // TODO after all test are done delete the namespace for the next test
+      it(`${testName}: solo init`, async (): Promise<void> => {
+        endToEndTestSuite.testLogger.info(`${testName}: beginning solo init`);
+        await main(soloInitArgv());
+        endToEndTestSuite.testLogger.info(`${testName}: finished solo init`);
+      });
 
-  it(`${testName}: solo init`, async (): Promise<void> => {
-    testLogger.info(`${testName}: beginning solo init`);
-    await main(soloInitArgv());
-    testLogger.info(`${testName}: finished solo init`);
-  });
-
-  it(`${testName}: solo cluster-ref connect`, async (): Promise<void> => {
-    testLogger.info(`${testName}: beginning solo cluster-ref connect`);
-    for (const [index, element] of testClusterArray.entries()) {
-      await main(soloClusterReferenceConnectArgv(element, contexts[index]));
-    }
-    const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
-      InjectTokens.LocalConfigRuntimeState,
-    );
-    const clusterReferences: FacadeMap<string, StringFacade, string> = localConfig.configuration.clusterRefs;
-    expect(clusterReferences.get(testClusterArray[0])?.toString()).to.equal(contexts[0]);
-    expect(clusterReferences.get(testClusterArray[1])?.toString()).to.equal(contexts[1]);
-    testLogger.info(`${testName}: finished solo cluster-ref connect`);
-  });
-
-  it(`${testName}: solo deployment create`, async (): Promise<void> => {
-    testLogger.info(`${testName}: beginning solo deployment create`);
-    await main(soloDeploymentCreateArgv(endToEndTestSuite.deployment, endToEndTestSuite.namespace));
-    testLogger.info(`${testName}: finished solo deployment create`);
-  });
-
-  it(`${testName}: solo deployment add-cluster`, async (): Promise<void> => {
-    testLogger.info(`${testName}: beginning solo deployment add-cluster`);
-    for (const element of testClusterArray) {
-      await main(soloDeploymentAddClusterArgv(endToEndTestSuite.deployment, element, 1));
-    }
-    const remoteConfig: RemoteConfigRuntimeStateApi = container.resolve(InjectTokens.RemoteConfigRuntimeState);
-    expect(remoteConfig.isLoaded(), 'remote config manager should be loaded').to.be.true;
-    const consensusNodes: Record<ComponentId, ConsensusNodeStateSchema> =
-      remoteConfig.configuration.components.state.consensusNodes;
-    expect(Object.entries(consensusNodes).length, 'consensus node count should be 2').to.equal(2);
-    expect(consensusNodes[0].metadata.cluster).to.equal(testClusterArray[0]);
-    expect(consensusNodes[1].metadata.cluster).to.equal(testClusterArray[1]);
-    testLogger.info(`${testName}: finished solo deployment add-cluster`);
-  });
-
-  it(`${testName}: solo cluster-ref setup`, async (): Promise<void> => {
-    testLogger.info(`${testName}: beginning solo cluster-ref setup`);
-    for (const element of testClusterArray) {
-      await main(soloClusterReferenceSetup(element));
-    }
-    testLogger.info(`${testName}: finishing solo cluster-ref setup`);
-  });
-
-  it(`${testName}: node keys`, async (): Promise<void> => {
-    testLogger.info(`${testName}: beginning node keys command`);
-    await main(soloNodeKeysArgv(endToEndTestSuite.deployment));
-    const node1Key: Buffer = fs.readFileSync(
-      PathEx.joinWithRealPath(testCacheDirectory, 'keys', 's-private-node1.pem'),
-    );
-    expect(node1Key).to.not.be.null;
-    testLogger.info(`${testName}: finished node keys command`);
-  });
-
-  it(`${testName}: network deploy`, async (): Promise<void> => {
-    await main(soloNetworkDeployArgv(endToEndTestSuite.deployment, enableLocalBuildPathTesting, localBuildReleaseTag));
-    const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-    for (const [index, context_] of contexts.entries()) {
-      const k8: K8 = k8Factory.getK8(context_);
-      expect(
-        await k8.namespaces().has(endToEndTestSuite.namespace),
-        `namespace ${endToEndTestSuite.namespace} should exist in ${context}`,
-      ).to.be.true;
-      const pods: Pod[] = await k8.pods().list(endToEndTestSuite.namespace, ['solo.hedera.com/type=network-node']);
-      expect(pods).to.have.lengthOf(1);
-      const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(index + 1);
-      expect(pods[0].labels['solo.hedera.com/node-name']).to.equal(nodeAlias);
-    }
-  }).timeout(Duration.ofMinutes(5).toMillis());
-
-  it(`${testName}: node setup`, async (): Promise<void> => {
-    await main(
-      soloNodeSetupArgv(
-        endToEndTestSuite.deployment,
-        enableLocalBuildPathTesting,
-        localBuildPath,
-        localBuildReleaseTag,
-      ),
-    );
-    const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-    for (const context_ of contexts) {
-      const k8: K8 = k8Factory.getK8(context_);
-      const pods: Pod[] = await k8.pods().list(endToEndTestSuite.namespace, ['solo.hedera.com/type=network-node']);
-      expect(pods, 'expect this cluster to have one network node').to.have.lengthOf(1);
-      const rootContainer: ContainerReference = ContainerReference.of(
-        PodReference.of(endToEndTestSuite.namespace, pods[0].podReference.name),
-        ROOT_CONTAINER,
-      );
-      if (!enableLocalBuildPathTesting) {
-        expect(
-          await k8.containers().readByRef(rootContainer).hasFile(`${HEDERA_USER_HOME_DIR}/extract-platform.sh`),
-          'expect extract-platform.sh to be present on the pods',
-        ).to.be.true;
-      }
-      expect(await k8.containers().readByRef(rootContainer).hasFile(`${HEDERA_HAPI_PATH}/data/apps/HederaNode.jar`)).to
-        .be.true;
-      expect(
-        await k8.containers().readByRef(rootContainer).hasFile(`${HEDERA_HAPI_PATH}/data/config/genesis-network.json`),
-      ).to.be.true;
-      expect(
-        await k8
-          .containers()
-          .readByRef(rootContainer)
-          .execContainer(['bash', '-c', `ls -al ${HEDERA_HAPI_PATH} | grep output`]),
-      ).to.includes('hedera');
-    }
-  }).timeout(Duration.ofMinutes(2).toMillis());
-
-  it(`${testName}: node start`, async (): Promise<void> => {
-    await main(soloNodeStartArgv(endToEndTestSuite.deployment));
-    for (const context_ of contexts) {
-      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-      const k8: K8 = k8Factory.getK8(context_);
-      const networkNodePod: Pod[] = await k8
-        .pods()
-        .list(endToEndTestSuite.namespace, ['solo.hedera.com/type=network-node']);
-      expect(networkNodePod).to.have.lengthOf(1);
-      const haProxyPod: Pod[] = await k8
-        .pods()
-        .waitForReadyStatus(
-          endToEndTestSuite.namespace,
-          [
-            `app=haproxy-${Templates.extractNodeAliasFromPodName(networkNodePod[0].podReference.name)}`,
-            'solo.hedera.com/type=haproxy',
-          ],
-          constants.NETWORK_PROXY_MAX_ATTEMPTS,
-          constants.NETWORK_PROXY_DELAY,
+      it(`${testName}: solo cluster-ref connect`, async (): Promise<void> => {
+        endToEndTestSuite.testLogger.info(`${testName}: beginning solo cluster-ref connect`);
+        for (const [index, element] of endToEndTestSuite.clusterReferences.entries()) {
+          await main(soloClusterReferenceConnectArgv(element, endToEndTestSuite.contexts[index]));
+        }
+        const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
+          InjectTokens.LocalConfigRuntimeState,
         );
-      expect(haProxyPod).to.have.lengthOf(1);
-      createdAccountIds.push(
+        const clusterReferences: FacadeMap<string, StringFacade, string> = localConfig.configuration.clusterRefs;
+        expect(clusterReferences.get(endToEndTestSuite.clusterReferences[0])?.toString()).to.equal(
+          endToEndTestSuite.contexts[0],
+        );
+        expect(clusterReferences.get(endToEndTestSuite.clusterReferences[1])?.toString()).to.equal(
+          endToEndTestSuite.contexts[1],
+        );
+        endToEndTestSuite.testLogger.info(`${testName}: finished solo cluster-ref connect`);
+      });
+
+      it(`${testName}: solo deployment create`, async (): Promise<void> => {
+        endToEndTestSuite.testLogger.info(`${testName}: beginning solo deployment create`);
+        await main(soloDeploymentCreateArgv(endToEndTestSuite.deployment, endToEndTestSuite.namespace));
+        endToEndTestSuite.testLogger.info(`${testName}: finished solo deployment create`);
+      });
+
+      it(`${testName}: solo deployment add-cluster`, async (): Promise<void> => {
+        endToEndTestSuite.testLogger.info(`${testName}: beginning solo deployment add-cluster`);
+        for (const element of endToEndTestSuite.clusterReferenceNameArray) {
+          await main(soloDeploymentAddClusterArgv(endToEndTestSuite.deployment, element, 1));
+        }
+        const remoteConfig: RemoteConfigRuntimeStateApi = container.resolve(InjectTokens.RemoteConfigRuntimeState);
+        expect(remoteConfig.isLoaded(), 'remote config manager should be loaded').to.be.true;
+        const consensusNodes: Record<ComponentId, ConsensusNodeStateSchema> =
+          remoteConfig.configuration.components.state.consensusNodes;
+        expect(Object.entries(consensusNodes).length, 'consensus node count should be 2').to.equal(2);
+        expect(consensusNodes[0].metadata.cluster).to.equal(endToEndTestSuite.clusterReferences[0]);
+        expect(consensusNodes[1].metadata.cluster).to.equal(endToEndTestSuite.clusterReferences[1]);
+        endToEndTestSuite.testLogger.info(`${testName}: finished solo deployment add-cluster`);
+      });
+
+      it(`${testName}: solo cluster-ref setup`, async (): Promise<void> => {
+        endToEndTestSuite.testLogger.info(`${testName}: beginning solo cluster-ref setup`);
+        for (const element of endToEndTestSuite.clusterReferenceNameArray) {
+          await main(soloClusterReferenceSetup(element));
+        }
+        endToEndTestSuite.testLogger.info(`${testName}: finishing solo cluster-ref setup`);
+      });
+
+      it(`${testName}: node keys`, async (): Promise<void> => {
+        endToEndTestSuite.testLogger.info(`${testName}: beginning node keys command`);
+        await main(soloNodeKeysArgv(endToEndTestSuite.deployment));
+        const node1Key: Buffer = fs.readFileSync(
+          PathEx.joinWithRealPath(endToEndTestSuite.testCacheDirectory, 'keys', 's-private-node1.pem'),
+        );
+        expect(node1Key).to.not.be.null;
+        endToEndTestSuite.testLogger.info(`${testName}: finished node keys command`);
+      });
+
+      it(`${testName}: network deploy`, async (): Promise<void> => {
+        await main(
+          soloNetworkDeployArgv(
+            endToEndTestSuite.deployment,
+            endToEndTestSuite.enableLocalBuildPathTesting,
+            endToEndTestSuite.localBuildReleaseTag,
+          ),
+        );
+        const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+        for (const [index, context_] of endToEndTestSuite.contexts.entries()) {
+          const k8: K8 = k8Factory.getK8(context_);
+          expect(
+            await k8.namespaces().has(endToEndTestSuite.namespace),
+            `namespace ${endToEndTestSuite.namespace} should exist in ${context}`,
+          ).to.be.true;
+          const pods: Pod[] = await k8.pods().list(endToEndTestSuite.namespace, ['solo.hedera.com/type=network-node']);
+          expect(pods).to.have.lengthOf(1);
+          const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(index + 1);
+          expect(pods[0].labels['solo.hedera.com/node-name']).to.equal(nodeAlias);
+        }
+      }).timeout(Duration.ofMinutes(5).toMillis());
+
+      it(`${testName}: node setup`, async (): Promise<void> => {
+        await main(
+          soloNodeSetupArgv(
+            endToEndTestSuite.deployment,
+            endToEndTestSuite.enableLocalBuildPathTesting,
+            endToEndTestSuite.localBuildPath,
+            endToEndTestSuite.localBuildReleaseTag,
+          ),
+        );
+        const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+        for (const context_ of endToEndTestSuite.contexts) {
+          const k8: K8 = k8Factory.getK8(context_);
+          const pods: Pod[] = await k8.pods().list(endToEndTestSuite.namespace, ['solo.hedera.com/type=network-node']);
+          expect(pods, 'expect this cluster to have one network node').to.have.lengthOf(1);
+          const rootContainer: ContainerReference = ContainerReference.of(
+            PodReference.of(endToEndTestSuite.namespace, pods[0].podReference.name),
+            ROOT_CONTAINER,
+          );
+          if (!endToEndTestSuite.enableLocalBuildPathTesting) {
+            expect(
+              await k8.containers().readByRef(rootContainer).hasFile(`${HEDERA_USER_HOME_DIR}/extract-platform.sh`),
+              'expect extract-platform.sh to be present on the pods',
+            ).to.be.true;
+          }
+          expect(await k8.containers().readByRef(rootContainer).hasFile(`${HEDERA_HAPI_PATH}/data/apps/HederaNode.jar`))
+            .to.be.true;
+          expect(
+            await k8
+              .containers()
+              .readByRef(rootContainer)
+              .hasFile(`${HEDERA_HAPI_PATH}/data/config/genesis-network.json`),
+          ).to.be.true;
+          expect(
+            await k8
+              .containers()
+              .readByRef(rootContainer)
+              .execContainer(['bash', '-c', `ls -al ${HEDERA_HAPI_PATH} | grep output`]),
+          ).to.includes('hedera');
+        }
+      }).timeout(Duration.ofMinutes(2).toMillis());
+
+      it(`${testName}: node start`, async (): Promise<void> => {
+        await main(soloNodeStartArgv(endToEndTestSuite.deployment));
+        for (const context_ of endToEndTestSuite.contexts) {
+          const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+          const k8: K8 = k8Factory.getK8(context_);
+          const networkNodePod: Pod[] = await k8
+            .pods()
+            .list(endToEndTestSuite.namespace, ['solo.hedera.com/type=network-node']);
+          expect(networkNodePod).to.have.lengthOf(1);
+          const haProxyPod: Pod[] = await k8
+            .pods()
+            .waitForReadyStatus(
+              endToEndTestSuite.namespace,
+              [
+                `app=haproxy-${Templates.extractNodeAliasFromPodName(networkNodePod[0].podReference.name)}`,
+                'solo.hedera.com/type=haproxy',
+              ],
+              constants.NETWORK_PROXY_MAX_ATTEMPTS,
+              constants.NETWORK_PROXY_DELAY,
+            );
+          expect(haProxyPod).to.have.lengthOf(1);
+          endToEndTestSuite.createdAccountIds.push(
+            await verifyAccountCreateWasSuccessful(
+              endToEndTestSuite.namespace,
+              endToEndTestSuite.clusterReferences,
+              endToEndTestSuite.deployment,
+            ),
+            await verifyAccountCreateWasSuccessful(
+              endToEndTestSuite.namespace,
+              endToEndTestSuite.clusterReferences,
+              endToEndTestSuite.deployment,
+            ),
+          );
+        }
+        // create one more account to make sure that the last one gets pushed to mirror node
         await verifyAccountCreateWasSuccessful(
           endToEndTestSuite.namespace,
-          testClusterReferences,
+          endToEndTestSuite.clusterReferences,
           endToEndTestSuite.deployment,
-        ),
-        await verifyAccountCreateWasSuccessful(
+        );
+      }).timeout(Duration.ofMinutes(5).toMillis());
+
+      it(`${testName}: mirror node deploy`, async (): Promise<void> => {
+        await main(
+          soloMirrorNodeDeployArgv(endToEndTestSuite.deployment, endToEndTestSuite.clusterReferenceNameArray[1]),
+        );
+        await verifyMirrorNodeDeployWasSuccessful(
+          endToEndTestSuite.contexts,
           endToEndTestSuite.namespace,
-          testClusterReferences,
-          endToEndTestSuite.deployment,
-        ),
-      );
-    }
-    // create one more account to make sure that the last one gets pushed to mirror node
-    await verifyAccountCreateWasSuccessful(
-      endToEndTestSuite.namespace,
-      testClusterReferences,
-      endToEndTestSuite.deployment,
-    );
-  }).timeout(Duration.ofMinutes(5).toMillis());
+          endToEndTestSuite.testLogger,
+          endToEndTestSuite.createdAccountIds,
+          endToEndTestSuite.enableLocalBuildPathTesting,
+          endToEndTestSuite.localBuildReleaseTag,
+        );
+      }).timeout(Duration.ofMinutes(10).toMillis());
 
-  it(`${testName}: mirror node deploy`, async (): Promise<void> => {
-    await main(soloMirrorNodeDeployArgv(endToEndTestSuite.deployment, testClusterArray[1]));
-    await verifyMirrorNodeDeployWasSuccessful(
-      contexts,
-      endToEndTestSuite.namespace,
-      testLogger,
-      createdAccountIds,
-      enableLocalBuildPathTesting,
-      localBuildReleaseTag,
-    );
-  }).timeout(Duration.ofMinutes(10).toMillis());
+      it(`${testName}: explorer deploy`, async (): Promise<void> => {
+        await main(
+          soloExplorerDeployArgv(endToEndTestSuite.deployment, endToEndTestSuite.clusterReferenceNameArray[1]),
+        );
+        await verifyExplorerDeployWasSuccessful(
+          endToEndTestSuite.contexts,
+          endToEndTestSuite.namespace,
+          endToEndTestSuite.createdAccountIds,
+          endToEndTestSuite.testLogger,
+        );
+      }).timeout(Duration.ofMinutes(5).toMillis());
 
-  it(`${testName}: explorer deploy`, async (): Promise<void> => {
-    await main(soloExplorerDeployArgv(endToEndTestSuite.deployment, testClusterArray[1]));
-    await verifyExplorerDeployWasSuccessful(contexts, endToEndTestSuite.namespace, createdAccountIds, testLogger);
-  }).timeout(Duration.ofMinutes(5).toMillis());
-
-  // TODO json rpc relay deploy
-  // TODO json rpc relay destroy
-  // TODO explorer destroy
-  // TODO mirror node destroy
-  // TODO network destroy
-  xit(`${testName}: network destroy`, async (): Promise<void> => {
-    await main(soloNetworkDestroyArgv(endToEndTestSuite.deployment));
-  });
-});
+      // TODO json rpc relay deploy
+      // TODO json rpc relay destroy
+      // TODO explorer destroy
+      // TODO mirror node destroy
+      // TODO network destroy
+      xit(`${testName}: network destroy`, async (): Promise<void> => {
+        await main(soloNetworkDestroyArgv(endToEndTestSuite.deployment));
+      });
+    });
+  })
+  .build();
+endToEndTestSuite.runTestSuite();
 
 function newArgv(): string[] {
   return ['${PATH}/node', '${SOLO_ROOT}/solo.ts'];
@@ -308,7 +315,7 @@ function soloInitArgv(): string[] {
   return argv;
 }
 
-function soloClusterReferenceConnectArgv(clusterReference: ClusterReference, context: string): string[] {
+function soloClusterReferenceConnectArgv(clusterReference: ClusterReferenceName, context: string): string[] {
   const argv: string[] = newArgv();
   argv.push(
     'cluster-ref',
@@ -338,7 +345,7 @@ function soloDeploymentCreateArgv(deployment: DeploymentName, namespace: Namespa
 
 function soloDeploymentAddClusterArgv(
   deployment: DeploymentName,
-  clusterReference: ClusterReference,
+  clusterReference: ClusterReferenceName,
   numberOfNodes: number,
 ): string[] {
   const argv: string[] = newArgv();
@@ -356,7 +363,7 @@ function soloDeploymentAddClusterArgv(
   return argv;
 }
 
-function soloClusterReferenceSetup(clusterReference: ClusterReference): string[] {
+function soloClusterReferenceSetup(clusterReference: ClusterReferenceName): string[] {
   const argv: string[] = newArgv();
   argv.push('cluster-ref', 'setup', optionFromFlag(Flags.clusterRef), clusterReference);
   argvPushGlobalFlags(argv, false, true);
@@ -464,7 +471,7 @@ async function verifyAccountCreateWasSuccessful(
   }
 }
 
-function soloMirrorNodeDeployArgv(deployment: DeploymentName, clusterReference: ClusterReference): string[] {
+function soloMirrorNodeDeployArgv(deployment: DeploymentName, clusterReference: ClusterReferenceName): string[] {
   const argv: string[] = newArgv();
   argv.push(
     'mirror-node',
@@ -482,7 +489,7 @@ function soloMirrorNodeDeployArgv(deployment: DeploymentName, clusterReference: 
 async function verifyMirrorNodeDeployWasSuccessful(
   contexts: string[],
   namespace: NamespaceName,
-  testLogger: SoloWinstonLogger,
+  testLogger: SoloLogger,
   createdAccountIds: string[],
   enableLocalBuildPathTesting: boolean,
   localBuildReleaseTag: string,
@@ -583,7 +590,7 @@ async function verifyMirrorNodeDeployWasSuccessful(
   }
 }
 
-function soloExplorerDeployArgv(deployment: DeploymentName, clusterReference: ClusterReference): string[] {
+function soloExplorerDeployArgv(deployment: DeploymentName, clusterReference: ClusterReferenceName): string[] {
   const argv: string[] = newArgv();
   argv.push(
     'explorer',
@@ -601,7 +608,7 @@ async function verifyExplorerDeployWasSuccessful(
   contexts: string[],
   namespace: NamespaceName,
   createdAccountIds: string[],
-  testLogger: SoloWinstonLogger,
+  testLogger: SoloLogger,
 ): Promise<void> {
   const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
   const k8: K8 = k8Factory.getK8(contexts[1]);

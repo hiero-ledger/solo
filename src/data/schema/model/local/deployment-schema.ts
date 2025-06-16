@@ -2,7 +2,7 @@
 
 import {Exclude, Expose} from 'class-transformer';
 import {
-  type ClusterReference,
+  type ClusterReferenceName,
   type DeploymentName,
   type NamespaceNameAsString,
   type Realm,
@@ -18,7 +18,7 @@ export class DeploymentSchema {
   public namespace: NamespaceNameAsString;
 
   @Expose()
-  public clusters: ClusterReference[];
+  public clusters: ClusterReferenceName[];
 
   @Expose()
   public realm: Realm;
@@ -29,7 +29,7 @@ export class DeploymentSchema {
   public constructor(
     name?: DeploymentName,
     namespace?: NamespaceNameAsString,
-    clusters?: ClusterReference[],
+    clusters?: ClusterReferenceName[],
     realm?: Realm,
     shard?: Shard,
   ) {
