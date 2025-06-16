@@ -160,7 +160,6 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.externalDatabaseReadonlyUsername,
       flags.externalDatabaseReadonlyPassword,
       flags.domainName,
-      flags.useLegacyReleaseName,
       flags.id,
       flags.redeploy,
     ],
@@ -443,11 +442,6 @@ export class MirrorNodeCommand extends BaseCommand {
 
               context_.config.releaseName = this.getReleaseName(context_.config.id);
               context_.config.ingressReleaseName = this.getIngressReleaseName(context_.config.id);
-            }
-
-            if (context_.config.useLegacyReleaseName) {
-              context_.config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
-              context_.config.ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
             }
 
             // On redeploy

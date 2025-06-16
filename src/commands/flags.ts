@@ -424,17 +424,6 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly useLegacyReleaseName: CommandFlag = {
-    constName: 'useLegacyReleaseName',
-    name: 'use-legacy-release-name',
-    definition: {
-      describe: 'Use the legacy release name for mirror node "mirror-node"',
-      defaultValue: false,
-      type: 'boolean',
-    },
-    prompt: undefined,
-  };
-
   public static readonly enablePrometheusSvcMonitor: CommandFlag = {
     constName: 'enablePrometheusSvcMonitor',
     name: 'prometheus-svc-monitor',
@@ -2651,7 +2640,6 @@ export class Flags {
     Flags.shard,
     Flags.username,
     Flags.id,
-    Flags.useLegacyReleaseName,
     Flags.redeploy,
   ];
 
