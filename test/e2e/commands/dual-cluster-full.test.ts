@@ -176,7 +176,6 @@ describe('Dual Cluster Full E2E Test', function dualClusterFullEndToEndTest() {
     }
   }).timeout(Duration.ofMinutes(5).toMillis());
 
-  // TODO node setup still list --node-aliases
   it(`${testName}: node setup`, async (): Promise<void> => {
     await main(soloNodeSetupArgv(deployment, enableLocalBuildPathTesting, localBuildPath, localBuildReleaseTag));
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
@@ -208,7 +207,6 @@ describe('Dual Cluster Full E2E Test', function dualClusterFullEndToEndTest() {
     }
   }).timeout(Duration.ofMinutes(2).toMillis());
 
-  // TODO node start still list --node-aliases
   it(`${testName}: node start`, async (): Promise<void> => {
     await main(soloNodeStartArgv(deployment));
     for (const context_ of contexts) {
