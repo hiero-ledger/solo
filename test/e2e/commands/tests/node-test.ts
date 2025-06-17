@@ -28,7 +28,7 @@ import {
   type TransactionReceipt,
   type TransactionResponse,
 } from '@hashgraph/sdk';
-import {type BaseCommandOptions} from './base-command-options.js';
+import {type BaseTestOptions} from './base-test-options.js';
 
 export class NodeTest extends BaseCommandTest {
   private static soloNodeKeysArgv(testName: string, deployment: DeploymentName): string[] {
@@ -48,7 +48,7 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  public static keys(options: BaseCommandOptions): void {
+  public static keys(options: BaseTestOptions): void {
     const {testName, testLogger, deployment, testCacheDirectory} = options;
     const {soloNodeKeysArgv} = NodeTest;
 
@@ -86,7 +86,7 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  public static setup(options: BaseCommandOptions): void {
+  public static setup(options: BaseTestOptions): void {
     const {
       testName,
       deployment,
@@ -184,7 +184,7 @@ export class NodeTest extends BaseCommandTest {
     }
   }
 
-  public static start(options: BaseCommandOptions): void {
+  public static start(options: BaseTestOptions): void {
     const {testName, deployment, namespace, contexts, createdAccountIds, clusterReferences} = options;
     const {soloNodeStartArgv, verifyAccountCreateWasSuccessful} = NodeTest;
 

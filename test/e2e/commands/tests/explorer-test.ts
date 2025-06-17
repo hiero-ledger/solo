@@ -16,7 +16,7 @@ import {type PackageDownloader} from '../../../../src/core/package-downloader.js
 import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
-import {type BaseCommandOptions} from './base-command-options.js';
+import {type BaseTestOptions} from './base-test-options.js';
 
 export class ExplorerTest extends BaseCommandTest {
   private static soloExplorerDeployArgv(
@@ -107,7 +107,7 @@ export class ExplorerTest extends BaseCommandTest {
     }
   }
 
-  public static deploy(options: BaseCommandOptions): void {
+  public static deploy(options: BaseTestOptions): void {
     const {testName, deployment, namespace, contexts, clusterReferenceNameArray, testLogger, createdAccountIds} =
       options;
     const {soloExplorerDeployArgv, verifyExplorerDeployWasSuccessful} = ExplorerTest;

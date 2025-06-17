@@ -15,7 +15,7 @@ import {sleep} from '../../../../src/core/helpers.js';
 import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
-import {type BaseCommandOptions} from './base-command-options.js';
+import {type BaseTestOptions} from './base-test-options.js';
 
 export class MirrorNodeTest extends BaseCommandTest {
   private static soloMirrorNodeDeployArgv(
@@ -141,7 +141,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     }
   }
 
-  public static deploy(options: BaseCommandOptions): void {
+  public static deploy(options: BaseTestOptions): void {
     const {testName, testLogger, deployment, contexts, namespace, clusterReferenceNameArray, createdAccountIds} =
       options;
     const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful} = MirrorNodeTest;

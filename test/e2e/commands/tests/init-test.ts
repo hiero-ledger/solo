@@ -2,7 +2,7 @@
 
 import {BaseCommandTest} from './base-command-test.js';
 import {main} from '../../../../src/index.js';
-import {type BaseCommandOptions} from './base-command-options.js';
+import {type BaseTestOptions} from './base-test-options.js';
 
 export class InitTest extends BaseCommandTest {
   private static soloInitArgv(testName: string): string[] {
@@ -14,7 +14,7 @@ export class InitTest extends BaseCommandTest {
     return argv;
   }
 
-  public static init(options: BaseCommandOptions): void {
+  public static init(options: BaseTestOptions): void {
     const {testName, testLogger} = options;
     const {soloInitArgv} = InitTest;
 

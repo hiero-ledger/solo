@@ -13,7 +13,7 @@ import {container} from 'tsyringe-neo';
 import {expect} from 'chai';
 import {type DeploymentName} from '../../../../src/types/index.js';
 import {Flags} from '../../../../src/commands/flags.js';
-import {type BaseCommandOptions} from './base-command-options.js';
+import {type BaseTestOptions} from './base-test-options.js';
 
 export class NetworkTest extends BaseCommandTest {
   private static soloNetworkDeployArgv(
@@ -39,7 +39,7 @@ export class NetworkTest extends BaseCommandTest {
     return argv;
   }
 
-  public static deploy(options: BaseCommandOptions): void {
+  public static deploy(options: BaseTestOptions): void {
     const {testName, deployment, namespace, contexts, enableLocalBuildPathTesting, localBuildReleaseTag} = options;
     const {soloNetworkDeployArgv} = NetworkTest;
 
@@ -66,7 +66,7 @@ export class NetworkTest extends BaseCommandTest {
     return argv;
   }
 
-  public static destroy(options: BaseCommandOptions): void {
+  public static destroy(options: BaseTestOptions): void {
     const {testName, deployment} = options;
     const {soloNetworkDestroyArgv} = NetworkTest;
 

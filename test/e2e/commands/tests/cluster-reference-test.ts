@@ -10,7 +10,7 @@ import {type ClusterReferenceName} from '../../../../src/types/index.js';
 import {Flags} from '../../../../src/commands/flags.js';
 import {container} from 'tsyringe-neo';
 import {expect} from 'chai';
-import {type BaseCommandOptions} from './base-command-options.js';
+import {type BaseTestOptions} from './base-test-options.js';
 
 export class ClusterReferenceTest extends BaseCommandTest {
   private static soloClusterReferenceConnectArgv(
@@ -33,7 +33,7 @@ export class ClusterReferenceTest extends BaseCommandTest {
     return argv;
   }
 
-  public static connect(options: BaseCommandOptions): void {
+  public static connect(options: BaseTestOptions): void {
     const {testName, testLogger, clusterReferences, clusterReferenceNameArray, contexts} = options;
     const {soloClusterReferenceConnectArgv} = ClusterReferenceTest;
 
@@ -61,7 +61,7 @@ export class ClusterReferenceTest extends BaseCommandTest {
     return argv;
   }
 
-  public static setup(options: BaseCommandOptions): void {
+  public static setup(options: BaseTestOptions): void {
     const {testName, testLogger, clusterReferenceNameArray} = options;
     const {soloClusterReferenceSetup} = ClusterReferenceTest;
 

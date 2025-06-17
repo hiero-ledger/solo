@@ -16,7 +16,7 @@ import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
 import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
 import {InitTest} from './tests/init-test.js';
 import {ClusterReferenceTest} from './tests/cluster-reference-test.js';
-import {type BaseCommandOptions} from './tests/base-command-options.js';
+import {type BaseTestOptions} from './tests/base-test-options.js';
 import {DeploymentTest} from './tests/deployment-test.js';
 import {NodeTest} from './tests/node-test.js';
 import {NetworkTest} from './tests/network-test.js';
@@ -30,36 +30,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withNamespace(testName)
   .withDeployment(`${testName}-deployment`)
   .withClusterCount(2)
-  .withTestSuiteCallback((endToEndTestSuite: EndToEndTestSuite): void => {
+  .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe('Dual Cluster Full E2E Test', (): void => {
-      const {
-        testCacheDirectory,
-        testLogger,
-        namespace,
-        contexts,
-        clusterReferenceNameArray,
-        deployment,
-        enableLocalBuildPathTesting,
-        localBuildPath,
-        localBuildReleaseTag,
-        createdAccountIds,
-        clusterReferences,
-      } = endToEndTestSuite;
-
-      const options: BaseCommandOptions = {
-        testName,
-        testLogger,
-        clusterReferences,
-        clusterReferenceNameArray,
-        contexts,
-        deployment,
-        namespace,
-        testCacheDirectory,
-        enableLocalBuildPathTesting,
-        localBuildReleaseTag,
-        localBuildPath,
-        createdAccountIds,
-      };
+      const {testCacheDirectory, testLogger, namespace, contexts} = options;
 
       // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
       before(async (): Promise<void> => {

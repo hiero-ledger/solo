@@ -7,6 +7,7 @@ import {type SoloLogger} from '../../src/core/logging/solo-logger.js';
 import {InjectTokens} from '../../src/core/dependency-injection/inject-tokens.js';
 import {container} from 'tsyringe-neo';
 import {Suite} from 'mocha';
+import {type BaseTestOptions} from './commands/tests/base-test-options.js';
 
 export class EndToEndTestSuite extends Suite {
   private readonly endToEndTestSuiteInstance: EndToEndTestSuite;
@@ -22,6 +23,7 @@ export class EndToEndTestSuite extends Suite {
     process.env.SOLO_LOCAL_BUILD_RELEASE_TAG || HEDERA_PLATFORM_VERSION_TAG;
   public readonly clusterReferenceNameArray: ClusterReferenceName[] = [];
   public readonly clusterReferences: ClusterReferences = new Map<string, string>();
+  public readonly options: BaseTestOptions;
 
   public constructor(
     public readonly testName: string,
@@ -29,7 +31,7 @@ export class EndToEndTestSuite extends Suite {
     public readonly namespace: NamespaceName,
     public readonly deployment: DeploymentName,
     public readonly clusterCount: number,
-    public readonly testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void,
+    public readonly testSuiteCallback: (options: BaseTestOptions) => void,
   ) {
     super(testName);
     const soloTestClusterName: string = getTestCluster();
@@ -61,13 +63,27 @@ export class EndToEndTestSuite extends Suite {
 
     this.testLogger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
     this.endToEndTestSuiteInstance = this;
+    this.options = {
+      testName,
+      testLogger: this.testLogger,
+      clusterReferences: this.clusterReferences,
+      clusterReferenceNameArray: this.clusterReferenceNameArray,
+      contexts: this.contexts,
+      deployment,
+      namespace,
+      testCacheDirectory: this.testCacheDirectory,
+      enableLocalBuildPathTesting: this.enableLocalBuildPathTesting,
+      localBuildReleaseTag: this.localBuildReleaseTag,
+      localBuildPath: this.localBuildPath,
+      createdAccountIds: this.createdAccountIds,
+    } as BaseTestOptions;
   }
 
   public runTestSuite(): void {
     const endToEndTestSuiteInstance: EndToEndTestSuite = this.endToEndTestSuiteInstance;
     describe(endToEndTestSuiteInstance.testSuiteName, function endToEndTestSuiteCallback(): void {
       this.bail(true);
-      endToEndTestSuiteInstance.testSuiteCallback(endToEndTestSuiteInstance);
+      endToEndTestSuiteInstance.testSuiteCallback(endToEndTestSuiteInstance.options);
     });
   }
 }

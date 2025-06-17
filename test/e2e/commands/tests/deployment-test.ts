@@ -10,7 +10,7 @@ import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tok
 import {type ConsensusNodeStateSchema} from '../../../../src/data/schema/model/remote/state/consensus-node-state-schema.js';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
-import {type BaseCommandOptions} from './base-command-options.js';
+import {type BaseTestOptions} from './base-test-options.js';
 
 export class DeploymentTest extends BaseCommandTest {
   private static soloDeploymentCreateArgv(
@@ -33,7 +33,7 @@ export class DeploymentTest extends BaseCommandTest {
     return argv;
   }
 
-  public static create(options: BaseCommandOptions): void {
+  public static create(options: BaseTestOptions): void {
     const {testName, testLogger, deployment, namespace} = options;
     const {soloDeploymentCreateArgv} = DeploymentTest;
 
@@ -67,7 +67,7 @@ export class DeploymentTest extends BaseCommandTest {
     return argv;
   }
 
-  public static addCluster(options: BaseCommandOptions): void {
+  public static addCluster(options: BaseTestOptions): void {
     const {testName, testLogger, deployment, clusterReferenceNameArray} = options;
     const {soloDeploymentAddClusterArgv} = DeploymentTest;
 
