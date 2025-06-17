@@ -103,9 +103,7 @@ export class K8Client implements K8 {
   private getKubeConfig(context: string): KubeConfig {
     const kubeConfig: KubeConfig = new KubeConfig();
 
-    try {
-      kubeConfig.loadFromDefault();
-
+    function setContextCallback(): void {
       if (context) {
         const kubeConfigContext: k8s.Context = kubeConfig.getContextObject(context);
 
@@ -115,10 +113,16 @@ export class K8Client implements K8 {
 
         kubeConfig.setCurrentContext(context);
       }
+    }
+
+    try {
+      kubeConfig.loadFromDefault();
+      setContextCallback();
     } catch (error) {
       //* Try loading from cluster if loading from default fails
       try {
         kubeConfig.loadFromCluster();
+        setContextCallback();
       } catch (fromClusterError) {
         throw new SoloError('Failed to load Kubernetes configuration', fromClusterError, error);
       }
