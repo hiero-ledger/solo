@@ -9,6 +9,7 @@ import {container} from 'tsyringe-neo';
 import {Suite} from 'mocha';
 
 export class EndToEndTestSuite extends Suite {
+  private readonly endToEndTestSuiteInstance: EndToEndTestSuite;
   public readonly testCacheDirectory: string;
   public readonly contexts: string[];
   public readonly testLogger: SoloLogger;
@@ -45,7 +46,8 @@ export class EndToEndTestSuite extends Suite {
     } else if (clusterCount === 2) {
       this.clusterReferences.set(testClusterReferenceNames[0], testClusterName);
       const secondContext: string = `${testClusterName.replace(soloTestClusterName.includes('-c1') ? '-c1' : '-c2', soloTestClusterName.includes('-c1') ? '-c2' : '-c1')}`;
-      this.clusterReferenceNameArray.push(testClusterReferenceNames[1], secondContext);
+      this.clusterReferences.set(testClusterReferenceNames[1], secondContext);
+      this.clusterReferenceNameArray.push(testClusterReferenceNames[0], testClusterReferenceNames[1]);
       this.contexts = [testClusterName, secondContext];
     } else {
       throw new Error(`Unsupported cluster count: ${clusterCount}. Only 1 or 2 clusters are supported.`);
@@ -58,12 +60,14 @@ export class EndToEndTestSuite extends Suite {
     this.testCacheDirectory = getTestCacheDirectory(testName);
 
     this.testLogger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
+    this.endToEndTestSuiteInstance = this;
   }
 
-  public runTestSuite(): Suite {
-    return describe(this.testSuiteName, function endToEndTestSuite(this: EndToEndTestSuite): void {
+  public runTestSuite(): void {
+    const endToEndTestSuiteInstance: EndToEndTestSuite = this.endToEndTestSuiteInstance;
+    describe(endToEndTestSuiteInstance.testSuiteName, function endToEndTestSuiteCallback(): void {
       this.bail(true);
-      this.testSuiteCallback(this);
+      endToEndTestSuiteInstance.testSuiteCallback(endToEndTestSuiteInstance);
     });
   }
 }
