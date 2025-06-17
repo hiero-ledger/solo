@@ -1334,13 +1334,14 @@ export class NodeCommandTasks {
       // set adminPublicKeys as array of constants.GENESIS_KEY with the same size consensus nodes
       adminPublicKeys = Array.from({length: consensusNodes.length}).fill(constants.GENESIS_KEY);
     }
-    const genesisNetworkData = await GenesisNetworkDataConstructor.initialize(
+    const genesisNetworkData: GenesisNetworkDataConstructor = await GenesisNetworkDataConstructor.initialize(
       consensusNodes,
       this.keyManager,
       this.accountManager,
       keysDirectory,
       networkNodeServiceMap,
       adminPublicKeys,
+      this.remoteConfig.configuration.clusters,
       domainNamesMapping,
     );
 
