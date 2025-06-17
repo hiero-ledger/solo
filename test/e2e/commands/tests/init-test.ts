@@ -2,25 +2,25 @@
 
 import {BaseCommandTest} from './base-command-test.js';
 import {main} from '../../../../src/index.js';
+import {type BaseCommandOptions} from './base-command-options.js';
 
 export class InitTest extends BaseCommandTest {
-  private soloInitArgv(): string[] {
-    const {newArgv, argvPushGlobalFlags} = this;
+  private static soloInitArgv(testName: string): string[] {
+    const {newArgv, argvPushGlobalFlags} = InitTest;
 
     const argv: string[] = newArgv();
     argv.push('init');
-    argvPushGlobalFlags(argv, true);
+    argvPushGlobalFlags(argv, testName, true);
     return argv;
   }
 
-  public init(): void {
-    const {testName, testLogger} = this.options;
-    const {soloInitArgv} = this;
-    const soloInitArgvBound: () => string[] = soloInitArgv.bind(this);
+  public static init(options: BaseCommandOptions): void {
+    const {testName, testLogger} = options;
+    const {soloInitArgv} = InitTest;
 
     it(`${testName}: solo init`, async (): Promise<void> => {
       testLogger.info(`${testName}: beginning solo init`);
-      await main(soloInitArgvBound());
+      await main(soloInitArgv(testName));
       testLogger.info(`${testName}: finished solo init`);
     });
   }

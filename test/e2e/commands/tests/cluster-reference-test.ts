@@ -10,10 +10,15 @@ import {type ClusterReferenceName} from '../../../../src/types/index.js';
 import {Flags} from '../../../../src/commands/flags.js';
 import {container} from 'tsyringe-neo';
 import {expect} from 'chai';
+import {type BaseCommandOptions} from './base-command-options.js';
 
 export class ClusterReferenceTest extends BaseCommandTest {
-  private soloClusterReferenceConnectArgv(clusterReference: ClusterReferenceName, context: string): string[] {
-    const {newArgv, optionFromFlag, argvPushGlobalFlags} = this;
+  private static soloClusterReferenceConnectArgv(
+    testName: string,
+    clusterReference: ClusterReferenceName,
+    context: string,
+  ): string[] {
+    const {newArgv, optionFromFlag, argvPushGlobalFlags} = ClusterReferenceTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -24,18 +29,18 @@ export class ClusterReferenceTest extends BaseCommandTest {
       optionFromFlag(Flags.context),
       context,
     );
-    argvPushGlobalFlags(argv);
+    argvPushGlobalFlags(argv, testName);
     return argv;
   }
 
-  public connect(): void {
-    const {testName, testLogger, clusterReferences, clusterReferenceNameArray, contexts} = this.options;
-    const {soloClusterReferenceConnectArgv} = this;
+  public static connect(options: BaseCommandOptions): void {
+    const {testName, testLogger, clusterReferences, clusterReferenceNameArray, contexts} = options;
+    const {soloClusterReferenceConnectArgv} = ClusterReferenceTest;
 
     it(`${testName}: solo cluster-ref connect`, async (): Promise<void> => {
       testLogger.info(`${testName}: beginning solo cluster-ref connect`);
       for (const [clusterReferenceName, context] of clusterReferences.entries()) {
-        await main(soloClusterReferenceConnectArgv(clusterReferenceName, context));
+        await main(soloClusterReferenceConnectArgv(testName, clusterReferenceName, context));
       }
       const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
         InjectTokens.LocalConfigRuntimeState,
@@ -47,25 +52,23 @@ export class ClusterReferenceTest extends BaseCommandTest {
     });
   }
 
-  private soloClusterReferenceSetup(clusterReference: ClusterReferenceName): string[] {
-    const {newArgv, optionFromFlag, argvPushGlobalFlags} = this;
+  private static soloClusterReferenceSetup(testName: string, clusterReference: ClusterReferenceName): string[] {
+    const {newArgv, optionFromFlag, argvPushGlobalFlags} = ClusterReferenceTest;
 
     const argv: string[] = newArgv();
     argv.push('cluster-ref', 'setup', optionFromFlag(Flags.clusterRef), clusterReference);
-    argvPushGlobalFlags(argv, false, true);
+    argvPushGlobalFlags(argv, testName, false, true);
     return argv;
   }
 
-  public setup(): void {
-    const {testName, testLogger, clusterReferenceNameArray} = this.options;
-    const {soloClusterReferenceSetup} = this;
-    const soloClusterReferenceSetupBound: (clusterReferenceName: ClusterReferenceName) => string[] =
-      soloClusterReferenceSetup.bind(this);
+  public static setup(options: BaseCommandOptions): void {
+    const {testName, testLogger, clusterReferenceNameArray} = options;
+    const {soloClusterReferenceSetup} = ClusterReferenceTest;
 
     it(`${testName}: solo cluster-ref setup`, async (): Promise<void> => {
       testLogger.info(`${testName}: beginning solo cluster-ref setup`);
       for (const clusterReferenceName of clusterReferenceNameArray) {
-        await main(soloClusterReferenceSetupBound(clusterReferenceName));
+        await main(soloClusterReferenceSetup(testName, clusterReferenceName));
       }
       testLogger.info(`${testName}: finishing solo cluster-ref setup`);
     });

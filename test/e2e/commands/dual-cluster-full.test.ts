@@ -87,26 +87,16 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       // TODO after all test are done delete the namespace for the next test
 
-      new InitTest(options).init();
-
-      const clusterReferenceTest: ClusterReferenceTest = new ClusterReferenceTest(options);
-      clusterReferenceTest.connect();
-
-      const deploymentTest: DeploymentTest = new DeploymentTest(options);
-      deploymentTest.create();
-      deploymentTest.addCluster();
-
-      clusterReferenceTest.setup();
-
-      const nodeTest: NodeTest = new NodeTest(options);
-      nodeTest.keys();
-
-      new NetworkTest(options).deploy();
-
-      nodeTest.setup();
-      nodeTest.start();
-
-      new MirrorNodeTest(options).deploy();
+      InitTest.init(options);
+      ClusterReferenceTest.connect(options);
+      DeploymentTest.create(options);
+      DeploymentTest.addCluster(options);
+      ClusterReferenceTest.setup(options);
+      NodeTest.keys(options);
+      NetworkTest.deploy(options);
+      NodeTest.setup(options);
+      NodeTest.start(options);
+      MirrorNodeTest.deploy(options);
 
       // TODO json rpc relay deploy
       // TODO json rpc relay destroy

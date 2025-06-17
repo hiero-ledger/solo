@@ -15,10 +15,15 @@ import {sleep} from '../../../../src/core/helpers.js';
 import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
+import {type BaseCommandOptions} from './base-command-options.js';
 
 export class MirrorNodeTest extends BaseCommandTest {
-  private soloMirrorNodeDeployArgv(deployment: DeploymentName, clusterReference: ClusterReferenceName): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = this;
+  private static soloMirrorNodeDeployArgv(
+    testName: string,
+    deployment: DeploymentName,
+    clusterReference: ClusterReferenceName,
+  ): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = MirrorNodeTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -30,11 +35,11 @@ export class MirrorNodeTest extends BaseCommandTest {
       clusterReference,
       optionFromFlag(Flags.pinger),
     );
-    argvPushGlobalFlags(argv, true, true);
+    argvPushGlobalFlags(argv, testName, true, true);
     return argv;
   }
 
-  private async verifyMirrorNodeDeployWasSuccessful(
+  private static async verifyMirrorNodeDeployWasSuccessful(
     contexts: string[],
     namespace: NamespaceName,
     testLogger: SoloLogger,
@@ -136,17 +141,13 @@ export class MirrorNodeTest extends BaseCommandTest {
     }
   }
 
-  public deploy(): void {
+  public static deploy(options: BaseCommandOptions): void {
     const {testName, testLogger, deployment, contexts, namespace, clusterReferenceNameArray, createdAccountIds} =
-      this.options;
-    const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful} = this;
-    const soloMirrorNodeDeployArgvBound: (
-      deployment: DeploymentName,
-      clusterReference: ClusterReferenceName,
-    ) => string[] = soloMirrorNodeDeployArgv.bind(this, deployment);
+      options;
+    const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful} = MirrorNodeTest;
 
     it(`${testName}: mirror node deploy`, async (): Promise<void> => {
-      await main(soloMirrorNodeDeployArgvBound(deployment, clusterReferenceNameArray[1]));
+      await main(soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
       await verifyMirrorNodeDeployWasSuccessful(contexts, namespace, testLogger, createdAccountIds);
     }).timeout(Duration.ofMinutes(10).toMillis());
   }

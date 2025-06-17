@@ -16,10 +16,15 @@ import {type PackageDownloader} from '../../../../src/core/package-downloader.js
 import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
+import {type BaseCommandOptions} from './base-command-options.js';
 
 export class ExplorerTest extends BaseCommandTest {
-  private soloExplorerDeployArgv(deployment: DeploymentName, clusterReference: ClusterReferenceName): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = this;
+  private static soloExplorerDeployArgv(
+    testName: string,
+    deployment: DeploymentName,
+    clusterReference: ClusterReferenceName,
+  ): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = ExplorerTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -30,11 +35,11 @@ export class ExplorerTest extends BaseCommandTest {
       optionFromFlag(Flags.clusterRef),
       clusterReference,
     );
-    argvPushGlobalFlags(argv, true, true);
+    argvPushGlobalFlags(argv, testName, true, true);
     return argv;
   }
 
-  private async verifyExplorerDeployWasSuccessful(
+  private static async verifyExplorerDeployWasSuccessful(
     contexts: string[],
     namespace: NamespaceName,
     createdAccountIds: string[],
@@ -102,17 +107,13 @@ export class ExplorerTest extends BaseCommandTest {
     }
   }
 
-  public deploy(): void {
+  public static deploy(options: BaseCommandOptions): void {
     const {testName, deployment, namespace, contexts, clusterReferenceNameArray, testLogger, createdAccountIds} =
-      this.options;
-    const {soloExplorerDeployArgv, verifyExplorerDeployWasSuccessful} = this;
-    const soloExplorerDeployArgvBound: (
-      deployment: DeploymentName,
-      clusterReference: ClusterReferenceName,
-    ) => string[] = soloExplorerDeployArgv.bind(this, deployment);
+      options;
+    const {soloExplorerDeployArgv, verifyExplorerDeployWasSuccessful} = ExplorerTest;
 
     it(`${testName}: explorer deploy`, async (): Promise<void> => {
-      await main(soloExplorerDeployArgvBound(deployment, clusterReferenceNameArray[1]));
+      await main(soloExplorerDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
       await verifyExplorerDeployWasSuccessful(contexts, namespace, createdAccountIds, testLogger);
     }).timeout(Duration.ofMinutes(5).toMillis());
   }

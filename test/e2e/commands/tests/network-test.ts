@@ -13,14 +13,16 @@ import {container} from 'tsyringe-neo';
 import {expect} from 'chai';
 import {type DeploymentName} from '../../../../src/types/index.js';
 import {Flags} from '../../../../src/commands/flags.js';
+import {type BaseCommandOptions} from './base-command-options.js';
 
 export class NetworkTest extends BaseCommandTest {
-  private soloNetworkDeployArgv(
+  private static soloNetworkDeployArgv(
+    testName: string,
     deployment: DeploymentName,
     enableLocalBuildPathTesting: boolean,
     localBuildReleaseTag: string,
   ): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = this;
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NetworkTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -33,21 +35,16 @@ export class NetworkTest extends BaseCommandTest {
     if (enableLocalBuildPathTesting) {
       argv.push(optionFromFlag(Flags.releaseTag), localBuildReleaseTag);
     }
-    argvPushGlobalFlags(argv, true, true);
+    argvPushGlobalFlags(argv, testName, true, true);
     return argv;
   }
 
-  public deploy(): void {
-    const {testName, deployment, namespace, contexts, enableLocalBuildPathTesting, localBuildReleaseTag} = this.options;
-    const {soloNetworkDeployArgv} = this;
-    const soloNetworkDeployArgvBound: (
-      deployment: DeploymentName,
-      enableLocalBuildPathTesting: boolean,
-      localBuildReleaseTag: string,
-    ) => string[] = soloNetworkDeployArgv.bind(this, deployment, enableLocalBuildPathTesting, localBuildReleaseTag);
+  public static deploy(options: BaseCommandOptions): void {
+    const {testName, deployment, namespace, contexts, enableLocalBuildPathTesting, localBuildReleaseTag} = options;
+    const {soloNetworkDeployArgv} = NetworkTest;
 
     it(`${testName}: network deploy`, async (): Promise<void> => {
-      await main(soloNetworkDeployArgvBound(deployment, enableLocalBuildPathTesting, localBuildReleaseTag));
+      await main(soloNetworkDeployArgv(testName, deployment, enableLocalBuildPathTesting, localBuildReleaseTag));
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
       for (const [index, context_] of contexts.entries()) {
         const k8: K8 = k8Factory.getK8(context_);
@@ -60,25 +57,21 @@ export class NetworkTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 
-  private soloNetworkDestroyArgv(deployment: DeploymentName): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = this;
+  private static soloNetworkDestroyArgv(testName: string, deployment: DeploymentName): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NetworkTest;
 
     const argv: string[] = newArgv();
     argv.push('network', 'destroy', optionFromFlag(Flags.deployment), deployment);
-    argvPushGlobalFlags(argv, false, true);
+    argvPushGlobalFlags(argv, testName, false, true);
     return argv;
   }
 
-  public destroy(): void {
-    const {testName, deployment} = this.options;
-    const {soloNetworkDestroyArgv} = this;
-    const soloNetworkDestroyArgvBound: (deployment: DeploymentName) => string[] = soloNetworkDestroyArgv.bind(
-      this,
-      deployment,
-    );
+  public static destroy(options: BaseCommandOptions): void {
+    const {testName, deployment} = options;
+    const {soloNetworkDestroyArgv} = NetworkTest;
 
     it(`${testName}: network destroy`, async (): Promise<void> => {
-      await main(soloNetworkDestroyArgvBound(deployment));
+      await main(soloNetworkDestroyArgv(testName, deployment));
     });
   }
 }

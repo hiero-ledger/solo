@@ -28,10 +28,11 @@ import {
   type TransactionReceipt,
   type TransactionResponse,
 } from '@hashgraph/sdk';
+import {type BaseCommandOptions} from './base-command-options.js';
 
 export class NodeTest extends BaseCommandTest {
-  private soloNodeKeysArgv(deployment: DeploymentName): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = this;
+  private static soloNodeKeysArgv(testName: string, deployment: DeploymentName): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -43,18 +44,17 @@ export class NodeTest extends BaseCommandTest {
       'true',
       optionFromFlag(Flags.generateTlsKeys),
     );
-    argvPushGlobalFlags(argv, true);
+    argvPushGlobalFlags(argv, testName, true);
     return argv;
   }
 
-  public keys(): void {
-    const {testName, testLogger, deployment, testCacheDirectory} = this.options;
-    const {soloNodeKeysArgv} = this;
-    const soloNodeKeysArgvBound: (deployment: DeploymentName) => string[] = soloNodeKeysArgv.bind(this, deployment);
+  public static keys(options: BaseCommandOptions): void {
+    const {testName, testLogger, deployment, testCacheDirectory} = options;
+    const {soloNodeKeysArgv} = NodeTest;
 
     it(`${testName}: node keys`, async (): Promise<void> => {
       testLogger.info(`${testName}: beginning node keys command`);
-      await main(soloNodeKeysArgvBound(deployment));
+      await main(soloNodeKeysArgv(testName, deployment));
       const node1Key: Buffer = fs.readFileSync(
         PathEx.joinWithRealPath(testCacheDirectory, 'keys', 's-private-node1.pem'),
       );
@@ -63,13 +63,14 @@ export class NodeTest extends BaseCommandTest {
     });
   }
 
-  private soloNodeSetupArgv(
+  private static soloNodeSetupArgv(
+    testName: string,
     deployment: DeploymentName,
     enableLocalBuildPathTesting: boolean,
     localBuildPath: string,
     localBuildReleaseTag: string,
   ): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = this;
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
 
     const argv: string[] = newArgv();
     argv.push('node', 'setup', optionFromFlag(Flags.deployment), deployment);
@@ -81,11 +82,11 @@ export class NodeTest extends BaseCommandTest {
         localBuildReleaseTag,
       );
     }
-    argvPushGlobalFlags(argv, true);
+    argvPushGlobalFlags(argv, testName, true);
     return argv;
   }
 
-  public setup(): void {
+  public static setup(options: BaseCommandOptions): void {
     const {
       testName,
       deployment,
@@ -94,23 +95,13 @@ export class NodeTest extends BaseCommandTest {
       enableLocalBuildPathTesting,
       localBuildPath,
       localBuildReleaseTag,
-    } = this.options;
-    const {soloNodeSetupArgv} = this;
-    const soloNodeSetupArgvBound: (
-      deployment: DeploymentName,
-      enableLocalBuildPathTesting: boolean,
-      localBuildPath: string,
-      localBuildReleaseTag: string,
-    ) => string[] = soloNodeSetupArgv.bind(
-      this,
-      deployment,
-      enableLocalBuildPathTesting,
-      localBuildPath,
-      localBuildReleaseTag,
-    );
+    } = options;
+    const {soloNodeSetupArgv} = NodeTest;
 
     it(`${testName}: node setup`, async (): Promise<void> => {
-      await main(soloNodeSetupArgvBound(deployment, enableLocalBuildPathTesting, localBuildPath, localBuildReleaseTag));
+      await main(
+        soloNodeSetupArgv(testName, deployment, enableLocalBuildPathTesting, localBuildPath, localBuildReleaseTag),
+      );
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
       for (const context_ of contexts) {
         const k8: K8 = k8Factory.getK8(context_);
@@ -144,16 +135,16 @@ export class NodeTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
-  private soloNodeStartArgv(deployment: DeploymentName): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = this;
+  private static soloNodeStartArgv(testName: string, deployment: DeploymentName): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
 
     const argv: string[] = newArgv();
     argv.push('node', 'start', optionFromFlag(Flags.deployment), deployment);
-    argvPushGlobalFlags(argv);
+    argvPushGlobalFlags(argv, testName);
     return argv;
   }
 
-  private async verifyAccountCreateWasSuccessful(
+  private static async verifyAccountCreateWasSuccessful(
     namespace: NamespaceName,
     clusterReferences: ClusterReferences,
     deployment: DeploymentName,
@@ -193,13 +184,12 @@ export class NodeTest extends BaseCommandTest {
     }
   }
 
-  public start(): void {
-    const {testName, deployment, namespace, contexts, createdAccountIds, clusterReferences} = this.options;
-    const {soloNodeStartArgv, verifyAccountCreateWasSuccessful} = this;
-    const soloNodeStartArgvBound: (deployment: DeploymentName) => string[] = soloNodeStartArgv.bind(this, deployment);
+  public static start(options: BaseCommandOptions): void {
+    const {testName, deployment, namespace, contexts, createdAccountIds, clusterReferences} = options;
+    const {soloNodeStartArgv, verifyAccountCreateWasSuccessful} = NodeTest;
 
     it(`${testName}: node start`, async (): Promise<void> => {
-      await main(soloNodeStartArgvBound(deployment));
+      await main(soloNodeStartArgv(testName, deployment));
       for (const context_ of contexts) {
         const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
         const k8: K8 = k8Factory.getK8(context_);

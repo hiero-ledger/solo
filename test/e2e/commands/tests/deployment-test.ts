@@ -10,10 +10,15 @@ import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tok
 import {type ConsensusNodeStateSchema} from '../../../../src/data/schema/model/remote/state/consensus-node-state-schema.js';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
+import {type BaseCommandOptions} from './base-command-options.js';
 
 export class DeploymentTest extends BaseCommandTest {
-  private soloDeploymentCreateArgv(deployment: DeploymentName, namespace: NamespaceName): string[] {
-    const {newArgv, optionFromFlag, argvPushGlobalFlags} = this;
+  private static soloDeploymentCreateArgv(
+    testName: string,
+    deployment: DeploymentName,
+    namespace: NamespaceName,
+  ): string[] {
+    const {newArgv, optionFromFlag, argvPushGlobalFlags} = DeploymentTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -24,26 +29,28 @@ export class DeploymentTest extends BaseCommandTest {
       optionFromFlag(Flags.namespace),
       namespace.name,
     );
-    argvPushGlobalFlags(argv);
+    argvPushGlobalFlags(argv, testName);
     return argv;
   }
 
-  public create(): void {
-    const {testName, testLogger, deployment, namespace} = this.options;
+  public static create(options: BaseCommandOptions): void {
+    const {testName, testLogger, deployment, namespace} = options;
+    const {soloDeploymentCreateArgv} = DeploymentTest;
 
     it(`${testName}: solo deployment create`, async (): Promise<void> => {
       testLogger.info(`${testName}: beginning solo deployment create`);
-      await main(this.soloDeploymentCreateArgv(deployment, namespace));
+      await main(soloDeploymentCreateArgv(testName, deployment, namespace));
       testLogger.info(`${testName}: finished solo deployment create`);
     });
   }
 
-  private soloDeploymentAddClusterArgv(
+  private static soloDeploymentAddClusterArgv(
+    testName: string,
     deployment: DeploymentName,
     clusterReference: ClusterReferenceName,
     numberOfNodes: number,
   ): string[] {
-    const {newArgv, optionFromFlag, argvPushGlobalFlags} = this;
+    const {newArgv, optionFromFlag, argvPushGlobalFlags} = DeploymentTest;
 
     const argv: string[] = newArgv();
     argv.push(
@@ -56,23 +63,18 @@ export class DeploymentTest extends BaseCommandTest {
       optionFromFlag(Flags.numberOfConsensusNodes),
       numberOfNodes.toString(),
     );
-    argvPushGlobalFlags(argv);
+    argvPushGlobalFlags(argv, testName);
     return argv;
   }
 
-  public addCluster(): void {
-    const {testName, testLogger, deployment, clusterReferenceNameArray} = this.options;
-    const {soloDeploymentAddClusterArgv} = this;
-    const soloDeploymentAddClusterArgvBound: (
-      deployment: DeploymentName,
-      clusterReference: ClusterReferenceName,
-      numberOfNodes: number,
-    ) => string[] = soloDeploymentAddClusterArgv.bind(this, deployment);
+  public static addCluster(options: BaseCommandOptions): void {
+    const {testName, testLogger, deployment, clusterReferenceNameArray} = options;
+    const {soloDeploymentAddClusterArgv} = DeploymentTest;
 
     it(`${testName}: solo deployment add-cluster`, async (): Promise<void> => {
       testLogger.info(`${testName}: beginning solo deployment add-cluster`);
       for (const element of clusterReferenceNameArray) {
-        await main(soloDeploymentAddClusterArgvBound(deployment, element, 1));
+        await main(soloDeploymentAddClusterArgv(testName, deployment, element, 1));
       }
       const remoteConfig: RemoteConfigRuntimeStateApi = container.resolve(InjectTokens.RemoteConfigRuntimeState);
       expect(remoteConfig.isLoaded(), 'remote config manager should be loaded').to.be.true;
