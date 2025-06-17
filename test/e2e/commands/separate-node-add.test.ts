@@ -126,6 +126,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       });
 
       await accountManager.close();
+      argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
     }).timeout(Duration.ofMinutes(12).toMillis());
 
     balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
