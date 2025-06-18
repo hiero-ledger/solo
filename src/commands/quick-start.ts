@@ -220,7 +220,15 @@ export class QuickStartCommand extends BaseCommand {
             await main(argv);
           },
         },
-        // NodeTest.setup(options);
+        {
+          title: 'solo node setup',
+          task: async (context_): Promise<void> => {
+            const argv: string[] = this.newArgv();
+            argv.push('node', 'setup', this.optionFromFlag(Flags.deployment), context_.config.deployment);
+            this.argvPushGlobalFlags(argv, context_.config.cacheDir);
+            await main(argv);
+          },
+        },
         // NodeTest.start(options);
         // MirrorNodeTest.deploy(options);
       ],
