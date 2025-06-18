@@ -13,6 +13,7 @@ import {injectable} from 'tsyringe-neo';
 import {main} from '../index.js';
 import {v4 as uuid4} from 'uuid';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
+import {StringEx} from '../business/utils/string-ex.js';
 
 interface QuickStartDeployConfigClass {
   clusterRef: string;
@@ -20,6 +21,7 @@ interface QuickStartDeployConfigClass {
   deployment: string;
   namespace: NamespaceName;
   numberOfConsensusNodes: number;
+  cacheDir: string;
 }
 
 interface QuickStartDeployContext {
@@ -48,7 +50,7 @@ export class QuickStartCommand extends BaseCommand {
       // flags.apiPermissionProperties,
       // flags.applicationEnv,
       // flags.applicationProperties,
-      // flags.cacheDir,
+      flags.cacheDir,
       flags.clusterRef,
       flags.clusterSetupNamespace,
       flags.context,
@@ -82,8 +84,11 @@ export class QuickStartCommand extends BaseCommand {
     return `--${flag.name}`;
   }
 
-  private argvPushGlobalFlags(argv: string[]): string[] {
+  private argvPushGlobalFlags(argv: string[], cacheDirectory: string = StringEx.EMPTY): string[] {
     argv.push(this.optionFromFlag(Flags.devMode), this.optionFromFlag(Flags.quiet));
+    if (cacheDirectory) {
+      argv.push(this.optionFromFlag(Flags.cacheDir), cacheDirectory);
+    }
     return argv;
   }
 
@@ -123,10 +128,10 @@ export class QuickStartCommand extends BaseCommand {
         },
         {
           title: 'solo init',
-          task: async (): Promise<void> => {
+          task: async (context_): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push('init');
-            this.argvPushGlobalFlags(argv);
+            this.argvPushGlobalFlags(argv, context_.config.cacheDir);
             await main(argv);
           },
         },
@@ -180,9 +185,41 @@ export class QuickStartCommand extends BaseCommand {
             await main(argv);
           },
         },
-        // ClusterReferenceTest.setup(options);
-        // NodeTest.keys(options);
-        // NetworkTest.deploy(options);
+        {
+          title: 'solo cluster-ref setup',
+          task: async (context_): Promise<void> => {
+            const argv: string[] = this.newArgv();
+            argv.push('cluster-ref', 'setup', this.optionFromFlag(Flags.clusterRef), context_.config.clusterRef);
+            this.argvPushGlobalFlags(argv);
+            await main(argv);
+          },
+        },
+        {
+          title: 'solo node keys',
+          task: async (context_): Promise<void> => {
+            const argv: string[] = this.newArgv();
+            argv.push(
+              'node',
+              'keys',
+              this.optionFromFlag(Flags.deployment),
+              context_.config.deployment,
+              this.optionFromFlag(Flags.generateGossipKeys),
+              'true',
+              this.optionFromFlag(Flags.generateTlsKeys),
+            );
+            this.argvPushGlobalFlags(argv, context_.config.cacheDir);
+            await main(argv);
+          },
+        },
+        {
+          title: 'solo network deploy',
+          task: async (context_): Promise<void> => {
+            const argv: string[] = this.newArgv();
+            argv.push('network', 'deploy', this.optionFromFlag(Flags.deployment), context_.config.deployment);
+            this.argvPushGlobalFlags(argv, context_.config.cacheDir);
+            await main(argv);
+          },
+        },
         // NodeTest.setup(options);
         // NodeTest.start(options);
         // MirrorNodeTest.deploy(options);
