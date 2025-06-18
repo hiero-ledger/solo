@@ -1727,7 +1727,7 @@ export class NodeCommandTasks {
           this.logger.info(`Found ${pvcs.length} PVCs in namespace ${context_.config.namespace}: ${pvcs.join(', ')}`);
           if (pvcs.length === 0) {
             throw new SoloError(
-              'No PVCs found in the namespace. Please ensure PVCs are created during network deployment.',
+              'No PVCs found in the namespace. Please ensure PVCs are enabled during network deployment.',
             );
           }
           return pvcs;
