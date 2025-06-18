@@ -1711,10 +1711,29 @@ export class NodeCommandTasks {
   public checkPVCsEnabled(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Check that PVCs are enabled',
-      task: () => {
+      task: async context_ => {
         if (!this.configManager.getFlag(flags.persistentVolumeClaims)) {
-          throw new SoloError('PVCs are not enabled. Please enable PVCs before adding a node');
+          throw new SoloError('PVCs flag are not enabled. Please enable PVCs before adding a node');
         }
+        context_.config.contexts.map(async context => {
+          // Fetch all PVCs inside the namespace using the context
+          const pvcs: string[] = await this.k8Factory
+            .getK8(context)
+            .pvcs()
+            .list(context_.config.namespace, ['solo.hedera.com/type=node-pvc']);
+
+          this.logger.info(`Found ${pvcs.length} PVCs in namespace ${context_.config.namespace}: ${pvcs.join(', ')}`);
+          if (pvcs.length === 0) {
+            this.logger.showUser(
+              chalk.yellowBright(
+                'No PVCs found in the namespace. Please ensure PVCs are created during network deployment.',
+              ),
+            );
+            throw new SoloError(
+              'No PVCs found in the namespace. Please ensure PVCs are created during network deployment.',
+            );
+          }
+        });
       },
     };
   }
