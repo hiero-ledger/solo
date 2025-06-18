@@ -271,6 +271,24 @@ export class QuickStartCommand extends BaseCommand {
             await main(argv);
           },
         },
+        {
+          title: 'solo relay deploy',
+          task: async (context_): Promise<void> => {
+            const argv: string[] = this.newArgv();
+            argv.push(
+              'relay',
+              'deploy',
+              this.optionFromFlag(Flags.deployment),
+              context_.config.deployment,
+              this.optionFromFlag(Flags.clusterRef),
+              context_.config.clusterRef,
+              this.optionFromFlag(Flags.nodeAliasesUnparsed),
+              'node1',
+            );
+            this.argvPushGlobalFlags(argv, context_.config.cacheDir);
+            await main(argv);
+          },
+        },
       ],
       {
         concurrent: false,
