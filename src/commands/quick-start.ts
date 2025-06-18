@@ -238,7 +238,23 @@ export class QuickStartCommand extends BaseCommand {
             await main(argv);
           },
         },
-        // MirrorNodeTest.deploy(options);
+        {
+          title: 'solo mirror-node deploy',
+          task: async (context_): Promise<void> => {
+            const argv: string[] = this.newArgv();
+            argv.push(
+              'mirror-node',
+              'deploy',
+              this.optionFromFlag(Flags.deployment),
+              context_.config.deployment,
+              this.optionFromFlag(Flags.clusterRef),
+              context_.config.clusterRef,
+              this.optionFromFlag(Flags.pinger),
+            );
+            this.argvPushGlobalFlags(argv, context_.config.cacheDir);
+            await main(argv);
+          },
+        },
         // ExplorerTest.deploy(options);
       ],
       {
