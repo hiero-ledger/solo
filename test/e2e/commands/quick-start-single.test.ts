@@ -57,6 +57,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         await main(soloQuickStartDeploy(testName));
         testLogger.info(`${testName}: finished ${testName}: deploy`);
       }).timeout(Duration.ofMinutes(15).toMillis());
+
+      // TODO add verifications
     });
   })
   .build();

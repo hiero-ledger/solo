@@ -99,6 +99,7 @@ export class QuickStartCommand extends BaseCommand {
   private async deploy(argv: ArgvStruct): Promise<boolean> {
     const tasks: Listr<QuickStartDeployContext> = new Listr<QuickStartDeployContext>(
       [
+        // TODO fix the sysout problem that causes this output only, but then dumps the rest of the output on exit, but it shows multiple lines for all of the row updates
         {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
@@ -285,11 +286,14 @@ export class QuickStartCommand extends BaseCommand {
               this.optionFromFlag(Flags.nodeAliasesUnparsed),
               'node1',
             );
-            this.argvPushGlobalFlags(argv, context_.config.cacheDir);
+            this.argvPushGlobalFlags(argv);
             await main(argv);
           },
         },
         // TODO expose port forward endpoints and dump the URLs to the user output
+        // TODO update documentation
+        // TODO make sure CLI Help script is working
+        // TODO manually test from the command line
       ],
       {
         concurrent: false,
@@ -330,6 +334,7 @@ export class QuickStartCommand extends BaseCommand {
           return null;
         },
       },
+      // TODO implement destroy tasks
     ]);
 
     try {
