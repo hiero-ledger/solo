@@ -8,7 +8,7 @@ import {type ConfigManager} from './config-manager.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type AnyObject, ArgvStruct} from '../types/aliases.js';
-import {type ClusterReference} from './../types/index.js';
+import {type ClusterReferenceName} from './../types/index.js';
 import {SoloError} from './errors/solo-error.js';
 import {SilentBreak} from './errors/silent-break.js';
 import {type HelpRenderer} from './help-renderer.js';
@@ -99,7 +99,7 @@ export class Middlewares {
         configManager.reset();
       }
 
-      const clusterName = configManager.getFlag<ClusterReference>(flags.clusterRef) || currentClusterName;
+      const clusterName = configManager.getFlag<ClusterReferenceName>(flags.clusterRef) || currentClusterName;
 
       // Set namespace if not provided
       if (contextNamespace?.name) {

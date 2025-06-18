@@ -11,7 +11,7 @@ import {ErrorMessages} from '../../core/error-messages.js';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {UserBreak} from '../../core/errors/user-break.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
-import {type ClusterReference, type SoloListrTask} from '../../types/index.js';
+import {type ClusterReferenceName, type SoloListrTask} from '../../types/index.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
@@ -77,7 +77,9 @@ export class ClusterCommandTasks {
     };
   }
 
-  public testConnectionToCluster(clusterReference?: ClusterReference): SoloListrTask<ClusterReferenceConnectContext> {
+  public testConnectionToCluster(
+    clusterReference?: ClusterReferenceName,
+  ): SoloListrTask<ClusterReferenceConnectContext> {
     const self = this;
     return {
       title: 'Test connection to cluster: ',

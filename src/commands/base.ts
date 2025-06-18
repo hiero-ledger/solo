@@ -11,7 +11,7 @@ import {type HelmClient} from '../integration/helm/helm-client.js';
 import {type LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import * as constants from '../core/constants.js';
 import fs from 'node:fs';
-import {type ClusterReference, type ClusterReferences} from '../types/index.js';
+import {type ClusterReferenceName, type ClusterReferences} from '../types/index.js';
 import {Flags} from './flags.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {inject} from 'tsyringe-neo';
@@ -57,11 +57,11 @@ export abstract class BaseCommand extends ShellRunner {
   static prepareValuesFilesMapMulticluster(
     clusterReferences: ClusterReferences,
     chartDirectory?: string,
-    profileValuesFile?: Record<ClusterReference, string>,
+    profileValuesFile?: Record<ClusterReferenceName, string>,
     valuesFileInput?: string,
-  ): Record<ClusterReference, string> {
+  ): Record<ClusterReferenceName, string> {
     // initialize the map with an empty array for each cluster-ref
-    const valuesFiles: Record<ClusterReference, string> = {[Flags.KEY_COMMON]: ''};
+    const valuesFiles: Record<ClusterReferenceName, string> = {[Flags.KEY_COMMON]: ''};
     for (const [clusterReference] of clusterReferences) {
       valuesFiles[clusterReference] = '';
     }
@@ -132,9 +132,9 @@ export abstract class BaseCommand extends ShellRunner {
     chartDirectory?: string,
     profileValuesFile?: string,
     valuesFileInput?: string,
-  ): Record<ClusterReference, string> {
+  ): Record<ClusterReferenceName, string> {
     // initialize the map with an empty array for each cluster-ref
-    const valuesFiles: Record<ClusterReference, string> = {
+    const valuesFiles: Record<ClusterReferenceName, string> = {
       [Flags.KEY_COMMON]: '',
     };
     for (const [clusterReference] of clusterReferences) {

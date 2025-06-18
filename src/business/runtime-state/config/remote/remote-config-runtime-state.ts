@@ -16,7 +16,7 @@ import {type SoloLogger} from '../../../../core/logging/solo-logger.js';
 import {type ConfigManager} from '../../../../core/config-manager.js';
 import {patchInject} from '../../../../core/dependency-injection/container-helper.js';
 import {
-  type ClusterReference,
+  type ClusterReferenceName,
   type ClusterReferences,
   type Context,
   type DeploymentName,
@@ -61,7 +61,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
   private phase: RuntimeStatePhase = RuntimeStatePhase.NotLoaded;
 
-  public clusterReferences: Map<Context, ClusterReference> = new Map();
+  public clusterReferences: Map<Context, ClusterReferenceName> = new Map();
   private namespace: NamespaceName;
 
   private source?: RemoteConfigSource;
@@ -94,7 +94,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     return this._remoteConfig.components;
   }
 
-  public get currentCluster(): ClusterReference {
+  public get currentCluster(): ClusterReferenceName {
     return this.k8Factory.default().clusters().readCurrent();
   }
 
@@ -172,7 +172,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     nodeAliases: NodeAliases,
     namespace: NamespaceName,
     deploymentName: DeploymentName,
-    clusterReference: ClusterReference,
+    clusterReference: ClusterReferenceName,
     context: Context,
     dnsBaseDomain: string,
     dnsConsensusNodePattern: string,
@@ -221,7 +221,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
   public async createFromExisting(
     namespace: NamespaceName,
-    clusterReference: ClusterReference,
+    clusterReference: ClusterReferenceName,
     deploymentName: DeploymentName,
     componentFactory: ComponentFactoryApi,
     dnsBaseDomain: string,
@@ -545,7 +545,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   private getContextForFirstCluster(): string {
     const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
 
-    const clusterReference: ClusterReference =
+    const clusterReference: ClusterReferenceName =
       this.localConfig.configuration.deploymentByName(deploymentName).clusters[0];
 
     const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
