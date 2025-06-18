@@ -162,7 +162,6 @@ export class QuickStartCommand extends BaseCommand {
             await main(argv);
           },
         },
-        // DeploymentTest.addCluster(options);
         {
           title: 'solo deployment add-cluster',
           task: async (context_): Promise<void> => {
