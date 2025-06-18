@@ -40,6 +40,7 @@ export class DeploymentTest extends BaseCommandTest {
     it(`${testName}: solo deployment create`, async (): Promise<void> => {
       testLogger.info(`${testName}: beginning solo deployment create`);
       await main(soloDeploymentCreateArgv(testName, deployment, namespace));
+      // TODO check that the deployment was created
       testLogger.info(`${testName}: finished solo deployment create`);
     });
   }

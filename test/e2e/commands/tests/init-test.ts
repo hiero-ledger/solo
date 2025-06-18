@@ -21,6 +21,7 @@ export class InitTest extends BaseCommandTest {
     it(`${testName}: solo init`, async (): Promise<void> => {
       testLogger.info(`${testName}: beginning solo init`);
       await main(soloInitArgv(testName));
+      // TODO check that the init was successful
       testLogger.info(`${testName}: finished solo init`);
     });
   }

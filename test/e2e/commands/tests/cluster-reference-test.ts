@@ -70,6 +70,7 @@ export class ClusterReferenceTest extends BaseCommandTest {
       for (const clusterReferenceName of clusterReferenceNameArray) {
         await main(soloClusterReferenceSetup(testName, clusterReferenceName));
       }
+      // TODO add some verification that the setup was successful
       testLogger.info(`${testName}: finishing solo cluster-ref setup`);
     });
   }
