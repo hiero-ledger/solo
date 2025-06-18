@@ -289,6 +289,7 @@ export class QuickStartCommand extends BaseCommand {
             await main(argv);
           },
         },
+        // TODO expose port forward endpoints and dump the URLs to the user output
       ],
       {
         concurrent: false,
