@@ -9,15 +9,17 @@ import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/ali
 import {type CommandDefinition} from '../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
-import {inject, injectable} from 'tsyringe-neo';
-import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {injectable} from 'tsyringe-neo';
 import {main} from '../index.js';
 import {v4 as uuid4} from 'uuid';
-import {K8Factory} from '../integration/kube/k8-factory.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 
 interface QuickStartDeployConfigClass {
   clusterRef: string;
   context: string;
+  deployment: string;
+  namespace: NamespaceName;
+  numberOfConsensusNodes: number;
 }
 
 interface QuickStartDeployContext {
@@ -34,10 +36,6 @@ interface QuickStartDestroyContext {
 
 @injectable()
 export class QuickStartCommand extends BaseCommand {
-  public constructor(@inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory) {
-    super();
-  }
-
   public static readonly COMMAND_NAME: string = 'quick-start';
 
   private static readonly SINGLE_ADD_CONFIGS_NAME: string = 'singleAddConfigs';
@@ -47,24 +45,24 @@ export class QuickStartCommand extends BaseCommand {
   private static readonly SINGLE_ADD_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
-      flags.apiPermissionProperties,
-      flags.applicationEnv,
-      flags.applicationProperties,
-      flags.cacheDir,
+      // flags.apiPermissionProperties,
+      // flags.applicationEnv,
+      // flags.applicationProperties,
+      // flags.cacheDir,
       flags.clusterRef,
       flags.clusterSetupNamespace,
       flags.context,
       flags.deployment,
       flags.devMode,
-      flags.log4j2Xml,
+      // flags.log4j2Xml,
       flags.namespace,
-      flags.networkDeploymentValuesFile,
+      // flags.networkDeploymentValuesFile,
       flags.numberOfConsensusNodes,
-      flags.persistentVolumeClaims,
-      flags.pinger,
+      // flags.persistentVolumeClaims,
+      // flags.pinger,
       flags.quiet,
-      flags.releaseTag,
-      flags.soloChartVersion,
+      // flags.releaseTag,
+      // flags.soloChartVersion,
       // TODO: flags.mirrorNodeValuesFile,
       // TODO: flags.explorerValuesFile,
       // TODO: flags.relayValuesFile,
@@ -117,7 +115,9 @@ export class QuickStartCommand extends BaseCommand {
 
             context_.config.clusterRef = context_.config.clusterRef || `solo-${uuid4()}`; // TODO come up with better solution to avoid conflicts
             context_.config.context = context_.config.context || this.k8Factory.default().contexts().readCurrent();
-
+            context_.config.deployment = context_.config.deployment || `solo-deployment-${uuid4()}`; // TODO come up with better solution to avoid conflicts
+            context_.config.namespace = context_.config.namespace || NamespaceName.of(`solo-${uuid4()}`); // TODO come up with better solution to avoid conflicts
+            context_.config.numberOfConsensusNodes = context_.config.numberOfConsensusNodes || 1;
             return null;
           },
         },
@@ -146,6 +146,46 @@ export class QuickStartCommand extends BaseCommand {
             await main(argv);
           },
         },
+        {
+          title: 'solo deployment create',
+          task: async (context_): Promise<void> => {
+            const argv: string[] = this.newArgv();
+            argv.push(
+              'deployment',
+              'create',
+              this.optionFromFlag(Flags.deployment),
+              context_.config.deployment,
+              this.optionFromFlag(Flags.namespace),
+              context_.config.namespace.name,
+            );
+            this.argvPushGlobalFlags(argv);
+            await main(argv);
+          },
+        },
+        // DeploymentTest.addCluster(options);
+        {
+          title: 'solo deployment add-cluster',
+          task: async (context_): Promise<void> => {
+            const argv: string[] = this.newArgv();
+            argv.push(
+              'deployment',
+              'add-cluster',
+              this.optionFromFlag(Flags.deployment),
+              context_.config.deployment,
+              this.optionFromFlag(Flags.clusterRef),
+              context_.config.clusterRef,
+              this.optionFromFlag(Flags.numberOfConsensusNodes),
+              context_.config.numberOfConsensusNodes.toString(),
+            );
+            this.argvPushGlobalFlags(argv);
+            await main(argv);
+          },
+        }, // ClusterReferenceTest.setup(options);
+        // NodeTest.keys(options);
+        // NetworkTest.deploy(options);
+        // NodeTest.setup(options);
+        // NodeTest.start(options);
+        // MirrorNodeTest.deploy(options);
       ],
       {
         concurrent: false,
