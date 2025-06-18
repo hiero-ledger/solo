@@ -77,6 +77,11 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
     optional: [],
   };
 
+  // Although empty, tsyringe requires the constructor to be present
+  public constructor() {
+    super();
+  }
+
   private newArgv(): string[] {
     return ['${PATH}/node', '${SOLO_ROOT}/solo.ts'];
   }
