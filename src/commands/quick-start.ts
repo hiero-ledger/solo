@@ -179,7 +179,8 @@ export class QuickStartCommand extends BaseCommand {
             this.argvPushGlobalFlags(argv);
             await main(argv);
           },
-        }, // ClusterReferenceTest.setup(options);
+        },
+        // ClusterReferenceTest.setup(options);
         // NodeTest.keys(options);
         // NetworkTest.deploy(options);
         // NodeTest.setup(options);
