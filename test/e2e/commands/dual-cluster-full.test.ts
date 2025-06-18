@@ -21,6 +21,7 @@ import {DeploymentTest} from './tests/deployment-test.js';
 import {NodeTest} from './tests/node-test.js';
 import {NetworkTest} from './tests/network-test.js';
 import {MirrorNodeTest} from './tests/mirror-node-test.js';
+import {ExplorerTest} from './tests/explorer-test.js';
 
 const testName: string = 'dual-cluster-full';
 
@@ -70,6 +71,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       NodeTest.setup(options);
       NodeTest.start(options);
       MirrorNodeTest.deploy(options);
+      ExplorerTest.deploy(options);
 
       // TODO json rpc relay deploy
       // TODO json rpc relay destroy
