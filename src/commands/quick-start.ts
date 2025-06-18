@@ -255,7 +255,22 @@ export class QuickStartCommand extends BaseCommand {
             await main(argv);
           },
         },
-        // ExplorerTest.deploy(options);
+        {
+          title: 'solo explorer deploy',
+          task: async (context_): Promise<void> => {
+            const argv: string[] = this.newArgv();
+            argv.push(
+              'explorer',
+              'deploy',
+              this.optionFromFlag(Flags.deployment),
+              context_.config.deployment,
+              this.optionFromFlag(Flags.clusterRef),
+              context_.config.clusterRef,
+            );
+            this.argvPushGlobalFlags(argv, context_.config.cacheDir);
+            await main(argv);
+          },
+        },
       ],
       {
         concurrent: false,
