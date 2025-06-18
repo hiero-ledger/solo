@@ -36,25 +36,16 @@ export async function main(argv: string[], context?: {logger: SoloLogger}) {
     // save the logger so that solo.ts can use it to properly flush the logs and exit
     context.logger = logger;
   }
-  process.on('unhandledRejection', (reason: any, promise) => {
-    // If the reason is already a SoloError, use it directly to preserve the original message
-    if (reason instanceof SoloError) {
-      logger.showUserError(reason);
-    } else {
-      // Otherwise, create a new SoloError with the details
+  process.on('unhandledRejection', (reason: {error?: Error; target?: {url?: string}}, promise) => {
       logger.showUserError(
         new SoloError(
           `Unhandled Rejection at: ${JSON.stringify(promise)}, reason: ${JSON.stringify(reason)}, target: ${reason.target?.url}`,
-          reason.error || reason,
+        reason.error,
         ),
       );
-    }
-    process.exit(1);
   });
-
   process.on('uncaughtException', (error, origin) => {
     logger.showUserError(new SoloError(`Uncaught Exception: ${error}, origin: ${origin}`, error));
-    process.exit(1);
   });
 
   logger.debug('Initializing Solo CLI');

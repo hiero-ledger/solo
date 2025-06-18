@@ -1715,7 +1715,9 @@ export class NodeCommandTasks {
         if (!this.configManager.getFlag(flags.persistentVolumeClaims)) {
           throw new SoloError('PVCs flag are not enabled. Please enable PVCs before adding a node');
         }
-        context_.config.contexts.map(async context => {
+
+        // Create an array of promises
+        const promises = context_.config.contexts.map(async context => {
           // Fetch all PVCs inside the namespace using the context
           const pvcs: string[] = await this.k8Factory
             .getK8(context)
@@ -1728,7 +1730,11 @@ export class NodeCommandTasks {
               'No PVCs found in the namespace. Please ensure PVCs are created during network deployment.',
             );
           }
+          return pvcs;
         });
+
+        // Wait for all promises to resolve
+        await Promise.all(promises);
       },
     };
   }
