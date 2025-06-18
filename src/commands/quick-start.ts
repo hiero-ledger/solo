@@ -11,11 +11,13 @@ import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
-import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {main} from '../index.js';
+import {v4 as uuid4} from 'uuid';
+import {K8Factory} from '../integration/kube/k8-factory.js';
 
 interface QuickStartDeployConfigClass {
-  dummyVariable?: string; // Placeholder for actual configuration properties
+  clusterRef: string;
+  context: string;
 }
 
 interface QuickStartDeployContext {
@@ -32,7 +34,7 @@ interface QuickStartDestroyContext {
 
 @injectable()
 export class QuickStartCommand extends BaseCommand {
-  public constructor(@inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi) {
+  public constructor(@inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory) {
     super();
   }
 
@@ -112,6 +114,10 @@ export class QuickStartCommand extends BaseCommand {
               QuickStartCommand.SINGLE_ADD_CONFIGS_NAME,
               allFlags,
             ) as QuickStartDeployConfigClass;
+
+            context_.config.clusterRef = context_.config.clusterRef || `solo-${uuid4()}`; // TODO come up with better solution to avoid conflicts
+            context_.config.context = context_.config.context || this.k8Factory.default().contexts().readCurrent();
+
             return null;
           },
         },
@@ -120,6 +126,22 @@ export class QuickStartCommand extends BaseCommand {
           task: async (): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push('init');
+            this.argvPushGlobalFlags(argv);
+            await main(argv);
+          },
+        },
+        {
+          title: 'solo cluster-ref connect',
+          task: async (context_): Promise<void> => {
+            const argv: string[] = this.newArgv();
+            argv.push(
+              'cluster-ref',
+              'connect',
+              this.optionFromFlag(Flags.clusterRef),
+              context_.config.clusterRef,
+              this.optionFromFlag(Flags.context),
+              context_.config.context,
+            );
             this.argvPushGlobalFlags(argv);
             await main(argv);
           },
