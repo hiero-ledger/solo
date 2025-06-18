@@ -15,7 +15,7 @@ import {type AnyYargs, type ArgvStruct, type NodeAlias, type NodeAliases, type N
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as Base64 from 'js-base64';
 import {
-  type ClusterReference,
+  type ClusterReferenceName,
   type CommandDefinition,
   type DeploymentName,
   type Optional,
@@ -38,7 +38,7 @@ interface RelayDestroyConfigClass {
   nodeAliases: NodeAliases;
   releaseName: string;
   isChartInstalled: boolean;
-  clusterRef: Optional<ClusterReference>;
+  clusterRef: Optional<ClusterReferenceName>;
   context: Optional<string>;
 }
 
@@ -63,7 +63,7 @@ interface RelayDeployConfigClass {
   nodeAliases: NodeAliases;
   releaseName: string;
   valuesArg: string;
-  clusterRef: Optional<ClusterReference>;
+  clusterRef: Optional<ClusterReferenceName>;
   domainName: Optional<string>;
   context: Optional<string>;
 }
@@ -466,11 +466,6 @@ export class RelayCommand extends BaseCommand {
 
             await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
 
-            this.logger.showList(
-              'Destroyed Relays',
-              await self.chartManager.getInstalledCharts(config.namespace, config.context),
-            );
-
             // reset nodeAliasesUnparsed
             self.configManager.setFlag(flags.nodeAliasesUnparsed, '');
           },
@@ -572,7 +567,7 @@ export class RelayCommand extends BaseCommand {
       title: 'Remove relay component from remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        const clusterReference: ClusterReference = context_.config.clusterRef;
+        const clusterReference: ClusterReferenceName = context_.config.clusterRef;
 
         const relayComponents: RelayNodeStateSchema[] =
           this.remoteConfig.configuration.components.getComponentsByClusterReference<RelayNodeStateSchema>(

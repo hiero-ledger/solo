@@ -20,7 +20,7 @@ import {ListrLock} from '../core/lock/listr-lock.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {
-  type ClusterReference,
+  type ClusterReferenceName,
   type CommandDefinition,
   type Context,
   type Optional,
@@ -41,7 +41,7 @@ import {type ComponentFactoryApi} from '../core/config/remote/api/component-fact
 interface ExplorerDeployConfigClass {
   cacheDir: string;
   chartDirectory: string;
-  clusterRef: ClusterReference;
+  clusterRef: ClusterReferenceName;
   clusterContext: string;
   enableIngress: boolean;
   enableExplorerTls: boolean;
@@ -70,7 +70,7 @@ interface ExplorerDeployContext {
 interface ExplorerDestroyContext {
   config: {
     clusterContext: string;
-    clusterReference: ClusterReference;
+    clusterReference: ClusterReferenceName;
     namespace: NamespaceName;
     isChartInstalled: boolean;
   };
@@ -475,7 +475,7 @@ export class ExplorerCommand extends BaseCommand {
             self.configManager.update(argv);
             const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
 
-            const clusterReference: ClusterReference = this.configManager.hasFlag(flags.clusterRef)
+            const clusterReference: ClusterReferenceName = this.configManager.hasFlag(flags.clusterRef)
               ? this.configManager.getFlag(flags.clusterRef)
               : this.remoteConfig.currentCluster;
 
@@ -630,7 +630,7 @@ export class ExplorerCommand extends BaseCommand {
       title: 'Remove explorer from remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        const clusterReference: ClusterReference = context_.config.clusterReference;
+        const clusterReference: ClusterReferenceName = context_.config.clusterReference;
 
         const explorerComponents: MirrorNodeStateSchema[] =
           this.remoteConfig.configuration.components.getComponentsByClusterReference<MirrorNodeStateSchema>(

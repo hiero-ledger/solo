@@ -199,11 +199,13 @@ tasks:
 
   test-external-database:
     cmd: |
-        export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
+        if [ -z "$CONSENSUS_NODE_VERSION" ]; then
+          export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
+        fi
         cd examples/external-database-test
         SOLO_CLUSTER_NAME=solo-task-test-external-database task install:external-database
         task destroy:external-database
 
   test-update-markdown:
     cmd: |
-      .github/workflows/script/wrapper_for_update_md.sh
+      docs/site/wrapper_for_update_md.sh

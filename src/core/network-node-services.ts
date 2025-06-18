@@ -3,11 +3,11 @@
 import {type NodeAlias} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
-import {type ClusterReference, type Context, type DeploymentName} from './../types/index.js';
+import {type ClusterReferenceName, type Context, type DeploymentName} from './../types/index.js';
 
 export class NetworkNodeServices {
   public constructor(
-    public readonly clusterReference: ClusterReference,
+    public readonly clusterReference: ClusterReferenceName,
     public readonly context: Context,
     public readonly deployment: DeploymentName,
     public readonly nodeAlias: NodeAlias,

@@ -34,11 +34,20 @@ tasks:
     cmds:
       - task --list
 
+  build:clean:
+    desc: "Clean then build the documentation site"
+    cmds:
+      - task: "check-doc-dir"
+      - task: "clean"
+      - task: "install"
+      - task: "mutate:readme"
+      - task: "mutate:dev"
+      - task: "build"
+
   build:
     desc: "Build the documentation site"
     cmds:
       - task: "check-doc-dir"
-      - task: "clean"
       - task: "install"
       - task: "mutate:readme"
       - task: "mutate:dev"
@@ -72,12 +81,16 @@ tasks:
     cmds:
       - task: "build:typedoc"
       - task: "build:cli:help"
+      - task: "build:guide"
       - task: "solo:version"
       - task: "npmjs:latest:solo:version"
       - task: "npmjs:list:solo:versions"
       - task: "github:list:solo:releases"
       - task: "github:augment:releases"
-      - task: "github:prepare:site"
+      - task: "github:download:solo:assets"
+      - task: "github:extract:latest"
+      - task: "github:extract:versioned"
+      - task: "github:update:hugo:config"
       - task: "build:hugo"
       - task: "build:doc:artifacts"
 
@@ -113,6 +126,35 @@ tasks:
       - chmod 755 docs/site/generate_help.sh
       - task: "build:solo"
       - docs/site/generate_help.sh
+      - printf "\r::endgroup::--------------\n"
+
+  build:guide:
+    desc: "Build the Step-by-Step Guide"
+    silent: true
+    dir: ../..
+    sources:
+      - src/**/*.ts
+      - version.ts
+      - solo.ts
+      - docs/site/content/en/step-by-step-guide.template.md
+      - docs/site/update_md.sh
+      - docs/site/wrapper_for_update_md.sh
+    generates:
+      - docs/site/content/en/step-by-step-guide.md
+    cmds:
+      - printf "\r::group::Building the Step-by-Step Guide\n"
+      - rm -f docs/site/content/en/step-by-step-guide.md
+      - chmod 755 docs/site/update_md.sh
+      - chmod 755 docs/site/wrapper_for_update_md.sh
+      - task: "build:solo"
+      - |
+        if [[ "${SOLO_CI}" == "true" ]]; then
+          echo "Running wrapper_for_update_md.sh in CI mode"
+          docs/site/wrapper_for_update_md.sh
+        else
+          echo "Running update_md.sh in local mode"
+          docs/site/update_md.sh
+        fi
       - printf "\r::endgroup::--------------\n"
 
   build:hugo:

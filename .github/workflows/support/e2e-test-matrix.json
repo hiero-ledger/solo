@@ -1,122 +1,142 @@
 [
   {
+    "name": "Block Node",
+    "test-script": "test-e2e-block-node",
+    "coverage-subdirectory": "e2e-block-node",
+    "coverage-report-name": "E2E_Block_Node_Tests_Coverage_Report",
+    "local-java-build": true
+  },
+  {
     "name": "Integration",
     "test-script": "test-e2e-integration",
     "coverage-subdirectory": "e2e-integration",
-    "coverage-report-name": "E2E_Integration_Tests_Coverage_Report"
+    "coverage-report-name": "E2E_Integration_Tests_Coverage_Report",
+    "local-java-build": false
   },
   {
     "name": "Dual Cluster Full",
     "test-script": "test-e2e-dual-cluster-full",
     "coverage-subdirectory": "e2e-dual-cluster-full",
-    "coverage-report-name": "E2E_Dual_Cluster_Full_Tests_Coverage_Report"
+    "coverage-report-name": "E2E_Dual_Cluster_Full_Tests_Coverage_Report",
+    "local-java-build": false
   },
   {
     "name": "Node Add",
     "test-script": "test-e2e-node-add",
     "coverage-subdirectory": "e2e-node-add",
-    "coverage-report-name": "E2E_Node_Add_Tests_Coverage_Report"
+    "coverage-report-name": "E2E_Node_Add_Tests_Coverage_Report",
+    "local-java-build": false
   },
   {
     "name": "Node Local Hedera",
     "test-script": "test-e2e-node-local-hedera",
     "coverage-subdirectory": "e2e-node-local-hedera",
-    "coverage-report-name": "E2E_Node_Local_Hedera_Tests_Coverage_Report"
+    "coverage-report-name": "E2E_Node_Local_Hedera_Tests_Coverage_Report",
+    "local-java-build": true
   },
   {
     "name": "Node Delete",
     "test-script": "test-e2e-node-delete",
     "coverage-subdirectory": "e2e-node-delete",
-    "coverage-report-name": "E2E_Node_Delete_Tests_Coverage_Report"
+    "coverage-report-name": "E2E_Node_Delete_Tests_Coverage_Report",
+    "local-java-build": false
   },
   {
     "name": "Node PEM Kill",
     "test-script": "test-e2e-node-pem-kill",
     "coverage-subdirectory": "e2e-node-pem-kill",
-    "coverage-report-name": "E2E_Node_PEM_Kill_Tests_Coverage_Report"
+    "coverage-report-name": "E2E_Node_PEM_Kill_Tests_Coverage_Report",
+    "local-java-build": false
   },
   {
     "name": "Standard",
     "test-script": "test-e2e-standard",
     "coverage-subdirectory": "e2e-standard",
-    "coverage-report-name": "E2E_Standard_Tests_Coverage_Report"
+    "coverage-report-name": "E2E_Standard_Tests_Coverage_Report",
+    "local-java-build": false
   },
   {
     "name": "Relay",
     "test-script": "test-e2e-relay",
     "coverage-subdirectory": "e2e-relay",
-    "coverage-report-name": "E2E_Relay_Tests_Coverage_Report"
-  },
-  {
-    "name": "Block Node",
-    "test-script": "test-e2e-block-node",
-    "coverage-subdirectory": "e2e-block-node",
-    "coverage-report-name": "E2E_Block_Node_Tests_Coverage_Report"
+    "coverage-report-name": "E2E_Relay_Tests_Coverage_Report",
+    "local-java-build": false
   },
   {
     "name": "Node Update",
     "test-script": "test-e2e-node-update",
     "coverage-subdirectory": "e2e-node-update",
-    "coverage-report-name": "E2E_Node_Update_Tests_Coverage_Report"
+    "coverage-report-name": "E2E_Node_Update_Tests_Coverage_Report",
+    "local-java-build": false
   },
   {
     "name": "Node Upgrade",
     "test-script": "test-e2e-node-upgrade",
     "coverage-subdirectory": "e2e-node-upgrade",
-    "coverage-report-name": "E2E_Node_Upgrade_Tests_Coverage_Report"
+    "coverage-report-name": "E2E_Node_Upgrade_Tests_Coverage_Report",
+    "local-java-build": false
   },
   {
     "name": "Node PEM Stop",
     "test-script": "test-e2e-node-pem-stop",
     "coverage-subdirectory": "e2e-node-pem-stop",
-    "coverage-report-name": "E2E_Node_PEM_Stop_Tests_Coverage_Report"
+    "coverage-report-name": "E2E_Node_PEM_Stop_Tests_Coverage_Report",
+    "local-java-build": false
   },
   {
     "name": "Node Local PTT",
     "test-script": "test-e2e-node-local-ptt",
     "coverage-subdirectory": "e2e-node-local-ptt",
-    "coverage-report-name": "E2E_Node_Local_PTT_Tests_Coverage_Report"
+    "coverage-report-name": "E2E_Node_Local_PTT_Tests_Coverage_Report",
+    "local-java-build": true
   },
   {
     "name": "Node Add Local",
     "test-script": "test-e2e-node-add-local",
     "coverage-subdirectory": "e2e-node-add-local",
-    "coverage-report-name": "E2E_Node_Add_Local_Tests_Coverage_Report"
+    "coverage-report-name": "E2E_Node_Add_Local_Tests_Coverage_Report",
+    "local-java-build": true
   },
   {
     "name": "Node Update - Separate commands",
     "test-script": "test-e2e-node-update-separate",
     "coverage-subdirectory": "e2e-node-update-separate",
-    "coverage-report-name": "E2E_Node_Update_Separate_Commands_Tests_Coverage_Report"
+    "coverage-report-name": "E2E_Node_Update_Separate_Commands_Tests_Coverage_Report",
+    "local-java-build": false
   },
   {
     "name": "Node Delete - Separate commands",
     "test-script": "test-e2e-node-delete-separate",
     "coverage-subdirectory": "e2e-node-delete-separate",
-    "coverage-report-name": "E2E_Node_Delete_Separate_Commands_Tests_Coverage_Report"
+    "coverage-report-name": "E2E_Node_Delete_Separate_Commands_Tests_Coverage_Report",
+    "local-java-build": false
   },
   {
     "name": "Node Add - Separate commands",
     "test-script": "test-e2e-node-add-separate",
     "coverage-subdirectory": "e2e-node-add-separate",
-    "coverage-report-name": "E2E_Node_Add_Separate_Commands_Tests_Coverage_Report"
+    "coverage-report-name": "E2E_Node_Add_Separate_Commands_Tests_Coverage_Report",
+    "local-java-build": false
   },
   {
     "name": "Node Upgrade - Separate commands",
     "test-script": "test-e2e-node-upgrade-separate",
     "coverage-subdirectory": "e2e-node-upgrade-separate",
-    "coverage-report-name": "E2E_Node_Upgrade_Separate_Commands_Tests_Coverage_Report"
+    "coverage-report-name": "E2E_Node_Upgrade_Separate_Commands_Tests_Coverage_Report",
+    "local-java-build": false
   },
   {
     "name": "External database",
     "test-script": "test-external-database",
     "coverage-subdirectory": "external-database",
-    "coverage-report-name": "External_Database_Tests_Coverage_Report"
+    "coverage-report-name": "External_Database_Tests_Coverage_Report",
+    "local-java-build": false
   },
   {
     "name": "Update markdown",
     "test-script": "test-update-markdown",
     "coverage-subdirectory": "update-markdown",
-    "coverage-report-name": "Update_Markdown"
+    "coverage-report-name": "Update_Markdown",
+    "local-java-build": false
   }
 ]

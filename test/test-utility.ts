@@ -51,7 +51,7 @@ import {type NetworkNodes} from '../src/core/network-nodes.js';
 import {InjectTokens} from '../src/core/dependency-injection/inject-tokens.js';
 import {DeploymentCommand} from '../src/commands/deployment.js';
 import {Argv} from './helpers/argv-wrapper.js';
-import {type ClusterReference, type DeploymentName, type NamespaceNameAsString} from '../src/types/index.js';
+import {type ClusterReferenceName, type DeploymentName, type NamespaceNameAsString} from '../src/types/index.js';
 import {type CommandInvoker} from './helpers/command-invoker.js';
 import {PathEx} from '../src/business/utils/path-ex.js';
 import {type HelmClient} from '../src/integration/helm/helm-client.js';
@@ -65,8 +65,8 @@ import {type RemoteConfigRuntimeStateApi} from '../src/business/runtime-state/ap
 
 export const BASE_TEST_DIR = PathEx.join('test', 'data', 'tmp');
 
-export function getTestCluster(): ClusterReference {
-  const soloTestCluster: ClusterReference =
+export function getTestCluster(): ClusterReferenceName {
+  const soloTestCluster: ClusterReferenceName =
     process.env.SOLO_TEST_CLUSTER ||
     container.resolve<K8Factory>(InjectTokens.K8Factory).default().clusters().readCurrent() ||
     'solo-e2e';
@@ -204,9 +204,9 @@ export function bootstrapTestVariables(
   const cacheDirectory: string = argv.getArg<string>(flags.cacheDir) || getTestCacheDirectory(testName);
 
   // Make sure the container is reset only once per CI run.
-  // When multiple test suites are loaded simultaniously, as is the case with `task test-e2e-standard`
+  // When multiple test suites are loaded simultaneously, as is the case with `task test-e2e-standard`
   // the container will be reset multiple times, which causes issues with the loading of LocalConfigRuntimeState.
-  // A better solution would be to run bootstraping during the before hook of the test suite.
+  // A better solution would be to run bootstrapping during the before hook of the test suite.
   if (shouldReset) {
     resetForTest(namespace.name, cacheDirectory);
     shouldReset = false;

@@ -23,7 +23,7 @@ export class LayeredConfigProvider implements ConfigProvider {
   }
 
   public builder(): ConfigBuilder {
-    return new LayeredConfigBuilder(this.mapper, this.prefix);
+    return new LayeredConfigBuilder(this, this.mapper, this.prefix);
   }
 
   public config(): Config {

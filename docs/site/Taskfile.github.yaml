@@ -32,7 +32,6 @@ tasks:
 
   github:download:solo:assets:
     desc: Download release assets into per-tag folders under build/
-    deps: [github:augment:releases]
     silent: true
     cmds:
       - |
@@ -52,10 +51,10 @@ tasks:
             url=$(echo "$asset" | jq -r '.url')
             dest="build/$tag/$name"
         
-            if [ -f "$dest" ]; then
-              echo "✔ Skipping $name (already exists)"
+            if [[ -f "$dest" ]]; then
+              echo "✔ Skipping $name ($dest already exists)"
             else
-              echo "⬇ Downloading $name"
+              echo "⬇ Downloading $name, $dest doesn't exist yet"
               curl -sSL --retry 3 --fail -o "$dest" "$url" || {
                 echo "❌ Failed to download $url" >&2
                 rm -f "$dest"
@@ -66,7 +65,6 @@ tasks:
 
   github:extract:latest:
     desc: Extract docs-latest.tar.gz from latest version to public/latest
-    deps: [github:download:solo:assets]
     silent: true
     cmds:
       - |
@@ -95,7 +93,6 @@ tasks:
 
   github:extract:versioned:
     desc: Extract docs-${tag}.tar.gz into public/${tag}
-    deps: [github:download:solo:assets]
     silent: true
     cmds:
       - |
@@ -107,6 +104,11 @@ tasks:
         
           if [ ! -f "$ARCHIVE" ]; then
             echo "⚠️ Missing: $ARCHIVE"
+            continue
+          fi
+          
+          if [[ -d "$DEST/$TAG" ]]; then
+            echo "✔ Skipping extraction for $TAG (already exists)"
             continue
           fi
         
@@ -133,14 +135,6 @@ tasks:
         fi
         
         jq -r '.[] | select(.npmjsLatest == true or .npmjsLatest == false) | "    - {version: \(.tag), url: /\(.tag)}"' "$RELEASES" >> "$CONFIG"
-
-  github:prepare:site:
-    desc: Run all extraction and update tasks
-    deps:
-      - github:extract:latest
-      - github:extract:versioned
-      - github:update:hugo:config
-
 
   github:augment:releases:
     desc: Add npmjsLatest field to each release in github-releases.json and save to build/releases.json

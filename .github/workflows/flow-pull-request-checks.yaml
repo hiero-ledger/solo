@@ -17,6 +17,17 @@
 name: "PR Checks"
 on:
   workflow_dispatch:
+    inputs:
+      consensus-node-version:
+        description: "Consensus Node Version:"
+        type: string
+        required: false
+        default: "v0.61.7"
+      skip-unit-and-coverage:
+        description: "Skip Unit Tests and Coverage"
+        type: boolean
+        required: false
+        default: true
   pull_request:
     types:
       - opened
@@ -46,7 +57,7 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
           egress-policy: audit
 
@@ -78,6 +89,7 @@ jobs:
     uses: ./.github/workflows/zxc-unit-test.yaml
     needs:
       - code-style
+    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage == true) }}
     with:
       custom-job-label: Standard
 
@@ -94,10 +106,13 @@ jobs:
         e2e-test-type: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
       max-parallel: 5
     with:
+      # Conditionally pass consensus-node-version only if triggered by workflow_dispatch
+      consensus-node-version: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.consensus-node-version || '' }}
       custom-job-label: ${{ matrix.e2e-test-type.name }}
       test-script: ${{ matrix.e2e-test-type.test-script }}
       coverage-subdirectory: ${{ matrix.e2e-test-type.coverage-subdirectory }}
       coverage-report-name: ${{ matrix.e2e-test-type.coverage-report-name }}
+      local-java-build: ${{ matrix.e2e-test-type.local-java-build }}
       cluster-name: ${{ matrix.e2e-test-type.coverage-subdirectory }}-${{ github.run_id }}-${{ github.run_attempt }}
 
   codecov:
@@ -106,7 +121,9 @@ jobs:
     needs:
       - unit-tests
       - e2e-tests
-    if: ${{ github.event.pull_request.head.repo.full_name == github.event.pull_request.base.repo.full_name }}
+    if: >
+      ${{ github.event.pull_request.head.repo.full_name == github.event.pull_request.base.repo.full_name &&
+      !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage == true) }}
     with:
       custom-job-label: Standard
       enable-codecov-analysis: true
@@ -120,7 +137,9 @@ jobs:
     needs:
       - unit-tests
       - e2e-tests
-    if: ${{ github.event.pull_request.head.repo.full_name == github.event.pull_request.base.repo.full_name }}
+    if: >
+      ${{ github.event.pull_request.head.repo.full_name == github.event.pull_request.base.repo.full_name &&
+      !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage == true) }}
     with:
       custom-job-label: Coverage
       enable-codacy-coverage: true
@@ -131,5 +150,6 @@ jobs:
   hugo-docs-build:
     name: Hugo Docs Build
     uses: ./.github/workflows/zxc-hugo-build.yaml
+    if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage == true) }}
     with:
       ref: ${{ github.ref }}

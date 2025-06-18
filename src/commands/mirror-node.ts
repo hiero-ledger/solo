@@ -24,7 +24,7 @@ import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as fs from 'node:fs';
 import {
-  type ClusterReference,
+  type ClusterReferenceName,
   type CommandDefinition,
   type DeploymentName,
   type Optional,
@@ -58,7 +58,7 @@ interface MirrorNodeDeployConfigClass {
   cacheDir: string;
   chartDirectory: string;
   clusterContext: string;
-  clusterRef: ClusterReference;
+  clusterRef: ClusterReferenceName;
   namespace: NamespaceName;
   enableIngress: boolean;
   ingressControllerValueFile: string;
@@ -98,7 +98,7 @@ interface MirrorNodeDestroyContext {
     namespace: NamespaceName;
     clusterContext: string;
     isChartInstalled: boolean;
-    clusterReference: ClusterReference;
+    clusterReference: ClusterReferenceName;
   };
 }
 
@@ -795,7 +795,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
             self.configManager.update(argv);
             const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
-            const clusterReference: ClusterReference =
+            const clusterReference: ClusterReferenceName =
               (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
               this.k8Factory.default().clusters().readCurrent();
 
@@ -974,7 +974,7 @@ export class MirrorNodeCommand extends BaseCommand {
       title: 'Remove mirror node from remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        const clusterReference: ClusterReference = context_.config.clusterReference;
+        const clusterReference: ClusterReferenceName = context_.config.clusterReference;
 
         const mirrorNodeComponents: MirrorNodeStateSchema[] =
           this.remoteConfig.configuration.components.getComponentsByClusterReference<MirrorNodeStateSchema>(

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-  type ClusterReference,
+  type ClusterReferenceName,
   type ClusterReferences,
   type Context,
   type DeploymentName,
@@ -15,7 +15,7 @@ import {type ComponentFactoryApi} from '../../../core/config/remote/api/componen
 import {type RemoteConfig} from '../config/remote/remote-config.js';
 
 export interface RemoteConfigRuntimeStateApi {
-  currentCluster: ClusterReference;
+  currentCluster: ClusterReferenceName;
   configuration?: RemoteConfig;
 
   getClusterRefs(): ClusterReferences;
@@ -33,7 +33,7 @@ export interface RemoteConfigRuntimeStateApi {
     nodeAliases: NodeAliases,
     namespace: NamespaceName,
     deployment: DeploymentName,
-    clusterReference: ClusterReference,
+    clusterReference: ClusterReferenceName,
     context: Context,
     dnsBaseDomain: string,
     dnsConsensusNodePattern: string,
@@ -41,7 +41,7 @@ export interface RemoteConfigRuntimeStateApi {
 
   createFromExisting(
     namespace: NamespaceName,
-    clusterReference: ClusterReference,
+    clusterReference: ClusterReferenceName,
     deployment: DeploymentName,
     componentFactory: ComponentFactoryApi,
     dnsBaseDomain: string,
