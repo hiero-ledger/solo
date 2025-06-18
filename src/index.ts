@@ -37,12 +37,12 @@ export async function main(argv: string[], context?: {logger: SoloLogger}) {
     context.logger = logger;
   }
   process.on('unhandledRejection', (reason: {error?: Error; target?: {url?: string}}, promise) => {
-      logger.showUserError(
-        new SoloError(
-          `Unhandled Rejection at: ${JSON.stringify(promise)}, reason: ${JSON.stringify(reason)}, target: ${reason.target?.url}`,
+    logger.showUserError(
+      new SoloError(
+        `Unhandled Rejection at: ${JSON.stringify(promise)}, reason: ${JSON.stringify(reason)}, target: ${reason.target?.url}`,
         reason.error,
-        ),
-      );
+      ),
+    );
   });
   process.on('uncaughtException', (error, origin) => {
     logger.showUserError(new SoloError(`Uncaught Exception: ${error}, origin: ${origin}`, error));
