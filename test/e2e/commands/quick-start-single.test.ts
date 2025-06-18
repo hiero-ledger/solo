@@ -51,6 +51,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         testLogger.info(`${testName}: starting ${testName} e2e test`);
       }).timeout(Duration.ofMinutes(5).toMillis());
 
+      // TODO pass in namespace for cache directory for proper destroy on restart
       it(`${testName}: deploy`, async (): Promise<void> => {
         testLogger.info(`${testName}: beginning ${testName}: deploy`);
         await main(soloQuickStartDeploy(testName));
