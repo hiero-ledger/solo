@@ -589,6 +589,6 @@ export function checkDockerImageExists(imageName: string, imageTag: string): boo
     return output.trim() === fullImageName;
   } catch (error: any) {
     console.error(`Error checking Docker image ${fullImageName}:`, error.message);
-   return false;
+    return false;
   }
 }
