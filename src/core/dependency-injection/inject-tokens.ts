@@ -61,4 +61,5 @@ export const InjectTokens = {
   LocalConfigSource: Symbol.for('LocalConfigSource'),
   LocalConfigRuntimeState: Symbol.for('LocalConfigRuntimeState'),
   HomeDirectory: Symbol.for('HomeDirectory'),
+  QuickStartCommand: Symbol.for('QuickStartCommand'),
 };

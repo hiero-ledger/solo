@@ -15,7 +15,14 @@ import {NetworkCommand} from '../src/commands/network.js';
 import {NodeCommand} from '../src/commands/node/index.js';
 import {type DependencyManager} from '../src/core/dependency-managers/index.js';
 import {sleep} from '../src/core/helpers.js';
-import {AccountBalanceQuery, AccountCreateTransaction, Hbar, HbarUnit, PrivateKey} from '@hashgraph/sdk';
+import {
+  AccountBalanceQuery,
+  AccountCreateTransaction,
+  type AccountId,
+  Hbar,
+  HbarUnit,
+  PrivateKey,
+} from '@hashgraph/sdk';
 import * as constants from '../src/core/constants.js';
 import {NODE_LOG_FAILURE_MSG, ROOT_CONTAINER, SOLO_LOGS_DIR} from '../src/core/constants.js';
 import crypto from 'node:crypto';
@@ -445,41 +452,49 @@ export function accountCreationShouldSucceed(
   remoteConfig: RemoteConfigRuntimeStateApi,
   logger: SoloLogger,
   skipNodeAlias?: NodeAlias,
+  expectedAccountId?: AccountId,
 ): void {
-  it('Account creation should succeed', async () => {
-    try {
-      const argv = Argv.getDefaultArgv(namespace);
-      await accountManager.refreshNodeClient(
-        namespace,
-        remoteConfig.getClusterRefs(),
-        skipNodeAlias,
-        argv.getArg<DeploymentName>(flags.deployment),
-      );
-      expect(accountManager._nodeClient).not.to.be.null;
-      const privateKey = PrivateKey.generate();
-      const amount = 100;
+  it(
+    'Account creation should succeed' +
+      (expectedAccountId ? ` with expected AccountId: ${expectedAccountId.toString()}` : ''),
+    async () => {
+      try {
+        const argv = Argv.getDefaultArgv(namespace);
+        await accountManager.refreshNodeClient(
+          namespace,
+          remoteConfig.getClusterRefs(),
+          skipNodeAlias,
+          argv.getArg<DeploymentName>(flags.deployment),
+        );
+        expect(accountManager._nodeClient).not.to.be.null;
+        const privateKey = PrivateKey.generate();
+        const amount = 100;
 
-      const newAccount = await new AccountCreateTransaction()
-        .setKey(privateKey)
-        .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
-        .execute(accountManager._nodeClient);
+        const newAccount = await new AccountCreateTransaction()
+          .setKey(privateKey)
+          .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
+          .execute(accountManager._nodeClient);
 
-      // Get the new account ID
-      const getReceipt = await newAccount.getReceipt(accountManager._nodeClient);
-      const accountInfo = {
-        accountId: getReceipt.accountId.toString(),
-        privateKey: privateKey.toString(),
-        publicKey: privateKey.publicKey.toString(),
-        balance: amount,
-      };
+        // Get the new account ID
+        const getReceipt = await newAccount.getReceipt(accountManager._nodeClient);
+        const accountInfo = {
+          accountId: getReceipt.accountId.toString(),
+          privateKey: privateKey.toString(),
+          publicKey: privateKey.publicKey.toString(),
+          balance: amount,
+        };
 
-      expect(accountInfo.accountId).not.to.be.null;
-      expect(accountInfo.balance).to.equal(amount);
-    } catch (error) {
-      logger.showUserError(error);
-      expect.fail();
-    }
-  }).timeout(Duration.ofMinutes(2).toMillis());
+        expect(accountInfo.accountId).not.to.be.null;
+        if (expectedAccountId) {
+          expect(accountInfo.accountId).to.equal(expectedAccountId.toString());
+        }
+        expect(accountInfo.balance).to.equal(amount);
+      } catch (error) {
+        logger.showUserError(error);
+        expect.fail();
+      }
+    },
+  ).timeout(Duration.ofMinutes(2).toMillis());
 }
 
 export async function getNodeAliasesPrivateKeysHash(

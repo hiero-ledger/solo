@@ -199,19 +199,14 @@ export class ProfileManager {
     }
   }
 
-  public async resourcesForConsensusPod(
-    profile: AnyObject,
+  public async prepareStagingDirectory(
     consensusNodes: ConsensusNode[],
     nodeAliases: NodeAliases,
     yamlRoot: AnyObject,
     domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
-  ): Promise<AnyObject> {
-    if (!profile) {
-      throw new MissingArgumentError('profile is required');
-    }
-
+  ): Promise<void> {
     const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
       consensusNodes.map(node => node.name),
       deploymentName,
@@ -297,6 +292,29 @@ export class ProfileManager {
       'hedera.configMaps.applicationEnv',
       PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.env'),
       yamlRoot,
+    );
+  }
+
+  public async resourcesForConsensusPod(
+    profile: AnyObject,
+    consensusNodes: ConsensusNode[],
+    nodeAliases: NodeAliases,
+    yamlRoot: AnyObject,
+    domainNamesMapping: Record<NodeAlias, string>,
+    deploymentName: DeploymentName,
+    applicationPropertiesPath: string,
+  ): Promise<AnyObject> {
+    if (!profile) {
+      throw new MissingArgumentError('profile is required');
+    }
+
+    await this.prepareStagingDirectory(
+      consensusNodes,
+      nodeAliases,
+      yamlRoot,
+      domainNamesMapping,
+      deploymentName,
+      applicationPropertiesPath,
     );
 
     if (profile.consensus) {
