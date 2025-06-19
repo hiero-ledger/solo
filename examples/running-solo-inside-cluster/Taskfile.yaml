@@ -1,0 +1,36 @@
+version: 3
+env:
+  SOLO_DEPLOYMENT: "solo-deployment"
+  SOLO_NAMESPACE: "solo-e2e"
+  SOLO_CLUSTER_NAME: "solo-e2e"
+tasks:
+  test-e2e-running-solo-in-cluster:
+    cmds:
+      - mkdir -p {{.TASKFILE_DIR}}/.task-tmp
+      - task: render-sa
+      - task: render-pod
+      - kubectl apply -f {{.TASKFILE_DIR}}/.task-tmp/sa-admin.yaml
+      - kubectl apply -f {{.TASKFILE_DIR}}/.task-tmp/ubuntu-privileged-pod.yaml
+
+      # Wait for the pod to be ready
+      - kubectl wait --for=condition=Ready pod/ubuntu-priv -n solo-e2e --timeout=120s
+
+      # Copy the environment setup script to /root inside the pod
+      - kubectl cp {{.TASKFILE_DIR}}/scripts/setup-environment.sh solo-e2e/ubuntu-priv:/root/setup-environment.sh
+
+      # Change permission to executable inside the pod
+      - kubectl exec -n solo-e2e ubuntu-priv -- chmod +x /root/setup-environment.sh
+
+      # Run the script to setup the environment inside the pod
+      - kubectl exec -n solo-e2e ubuntu-priv -- sh -c "SOLO_DEPLOYMENT={{.SOLO_DEPLOYMENT}} SOLO_NAMESPACE={{.SOLO_NAMESPACE}} SOLO_CLUSTER_NAME={{.SOLO_CLUSTER_NAME}} /root/setup-environment.sh"
+
+
+  render-sa:
+    cmds:
+      - mkdir -p {{.TASKFILE_DIR}}/.task-tmp
+      - envsubst < {{.TASKFILE_DIR}}/templates/sa-admin.yaml.tmpl > {{.TASKFILE_DIR}}/.task-tmp/sa-admin.yaml
+
+  render-pod:
+    cmds:
+      - mkdir -p {{.TASKFILE_DIR}}/.task-tmp
+      - envsubst < {{.TASKFILE_DIR}}/templates/ubuntu-privileged-pod.yaml.tmpl > {{.TASKFILE_DIR}}/.task-tmp/ubuntu-privileged-pod.yaml
