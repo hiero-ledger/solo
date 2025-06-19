@@ -17,7 +17,7 @@ import {BlockNodeCommand} from '../../../src/commands/block-node.js';
 import {ComponentTypes} from '../../../src/core/config/remote/enumerations/component-types.js';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
-import {type ClusterReference, type ExtendedNetServer} from '../../../src/types/index.js';
+import {type ClusterReferenceName, type ExtendedNetServer} from '../../../src/types/index.js';
 import {exec} from 'node:child_process';
 import {promisify} from 'node:util';
 import * as constants from '../../../src/core/constants.js';
@@ -33,7 +33,7 @@ const execAsync = promisify(exec);
 const testName: string = 'block-node-cmd-e2e';
 const namespace: NamespaceName = NamespaceName.of(testName);
 const argv: Argv = Argv.getDefaultArgv(namespace);
-const clusterReference: ClusterReference = getTestCluster();
+const clusterReference: ClusterReferenceName = getTestCluster();
 argv.setArg(flags.namespace, namespace.name);
 // TODO remove TEST_BLOCK_NODE_MINIMUM_PLATFORM_VERSION and the tertiary when we have a version that supports block node
 argv.setArg(
