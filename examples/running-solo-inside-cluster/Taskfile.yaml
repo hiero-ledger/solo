@@ -1,0 +1,18 @@
+version: 3
+tasks:
+  test-e2e-running-solo-in-cluster:
+    cmds:
+      - kubectl apply -f {{.TASKFILE_DIR}}/sa-admin.yaml
+      - kubectl apply -f {{.TASKFILE_DIR}}/ubuntu-privileged-pod.yaml
+
+      # Wait for the pod to be ready
+      - kubectl wait --for=condition=Ready pod/ubuntu-priv -n solo-e2e --timeout=120s
+
+      # Copy the local script to /root inside the pod
+      - kubectl cp {{.TASKFILE_DIR}}/script.sh solo-e2e/ubuntu-priv:/root/script.sh
+
+      # Change permission to executable inside the pod
+      - kubectl exec -n solo-e2e ubuntu-priv -- chmod +x /root/script.sh
+
+      # Run the script inside the pod
+      - kubectl exec -n solo-e2e ubuntu-priv -- /root/script.sh

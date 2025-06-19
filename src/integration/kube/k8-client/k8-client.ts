@@ -103,28 +103,20 @@ export class K8Client implements K8 {
   private getKubeConfig(context: string): KubeConfig {
     const kubeConfig: KubeConfig = new KubeConfig();
 
-    function setContextCallback(): void {
-      if (context) {
-        const kubeConfigContext: k8s.Context = kubeConfig.getContextObject(context);
-
-        if (!kubeConfigContext) {
-          throw new SoloError(`No kube config context found with name ${context}`);
-        }
-
-        kubeConfig.setCurrentContext(context);
-      }
-    }
-
     try {
       kubeConfig.loadFromDefault();
-      setContextCallback();
+      if (context) {
+        if (!kubeConfig.getContextObject(context)) {
+          throw new SoloError(`No kube config context found with name ${context}`);
+        }
+        kubeConfig.setCurrentContext(context);
+      }
     } catch (error) {
       //* Try loading from cluster if loading from default fails
       try {
         kubeConfig.loadFromCluster();
-        setContextCallback();
       } catch (fromClusterError) {
-        throw new SoloError('Failed to load Kubernetes configuration', fromClusterError, error);
+        throw new SoloError('Failed to load Kubernetes configuration from cluster', fromClusterError, error);
       }
     }
 
