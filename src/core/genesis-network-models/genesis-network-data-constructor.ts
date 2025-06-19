@@ -5,7 +5,7 @@ import {GenesisNetworkNodeDataWrapper} from './genesis-network-node-data-wrapper
 import * as constants from '../constants.js';
 
 import {type KeyManager} from '../key-manager.js';
-import {type ToJSON} from '../../types/index.js';
+import {type GenesisNetworkNodeStructure, type GenesisNetworkRosterStructure, type ToJSON} from '../../types/index.js';
 import {type JsonString, type NodeAlias} from '../../types/aliases.js';
 import {GenesisNetworkRosterEntryDataWrapper} from './genesis-network-roster-entry-data-wrapper.js';
 import {Templates} from '../templates.js';
@@ -16,6 +16,8 @@ import {type ConsensusNode} from '../model/consensus-node.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {type NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
 import {type NetworkNodeServices} from '../network-node-services.js';
+import {type NamespaceName} from '../../types/namespace/namespace-name.js';
+import {type ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 
 /**
  * Used to construct the nodes data and convert them to JSON
@@ -32,14 +34,15 @@ export class GenesisNetworkDataConstructor implements ToJSON {
     private readonly keysDirectory: string,
     public networkNodeServiceMap: NodeServiceMapping,
     public adminPublicKeyMap: Map<NodeAlias, string>,
+    clusters: Readonly<Readonly<ClusterSchema>[]>,
     public domainNamesMapping?: Record<NodeAlias, string>,
   ) {
-    this.initializationPromise = (async () => {
+    this.initializationPromise = (async (): Promise<void> => {
       for (const consensusNode of consensusNodes) {
         let adminPubKey: PublicKey;
         const networkNodeService: NetworkNodeServices = this.networkNodeServiceMap.get(consensusNode.name);
-        const accountId = AccountId.fromString(networkNodeService.accountId);
-        const namespace = networkNodeService.namespace;
+        const accountId: AccountId = AccountId.fromString(networkNodeService.accountId);
+        const namespace: NamespaceName = networkNodeService.namespace;
 
         if (adminPublicKeyMap.has(consensusNode.name as NodeAlias)) {
           try {
@@ -53,12 +56,12 @@ export class GenesisNetworkDataConstructor implements ToJSON {
 
         // not found existing one, generate a new key, and save to k8 secret
         if (!adminPubKey) {
-          const newKey = PrivateKey.generate();
+          const newKey: PrivateKey = PrivateKey.generate();
           adminPubKey = newKey.publicKey;
           await this.accountManager.updateAccountKeys(namespace, accountId, newKey, true);
         }
 
-        const nodeDataWrapper = new GenesisNetworkNodeDataWrapper(
+        const nodeDataWrapper: GenesisNetworkNodeDataWrapper = new GenesisNetworkNodeDataWrapper(
           +networkNodeService.nodeId,
           adminPubKey,
           consensusNode.name,
@@ -66,19 +69,36 @@ export class GenesisNetworkDataConstructor implements ToJSON {
         this.nodes[consensusNode.name] = nodeDataWrapper;
         nodeDataWrapper.accountId = accountId;
 
-        const rosterDataWrapper = new GenesisNetworkRosterEntryDataWrapper(+networkNodeService.nodeId);
+        const rosterDataWrapper: GenesisNetworkRosterEntryDataWrapper = new GenesisNetworkRosterEntryDataWrapper(
+          +networkNodeService.nodeId,
+        );
         this.rosters[consensusNode.name] = rosterDataWrapper;
         rosterDataWrapper.weight = this.nodes[consensusNode.name].weight = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
 
-        const externalPort = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
+        const externalPort: number = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
         // Add gossip endpoints
         nodeDataWrapper.addGossipEndpoint(networkNodeService.externalAddress, externalPort);
         rosterDataWrapper.addGossipEndpoint(networkNodeService.externalAddress, externalPort);
 
-        const domainName = domainNamesMapping?.[consensusNode.name];
+        const domainName: string = domainNamesMapping?.[consensusNode.name];
 
         // Add service endpoints
         nodeDataWrapper.addServiceEndpoint(domainName ?? networkNodeService.externalAddress, constants.GRPC_PORT);
+
+        const cluster: Readonly<ClusterSchema> = clusters.find(
+          (cluster): boolean => cluster.namespace === namespace.name,
+        );
+
+        const grpcProxyAddress: string = Templates.renderSvcFullyQualifiedDomainName(
+          networkNodeService.envoyProxyName,
+          namespace.name,
+          cluster.dnsBaseDomain,
+        );
+
+        const grpcProxyPort: number = +networkNodeService.envoyProxyGrpcWebPort;
+
+        // Add grpc proxy endpoints
+        nodeDataWrapper.addGrpcProxyEndpoint(grpcProxyAddress, grpcProxyPort);
       }
     })();
   }
@@ -90,11 +110,12 @@ export class GenesisNetworkDataConstructor implements ToJSON {
     keysDirectory: string,
     networkNodeServiceMap: NodeServiceMapping,
     adminPublicKeys: string[],
+    clusters: Readonly<Readonly<ClusterSchema>[]>,
     domainNamesMapping?: Record<NodeAlias, string>,
   ): Promise<GenesisNetworkDataConstructor> {
     const adminPublicKeyMap: Map<NodeAlias, string> = new Map();
 
-    const adminPublicKeyIsDefaultValue =
+    const adminPublicKeyIsDefaultValue: boolean =
       adminPublicKeys.length === 1 && adminPublicKeys[0] === flags.adminPublicKeys.definition.defaultValue;
     // If admin keys are passed and if it is not the default value from flags then validate and build the adminPublicKeyMap
     if (adminPublicKeys.length > 0 && !adminPublicKeyIsDefaultValue) {
@@ -109,13 +130,14 @@ export class GenesisNetworkDataConstructor implements ToJSON {
       }
     }
 
-    const instance = new GenesisNetworkDataConstructor(
+    const instance: GenesisNetworkDataConstructor = new GenesisNetworkDataConstructor(
       consensusNodes,
       keyManager,
       accountManager,
       keysDirectory,
       networkNodeServiceMap,
       adminPublicKeyMap,
+      clusters,
       domainNamesMapping,
     );
 
@@ -127,13 +149,13 @@ export class GenesisNetworkDataConstructor implements ToJSON {
   /**
    * Loads the gossipCaCertificate and grpcCertificateHash
    */
-  private async load() {
+  private async load(): Promise<void> {
     await this.initializationPromise;
     await Promise.all(
-      this.consensusNodes.map(async consensusNode => {
-        const signingCertFile = Templates.renderGossipPemPublicKeyFile(consensusNode.name as NodeAlias);
-        const signingCertFullPath = PathEx.joinWithRealPath(this.keysDirectory, signingCertFile);
-        const derCertificate = this.keyManager.getDerFromPemCertificate(signingCertFullPath);
+      this.consensusNodes.map(async (consensusNode): Promise<void> => {
+        const signingCertFile: string = Templates.renderGossipPemPublicKeyFile(consensusNode.name as NodeAlias);
+        const signingCertFullPath: string = PathEx.joinWithRealPath(this.keysDirectory, signingCertFile);
+        const derCertificate: Uint8Array = this.keyManager.getDerFromPemCertificate(signingCertFullPath);
 
         //* Assign the DER formatted certificate
         this.rosters[consensusNode.name].gossipCaCertificate = this.nodes[consensusNode.name].gossipCaCertificate =
@@ -146,7 +168,7 @@ export class GenesisNetworkDataConstructor implements ToJSON {
   }
 
   public toJSON(): JsonString {
-    const nodeMetadata = [];
+    const nodeMetadata: {node: GenesisNetworkNodeStructure; rosterEntry: GenesisNetworkRosterStructure}[] = [];
     for (const nodeAlias of Object.keys(this.nodes)) {
       nodeMetadata.push({
         node: this.nodes[nodeAlias].toObject(),
@@ -154,6 +176,6 @@ export class GenesisNetworkDataConstructor implements ToJSON {
       });
     }
 
-    return JSON.stringify({nodeMetadata: nodeMetadata});
+    return JSON.stringify({nodeMetadata});
   }
 }

@@ -92,18 +92,18 @@ export interface ServiceEndpoint {
 
 export interface NodeAccountId {
   accountId: {
-    realm: string;
-    shard: string;
+    realmNum: string;
+    shardNum: string;
     accountNum: string;
   };
 }
 
-export interface GenesisNetworkNodeStructure {
+export interface GenesisNetworkNodeStructure extends NodeAccountId {
   nodeId: number;
-  accountId: NodeAccountId;
   description: string;
   gossipEndpoint: ServiceEndpoint[];
   serviceEndpoint: ServiceEndpoint[];
+  grpcProxyEndpoint: ServiceEndpoint[];
   gossipCaCertificate: string;
   grpcCertificateHash: string;
   weight: number;
