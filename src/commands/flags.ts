@@ -14,7 +14,7 @@ import {
   confirm as confirmPrompt,
 } from '@inquirer/prompts';
 import {type AnyListrContext, type AnyObject, type AnyYargs} from '../types/aliases.js';
-import {type ClusterReference} from '../types/index.js';
+import {type ClusterReferenceName} from '../types/index.js';
 import {type Optional, type SoloListrTaskWrapper} from '../types/index.js';
 import chalk from 'chalk';
 import {PathEx} from '../business/utils/path-ex.js';
@@ -261,8 +261,8 @@ export class Flags {
    * <p>--values-file aws-cluster=aws/solo-values.yaml,aws-cluster=aws/solo-values2.yaml,gcp-cluster=gcp/solo-values.yaml,gcp-cluster=gcp/solo-values2.yaml
    * @param input
    */
-  public static parseValuesFilesInput(input: string): Record<ClusterReference, Array<string>> {
-    const valuesFiles: Record<ClusterReference, Array<string>> = {};
+  public static parseValuesFilesInput(input: string): Record<ClusterReferenceName, Array<string>> {
+    const valuesFiles: Record<ClusterReferenceName, Array<string>> = {};
     if (input) {
       const inputItems = input.split(',');
       for (const v of inputItems) {
@@ -572,6 +572,17 @@ export class Flags {
     name: 'upgrade-version',
     definition: {
       describe: 'Version to be used for the upgrade',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly imageTag: CommandFlag = {
+    constName: 'imageTag',
+    name: 'image-tag',
+    definition: {
+      describe: 'The Docker image tag to override what is in the Helm Chart',
       defaultValue: '',
       type: 'string',
     },
@@ -2560,6 +2571,7 @@ export class Flags {
     Flags.profileFile,
     Flags.profileName,
     Flags.quiet,
+    Flags.imageTag,
     Flags.relayReleaseTag,
     Flags.releaseTag,
     Flags.upgradeVersion,

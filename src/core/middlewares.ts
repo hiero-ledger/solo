@@ -8,7 +8,7 @@ import {type ConfigManager} from './config-manager.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type AnyObject, ArgvStruct} from '../types/aliases.js';
-import {type ClusterReference} from './../types/index.js';
+import {type ClusterReferenceName} from './../types/index.js';
 import {SoloError} from './errors/solo-error.js';
 import {SilentBreak} from './errors/silent-break.js';
 import {type HelpRenderer} from './help-renderer.js';
@@ -99,7 +99,7 @@ export class Middlewares {
         configManager.reset();
       }
 
-      const clusterName = configManager.getFlag<ClusterReference>(flags.clusterRef) || currentClusterName;
+      const clusterName = configManager.getFlag<ClusterReferenceName>(flags.clusterRef) || currentClusterName;
 
       // Set namespace if not provided
       if (contextNamespace?.name) {
@@ -154,6 +154,7 @@ export class Middlewares {
 
       const skip =
         command === 'init' ||
+        command === 'quick-start' ||
         (command === 'cluster-ref' && subCommand === 'connect') ||
         (command === 'cluster-ref' && subCommand === 'disconnect') ||
         (command === 'cluster-ref' && subCommand === 'info') ||
@@ -185,7 +186,7 @@ export class Middlewares {
   public loadLocalConfig() {
     return async (argv: any): Promise<AnyObject> => {
       const command: string = argv._[0];
-      const runMiddleware: boolean = command !== 'init';
+      const runMiddleware: boolean = command !== 'init' && command !== 'quick-start';
 
       if (runMiddleware) {
         this.logger.debug('Loading local config');
@@ -201,7 +202,7 @@ export class Middlewares {
    * @returns callback function to be executed from listr
    */
   public checkIfInitialized() {
-    const logger = this.logger;
+    const logger: SoloLogger = this.logger;
 
     /**
      * @param argv - listr Argv
@@ -209,8 +210,8 @@ export class Middlewares {
     return async (argv: any): Promise<AnyObject> => {
       logger.debug('Checking if local config exists');
 
-      const command = argv._[0];
-      const allowMissingLocalConfig = command === 'init';
+      const command: any = argv._[0];
+      const allowMissingLocalConfig: boolean = command === 'init' || command === 'quick-start';
 
       if (!allowMissingLocalConfig && !this.localConfig.configFileExists()) {
         throw new SoloError('Please run `solo init` to create required files');

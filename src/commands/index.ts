@@ -12,23 +12,25 @@ import {type ExplorerCommand} from './explorer.js';
 import {type BlockNodeCommand} from './block-node.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {type QuickStartCommand} from './quick-start.js';
+import {type CommandDefinition} from '../types/index.js';
 
 /**
  * Return a list of Yargs command builder to be exposed through CLI
  * @returns an array of Yargs command builder
  */
-export function Initialize() {
-  const initCmd = container.resolve(InjectTokens.InitCommand) as InitCommand;
-  const clusterCmd = container.resolve(InjectTokens.ClusterCommand) as ClusterCommand;
-  const networkCommand = container.resolve(InjectTokens.NetworkCommand) as NetworkCommand;
-  const nodeCmd = container.resolve(InjectTokens.NodeCommand) as NodeCommand;
-  const relayCmd = container.resolve(InjectTokens.RelayCommand) as RelayCommand;
-  const accountCmd = container.resolve(InjectTokens.AccountCommand) as AccountCommand;
-  const mirrorNodeCmd = container.resolve(InjectTokens.MirrorNodeCommand) as MirrorNodeCommand;
-  const explorerCommand = container.resolve(InjectTokens.ExplorerCommand) as ExplorerCommand;
-  const deploymentCommand = container.resolve(InjectTokens.DeploymentCommand) as DeploymentCommand;
-  const blockNodeCommand = container.resolve(InjectTokens.BlockNodeCommand) as BlockNodeCommand;
-
+export function Initialize(): CommandDefinition[] {
+  const initCmd: InitCommand = container.resolve(InjectTokens.InitCommand);
+  const clusterCmd: ClusterCommand = container.resolve(InjectTokens.ClusterCommand);
+  const networkCommand: NetworkCommand = container.resolve(InjectTokens.NetworkCommand);
+  const nodeCmd: NodeCommand = container.resolve(InjectTokens.NodeCommand);
+  const relayCmd: RelayCommand = container.resolve(InjectTokens.RelayCommand);
+  const accountCmd: AccountCommand = container.resolve(InjectTokens.AccountCommand);
+  const mirrorNodeCmd: MirrorNodeCommand = container.resolve(InjectTokens.MirrorNodeCommand);
+  const explorerCommand: ExplorerCommand = container.resolve(InjectTokens.ExplorerCommand);
+  const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+  const blockNodeCommand: BlockNodeCommand = container.resolve(InjectTokens.BlockNodeCommand);
+  const quickStartCommand: QuickStartCommand = container.resolve(InjectTokens.QuickStartCommand);
   return [
     initCmd.getCommandDefinition(),
     accountCmd.getCommandDefinition(),
@@ -40,5 +42,6 @@ export function Initialize() {
     explorerCommand.getCommandDefinition(),
     deploymentCommand.getCommandDefinition(),
     blockNodeCommand.getCommandDefinition(),
+    quickStartCommand.getCommandDefinition(),
   ];
 }
