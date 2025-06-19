@@ -491,3 +491,4 @@ deleteme.yaml
 /test/data/proto/streams/
 /docs/site/content/en/docs/solo-commands.md
 /docs/site/content/en/docs/step-by-step-guide.md
+/examples/running-solo-inside-cluster/.task-tmp
