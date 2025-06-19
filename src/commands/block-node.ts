@@ -17,7 +17,7 @@ import {
 } from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {
-  type ClusterReference,
+  type ClusterReferenceName,
   type CommandDefinition,
   ComponentId,
   type DeploymentName,
@@ -48,7 +48,7 @@ import {BLOCK_NODE_IMAGE_NAME} from '../core/constants.js';
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
   chartDirectory: string;
-  clusterRef: ClusterReference;
+  clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
   devMode: boolean;
   domainName: Optional<string>;
@@ -70,7 +70,7 @@ interface BlockNodeDeployContext {
 
 interface BlockNodeDestroyConfigClass {
   chartDirectory: string;
-  clusterRef: ClusterReference;
+  clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
   devMode: boolean;
   quiet: boolean;

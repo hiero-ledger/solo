@@ -16,7 +16,7 @@ import {type AnyYargs, type ArgvStruct, type NodeAliases} from '../types/aliases
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {
-  type ClusterReference,
+  type ClusterReferenceName,
   type CommandDefinition,
   type DeploymentName,
   type Realm,
@@ -37,7 +37,7 @@ interface UpdateAccountConfig {
   deployment: DeploymentName;
   ecdsaPrivateKey: string;
   ed25519PrivateKey: string;
-  clusterRef: ClusterReference;
+  clusterRef: ClusterReferenceName;
   contextName: string;
 }
 
@@ -227,7 +227,7 @@ export class AccountCommand extends BaseCommand {
     interface Config {
       namespace: NamespaceName;
       nodeAliases: NodeAliases;
-      clusterRef: ClusterReference;
+      clusterRef: ClusterReferenceName;
       deployment: DeploymentName;
       contextName: string;
     }
@@ -254,7 +254,7 @@ export class AccountCommand extends BaseCommand {
 
             const config = {
               deployment: self.configManager.getFlag<DeploymentName>(flags.deployment),
-              clusterRef: self.configManager.getFlag(flags.clusterRef) as ClusterReference,
+              clusterRef: self.configManager.getFlag(flags.clusterRef) as ClusterReferenceName,
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
               nodeAliases: helpers.parseNodeAliases(
                 this.configManager.getFlag(flags.nodeAliasesUnparsed),
@@ -470,7 +470,7 @@ export class AccountCommand extends BaseCommand {
       generateEcdsaKey: boolean;
       createAmount: number;
       contextName: string;
-      clusterRef: ClusterReference;
+      clusterRef: ClusterReferenceName;
     }
 
     interface Context {
@@ -496,7 +496,7 @@ export class AccountCommand extends BaseCommand {
               setAlias: self.configManager.getFlag<boolean>(flags.setAlias),
               generateEcdsaKey: self.configManager.getFlag<boolean>(flags.generateEcdsaKey),
               createAmount: self.configManager.getFlag<number>(flags.createAmount),
-              clusterRef: self.configManager.getFlag<ClusterReference>(flags.clusterRef),
+              clusterRef: self.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
             } as Config;
 
             config.contextName =
@@ -592,7 +592,7 @@ export class AccountCommand extends BaseCommand {
               deployment: self.configManager.getFlag<DeploymentName>(flags.deployment),
               ecdsaPrivateKey: self.configManager.getFlag(flags.ecdsaPrivateKey),
               ed25519PrivateKey: self.configManager.getFlag(flags.ed25519PrivateKey),
-              clusterRef: self.configManager.getFlag<ClusterReference>(flags.clusterRef),
+              clusterRef: self.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
             } as UpdateAccountConfig;
 
             config.contextName =
@@ -671,7 +671,7 @@ export class AccountCommand extends BaseCommand {
       namespace: NamespaceName;
       privateKey: boolean;
       deployment: DeploymentName;
-      clusterRef: ClusterReference;
+      clusterRef: ClusterReferenceName;
       contextName: string;
     }
 
@@ -694,7 +694,7 @@ export class AccountCommand extends BaseCommand {
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
               deployment: self.configManager.getFlag<DeploymentName>(flags.deployment),
               privateKey: self.configManager.getFlag<boolean>(flags.privateKey),
-              clusterRef: self.configManager.getFlag<ClusterReference>(flags.clusterRef),
+              clusterRef: self.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
             } as Config;
 
             config.contextName =

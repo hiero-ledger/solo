@@ -78,7 +78,7 @@ import {ContainerReference} from '../../integration/kube/resources/container/con
 import {NetworkNodes} from '../../core/network-nodes.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import {
-  type ClusterReference,
+  type ClusterReferenceName,
   type Context,
   type DeploymentName,
   type Optional,
@@ -459,15 +459,9 @@ export class NodeCommandTasks {
       }, timeout);
 
       try {
-        const response = await this.k8Factory
-          .getK8(context)
-          .containers()
-          .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
-          .execContainer([
-            'bash',
-            '-c',
-            String.raw`curl -s http://localhost:9999/metrics | grep platform_PlatformStatus | grep -v \#`,
-          ]);
+        const response: string = await container
+          .resolve<NetworkNodes>(NetworkNodes)
+          .getNetworkNodePodStatus(podReference, context);
 
         if (!response) {
           task.title = `${title} - status ${chalk.yellow('UNKNOWN')}, attempt ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
@@ -1357,6 +1351,38 @@ export class NodeCommandTasks {
         const nodeAliases = config[nodeAliasesProperty];
         const subTasks = [
           {
+            title: 'Create and populate staging directory',
+            task: async context_ => {
+              const config = context_.config;
+              const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+              const applicationPropertiesPath: string = PathEx.joinWithRealPath(
+                config.cacheDir,
+                'templates',
+                'application.properties',
+              );
+
+              const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
+              const yamlRoot: AnyObject = {};
+              const emptyDomainNamesMapping: Record<string, IP> = {};
+
+              const stagingDirectory = Templates.renderStagingDir(
+                this.configManager.getFlag(flags.cacheDir),
+                this.configManager.getFlag(flags.releaseTag),
+              );
+
+              if (!fs.existsSync(stagingDirectory)) {
+                await this.profileManager.prepareStagingDirectory(
+                  consensusNodes,
+                  nodeAliases,
+                  yamlRoot,
+                  emptyDomainNamesMapping,
+                  deploymentName,
+                  applicationPropertiesPath,
+                );
+              }
+            },
+          },
+          {
             title: 'Copy Gossip keys to staging',
             task: async () => {
               this.keyManager.copyGossipKeysToStaging(config.keysDir, config.stagingKeysDir, nodeAliases);
@@ -1979,7 +2005,7 @@ export class NodeCommandTasks {
         const clusterReferences = this.remoteConfig.getClusterRefs();
 
         // Make sure valuesArgMap is initialized with empty strings
-        const valuesArgumentMap: Record<ClusterReference, string> = {};
+        const valuesArgumentMap: Record<ClusterReferenceName, string> = {};
         for (const [clusterReference] of clusterReferences) {
           valuesArgumentMap[clusterReference] = '';
         }
@@ -2000,7 +2026,10 @@ export class NodeCommandTasks {
 
         const nodeId = maxNodeId + 1;
 
-        const clusterNodeIndexMap: Record<ClusterReference, Record<NodeId, /* index in the chart -> */ number>> = {};
+        const clusterNodeIndexMap: Record<
+          ClusterReferenceName,
+          Record<NodeId, /* index in the chart -> */ number>
+        > = {};
 
         for (const [clusterReference] of clusterReferences) {
           clusterNodeIndexMap[clusterReference] = {};
@@ -2058,7 +2087,7 @@ export class NodeCommandTasks {
         );
 
         if (profileValuesFile) {
-          const valuesFiles: Record<ClusterReference, string> = BaseCommand.prepareValuesFilesMap(
+          const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMap(
             clusterReferences,
             undefined, // do not trigger of adding default value file for chart upgrade due to node add or delete
             profileValuesFile,
@@ -2083,7 +2112,7 @@ export class NodeCommandTasks {
           config.debugNodeAlias,
         );
 
-        const clusterReferencesList: ClusterReference[] = [];
+        const clusterReferencesList: ClusterReferenceName[] = [];
         for (const [clusterReference] of clusterReferences) {
           clusterReferencesList.push(clusterReference);
         }
@@ -2118,9 +2147,9 @@ export class NodeCommandTasks {
    */
   private prepareValuesArgForNodeUpdate(
     consensusNodes: ConsensusNode[],
-    valuesArgumentMap: Record<ClusterReference, string>,
+    valuesArgumentMap: Record<ClusterReferenceName, string>,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
-    clusterNodeIndexMap: Record<ClusterReference, Record<NodeId, /* index in the chart -> */ number>>,
+    clusterNodeIndexMap: Record<ClusterReferenceName, Record<NodeId, /* index in the chart -> */ number>>,
     newAccountNumber: string,
     nodeAlias: NodeAlias,
   ): void {
@@ -2153,10 +2182,10 @@ export class NodeCommandTasks {
    */
   private prepareValuesArgForNodeAdd(
     consensusNodes: ConsensusNode[],
-    valuesArgumentMap: Record<ClusterReference, string>,
+    valuesArgumentMap: Record<ClusterReferenceName, string>,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
-    clusterNodeIndexMap: Record<ClusterReference, Record<NodeId, /* index in the chart -> */ number>>,
-    clusterReference: ClusterReference,
+    clusterNodeIndexMap: Record<ClusterReferenceName, Record<NodeId, /* index in the chart -> */ number>>,
+    clusterReference: ClusterReferenceName,
     nodeId: NodeId,
     nodeAlias: NodeAlias,
     newNode: {accountId: string; name: string},
@@ -2213,13 +2242,13 @@ export class NodeCommandTasks {
    */
   private prepareValuesArgForNodeDelete(
     consensusNodes: ConsensusNode[],
-    valuesArgumentMap: Record<ClusterReference, string>,
+    valuesArgumentMap: Record<ClusterReferenceName, string>,
     nodeAlias: NodeAlias,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
-    clusterNodeIndexMap: Record<ClusterReference, Record<NodeId, /* index in the chart -> */ number>>,
+    clusterNodeIndexMap: Record<ClusterReferenceName, Record<NodeId, /* index in the chart -> */ number>>,
   ): void {
     for (const consensusNode of consensusNodes) {
-      const clusterReference: ClusterReference = consensusNode.cluster;
+      const clusterReference: ClusterReferenceName = consensusNode.cluster;
 
       // The index inside the chart
       const index = clusterNodeIndexMap[clusterReference][consensusNode.nodeId];
@@ -2575,7 +2604,7 @@ export class NodeCommandTasks {
         const nodeAlias: NodeAlias = context_.config.nodeAlias;
         const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
         const namespace: NamespaceName = context_.config.namespace;
-        const clusterReference: ClusterReference = context_.config.clusterRef;
+        const clusterReference: ClusterReferenceName = context_.config.clusterRef;
         const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
 
         task.title += `: ${nodeAlias}`;

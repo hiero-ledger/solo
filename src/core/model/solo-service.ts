@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type ClusterReference, type DeploymentName} from '../../types/index.js';
+import {type ClusterReferenceName, type DeploymentName} from '../../types/index.js';
 import {type ObjectMeta} from '../../integration/kube/resources/object-meta.js';
 import {type ServiceSpec} from '../../integration/kube/resources/service/service-spec.js';
 import {type ServiceStatus} from '../../integration/kube/resources/service/service-status.js';
@@ -12,7 +12,7 @@ export class SoloService extends K8ClientService {
     public override readonly metadata: ObjectMeta,
     public override readonly spec: ServiceSpec,
     public override readonly status?: ServiceStatus,
-    public readonly clusterReference?: ClusterReference,
+    public readonly clusterReference?: ClusterReferenceName,
     public readonly context?: string,
     public readonly deployment?: string,
   ) {
@@ -21,7 +21,7 @@ export class SoloService extends K8ClientService {
 
   public static getFromK8Service(
     service: Service,
-    clusterReference: ClusterReference,
+    clusterReference: ClusterReferenceName,
     context: string,
     deployment: DeploymentName,
   ) {
