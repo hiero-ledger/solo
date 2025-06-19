@@ -101,7 +101,7 @@ export class ClusterCommandTasks {
     const self = this;
     return {
       title: 'Validating cluster ref: ',
-      task: async (context_, task): Promise<void> => {
+      task: async (context_, task) => {
         const {clusterRef} = context_.config;
         task.title = clusterRef;
 
