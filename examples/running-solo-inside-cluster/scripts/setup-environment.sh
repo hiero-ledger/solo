@@ -47,7 +47,7 @@ export CACERT=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 export SERVER="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}"
 
 # Set up the kubeconfig
-kubectl config set-cluster kind-solo-e2e \
+kubectl config set-cluster kind-${SOLO_CLUSTER_NAME} \
   --server="${SERVER}" \
   --certificate-authority="${CACERT}" \
   --embed-certs=true
@@ -55,20 +55,20 @@ kubectl config set-cluster kind-solo-e2e \
 kubectl config set-credentials kube-admin \
   --token="${TOKEN}"
 
-kubectl config set-context kind-solo-e2e \
-  --cluster=kind-solo-e2e \
+kubectl config set-context kind-${SOLO_CLUSTER_NAME} \
+  --cluster=kind-${SOLO_CLUSTER_NAME} \
   --user=kube-admin \
-  --namespace=solo-e2e
+  --namespace=${SOLO_NAMESPACE}
 
-kubectl config use-context kind-solo-e2e
+kubectl config use-context kind-${SOLO_CLUSTER_NAME}
 
 # Run solo test commands
 npm run solo-test -- init
-npm run solo-test -- cluster-ref connect --cluster-ref kind-solo-e2e --context kind-solo-e2e
-npm run solo-test -- deployment create --deployment solo-e2e --namespace solo-e2e
-npm run solo-test -- deployment add-cluster --deployment solo-e2e --cluster-ref kind-solo-e2e --num-consensus-nodes 1
-npm run solo-test -- cluster-ref setup --cluster-ref kind-solo-e2e
-npm run solo-test -- node keys --gossip-keys --tls-keys --deployment solo-e2e
-npm run solo-test -- network deploy --deployment solo-e2e
-npm run solo-test -- node setup --deployment solo-e2e -i node1
-npm run solo-test -- node start --deployment solo-e2e -i node1
+npm run solo-test -- cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+npm run solo-test -- deployment create --deployment ${SOLO_DEPLOYMENT} --namespace ${SOLO_NAMESPACE}
+npm run solo-test -- deployment add-cluster --deployment ${SOLO_DEPLOYMENT} --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
+npm run solo-test -- cluster-ref setup --cluster-ref kind-${SOLO_CLUSTER_NAME}
+npm run solo-test -- node keys --gossip-keys --tls-keys --deployment ${SOLO_DEPLOYMENT}
+npm run solo-test -- network deploy --deployment ${SOLO_DEPLOYMENT}
+npm run solo-test -- node setup --deployment ${SOLO_DEPLOYMENT} -i node1
+npm run solo-test -- node start --deployment ${SOLO_DEPLOYMENT} -i node1
