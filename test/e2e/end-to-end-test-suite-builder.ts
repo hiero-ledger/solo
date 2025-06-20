@@ -13,6 +13,8 @@ export class EndToEndTestSuiteBuilder {
   private consensusNodesCount: number;
   private loadBalancerEnabled: boolean;
   private pinger: boolean;
+  private realm: number;
+  private shard: number;
 
   private testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void;
 
@@ -56,6 +58,16 @@ export class EndToEndTestSuiteBuilder {
     return this;
   }
 
+  withRealm(realm: number): this {
+    this.realm = realm;
+    return this;
+  }
+
+  withShard(shard: number): this {
+    this.shard = shard;
+    return this;
+  }
+
   public withTestSuiteCallback(testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void): this {
     this.testSuiteCallback = testSuiteCallback;
     return this;
@@ -74,6 +86,8 @@ export class EndToEndTestSuiteBuilder {
       this.consensusNodesCount || 1,
       this.loadBalancerEnabled || false,
       this.pinger || false,
+      this.realm || 0,
+      this.shard || 0,
       this.testSuiteCallback,
     );
   }

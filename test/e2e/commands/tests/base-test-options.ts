@@ -20,4 +20,6 @@ export interface BaseTestOptions {
   readonly consensusNodesCount: number;
   readonly loadBalancerEnabled: boolean;
   readonly pinger: boolean;
+  readonly realm: number;
+  readonly shard: number;
 }

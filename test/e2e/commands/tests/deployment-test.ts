@@ -17,6 +17,8 @@ export class DeploymentTest extends BaseCommandTest {
     testName: string,
     deployment: DeploymentName,
     namespace: NamespaceName,
+    realm: number,
+    shard: number,
   ): string[] {
     const {newArgv, optionFromFlag, argvPushGlobalFlags} = DeploymentTest;
 
@@ -28,18 +30,22 @@ export class DeploymentTest extends BaseCommandTest {
       deployment,
       optionFromFlag(Flags.namespace),
       namespace.name,
+      optionFromFlag(Flags.realm),
+      String(realm),
+      optionFromFlag(Flags.shard),
+      String(shard),
     );
     argvPushGlobalFlags(argv, testName);
     return argv;
   }
 
   public static create(options: BaseTestOptions): void {
-    const {testName, testLogger, deployment, namespace} = options;
+    const {testName, testLogger, deployment, namespace, realm, shard} = options;
     const {soloDeploymentCreateArgv} = DeploymentTest;
 
     it(`${testName}: solo deployment create`, async (): Promise<void> => {
       testLogger.info(`${testName}: beginning solo deployment create`);
-      await main(soloDeploymentCreateArgv(testName, deployment, namespace));
+      await main(soloDeploymentCreateArgv(testName, deployment, namespace, realm, shard));
       // TODO check that the deployment was created
       testLogger.info(`${testName}: finished solo deployment create`);
     });
