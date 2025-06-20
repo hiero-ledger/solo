@@ -1,0 +1,86 @@
+replicas: 1
+
+resources:
+  requests:
+  limits:
+    cpu: 8
+    memory: 20Gi
+  requests:
+    cpu: 6
+    memory: 18Gi
+
+nodeSelector:
+    solo.hashgraph.io/role: "consensus-node"
+    solo.hashgraph.io/owner: "alex.kuzmin"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+tolerations:
+    - key: "solo.hashgraph.io/role"
+      operator: "Equal"
+      value: "consensus-node"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Equal"
+      value: "alex.kuzmin"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Equal"
+      value: "%NETWORK_ID%"
+      effect: "NoSchedule"
+
+blockNode:
+  # if blank will use same as AppVersion of chart.
+  version: ""
+  config:
+    # Add any additional env configuration here
+    # key: value
+    JAVA_TOOL_OPTIONS: "-Djava.util.logging.config.file=/opt/hiero/block-node/logs/config/logging.properties"
+    JAVA_OPTS: "-Xms16G -Xmx16G"
+    # PRODUCER_TYPE: "NO_OP"
+    # PERSISTENCE_STORAGE_TYPE: "NO_OP"
+    # VERIFICATION_TYPE: "NO_OP"
+    # MEDIATOR_TYPE: "NO_OP"
+    MEDIATOR_RING_BUFFER_SIZE: "8192"
+  persistence:
+    archive:
+      # If false, the chart expects an externally provided PVC
+      create: true
+      # Name of the externally provided PVC
+      existingClaim: ""
+      # Name of the subPath in the PVC to mount to mountPath in the container
+      subPath: "archive-data"
+      # If create is true, the following values are used to create the PVC
+      # should match PERSISTENCE_STORAGE_ARCHIVE_ROOT_PATH, leave as is for default.
+      mountPath: "/opt/hiero/block-node/data/historic"
+      size: 10Gi
+      # Optionally add a storage class name if needed
+      storageClass: "local-path"
+    logging:
+      # If false, the chart expects an externally provided PVC
+      create: true
+      # Name of the externally provided PVC
+      existingClaim: ""
+      # Name of the subPath in the PVC to mount to mountPath in the container
+      subPath: "logging-data"
+      # If create is true, the following values are used to create the PVC
+      mountPath: "/opt/hiero/block-node/logs"
+      size: 10Gi
+      # Optionally add a storage class name if needed
+      storageClass: "local-path"
+    live:
+      # If false, the chart expects an externally provided PVC
+      create: true
+      # Name of the externally provided PVC
+      existingClaim: ""
+      # Name of the subPath in the PVC to mount to mountPath in the container
+      subPath: "live-data"
+      # If create is true, the following values are used to create the PVC
+      # should match PERSISTENCE_STORAGE_LIVE_ROOT_PATH, leave as is for default.
+      mountPath: "/opt/hiero/block-node/data/live"
+      size: 10Gi
+      # Optionally add a storage class name if needed
+      storageClass: "local-path"
+    unverified:
+      # unverified does a hard-coded emptyDir and is ephemeral, however needs to be mounted
+      # this does not create a PVC.
+      # should match PERSISTENCE_STORAGE_UNVERIFIED_ROOT_PATH, leave as is for default.
+      mountPath: "/opt/hiero/block-node/data/unverified"

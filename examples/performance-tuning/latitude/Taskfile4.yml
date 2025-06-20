@@ -6,11 +6,11 @@ includes:
 vars:
   solo_home_override_dir: "%HOME%/.solo"
 env:
-  SOLO_NETWORK_SIZE: 10
+  SOLO_NETWORK_SIZE: 4
   SOLO_NAMESPACE: %SOLO_NAMESPACE%
   SOLO_CHART_VERSION: 0.54.1
   CONSENSUS_NODE_VERSION: v0.64.0
-  VALUES_FLAG: "--values-file {{.USER_WORKING_DIR}}/init-containers-values.yaml"
+  VALUES_FLAG: "--values-file {{.USER_WORKING_DIR}}/init-containers-values4.yaml"
   SETTINGS_FLAG: "--settings-txt {{.USER_WORKING_DIR}}/settings.txt"
   SOLO_HOME: "{{.solo_home_override_dir}}"
   LOG4J2_FLAG: "--log4j2-xml {{.USER_WORKING_DIR}}/log4j2.xml"
@@ -34,6 +34,6 @@ env:
 
   BLOCK_NODE_ROOT: "%BLOCK_NODE_ROOT%"
   BLOCK_NODE_ADD_EXTRA_FLAGS: |
-    --release-tag v0.62.6 --values-file {{.USER_WORKING_DIR}}/block-node-values.yaml
+    --release-tag v0.62.6 --values-file {{.USER_WORKING_DIR}}/block-node-values4.yaml
 #FIXME: https://github.com/hiero-ledger/solo/issues/2003
 #--local-build-path {{.HEDERA_SERVICES_ROOT}}
