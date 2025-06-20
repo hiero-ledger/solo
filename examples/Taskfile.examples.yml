@@ -41,7 +41,7 @@ tasks:
     deps:
       - task: "init"
     cmds:
-      - task: "cluster:create"
+      #- task: "cluster:create"
       - task: "solo:init"
       - task: "solo:cluster:setup"
       - task: "solo:cluster-ref:connect"
@@ -50,7 +50,7 @@ tasks:
       - task: "solo:keys"
       # - task: "solo:block:add" wait until the consensus version is bumped up to v0.62.6
       - task: "solo:network:deploy"
-
+      - task: "solo:block:add"
   destroy:
     deps:
       - task: "init"
