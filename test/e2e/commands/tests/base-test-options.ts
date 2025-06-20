@@ -17,4 +17,7 @@ export interface BaseTestOptions {
   readonly localBuildReleaseTag: string;
   readonly localBuildPath: string;
   readonly createdAccountIds: string[];
+  readonly consensusNodesCount: number;
+  readonly loadBalancerEnabled: boolean;
+  readonly pinger: boolean;
 }

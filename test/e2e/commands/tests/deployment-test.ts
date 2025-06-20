@@ -69,7 +69,7 @@ export class DeploymentTest extends BaseCommandTest {
   }
 
   public static addCluster(options: BaseTestOptions): void {
-    const {testName, testLogger, deployment, clusterReferenceNameArray} = options;
+    const {testName, testLogger, deployment, clusterReferenceNameArray, consensusNodesCount} = options;
     const {soloDeploymentAddClusterArgv} = DeploymentTest;
 
     it(`${testName}: solo deployment add-cluster`, async (): Promise<void> => {
@@ -81,9 +81,12 @@ export class DeploymentTest extends BaseCommandTest {
       expect(remoteConfig.isLoaded(), 'remote config manager should be loaded').to.be.true;
       const consensusNodes: Record<ComponentId, ConsensusNodeStateSchema> =
         remoteConfig.configuration.components.state.consensusNodes;
-      expect(Object.entries(consensusNodes).length, 'consensus node count should be 2').to.equal(2);
-      expect(consensusNodes[0].metadata.cluster).to.equal(clusterReferenceNameArray[0]);
-      expect(consensusNodes[1].metadata.cluster).to.equal(clusterReferenceNameArray[1]);
+      expect(Object.entries(consensusNodes).length, `consensus node count should be ${consensusNodesCount}`).to.equal(
+        consensusNodesCount,
+      );
+      for (const [index, element] of clusterReferenceNameArray.entries()) {
+        expect(consensusNodes[index].metadata.cluster).to.equal(element);
+      }
       testLogger.info(`${testName}: finished solo deployment add-cluster`);
     });
   }

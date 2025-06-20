@@ -10,6 +10,10 @@ export class EndToEndTestSuiteBuilder {
   private namespace: NamespaceName;
   private deployment: DeploymentName;
   private clusterCount: number;
+  private consensusNodesCount: number;
+  private loadBalancerEnabled: boolean;
+  private pinger: boolean;
+
   private testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void;
 
   public withTestName(testName: string): this {
@@ -37,6 +41,21 @@ export class EndToEndTestSuiteBuilder {
     return this;
   }
 
+  public withConsensusNodesCount(consensusNodesCount: number): this {
+    this.consensusNodesCount = consensusNodesCount;
+    return this;
+  }
+
+  public withLoadBalancerEnabled(loadBalancerEnabled: boolean): this {
+    this.loadBalancerEnabled = loadBalancerEnabled;
+    return this;
+  }
+
+  public withPinger(pinger: boolean): this {
+    this.pinger = pinger;
+    return this;
+  }
+
   public withTestSuiteCallback(testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void): this {
     this.testSuiteCallback = testSuiteCallback;
     return this;
@@ -52,6 +71,9 @@ export class EndToEndTestSuiteBuilder {
       this.namespace,
       this.deployment,
       this.clusterCount || 1, // Default to 1 if not specified
+      this.consensusNodesCount || 1,
+      this.loadBalancerEnabled || false,
+      this.pinger || false,
       this.testSuiteCallback,
     );
   }

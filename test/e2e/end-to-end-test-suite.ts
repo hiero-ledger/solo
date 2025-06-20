@@ -31,6 +31,9 @@ export class EndToEndTestSuite extends Suite {
     public readonly namespace: NamespaceName,
     public readonly deployment: DeploymentName,
     public readonly clusterCount: number,
+    public readonly consensusNodesCount: number,
+    public readonly loadBalancerEnabled: boolean,
+    public readonly pinger: boolean,
     public readonly testSuiteCallback: (options: BaseTestOptions) => void,
   ) {
     super(testName);
@@ -76,6 +79,8 @@ export class EndToEndTestSuite extends Suite {
       localBuildReleaseTag: this.localBuildReleaseTag,
       localBuildPath: this.localBuildPath,
       createdAccountIds: this.createdAccountIds,
+      consensusNodesCount: this.consensusNodesCount,
+      pinger: this.pinger,
     } as BaseTestOptions;
   }
 

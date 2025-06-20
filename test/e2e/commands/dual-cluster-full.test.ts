@@ -31,6 +31,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withNamespace(testName)
   .withDeployment(`${testName}-deployment`)
   .withClusterCount(2)
+  .withConsensusNodesCount(2)
+  .withLoadBalancerEnabled(true)
+  .withPinger(true)
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe('Dual Cluster Full E2E Test', (): void => {
       const {testCacheDirectory, testLogger, namespace, contexts} = options;

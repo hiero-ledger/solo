@@ -22,6 +22,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     testName: string,
     deployment: DeploymentName,
     clusterReference: ClusterReferenceName,
+    pinger: boolean,
   ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = MirrorNodeTest;
 
@@ -33,20 +34,22 @@ export class MirrorNodeTest extends BaseCommandTest {
       deployment,
       optionFromFlag(Flags.clusterRef),
       clusterReference,
-      optionFromFlag(Flags.pinger),
     );
+
+    if (pinger) {
+      argv.push(optionFromFlag(Flags.pinger));
+    }
+
     argvPushGlobalFlags(argv, testName, true, true);
     return argv;
   }
 
-  private static async verifyMirrorNodeDeployWasSuccessful(
+  private static async forwardRestServicePort(
     contexts: string[],
     namespace: NamespaceName,
-    testLogger: SoloLogger,
-    createdAccountIds: string[],
-  ): Promise<void> {
+  ): Promise<ExtendedNetServer> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-    const k8: K8 = k8Factory.getK8(contexts[1]);
+    const k8: K8 = k8Factory.getK8(contexts[contexts.length]);
     const mirrorNodeRestPods: Pod[] = await k8
       .pods()
       .list(namespace, [
@@ -56,10 +59,30 @@ export class MirrorNodeTest extends BaseCommandTest {
       ]);
     expect(mirrorNodeRestPods).to.have.lengthOf(1);
 
-    let portForwarder: ExtendedNetServer;
+    const portForwarder: ExtendedNetServer = await k8
+      .pods()
+      .readByReference(mirrorNodeRestPods[0].podReference)
+      .portForward(5551, 5551);
+    await sleep(Duration.ofSeconds(2));
+    return portForwarder;
+  }
+
+  private static async stopPortForward(contexts: string[], portForwarder: ExtendedNetServer): Promise<void> {
+    const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+    const k8: K8 = k8Factory.getK8(contexts[contexts.length]);
+    // eslint-disable-next-line unicorn/no-null
+    await k8.pods().readByReference(null).stopPortForward(portForwarder);
+  }
+
+  private static async verifyMirrorNodeDeployWasSuccessful(
+    contexts: string[],
+    namespace: NamespaceName,
+    testLogger: SoloLogger,
+    createdAccountIds: string[],
+    consensusNodesCount: number,
+  ): Promise<void> {
+    const portForwarder: ExtendedNetServer = await MirrorNodeTest.forwardRestServicePort(contexts, namespace);
     try {
-      portForwarder = await k8.pods().readByReference(mirrorNodeRestPods[0].podReference).portForward(5551, 5551);
-      await sleep(Duration.ofSeconds(2));
       const queryUrl: string = 'http://localhost:5551/api/v1/network/nodes';
 
       let received: boolean = false;
@@ -76,8 +99,8 @@ export class MirrorNodeTest extends BaseCommandTest {
               const object: {nodes: {service_endpoints: unknown[]}[]} = JSON.parse(chunk);
               expect(
                 object.nodes?.length,
-                "expect there to be two nodes in the mirror node's copy of the address book",
-              ).to.equal(2);
+                `expect there to be ${consensusNodesCount} nodes in the mirror node's copy of the address book`,
+              ).to.equal(consensusNodesCount);
 
               expect(
                 object.nodes[0].service_endpoints?.length,
@@ -135,20 +158,58 @@ export class MirrorNodeTest extends BaseCommandTest {
       }
     } finally {
       if (portForwarder) {
-        // eslint-disable-next-line unicorn/no-null
-        await k8.pods().readByReference(null).stopPortForward(portForwarder);
+        await MirrorNodeTest.stopPortForward(contexts, portForwarder);
+      }
+    }
+  }
+
+  private static async verifyPingerStatus(contexts: string[], namespace: NamespaceName, pingerIsEnabled: boolean): Promise<void> {
+    const portForwarder: ExtendedNetServer = await MirrorNodeTest.forwardRestServicePort(contexts, namespace);
+    try {
+      const transactionsEndpoint: string = 'http://localhost:5551/api/v1/transactions';
+      const firstResponse = await fetch(transactionsEndpoint);
+      const firstData = await firstResponse.json();
+      await sleep(Duration.ofSeconds(2));
+      const secondResponse = await fetch(transactionsEndpoint);
+      const secondData = await secondResponse.json();
+      expect(firstData.transactions).to.not.be.undefined;
+      expect(secondData.transactions).to.not.be.undefined;
+      if (pingerIsEnabled) {
+        expect(firstData.transactions).to.not.deep.equal(secondData.transactions);
+      } else {
+        expect(firstData.transactions).to.deep.equal(secondData.transactions);
+      }
+    } finally {
+      if (portForwarder) {
+        await MirrorNodeTest.stopPortForward(contexts, portForwarder);
       }
     }
   }
 
   public static deploy(options: BaseTestOptions): void {
-    const {testName, testLogger, deployment, contexts, namespace, clusterReferenceNameArray, createdAccountIds} =
-      options;
-    const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful} = MirrorNodeTest;
+    const {
+      testName,
+      testLogger,
+      deployment,
+      contexts,
+      namespace,
+      clusterReferenceNameArray,
+      createdAccountIds,
+      consensusNodesCount,
+      pinger,
+    } = options;
+    const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, verifyPingerStatus} = MirrorNodeTest;
 
     it(`${testName}: mirror node deploy`, async (): Promise<void> => {
-      await main(soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
-      await verifyMirrorNodeDeployWasSuccessful(contexts, namespace, testLogger, createdAccountIds);
+      await main(soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger));
+      await verifyMirrorNodeDeployWasSuccessful(
+        contexts,
+        namespace,
+        testLogger,
+        createdAccountIds,
+        consensusNodesCount,
+      );
+      await verifyPingerStatus(contexts, namespace, pinger);
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 }
