@@ -59,6 +59,7 @@ import {DefaultConfigSource} from '../../data/configuration/impl/default-config-
 import {type SoloConfigSchema} from '../../data/schema/model/solo/solo-config-schema.js';
 import {SoloConfigSchemaDefinition} from '../../data/schema/migration/impl/solo/solo-config-schema-definition.js';
 import {BeanFactorySupplier} from './bean-factory-supplier.js';
+import {QuickStartCommandDefault} from '../../commands/quick-start-default.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -129,6 +130,7 @@ export class Container {
       new SingletonContainer(InjectTokens.ObjectMapper, ClassToObjectMapper),
       new SingletonContainer(InjectTokens.ComponentFactory, ComponentFactory),
       new SingletonContainer(InjectTokens.RemoteConfigValidator, RemoteConfigValidator),
+      new SingletonContainer(InjectTokens.QuickStartCommand, QuickStartCommandDefault),
     ];
   }
 

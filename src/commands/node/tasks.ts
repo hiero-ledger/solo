@@ -459,15 +459,9 @@ export class NodeCommandTasks {
       }, timeout);
 
       try {
-        const response = await this.k8Factory
-          .getK8(context)
-          .containers()
-          .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
-          .execContainer([
-            'bash',
-            '-c',
-            String.raw`curl -s http://localhost:9999/metrics | grep platform_PlatformStatus | grep -v \#`,
-          ]);
+        const response: string = await container
+          .resolve<NetworkNodes>(NetworkNodes)
+          .getNetworkNodePodStatus(podReference, context);
 
         if (!response) {
           task.title = `${title} - status ${chalk.yellow('UNKNOWN')}, attempt ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
@@ -1355,6 +1349,38 @@ export class NodeCommandTasks {
         const config = context_.config;
         const nodeAliases = config[nodeAliasesProperty];
         const subTasks = [
+          {
+            title: 'Create and populate staging directory',
+            task: async context_ => {
+              const config = context_.config;
+              const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+              const applicationPropertiesPath: string = PathEx.joinWithRealPath(
+                config.cacheDir,
+                'templates',
+                'application.properties',
+              );
+
+              const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
+              const yamlRoot: AnyObject = {};
+              const emptyDomainNamesMapping: Record<string, IP> = {};
+
+              const stagingDirectory = Templates.renderStagingDir(
+                this.configManager.getFlag(flags.cacheDir),
+                this.configManager.getFlag(flags.releaseTag),
+              );
+
+              if (!fs.existsSync(stagingDirectory)) {
+                await this.profileManager.prepareStagingDirectory(
+                  consensusNodes,
+                  nodeAliases,
+                  yamlRoot,
+                  emptyDomainNamesMapping,
+                  deploymentName,
+                  applicationPropertiesPath,
+                );
+              }
+            },
+          },
           {
             title: 'Copy Gossip keys to staging',
             task: async () => {
