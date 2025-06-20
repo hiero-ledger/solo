@@ -80,6 +80,7 @@ export class EndToEndTestSuite extends Suite {
       localBuildPath: this.localBuildPath,
       createdAccountIds: this.createdAccountIds,
       consensusNodesCount: this.consensusNodesCount,
+      loadBalancerEnabled: this.loadBalancerEnabled,
       pinger: this.pinger,
     } as BaseTestOptions;
   }

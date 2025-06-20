@@ -81,7 +81,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       // TODO explorer destroy
       // TODO mirror node destroy
       // TODO network destroy
-    });
+    }).timeout(Duration.ofMinutes(10).toMillis());
   })
   .build();
 endToEndTestSuite.runTestSuite();
