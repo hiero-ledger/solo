@@ -6,19 +6,21 @@ The general handling of Maintainer rights and all groups in this GitHub org is d
 
 Maintainers are assigned the following scopes in this repository:
 
-| Scope      | Definition               | GitHub Role | GitHub Team                        |
-| ---------- | ------------------------ | ----------- | ---------------------------------- |
-| Maintainer | The GitHub Maintain role | Maintain    | `solo-maintainers`                 |
+| Scope               | Definition                        | GitHub Role | GitHub Team          |
+| ------------------- | --------------------------------- | ----------- | -------------------- |
+| project-maintainers | The Maintainers of the project    | Maintain    | `solo-maintainers`   |
+| tsc                 | The Hiero TSC                     | Maintain    | `tsc`                |
+| github-maintainers  | The Maintainers of the github org | Maintain    | `github-maintainers` |
 
 ## Active Maintainers
 
 <!-- Please keep this sorted alphabetically by github -->
 
-| Name          | GitHub ID     | Scope      | LFID | Discord ID          | Email | Company Affiliation |
-|-------------- | ------------- | ---------- | ---- | ------------------- | ----- | ------------------- |
+| Name          | GitHub ID     | Scope      | LFID | Discord ID            | Email | Company Affiliation |
+|-------------- | ------------- | ---------- | ---- | --------------------- | ----- | ------------------- |
 | Jeromy Cannon | jeromy-cannon | Maintainer |      | jeromy\_at\_hashgraph |       | Hashgraph           |
-| Lenin Mehedy  | leninmehedy   | Maintainer |      |                     |       | Hashgraph           |
-| Nathan Klick  | nathanklick   | Maintainer |      | nathan.hashgraph    |       | Hashgraph           |
+| Lenin Mehedy  | leninmehedy   | Maintainer |      |                       |       | Hashgraph           |
+| Nathan Klick  | nathanklick   | Maintainer |      | nathan.hashgraph      |       | Hashgraph           |
 
 ## Emeritus Maintainers
 
