@@ -21,17 +21,18 @@ export class NetworkTest extends BaseCommandTest {
     deployment: DeploymentName,
     enableLocalBuildPathTesting: boolean,
     localBuildReleaseTag: string,
+    loadBalancerEnabled: boolean,
   ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NetworkTest;
 
     const argv: string[] = newArgv();
-    argv.push(
-      'network',
-      'deploy',
-      optionFromFlag(Flags.deployment),
-      deployment,
-      optionFromFlag(Flags.loadBalancerEnabled),
-    ); // have to enable load balancer to resolve cross cluster in multi-cluster
+    argv.push('network', 'deploy', optionFromFlag(Flags.deployment), deployment);
+
+    // have to enable load balancer to resolve cross cluster in multi-cluster
+    if (loadBalancerEnabled) {
+      argv.push(optionFromFlag(Flags.loadBalancerEnabled));
+    }
+
     if (enableLocalBuildPathTesting) {
       argv.push(optionFromFlag(Flags.releaseTag), localBuildReleaseTag);
     }
@@ -40,11 +41,27 @@ export class NetworkTest extends BaseCommandTest {
   }
 
   public static deploy(options: BaseTestOptions): void {
-    const {testName, deployment, namespace, contexts, enableLocalBuildPathTesting, localBuildReleaseTag} = options;
+    const {
+      testName,
+      deployment,
+      namespace,
+      contexts,
+      enableLocalBuildPathTesting,
+      localBuildReleaseTag,
+      loadBalancerEnabled,
+    } = options;
     const {soloNetworkDeployArgv} = NetworkTest;
 
     it(`${testName}: network deploy`, async (): Promise<void> => {
-      await main(soloNetworkDeployArgv(testName, deployment, enableLocalBuildPathTesting, localBuildReleaseTag));
+      await main(
+        soloNetworkDeployArgv(
+          testName,
+          deployment,
+          enableLocalBuildPathTesting,
+          localBuildReleaseTag,
+          loadBalancerEnabled,
+        ),
+      );
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
       for (const [index, context_] of contexts.entries()) {
         const k8: K8 = k8Factory.getK8(context_);

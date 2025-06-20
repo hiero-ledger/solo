@@ -139,6 +139,9 @@ monitor:
   config:
     hedera:
       mirror:
+        common:
+          realm: 0
+          shard: 0
         monitor:
           publish:
             scenarios:
@@ -151,7 +154,7 @@ monitor:
                   transferTypes:
                     - CRYPTO
                 receiptPercent: 1
-                tps: 1
+                tps: 0
                 type: CRYPTO_TRANSFER
           subscribe:
             grpc:
