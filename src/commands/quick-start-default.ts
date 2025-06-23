@@ -18,10 +18,7 @@ import {QuickStartCommand} from './quick-start/quick-start.js';
 import {QuickStartDeployConfigClass} from './quick-start/quick-start-deploy-config-class.js';
 import {QuickStartDeployContext} from './quick-start/quick-start-deploy-context.js';
 import {QuickStartDestroyConfigClass} from './quick-start/quick-start-destroy-config-class.js';
-
-interface QuickStartDestroyContext {
-  config: QuickStartDestroyConfigClass;
-}
+import {QuickStartDestroyContext} from './quick-start/quick-start-destroy-context.js';
 
 @injectable()
 export class QuickStartCommandDefault extends BaseCommand implements QuickStartCommand {
