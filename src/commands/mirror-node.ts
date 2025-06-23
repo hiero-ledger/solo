@@ -167,17 +167,18 @@ export class MirrorNodeCommand extends BaseCommand {
     if (config.valuesFile) {
       valuesArgument += helpers.prepareValuesFiles(config.valuesFile);
     }
+    const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
+    const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
 
     if (config.storageBucket) {
-      valuesArgument += ` --set importer.config.hedera.mirror.importer.downloader.bucketName=${config.storageBucket}`;
+      valuesArgument += ` --set importer.config.${chartNamespace}.mirror.importer.downloader.bucketName=${config.storageBucket}`;
     }
     if (config.storageBucketPrefix) {
       this.logger.info(`Setting storage bucket prefix to ${config.storageBucketPrefix}`);
-      valuesArgument += ` --set importer.config.hedera.mirror.importer.downloader.pathPrefix=${config.storageBucketPrefix}`;
+      valuesArgument += ` --set importer.config.${chartNamespace}.mirror.importer.downloader.pathPrefix=${config.storageBucketPrefix}`;
     }
 
     let storageType = '';
-    const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
     if (
       config.storageType !== constants.StorageType.MINIO_ONLY &&
       config.storageReadAccessKey &&
@@ -393,7 +394,11 @@ export class MirrorNodeCommand extends BaseCommand {
             context_.config.namespace = namespace;
 
             // predefined values first
-            context_.config.valuesArg += helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
+            if (semver.lt(context_.config.mirrorNodeVersion, '0.130.0')) {
+              context_.config.valuesArg += helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA);
+            } else {
+              context_.config.valuesArg += helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
+            }
             // user defined values later to override predefined values
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
 
@@ -408,12 +413,18 @@ export class MirrorNodeCommand extends BaseCommand {
               deploymentName,
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
+            const realm = this.localConfig.configuration.realmForDeployment(deploymentName);
+            const shard = this.localConfig.configuration.shardForDeployment(deploymentName);
+            const chartNamespace: string = this.getChartNamespace(context_.config.mirrorNodeVersion);
+
+            const modules = ['monitor', 'rest', 'grpc', 'importer', 'restJava', 'graphql', 'rosetta', 'web3'];
+            for (const module of modules) {
+              context_.config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.realm=${realm}`;
+              context_.config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.shard=${shard}`;
+            }
+
             if (context_.config.pinger) {
-              const realm = this.localConfig.configuration.realmForDeployment(deploymentName);
-              const shard = this.localConfig.configuration.shardForDeployment(deploymentName);
-              context_.config.valuesArg += ` --set monitor.config.hedera.mirror.common.realm=${realm}`;
-              context_.config.valuesArg += ` --set monitor.config.hedera.mirror.common.shard=${shard}`;
-              context_.config.valuesArg += ' --set monitor.config.hedera.mirror.monitor.publish.scenarios.pinger.tps=5';
+              context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=5`;
             }
 
             const isQuiet = context_.config.quiet;
@@ -737,6 +748,10 @@ export class MirrorNodeCommand extends BaseCommand {
 
   private getEnvironmentVariablePrefix(version: string): string {
     return semver.lt(version, '0.130.0') ? 'HEDERA' : 'HIERO';
+  }
+
+  private getChartNamespace(version: string): string {
+    return semver.lt(version, '0.130.0') ? 'hedera' : 'hiero';
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
