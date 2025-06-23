@@ -3,63 +3,63 @@
 /**
  * Dependency injection tokens
  */
-export const InjectTokens = {
-  ComponentFactory: Symbol.for('ComponentFactory'),
-  RemoteConfigValidator: Symbol.for('RemoteConfigValidator'),
-  LogLevel: Symbol.for('LogLevel'),
-  DevelopmentMode: Symbol.for('DevelopmentMode'),
-  OsPlatform: Symbol.for('OsPlatform'),
-  OsArch: Symbol.for('OsArch'),
-  HelmInstallationDir: Symbol.for('HelmInstallationDir'),
-  HelmVersion: Symbol.for('HelmVersion'),
-  SystemAccounts: Symbol.for('SystemAccounts'),
-  CacheDir: Symbol.for('CacheDir'),
-  LockRenewalService: Symbol.for('LockRenewalService'),
-  LockManager: Symbol.for('LockManager'),
-  K8Factory: Symbol.for('K8Factory'),
-  SoloLogger: Symbol.for('SoloLogger'),
-  PackageDownloader: Symbol.for('PackageDownloader'),
-  Zippy: Symbol.for('Zippy'),
-  DependencyManager: Symbol.for('DependencyManager'),
-  Helm: Symbol.for('Helm'),
-  HelmExecutionBuilder: Symbol.for('HelmExecutionBuilder'),
-  HelmDependencyManager: Symbol.for('HelmDependencyManager'),
-  ChartManager: Symbol.for('ChartManager'),
-  ConfigManager: Symbol.for('ConfigManager'),
-  AccountManager: Symbol.for('AccountManager'),
-  PlatformInstaller: Symbol.for('PlatformInstaller'),
-  KeyManager: Symbol.for('KeyManager'),
-  ProfileManager: Symbol.for('ProfileManager'),
-  CertificateManager: Symbol.for('CertificateManager'),
-  RemoteConfigRuntimeState: Symbol.for('RemoteConfigRuntimeState'),
-  ClusterChecks: Symbol.for('ClusterChecks'),
-  NetworkNodes: Symbol.for('NetworkNodes'),
-  AccountCommand: Symbol.for('AccountCommand'),
-  ClusterCommand: Symbol.for('ClusterCommand'),
-  NodeCommand: Symbol.for('NodeCommand'),
-  DeploymentCommand: Symbol.for('DeploymentCommand'),
-  ExplorerCommand: Symbol.for('ExplorerCommand'),
-  InitCommand: Symbol.for('InitCommand'),
-  MirrorNodeCommand: Symbol.for('MirrorNodeCommand'),
-  NetworkCommand: Symbol.for('NetworkCommand'),
-  RelayCommand: Symbol.for('RelayCommand'),
-  ClusterCommandTasks: Symbol.for('ClusterCommandTasks'),
-  ClusterCommandHandlers: Symbol.for('ClusterCommandHandlers'),
-  NodeCommandTasks: Symbol.for('NodeCommandTasks'),
-  NodeCommandHandlers: Symbol.for('NodeCommandHandlers'),
-  ClusterCommandConfigs: Symbol.for('ClusterCommandConfigs'),
-  NodeCommandConfigs: Symbol.for('NodeCommandConfigs'),
-  ErrorHandler: Symbol.for('ErrorHandler'),
-  ObjectMapper: Symbol.for('ObjectMapper'),
-  HelpRenderer: Symbol.for('HelpRenderer'),
-  Middlewares: Symbol.for('Middlewares'),
-  KeyFormatter: Symbol.for('KeyFormatter'),
-  CommandInvoker: Symbol.for('CommandInvoker'),
-  ConfigProvider: Symbol.for('ConfigProvider'),
-  BlockNodeCommand: Symbol.for('BlockNodeCommand'),
-  LocalConfigFileName: Symbol.for('LocalConfigFileName'),
-  LocalConfigSource: Symbol.for('LocalConfigSource'),
-  LocalConfigRuntimeState: Symbol.for('LocalConfigRuntimeState'),
-  HomeDirectory: Symbol.for('HomeDirectory'),
-  QuickStartCommand: Symbol.for('QuickStartCommand'),
-};
+export class InjectTokens {
+  public static ComponentFactory: symbol = Symbol.for('ComponentFactory');
+  public static RemoteConfigValidator: symbol = Symbol.for('RemoteConfigValidator');
+  public static LogLevel: symbol = Symbol.for('LogLevel');
+  public static DevelopmentMode: symbol = Symbol.for('DevelopmentMode');
+  public static OsPlatform: symbol = Symbol.for('OsPlatform');
+  public static OsArch: symbol = Symbol.for('OsArch');
+  public static HelmInstallationDir: symbol = Symbol.for('HelmInstallationDir');
+  public static HelmVersion: symbol = Symbol.for('HelmVersion');
+  public static SystemAccounts: symbol = Symbol.for('SystemAccounts');
+  public static CacheDir: symbol = Symbol.for('CacheDir');
+  public static LockRenewalService: symbol = Symbol.for('LockRenewalService');
+  public static LockManager: symbol = Symbol.for('LockManager');
+  public static K8Factory: symbol = Symbol.for('K8Factory');
+  public static SoloLogger: symbol = Symbol.for('SoloLogger');
+  public static PackageDownloader: symbol = Symbol.for('PackageDownloader');
+  public static Zippy: symbol = Symbol.for('Zippy');
+  public static DependencyManager: symbol = Symbol.for('DependencyManager');
+  public static Helm: symbol = Symbol.for('Helm');
+  public static HelmExecutionBuilder: symbol = Symbol.for('HelmExecutionBuilder');
+  public static HelmDependencyManager: symbol = Symbol.for('HelmDependencyManager');
+  public static ChartManager: symbol = Symbol.for('ChartManager');
+  public static ConfigManager: symbol = Symbol.for('ConfigManager');
+  public static AccountManager: symbol = Symbol.for('AccountManager');
+  public static PlatformInstaller: symbol = Symbol.for('PlatformInstaller');
+  public static KeyManager: symbol = Symbol.for('KeyManager');
+  public static ProfileManager: symbol = Symbol.for('ProfileManager');
+  public static CertificateManager: symbol = Symbol.for('CertificateManager');
+  public static RemoteConfigRuntimeState: symbol = Symbol.for('RemoteConfigRuntimeState');
+  public static ClusterChecks: symbol = Symbol.for('ClusterChecks');
+  public static NetworkNodes: symbol = Symbol.for('NetworkNodes');
+  public static AccountCommand: symbol = Symbol.for('AccountCommand');
+  public static ClusterCommand: symbol = Symbol.for('ClusterCommand');
+  public static NodeCommand: symbol = Symbol.for('NodeCommand');
+  public static DeploymentCommand: symbol = Symbol.for('DeploymentCommand');
+  public static ExplorerCommand: symbol = Symbol.for('ExplorerCommand');
+  public static InitCommand: symbol = Symbol.for('InitCommand');
+  public static MirrorNodeCommand: symbol = Symbol.for('MirrorNodeCommand');
+  public static NetworkCommand: symbol = Symbol.for('NetworkCommand');
+  public static RelayCommand: symbol = Symbol.for('RelayCommand');
+  public static ClusterCommandTasks: symbol = Symbol.for('ClusterCommandTasks');
+  public static ClusterCommandHandlers: symbol = Symbol.for('ClusterCommandHandlers');
+  public static NodeCommandTasks: symbol = Symbol.for('NodeCommandTasks');
+  public static NodeCommandHandlers: symbol = Symbol.for('NodeCommandHandlers');
+  public static ClusterCommandConfigs: symbol = Symbol.for('ClusterCommandConfigs');
+  public static NodeCommandConfigs: symbol = Symbol.for('NodeCommandConfigs');
+  public static ErrorHandler: symbol = Symbol.for('ErrorHandler');
+  public static ObjectMapper: symbol = Symbol.for('ObjectMapper');
+  public static HelpRenderer: symbol = Symbol.for('HelpRenderer');
+  public static Middlewares: symbol = Symbol.for('Middlewares');
+  public static KeyFormatter: symbol = Symbol.for('KeyFormatter');
+  public static CommandInvoker: symbol = Symbol.for('CommandInvoker');
+  public static ConfigProvider: symbol = Symbol.for('ConfigProvider');
+  public static BlockNodeCommand: symbol = Symbol.for('BlockNodeCommand');
+  public static LocalConfigFileName: symbol = Symbol.for('LocalConfigFileName');
+  public static LocalConfigSource: symbol = Symbol.for('LocalConfigSource');
+  public static LocalConfigRuntimeState: symbol = Symbol.for('LocalConfigRuntimeState');
+  public static HomeDirectory: symbol = Symbol.for('HomeDirectory');
+  public static QuickStartCommand: symbol = Symbol.for('QuickStartCommand');
+}

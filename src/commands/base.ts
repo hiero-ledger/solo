@@ -20,7 +20,7 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 export abstract class BaseCommand extends ShellRunner {
-  constructor(
+  public constructor(
     @inject(InjectTokens.Helm) protected readonly helm?: HelmClient,
     @inject(InjectTokens.K8Factory) protected readonly k8Factory?: K8Factory,
     @inject(InjectTokens.ChartManager) protected readonly chartManager?: ChartManager,
