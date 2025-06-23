@@ -15,7 +15,7 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {StringEx} from '../business/utils/string-ex.js';
 import {ArgumentProcessor} from '../argument-processor.js';
 import {QuickStartCommand} from './quick-start/quick-start.js';
-import {QuickStartDeployConfigClass} from './quick-start/quick-start-deploy-config-class.js';
+import {QuickStartSingleDeployConfigClass} from './quick-start/quick-start-single-deploy-config-class.js';
 import {QuickStartDeployContext} from './quick-start/quick-start-deploy-context.js';
 import {QuickStartDestroyConfigClass} from './quick-start/quick-start-destroy-config-class.js';
 import {QuickStartDestroyContext} from './quick-start/quick-start-destroy-context.js';
@@ -81,7 +81,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
     return argv;
   }
 
-  private async prepareValuesArgForQuickStart(config: QuickStartDeployConfigClass): Promise<string> {
+  private async prepareValuesArgForQuickStart(config: QuickStartSingleDeployConfigClass): Promise<string> {
     return '';
   }
 
@@ -109,7 +109,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
             context_.config = this.configManager.getConfig(
               QuickStartCommandDefault.SINGLE_ADD_CONFIGS_NAME,
               allFlags,
-            ) as QuickStartDeployConfigClass;
+            ) as QuickStartSingleDeployConfigClass;
 
             context_.config.clusterRef = context_.config.clusterRef || `solo-${uuid4().slice(-8)}`; // TODO come up with better solution to avoid conflicts
             context_.config.context = context_.config.context || this.k8Factory.default().contexts().readCurrent();

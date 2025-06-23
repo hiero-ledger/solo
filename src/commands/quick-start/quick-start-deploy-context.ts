@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type QuickStartDeployConfigClass} from './quick-start-deploy-config-class.js';
+import {type QuickStartSingleDeployConfigClass} from './quick-start-single-deploy-config-class.js';
 
 export interface QuickStartDeployContext {
-  config: QuickStartDeployConfigClass;
+  config: QuickStartSingleDeployConfigClass;
 }
