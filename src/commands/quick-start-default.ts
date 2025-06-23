@@ -17,7 +17,7 @@ import {ArgumentProcessor} from '../argument-processor.js';
 import {QuickStartCommand} from './quick-start/quick-start.js';
 import {QuickStartSingleDeployConfigClass} from './quick-start/quick-start-single-deploy-config-class.js';
 import {QuickStartSingleDeployContext} from './quick-start/quick-start-single-deploy-context.js';
-import {QuickStartDestroyConfigClass} from './quick-start/quick-start-destroy-config-class.js';
+import {QuickStartSingleDestroyConfigClass} from './quick-start/quick-start-single-destroy-config-class.js';
 import {QuickStartDestroyContext} from './quick-start/quick-start-destroy-context.js';
 
 @injectable()
@@ -321,7 +321,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
           context_.config = this.configManager.getConfig(
             QuickStartCommandDefault.SINGLE_DESTROY_CONFIGS_NAME,
             allFlags,
-          ) as QuickStartDestroyConfigClass;
+          ) as QuickStartSingleDestroyConfigClass;
 
           return null;
         },
