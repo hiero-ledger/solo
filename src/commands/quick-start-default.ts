@@ -17,10 +17,7 @@ import {ArgumentProcessor} from '../argument-processor.js';
 import {QuickStartCommand} from './quick-start/quick-start.js';
 import {QuickStartDeployConfigClass} from './quick-start/quick-start-deploy-config-class.js';
 import {QuickStartDeployContext} from './quick-start/quick-start-deploy-context.js';
-
-interface QuickStartDestroyConfigClass {
-  dummyVariable?: string; // Placeholder for actual configuration properties
-}
+import {QuickStartDestroyConfigClass} from './quick-start/quick-start-destroy-config-class.js';
 
 interface QuickStartDestroyContext {
   config: QuickStartDestroyConfigClass;
