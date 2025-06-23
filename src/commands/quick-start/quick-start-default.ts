@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Listr} from 'listr2';
-import {SoloError} from '../core/errors/solo-error.js';
-import * as constants from '../core/constants.js';
-import {BaseCommand} from './base.js';
-import {Flags, Flags as flags} from './flags.js';
-import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
-import {type CommandDefinition, SoloListrTaskWrapper} from '../types/index.js';
-import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
-import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
+import {SoloError} from '../../core/errors/solo-error.js';
+import * as constants from '../../core/constants.js';
+import {BaseCommand} from '../base.js';
+import {Flags, Flags as flags} from '../flags.js';
+import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../../types/aliases.js';
+import {type CommandDefinition, SoloListrTaskWrapper} from '../../types/index.js';
+import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
+import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';
 import {injectable} from 'tsyringe-neo';
 import {v4 as uuid4} from 'uuid';
-import {NamespaceName} from '../types/namespace/namespace-name.js';
-import {StringEx} from '../business/utils/string-ex.js';
-import {ArgumentProcessor} from '../argument-processor.js';
-import {QuickStartCommand} from './quick-start/quick-start.js';
-import {QuickStartSingleDeployConfigClass} from './quick-start/quick-start-single-deploy-config-class.js';
-import {QuickStartSingleDeployContext} from './quick-start/quick-start-single-deploy-context.js';
-import {QuickStartSingleDestroyConfigClass} from './quick-start/quick-start-single-destroy-config-class.js';
-import {QuickStartSingleDestroyContext} from './quick-start/quick-start-single-destroy-context.js';
+import {NamespaceName} from '../../types/namespace/namespace-name.js';
+import {StringEx} from '../../business/utils/string-ex.js';
+import {ArgumentProcessor} from '../../argument-processor.js';
+import {QuickStartCommand} from './quick-start.js';
+import {QuickStartSingleDeployConfigClass} from './quick-start-single-deploy-config-class.js';
+import {QuickStartSingleDeployContext} from './quick-start-single-deploy-context.js';
+import {QuickStartSingleDestroyConfigClass} from './quick-start-single-destroy-config-class.js';
+import {QuickStartSingleDestroyContext} from './quick-start-single-destroy-context.js';
 
 @injectable()
 export class QuickStartCommandDefault extends BaseCommand implements QuickStartCommand {

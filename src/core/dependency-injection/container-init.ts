@@ -59,7 +59,7 @@ import {DefaultConfigSource} from '../../data/configuration/impl/default-config-
 import {type SoloConfigSchema} from '../../data/schema/model/solo/solo-config-schema.js';
 import {SoloConfigSchemaDefinition} from '../../data/schema/migration/impl/solo/solo-config-schema-definition.js';
 import {BeanFactorySupplier} from './bean-factory-supplier.js';
-import {QuickStartCommandDefault} from '../../commands/quick-start-default.js';
+import {QuickStartCommandDefault} from '../../commands/quick-start/quick-start-default.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
