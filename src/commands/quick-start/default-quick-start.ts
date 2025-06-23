@@ -21,7 +21,7 @@ import {QuickStartSingleDestroyConfigClass} from './quick-start-single-destroy-c
 import {QuickStartSingleDestroyContext} from './quick-start-single-destroy-context.js';
 
 @injectable()
-export class QuickStartCommandDefault extends BaseCommand implements QuickStartCommand {
+export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
   public static readonly COMMAND_NAME: string = 'quick-start';
 
   private static readonly SINGLE_ADD_CONFIGS_NAME: string = 'singleAddConfigs';
@@ -97,17 +97,17 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
           ): Promise<Listr<AnyListrContext>> => {
             this.configManager.update(argv);
 
-            flags.disablePrompts(QuickStartCommandDefault.SINGLE_ADD_FLAGS_LIST.optional);
+            flags.disablePrompts(DefaultQuickStartCommand.SINGLE_ADD_FLAGS_LIST.optional);
 
             const allFlags: CommandFlag[] = [
-              ...QuickStartCommandDefault.SINGLE_ADD_FLAGS_LIST.required,
-              ...QuickStartCommandDefault.SINGLE_ADD_FLAGS_LIST.optional,
+              ...DefaultQuickStartCommand.SINGLE_ADD_FLAGS_LIST.required,
+              ...DefaultQuickStartCommand.SINGLE_ADD_FLAGS_LIST.optional,
             ];
 
             await this.configManager.executePrompt(task, allFlags);
 
             context_.config = this.configManager.getConfig(
-              QuickStartCommandDefault.SINGLE_ADD_CONFIGS_NAME,
+              DefaultQuickStartCommand.SINGLE_ADD_CONFIGS_NAME,
               allFlags,
             ) as QuickStartSingleDeployConfigClass;
 
@@ -309,17 +309,17 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         task: async (context_, task): Promise<Listr<AnyListrContext>> => {
           this.configManager.update(argv);
 
-          flags.disablePrompts(QuickStartCommandDefault.SINGLE_DESTROY_FLAGS_LIST.optional);
+          flags.disablePrompts(DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST.optional);
 
           const allFlags: CommandFlag[] = [
-            ...QuickStartCommandDefault.SINGLE_DESTROY_FLAGS_LIST.required,
-            ...QuickStartCommandDefault.SINGLE_DESTROY_FLAGS_LIST.optional,
+            ...DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST.required,
+            ...DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST.optional,
           ];
 
           await this.configManager.executePrompt(task, allFlags);
 
           context_.config = this.configManager.getConfig(
-            QuickStartCommandDefault.SINGLE_DESTROY_CONFIGS_NAME,
+            DefaultQuickStartCommand.SINGLE_DESTROY_CONFIGS_NAME,
             allFlags,
           ) as QuickStartSingleDestroyConfigClass;
 
@@ -339,7 +339,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
   }
 
   public getCommandDefinition(): CommandDefinition {
-    return new CommandBuilder(QuickStartCommandDefault.COMMAND_NAME, 'Manage quick start for solo network', this.logger)
+    return new CommandBuilder(DefaultQuickStartCommand.COMMAND_NAME, 'Manage quick start for solo network', this.logger)
       .addCommandGroup(
         new CommandGroup('single', 'A single consensus node quick start configuration')
           .addSubcommand(
@@ -349,8 +349,8 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
               this,
               this.deploy,
               (y: AnyYargs): void => {
-                flags.setRequiredCommandFlags(y, ...QuickStartCommandDefault.SINGLE_ADD_FLAGS_LIST.required);
-                flags.setOptionalCommandFlags(y, ...QuickStartCommandDefault.SINGLE_ADD_FLAGS_LIST.optional);
+                flags.setRequiredCommandFlags(y, ...DefaultQuickStartCommand.SINGLE_ADD_FLAGS_LIST.required);
+                flags.setOptionalCommandFlags(y, ...DefaultQuickStartCommand.SINGLE_ADD_FLAGS_LIST.optional);
               },
             ),
           )
@@ -361,8 +361,8 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
               this,
               this.destroy,
               (y: AnyYargs): void => {
-                flags.setRequiredCommandFlags(y, ...QuickStartCommandDefault.SINGLE_DESTROY_FLAGS_LIST.required);
-                flags.setOptionalCommandFlags(y, ...QuickStartCommandDefault.SINGLE_DESTROY_FLAGS_LIST.optional);
+                flags.setRequiredCommandFlags(y, ...DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST.required);
+                flags.setOptionalCommandFlags(y, ...DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST.optional);
               },
             ),
           ),
