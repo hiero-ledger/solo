@@ -54,7 +54,7 @@ export abstract class BaseCommand extends ShellRunner {
    * @param chartDirectory - the chart directory
    * @param profileValuesFile - mapping of clusterRef to the profile values file full path
    */
-  static prepareValuesFilesMapMulticluster(
+  static prepareValuesFilesMapMultipleCluster(
     clusterReferences: ClusterReferences,
     chartDirectory?: string,
     profileValuesFile?: Record<ClusterReferenceName, string>,

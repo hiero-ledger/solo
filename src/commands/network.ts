@@ -413,7 +413,7 @@ export class NetworkCommand extends BaseCommand {
       applicationPropertiesPath,
     );
 
-    const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMapMulticluster(
+    const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMapMultipleCluster(
       config.clusterRefs,
       config.chartDirectory,
       this.profileValuesFile,
