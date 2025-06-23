@@ -197,7 +197,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo cluster-ref setup',
-          task: async (context_): Promise<void> => {
+          task: async (context_: QuickStartDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push('cluster-ref', 'setup', this.optionFromFlag(Flags.clusterRef), context_.config.clusterRef);
             this.argvPushGlobalFlags(argv);
@@ -206,7 +206,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo node keys',
-          task: async (context_): Promise<void> => {
+          task: async (context_: QuickStartDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push(
               'node',
@@ -223,7 +223,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo network deploy',
-          task: async (context_): Promise<void> => {
+          task: async (context_: QuickStartDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push('network', 'deploy', this.optionFromFlag(Flags.deployment), context_.config.deployment);
             this.argvPushGlobalFlags(argv, context_.config.cacheDir);
@@ -232,7 +232,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo node setup',
-          task: async (context_): Promise<void> => {
+          task: async (context_: QuickStartDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push('node', 'setup', this.optionFromFlag(Flags.deployment), context_.config.deployment);
             this.argvPushGlobalFlags(argv, context_.config.cacheDir);
@@ -241,7 +241,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo node start',
-          task: async (context_): Promise<void> => {
+          task: async (context_: QuickStartDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push('node', 'start', this.optionFromFlag(Flags.deployment), context_.config.deployment);
             this.argvPushGlobalFlags(argv);
@@ -250,7 +250,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo mirror-node deploy',
-          task: async (context_): Promise<void> => {
+          task: async (context_: QuickStartDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push(
               'mirror-node',
@@ -267,7 +267,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo explorer deploy',
-          task: async (context_): Promise<void> => {
+          task: async (context_: QuickStartDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push(
               'explorer',
@@ -283,7 +283,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo relay deploy',
-          task: async (context_): Promise<void> => {
+          task: async (context_: QuickStartDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push(
               'relay',
