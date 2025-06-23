@@ -6,7 +6,7 @@ import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags, Flags as flags} from './flags.js';
 import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
-import {type CommandDefinition} from '../types/index.js';
+import {type CommandDefinition, SoloListrTaskWrapper} from '../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 import {injectable} from 'tsyringe-neo';
@@ -108,7 +108,10 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         // TODO fix the sysout problem that causes this output only, but then dumps the rest of the output on exit, but it shows multiple lines for all of the row updates
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
+          task: async (
+            context_: QuickStartDeployContext,
+            task: SoloListrTaskWrapper<QuickStartDeployContext>,
+          ): Promise<Listr<AnyListrContext>> => {
             this.configManager.update(argv);
 
             flags.disablePrompts(QuickStartCommandDefault.SINGLE_ADD_FLAGS_LIST.optional);
@@ -135,7 +138,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo init',
-          task: async (context_): Promise<void> => {
+          task: async (context_: QuickStartDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push('init');
             this.argvPushGlobalFlags(argv, context_.config.cacheDir);
@@ -144,7 +147,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo cluster-ref connect',
-          task: async (context_): Promise<void> => {
+          task: async (context_: QuickStartDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push(
               'cluster-ref',
@@ -160,7 +163,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo deployment create',
-          task: async (context_): Promise<void> => {
+          task: async (context_: QuickStartDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push(
               'deployment',
@@ -176,7 +179,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo deployment add-cluster',
-          task: async (context_): Promise<void> => {
+          task: async (context_: QuickStartDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push(
               'deployment',
