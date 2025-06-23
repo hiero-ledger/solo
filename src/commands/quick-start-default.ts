@@ -14,12 +14,9 @@ import {v4 as uuid4} from 'uuid';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {StringEx} from '../business/utils/string-ex.js';
 import {ArgumentProcessor} from '../argument-processor.js';
-import {QuickStartCommand} from './quick-start.js';
+import {QuickStartCommand} from './quick-start/quick-start.js';
 import {QuickStartDeployConfigClass} from './quick-start/quick-start-deploy-config-class.js';
-
-interface QuickStartDeployContext {
-  config: QuickStartDeployConfigClass;
-}
+import {QuickStartDeployContext} from './quick-start/quick-start-deploy-context.js';
 
 interface QuickStartDestroyConfigClass {
   dummyVariable?: string; // Placeholder for actual configuration properties

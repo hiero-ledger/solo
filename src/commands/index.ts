@@ -12,7 +12,7 @@ import {type ExplorerCommand} from './explorer.js';
 import {type BlockNodeCommand} from './block-node.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
-import {type QuickStartCommand} from './quick-start.js';
+import {type QuickStartCommand} from './quick-start/quick-start.js';
 import {type CommandDefinition} from '../types/index.js';
 
 /**
