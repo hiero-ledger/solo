@@ -2,6 +2,6 @@
 
 import {type QuickStartSingleDestroyConfigClass} from './quick-start-single-destroy-config-class.js';
 
-export interface QuickStartDestroyContext {
+export interface QuickStartSingleDestroyContext {
   config: QuickStartSingleDestroyConfigClass;
 }

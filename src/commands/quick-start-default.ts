@@ -18,7 +18,7 @@ import {QuickStartCommand} from './quick-start/quick-start.js';
 import {QuickStartSingleDeployConfigClass} from './quick-start/quick-start-single-deploy-config-class.js';
 import {QuickStartSingleDeployContext} from './quick-start/quick-start-single-deploy-context.js';
 import {QuickStartSingleDestroyConfigClass} from './quick-start/quick-start-single-destroy-config-class.js';
-import {QuickStartDestroyContext} from './quick-start/quick-start-destroy-context.js';
+import {QuickStartSingleDestroyContext} from './quick-start/quick-start-single-destroy-context.js';
 
 @injectable()
 export class QuickStartCommandDefault extends BaseCommand implements QuickStartCommand {
@@ -303,7 +303,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
-    const tasks: Listr<QuickStartDestroyContext> = new Listr<QuickStartDestroyContext>([
+    const tasks: Listr<QuickStartSingleDestroyContext> = new Listr<QuickStartSingleDestroyContext>([
       {
         title: 'Initialize',
         task: async (context_, task): Promise<Listr<AnyListrContext>> => {
