@@ -2,6 +2,6 @@
 
 import {type QuickStartSingleDeployConfigClass} from './quick-start-single-deploy-config-class.js';
 
-export interface QuickStartDeployContext {
+export interface QuickStartSingleDeployContext {
   config: QuickStartSingleDeployConfigClass;
 }

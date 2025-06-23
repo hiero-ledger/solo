@@ -16,7 +16,7 @@ import {StringEx} from '../business/utils/string-ex.js';
 import {ArgumentProcessor} from '../argument-processor.js';
 import {QuickStartCommand} from './quick-start/quick-start.js';
 import {QuickStartSingleDeployConfigClass} from './quick-start/quick-start-single-deploy-config-class.js';
-import {QuickStartDeployContext} from './quick-start/quick-start-deploy-context.js';
+import {QuickStartSingleDeployContext} from './quick-start/quick-start-single-deploy-context.js';
 import {QuickStartDestroyConfigClass} from './quick-start/quick-start-destroy-config-class.js';
 import {QuickStartDestroyContext} from './quick-start/quick-start-destroy-context.js';
 
@@ -86,14 +86,14 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
   }
 
   private async deploy(argv: ArgvStruct): Promise<boolean> {
-    const tasks: Listr<QuickStartDeployContext> = new Listr<QuickStartDeployContext>(
+    const tasks: Listr<QuickStartSingleDeployContext> = new Listr<QuickStartSingleDeployContext>(
       [
         // TODO fix the sysout problem that causes this output only, but then dumps the rest of the output on exit, but it shows multiple lines for all of the row updates
         {
           title: 'Initialize',
           task: async (
-            context_: QuickStartDeployContext,
-            task: SoloListrTaskWrapper<QuickStartDeployContext>,
+            context_: QuickStartSingleDeployContext,
+            task: SoloListrTaskWrapper<QuickStartSingleDeployContext>,
           ): Promise<Listr<AnyListrContext>> => {
             this.configManager.update(argv);
 
@@ -121,7 +121,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo init',
-          task: async (context_: QuickStartDeployContext): Promise<void> => {
+          task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push('init');
             this.argvPushGlobalFlags(argv, context_.config.cacheDir);
@@ -130,7 +130,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo cluster-ref connect',
-          task: async (context_: QuickStartDeployContext): Promise<void> => {
+          task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push(
               'cluster-ref',
@@ -146,7 +146,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo deployment create',
-          task: async (context_: QuickStartDeployContext): Promise<void> => {
+          task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push(
               'deployment',
@@ -162,7 +162,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo deployment add-cluster',
-          task: async (context_: QuickStartDeployContext): Promise<void> => {
+          task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push(
               'deployment',
@@ -180,7 +180,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo cluster-ref setup',
-          task: async (context_: QuickStartDeployContext): Promise<void> => {
+          task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push('cluster-ref', 'setup', this.optionFromFlag(Flags.clusterRef), context_.config.clusterRef);
             this.argvPushGlobalFlags(argv);
@@ -189,7 +189,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo node keys',
-          task: async (context_: QuickStartDeployContext): Promise<void> => {
+          task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push(
               'node',
@@ -206,7 +206,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo network deploy',
-          task: async (context_: QuickStartDeployContext): Promise<void> => {
+          task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push('network', 'deploy', this.optionFromFlag(Flags.deployment), context_.config.deployment);
             this.argvPushGlobalFlags(argv, context_.config.cacheDir);
@@ -215,7 +215,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo node setup',
-          task: async (context_: QuickStartDeployContext): Promise<void> => {
+          task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push('node', 'setup', this.optionFromFlag(Flags.deployment), context_.config.deployment);
             this.argvPushGlobalFlags(argv, context_.config.cacheDir);
@@ -224,7 +224,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo node start',
-          task: async (context_: QuickStartDeployContext): Promise<void> => {
+          task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push('node', 'start', this.optionFromFlag(Flags.deployment), context_.config.deployment);
             this.argvPushGlobalFlags(argv);
@@ -233,7 +233,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo mirror-node deploy',
-          task: async (context_: QuickStartDeployContext): Promise<void> => {
+          task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push(
               'mirror-node',
@@ -250,7 +250,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo explorer deploy',
-          task: async (context_: QuickStartDeployContext): Promise<void> => {
+          task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push(
               'explorer',
@@ -266,7 +266,7 @@ export class QuickStartCommandDefault extends BaseCommand implements QuickStartC
         },
         {
           title: 'solo relay deploy',
-          task: async (context_: QuickStartDeployContext): Promise<void> => {
+          task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
             const argv: string[] = this.newArgv();
             argv.push(
               'relay',
