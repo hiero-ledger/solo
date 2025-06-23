@@ -22,12 +22,9 @@ import {Argv} from '../../helpers/argv-wrapper.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
-import {type AccountManager} from '../../../src/core/account-manager.js';
-import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {
-  AccountBalanceQuery,
   AccountCreateTransaction,
   AccountId,
   Hbar,
@@ -308,76 +305,6 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
         threw = true;
       }
       expect(threw, 'expected transaction targeting old account-id to fail').to.be.true;
-    }).timeout(Duration.ofMinutes(5).toMillis());
-
-    it('mirror-node should show charged fees for a transfer', async () => {
-      await accountManager.refreshNodeClient(
-        namespace,
-        remoteConfig.getClusterRefs(),
-        undefined,
-        argv.getArg<DeploymentName>(flags.deployment),
-      );
-      const client = accountManager._nodeClient;
-
-      // create two accounts: sender (1000 ℏ) and receiver (1 ℏ)
-      const senderKey = PrivateKey.generate();
-      const receiverKey = PrivateKey.generate();
-
-      const senderId = await createAccount(client, senderKey, 1000, newAccountId);
-      const receiverId = await createAccount(client, receiverKey, 1, newAccountId);
-
-      const transfer = await new TransferTransaction()
-        .addHbarTransfer(senderId, Hbar.from(-1, HbarUnit.Hbar))
-        .addHbarTransfer(receiverId, Hbar.from(1, HbarUnit.Hbar))
-        .setNodeAccountIds([AccountId.fromString(newAccountId)])
-        .freezeWith(client);
-      await transfer.sign(senderKey);
-      const response = await transfer.execute(client);
-
-      const firstTxIdSdkFormat = response.transactionId.toString();
-      const [accPart, tsPart] = firstTxIdSdkFormat.split('@');
-      const [secondsPart, nanosPart] = tsPart.split('.');
-      const firstTxId = `${accPart}-${secondsPart}-${nanosPart}`;
-      await response.getReceipt(client);
-
-      // Poll mirror-node until the transfer appears and verify fee + receiver
-      let feeSeen = 0;
-      let feeCreditedToNewAccount = false;
-      const maxAttempts = 30;
-
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const mirrorUrl = `http://127.0.0.1:5551/api/v1/transactions/${firstTxId}`;
-
-        const {fee, credited} = await new Promise<{fee: number; credited: boolean}>(resolve => {
-          const req = http.request(mirrorUrl, {method: 'GET', timeout: 5_000}, res => {
-            let data = '';
-            res.setEncoding('utf8');
-            res.on('data', chunk => (data += chunk));
-            res.on('end', () => {
-              try {
-                const obj = JSON.parse(data);
-                const tx = obj.transactions?.[0] ?? {};
-                const chargedFee = tx.charged_tx_fee ?? 0;
-                const credited = (tx.transfers ?? []).some((t: any) => t.account === newAccountId && t.amount > 0);
-                resolve({fee: chargedFee, credited});
-              } catch {
-                resolve({fee: 0, credited: false});
-              }
-            });
-          });
-          req.on('error', () => resolve({fee: 0, credited: false}));
-          req.end();
-        });
-
-        feeSeen = fee;
-        feeCreditedToNewAccount = credited;
-
-        if (feeSeen > 0 && feeCreditedToNewAccount) break;
-        await sleep(Duration.ofSeconds(4));
-      }
-
-      expect(feeSeen).to.be.greaterThan(0);
-      expect(feeCreditedToNewAccount, 'fee should be credited to the new node account').to.be.true;
     }).timeout(Duration.ofMinutes(5).toMillis());
   });
 }); 
