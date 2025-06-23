@@ -15,15 +15,7 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {StringEx} from '../business/utils/string-ex.js';
 import {ArgumentProcessor} from '../argument-processor.js';
 import {QuickStartCommand} from './quick-start.js';
-
-interface QuickStartDeployConfigClass {
-  clusterRef: string;
-  context: string;
-  deployment: string;
-  namespace: NamespaceName;
-  numberOfConsensusNodes: number;
-  cacheDir: string;
-}
+import {QuickStartDeployConfigClass} from './quick-start/quick-start-deploy-config-class.js';
 
 interface QuickStartDeployContext {
   config: QuickStartDeployConfigClass;
