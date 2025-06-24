@@ -21,6 +21,7 @@ import {QuickStartSingleDestroyConfigClass} from './quick-start-single-destroy-c
 import {QuickStartSingleDestroyContext} from './quick-start-single-destroy-context.js';
 import {ClusterCommandHandlers} from '../cluster/handlers.js';
 import {DeploymentCommand} from '../deployment.js';
+import {NodeCommandHandlers} from '../node/handlers.js';
 
 @injectable()
 export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
@@ -199,7 +200,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo node keys',
-            task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
+            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
+              this.taskList.parentTaskListMap.set(NodeCommandHandlers.KEYS_COMMAND, task);
               const argv: string[] = this.newArgv();
               argv.push(
                 'node',

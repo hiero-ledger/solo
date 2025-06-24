@@ -35,6 +35,7 @@ import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
 export class NodeCommandHandlers extends CommandHandler {
   public contexts: string[];
   public consensusNodes: ConsensusNode[];
+  public static readonly KEYS_COMMAND: string = 'node keys';
 
   public constructor(
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
@@ -756,6 +757,7 @@ export class NodeCommandHandlers extends CommandHandler {
       },
       'Error generating keys',
       null,
+      NodeCommandHandlers.KEYS_COMMAND,
     );
 
     return true;
