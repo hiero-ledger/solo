@@ -10,7 +10,6 @@ import {
   type ListrSecondaryRendererValue,
   type ListrTask,
 } from 'listr2';
-import {type InitContext} from '../../commands/init/init-context.js';
 import {type QuickStartSingleDeployContext} from '../../commands/quick-start/quick-start-single-deploy-context.js';
 import {type TaskListWrapper} from './task-list-wrapper.js';
 
@@ -38,28 +37,6 @@ export interface TaskList<
       ListrGetRendererClassFromValue<FallbackRenderer>
     >,
   ): Listr<QuickStartSingleDeployContext, Renderer, FallbackRenderer>;
-
-  initTaskListParent?: TaskListWrapper;
-
-  newInitTaskList(
-    task:
-      | ListrTask<
-          InitContext,
-          ListrGetRendererClassFromValue<Renderer>,
-          ListrGetRendererClassFromValue<FallbackRenderer>
-        >
-      | ListrTask<
-          InitContext,
-          ListrGetRendererClassFromValue<Renderer>,
-          ListrGetRendererClassFromValue<FallbackRenderer>
-        >[],
-    options?: ListrBaseClassOptions<InitContext, Renderer, FallbackRenderer>,
-    parentTask?: ListrTaskObject<
-      any,
-      ListrGetRendererClassFromValue<Renderer>,
-      ListrGetRendererClassFromValue<FallbackRenderer>
-    >,
-  ): Listr<InitContext, Renderer, FallbackRenderer>;
 
   parentTaskListMap: Map<string, TaskListWrapper>;
 

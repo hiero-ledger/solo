@@ -22,6 +22,7 @@ import {QuickStartSingleDestroyContext} from './quick-start-single-destroy-conte
 import {ClusterCommandHandlers} from '../cluster/handlers.js';
 import {DeploymentCommand} from '../deployment.js';
 import {NodeCommandHandlers} from '../node/handlers.js';
+import {InitCommand} from '../init/init.js';
 
 @injectable()
 export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
@@ -128,7 +129,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           {
             title: 'solo init',
             task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
-              this.taskList.initTaskListParent = task;
+              this.taskList.parentTaskListMap.set(InitCommand.INIT_COMMAND_NAME, task);
               const argv: string[] = this.newArgv();
               argv.push('init');
               this.argvPushGlobalFlags(argv, context_.config.cacheDir);

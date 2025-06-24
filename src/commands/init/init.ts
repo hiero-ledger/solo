@@ -19,6 +19,7 @@ import {Listr, ListrRendererValue} from 'listr2';
 @injectable()
 export class InitCommand extends BaseCommand {
   public static readonly COMMAND_NAME = 'init';
+  public static readonly INIT_COMMAND_NAME = InitCommand.COMMAND_NAME;
 
   // Although empty, tsyringe requires the constructor to be present
   public constructor() {
@@ -34,7 +35,7 @@ export class InitCommand extends BaseCommand {
       cacheDirectory = constants.SOLO_CACHE_DIR as string;
     }
 
-    const tasks: Listr<InitContext, ListrRendererValue, ListrRendererValue> = this.taskList.newInitTaskList(
+    const tasks: Listr<InitContext, ListrRendererValue, ListrRendererValue> = this.taskList.newTaskList(
       [
         {
           title: 'Setup home directory and cache',
@@ -124,6 +125,8 @@ export class InitCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      InitCommand.INIT_COMMAND_NAME,
     );
 
     if (tasks.isRoot()) {

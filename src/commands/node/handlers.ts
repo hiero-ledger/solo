@@ -35,8 +35,6 @@ import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
-  public contexts: string[];
-  public consensusNodes: ConsensusNode[];
   public static readonly KEYS_COMMAND: string = 'node keys';
 
   public constructor(
@@ -60,11 +58,6 @@ export class NodeCommandHandlers extends CommandHandler {
   private static readonly DELETE_CONTEXT_FILE = 'node-delete.json';
   private static readonly UPDATE_CONTEXT_FILE = 'node-update.json';
   private static readonly UPGRADE_CONTEXT_FILE = 'node-upgrade.json';
-
-  private init() {
-    this.consensusNodes = this.remoteConfig.getConsensusNodes();
-    this.contexts = this.remoteConfig.getContexts();
-  }
 
   /** ******** Task Lists **********/
 
@@ -746,7 +739,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async keys(argv: ArgvStruct): Promise<boolean> {
-    this.init();
     argv = helpers.addFlagsToArgv(argv, NodeFlags.KEYS_FLAGS);
 
     await this.commandAction(
