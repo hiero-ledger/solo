@@ -349,6 +349,9 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   private async deploy(argv: ArgvStruct): Promise<boolean> {
+    await this.loadLocalConfig();
+    await this.loadRemoteConfig(argv);
+
     const self = this;
     const lease = await self.leaseManager.create();
 
@@ -774,6 +777,9 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
+    await this.loadLocalConfig();
+    await this.loadRemoteConfig(argv);
+
     const self = this;
     const lease = await self.leaseManager.create();
 
