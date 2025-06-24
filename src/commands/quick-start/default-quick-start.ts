@@ -9,7 +9,7 @@ import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../../types/
 import {type CommandDefinition, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';
-import {injectable} from 'tsyringe-neo';
+import {inject, injectable} from 'tsyringe-neo';
 import {v4 as uuid4} from 'uuid';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {StringEx} from '../../business/utils/string-ex.js';
@@ -19,6 +19,9 @@ import {QuickStartSingleDeployConfigClass} from './quick-start-single-deploy-con
 import {QuickStartSingleDeployContext} from './quick-start-single-deploy-context.js';
 import {QuickStartSingleDestroyConfigClass} from './quick-start-single-destroy-config-class.js';
 import {QuickStartSingleDestroyContext} from './quick-start-single-destroy-context.js';
+import {patchInject} from '../../core/dependency-injection/container-helper.js';
+import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
+import {type TaskList} from '../../core/task-list/task-list.js';
 
 @injectable()
 export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
@@ -60,9 +63,11 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     optional: [],
   };
 
-  // Although empty, tsyringe requires the constructor to be present
-  public constructor() {
+  public constructor(
+    @inject(InjectTokens.TaskList) private readonly taskList?: TaskList<QuickStartSingleDeployContext>,
+  ) {
     super();
+    this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
   }
 
   private newArgv(): string[] {
@@ -86,7 +91,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
   }
 
   private async deploy(argv: ArgvStruct): Promise<boolean> {
-    const tasks: Listr<QuickStartSingleDeployContext> = new Listr<QuickStartSingleDeployContext>(
+    const tasks: Listr<QuickStartSingleDeployContext> = this.taskList.newQuickStartSingleDeployTaskList(
       [
         // TODO fix the sysout problem that causes this output only, but then dumps the rest of the output on exit, but it shows multiple lines for all of the row updates
         {

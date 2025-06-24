@@ -62,4 +62,5 @@ export class InjectTokens {
   public static LocalConfigRuntimeState: symbol = Symbol.for('LocalConfigRuntimeState');
   public static HomeDirectory: symbol = Symbol.for('HomeDirectory');
   public static QuickStartCommand: symbol = Symbol.for('QuickStartCommand');
+  public static TaskList: symbol = Symbol.for('TaskList');
 }
