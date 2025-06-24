@@ -863,6 +863,9 @@ export class NetworkCommand extends BaseCommand {
 
   /** Run helm install and deploy network components */
   private async deploy(argv: ArgvStruct): Promise<boolean> {
+    await this.loadLocalConfig();
+    await this.loadRemoteConfig(argv, true, false);
+
     const lease: Lock = await this.leaseManager.create();
 
     const tasks: Listr<NetworkDeployContext> = new Listr<NetworkDeployContext>(
@@ -1233,6 +1236,9 @@ export class NetworkCommand extends BaseCommand {
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
+    await this.loadLocalConfig();
+    await this.loadRemoteConfig(argv);
+
     const lease: Lock = await this.leaseManager.create();
 
     let networkDestroySuccess: boolean = true;
