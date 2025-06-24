@@ -30,7 +30,9 @@ import {
   NodeCreateTransaction,
   NodeDeleteTransaction,
   NodeUpdateTransaction,
-  PrivateKey, ServiceEndpoint, Status,
+  PrivateKey,
+  ServiceEndpoint,
+  Status,
   Timestamp,
   TransactionReceipt,
   TransactionResponse,
@@ -122,7 +124,6 @@ import {type ComponentFactoryApi} from '../../core/config/remote/api/component-f
 import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 import {NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
-import NodeClient from '@hashgraph/sdk/lib/client/NodeClient.js';
 
 @injectable()
 export class NodeCommandTasks {
@@ -1275,48 +1276,6 @@ export class NodeCommandTasks {
             task: async (context_): Promise<void> => {
               // @ts-expect-error: all fields are not present in every task's context
               this.platformInstaller.taskSetup(podReference, context_.config.stagingDir, isGenesis, context);
-
-              const namespace: NamespaceName = context_.config.namespace;
-
-              const serviceMap: NodeServiceMapping = await this.accountManager.getNodeServiceMap(
-                context_.config.namespace,
-                this.remoteConfig.getClusterRefs(),
-                context_.config.deployment,
-              );
-
-              const networkNodeService: NetworkNodeServices = serviceMap.get(nodeAlias);
-
-              const cluster: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
-                (cluster): boolean => cluster.namespace === namespace.name,
-              );
-
-              const grpcProxyAddress: string = Templates.renderSvcFullyQualifiedDomainName(
-                networkNodeService.envoyProxyName,
-                namespace.name,
-                cluster.dnsBaseDomain,
-              );
-
-              const grpcProxyPort: number = +networkNodeService.envoyProxyGrpcWebPort;
-
-              const client: NodeClient = this.accountManager._nodeClient;
-
-              const grpcWebProxyEndpoint: ServiceEndpoint = new ServiceEndpoint()
-                .setDomainName(grpcProxyAddress)
-                .setPort(grpcProxyPort);
-
-              const updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
-                .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
-                .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint);
-
-              const updateTransactionResponse: TransactionResponse = await updateTransaction.execute(client);
-
-              const updateTransactionReceipt: TransactionReceipt = await updateTransactionResponse.getReceipt(client);
-
-              console.log(`Node update transaction status: ${updateTransactionReceipt.status.toString()}`);
-
-              if (updateTransactionReceipt.status !== Status.Success) {
-                throw new SoloError('Failed to set gRPC web proxy endpoint');
-              }
             },
           });
         }
@@ -1326,6 +1285,63 @@ export class NodeCommandTasks {
           concurrent: true,
           rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
         });
+      },
+    };
+  }
+
+  public async setGrpcWebEndpoint() {
+    // TODO: add flag to enable it if it needs, add to the end of node start
+    return {
+      title: 'Set gRPC Web endpoint',
+      task: async (context_): Promise<void> => {
+        const namespace: NamespaceName = context_.config.namespace;
+
+        const serviceMap: NodeServiceMapping = await this.accountManager.getNodeServiceMap(
+          context_.config.namespace,
+          this.remoteConfig.getClusterRefs(),
+          context_.config.deployment,
+        );
+
+        for (const nodeAlias of context_.config.nodeAliases) {
+
+          const networkNodeService: NetworkNodeServices = serviceMap.get(nodeAlias);
+
+          const cluster: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
+            (cluster): boolean => cluster.namespace === namespace.name,
+          );
+
+          const grpcProxyAddress: string = Templates.renderSvcFullyQualifiedDomainName(
+            networkNodeService.envoyProxyName,
+            namespace.name,
+            cluster.dnsBaseDomain,
+          );
+
+          const grpcProxyPort: number = +networkNodeService.envoyProxyGrpcWebPort;
+
+          const client = await this.accountManager.loadNodeClient(
+            namespace,
+            this.remoteConfig.getClusterRefs(),
+            context_.config.deployment,
+          );
+
+          const grpcWebProxyEndpoint: ServiceEndpoint = new ServiceEndpoint()
+            .setDomainName(grpcProxyAddress)
+            .setPort(grpcProxyPort);
+
+          const updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
+            .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
+            .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint);
+
+          const updateTransactionResponse: TransactionResponse = await updateTransaction.execute(client);
+
+          const updateTransactionReceipt: TransactionReceipt = await updateTransactionResponse.getReceipt(client);
+
+          console.log(`Node update transaction status: ${updateTransactionReceipt.status.toString()}`);
+
+          if (updateTransactionReceipt.status !== Status.Success) {
+            throw new SoloError('Failed to set gRPC web proxy endpoint');
+          }
+        }
       },
     };
   }
@@ -1386,7 +1402,6 @@ export class NodeCommandTasks {
       keysDirectory,
       networkNodeServiceMap,
       adminPublicKeys,
-      this.remoteConfig.configuration.clusters,
       domainNamesMapping,
     );
 

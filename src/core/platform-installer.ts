@@ -381,7 +381,7 @@ export class PlatformInstaller {
     context?: string,
   ) {
     if (isGenesis) {
-      const genesisNetworkJson: string[] = [PathEx.joinWithRealPath(stagingDirectory, 'genesis-network.json')];
+      const genesisNetworkJson = [PathEx.joinWithRealPath(stagingDirectory, 'genesis-network.json')];
       await this.copyFiles(
         podReference,
         genesisNetworkJson,

@@ -13,9 +13,10 @@ dotenv.config();
 const operatorId = AccountId.fromString('0.0.2');
 
 const operatorKey = PrivateKey.fromStringED25519("302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137");
+
 // todo test with the envoy
 const client = Client
-  .forNetwork({"127.0.0.1:8080": AccountId.fromString(`0.0.3`)})
+  .forNetwork({"127.0.0.1:8081": AccountId.fromString(`0.0.3`)})
   .setOperator(operatorId, operatorKey);
 
 const grpcWebProxyEndpoint = new ServiceEndpoint()
