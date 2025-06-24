@@ -23,6 +23,7 @@ import {ClusterCommandHandlers} from '../cluster/handlers.js';
 import {DeploymentCommand} from '../deployment.js';
 import {NodeCommandHandlers} from '../node/handlers.js';
 import {InitCommand} from '../init/init.js';
+import {NetworkCommand} from '../network.js';
 
 @injectable()
 export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
@@ -219,7 +220,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo network deploy',
-            task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
+            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
+              this.taskList.parentTaskListMap.set(NetworkCommand.DEPLOY_COMMAND, task);
               const argv: string[] = this.newArgv();
               argv.push('network', 'deploy', this.optionFromFlag(Flags.deployment), context_.config.deployment);
               this.argvPushGlobalFlags(argv, context_.config.cacheDir);
