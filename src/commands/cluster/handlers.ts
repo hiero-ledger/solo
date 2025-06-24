@@ -17,7 +17,7 @@ import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local
 export class ClusterCommandHandlers extends CommandHandler {
   public static readonly CLUSTER_REFERENCE_CONNECT_COMMAND: string = 'cluster-ref connect';
 
-  constructor(
+  public constructor(
     @inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.ClusterCommandConfigs) private readonly configs: ClusterCommandConfigs,
