@@ -189,7 +189,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo cluster-ref setup',
-            task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
+            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
+              this.taskList.parentTaskListMap.set(ClusterCommandHandlers.SETUP_COMMAND, task);
               const argv: string[] = this.newArgv();
               argv.push('cluster-ref', 'setup', this.optionFromFlag(Flags.clusterRef), context_.config.clusterRef);
               this.argvPushGlobalFlags(argv);
