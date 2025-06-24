@@ -124,7 +124,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo init',
-            task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
+            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
+              this.taskList.initTaskListParent = task;
               const argv: string[] = this.newArgv();
               argv.push('init');
               this.argvPushGlobalFlags(argv, context_.config.cacheDir);

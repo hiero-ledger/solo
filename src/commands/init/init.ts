@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {Listr} from 'listr2';
 import {BaseCommand} from '../base.js';
 import fs from 'node:fs';
 import * as constants from '../../core/constants.js';
@@ -12,6 +11,7 @@ import {injectable} from 'tsyringe-neo';
 import {type CommandDefinition} from '../../types/index.js';
 import {InitConfig} from './init-config.js';
 import {InitContext} from './init-context.js';
+import {Listr, ListrRendererValue} from 'listr2';
 
 /**
  * Defines the core functionalities of 'init' command
@@ -34,7 +34,7 @@ export class InitCommand extends BaseCommand {
       cacheDirectory = constants.SOLO_CACHE_DIR as string;
     }
 
-    const tasks = new Listr<InitContext>(
+    const tasks: Listr<InitContext, ListrRendererValue, ListrRendererValue> = this.taskList.newInitTaskList(
       [
         {
           title: 'Setup home directory and cache',
@@ -126,10 +126,12 @@ export class InitCommand extends BaseCommand {
       },
     );
 
-    try {
-      await tasks.run();
-    } catch (error: Error | any) {
-      throw new SoloError('Error running init', error);
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error: Error | any) {
+        throw new SoloError('Error running init', error);
+      }
     }
 
     return true;

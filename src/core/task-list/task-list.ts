@@ -4,16 +4,18 @@ import {
   type ListrTaskObject,
   type Listr,
   type ListrBaseClassOptions,
-  type ListrContext,
   type ListrGetRendererClassFromValue,
   type ListrPrimaryRendererValue,
   type ListrRendererValue,
   type ListrSecondaryRendererValue,
   type ListrTask,
 } from 'listr2';
+import {type InitContext} from '../../commands/init/init-context.js';
+import {type QuickStartSingleDeployContext} from '../../commands/quick-start/quick-start-single-deploy-context.js';
+import {type TaskListWrapper} from './task-list-wrapper.js';
 
 export interface TaskList<
-  QuickStartSingleDeployContext extends ListrContext,
+  ListrContext,
   Renderer extends ListrRendererValue = ListrPrimaryRendererValue,
   FallbackRenderer extends ListrRendererValue = ListrSecondaryRendererValue,
 > {
@@ -36,4 +38,26 @@ export interface TaskList<
       ListrGetRendererClassFromValue<FallbackRenderer>
     >,
   ): Listr<QuickStartSingleDeployContext, Renderer, FallbackRenderer>;
+
+  initTaskListParent?: TaskListWrapper;
+
+  newInitTaskList(
+    task:
+      | ListrTask<
+          InitContext,
+          ListrGetRendererClassFromValue<Renderer>,
+          ListrGetRendererClassFromValue<FallbackRenderer>
+        >
+      | ListrTask<
+          InitContext,
+          ListrGetRendererClassFromValue<Renderer>,
+          ListrGetRendererClassFromValue<FallbackRenderer>
+        >[],
+    options?: ListrBaseClassOptions<InitContext, Renderer, FallbackRenderer>,
+    parentTask?: ListrTaskObject<
+      any,
+      ListrGetRendererClassFromValue<Renderer>,
+      ListrGetRendererClassFromValue<FallbackRenderer>
+    >,
+  ): Listr<InitContext, Renderer, FallbackRenderer>;
 }
