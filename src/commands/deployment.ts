@@ -103,6 +103,7 @@ export class DeploymentCommand extends BaseCommand {
    * Create new deployment inside the local config
    */
   public async create(argv: ArgvStruct): Promise<boolean> {
+    await this.loadLocalConfig();
     const self = this;
 
     interface Config {
@@ -189,6 +190,8 @@ export class DeploymentCommand extends BaseCommand {
    * Delete a deployment from the local config
    */
   public async delete(argv: ArgvStruct): Promise<boolean> {
+    await this.loadLocalConfig();
+    await this.loadRemoteConfig(argv);
     const self = this;
 
     interface Config {
@@ -280,6 +283,7 @@ export class DeploymentCommand extends BaseCommand {
    * Add new cluster for specified deployment, and create or edit the remote config
    */
   public async addCluster(argv: ArgvStruct): Promise<boolean> {
+    await this.loadLocalConfig();
     const self = this;
 
     const tasks = this.taskList.newTaskList(
@@ -312,6 +316,7 @@ export class DeploymentCommand extends BaseCommand {
   }
 
   private async list(argv: ArgvStruct): Promise<boolean> {
+    await this.loadLocalConfig();
     const self = this;
 
     interface Config {
