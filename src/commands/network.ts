@@ -866,7 +866,7 @@ export class NetworkCommand extends BaseCommand {
   private async deploy(argv: ArgvStruct): Promise<boolean> {
     const lease: Lock = await this.leaseManager.create();
 
-    const tasks: Listr<NetworkDeployContext> = this.taskList.newTaskList(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
