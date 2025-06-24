@@ -953,7 +953,7 @@ export class MirrorNodeCommand extends BaseCommand {
   public disableMirrorNodeComponents(): SoloListrTask<MirrorNodeDestroyContext> {
     return {
       title: 'Remove mirror node from remote config',
-      skip: (): boolean => !this.remoteConfig.isLoaded() || true,
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
         const clusterReference: ClusterReferenceName = context_.config.clusterReference;
 

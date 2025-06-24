@@ -134,7 +134,7 @@ export function startNodesTest(argv: Argv, commandInvoker: CommandInvoker, nodeC
     const soloLogPath: string = PathEx.joinWithRealPath(SOLO_LOGS_DIR, 'solo.log');
     const soloLog: string = fs.readFileSync(soloLogPath, 'utf8');
 
-    // expect(soloLog, 'Check solo.log for stale errors from previous runs').to.not.have.string(NODE_LOG_FAILURE_MSG);
+    expect(soloLog, 'Check solo.log for stale errors from previous runs').to.not.have.string(NODE_LOG_FAILURE_MSG);
   }).timeout(Duration.ofMinutes(5).toMillis());
 }
 
