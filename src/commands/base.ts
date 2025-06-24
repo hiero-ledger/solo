@@ -20,7 +20,7 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {type TaskList} from '../core/task-list/task-list.js';
 import {ListrContext, ListrRendererValue} from 'listr2';
-import type {AnyObject} from '../types/aliases.js';
+import {AnyObject} from '../types/aliases.js';
 
 export abstract class BaseCommand extends ShellRunner {
   public constructor(
