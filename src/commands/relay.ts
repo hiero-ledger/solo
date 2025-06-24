@@ -244,6 +244,9 @@ export class RelayCommand extends BaseCommand {
   }
 
   private async deploy(argv: ArgvStruct) {
+    await this.loadLocalConfig();
+    await this.loadRemoteConfig(argv);
+
     const self = this;
     const lease = await self.leaseManager.create();
 
@@ -411,6 +414,9 @@ export class RelayCommand extends BaseCommand {
   }
 
   private async destroy(argv: ArgvStruct) {
+    await this.loadLocalConfig();
+    await this.loadRemoteConfig(argv);
+
     const self = this;
     const lease = await self.leaseManager.create();
 
