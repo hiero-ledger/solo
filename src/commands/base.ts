@@ -18,6 +18,8 @@ import {inject} from 'tsyringe-neo';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {type TaskList} from '../core/task-list/task-list.js';
+import {ListrContext, ListrRendererValue} from 'listr2';
 
 export abstract class BaseCommand extends ShellRunner {
   public constructor(
@@ -29,6 +31,8 @@ export abstract class BaseCommand extends ShellRunner {
     @inject(InjectTokens.LockManager) protected readonly leaseManager?: LockManager,
     @inject(InjectTokens.LocalConfigRuntimeState) public readonly localConfig?: LocalConfigRuntimeState,
     @inject(InjectTokens.RemoteConfigRuntimeState) protected readonly remoteConfig?: RemoteConfigRuntimeStateApi,
+    @inject(InjectTokens.TaskList)
+    protected readonly taskList?: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
   ) {
     super();
 
@@ -40,6 +44,7 @@ export abstract class BaseCommand extends ShellRunner {
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
   }
 
   /**

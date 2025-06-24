@@ -38,7 +38,7 @@ import {ConfigKeyFormatter} from '../../data/key/config-key-formatter.js';
 import {AccountCommand} from '../../commands/account.js';
 import {DeploymentCommand} from '../../commands/deployment.js';
 import {ExplorerCommand} from '../../commands/explorer.js';
-import {InitCommand} from '../../commands/init.js';
+import {InitCommand} from '../../commands/init/init.js';
 import {MirrorNodeCommand} from '../../commands/mirror-node.js';
 import {RelayCommand} from '../../commands/relay.js';
 import {NetworkCommand} from '../../commands/network.js';

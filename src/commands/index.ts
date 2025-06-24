@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type ClusterCommand} from './cluster/index.js';
-import {type InitCommand} from './init.js';
+import {type InitCommand} from './init/init.js';
 import {type MirrorNodeCommand} from './mirror-node.js';
 import {type NetworkCommand} from './network.js';
 import {type NodeCommand} from './node/index.js';
