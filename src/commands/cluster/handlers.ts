@@ -29,8 +29,8 @@ export class ClusterCommandHandlers extends CommandHandler {
     this.tasks = patchInject(tasks, InjectTokens.ClusterCommandTasks, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.configs = patchInject(configs, InjectTokens.ClusterCommandConfigs, this.constructor.name);
-    this.loadLocalConfig = ClusterCommand.prototype.loadLocalConfig.bind(this);
-    this.loadRemoteConfig = ClusterCommand.prototype.loadRemoteConfig.bind(this);
+    this.loadLocalConfig = ClusterCommand.prototype.loadLocalConfig;
+    this.loadRemoteConfig = ClusterCommand.prototype.loadRemoteConfig;
   }
 
   /**

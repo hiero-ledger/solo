@@ -36,7 +36,24 @@ export class LocalConfigRuntimeState {
     this.fileName = patchInject(fileName, InjectTokens.LocalConfigFileName, this.constructor.name);
     this.basePath = patchInject(basePath, InjectTokens.HomeDirectory, this.constructor.name);
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
+    this.backend = new YamlFileStorageBackend(this.basePath);
+    this.objectMapper = new ClassToObjectMapper(ConfigKeyFormatter.instance());
+    this.source = new LocalConfigSource(
+      fileName,
+      new LocalConfigSchemaDefinition(this.objectMapper),
+      this.objectMapper,
+      this.backend,
+      LocalConfigSchema.EMPTY,
+    );
+  }
 
+  public get configuration(): LocalConfig {
+    return this._localConfig;
+  }
+
+  // Loads the source data and writes it back in case of migrations.
+  public async load(): Promise<void> {
+    // TODO this needs to be a migration, not a load
     // check if config from an old version exists under the cache directory
     const oldConfigPath: string = PathEx.join(this.basePath, 'cache');
     const oldConfigFile: string = PathEx.join(oldConfigPath, this.fileName);
@@ -52,25 +69,7 @@ export class LocalConfigRuntimeState {
       fs.rmSync(oldConfigFile);
     }
 
-    this.backend = new YamlFileStorageBackend(this.basePath);
-    this.objectMapper = new ClassToObjectMapper(ConfigKeyFormatter.instance());
-    this.source = new LocalConfigSource(
-      fileName,
-      new LocalConfigSchemaDefinition(this.objectMapper),
-      this.objectMapper,
-      this.backend,
-      LocalConfigSchema.EMPTY,
-    );
-
     this.refresh();
-  }
-
-  public get configuration(): LocalConfig {
-    return this._localConfig;
-  }
-
-  // Loads the source data and writes it back in case of migrations.
-  public async load(): Promise<void> {
     if (!this.configFileExists()) {
       return await this.persist();
     }

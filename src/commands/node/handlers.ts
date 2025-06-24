@@ -49,8 +49,8 @@ export class NodeCommandHandlers extends CommandHandler {
     this.configs = patchInject(configs, InjectTokens.NodeCommandConfigs, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.tasks = patchInject(tasks, InjectTokens.NodeCommandTasks, this.constructor.name);
-    this.loadLocalConfig = NodeCommand.prototype.loadLocalConfig.bind(this);
-    this.loadRemoteConfig = NodeCommand.prototype.loadRemoteConfig.bind(this);
+    this.loadLocalConfig = NodeCommand.prototype.loadLocalConfig;
+    this.loadRemoteConfig = NodeCommand.prototype.loadRemoteConfig;
   }
 
   private static readonly ADD_CONTEXT_FILE = 'node-add.json';
