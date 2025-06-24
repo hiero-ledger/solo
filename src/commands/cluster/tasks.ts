@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Flags as flags} from '../flags.js';
-import {type AnyListrContext, type ArgvStruct, type ConfigBuilder} from '../../types/aliases.js';
+import {type AnyListrContext, type AnyObject, type ArgvStruct, type ConfigBuilder} from '../../types/aliases.js';
 import {showVersionBanner} from '../../core/helpers.js';
 import * as constants from '../../core/constants.js';
 import {SOLO_CLUSTER_SETUP_CHART} from '../../core/constants.js';
@@ -30,10 +30,18 @@ import {PathEx} from '../../business/utils/path-ex.js';
 import {quote} from 'shell-quote';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {StringFacade} from '../../business/runtime-state/facade/string-facade.js';
+import {ClusterCommand} from './index.js';
 
 @injectable()
 export class ClusterCommandTasks {
-  constructor(
+  public loadLocalConfig: () => Promise<void>;
+  public loadRemoteConfig: (
+    argv: {_: string[]} & AnyObject,
+    validate?: boolean,
+    validateConsensusNode?: boolean,
+  ) => Promise<void>;
+
+  public constructor(
     @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
@@ -47,6 +55,8 @@ export class ClusterCommandTasks {
     this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
+    this.loadLocalConfig = ClusterCommand.prototype.loadLocalConfig;
+    this.loadRemoteConfig = ClusterCommand.prototype.loadRemoteConfig;
   }
 
   public connectClusterRef(): SoloListrTask<ClusterReferenceConnectContext> {
@@ -145,7 +155,11 @@ export class ClusterCommandTasks {
     );
   }
 
-  public initialize(argv: ArgvStruct, configInit: ConfigBuilder): SoloListrTask<AnyListrContext> {
+  public initialize(
+    argv: ArgvStruct,
+    configInit: ConfigBuilder,
+    loadRemoteConfig: boolean = false,
+  ): SoloListrTask<AnyListrContext> {
     const {required, optional} = argv;
 
     argv.flags = [...required, ...optional];
@@ -153,6 +167,11 @@ export class ClusterCommandTasks {
     return {
       title: 'Initialize',
       task: async (context_, task) => {
+        await this.loadLocalConfig();
+
+        if (loadRemoteConfig) {
+          await this.loadRemoteConfig(argv);
+        }
         context_.config = await configInit(argv, context_, task);
       },
     };
@@ -162,6 +181,8 @@ export class ClusterCommandTasks {
     return {
       title: 'List all available clusters',
       task: async () => {
+        await this.loadLocalConfig();
+
         const clusterReferences = this.localConfig.configuration.clusterRefs;
         const clusterList = [];
         for (const [clusterName, clusterContext] of clusterReferences) {

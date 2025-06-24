@@ -221,8 +221,6 @@ export class AccountCommand extends BaseCommand {
   }
 
   public async init(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
     const self = this;
 
     interface Config {
@@ -249,6 +247,9 @@ export class AccountCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+
             self.configManager.update(argv);
 
             flags.disablePrompts([flags.clusterRef]);
@@ -458,9 +459,6 @@ export class AccountCommand extends BaseCommand {
   }
 
   public async create(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     const self = this;
 
     interface Config {
@@ -486,6 +484,9 @@ export class AccountCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+
             self.configManager.update(argv);
 
             flags.disablePrompts([flags.clusterRef]);
@@ -572,9 +573,6 @@ export class AccountCommand extends BaseCommand {
   }
 
   public async update(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     const self = this;
 
     const tasks = new Listr<UpdateAccountContext>(
@@ -582,6 +580,9 @@ export class AccountCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+
             self.configManager.update(argv);
 
             flags.disablePrompts([flags.clusterRef]);
@@ -667,9 +668,6 @@ export class AccountCommand extends BaseCommand {
   }
 
   public async get(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     const self = this;
 
     interface Config {
@@ -690,6 +688,9 @@ export class AccountCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+
             self.configManager.update(argv);
             await self.configManager.executePrompt(task, [flags.accountId]);
 

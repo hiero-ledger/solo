@@ -103,7 +103,6 @@ export class DeploymentCommand extends BaseCommand {
    * Create new deployment inside the local config
    */
   public async create(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
     const self = this;
 
     interface Config {
@@ -123,6 +122,8 @@ export class DeploymentCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await this.loadLocalConfig();
+
             self.configManager.update(argv);
 
             await self.configManager.executePrompt(task, [flags.namespace, flags.deployment]);
@@ -190,8 +191,6 @@ export class DeploymentCommand extends BaseCommand {
    * Delete a deployment from the local config
    */
   public async delete(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
     const self = this;
 
     interface Config {
@@ -209,6 +208,9 @@ export class DeploymentCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+
             self.configManager.update(argv);
 
             await self.configManager.executePrompt(task, [flags.deployment]);
@@ -283,7 +285,6 @@ export class DeploymentCommand extends BaseCommand {
    * Add new cluster for specified deployment, and create or edit the remote config
    */
   public async addCluster(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
     const self = this;
 
     const tasks = this.taskList.newTaskList(
@@ -316,7 +317,6 @@ export class DeploymentCommand extends BaseCommand {
   }
 
   private async list(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
     const self = this;
 
     interface Config {
@@ -332,6 +332,8 @@ export class DeploymentCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await this.loadLocalConfig();
+
             self.configManager.update(argv);
             self.logger.debug('Updated config with argv', {config: self.configManager.config});
             await self.configManager.executePrompt(task, [flags.clusterRef]);
@@ -503,6 +505,8 @@ export class DeploymentCommand extends BaseCommand {
     return {
       title: 'Initialize',
       task: async (context_, task) => {
+        await this.loadLocalConfig();
+
         this.configManager.update(argv);
 
         await this.configManager.executePrompt(task, [flags.deployment, flags.clusterRef]);

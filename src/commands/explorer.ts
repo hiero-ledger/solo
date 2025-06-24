@@ -217,8 +217,6 @@ export class ExplorerCommand extends BaseCommand {
   }
 
   private async deploy(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
     const self = this;
     const lease = await self.leaseManager.create();
 
@@ -227,6 +225,9 @@ export class ExplorerCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+
             self.configManager.update(argv);
 
             // disable the prompts that we don't want to prompt the user for
@@ -455,8 +456,6 @@ export class ExplorerCommand extends BaseCommand {
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
     const self = this;
     const lease = await self.leaseManager.create();
 
@@ -465,6 +464,9 @@ export class ExplorerCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+
             if (!argv.force) {
               const confirmResult = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
                 default: false,

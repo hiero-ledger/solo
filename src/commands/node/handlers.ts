@@ -246,9 +246,6 @@ export class NodeCommandHandlers extends CommandHandler {
   /** ******** Handlers **********/
 
   public async prepareUpgrade(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DEFAULT_FLAGS);
 
     const lease = await this.leaseManager.create();
@@ -274,9 +271,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async freezeUpgrade(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DEFAULT_FLAGS);
 
     await this.commandAction(
@@ -298,9 +292,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async downloadGeneratedFiles(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DEFAULT_FLAGS);
 
     const lease = await this.leaseManager.create();
@@ -324,9 +315,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async update(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_FLAGS);
 
     const lease = await this.leaseManager.create();
@@ -346,9 +334,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async updatePrepare(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_PREPARE_FLAGS);
     const lease = await this.leaseManager.create();
 
@@ -370,9 +355,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async updateSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     const lease = await this.leaseManager.create();
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_SUBMIT_TRANSACTIONS_FLAGS);
     await this.commandAction(
@@ -394,9 +376,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async updateExecute(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     const lease = await this.leaseManager.create();
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_EXECUTE_FLAGS);
     await this.commandAction(
@@ -424,9 +403,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async upgradePrepare(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_PREPARE_FLAGS);
     const lease = await this.leaseManager.create();
     await this.commandAction(
@@ -446,9 +422,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async upgradeSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     const lease = await this.leaseManager.create();
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_SUBMIT_TRANSACTIONS_FLAGS);
     await this.commandAction(
@@ -470,9 +443,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async upgradeExecute(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     const lease = await this.leaseManager.create();
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_FLAGS);
     await this.commandAction(
@@ -500,9 +470,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async upgrade(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_FLAGS);
     const lease = await this.leaseManager.create();
     await this.commandAction(
@@ -524,9 +491,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async delete(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_FLAGS);
     const lease = await this.leaseManager.create();
     await this.commandAction(
@@ -548,9 +512,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async deletePrepare(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_PREPARE_FLAGS);
 
     const lease = await this.leaseManager.create();
@@ -573,9 +534,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async deleteSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_SUBMIT_TRANSACTIONS_FLAGS);
 
     const lease = await this.leaseManager.create();
@@ -599,9 +557,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async deleteExecute(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_EXECUTE_FLAGS);
 
     const lease = await this.leaseManager.create();
@@ -625,9 +580,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async add(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_FLAGS);
 
     const lease = await this.leaseManager.create();
@@ -647,9 +599,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async addPrepare(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_PREPARE_FLAGS);
 
     const lease = await this.leaseManager.create();
@@ -672,9 +621,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async addSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_SUBMIT_TRANSACTIONS_FLAGS);
 
     const lease = await this.leaseManager.create();
@@ -698,9 +644,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async addExecute(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_EXECUTE_FLAGS);
 
     const lease = await this.leaseManager.create();
@@ -731,9 +674,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async logs(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.LOGS_FLAGS);
     await this.commandAction(
       argv,
@@ -753,9 +693,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async states(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.STATES_FLAGS);
 
     await this.commandAction(
@@ -778,9 +715,6 @@ export class NodeCommandHandlers extends CommandHandler {
   // TODO this is broken, since genesis reconnects is no longer supported in 0.59+
   // TODO this is not in the test harness
   public async refresh(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.REFRESH_FLAGS);
 
     const lease = await this.leaseManager.create();
@@ -812,9 +746,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async keys(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv, false, false);
-
     this.init();
     argv = helpers.addFlagsToArgv(argv, NodeFlags.KEYS_FLAGS);
 
@@ -839,9 +770,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async stop(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.STOP_FLAGS);
 
     const lease = await this.leaseManager.create();
@@ -869,9 +797,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async start(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.START_FLAGS);
 
     const lease = await this.leaseManager.create();
@@ -902,9 +827,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async setup(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.SETUP_FLAGS);
 
     const lease = await this.leaseManager.create();
@@ -933,9 +855,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async freeze(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.FREEZE_FLAGS);
     const lease = await this.leaseManager.create();
 
@@ -961,9 +880,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async restart(argv: ArgvStruct): Promise<boolean> {
-    await this.loadLocalConfig();
-    await this.loadRemoteConfig(argv);
-
     argv = helpers.addFlagsToArgv(argv, NodeFlags.RESTART_FLAGS);
 
     const lease = await this.leaseManager.create();

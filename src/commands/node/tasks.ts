@@ -121,9 +121,17 @@ import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api
 import {type ComponentFactoryApi} from '../../core/config/remote/api/component-factory-api.js';
 import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
+import {NodeCommand} from './index.js';
 
 @injectable()
 export class NodeCommandTasks {
+  public loadLocalConfig: () => Promise<void>;
+  public loadRemoteConfig: (
+    argv: {_: string[]} & AnyObject,
+    validate?: boolean,
+    validateConsensusNode?: boolean,
+  ) => Promise<void>;
+
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
@@ -149,6 +157,8 @@ export class NodeCommandTasks {
     this.certificateManager = patchInject(certificateManager, InjectTokens.CertificateManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.loadLocalConfig = NodeCommand.prototype.loadLocalConfig;
+    this.loadRemoteConfig = NodeCommand.prototype.loadRemoteConfig;
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
@@ -2578,6 +2588,9 @@ export class NodeCommandTasks {
     return {
       title: 'Initialize',
       task: async (context_, task): Promise<SoloListr<AnyListrContext> | void> => {
+        await this.loadLocalConfig();
+        await this.loadRemoteConfig(argv);
+
         if (argv[flags.devMode.name]) {
           this.logger.setDevMode(true);
         }
