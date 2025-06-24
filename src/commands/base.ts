@@ -20,6 +20,7 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {type TaskList} from '../core/task-list/task-list.js';
 import {ListrContext, ListrRendererValue} from 'listr2';
+import type {AnyObject} from '../types/aliases.js';
 
 export abstract class BaseCommand extends ShellRunner {
   public constructor(
@@ -47,23 +48,12 @@ export abstract class BaseCommand extends ShellRunner {
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
   }
 
-  public async loadConfiguration(loadLocalConfig: boolean = true, loadRemoteConfig: boolean = true): Promise<void> {
-    if (loadLocalConfig) {
-      await this.loadLocalConfig();
-    }
-
-    if (loadRemoteConfig) {
-      await this.loadRemoteConfig();
-    }
-  }
-
   /**
    * Handles loading local config
    *
    * @returns callback function to be executed from listr
    */
-  private async loadLocalConfig(): Promise<void> {
-    // TODO: const runMiddleware: boolean = command !== 'init' && command !== 'quick-start';
+  public async loadLocalConfig(): Promise<void> {
     this.logger.debug('Loading local config');
     await this.localConfig.load();
   }
@@ -71,31 +61,20 @@ export abstract class BaseCommand extends ShellRunner {
   /**
    * Handles loading remote config if the command access the cluster
    *
+   * @param argv - the command line arguments
+   * @param validate - whether to validate the remote config
+   * @param validateConsensusNode - whether to validate the consensus node
    * @returns callback function to be executed from listr
    */
-  private async loadRemoteConfig(): Promise<void> {
+  public async loadRemoteConfig(
+    argv: {_: string[]} & AnyObject,
+    validate: boolean = true,
+    validateConsensusNode: boolean = true,
+  ): Promise<void> {
     const remoteConfig: RemoteConfigRuntimeStateApi = this.remoteConfig;
     this.logger.debug('Loading remote config');
 
-    // TODO: const skip: boolean =
-    //  command === 'init' ||
-    //  command === 'quick-start' ||
-    //  (command === 'cluster-ref' && subCommand === 'connect') ||
-    //  (command === 'cluster-ref' && subCommand === 'disconnect') ||
-    //  (command === 'cluster-ref' && subCommand === 'info') ||
-    //  (command === 'cluster-ref' && subCommand === 'list') ||
-    //  (command === 'cluster-ref' && subCommand === 'setup') ||
-    //  (command === 'deployment' && subCommand === 'add-cluster') ||
-    //  (command === 'deployment' && subCommand === 'create') ||
-    //  (command === 'deployment' && subCommand === 'list');
-
-    // Load but don't validate if command is 'node keys'
-    // TODO: const validateRemoteConfig: boolean = !(command === 'node' && subCommand === 'keys');
-
-    // Skip validation for consensus nodes if the command is 'network deploy'
-    // TODO: const skipConsensusNodeValidation: boolean = command === 'network' && subCommand === 'deploy';
-
-    await remoteConfig.loadAndValidate(argv, validateRemoteConfig, skipConsensusNodeValidation);
+    await remoteConfig.loadAndValidate(argv, validate, !validateConsensusNode);
   }
   /**
    * Prepare the values files map for each cluster
