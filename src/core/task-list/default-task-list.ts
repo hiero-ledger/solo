@@ -21,7 +21,7 @@ export class DefaultTaskList<
   ListrContext,
   Renderer extends ListrRendererValue = ListrPrimaryRendererValue,
   FallbackRenderer extends ListrRendererValue = ListrSecondaryRendererValue,
-> implements TaskList<QuickStartSingleDeployContext, Renderer, FallbackRenderer>
+> implements TaskList<ListrContext, Renderer, FallbackRenderer>
 {
   public newQuickStartSingleDeployTaskList(
     task:
@@ -69,5 +69,33 @@ export class DefaultTaskList<
     return this.initTaskListParent
       ? this.initTaskListParent.newListr(task, options)
       : new Listr<InitContext, Renderer, FallbackRenderer>(task, options, parentTask);
+  }
+
+  public parentTaskListMap: Map<string, TaskListWrapper> = new Map();
+
+  public newTaskList(
+    task:
+      | ListrTask<
+          ListrContext,
+          ListrGetRendererClassFromValue<Renderer>,
+          ListrGetRendererClassFromValue<FallbackRenderer>
+        >
+      | ListrTask<
+          ListrContext,
+          ListrGetRendererClassFromValue<Renderer>,
+          ListrGetRendererClassFromValue<FallbackRenderer>
+        >[],
+    options?: ListrBaseClassOptions<ListrContext, Renderer, FallbackRenderer>,
+    parentTask?: ListrTaskObject<
+      ListrContext,
+      ListrGetRendererClassFromValue<Renderer>,
+      ListrGetRendererClassFromValue<FallbackRenderer>
+    >,
+    commandName?: string,
+  ): Listr<ListrContext, Renderer, FallbackRenderer> {
+    if (this.parentTaskListMap.has(commandName)) {
+      return this.parentTaskListMap.get(commandName)!.newListr(task, options);
+    }
+    return new Listr<ListrContext, Renderer, FallbackRenderer>(task, options, parentTask);
   }
 }

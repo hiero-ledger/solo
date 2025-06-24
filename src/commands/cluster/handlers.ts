@@ -15,6 +15,8 @@ import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local
 
 @injectable()
 export class ClusterCommandHandlers extends CommandHandler {
+  public static readonly CLUSTER_REFERENCE_CONNECT_COMMAND: string = 'cluster-ref connect';
+
   constructor(
     @inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
@@ -49,6 +51,7 @@ export class ClusterCommandHandlers extends CommandHandler {
       },
       'cluster-ref connect',
       null,
+      ClusterCommandHandlers.CLUSTER_REFERENCE_CONNECT_COMMAND,
     );
 
     return true;

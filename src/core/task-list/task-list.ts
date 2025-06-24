@@ -60,4 +60,27 @@ export interface TaskList<
       ListrGetRendererClassFromValue<FallbackRenderer>
     >,
   ): Listr<InitContext, Renderer, FallbackRenderer>;
+
+  parentTaskListMap: Map<string, TaskListWrapper>;
+
+  newTaskList(
+    task:
+      | ListrTask<
+          ListrContext,
+          ListrGetRendererClassFromValue<Renderer>,
+          ListrGetRendererClassFromValue<FallbackRenderer>
+        >
+      | ListrTask<
+          ListrContext,
+          ListrGetRendererClassFromValue<Renderer>,
+          ListrGetRendererClassFromValue<FallbackRenderer>
+        >[],
+    options?: ListrBaseClassOptions<ListrContext, Renderer, FallbackRenderer>,
+    parentTask?: ListrTaskObject<
+      ListrContext,
+      ListrGetRendererClassFromValue<Renderer>,
+      ListrGetRendererClassFromValue<FallbackRenderer>
+    >,
+    commandName?: string,
+  ): Listr<ListrContext, Renderer, FallbackRenderer>;
 }

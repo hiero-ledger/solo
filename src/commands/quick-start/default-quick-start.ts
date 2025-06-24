@@ -19,6 +19,7 @@ import {QuickStartSingleDeployConfigClass} from './quick-start-single-deploy-con
 import {QuickStartSingleDeployContext} from './quick-start-single-deploy-context.js';
 import {QuickStartSingleDestroyConfigClass} from './quick-start-single-destroy-config-class.js';
 import {QuickStartSingleDestroyContext} from './quick-start-single-destroy-context.js';
+import {ClusterCommandHandlers} from '../cluster/handlers.js';
 
 @injectable()
 export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
@@ -134,7 +135,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo cluster-ref connect',
-            task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
+            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
+              this.taskList.parentTaskListMap.set(ClusterCommandHandlers.CLUSTER_REFERENCE_CONNECT_COMMAND, task);
               const argv: string[] = this.newArgv();
               argv.push(
                 'cluster-ref',
