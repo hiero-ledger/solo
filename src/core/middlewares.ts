@@ -9,7 +9,6 @@ import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type AnyObject, ArgvStruct} from '../types/aliases.js';
 import {type ClusterReferenceName} from './../types/index.js';
-import {SoloError} from './errors/solo-error.js';
 import {SilentBreak} from './errors/silent-break.js';
 import {type HelpRenderer} from './help-renderer.js';
 import {patchInject} from './dependency-injection/container-helper.js';
@@ -128,31 +127,6 @@ export class Middlewares {
         logger.showUser(chalk.cyan('Kubernetes Namespace\t:'), chalk.yellow(configManager.getFlag(flags.namespace)));
       }
       logger.showUser(chalk.cyan('**********************************************************************************'));
-
-      return argv;
-    };
-  }
-
-  /**
-   * Checks if the Solo instance has been initialized
-   *
-   * @returns callback function to be executed from listr
-   */
-  public checkIfInitialized(): (argv: any) => Promise<AnyObject> {
-    const logger: SoloLogger = this.logger;
-
-    /**
-     * @param argv - listr Argv
-     */
-    return async (argv: any): Promise<AnyObject> => {
-      logger.debug('Checking if local config exists');
-
-      const command: any = argv._[0];
-      const allowMissingLocalConfig: boolean = command === 'init' || command === 'quick-start';
-
-      if (!allowMissingLocalConfig && !this.localConfig.configFileExists()) {
-        throw new SoloError('Please run `solo init` to create required files');
-      }
 
       return argv;
     };
