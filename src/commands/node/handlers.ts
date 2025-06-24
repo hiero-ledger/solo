@@ -30,6 +30,7 @@ import {ConsensusNodeStateSchema} from '../../data/schema/model/remote/state/con
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {ComponentsDataWrapperApi} from '../../core/config/remote/api/components-data-wrapper-api.js';
 import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
+import {NodeCommand} from './index.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -48,6 +49,8 @@ export class NodeCommandHandlers extends CommandHandler {
     this.configs = patchInject(configs, InjectTokens.NodeCommandConfigs, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.tasks = patchInject(tasks, InjectTokens.NodeCommandTasks, this.constructor.name);
+    this.loadLocalConfig = NodeCommand.prototype.loadLocalConfig.bind(this);
+    this.loadRemoteConfig = NodeCommand.prototype.loadRemoteConfig.bind(this);
   }
 
   private static readonly ADD_CONTEXT_FILE = 'node-add.json';
