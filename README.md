@@ -50,7 +50,7 @@ nvm install v20.18.0
 # lists available node versions already installed
 nvm ls
 
-# swith to selected node version
+# switch to selected node version
 # nvm use <version>
 nvm use v20.18.0
 
