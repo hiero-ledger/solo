@@ -12,10 +12,17 @@ import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type AccountManager} from './account-manager.js';
 import {type TaskList} from './task-list/task-list.js';
 import {ListrContext, ListrRendererValue} from 'listr2';
+import {type AnyObject} from '../types/aliases.js';
 
 @injectable()
 export class CommandHandler {
-  protected readonly _configMaps = new Map<string, any>();
+  protected readonly _configMaps: Map<string, any> = new Map<string, any>();
+  public loadLocalConfig: () => Promise<void>;
+  public loadRemoteConfig: (
+    argv: {_: string[]} & AnyObject,
+    validate?: boolean,
+    validateConsensusNode?: boolean,
+  ) => Promise<void>;
 
   public constructor(
     @inject(InjectTokens.SoloLogger) public readonly logger?: SoloLogger,

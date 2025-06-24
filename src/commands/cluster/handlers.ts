@@ -28,6 +28,8 @@ export class ClusterCommandHandlers extends CommandHandler {
     this.tasks = patchInject(tasks, InjectTokens.ClusterCommandTasks, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.configs = patchInject(configs, InjectTokens.ClusterCommandConfigs, this.constructor.name);
+    this.loadLocalConfig = CommandHandler.prototype.loadLocalConfig.bind(this);
+    this.loadRemoteConfig = CommandHandler.prototype.loadRemoteConfig.bind(this);
   }
 
   /**
@@ -36,6 +38,7 @@ export class ClusterCommandHandlers extends CommandHandler {
    * - Add new 'cluster-ref => context' mapping in the local config.
    */
   public async connect(argv: ArgvStruct): Promise<boolean> {
+    await this.loadLocalConfig();
     argv = helpers.addFlagsToArgv(argv, ContextFlags.CONNECT_FLAGS);
 
     await this.commandAction(
@@ -59,6 +62,7 @@ export class ClusterCommandHandlers extends CommandHandler {
   }
 
   public async disconnect(argv: ArgvStruct): Promise<boolean> {
+    await this.loadLocalConfig();
     argv = helpers.addFlagsToArgv(argv, ContextFlags.DEFAULT_FLAGS);
 
     await this.commandAction(
@@ -79,6 +83,7 @@ export class ClusterCommandHandlers extends CommandHandler {
   }
 
   public async list(argv: ArgvStruct): Promise<boolean> {
+    await this.loadLocalConfig();
     argv = helpers.addFlagsToArgv(argv, ContextFlags.NO_FLAGS);
 
     await this.commandAction(
@@ -96,6 +101,7 @@ export class ClusterCommandHandlers extends CommandHandler {
   }
 
   public async info(argv: ArgvStruct): Promise<boolean> {
+    await this.loadLocalConfig();
     argv = helpers.addFlagsToArgv(argv, ContextFlags.DEFAULT_FLAGS);
 
     await this.commandAction(
@@ -113,6 +119,7 @@ export class ClusterCommandHandlers extends CommandHandler {
   }
 
   public async setup(argv: ArgvStruct): Promise<boolean> {
+    await this.loadLocalConfig();
     argv = helpers.addFlagsToArgv(argv, ContextFlags.SETUP_FLAGS);
 
     try {
@@ -139,6 +146,8 @@ export class ClusterCommandHandlers extends CommandHandler {
   }
 
   public async reset(argv: ArgvStruct): Promise<boolean> {
+    await this.loadLocalConfig();
+    await this.loadRemoteConfig(argv);
     argv = helpers.addFlagsToArgv(argv, ContextFlags.RESET_FLAGS);
 
     try {
