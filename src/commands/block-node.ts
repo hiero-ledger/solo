@@ -164,6 +164,8 @@ export class BlockNodeCommand extends BaseCommand {
 
   private async add(argv: ArgvStruct): Promise<boolean> {
     const lease: Lock = await this.leaseManager.create();
+    await this.loadLocalConfig();
+    await this.loadRemoteConfig(argv);
 
     const tasks: Listr<BlockNodeDeployContext> = new Listr<BlockNodeDeployContext>(
       [
@@ -334,6 +336,8 @@ export class BlockNodeCommand extends BaseCommand {
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
     const lease: Lock = await this.leaseManager.create();
+    await this.loadLocalConfig();
+    await this.loadRemoteConfig(argv);
 
     const tasks: Listr<BlockNodeDestroyContext> = new Listr<BlockNodeDestroyContext>(
       [
