@@ -57,6 +57,9 @@ export interface DeploymentAddClusterContext {
 
 @injectable()
 export class DeploymentCommand extends BaseCommand {
+  public static readonly CREATE_COMMAND: string = 'deployment create';
+  public static readonly ADD_COMMAND: string = 'deployment add-cluster';
+
   public constructor(
     @inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks,
     @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
@@ -114,7 +117,7 @@ export class DeploymentCommand extends BaseCommand {
       config: Config;
     }
 
-    const tasks = new Listr<Context>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -167,12 +170,16 @@ export class DeploymentCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      DeploymentCommand.CREATE_COMMAND,
     );
 
-    try {
-      await tasks.run();
-    } catch (error: Error | unknown) {
-      throw new SoloError('Error creating deployment', error);
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error: Error | unknown) {
+        throw new SoloError('Error creating deployment', error);
+      }
     }
 
     return true;
@@ -275,7 +282,7 @@ export class DeploymentCommand extends BaseCommand {
   public async addCluster(argv: ArgvStruct): Promise<boolean> {
     const self = this;
 
-    const tasks = new Listr<DeploymentAddClusterContext>(
+    const tasks = this.taskList.newTaskList(
       [
         self.initializeClusterAddConfig(argv),
         self.verifyClusterAddArgs(),
@@ -289,12 +296,16 @@ export class DeploymentCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      DeploymentCommand.ADD_COMMAND,
     );
 
-    try {
-      await tasks.run();
-    } catch (error: Error | unknown) {
-      throw new SoloError('Error adding cluster to deployment', error);
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error: Error | unknown) {
+        throw new SoloError('Error adding cluster to deployment', error);
+      }
     }
 
     return true;
