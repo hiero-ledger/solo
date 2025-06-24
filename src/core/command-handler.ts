@@ -60,12 +60,8 @@ export class CommandHandler {
         await Promise.all(promises);
       }
     } else {
-      const promises = [];
-      if (lease) {
-        promises.push(lease.release());
-      }
-      await this.accountManager.close();
-      await Promise.all(promises);
+      return tasks.run();
+      // TODO const promises = [];      if (lease) {        promises.push(lease.release());      }      await this.accountManager.close();      await Promise.all(promises);
     }
   }
 

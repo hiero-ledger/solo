@@ -182,6 +182,8 @@ export class DeploymentCommand extends BaseCommand {
       } catch (error: Error | unknown) {
         throw new SoloError('Error creating deployment', error);
       }
+    } else {
+      return tasks.run();
     }
 
     return true;
@@ -311,6 +313,8 @@ export class DeploymentCommand extends BaseCommand {
       } catch (error: Error | unknown) {
         throw new SoloError('Error adding cluster to deployment', error);
       }
+    } else {
+      return tasks.run();
     }
 
     return true;

@@ -774,8 +774,8 @@ export class MirrorNodeCommand extends BaseCommand {
         await self.accountManager.close();
       }
     } else {
-      await lease.release();
-      await self.accountManager.close();
+      return tasks.run();
+      // TODO       await lease.release();       await self.accountManager.close();
     }
 
     return true;

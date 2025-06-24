@@ -68,8 +68,7 @@ export class InitCommand extends BaseCommand {
         {
           title: 'Create local configuration',
           skip: () => this.localConfig.configFileExists(),
-          task: async (context_, task): Promise<void> => {
-            // await this.localConfig.create(context_.config.username);
+          task: async (): Promise<void> => {
             await this.localConfig.load();
           },
         },
@@ -135,6 +134,8 @@ export class InitCommand extends BaseCommand {
       } catch (error: Error | any) {
         throw new SoloError('Error running init', error);
       }
+    } else {
+      return tasks.run();
     }
 
     return true;

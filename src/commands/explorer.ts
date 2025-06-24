@@ -457,7 +457,8 @@ export class ExplorerCommand extends BaseCommand {
         await lease.release();
       }
     } else {
-      await lease.release();
+      return tasks.run();
+      // TODO await lease.release();
     }
 
     return true;
