@@ -25,6 +25,7 @@ export class LocalConfigRuntimeState {
   private readonly source: LocalConfigSource;
   private readonly backend: YamlFileStorageBackend;
   private readonly objectMapper: ObjectMapper;
+  private isLoaded: boolean = false;
 
   private _localConfig: LocalConfig;
 
@@ -48,6 +49,10 @@ export class LocalConfigRuntimeState {
   }
 
   public get configuration(): LocalConfig {
+    if (!this.isLoaded) {
+      throw new Error('Local configuration is not loaded yet. Please call load() first.');
+    }
+
     return this._localConfig;
   }
 
@@ -71,6 +76,7 @@ export class LocalConfigRuntimeState {
 
     this.refresh();
     if (!this.configFileExists()) {
+      this.isLoaded = true;
       return await this.persist();
     }
 
@@ -83,6 +89,7 @@ export class LocalConfigRuntimeState {
     await this.persist();
 
     await this.migrateCacheDirectories();
+    this.isLoaded = true;
   }
 
   /**
@@ -90,6 +97,9 @@ export class LocalConfigRuntimeState {
    * It will look for directories in the format 'v0.58/staging/v0.58.10' and move them to current staging directory.
    */
   private async migrateCacheDirectories(): Promise<void> {
+    if (!this.isLoaded) {
+      throw new Error('Local configuration is not loaded yet. Please call load() first.');
+    }
     const cacheDirectory: string = PathEx.join(this.basePath, 'cache').toString();
     const releaseTag: string = this.configManager.getFlag(flags.releaseTag);
     const currentStagingDirectory: string = Templates.renderStagingDir(cacheDirectory, releaseTag);
@@ -112,6 +122,9 @@ export class LocalConfigRuntimeState {
   }
 
   private async findMatchingSoloCacheDirectories(baseDirectory: string): Promise<string[]> {
+    if (!this.isLoaded) {
+      throw new Error('Local configuration is not loaded yet. Please call load() first.');
+    }
     // Regex to match directory names like 'v0.58' or 'v0.60'
     // This will capture the version number.
     const versionDirectionRegex: RegExp = /^v(\d+\.\d+)$/;
@@ -156,6 +169,9 @@ export class LocalConfigRuntimeState {
   }
 
   public async persist(): Promise<void> {
+    if (!this.isLoaded) {
+      throw new Error('Local configuration is not loaded yet. Please call load() first.');
+    }
     try {
       return await this.source.persist();
     } catch (error) {

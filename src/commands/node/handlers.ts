@@ -31,6 +31,7 @@ import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api
 import {ComponentsDataWrapperApi} from '../../core/config/remote/api/components-data-wrapper-api.js';
 import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
 import {NodeCommand} from './index.js';
+import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -40,6 +41,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public constructor(
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
+    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.NodeCommandTasks) private readonly tasks: NodeCommandTasks,
     @inject(InjectTokens.NodeCommandConfigs) private readonly configs: NodeCommandConfigs,
@@ -47,6 +49,7 @@ export class NodeCommandHandlers extends CommandHandler {
     super();
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.configs = patchInject(configs, InjectTokens.NodeCommandConfigs, this.constructor.name);
+    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.tasks = patchInject(tasks, InjectTokens.NodeCommandTasks, this.constructor.name);
     this.loadLocalConfig = NodeCommand.prototype.loadLocalConfig;
