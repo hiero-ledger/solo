@@ -116,10 +116,12 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
               allFlags,
             ) as QuickStartSingleDeployConfigClass;
 
-            context_.config.clusterRef = context_.config.clusterRef || `solo-${uuid4().slice(-8)}`; // TODO come up with better solution to avoid conflicts
+            const uniquePostfix: string = uuid4().slice(-8);
+
+            context_.config.clusterRef = context_.config.clusterRef || `solo-${uniquePostfix}`; // TODO come up with better solution to avoid conflicts
             context_.config.context = context_.config.context || this.k8Factory.default().contexts().readCurrent();
-            context_.config.deployment = context_.config.deployment || `solo-deployment-${uuid4().slice(-8)}`; // TODO come up with better solution to avoid conflicts
-            context_.config.namespace = context_.config.namespace || NamespaceName.of(`solo-${uuid4().slice(-8)}`); // TODO come up with better solution to avoid conflicts
+            context_.config.deployment = context_.config.deployment || `solo-deployment-${uniquePostfix}`; // TODO come up with better solution to avoid conflicts
+            context_.config.namespace = context_.config.namespace || NamespaceName.of(`solo-${uniquePostfix}`); // TODO come up with better solution to avoid conflicts
             context_.config.numberOfConsensusNodes = context_.config.numberOfConsensusNodes || 1;
             return null;
           },
