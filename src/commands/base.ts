@@ -47,6 +47,56 @@ export abstract class BaseCommand extends ShellRunner {
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
   }
 
+  public async loadConfiguration(loadLocalConfig: boolean = true, loadRemoteConfig: boolean = true): Promise<void> {
+    if (loadLocalConfig) {
+      await this.loadLocalConfig();
+    }
+
+    if (loadRemoteConfig) {
+      await this.loadRemoteConfig();
+    }
+  }
+
+  /**
+   * Handles loading local config
+   *
+   * @returns callback function to be executed from listr
+   */
+  private async loadLocalConfig(): Promise<void> {
+    // TODO: const runMiddleware: boolean = command !== 'init' && command !== 'quick-start';
+    this.logger.debug('Loading local config');
+    await this.localConfig.load();
+  }
+
+  /**
+   * Handles loading remote config if the command access the cluster
+   *
+   * @returns callback function to be executed from listr
+   */
+  private async loadRemoteConfig(): Promise<void> {
+    const remoteConfig: RemoteConfigRuntimeStateApi = this.remoteConfig;
+    this.logger.debug('Loading remote config');
+
+    // TODO: const skip: boolean =
+    //  command === 'init' ||
+    //  command === 'quick-start' ||
+    //  (command === 'cluster-ref' && subCommand === 'connect') ||
+    //  (command === 'cluster-ref' && subCommand === 'disconnect') ||
+    //  (command === 'cluster-ref' && subCommand === 'info') ||
+    //  (command === 'cluster-ref' && subCommand === 'list') ||
+    //  (command === 'cluster-ref' && subCommand === 'setup') ||
+    //  (command === 'deployment' && subCommand === 'add-cluster') ||
+    //  (command === 'deployment' && subCommand === 'create') ||
+    //  (command === 'deployment' && subCommand === 'list');
+
+    // Load but don't validate if command is 'node keys'
+    // TODO: const validateRemoteConfig: boolean = !(command === 'node' && subCommand === 'keys');
+
+    // Skip validation for consensus nodes if the command is 'network deploy'
+    // TODO: const skipConsensusNodeValidation: boolean = command === 'network' && subCommand === 'deploy';
+
+    await remoteConfig.loadAndValidate(argv, validateRemoteConfig, skipConsensusNodeValidation);
+  }
   /**
    * Prepare the values files map for each cluster
    *
@@ -59,7 +109,7 @@ export abstract class BaseCommand extends ShellRunner {
    * @param chartDirectory - the chart directory
    * @param profileValuesFile - mapping of clusterRef to the profile values file full path
    */
-  static prepareValuesFilesMapMultipleCluster(
+  public static prepareValuesFilesMapMultipleCluster(
     clusterReferences: ClusterReferences,
     chartDirectory?: string,
     profileValuesFile?: Record<ClusterReferenceName, string>,
@@ -74,7 +124,7 @@ export abstract class BaseCommand extends ShellRunner {
     // add the chart's default values file for each cluster-ref if chartDirectory is set
     // this should be the first in the list of values files as it will be overridden by user's input
     if (chartDirectory) {
-      const chartValuesFile = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
+      const chartValuesFile: string = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
       for (const clusterReference in valuesFiles) {
         valuesFiles[clusterReference] += ` --values ${chartValuesFile}`;
       }
@@ -82,7 +132,7 @@ export abstract class BaseCommand extends ShellRunner {
 
     if (profileValuesFile) {
       for (const [clusterReference, file] of Object.entries(profileValuesFile)) {
-        const valuesArgument = ` --values ${file}`;
+        const valuesArgument: string = ` --values ${file}`;
 
         if (clusterReference === Flags.KEY_COMMON) {
           for (const clusterReference_ of Object.keys(valuesFiles)) {
@@ -95,9 +145,9 @@ export abstract class BaseCommand extends ShellRunner {
     }
 
     if (valuesFileInput) {
-      const parsed = Flags.parseValuesFilesInput(valuesFileInput);
+      const parsed: Record<string, Array<string>> = Flags.parseValuesFilesInput(valuesFileInput);
       for (const [clusterReference, files] of Object.entries(parsed)) {
-        let vf = '';
+        let vf: string = '';
         for (const file of files) {
           vf += ` --values ${file}`;
         }
@@ -127,12 +177,12 @@ export abstract class BaseCommand extends ShellRunner {
    * 1. Chart's default values file (if chartDirectory is set)
    * 2. Profile values file
    * 3. User's values file
-   * @param clusterRefs
+   * @param clusterReferences
    * @param valuesFileInput - the values file input string
    * @param chartDirectory - the chart directory
    * @param profileValuesFile - the profile values file full path
    */
-  static prepareValuesFilesMap(
+  public static prepareValuesFilesMap(
     clusterReferences: ClusterReferences,
     chartDirectory?: string,
     profileValuesFile?: string,
@@ -149,16 +199,16 @@ export abstract class BaseCommand extends ShellRunner {
     // add the chart's default values file for each cluster-ref if chartDirectory is set
     // this should be the first in the list of values files as it will be overridden by user's input
     if (chartDirectory) {
-      const chartValuesFile = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
+      const chartValuesFile: string = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
       for (const clusterReference in valuesFiles) {
         valuesFiles[clusterReference] += ` --values ${chartValuesFile}`;
       }
     }
 
     if (profileValuesFile) {
-      const parsed = Flags.parseValuesFilesInput(profileValuesFile);
+      const parsed: Record<string, Array<string>> = Flags.parseValuesFilesInput(profileValuesFile);
       for (const [clusterReference, files] of Object.entries(parsed)) {
-        let vf = '';
+        let vf: string = '';
         for (const file of files) {
           vf += ` --values ${file}`;
         }
@@ -174,9 +224,9 @@ export abstract class BaseCommand extends ShellRunner {
     }
 
     if (valuesFileInput) {
-      const parsed = Flags.parseValuesFilesInput(valuesFileInput);
+      const parsed: Record<string, Array<string>> = Flags.parseValuesFilesInput(valuesFileInput);
       for (const [clusterReference, files] of Object.entries(parsed)) {
-        let vf = '';
+        let vf: string = '';
         for (const file of files) {
           vf += ` --values ${file}`;
         }
@@ -199,13 +249,13 @@ export abstract class BaseCommand extends ShellRunner {
     return valuesFiles;
   }
 
-  abstract close(): Promise<void>;
+  public abstract close(): Promise<void>;
 
   /**
    * Setup home directories
-   * @param dirs a list of directories that need to be created in sequence
+   * @param directories
    */
-  public setupHomeDirectory(directories: string[] = []) {
+  public setupHomeDirectory(directories: string[] = []): string[] {
     if (!directories || directories?.length === 0) {
       directories = [
         constants.SOLO_HOME_DIR,

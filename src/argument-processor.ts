@@ -38,10 +38,6 @@ export class ArgumentProcessor {
         middlewares.processArgumentsAndDisplayHeader(),
         // @ts-expect-error - TS2322: To assign middlewares
         middlewares.checkIfInitialized(),
-        // @ts-expect-error - TS2322: To assign middlewares
-        middlewares.loadLocalConfig(),
-        // @ts-expect-error - TS2322: To assign middlewares
-        middlewares.loadRemoteConfig(),
       ],
       false, // applyBeforeValidate is false as otherwise middleware is called twice
     );

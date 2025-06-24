@@ -17,10 +17,11 @@ import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {K8} from '../integration/kube/k8.js';
 
 @injectable()
 export class Middlewares {
-  constructor(
+  public constructor(
     @inject(InjectTokens.ConfigManager) private readonly configManager: ConfigManager,
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
@@ -36,9 +37,7 @@ export class Middlewares {
     this.helpRenderer = patchInject(helpRenderer, InjectTokens.HelpRenderer, this.constructor.name);
   }
 
-  public printCustomHelp(rootCmd: any) {
-    const logger = this.logger;
-
+  public printCustomHelp(rootCmd: any): (argv: any) => void {
     /**
      * @param argv - listr Argv
      */
@@ -47,7 +46,7 @@ export class Middlewares {
         return;
       }
 
-      rootCmd.showHelp((output: string) => {
+      rootCmd.showHelp((output: string): void => {
         this.helpRenderer.render(rootCmd, output);
       });
       throw new SilentBreak('printed help, exiting');
@@ -75,7 +74,7 @@ export class Middlewares {
    *
    * @returns callback function to be executed from listr
    */
-  public processArgumentsAndDisplayHeader() {
+  protected processArgumentsAndDisplayHeader(): (argv: ArgvStruct, yargs: any) => AnyObject {
     const k8Factory: K8Factory = this.k8Factory;
     const configManager: ConfigManager = this.configManager;
     const logger: SoloLogger = this.logger;
@@ -89,7 +88,7 @@ export class Middlewares {
 
       // set cluster and namespace in the global configManager from kubernetes context
       // so that we don't need to prompt the user
-      const k8 = k8Factory.default();
+      const k8: K8 = k8Factory.default();
       const contextNamespace: NamespaceName = k8.contexts().readCurrentNamespace();
       const currentClusterName: string = k8.clusters().readCurrent();
       const contextName: string = k8.contexts().readCurrent();
@@ -99,7 +98,7 @@ export class Middlewares {
         configManager.reset();
       }
 
-      const clusterName = configManager.getFlag<ClusterReferenceName>(flags.clusterRef) || currentClusterName;
+      const clusterName: string = configManager.getFlag<ClusterReferenceName>(flags.clusterRef) || currentClusterName;
 
       // Set namespace if not provided
       if (contextNamespace?.name) {
@@ -135,73 +134,11 @@ export class Middlewares {
   }
 
   /**
-   * Handles loading remote config if the command access the cluster
-   *
-   * @returns callback function to be executed from listr
-   */
-  public loadRemoteConfig() {
-    const remoteConfig = this.remoteConfig;
-    const logger = this.logger;
-
-    /**
-     * @param argv - listr Argv
-     */
-    return async (argv: any): Promise<AnyObject> => {
-      logger.debug('Loading remote config');
-
-      const command = argv._[0];
-      const subCommand = argv._[1];
-
-      const skip =
-        command === 'init' ||
-        command === 'quick-start' ||
-        (command === 'cluster-ref' && subCommand === 'connect') ||
-        (command === 'cluster-ref' && subCommand === 'disconnect') ||
-        (command === 'cluster-ref' && subCommand === 'info') ||
-        (command === 'cluster-ref' && subCommand === 'list') ||
-        (command === 'cluster-ref' && subCommand === 'setup') ||
-        (command === 'deployment' && subCommand === 'add-cluster') ||
-        (command === 'deployment' && subCommand === 'create') ||
-        (command === 'deployment' && subCommand === 'list');
-
-      // Load but don't validate if command is 'node keys'
-      const validateRemoteConfig = !(command === 'node' && subCommand === 'keys');
-
-      // Skip validation for consensus nodes if the command is 'network deploy'
-      const skipConsensusNodeValidation = command === 'network' && subCommand === 'deploy';
-
-      if (!skip) {
-        await remoteConfig.loadAndValidate(argv, validateRemoteConfig, skipConsensusNodeValidation);
-      }
-
-      return argv;
-    };
-  }
-
-  /**
-   * Handles loading local config
-   *
-   * @returns callback function to be executed from listr
-   */
-  public loadLocalConfig() {
-    return async (argv: any): Promise<AnyObject> => {
-      const command: string = argv._[0];
-      const runMiddleware: boolean = command !== 'init' && command !== 'quick-start';
-
-      if (runMiddleware) {
-        this.logger.debug('Loading local config');
-        await this.localConfig.load();
-      }
-      return argv;
-    };
-  }
-
-  /**
    * Checks if the Solo instance has been initialized
    *
    * @returns callback function to be executed from listr
    */
-  public checkIfInitialized() {
+  public checkIfInitialized(): (argv: any) => Promise<AnyObject> {
     const logger: SoloLogger = this.logger;
 
     /**

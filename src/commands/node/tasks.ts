@@ -2100,7 +2100,7 @@ export class NodeCommandTasks {
         }
 
         // Add profile values files
-        const profileValuesFile = await self.profileManager.prepareValuesForNodeTransaction(
+        const profileValuesFile: string = await self.profileManager.prepareValuesForNodeTransaction(
           PathEx.joinWithRealPath(config.stagingDir, 'config.txt'),
           PathEx.joinWithRealPath(config.stagingDir, 'templates', 'application.properties'),
         );

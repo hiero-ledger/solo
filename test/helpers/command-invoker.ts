@@ -46,12 +46,7 @@ export class CommandInvoker {
       argv.setArg(flags.context, this.k8Factory.default().contexts().readCurrent());
     }
 
-    const middlewares: ((Argv: ArgvStruct) => Promise<boolean | AnyObject>)[] = [
-      this.updateConfigManager(),
-
-      // Loads the remote config if needed
-      this.middlewares.loadRemoteConfig(),
-    ];
+    const middlewares: ((Argv: ArgvStruct) => Promise<boolean | AnyObject>)[] = [this.updateConfigManager()];
 
     argv.setCommand(command, subcommand);
 
