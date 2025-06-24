@@ -866,7 +866,7 @@ export class NetworkCommand extends BaseCommand {
   private async deploy(argv: ArgvStruct): Promise<boolean> {
     const lease: Lock = await this.leaseManager.create();
 
-    const tasks: Listr<NetworkDeployContext> = new Listr<NetworkDeployContext>(
+    const tasks: Listr<NetworkDeployContext> = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -1223,14 +1223,18 @@ export class NetworkCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      NetworkCommand.DEPLOY_COMMAND,
     );
 
-    try {
-      await tasks.run();
-    } catch (error) {
-      throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
-    } finally {
-      await lease.release();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
+      } finally {
+        await lease.release();
+      }
     }
 
     return true;
