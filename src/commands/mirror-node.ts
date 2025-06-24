@@ -104,6 +104,8 @@ interface MirrorNodeDestroyContext {
 
 @injectable()
 export class MirrorNodeCommand extends BaseCommand {
+  public static readonly DEPLOY_COMMAND: string = 'mirror-node deploy';
+
   public constructor(
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
     @inject(InjectTokens.ProfileManager) private readonly profileManager?: ProfileManager,
@@ -352,7 +354,7 @@ export class MirrorNodeCommand extends BaseCommand {
     const self = this;
     const lease = await self.leaseManager.create();
 
-    const tasks = new Listr<MirrorNodeDeployContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -757,14 +759,21 @@ export class MirrorNodeCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      MirrorNodeCommand.DEPLOY_COMMAND,
     );
 
-    try {
-      await tasks.run();
-      self.logger.debug('mirror node deployment has completed');
-    } catch (error) {
-      throw new SoloError(`Error deploying mirror node: ${error.message}`, error);
-    } finally {
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+        self.logger.debug('mirror node deployment has completed');
+      } catch (error) {
+        throw new SoloError(`Error deploying mirror node: ${error.message}`, error);
+      } finally {
+        await lease.release();
+        await self.accountManager.close();
+      }
+    } else {
       await lease.release();
       await self.accountManager.close();
     }

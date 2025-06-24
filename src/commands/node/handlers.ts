@@ -813,6 +813,7 @@ export class NodeCommandHandlers extends CommandHandler {
       },
       'Error starting node',
       lease,
+      NodeCommand.START_COMMAND,
     );
 
     return true;
@@ -841,6 +842,7 @@ export class NodeCommandHandlers extends CommandHandler {
       },
       'Error in setting up nodes',
       lease,
+      NodeCommand.SETUP_COMMAND,
     );
 
     return true;

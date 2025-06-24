@@ -24,6 +24,10 @@ import {DeploymentCommand} from '../deployment.js';
 import {NodeCommandHandlers} from '../node/handlers.js';
 import {InitCommand} from '../init/init.js';
 import {NetworkCommand} from '../network.js';
+import {NodeCommand} from '../node/index.js';
+import {MirrorNodeCommand} from '../mirror-node.js';
+import {ExplorerCommand} from '../explorer.js';
+import {RelayCommand} from '../relay.js';
 
 @injectable()
 export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
@@ -230,7 +234,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo node setup',
-            task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
+            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
+              this.taskList.parentTaskListMap.set(NodeCommand.SETUP_COMMAND, task);
               const argv: string[] = this.newArgv();
               argv.push('node', 'setup', this.optionFromFlag(Flags.deployment), context_.config.deployment);
               this.argvPushGlobalFlags(argv, context_.config.cacheDir);
@@ -239,7 +244,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo node start',
-            task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
+            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
+              this.taskList.parentTaskListMap.set(NodeCommand.START_COMMAND, task);
               const argv: string[] = this.newArgv();
               argv.push('node', 'start', this.optionFromFlag(Flags.deployment), context_.config.deployment);
               this.argvPushGlobalFlags(argv);
@@ -248,7 +254,9 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo mirror-node deploy',
-            task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
+            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
+              this.taskList.parentTaskListMap.set(MirrorNodeCommand.DEPLOY_COMMAND, task);
+
               const argv: string[] = this.newArgv();
               argv.push(
                 'mirror-node',
@@ -265,7 +273,9 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo explorer deploy',
-            task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
+            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
+              this.taskList.parentTaskListMap.set(ExplorerCommand.DEPLOY_COMMAND, task);
+
               const argv: string[] = this.newArgv();
               argv.push(
                 'explorer',
@@ -281,7 +291,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo relay deploy',
-            task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
+            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
+              this.taskList.parentTaskListMap.set(RelayCommand.DEPLOY_COMMAND, task);
               const argv: string[] = this.newArgv();
               argv.push(
                 'relay',

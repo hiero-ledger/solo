@@ -74,6 +74,8 @@ interface RelayDeployContext {
 
 @injectable()
 export class RelayCommand extends BaseCommand {
+  public static readonly DEPLOY_COMMAND = 'relay deploy';
+
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
@@ -247,7 +249,7 @@ export class RelayCommand extends BaseCommand {
     const self = this;
     const lease = await self.leaseManager.create();
 
-    const tasks = new Listr<RelayDeployContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -399,13 +401,20 @@ export class RelayCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      RelayCommand.DEPLOY_COMMAND,
     );
 
-    try {
-      await tasks.run();
-    } catch (error) {
-      throw new SoloError(`Error deploying relay: ${error.message}`, error);
-    } finally {
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError(`Error deploying relay: ${error.message}`, error);
+      } finally {
+        await lease.release();
+        await self.accountManager.close();
+      }
+    } else {
       await lease.release();
       await self.accountManager.close();
     }

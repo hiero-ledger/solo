@@ -78,6 +78,8 @@ interface ExplorerDestroyContext {
 
 @injectable()
 export class ExplorerCommand extends BaseCommand {
+  public static readonly DEPLOY_COMMAND = 'explorer deploy';
+
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
@@ -220,7 +222,7 @@ export class ExplorerCommand extends BaseCommand {
     const self = this;
     const lease = await self.leaseManager.create();
 
-    const tasks = new Listr<ExplorerDeployContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -441,14 +443,20 @@ export class ExplorerCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      ExplorerCommand.DEPLOY_COMMAND,
     );
 
-    try {
-      await tasks.run();
-      self.logger.debug('explorer deployment has completed');
-    } catch (error) {
-      throw new SoloError(`Error deploying explorer: ${error.message}`, error);
-    } finally {
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+        self.logger.debug('explorer deployment has completed');
+      } catch (error) {
+        throw new SoloError(`Error deploying explorer: ${error.message}`, error);
+      } finally {
+        await lease.release();
+      }
+    } else {
       await lease.release();
     }
 
