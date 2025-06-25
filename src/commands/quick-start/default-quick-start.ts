@@ -222,14 +222,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           }),
           this.invokeSoloCommand('solo network deploy', NetworkCommand.DEPLOY_COMMAND, () => {
             const argv: string[] = this.newArgv();
-            argv.push(
-              'network',
-              'deploy',
-              this.optionFromFlag(Flags.deployment),
-              config.deployment,
-              this.optionFromFlag(Flags.clusterRef),
-              config.clusterRef,
-            );
+            argv.push('network', 'deploy', this.optionFromFlag(Flags.deployment), config.deployment);
             return this.argvPushGlobalFlags(argv, config.cacheDir);
           }),
           this.invokeSoloCommand('solo node setup', NodeCommand.SETUP_COMMAND, () => {
