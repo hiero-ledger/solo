@@ -17,6 +17,8 @@ import {inject, injectable} from 'tsyringe-neo';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {K8} from '../integration/kube/k8.js';
+import {type TaskList} from './task-list/task-list.js';
+import {ListrContext, ListrRendererValue} from 'listr2';
 
 @injectable()
 export class Middlewares {
@@ -27,6 +29,8 @@ export class Middlewares {
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.HelpRenderer) private readonly helpRenderer: HelpRenderer,
+    @inject(InjectTokens.TaskList)
+    private readonly taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
   ) {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
@@ -34,6 +38,7 @@ export class Middlewares {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.helpRenderer = patchInject(helpRenderer, InjectTokens.HelpRenderer, this.constructor.name);
+    this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
   }
 
   public printCustomHelp(rootCmd: any): (argv: any) => void {
@@ -115,18 +120,22 @@ export class Middlewares {
       const commandArguments: string = flags.stringifyArgv(argv);
       const commandData: string = (currentCommand + ' ' + commandArguments).trim();
 
-      // Display command header
-      logger.showUser(
-        chalk.cyan('\n******************************* Solo *********************************************'),
-      );
-      logger.showUser(chalk.cyan('Version\t\t\t:'), chalk.yellow(configManager.getVersion()));
-      logger.showUser(chalk.cyan('Kubernetes Context\t:'), chalk.yellow(contextName));
-      logger.showUser(chalk.cyan('Kubernetes Cluster\t:'), chalk.yellow(clusterName));
-      logger.showUser(chalk.cyan('Current Command\t\t:'), chalk.yellow(commandData));
-      if (configManager.getFlag<NamespaceName>(flags.namespace)?.name) {
-        logger.showUser(chalk.cyan('Kubernetes Namespace\t:'), chalk.yellow(configManager.getFlag(flags.namespace)));
+      if (this.taskList.parentTaskListMap.size === 0) {
+        // Display command header
+        logger.showUser(
+          chalk.cyan('\n******************************* Solo *********************************************'),
+        );
+        logger.showUser(chalk.cyan('Version\t\t\t:'), chalk.yellow(configManager.getVersion()));
+        logger.showUser(chalk.cyan('Kubernetes Context\t:'), chalk.yellow(contextName));
+        logger.showUser(chalk.cyan('Kubernetes Cluster\t:'), chalk.yellow(clusterName));
+        logger.showUser(chalk.cyan('Current Command\t\t:'), chalk.yellow(commandData));
+        if (configManager.getFlag<NamespaceName>(flags.namespace)?.name) {
+          logger.showUser(chalk.cyan('Kubernetes Namespace\t:'), chalk.yellow(configManager.getFlag(flags.namespace)));
+        }
+        logger.showUser(
+          chalk.cyan('**********************************************************************************'),
+        );
       }
-      logger.showUser(chalk.cyan('**********************************************************************************'));
 
       return argv;
     };
