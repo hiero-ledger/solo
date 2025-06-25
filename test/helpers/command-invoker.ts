@@ -11,6 +11,7 @@ import {InjectTokens} from '../../src/core/dependency-injection/inject-tokens.js
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../src/core/dependency-injection/container-helper.js';
 import {type RemoteConfigRuntimeStateApi} from '../../src/business/runtime-state/api/remote-config-runtime-state-api.js';
+import {ListrContext} from 'listr2';
 
 @injectable()
 export class CommandInvoker {
@@ -34,7 +35,7 @@ export class CommandInvoker {
     command,
     subcommand,
   }: {
-    callback: (argv: ArgvStruct) => Promise<boolean>;
+    callback: (argv: ArgvStruct) => Promise<boolean | ListrContext>;
     argv: Argv;
     command: string;
     subcommand?: string;
