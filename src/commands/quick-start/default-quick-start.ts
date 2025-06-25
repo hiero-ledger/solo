@@ -286,7 +286,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
         ],
         {
           concurrent: false,
-          fallbackRendererCondition: true,
+          // fallbackRendererCondition: true,
           rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
         },
       );
