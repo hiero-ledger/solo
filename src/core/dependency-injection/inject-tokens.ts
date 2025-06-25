@@ -63,4 +63,5 @@ export class InjectTokens {
   public static HomeDirectory: symbol = Symbol.for('HomeDirectory');
   public static QuickStartCommand: symbol = Symbol.for('QuickStartCommand');
   public static TaskList: symbol = Symbol.for('TaskList');
+  public static Commands: symbol = Symbol.for('Commands');
 }

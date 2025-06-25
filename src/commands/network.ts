@@ -1235,8 +1235,6 @@ export class NetworkCommand extends BaseCommand {
       } finally {
         await lease.release();
       }
-    } else {
-      return tasks.run();
     }
 
     return true;

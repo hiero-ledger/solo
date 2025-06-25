@@ -9,7 +9,7 @@ import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../../types/
 import {type CommandDefinition, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';
-import {injectable} from 'tsyringe-neo';
+import {delay, inject, injectable} from 'tsyringe-neo';
 import {v4 as uuid4} from 'uuid';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {StringEx} from '../../business/utils/string-ex.js';
@@ -28,6 +28,9 @@ import {NodeCommand} from '../node/index.js';
 import {MirrorNodeCommand} from '../mirror-node.js';
 import {ExplorerCommand} from '../explorer.js';
 import {RelayCommand} from '../relay.js';
+import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
+import {patchInject} from '../../core/dependency-injection/container-helper.js';
+import {Commands} from '../commands.js';
 
 @injectable()
 export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
@@ -69,9 +72,9 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     optional: [],
   };
 
-  // Although empty, tsyringe requires the constructor to be present
-  public constructor() {
+  public constructor(@inject(delay(() => Commands)) public readonly commands?: Commands) {
     super();
+    this.commands = patchInject(commands, InjectTokens.Commands, this.constructor.name);
   }
 
   private newArgv(): string[] {
@@ -138,7 +141,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
               const argv: string[] = this.newArgv();
               argv.push('init');
               this.argvPushGlobalFlags(argv, context_.config.cacheDir);
-              await ArgumentProcessor.process(argv);
+              await this.commands.initCommand.init(argv);
             },
           },
           {

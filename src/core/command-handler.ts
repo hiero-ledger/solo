@@ -59,10 +59,8 @@ export class CommandHandler {
         await this.accountManager.close();
         await Promise.all(promises);
       }
-    } else {
-      return tasks.run();
-      // TODO const promises = [];      if (lease) {        promises.push(lease.release());      }      await this.accountManager.close();      await Promise.all(promises);
     }
+    // TODO const promises = [];      if (lease) {        promises.push(lease.release());      }      await this.accountManager.close();      await Promise.all(promises);
   }
 
   /**

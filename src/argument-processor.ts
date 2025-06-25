@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import * as commands from './commands/index.js';
 import {SoloError} from './core/errors/solo-error.js';
 import {Flags as flags} from './commands/flags.js';
 import {type Middlewares} from './core/middlewares.js';
@@ -16,6 +15,7 @@ export class ArgumentProcessor {
     const logger: SoloLogger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
     const middlewares: Middlewares = container.resolve(InjectTokens.Middlewares);
     const helpRenderer: HelpRenderer = container.resolve(InjectTokens.HelpRenderer);
+    const commands = container.resolve(InjectTokens.Commands);
 
     logger.debug('Initializing commands');
     const rootCmd = yargs(hideBin(argv))
@@ -25,7 +25,7 @@ export class ArgumentProcessor {
       .alias('v', 'version')
       .help(false) // disable default help to enable custom help renderer
       // @ts-expect-error - TS2769: No overload matches this call.
-      .command(commands.Initialize())
+      .command(commands.getCommandDefinitions())
       .strict()
       .demand(1, 'Select a command');
 

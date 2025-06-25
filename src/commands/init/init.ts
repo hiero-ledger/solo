@@ -18,8 +18,8 @@ import {Listr, ListrRendererValue} from 'listr2';
  */
 @injectable()
 export class InitCommand extends BaseCommand {
-  public static readonly COMMAND_NAME = 'init';
-  public static readonly INIT_COMMAND_NAME = InitCommand.COMMAND_NAME;
+  public static readonly COMMAND_NAME: string = 'init';
+  public static readonly INIT_COMMAND_NAME: string = InitCommand.COMMAND_NAME;
 
   // Although empty, tsyringe requires the constructor to be present
   public constructor() {
@@ -27,7 +27,7 @@ export class InitCommand extends BaseCommand {
   }
 
   /** Executes the init CLI command */
-  async init(argv: any) {
+  public async init(argv: any): Promise<boolean> {
     const self = this;
 
     let cacheDirectory: string = this.configManager.getFlag<string>(flags.cacheDir) as string;
@@ -134,8 +134,6 @@ export class InitCommand extends BaseCommand {
       } catch (error: Error | any) {
         throw new SoloError('Error running init', error);
       }
-    } else {
-      return tasks.run();
     }
 
     return true;

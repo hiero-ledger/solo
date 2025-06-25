@@ -61,6 +61,7 @@ import {SoloConfigSchemaDefinition} from '../../data/schema/migration/impl/solo/
 import {BeanFactorySupplier} from './bean-factory-supplier.js';
 import {DefaultQuickStartCommand} from '../../commands/quick-start/default-quick-start.js';
 import {DefaultTaskList} from '../task-list/default-task-list.js';
+import {Commands} from '../../commands/commands.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -133,6 +134,7 @@ export class Container {
       new SingletonContainer(InjectTokens.RemoteConfigValidator, RemoteConfigValidator),
       new SingletonContainer(InjectTokens.QuickStartCommand, DefaultQuickStartCommand),
       new SingletonContainer(InjectTokens.TaskList, DefaultTaskList),
+      new SingletonContainer(InjectTokens.Commands, Commands),
     ];
   }
 

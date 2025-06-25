@@ -414,10 +414,8 @@ export class RelayCommand extends BaseCommand {
         await lease.release();
         await self.accountManager.close();
       }
-    } else {
-      return tasks.run();
-      // TODO await lease.release();      await self.accountManager.close();
     }
+    // TODO await lease.release();      await self.accountManager.close();
 
     return true;
   }
