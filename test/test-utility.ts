@@ -124,14 +124,11 @@ export function startNodesTest(argv: Argv, commandInvoker: CommandInvoker, nodeC
   }).timeout(Duration.ofMinutes(30).toMillis());
 
   it('node log command should work', async () => {
-    const logsArgv: Argv = argv.clone();
-    logsArgv.setArg(flags.nodeAliasesUnparsed, '');
-
     await commandInvoker.invoke({
-      argv: logsArgv,
+      argv: argv,
       command: NodeCommand.COMMAND_NAME,
       subcommand: 'logs',
-      callback: async (argv): Promise<boolean> => nodeCmd.handlers.logs(argv),
+      callback: async argv => nodeCmd.handlers.logs(argv),
     });
 
     const soloLogPath: string = PathEx.joinWithRealPath(SOLO_LOGS_DIR, 'solo.log');
