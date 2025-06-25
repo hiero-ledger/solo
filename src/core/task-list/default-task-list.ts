@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {injectable} from 'tsyringe-neo';
-import {TaskList} from './task-list.js';
+import {TaskList, TaskNodeType} from './task-list.js';
 import {
   Listr,
   ListrBaseClassOptions,
@@ -13,7 +13,6 @@ import {
   ListrTaskObject,
 } from 'listr2';
 import {QuickStartSingleDeployContext} from '../../commands/quick-start/quick-start-single-deploy-context.js';
-import {TaskListWrapper} from './task-list-wrapper.js';
 
 @injectable()
 export class DefaultTaskList<
@@ -44,7 +43,7 @@ export class DefaultTaskList<
     return new Listr<QuickStartSingleDeployContext, Renderer, FallbackRenderer>(task, options, parentTask);
   }
 
-  public parentTaskListMap: Map<string, TaskListWrapper> = new Map();
+  public parentTaskListMap: Map<string, TaskNodeType> = new Map();
 
   public newTaskList(
     task:
@@ -67,7 +66,8 @@ export class DefaultTaskList<
     commandName?: string,
   ): Listr<ListrContext, Renderer, FallbackRenderer> {
     if (this.parentTaskListMap.has(commandName)) {
-      return this.parentTaskListMap.get(commandName)!.newListr(task, options);
+      const parentTaskList: TaskNodeType = this.parentTaskListMap.get(commandName);
+      parentTaskList.children = parentTaskList.taskListWrapper.newListr(task, options);
     }
     return new Listr<ListrContext, Renderer, FallbackRenderer>(task, options, parentTask);
   }

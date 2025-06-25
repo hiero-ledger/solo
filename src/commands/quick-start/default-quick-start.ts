@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {Listr, ListrRendererValue} from 'listr2';
+import {Listr, ListrContext, ListrRendererValue} from 'listr2';
 import {SoloError} from '../../core/errors/solo-error.js';
 import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
@@ -31,6 +31,7 @@ import {RelayCommand} from '../relay.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {Commands} from '../commands.js';
+import {TaskList} from '../../core/task-list/task-list.js';
 
 @injectable()
 export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
@@ -97,6 +98,18 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     return '';
   }
 
+  private async subTaskSoloCommand(
+    commandName: string,
+    taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
+    taskListWrapper,
+    callback: (context: AnyListrContext) => string[],
+  ): Promise<Listr<ListrContext, any, any> | Listr<ListrContext, any, any>[]> {
+    taskList.parentTaskListMap.set(commandName, {taskListWrapper});
+    const newArgv: string[] = callback(taskListWrapper.context);
+    await ArgumentProcessor.process(newArgv);
+    return this.taskList.parentTaskListMap.get(commandName).children;
+  }
+
   private async deploy(argv: ArgvStruct): Promise<boolean> {
     const tasks: Listr<QuickStartSingleDeployContext, ListrRendererValue, ListrRendererValue> =
       this.taskList.newQuickStartSingleDeployTaskList(
@@ -136,18 +149,18 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo init',
-            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
-              this.taskList.parentTaskListMap.set(InitCommand.INIT_COMMAND_NAME, task);
-              const argv: string[] = this.newArgv();
-              argv.push('init');
-              this.argvPushGlobalFlags(argv, context_.config.cacheDir);
-              await this.commands.initCommand.init(argv);
+            task: async (context_: QuickStartSingleDeployContext, taskListWrapper) => {
+              this.subTaskSoloCommand(InitCommand.INIT_COMMAND_NAME, this.taskList, taskListWrapper, context => {
+                const argv: string[] = this.newArgv();
+                argv.push('init');
+                return this.argvPushGlobalFlags(argv, context_.config.cacheDir);
+              });
             },
           },
           {
             title: 'solo cluster-ref connect',
-            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
-              this.taskList.parentTaskListMap.set(ClusterCommandHandlers.CONNECT_COMMAND, task);
+            task: async (context_: QuickStartSingleDeployContext, taskListWrapper): Promise<void> => {
+              this.taskList.parentTaskListMap.set(ClusterCommandHandlers.CONNECT_COMMAND, {taskListWrapper});
               const argv: string[] = this.newArgv();
               argv.push(
                 'cluster-ref',
@@ -163,8 +176,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo deployment create',
-            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
-              this.taskList.parentTaskListMap.set(DeploymentCommand.CREATE_COMMAND, task);
+            task: async (context_: QuickStartSingleDeployContext, taskListWrapper): Promise<void> => {
+              this.taskList.parentTaskListMap.set(DeploymentCommand.CREATE_COMMAND, {taskListWrapper});
               const argv: string[] = this.newArgv();
               argv.push(
                 'deployment',
@@ -180,8 +193,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo deployment add-cluster',
-            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
-              this.taskList.parentTaskListMap.set(DeploymentCommand.ADD_COMMAND, task);
+            task: async (context_: QuickStartSingleDeployContext, taskListWrapper): Promise<void> => {
+              this.taskList.parentTaskListMap.set(DeploymentCommand.ADD_COMMAND, {taskListWrapper});
               const argv: string[] = this.newArgv();
               argv.push(
                 'deployment',
@@ -199,8 +212,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo cluster-ref setup',
-            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
-              this.taskList.parentTaskListMap.set(ClusterCommandHandlers.SETUP_COMMAND, task);
+            task: async (context_: QuickStartSingleDeployContext, taskListWrapper): Promise<void> => {
+              this.taskList.parentTaskListMap.set(ClusterCommandHandlers.SETUP_COMMAND, {taskListWrapper});
               const argv: string[] = this.newArgv();
               argv.push('cluster-ref', 'setup', this.optionFromFlag(Flags.clusterRef), context_.config.clusterRef);
               this.argvPushGlobalFlags(argv);
@@ -209,8 +222,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo node keys',
-            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
-              this.taskList.parentTaskListMap.set(NodeCommandHandlers.KEYS_COMMAND, task);
+            task: async (context_: QuickStartSingleDeployContext, taskListWrapper): Promise<void> => {
+              this.taskList.parentTaskListMap.set(NodeCommandHandlers.KEYS_COMMAND, {taskListWrapper});
               const argv: string[] = this.newArgv();
               argv.push(
                 'node',
@@ -227,8 +240,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo network deploy',
-            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
-              this.taskList.parentTaskListMap.set(NetworkCommand.DEPLOY_COMMAND, task);
+            task: async (context_: QuickStartSingleDeployContext, taskListWrapper): Promise<void> => {
+              this.taskList.parentTaskListMap.set(NetworkCommand.DEPLOY_COMMAND, {taskListWrapper});
               const argv: string[] = this.newArgv();
               argv.push('network', 'deploy', this.optionFromFlag(Flags.deployment), context_.config.deployment);
               this.argvPushGlobalFlags(argv, context_.config.cacheDir);
@@ -237,8 +250,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo node setup',
-            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
-              this.taskList.parentTaskListMap.set(NodeCommand.SETUP_COMMAND, task);
+            task: async (context_: QuickStartSingleDeployContext, taskListWrapper): Promise<void> => {
+              this.taskList.parentTaskListMap.set(NodeCommand.SETUP_COMMAND, {taskListWrapper});
               const argv: string[] = this.newArgv();
               argv.push('node', 'setup', this.optionFromFlag(Flags.deployment), context_.config.deployment);
               this.argvPushGlobalFlags(argv, context_.config.cacheDir);
@@ -247,8 +260,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo node start',
-            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
-              this.taskList.parentTaskListMap.set(NodeCommand.START_COMMAND, task);
+            task: async (context_: QuickStartSingleDeployContext, taskListWrapper): Promise<void> => {
+              this.taskList.parentTaskListMap.set(NodeCommand.START_COMMAND, {taskListWrapper});
               const argv: string[] = this.newArgv();
               argv.push('node', 'start', this.optionFromFlag(Flags.deployment), context_.config.deployment);
               this.argvPushGlobalFlags(argv);
@@ -257,8 +270,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo mirror-node deploy',
-            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
-              this.taskList.parentTaskListMap.set(MirrorNodeCommand.DEPLOY_COMMAND, task);
+            task: async (context_: QuickStartSingleDeployContext, taskListWrapper): Promise<void> => {
+              this.taskList.parentTaskListMap.set(MirrorNodeCommand.DEPLOY_COMMAND, {taskListWrapper});
 
               const argv: string[] = this.newArgv();
               argv.push(
@@ -276,8 +289,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo explorer deploy',
-            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
-              this.taskList.parentTaskListMap.set(ExplorerCommand.DEPLOY_COMMAND, task);
+            task: async (context_: QuickStartSingleDeployContext, taskListWrapper): Promise<void> => {
+              this.taskList.parentTaskListMap.set(ExplorerCommand.DEPLOY_COMMAND, {taskListWrapper});
 
               const argv: string[] = this.newArgv();
               argv.push(
@@ -294,8 +307,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'solo relay deploy',
-            task: async (context_: QuickStartSingleDeployContext, task): Promise<void> => {
-              this.taskList.parentTaskListMap.set(RelayCommand.DEPLOY_COMMAND, task);
+            task: async (context_: QuickStartSingleDeployContext, taskListWrapper): Promise<void> => {
+              this.taskList.parentTaskListMap.set(RelayCommand.DEPLOY_COMMAND, {taskListWrapper});
               const argv: string[] = this.newArgv();
               argv.push(
                 'relay',

@@ -9,9 +9,15 @@ import {
   type ListrRendererValue,
   type ListrSecondaryRendererValue,
   type ListrTask,
+  type ListrContext,
 } from 'listr2';
 import {type QuickStartSingleDeployContext} from '../../commands/quick-start/quick-start-single-deploy-context.js';
 import {type TaskListWrapper} from './task-list-wrapper.js';
+
+export type TaskNodeType = {
+  taskListWrapper: TaskListWrapper;
+  children?: Listr<ListrContext, any, any> | Listr<ListrContext, any, any>[];
+};
 
 export interface TaskList<
   ListrContext,
@@ -38,7 +44,7 @@ export interface TaskList<
     >,
   ): Listr<QuickStartSingleDeployContext, Renderer, FallbackRenderer>;
 
-  parentTaskListMap: Map<string, TaskListWrapper>;
+  parentTaskListMap: Map<string, TaskNodeType>;
 
   newTaskList(
     task:
