@@ -68,6 +68,7 @@ export class DefaultTaskList<
     if (this.parentTaskListMap.has(commandName)) {
       const parentTaskList: TaskNodeType = this.parentTaskListMap.get(commandName);
       parentTaskList.children = parentTaskList.taskListWrapper.newListr(task, options);
+      return parentTaskList.children as Listr<ListrContext, Renderer, FallbackRenderer>;
     }
     return new Listr<ListrContext, Renderer, FallbackRenderer>(task, options, parentTask);
   }

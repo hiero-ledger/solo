@@ -98,7 +98,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     return '';
   }
 
-  private invokeSoloCommand(title: string, commandName: string, callback: (context: AnyListrContext) => string[]) {
+  private invokeSoloCommand(title: string, commandName: string, callback: () => string[]) {
     return {
       title,
       task: async (_, taskListWrapper) => {
@@ -111,15 +111,17 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     commandName: string,
     taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
     taskListWrapper,
-    callback: (context: AnyListrContext) => string[],
+    callback: () => string[],
   ): Promise<Listr<ListrContext, any, any> | Listr<ListrContext, any, any>[]> {
     taskList.parentTaskListMap.set(commandName, {taskListWrapper});
-    const newArgv: string[] = callback(taskListWrapper.context);
+    const newArgv: string[] = callback();
     await ArgumentProcessor.process(newArgv);
     return this.taskList.parentTaskListMap.get(commandName).children;
   }
 
   private async deploy(argv: ArgvStruct): Promise<boolean> {
+    let config: QuickStartSingleDeployConfigClass | null = null;
+
     const tasks: Listr<QuickStartSingleDeployContext, ListrRendererValue, ListrRendererValue> =
       this.taskList.newQuickStartSingleDeployTaskList(
         [
@@ -129,7 +131,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             task: async (
               context_: QuickStartSingleDeployContext,
               task: SoloListrTaskWrapper<QuickStartSingleDeployContext>,
-            ): Promise<Listr<AnyListrContext>> => {
+            ): Promise<void> => {
               this.configManager.update(argv);
 
               flags.disablePrompts(DefaultQuickStartCommand.SINGLE_ADD_FLAGS_LIST.optional);
@@ -145,6 +147,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
                 DefaultQuickStartCommand.SINGLE_ADD_CONFIGS_NAME,
                 allFlags,
               ) as QuickStartSingleDeployConfigClass;
+              config = context_.config;
 
               const uniquePostfix: string = uuid4().slice(-8);
 
@@ -153,126 +156,131 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
               context_.config.deployment = context_.config.deployment || `solo-deployment-${uniquePostfix}`; // TODO come up with better solution to avoid conflicts
               context_.config.namespace = context_.config.namespace || NamespaceName.of(`solo-${uniquePostfix}`); // TODO come up with better solution to avoid conflicts
               context_.config.numberOfConsensusNodes = context_.config.numberOfConsensusNodes || 1;
-              return null;
+              return;
             },
           },
-          this.invokeSoloCommand('solo init', InitCommand.INIT_COMMAND_NAME, context => {
+          this.invokeSoloCommand('solo init', InitCommand.INIT_COMMAND_NAME, () => {
             const argv: string[] = this.newArgv();
             argv.push('init');
-            return this.argvPushGlobalFlags(argv, context.config.cacheDir);
+            return this.argvPushGlobalFlags(argv, config.cacheDir);
           }),
-          this.invokeSoloCommand('solo cluster-ref connect', ClusterCommandHandlers.CONNECT_COMMAND, context => {
+          this.invokeSoloCommand('solo cluster-ref connect', ClusterCommandHandlers.CONNECT_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push(
               'cluster-ref',
               'connect',
               this.optionFromFlag(Flags.clusterRef),
-              context.config.clusterRef,
+              config.clusterRef,
               this.optionFromFlag(Flags.context),
-              context.config.context,
+              config.context,
             );
             return this.argvPushGlobalFlags(argv);
           }),
-          this.invokeSoloCommand('solo deployment create', DeploymentCommand.CREATE_COMMAND, context => {
+          this.invokeSoloCommand('solo deployment create', DeploymentCommand.CREATE_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push(
               'deployment',
               'create',
               this.optionFromFlag(Flags.deployment),
-              context.config.deployment,
+              config.deployment,
               this.optionFromFlag(Flags.namespace),
-              context.config.namespace.name,
+              config.namespace.name,
             );
             return this.argvPushGlobalFlags(argv);
           }),
-          this.invokeSoloCommand('solo deployment add-cluster', DeploymentCommand.ADD_COMMAND, context => {
+          this.invokeSoloCommand('solo deployment add-cluster', DeploymentCommand.ADD_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push(
               'deployment',
               'add-cluster',
               this.optionFromFlag(Flags.deployment),
-              context.config.deployment,
+              config.deployment,
               this.optionFromFlag(Flags.clusterRef),
-              context.config.clusterRef,
+              config.clusterRef,
               this.optionFromFlag(Flags.numberOfConsensusNodes),
-              context.config.numberOfConsensusNodes.toString(),
+              config.numberOfConsensusNodes.toString(),
             );
             return this.argvPushGlobalFlags(argv);
           }),
-          this.invokeSoloCommand('solo cluster-ref setup', ClusterCommandHandlers.SETUP_COMMAND, context => {
+          this.invokeSoloCommand('solo cluster-ref setup', ClusterCommandHandlers.SETUP_COMMAND, () => {
             const argv: string[] = this.newArgv();
-            argv.push('cluster-ref', 'setup', this.optionFromFlag(Flags.clusterRef), context.config.clusterRef);
+            argv.push('cluster-ref', 'setup', this.optionFromFlag(Flags.clusterRef), config.clusterRef);
             return this.argvPushGlobalFlags(argv);
           }),
-          this.invokeSoloCommand('solo node keys', NodeCommandHandlers.KEYS_COMMAND, context => {
+          this.invokeSoloCommand('solo node keys', NodeCommandHandlers.KEYS_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push(
               'node',
               'keys',
               this.optionFromFlag(Flags.deployment),
-              context.config.deployment,
+              config.deployment,
               this.optionFromFlag(Flags.generateGossipKeys),
               'true',
               this.optionFromFlag(Flags.generateTlsKeys),
             );
-            return this.argvPushGlobalFlags(argv, context.config.cacheDir);
+            return this.argvPushGlobalFlags(argv, config.cacheDir);
           }),
-          this.invokeSoloCommand('solo network deploy', NetworkCommand.DEPLOY_COMMAND, context => {
+          this.invokeSoloCommand('solo network deploy', NetworkCommand.DEPLOY_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push(
               'network',
               'deploy',
               this.optionFromFlag(Flags.deployment),
-              context.config.deployment,
+              config.deployment,
               this.optionFromFlag(Flags.clusterRef),
-              context.config.clusterRef,
+              config.clusterRef,
             );
-            return this.argvPushGlobalFlags(argv, context.config.cacheDir);
+            return this.argvPushGlobalFlags(argv, config.cacheDir);
           }),
-          this.invokeSoloCommand('solo node setup', NodeCommand.SETUP_COMMAND, context => {
+          this.invokeSoloCommand('solo node setup', NodeCommand.SETUP_COMMAND, () => {
             const argv: string[] = this.newArgv();
-            argv.push('node', 'setup', this.optionFromFlag(Flags.deployment), context.config.deployment);
-            return this.argvPushGlobalFlags(argv, context.config.cacheDir);
+            argv.push('node', 'setup', this.optionFromFlag(Flags.deployment), config.deployment);
+            return this.argvPushGlobalFlags(argv, config.cacheDir);
           }),
-          this.invokeSoloCommand('solo node start', NodeCommand.START_COMMAND, context => {
+          this.invokeSoloCommand('solo node start', NodeCommand.START_COMMAND, () => {
             const argv: string[] = this.newArgv();
-            argv.push('node', 'start', this.optionFromFlag(Flags.deployment), context.config.deployment);
+            argv.push('node', 'start', this.optionFromFlag(Flags.deployment), config.deployment);
             return this.argvPushGlobalFlags(argv);
           }),
-          this.invokeSoloCommand('solo mirror-node deploy', MirrorNodeCommand.DEPLOY_COMMAND, context => {
-            const argv: string[] = this.newArgv();
-            argv.push(
-              'mirror-node',
-              'deploy',
-              this.optionFromFlag(Flags.deployment),
-              context.config.deployment,
-              this.optionFromFlag(Flags.clusterRef),
-              context.config.clusterRef,
-              this.optionFromFlag(Flags.pinger),
-            );
-            return this.argvPushGlobalFlags(argv, context.config.cacheDir);
-          }),
-          this.invokeSoloCommand('solo explorer deploy', ExplorerCommand.DEPLOY_COMMAND, context => {
+          this.invokeSoloCommand(
+            'solo mirror-node deploy',
+            MirrorNodeCommand.DEPLOY_COMMAND,
+
+            () => {
+              const argv: string[] = this.newArgv();
+              argv.push(
+                'mirror-node',
+                'deploy',
+                this.optionFromFlag(Flags.deployment),
+                config.deployment,
+                this.optionFromFlag(Flags.clusterRef),
+                config.clusterRef,
+                this.optionFromFlag(Flags.pinger),
+              );
+              return this.argvPushGlobalFlags(argv, config.cacheDir);
+            },
+          ),
+          this.invokeSoloCommand('solo explorer deploy', ExplorerCommand.DEPLOY_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push(
               'explorer',
               'deploy',
               this.optionFromFlag(Flags.deployment),
-              context.config.deployment,
+              config.deployment,
               this.optionFromFlag(Flags.clusterRef),
-              context.config.clusterRef,
+              config.clusterRef,
             );
-            return this.argvPushGlobalFlags(argv, context.config.cacheDir);
+            return this.argvPushGlobalFlags(argv, config.cacheDir);
           }),
-          this.invokeSoloCommand('solo relay deploy', RelayCommand.DEPLOY_COMMAND, context => {
+          this.invokeSoloCommand('solo relay deploy', RelayCommand.DEPLOY_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push(
               'relay',
               'deploy',
               this.optionFromFlag(Flags.deployment),
-              context.config.deployment,
+              config.deployment,
               this.optionFromFlag(Flags.clusterRef),
-              context.config.clusterRef,
+              config.clusterRef,
               this.optionFromFlag(Flags.nodeAliasesUnparsed),
               'node1',
             );
