@@ -134,7 +134,12 @@ tasks:
           exit 1
         fi
         
-        jq -r '.[] | select(.npmjsLatest == true or .npmjsLatest == false) | "    - {version: \(.tag), url: /\(.tag)}"' "$RELEASES" >> "$CONFIG"
+        jq -r '.[] | select(.npmjsLatest == true or .npmjsLatest == false) | .tag' "$RELEASES" | while read -r VERSION; do
+          LINE="    - {version: $VERSION, url: /$VERSION}"
+          if ! grep -q "version: $VERSION," "$CONFIG"; then
+            echo "$LINE" >> "$CONFIG"
+          fi
+        done
 
   github:augment:releases:
     desc: Add npmjsLatest field to each release in github-releases.json and save to build/releases.json

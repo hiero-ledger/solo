@@ -29,6 +29,7 @@ import {type Ingresses} from '../resources/ingress/ingresses.js';
 import {K8ClientIngresses} from './resources/ingress/k8-client-ingresses.js';
 import {type Crds} from '../resources/crd/crds.js';
 import {K8ClientCRDs} from './resources/crd/k8-clinet-crds.js';
+import {KubeConfig} from '@kubernetes/client-node';
 
 /**
  * A kubernetes API wrapper class providing custom functionalities required by solo
@@ -99,18 +100,24 @@ export class K8Client implements K8 {
     return this;
   }
 
-  private getKubeConfig(context: string): k8s.KubeConfig {
-    const kubeConfig = new k8s.KubeConfig();
-    kubeConfig.loadFromDefault();
+  private getKubeConfig(context: string): KubeConfig {
+    const kubeConfig: KubeConfig = new KubeConfig();
 
-    if (context) {
-      const kubeConfigContext: k8s.Context = kubeConfig.getContextObject(context);
-
-      if (!kubeConfigContext) {
-        throw new SoloError(`No kube config context found with name ${context}`);
+    try {
+      kubeConfig.loadFromDefault();
+      if (context) {
+        if (!kubeConfig.getContextObject(context)) {
+          throw new SoloError(`No kube config context found with name ${context}`);
+        }
+        kubeConfig.setCurrentContext(context);
       }
-
-      kubeConfig.setCurrentContext(context);
+    } catch (error) {
+      //* Try loading from cluster if loading from default fails
+      try {
+        kubeConfig.loadFromCluster();
+      } catch (fromClusterError) {
+        throw new SoloError('Failed to load Kubernetes configuration from cluster', fromClusterError, error);
+      }
     }
 
     return kubeConfig;
