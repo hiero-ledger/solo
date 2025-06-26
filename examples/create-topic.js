@@ -7,7 +7,9 @@ import {
   TopicMessageSubmitTransaction,
   AccountCreateTransaction,
   PrivateKey,
-  Hbar, TopicMessageQuery, Client,
+  Hbar,
+  TopicMessageQuery,
+  Client,
 } from '@hashgraph/sdk';
 
 import dotenv from 'dotenv';
@@ -46,30 +48,33 @@ async function main() {
     console.log('Wait a few seconds to create subscribe to new topic');
     await new Promise(resolve => setTimeout(resolve, 25000));
     // Create a subscription to the topic
-    const mirrorClient = (
-      await Client.forMirrorNetwork(mirrorNetwork)
-    ).setOperator(process.env.OPERATOR_ID, process.env.OPERATOR_KEY);
+    const mirrorClient = (await Client.forMirrorNetwork(mirrorNetwork)).setOperator(
+      process.env.OPERATOR_ID,
+      process.env.OPERATOR_KEY,
+    );
 
-    let expectedContents = "";
+    let expectedContents = '';
     let finished = false;
     new TopicMessageQuery()
-    .setTopicId(createReceipt.topicId)
-    .setMaxAttempts(400)
-    .setLimit(1)
-    // eslint-disable-next-line no-unused-vars
-    .subscribe(mirrorClient, (topic, error) => {
-      if (error) {
-        console.error(`Error      : ${error}`);
-        finished = true;
-        return;
-      }
-    }, (topic)=>{
-      finished = true;
-      expectedContents = Buffer.from(topic.contents).toString(
-        "utf-8",
+      .setTopicId(createReceipt.topicId)
+      .setMaxAttempts(400)
+      .setLimit(1)
+      // eslint-disable-next-line no-unused-vars
+      .subscribe(
+        mirrorClient,
+        (topic, error) => {
+          if (error) {
+            console.error(`ERROR: ${error}`, error);
+            finished = true;
+            return;
+          }
+        },
+        topic => {
+          finished = true;
+          expectedContents = Buffer.from(topic.contents).toString('utf-8');
+          console.log(`Subscription received message: ${topic.contents}`);
+        },
       );
-      console.log(`Subscription received message: ${topic.contents}`);
-    });
 
     // send one message
     let topicMessageSubmitTransaction = await new TopicMessageSubmitTransaction({
@@ -115,7 +120,7 @@ async function main() {
             console.log('No messages yet');
           } else {
             if (obj.messages.length === 0) {
-              console.error(`No messages found for the topic ${createReceipt.topicId}`);
+              console.error(`ERROR: No messages found for the topic ${createReceipt.topicId}`);
               process.exit(1);
             }
             // convert message from base64 to utf-8
@@ -139,21 +144,21 @@ async function main() {
     // wait a few seconds to receive subscription message
     await new Promise(resolve => setTimeout(resolve, 5000));
     if (!finished) {
-      console.error("Not received subscription message");
+      console.error('ERROR: Not received subscription message');
       process.exit(1);
     } else if (expectedContents !== TEST_MESSAGE) {
-      console.error('Message received from subscription but not match: ' + expectedContents);
+      console.error('ERROR: Message received from subscription but not match: ' + expectedContents);
       process.exit(1);
     }
 
     if (receivedMessage === TEST_MESSAGE) {
       console.log('Message received successfully');
     } else {
-      console.error('Message received but not match: ' + receivedMessage);
+      console.error('ERROR: Message received but not match: ' + receivedMessage);
       process.exit(1);
     }
   } catch (error) {
-    console.error(error);
+    console.error(`ERROR: ${error}`, error);
     throw error;
   }
   provider.close();
