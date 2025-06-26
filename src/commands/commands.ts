@@ -10,12 +10,11 @@ import {type AccountCommand} from './account.js';
 import {type DeploymentCommand} from './deployment.js';
 import {type ExplorerCommand} from './explorer.js';
 import {type BlockNodeCommand} from './block-node.js';
-import {delay, inject, injectable} from 'tsyringe-neo';
+import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type QuickStartCommand} from './quick-start/quick-start.js';
 import {type CommandDefinition} from '../types/index.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {DefaultQuickStartCommand} from './quick-start/default-quick-start.js';
 
 /**
  * Return a list of Yargs command builder to be exposed through CLI
@@ -34,7 +33,7 @@ export class Commands {
     @inject(InjectTokens.ExplorerCommand) public readonly explorerCommand?: ExplorerCommand,
     @inject(InjectTokens.DeploymentCommand) public readonly deploymentCommand?: DeploymentCommand,
     @inject(InjectTokens.BlockNodeCommand) public readonly blockNodeCommand?: BlockNodeCommand,
-    @inject(delay(() => DefaultQuickStartCommand)) public readonly quickStartCommand?: QuickStartCommand,
+    @inject(InjectTokens.QuickStartCommand) public readonly quickStartCommand?: QuickStartCommand,
   ) {
     this.initCommand = patchInject(initCommand, InjectTokens.InitCommand, this.constructor.name);
     this.clusterCommand = patchInject(clusterCommand, InjectTokens.ClusterCommand, this.constructor.name);

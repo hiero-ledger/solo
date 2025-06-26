@@ -12,7 +12,7 @@ import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {type ClusterCommandConfigs} from './configs.js';
 import {type ArgvStruct} from '../../types/aliases.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
-import {ClusterCommand} from './index.js';
+import {BaseCommand} from '../base.js';
 
 @injectable()
 export class ClusterCommandHandlers extends CommandHandler {
@@ -29,8 +29,8 @@ export class ClusterCommandHandlers extends CommandHandler {
     this.tasks = patchInject(tasks, InjectTokens.ClusterCommandTasks, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.configs = patchInject(configs, InjectTokens.ClusterCommandConfigs, this.constructor.name);
-    this.loadLocalConfig = ClusterCommand.prototype.loadLocalConfig;
-    this.loadRemoteConfig = ClusterCommand.prototype.loadRemoteConfig;
+    this.loadLocalConfig = BaseCommand.prototype.loadLocalConfig;
+    this.loadRemoteConfig = BaseCommand.prototype.loadRemoteConfig;
   }
 
   /**

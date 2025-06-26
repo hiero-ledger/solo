@@ -16,9 +16,6 @@ import {type AnyYargs} from '../../types/aliases.js';
  */
 @injectable()
 export class NodeCommand extends BaseCommand {
-  public static readonly SETUP_COMMAND = 'node setup';
-  public static readonly START_COMMAND = 'node start';
-
   public _portForwards: any;
 
   public constructor(

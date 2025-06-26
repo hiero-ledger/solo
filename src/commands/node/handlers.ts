@@ -30,11 +30,13 @@ import {ConsensusNodeStateSchema} from '../../data/schema/model/remote/state/con
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {ComponentsDataWrapperApi} from '../../core/config/remote/api/components-data-wrapper-api.js';
 import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
-import {NodeCommand} from './index.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {BaseCommand} from '../base.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
+  public static readonly SETUP_COMMAND = 'node setup';
+  public static readonly START_COMMAND = 'node start';
   public static readonly KEYS_COMMAND: string = 'node keys';
 
   public constructor(
@@ -50,8 +52,8 @@ export class NodeCommandHandlers extends CommandHandler {
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.tasks = patchInject(tasks, InjectTokens.NodeCommandTasks, this.constructor.name);
-    this.loadLocalConfig = NodeCommand.prototype.loadLocalConfig;
-    this.loadRemoteConfig = NodeCommand.prototype.loadRemoteConfig;
+    this.loadLocalConfig = BaseCommand.prototype.loadLocalConfig;
+    this.loadRemoteConfig = BaseCommand.prototype.loadRemoteConfig;
   }
 
   private static readonly ADD_CONTEXT_FILE = 'node-add.json';
@@ -813,7 +815,7 @@ export class NodeCommandHandlers extends CommandHandler {
       },
       'Error starting node',
       lease,
-      NodeCommand.START_COMMAND,
+      NodeCommandHandlers.START_COMMAND,
     );
 
     return true;
@@ -842,7 +844,7 @@ export class NodeCommandHandlers extends CommandHandler {
       },
       'Error in setting up nodes',
       lease,
-      NodeCommand.SETUP_COMMAND,
+      NodeCommandHandlers.SETUP_COMMAND,
     );
 
     return true;

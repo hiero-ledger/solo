@@ -121,7 +121,6 @@ import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api
 import {type ComponentFactoryApi} from '../../core/config/remote/api/component-factory-api.js';
 import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
-import {NodeCommand} from './index.js';
 
 @injectable()
 export class NodeCommandTasks {
@@ -157,8 +156,8 @@ export class NodeCommandTasks {
     this.certificateManager = patchInject(certificateManager, InjectTokens.CertificateManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
-    this.loadLocalConfig = NodeCommand.prototype.loadLocalConfig;
-    this.loadRemoteConfig = NodeCommand.prototype.loadRemoteConfig;
+    this.loadLocalConfig = BaseCommand.prototype.loadLocalConfig;
+    this.loadRemoteConfig = BaseCommand.prototype.loadRemoteConfig;
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {

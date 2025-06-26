@@ -9,7 +9,7 @@ import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../../types/
 import {type CommandDefinition, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';
-import {delay, inject, injectable} from 'tsyringe-neo';
+import {injectable} from 'tsyringe-neo';
 import {v4 as uuid4} from 'uuid';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {StringEx} from '../../business/utils/string-ex.js';
@@ -24,13 +24,9 @@ import {DeploymentCommand} from '../deployment.js';
 import {NodeCommandHandlers} from '../node/handlers.js';
 import {InitCommand} from '../init/init.js';
 import {NetworkCommand} from '../network.js';
-import {NodeCommand} from '../node/index.js';
 import {MirrorNodeCommand} from '../mirror-node.js';
 import {ExplorerCommand} from '../explorer.js';
 import {RelayCommand} from '../relay.js';
-import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
-import {patchInject} from '../../core/dependency-injection/container-helper.js';
-import {Commands} from '../commands.js';
 import {TaskList} from '../../core/task-list/task-list.js';
 
 @injectable()
@@ -73,9 +69,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     optional: [],
   };
 
-  public constructor(@inject(delay(() => Commands)) public readonly commands?: Commands) {
+  public constructor() {
     super();
-    this.commands = patchInject(commands, InjectTokens.Commands, this.constructor.name);
   }
 
   private newArgv(): string[] {
@@ -225,12 +220,12 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             argv.push('network', 'deploy', this.optionFromFlag(Flags.deployment), config.deployment);
             return this.argvPushGlobalFlags(argv, config.cacheDir);
           }),
-          this.invokeSoloCommand('solo node setup', NodeCommand.SETUP_COMMAND, () => {
+          this.invokeSoloCommand('solo node setup', NodeCommandHandlers.SETUP_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push('node', 'setup', this.optionFromFlag(Flags.deployment), config.deployment);
             return this.argvPushGlobalFlags(argv, config.cacheDir);
           }),
-          this.invokeSoloCommand('solo node start', NodeCommand.START_COMMAND, () => {
+          this.invokeSoloCommand('solo node start', NodeCommandHandlers.START_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push('node', 'start', this.optionFromFlag(Flags.deployment), config.deployment);
             return this.argvPushGlobalFlags(argv);

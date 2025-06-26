@@ -30,7 +30,7 @@ import {PathEx} from '../../business/utils/path-ex.js';
 import {quote} from 'shell-quote';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {StringFacade} from '../../business/runtime-state/facade/string-facade.js';
-import {ClusterCommand} from './index.js';
+import {BaseCommand} from '../base.js';
 
 @injectable()
 export class ClusterCommandTasks {
@@ -55,8 +55,8 @@ export class ClusterCommandTasks {
     this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
-    this.loadLocalConfig = ClusterCommand.prototype.loadLocalConfig;
-    this.loadRemoteConfig = ClusterCommand.prototype.loadRemoteConfig;
+    this.loadLocalConfig = BaseCommand.prototype.loadLocalConfig;
+    this.loadRemoteConfig = BaseCommand.prototype.loadRemoteConfig;
   }
 
   public connectClusterRef(): SoloListrTask<ClusterReferenceConnectContext> {
