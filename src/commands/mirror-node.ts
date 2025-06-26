@@ -397,7 +397,8 @@ export class MirrorNodeCommand extends BaseCommand {
             if (semver.lt(context_.config.mirrorNodeVersion, '0.130.0')) {
               context_.config.valuesArg += helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA);
             } else {
-              context_.config.valuesArg += helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
+              // context_.config.valuesArg += helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
+              context_.config.valuesArg += helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA);
             }
             // user defined values later to override predefined values
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
@@ -417,7 +418,8 @@ export class MirrorNodeCommand extends BaseCommand {
             const shard = this.localConfig.configuration.shardForDeployment(deploymentName);
             const chartNamespace: string = this.getChartNamespace(context_.config.mirrorNodeVersion);
 
-            const modules = ['monitor', 'rest', 'grpc', 'importer', 'restJava', 'graphql', 'rosetta', 'web3'];
+            // const modules = ['monitor', 'rest', 'grpc', 'importer', 'restJava', 'graphql', 'rosetta', 'web3'];
+            const modules = [];
             for (const module of modules) {
               context_.config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.realm=${realm}`;
               context_.config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.shard=${shard}`;
@@ -751,7 +753,8 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   private getChartNamespace(version: string): string {
-    return semver.lt(version, '0.130.0') ? 'hedera' : 'hiero';
+    // return semver.lt(version, '0.130.0') ? 'hedera' : 'hiero';
+    return 'hedera';
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
