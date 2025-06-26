@@ -49,7 +49,7 @@ function check_port_forward ()
   do
     echo "Check port forward i = $i out of 20" >> port-forward.log
     ps -ef |grep port-forward >> port-forward.log
-    sleep 5
+    sleep 10
   done &
 }
 
@@ -67,7 +67,7 @@ function start_contract_test ()
 {
   cd hedera-smart-contracts
   echo "Wait a few seconds for background transactions to start"
-  sleep 5
+  sleep 10
   echo "Run smart contract test"
   npm run hh:test
   result=$?
