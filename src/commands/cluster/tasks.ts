@@ -31,6 +31,7 @@ import {quote} from 'shell-quote';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {StringFacade} from '../../business/runtime-state/facade/string-facade.js';
 import {BaseCommand} from '../base.js';
+import {Lock} from '../../core/lock/lock.js';
 
 @injectable()
 export class ClusterCommandTasks {
@@ -161,16 +162,18 @@ export class ClusterCommandTasks {
     loadRemoteConfig: boolean = false,
   ): SoloListrTask<AnyListrContext> {
     const {required, optional} = argv;
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
 
     argv.flags = [...required, ...optional];
 
     return {
       title: 'Initialize',
       task: async (context_, task) => {
-        await this.loadLocalConfig();
+        await self.loadLocalConfig();
 
         if (loadRemoteConfig) {
-          await this.loadRemoteConfig(argv);
+          await self.loadRemoteConfig(argv);
         }
         context_.config = await configInit(argv, context_, task);
       },
@@ -178,10 +181,13 @@ export class ClusterCommandTasks {
   }
 
   public showClusterList(): SoloListrTask<AnyListrContext> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+
     return {
       title: 'List all available clusters',
       task: async () => {
-        await this.loadLocalConfig();
+        await self.loadLocalConfig();
 
         const clusterReferences = this.localConfig.configuration.clusterRefs;
         const clusterList = [];
@@ -231,6 +237,7 @@ export class ClusterCommandTasks {
   }
 
   public prepareChartValues(): SoloListrTask<ClusterReferenceSetupContext> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
 
     return {
@@ -269,7 +276,9 @@ export class ClusterCommandTasks {
   }
 
   public installClusterChart(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
+
     return {
       title: `Install '${constants.SOLO_CLUSTER_SETUP_CHART}' chart`,
       task: async context_ => {
@@ -322,14 +331,16 @@ export class ClusterCommandTasks {
     return {
       title: 'Acquire new lease',
       task: async (_, task) => {
-        const lease = await this.leaseManager.create();
+        const lease: Lock = await this.leaseManager.create();
         return ListrLock.newAcquireLockTask(lease, task);
       },
     };
   }
 
   public uninstallClusterChart(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
+
     return {
       title: `Uninstall '${constants.SOLO_CLUSTER_SETUP_CHART}' chart`,
       task: async (context_, task) => {

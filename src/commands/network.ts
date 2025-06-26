@@ -25,7 +25,6 @@ import {type ProfileManager} from '../core/profile-manager.js';
 import {type CertificateManager} from '../core/certificate-manager.js';
 import {
   type AnyListrContext,
-  AnyObject,
   type AnyYargs,
   type ArgvStruct,
   type IP,
@@ -866,12 +865,8 @@ export class NetworkCommand extends BaseCommand {
 
   /** Run helm install and deploy network components */
   private async deploy(argv: ArgvStruct): Promise<boolean> {
-    const loadLocalConfig: () => Promise<void> = this.loadLocalConfig.bind(this);
-    const loadRemoteConfig: (
-      argv: {_: string[]} & AnyObject,
-      validate: boolean,
-      validateConsensusNode: boolean,
-    ) => Promise<void> = this.loadRemoteConfig.bind(this);
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
     let lease: Lock;
 
     const tasks = this.taskList.newTaskList(
@@ -879,8 +874,8 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
-            await loadLocalConfig();
-            await loadRemoteConfig(argv, true, false);
+            await self.loadLocalConfig();
+            await self.loadRemoteConfig(argv, true, false);
             lease = await this.leaseManager.create();
 
             context_.config = await this.prepareConfig(task, argv);
@@ -1254,6 +1249,8 @@ export class NetworkCommand extends BaseCommand {
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
     let lease: Lock;
 
     let networkDestroySuccess: boolean = true;
@@ -1262,9 +1259,9 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task): Promise<SoloListr<NetworkDeployContext>> => {
-            await this.loadLocalConfig();
-            await this.loadRemoteConfig(argv);
-            lease = await this.leaseManager.create();
+            await self.loadLocalConfig();
+            await self.loadRemoteConfig(argv);
+            lease = await self.leaseManager.create();
 
             if (!argv.force) {
               const confirmResult: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {

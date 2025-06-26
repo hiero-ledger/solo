@@ -247,6 +247,7 @@ export class RelayCommand extends BaseCommand {
   }
 
   private async deploy(argv: ArgvStruct) {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
     let lease: Lock;
 
@@ -255,8 +256,8 @@ export class RelayCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
-            await this.loadLocalConfig();
-            await this.loadRemoteConfig(argv);
+            await self.loadLocalConfig();
+            await self.loadRemoteConfig(argv);
             lease = await self.leaseManager.create();
 
             // reset nodeAlias
@@ -427,6 +428,7 @@ export class RelayCommand extends BaseCommand {
   }
 
   private async destroy(argv: ArgvStruct) {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
     let lease: Lock;
 
@@ -435,8 +437,8 @@ export class RelayCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
-            await this.loadLocalConfig();
-            await this.loadRemoteConfig(argv);
+            await self.loadLocalConfig();
+            await self.loadRemoteConfig(argv);
             lease = await self.leaseManager.create();
 
             // reset nodeAlias

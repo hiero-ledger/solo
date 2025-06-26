@@ -122,7 +122,7 @@ export class DeploymentCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
-            await this.loadLocalConfig();
+            await self.loadLocalConfig();
 
             self.configManager.update(argv);
 
@@ -208,8 +208,8 @@ export class DeploymentCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
-            await this.loadLocalConfig();
-            await this.loadRemoteConfig(argv);
+            await self.loadLocalConfig();
+            await self.loadRemoteConfig(argv);
 
             self.configManager.update(argv);
 
@@ -332,7 +332,7 @@ export class DeploymentCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
-            await this.loadLocalConfig();
+            await self.loadLocalConfig();
 
             self.configManager.update(argv);
             self.logger.debug('Updated config with argv', {config: self.configManager.config});
@@ -502,10 +502,13 @@ export class DeploymentCommand extends BaseCommand {
    * Initializes and populates the config and context for 'deployment add-cluster'
    */
   public initializeClusterAddConfig(argv: ArgvStruct): SoloListrTask<DeploymentAddClusterContext> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+
     return {
       title: 'Initialize',
       task: async (context_, task) => {
-        await this.loadLocalConfig();
+        await self.loadLocalConfig();
 
         this.configManager.update(argv);
 

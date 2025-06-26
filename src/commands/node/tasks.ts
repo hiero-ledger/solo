@@ -2581,14 +2581,16 @@ export class NodeCommandTasks {
     lease: Lock | null,
     shouldLoadNodeClient: boolean = true,
   ): SoloListrTask<AnyListrContext> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
     const {required, optional} = argv;
     argv.flags = [...required, ...optional];
 
     return {
       title: 'Initialize',
       task: async (context_, task): Promise<SoloListr<AnyListrContext> | void> => {
-        await this.loadLocalConfig();
-        await this.loadRemoteConfig(argv);
+        await self.loadLocalConfig();
+        await self.loadRemoteConfig(argv);
 
         if (argv[flags.devMode.name]) {
           this.logger.setDevMode(true);
