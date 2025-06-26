@@ -290,6 +290,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
       await tasks.run();
     } catch (error) {
       throw new SoloError(`Error deploying Solo in quick-start mode: ${error.message}`, error);
+    } finally {
+      await this.taskList.callCloseFunctions();
     }
 
     return true;
