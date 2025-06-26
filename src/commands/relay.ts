@@ -30,6 +30,7 @@ import {Templates} from '../core/templates.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {Lock} from '../core/lock/lock.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -247,7 +248,7 @@ export class RelayCommand extends BaseCommand {
 
   private async deploy(argv: ArgvStruct) {
     const self = this;
-    const lease = await self.leaseManager.create();
+    let lease: Lock;
 
     const tasks = this.taskList.newTaskList(
       [
@@ -256,6 +257,7 @@ export class RelayCommand extends BaseCommand {
           task: async (context_, task) => {
             await this.loadLocalConfig();
             await this.loadRemoteConfig(argv);
+            lease = await self.leaseManager.create();
 
             // reset nodeAlias
             self.configManager.setFlag(flags.nodeAliasesUnparsed, '');
@@ -426,7 +428,7 @@ export class RelayCommand extends BaseCommand {
 
   private async destroy(argv: ArgvStruct) {
     const self = this;
-    const lease = await self.leaseManager.create();
+    let lease: Lock;
 
     const tasks = new Listr<RelayDestroyContext>(
       [
@@ -435,6 +437,7 @@ export class RelayCommand extends BaseCommand {
           task: async (context_, task) => {
             await this.loadLocalConfig();
             await this.loadRemoteConfig(argv);
+            lease = await self.leaseManager.create();
 
             // reset nodeAlias
             self.configManager.setFlag(flags.nodeAliasesUnparsed, '');

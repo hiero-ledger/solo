@@ -559,4 +559,8 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
     return context;
   }
+
+  public getNamespace(): NamespaceName {
+    return NamespaceName.of(this.configuration.clusters?.at(0)?.namespace);
+  }
 }

@@ -52,6 +52,7 @@ import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirr
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import * as semver from 'semver';
+import {Lock} from '../core/lock/lock.js';
 
 interface MirrorNodeDeployConfigClass {
   isChartInstalled: boolean;
@@ -352,7 +353,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
   private async deploy(argv: ArgvStruct): Promise<boolean> {
     const self = this;
-    const lease = await self.leaseManager.create();
+    let lease: Lock;
 
     const tasks = this.taskList.newTaskList(
       [
@@ -361,6 +362,7 @@ export class MirrorNodeCommand extends BaseCommand {
           task: async (context_, task) => {
             await this.loadLocalConfig();
             await this.loadRemoteConfig(argv);
+            lease = await self.leaseManager.create();
 
             self.configManager.update(argv);
 
@@ -789,7 +791,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
     const self = this;
-    const lease = await self.leaseManager.create();
+    let lease: Lock;
 
     const tasks = new Listr<MirrorNodeDestroyContext>(
       [
@@ -798,6 +800,7 @@ export class MirrorNodeCommand extends BaseCommand {
           task: async (context_, task) => {
             await this.loadLocalConfig();
             await this.loadRemoteConfig(argv);
+            lease = await self.leaseManager.create();
 
             if (!argv.force) {
               const confirmResult = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {

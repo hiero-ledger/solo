@@ -243,11 +243,19 @@ export class NodeCommandHandlers extends CommandHandler {
   public async prepareUpgrade(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DEFAULT_FLAGS);
 
-    const lease = await this.leaseManager.create();
+    let lease: Lock;
 
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+            lease = await this.leaseManager.create();
+          },
+        },
         this.tasks.initialize(argv, this.configs.prepareUpgradeConfigBuilder.bind(this.configs), lease),
         this.tasks.identifyExistingNodes(),
         this.tasks.prepareStagingDirectory('existingNodeAliases'),
@@ -289,11 +297,19 @@ export class NodeCommandHandlers extends CommandHandler {
   public async downloadGeneratedFiles(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DEFAULT_FLAGS);
 
-    const lease = await this.leaseManager.create();
+    let lease: Lock;
 
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+            lease = await this.leaseManager.create();
+          },
+        },
         this.tasks.initialize(argv, this.configs.downloadGeneratedFilesConfigBuilder.bind(this.configs), lease),
         this.tasks.identifyExistingNodes(),
         this.tasks.downloadNodeGeneratedFiles(),
@@ -350,11 +366,19 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async updateSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
-    const lease = await this.leaseManager.create();
+    let lease: Lock;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_SUBMIT_TRANSACTIONS_FLAGS);
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+            lease = await this.leaseManager.create();
+          },
+        },
         this.tasks.initialize(argv, this.configs.updateConfigBuilder.bind(this.configs), lease),
         this.tasks.loadContextData(argv, NodeCommandHandlers.UPDATE_CONTEXT_FILE, NodeHelper.updateLoadContextParser),
         ...this.updateSubmitTransactionsTasks(),
@@ -371,11 +395,19 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async updateExecute(argv: ArgvStruct): Promise<boolean> {
-    const lease = await this.leaseManager.create();
+    let lease: Lock;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_EXECUTE_FLAGS);
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+            lease = await this.leaseManager.create();
+          },
+        },
         this.tasks.initialize(
           argv,
           this.configs.updateConfigBuilder.bind(this.configs),
@@ -417,11 +449,19 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async upgradeSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
-    const lease = await this.leaseManager.create();
+    let lease: Lock;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_SUBMIT_TRANSACTIONS_FLAGS);
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+            lease = await this.leaseManager.create();
+          },
+        },
         this.tasks.initialize(argv, this.configs.upgradeConfigBuilder.bind(this.configs), lease),
         this.tasks.loadContextData(argv, NodeCommandHandlers.UPGRADE_CONTEXT_FILE, NodeHelper.upgradeLoadContextParser),
         ...this.upgradeSubmitTransactionsTasks(),
@@ -438,11 +478,19 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async upgradeExecute(argv: ArgvStruct): Promise<boolean> {
-    const lease = await this.leaseManager.create();
+    let lease: Lock;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_FLAGS);
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+            lease = await this.leaseManager.create();
+          },
+        },
         this.tasks.initialize(
           argv,
           this.configs.upgradeConfigBuilder.bind(this.configs),
@@ -531,11 +579,19 @@ export class NodeCommandHandlers extends CommandHandler {
   public async deleteSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_SUBMIT_TRANSACTIONS_FLAGS);
 
-    const lease = await this.leaseManager.create();
+    let lease: Lock;
 
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+            lease = await this.leaseManager.create();
+          },
+        },
         this.tasks.initialize(argv, this.configs.deleteConfigBuilder.bind(this.configs), lease),
         this.tasks.loadContextData(argv, NodeCommandHandlers.DELETE_CONTEXT_FILE, NodeHelper.deleteLoadContextParser),
         ...this.deleteSubmitTransactionsTaskList(),
@@ -554,11 +610,19 @@ export class NodeCommandHandlers extends CommandHandler {
   public async deleteExecute(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_EXECUTE_FLAGS);
 
-    const lease = await this.leaseManager.create();
+    let lease: Lock;
 
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+            lease = await this.leaseManager.create();
+          },
+        },
         this.tasks.initialize(argv, this.configs.deleteConfigBuilder.bind(this.configs), lease, false),
         this.tasks.loadContextData(argv, NodeCommandHandlers.DELETE_CONTEXT_FILE, NodeHelper.deleteLoadContextParser),
         ...this.deleteExecuteTaskList(),
@@ -618,11 +682,19 @@ export class NodeCommandHandlers extends CommandHandler {
   public async addSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_SUBMIT_TRANSACTIONS_FLAGS);
 
-    const lease = await this.leaseManager.create();
+    let lease: Lock;
 
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+            lease = await this.leaseManager.create();
+          },
+        },
         this.tasks.initialize(argv, this.configs.addConfigBuilder.bind(this.configs), lease),
         this.tasks.loadContextData(argv, NodeCommandHandlers.ADD_CONTEXT_FILE, helpers.addLoadContextParser),
         ...this.addSubmitTransactionsTasks(),
@@ -641,11 +713,19 @@ export class NodeCommandHandlers extends CommandHandler {
   public async addExecute(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_EXECUTE_FLAGS);
 
-    const lease = await this.leaseManager.create();
+    let lease: Lock;
 
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+            lease = await this.leaseManager.create();
+          },
+        },
         this.tasks.initialize(
           argv,
           this.configs.addConfigBuilder.bind(this.configs),
@@ -712,11 +792,19 @@ export class NodeCommandHandlers extends CommandHandler {
   public async refresh(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.REFRESH_FLAGS);
 
-    const lease = await this.leaseManager.create();
+    let lease: Lock;
 
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+            lease = await this.leaseManager.create();
+          },
+        },
         this.tasks.initialize(argv, this.configs.refreshConfigBuilder.bind(this.configs), lease),
         this.validateAllNodePhases({
           acceptedPhases: [DeploymentPhase.STARTED, DeploymentPhase.CONFIGURED, DeploymentPhase.DEPLOYED],
@@ -766,11 +854,19 @@ export class NodeCommandHandlers extends CommandHandler {
   public async stop(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.STOP_FLAGS);
 
-    const lease = await this.leaseManager.create();
+    let lease: Lock;
 
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+            lease = await this.leaseManager.create();
+          },
+        },
         this.tasks.initialize(argv, this.configs.stopConfigBuilder.bind(this.configs), lease),
         this.validateAllNodePhases({
           acceptedPhases: [DeploymentPhase.STARTED, DeploymentPhase.CONFIGURED],
@@ -793,11 +889,19 @@ export class NodeCommandHandlers extends CommandHandler {
   public async start(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.START_FLAGS);
 
-    const lease = await this.leaseManager.create();
+    let lease: Lock;
 
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+            lease = await this.leaseManager.create();
+          },
+        },
         this.tasks.initialize(argv, this.configs.startConfigBuilder.bind(this.configs), lease),
         this.validateAllNodePhases({acceptedPhases: [DeploymentPhase.CONFIGURED]}),
         this.tasks.identifyExistingNodes(),
@@ -824,11 +928,19 @@ export class NodeCommandHandlers extends CommandHandler {
   public async setup(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.SETUP_FLAGS);
 
-    const lease = await this.leaseManager.create();
+    let lease: Lock;
 
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+            lease = await this.leaseManager.create();
+          },
+        },
         this.tasks.initialize(argv, this.configs.setupConfigBuilder.bind(this.configs), lease),
         this.validateAllNodePhases({
           acceptedPhases: [DeploymentPhase.DEPLOYED],
@@ -852,11 +964,19 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async freeze(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.FREEZE_FLAGS);
-    const lease = await this.leaseManager.create();
+    let lease: Lock;
 
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+            lease = await this.leaseManager.create();
+          },
+        },
         this.tasks.initialize(argv, this.configs.freezeConfigBuilder.bind(this.configs), lease),
         this.tasks.identifyExistingNodes(),
         this.tasks.sendFreezeTransaction(),
@@ -878,10 +998,18 @@ export class NodeCommandHandlers extends CommandHandler {
   public async restart(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.RESTART_FLAGS);
 
-    const lease = await this.leaseManager.create();
+    let lease: Lock;
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await this.loadLocalConfig();
+            await this.loadRemoteConfig(argv);
+            lease = await this.leaseManager.create();
+          },
+        },
         this.tasks.initialize(argv, this.configs.restartConfigBuilder.bind(this.configs), lease),
         this.tasks.identifyExistingNodes(),
         this.tasks.startNodes('existingNodeAliases'),

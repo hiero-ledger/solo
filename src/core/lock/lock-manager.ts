@@ -12,6 +12,7 @@ import {patchInject} from '../dependency-injection/container-helper.js';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {LockAcquisitionError} from './lock-acquisition-error.js';
+import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 /**
  * Manages the acquisition and renewal of locks.
@@ -25,17 +26,25 @@ export class LockManager {
    * @param _logger - the logger.
    * @param k8Factory - the Kubernetes client.
    * @param configManager - the configuration manager.
+   * @param remoteConfigRuntimeState
    */
   constructor(
     @inject(InjectTokens.LockRenewalService) private readonly _renewalService?: LockRenewalService,
     @inject(InjectTokens.SoloLogger) private readonly _logger?: SoloLogger,
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
     @inject(InjectTokens.ConfigManager) private readonly configManager?: ConfigManager,
+    @inject(InjectTokens.RemoteConfigRuntimeState)
+    private readonly remoteConfigRuntimeState?: RemoteConfigRuntimeStateApi,
   ) {
     this._renewalService = patchInject(_renewalService, InjectTokens.LockRenewalService, this.constructor.name);
     this._logger = patchInject(_logger, InjectTokens.SoloLogger, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
+    this.remoteConfigRuntimeState = patchInject(
+      remoteConfigRuntimeState,
+      InjectTokens.RemoteConfigRuntimeState,
+      this.constructor.name,
+    );
   }
 
   /**
@@ -44,7 +53,11 @@ export class LockManager {
    * @returns a new lease instance.
    */
   public async create(): Promise<Lock> {
-    return new IntervalLock(this.k8Factory, this._renewalService, LockHolder.default(), await this.currentNamespace());
+    let namespace: NamespaceName = this.remoteConfigRuntimeState.getNamespace();
+    if (!namespace) {
+      namespace = await this.currentNamespace();
+    }
+    return new IntervalLock(this.k8Factory, this._renewalService, LockHolder.default(), namespace);
   }
 
   /**

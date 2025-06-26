@@ -37,6 +37,7 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {Lock} from '../core/lock/lock.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -220,7 +221,7 @@ export class ExplorerCommand extends BaseCommand {
 
   private async deploy(argv: ArgvStruct): Promise<boolean> {
     const self = this;
-    const lease = await self.leaseManager.create();
+    let lease: Lock;
 
     const tasks = this.taskList.newTaskList(
       [
@@ -229,6 +230,7 @@ export class ExplorerCommand extends BaseCommand {
           task: async (context_, task) => {
             await this.loadLocalConfig();
             await this.loadRemoteConfig(argv);
+            lease = await self.leaseManager.create();
 
             self.configManager.update(argv);
 
@@ -467,7 +469,7 @@ export class ExplorerCommand extends BaseCommand {
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
     const self = this;
-    const lease = await self.leaseManager.create();
+    let lease: Lock;
 
     const tasks = new Listr<ExplorerDestroyContext>(
       [
@@ -476,6 +478,7 @@ export class ExplorerCommand extends BaseCommand {
           task: async (context_, task) => {
             await this.loadLocalConfig();
             await this.loadRemoteConfig(argv);
+            lease = await self.leaseManager.create();
 
             if (!argv.force) {
               const confirmResult = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {

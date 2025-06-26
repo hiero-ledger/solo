@@ -866,13 +866,13 @@ export class NetworkCommand extends BaseCommand {
 
   /** Run helm install and deploy network components */
   private async deploy(argv: ArgvStruct): Promise<boolean> {
-    const lease: Lock = await this.leaseManager.create();
     const loadLocalConfig: () => Promise<void> = this.loadLocalConfig.bind(this);
     const loadRemoteConfig: (
       argv: {_: string[]} & AnyObject,
       validate: boolean,
       validateConsensusNode: boolean,
     ) => Promise<void> = this.loadRemoteConfig.bind(this);
+    let lease: Lock;
 
     const tasks = this.taskList.newTaskList(
       [
@@ -881,6 +881,7 @@ export class NetworkCommand extends BaseCommand {
           task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
             await loadLocalConfig();
             await loadRemoteConfig(argv, true, false);
+            lease = await this.leaseManager.create();
 
             context_.config = await this.prepareConfig(task, argv);
             return ListrLock.newAcquireLockTask(lease, task);
@@ -1253,7 +1254,7 @@ export class NetworkCommand extends BaseCommand {
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
-    const lease: Lock = await this.leaseManager.create();
+    let lease: Lock;
 
     let networkDestroySuccess: boolean = true;
     const tasks: Listr<NetworkDestroyContext> = new Listr<NetworkDestroyContext>(
@@ -1263,6 +1264,7 @@ export class NetworkCommand extends BaseCommand {
           task: async (context_, task): Promise<SoloListr<NetworkDeployContext>> => {
             await this.loadLocalConfig();
             await this.loadRemoteConfig(argv);
+            lease = await this.leaseManager.create();
 
             if (!argv.force) {
               const confirmResult: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
