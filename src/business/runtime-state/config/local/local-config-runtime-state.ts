@@ -50,7 +50,7 @@ export class LocalConfigRuntimeState {
 
   public get configuration(): LocalConfig {
     if (!this.isLoaded) {
-      throw new Error('Local configuration is not loaded yet. Please call load() first.');
+      throw new Error('configuration: Local configuration is not loaded yet. Please call load() first.');
     }
 
     return this._localConfig;
@@ -98,7 +98,7 @@ export class LocalConfigRuntimeState {
    */
   private async migrateCacheDirectories(): Promise<void> {
     if (!this.isLoaded) {
-      throw new Error('Local configuration is not loaded yet. Please call load() first.');
+      throw new Error('migrateCacheDirectories: Local configuration is not loaded yet. Please call load() first.');
     }
     const cacheDirectory: string = PathEx.join(this.basePath, 'cache').toString();
     const releaseTag: string = this.configManager.getFlag(flags.releaseTag);
@@ -123,7 +123,9 @@ export class LocalConfigRuntimeState {
 
   private async findMatchingSoloCacheDirectories(baseDirectory: string): Promise<string[]> {
     if (!this.isLoaded) {
-      throw new Error('Local configuration is not loaded yet. Please call load() first.');
+      throw new Error(
+        'findMatchingSoloCacheDirectories: Local configuration is not loaded yet. Please call load() first.',
+      );
     }
     // Regex to match directory names like 'v0.58' or 'v0.60'
     // This will capture the version number.
@@ -170,7 +172,7 @@ export class LocalConfigRuntimeState {
 
   public async persist(): Promise<void> {
     if (!this.isLoaded) {
-      throw new Error('Local configuration is not loaded yet. Please call load() first.');
+      throw new Error('persist: Local configuration is not loaded yet. Please call load() first.');
     }
     try {
       return await this.source.persist();
