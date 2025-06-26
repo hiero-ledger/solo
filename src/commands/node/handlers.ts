@@ -806,6 +806,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.checkNodeProxiesAreActive(),
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
         this.tasks.addNodeStakes(),
+        this.tasks.setGrpcWebEndpoint(),
       ],
       {
         concurrent: false,

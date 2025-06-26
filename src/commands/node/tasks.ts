@@ -124,6 +124,7 @@ import {type ComponentFactoryApi} from '../../core/config/remote/api/component-f
 import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 import {NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
+import {SemVer, lt} from 'semver';
 
 @injectable()
 export class NodeCommandTasks {
@@ -1289,10 +1290,15 @@ export class NodeCommandTasks {
     };
   }
 
-  public async setGrpcWebEndpoint() {
+  public setGrpcWebEndpoint(): SoloListrTask<NodeStartContext> {
     // TODO: add flag to enable it if it needs, add to the end of node start
     return {
-      title: 'Set gRPC Web endpoint',
+      title: 'set gRPC Web endpoint',
+      skip: (): boolean => {
+        const currentVersion: SemVer = this.remoteConfig.configuration.versions.consensusNode;
+        const versionRequirement: SemVer = new SemVer('0.63.0');
+        return lt(currentVersion, versionRequirement);
+      },
       task: async (context_): Promise<void> => {
         const namespace: NamespaceName = context_.config.namespace;
 
@@ -1303,7 +1309,6 @@ export class NodeCommandTasks {
         );
 
         for (const nodeAlias of context_.config.nodeAliases) {
-
           const networkNodeService: NetworkNodeServices = serviceMap.get(nodeAlias);
 
           const cluster: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
