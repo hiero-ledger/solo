@@ -32,6 +32,7 @@ import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local
 import {StringFacade} from '../../business/runtime-state/facade/string-facade.js';
 import {BaseCommand} from '../base.js';
 import {Lock} from '../../core/lock/lock.js';
+import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';
 
 @injectable()
 export class ClusterCommandTasks {
@@ -49,6 +50,7 @@ export class ClusterCommandTasks {
     @inject(InjectTokens.ChartManager) private readonly chartManager: ChartManager,
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
     @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
+    @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeState,
   ) {
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
@@ -56,6 +58,7 @@ export class ClusterCommandTasks {
     this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
+    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.loadLocalConfig = BaseCommand.prototype.loadLocalConfig;
     this.loadRemoteConfig = BaseCommand.prototype.loadRemoteConfig;
   }

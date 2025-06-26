@@ -53,7 +53,12 @@ export class LockManager {
    * @returns a new lease instance.
    */
   public async create(): Promise<Lock> {
-    let namespace: NamespaceName = this.remoteConfigRuntimeState.getNamespace();
+    let namespace: NamespaceName;
+    try {
+      namespace = this.remoteConfigRuntimeState.getNamespace();
+    } catch {
+      // If the namespace is not set in the remote config, we will use the current namespace.
+    }
     if (!namespace) {
       namespace = await this.currentNamespace();
     }
