@@ -24,8 +24,6 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {type ConfigManager} from './config-manager.js';
 import {Flags as flags} from '../commands/flags.js';
 import {type Realm, type Shard} from './../types/index.js';
-import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
-import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {execSync} from 'node:child_process';
 
 export function getInternalAddress(
