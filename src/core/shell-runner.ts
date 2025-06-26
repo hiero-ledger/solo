@@ -14,7 +14,7 @@ export class ShellRunner {
   }
 
   /** Returns a promise that invokes the shell command */
-  run(cmd: string, verbose = false) {
+  public async run(cmd: string, verbose: boolean = false): Promise<string[]> {
     const self = this;
     const callStack = new Error().stack; // capture the callstack to be included in error
     self.logger.info(`Executing command: '${cmd}'`);

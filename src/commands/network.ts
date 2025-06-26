@@ -25,6 +25,7 @@ import {type ProfileManager} from '../core/profile-manager.js';
 import {type CertificateManager} from '../core/certificate-manager.js';
 import {
   type AnyListrContext,
+  AnyObject,
   type AnyYargs,
   type ArgvStruct,
   type IP,
@@ -170,6 +171,7 @@ export class NetworkCommand extends BaseCommand {
     this.keyManager = patchInject(keyManager, InjectTokens.KeyManager, this.constructor.name);
     this.platformInstaller = patchInject(platformInstaller, InjectTokens.PlatformInstaller, this.constructor.name);
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
+    this.componentFactory = patchInject(componentFactory, InjectTokens.ComponentFactory, this.constructor.name);
   }
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
@@ -865,14 +867,20 @@ export class NetworkCommand extends BaseCommand {
   /** Run helm install and deploy network components */
   private async deploy(argv: ArgvStruct): Promise<boolean> {
     const lease: Lock = await this.leaseManager.create();
+    const loadLocalConfig: () => Promise<void> = this.loadLocalConfig.bind(this);
+    const loadRemoteConfig: (
+      argv: {_: string[]} & AnyObject,
+      validate: boolean,
+      validateConsensusNode: boolean,
+    ) => Promise<void> = this.loadRemoteConfig.bind(this);
 
     const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
           task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
-            await this.loadLocalConfig();
-            await this.loadRemoteConfig(argv, true, false);
+            await loadLocalConfig();
+            await loadRemoteConfig(argv, true, false);
 
             context_.config = await this.prepareConfig(task, argv);
             return ListrLock.newAcquireLockTask(lease, task);

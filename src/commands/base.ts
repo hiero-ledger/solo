@@ -71,10 +71,8 @@ export abstract class BaseCommand extends ShellRunner {
     validate: boolean = true,
     validateConsensusNode: boolean = true,
   ): Promise<void> {
-    const remoteConfig: RemoteConfigRuntimeStateApi = this.remoteConfig;
     this.logger.debug('Loading remote config');
-
-    await remoteConfig.loadAndValidate(argv, validate, !validateConsensusNode);
+    await this.remoteConfig.loadAndValidate(argv, validate, !validateConsensusNode);
   }
   /**
    * Prepare the values files map for each cluster

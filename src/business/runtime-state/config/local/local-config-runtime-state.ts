@@ -25,7 +25,7 @@ export class LocalConfigRuntimeState {
   private readonly source: LocalConfigSource;
   private readonly backend: YamlFileStorageBackend;
   private readonly objectMapper: ObjectMapper;
-  private isLoaded: boolean = false;
+  public isLoaded: boolean = false;
 
   private _localConfig: LocalConfig;
 
@@ -76,7 +76,6 @@ export class LocalConfigRuntimeState {
 
     this.refresh();
     if (!this.configFileExists()) {
-      this.isLoaded = true;
       return await this.persist();
     }
 
@@ -171,11 +170,9 @@ export class LocalConfigRuntimeState {
   }
 
   public async persist(): Promise<void> {
-    if (!this.isLoaded) {
-      throw new Error('persist: Local configuration is not loaded yet. Please call load() first.');
-    }
     try {
-      return await this.source.persist();
+      await this.source.persist();
+      this.isLoaded = true;
     } catch (error) {
       throw new WriteLocalConfigFileError('Failed to write local config file', error);
     }
