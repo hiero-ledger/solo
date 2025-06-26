@@ -59,8 +59,16 @@ export class CommandHandler {
         await this.accountManager.close();
         await Promise.all(promises);
       }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        const promises = [];
+        if (lease) {
+          promises.push(lease.release());
+        }
+        await this.accountManager.close();
+        await Promise.all(promises);
+      });
     }
-    // TODO const promises = [];      if (lease) {        promises.push(lease.release());      }      await this.accountManager.close();      await Promise.all(promises);
   }
 
   /**

@@ -1235,6 +1235,10 @@ export class NetworkCommand extends BaseCommand {
       } finally {
         await lease.release();
       }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease.release();
+      });
     }
 
     return true;

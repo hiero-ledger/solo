@@ -66,4 +66,8 @@ export interface TaskList<
     >,
     commandName?: string,
   ): Listr<ListrContext, Renderer, FallbackRenderer>;
+
+  registerCloseFunction(trailingCloseFunction: () => Promise<void>): void;
+
+  callCloseFunctions(): Promise<void>;
 }
