@@ -149,7 +149,8 @@ else
     --storage-type "${storageType}" \
     "${MIRROR_STORAGE_OPTIONS[@]}" \
     --ingress-controller-value-file "${script_dir}"/mirror-ingress-controller-values.yaml \
-    --enable-ingress --domain-name localhost
+    --enable-ingress --domain-name localhost \
+    --pinger
 
   kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-grpc 5600:5600 > /dev/null 2>&1 &
   kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-rest 5551:80 > /dev/null 2>&1 &

@@ -17,6 +17,8 @@ export class DeploymentTest extends BaseCommandTest {
     testName: string,
     deployment: DeploymentName,
     namespace: NamespaceName,
+    realm: number,
+    shard: number,
   ): string[] {
     const {newArgv, optionFromFlag, argvPushGlobalFlags} = DeploymentTest;
 
@@ -28,18 +30,22 @@ export class DeploymentTest extends BaseCommandTest {
       deployment,
       optionFromFlag(Flags.namespace),
       namespace.name,
+      optionFromFlag(Flags.realm),
+      String(realm),
+      optionFromFlag(Flags.shard),
+      String(shard),
     );
     argvPushGlobalFlags(argv, testName);
     return argv;
   }
 
   public static create(options: BaseTestOptions): void {
-    const {testName, testLogger, deployment, namespace} = options;
+    const {testName, testLogger, deployment, namespace, realm, shard} = options;
     const {soloDeploymentCreateArgv} = DeploymentTest;
 
     it(`${testName}: solo deployment create`, async (): Promise<void> => {
       testLogger.info(`${testName}: beginning solo deployment create`);
-      await main(soloDeploymentCreateArgv(testName, deployment, namespace));
+      await main(soloDeploymentCreateArgv(testName, deployment, namespace, realm, shard));
       // TODO check that the deployment was created
       testLogger.info(`${testName}: finished solo deployment create`);
     });
@@ -69,7 +75,7 @@ export class DeploymentTest extends BaseCommandTest {
   }
 
   public static addCluster(options: BaseTestOptions): void {
-    const {testName, testLogger, deployment, clusterReferenceNameArray} = options;
+    const {testName, testLogger, deployment, clusterReferenceNameArray, consensusNodesCount} = options;
     const {soloDeploymentAddClusterArgv} = DeploymentTest;
 
     it(`${testName}: solo deployment add-cluster`, async (): Promise<void> => {
@@ -81,9 +87,12 @@ export class DeploymentTest extends BaseCommandTest {
       expect(remoteConfig.isLoaded(), 'remote config manager should be loaded').to.be.true;
       const consensusNodes: Record<ComponentId, ConsensusNodeStateSchema> =
         remoteConfig.configuration.components.state.consensusNodes;
-      expect(Object.entries(consensusNodes).length, 'consensus node count should be 2').to.equal(2);
-      expect(consensusNodes[0].metadata.cluster).to.equal(clusterReferenceNameArray[0]);
-      expect(consensusNodes[1].metadata.cluster).to.equal(clusterReferenceNameArray[1]);
+      expect(Object.entries(consensusNodes).length, `consensus node count should be ${consensusNodesCount}`).to.equal(
+        consensusNodesCount,
+      );
+      for (const [index, element] of clusterReferenceNameArray.entries()) {
+        expect(consensusNodes[index].metadata.cluster).to.equal(element);
+      }
       testLogger.info(`${testName}: finished solo deployment add-cluster`);
     });
   }
