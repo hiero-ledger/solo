@@ -165,12 +165,12 @@ else
   kubectl port-forward -n "${SOLO_NAMESPACE}" svc/"${explorer_svc}" 8080:80 > /dev/null 2>&1 &
 
   # Check Explorer endpoints
-  check_service_health "https://localhost:31001" "SPDX-License" "Explorer" "https" || exit 1
-  check_service_health "http://localhost:31000" "SPDX-License" "Explorer" "http" || exit 1
+  check_service_health "http://localhost:30001" "SPDX-License" "Explorer" "http" || exit 1
+  check_service_health "https://localhost:30002" "SPDX-License" "Explorer" "https" || exit 1
 
   # Check Mirror API endpoints
-  check_service_health "https://localhost:32001/api/v1/accounts" "accounts" "Mirror" "https" || exit 1
-  check_service_health "http://localhost:32000/api/v1/accounts" "accounts" "Mirror" "http" || exit 1
+  check_service_health "http://localhost:30003/api/v1/accounts" "accounts" "Mirror" "http" || exit 1
+  check_service_health "https://localhost:30004/api/v1/accounts" "accounts" "Mirror" "https" || exit 1
 fi
 
 cd ..; create_test_account ${SOLO_DEPLOYMENT}; cd -
