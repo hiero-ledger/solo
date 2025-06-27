@@ -896,8 +896,16 @@ export class MirrorNodeCommand extends BaseCommand {
     } catch (error) {
       throw new SoloError(`Error destroying mirror node: ${error.message}`, error);
     } finally {
-      await lease.release();
-      await self.accountManager.close();
+      try {
+        await lease.release();
+      } catch (error) {
+        self.logger.error(`Error releasing lease: ${error.message}`, error);
+      }
+      try {
+        await self.accountManager.close();
+      } catch (error) {
+        self.logger.error(`Error closing account manager: ${error.message}`, error);
+      }
     }
 
     return true;
