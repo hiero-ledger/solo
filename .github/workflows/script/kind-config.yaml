@@ -1,6 +1,10 @@
 # Expose NodePort used by mirror-ingress-controller and explorer-ingress-controller
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
+      endpoint = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
 nodes:
   - role: control-plane
     extraPortMappings:
