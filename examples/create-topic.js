@@ -17,6 +17,23 @@ import http from 'http';
 
 dotenv.config();
 
+async function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function accountCreate(wallet) {
+  const newKey = PrivateKey.generate();
+  let accountCreateTransaction = await new AccountCreateTransaction()
+    .setInitialBalance(new Hbar(10))
+    .setKey(newKey.publicKey)
+    .freezeWithSigner(wallet);
+  accountCreateTransaction = await accountCreateTransaction.signWithSigner(wallet);
+  const accountCreationResponse = await accountCreateTransaction.executeWithSigner(wallet);
+  await sleep(3500); // wait for consensus on write transactions
+  const accountCreationReceipt = await accountCreationResponse.getReceiptWithSigner(wallet);
+  console.log(`account id = ${accountCreationReceipt.accountId.toString()}`);
+}
+
 async function main() {
   if (process.env.OPERATOR_ID === null || process.env.OPERATOR_KEY === null || process.env.HEDERA_NETWORK === null) {
     throw new Error('Environment variables OPERATOR_ID, HEDERA_NETWORK, and OPERATOR_KEY are required.');
@@ -41,12 +58,14 @@ async function main() {
     let transaction = await new TopicCreateTransaction().setAdminKey(operatorKey).freezeWithSigner(wallet);
     transaction = await transaction.signWithSigner(wallet);
     const createResponse = await transaction.executeWithSigner(wallet);
-    const createReceipt = await createResponse.getReceiptWithSigner(wallet);
+    await sleep(3500); // wait for consensus on write transactions
 
+    const createReceipt = await createResponse.getReceiptWithSigner(wallet);
     console.log(`topic id = ${createReceipt.topicId.toString()}`);
 
-    console.log('Wait a few seconds to create subscribe to new topic');
-    await new Promise(resolve => setTimeout(resolve, 25000));
+    console.log('Wait to create subscribe to new topic');
+    await sleep(25000);
+
     // Create a subscription to the topic
     const mirrorClient = (await Client.forMirrorNetwork(mirrorNetwork)).setOperator(
       process.env.OPERATOR_ID,
@@ -83,25 +102,15 @@ async function main() {
     }).freezeWithSigner(wallet);
     topicMessageSubmitTransaction = await topicMessageSubmitTransaction.signWithSigner(wallet);
     const sendResponse = await topicMessageSubmitTransaction.executeWithSigner(wallet);
+    await sleep(3500); // wait for consensus on write transactions
 
     const sendReceipt = await sendResponse.getReceiptWithSigner(wallet);
-
     console.log(`topic sequence number = ${sendReceipt.topicSequenceNumber.toString()}`);
 
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
     // send a create account transaction to push record stream files to mirror node
-    const newKey = PrivateKey.generate();
-    let accountCreateTransaction = await new AccountCreateTransaction()
-      .setInitialBalance(new Hbar(10))
-      .setKey(newKey.publicKey)
-      .freezeWithSigner(wallet);
-    accountCreateTransaction = await accountCreateTransaction.signWithSigner(wallet);
-    const accountCreationResponse = await accountCreateTransaction.executeWithSigner(wallet);
-    const accountCreationReceipt = await accountCreationResponse.getReceiptWithSigner(wallet);
-    console.log(`account id = ${accountCreationReceipt.accountId.toString()}`);
-
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await accountCreate(wallet);
+    await sleep(3500); // wait for consensus on write transactions
+    await sleep(1000); // wait for mirror node to sync
 
     // Check submit message result should success
     const queryURL = `http://localhost:8080/api/v1/topics/${createReceipt.topicId}/messages`;
@@ -137,12 +146,15 @@ async function main() {
       });
       req.end(); // make the request
       // wait and try again
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // send a create account transaction to push record stream files to mirror node
+      await accountCreate(wallet);
+      await sleep(3500); // wait for consensus on write transactions
+      await sleep(1000); // wait for mirror node to sync
       retry++;
     }
 
     // wait a few seconds to receive subscription message
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await sleep(5000);
     if (!finished) {
       console.error('ERROR: Not received subscription message');
       process.exit(1);
