@@ -28,7 +28,6 @@ import {Base64} from 'js-base64';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {Lock} from '../core/lock/lock.js';
 
 interface UpdateAccountConfig {
   accountId: string;
@@ -461,7 +460,6 @@ export class AccountCommand extends BaseCommand {
 
   public async create(argv: ArgvStruct): Promise<boolean> {
     const self = this;
-    let lease: Lock;
 
     interface Config {
       amount: number;
@@ -488,7 +486,6 @@ export class AccountCommand extends BaseCommand {
           task: async (context_, task) => {
             await self.loadLocalConfig();
             await self.loadRemoteConfig(argv);
-            lease = await self.leaseManager.create();
 
             self.configManager.update(argv);
 
