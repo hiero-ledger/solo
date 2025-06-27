@@ -74,7 +74,7 @@ import {Duration} from '../../core/time/duration.js';
 import {type NodeAddConfigClass} from './config-interfaces/node-add-config-class.js';
 import {GenesisNetworkDataConstructor} from '../../core/genesis-network-models/genesis-network-data-constructor.js';
 import {NodeOverridesModel} from '../../core/node-overrides-model.js';
-import {type NamespaceName} from '../../types/namespace/namespace-name.js';
+import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {PodReference} from '../../integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../../integration/kube/resources/container/container-reference.js';
 import {NetworkNodes} from '../../core/network-nodes.js';
@@ -125,6 +125,8 @@ import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/
 import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 import {NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
 import {SemVer, lt} from 'semver';
+import {Pod} from '../../integration/kube/resources/pod/pod.js';
+import type {Container} from '../../integration/kube/resources/container/container.js';
 
 @injectable()
 export class NodeCommandTasks {
@@ -1290,6 +1292,33 @@ export class NodeCommandTasks {
     };
   }
 
+  public setupNetworkNodeFolders(): SoloListrTask<NodeSetupContext> {
+    return {
+      title: 'setup network node folders',
+      task: async (context_): Promise<void> => {
+        for (const consensusNode of context_.config.consensusNodes) {
+          const podReference: PodReference = await this.k8Factory
+            .getK8(consensusNode.cluster)
+            .pods()
+            .list(NamespaceName.of(consensusNode.namespace), [
+              `solo.hedera.com/node-name=${consensusNode.name}`,
+              'solo.hedera.com/type=network-node',
+            ])
+            .then((pods: Pod[]): PodReference => pods[0].podReference);
+
+          const rootContainer: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+
+          const container: Container = this.k8Factory
+            .getK8(consensusNode.context)
+            .containers()
+            .readByRef(rootContainer);
+
+          await container.execContainer('chmod 777 /opt/hgcapp/services-hedera/HapiApp2.0/data');
+        }
+      },
+    };
+  }
+
   public setGrpcWebEndpoint(): SoloListrTask<NodeStartContext> {
     // TODO: add flag to enable it if it needs, add to the end of node start
     return {
@@ -1346,6 +1375,10 @@ export class NodeCommandTasks {
           if (updateTransactionReceipt.status !== Status.Success) {
             throw new SoloError('Failed to set gRPC web proxy endpoint');
           }
+
+          const response: any = await fetch('http://localhost:5551/api/v1/network/nodes');
+          const nodesData: any = await response.json();
+          console.log(nodesData);
         }
       },
     };

@@ -834,6 +834,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.identifyNetworkPods(),
         this.tasks.fetchPlatformSoftware('nodeAliases'),
         this.tasks.setupNetworkNodes('nodeAliases', true),
+        this.tasks.setupNetworkNodeFolders(),
         this.changeAllNodePhases(DeploymentPhase.CONFIGURED),
       ],
       {
