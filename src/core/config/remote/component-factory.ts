@@ -106,7 +106,7 @@ export class ComponentFactory implements ComponentFactoryApi {
 
   private getMetadata(
     componentType: ComponentTypes,
-    clusterReference: ClusterReference,
+    clusterReference: ClusterReferenceName,
     namespace: NamespaceName,
   ): ComponentStateMetadataSchema {
     const id: ComponentId = this.remoteConfig.configuration.components.getNewComponentId(componentType);
