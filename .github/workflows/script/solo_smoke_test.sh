@@ -140,6 +140,8 @@ function check_importer_log()
 
 function log_and_exit()
 {
+  echo "------- Last port-forward check -------" >> port-forward.log
+  ps -ef |grep port-forward >> port-forward.log
   if [[ "$1" == "0" ]]; then
     echo "Script completed successfully."
     echo "------- BEGIN PORT-FORWARD DUMP -------"
