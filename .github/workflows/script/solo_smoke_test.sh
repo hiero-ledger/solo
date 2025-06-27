@@ -67,7 +67,7 @@ function start_contract_test ()
 {
   cd hedera-smart-contracts
   echo "Wait a few seconds for background transactions to start"
-  sleep 10
+  sleep 30
   echo "Run smart contract test"
   result=0
   npm run hh:test || result=$?
