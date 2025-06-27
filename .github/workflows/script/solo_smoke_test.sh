@@ -59,7 +59,7 @@ function start_background_transactions ()
   # generate accounts as background traffic for two minutes
   # so record stream files can be kept pushing to mirror node
   cd solo
-  npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --create-amount 15 > /dev/null 2>&1 &
+  npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --create-amount 1000 > /dev/null 2>&1 &
   cd -
 }
 
@@ -67,7 +67,7 @@ function start_contract_test ()
 {
   cd hedera-smart-contracts
   echo "Wait a few seconds for background transactions to start"
-  sleep 30
+  sleep 10
   echo "Run smart contract test"
   result=0
   npm run hh:test || result=$?
