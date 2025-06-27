@@ -22,7 +22,7 @@ import {
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as Base64 from 'js-base64';
 import {
-  type ClusterReference,
+  type ClusterReferenceName,
   type CommandDefinition,
   type Context,
   type DeploymentName,
@@ -50,7 +50,7 @@ interface RelayDestroyConfigClass {
   nodeAliases: NodeAliases;
   releaseName: string;
   isChartInstalled: boolean;
-  clusterRef: Optional<ClusterReference>;
+  clusterRef: Optional<ClusterReferenceName>;
   context: Optional<string>;
   id: number;
   useLegacyReleaseName: boolean;
@@ -77,7 +77,7 @@ interface RelayDeployConfigClass {
   nodeAliases: NodeAliases;
   releaseName: string;
   valuesArg: string;
-  clusterRef: Optional<ClusterReference>;
+  clusterRef: Optional<ClusterReferenceName>;
   domainName: Optional<string>;
   context: Optional<string>;
   newRelayComponent: RelayNodeStateSchema;

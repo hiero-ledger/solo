@@ -8,7 +8,7 @@ import {ComponentTypes} from './enumerations/component-types.js';
 import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
 import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {type NodeId} from '../../../types/aliases.js';
-import {type ClusterReference, type ComponentId} from '../../../types/index.js';
+import {type ClusterReferenceName, type ComponentId} from '../../../types/index.js';
 import {type RemoteConfigRuntimeStateApi} from '../../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {type ComponentFactoryApi} from './api/component-factory-api.js';
 import {ComponentStateMetadataSchema} from '../../../data/schema/model/remote/state/component-state-metadata-schema.js';
@@ -30,37 +30,43 @@ export class ComponentFactory implements ComponentFactoryApi {
   }
 
   public createNewRelayComponent(
-    clusterReference: ClusterReference,
+    clusterReference: ClusterReferenceName,
     namespace: NamespaceName,
     nodeIds: NodeId[],
   ): RelayNodeStateSchema {
     return new RelayNodeStateSchema(this.getMetadata(ComponentTypes.RelayNodes, clusterReference, namespace), nodeIds);
   }
 
-  public createNewExplorerComponent(clusterReference: ClusterReference, namespace: NamespaceName): ExplorerStateSchema {
+  public createNewExplorerComponent(
+    clusterReference: ClusterReferenceName,
+    namespace: NamespaceName,
+  ): ExplorerStateSchema {
     return new ExplorerStateSchema(this.getMetadata(ComponentTypes.Explorer, clusterReference, namespace));
   }
 
   public createNewMirrorNodeComponent(
-    clusterReference: ClusterReference,
+    clusterReference: ClusterReferenceName,
     namespace: NamespaceName,
   ): MirrorNodeStateSchema {
     return new MirrorNodeStateSchema(this.getMetadata(ComponentTypes.MirrorNode, clusterReference, namespace));
   }
 
-  public createNewHaProxyComponent(clusterReference: ClusterReference, namespace: NamespaceName): HaProxyStateSchema {
+  public createNewHaProxyComponent(
+    clusterReference: ClusterReferenceName,
+    namespace: NamespaceName,
+  ): HaProxyStateSchema {
     return new HaProxyStateSchema(this.getMetadata(ComponentTypes.HaProxy, clusterReference, namespace));
   }
 
   public createNewEnvoyProxyComponent(
-    clusterReference: ClusterReference,
+    clusterReference: ClusterReferenceName,
     namespace: NamespaceName,
   ): EnvoyProxyStateSchema {
     return new EnvoyProxyStateSchema(this.getMetadata(ComponentTypes.EnvoyProxy, clusterReference, namespace));
   }
 
   public createNewBlockNodeComponent(
-    clusterReference: ClusterReference,
+    clusterReference: ClusterReferenceName,
     namespace: NamespaceName,
   ): BlockNodeStateSchema {
     return new BlockNodeStateSchema(this.getMetadata(ComponentTypes.BlockNode, clusterReference, namespace));
@@ -68,7 +74,7 @@ export class ComponentFactory implements ComponentFactoryApi {
 
   public createNewConsensusNodeComponent(
     id: ComponentId,
-    clusterReference: ClusterReference,
+    clusterReference: ClusterReferenceName,
     namespace: NamespaceName,
     phase: DeploymentPhase.REQUESTED | DeploymentPhase.STARTED,
   ): ConsensusNodeStateSchema {
@@ -84,7 +90,7 @@ export class ComponentFactory implements ComponentFactoryApi {
 
   public createConsensusNodeComponentsFromNodeIds(
     nodeIds: NodeId[],
-    clusterReference: ClusterReference,
+    clusterReference: ClusterReferenceName,
     namespace: NamespaceName,
   ): ConsensusNodeStateSchema[] {
     return nodeIds.map(

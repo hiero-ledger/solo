@@ -7,7 +7,11 @@ import {ComponentsDataWrapper} from '../../../../../src/core/config/remote/compo
 import {SoloError} from '../../../../../src/core/errors/solo-error.js';
 import {ComponentTypes} from '../../../../../src/core/config/remote/enumerations/component-types.js';
 import {type NodeId} from '../../../../../src/types/aliases.js';
-import {type ClusterReference, type ComponentId, type NamespaceNameAsString} from '../../../../../src/types/index.js';
+import {
+  type ClusterReferenceName,
+  type ComponentId,
+  type NamespaceNameAsString,
+} from '../../../../../src/types/index.js';
 import {DeploymentPhase} from '../../../../../src/data/schema/model/remote/deployment-phase.js';
 import {ComponentStateMetadataSchema} from '../../../../../src/data/schema/model/remote/state/component-state-metadata-schema.js';
 import {LedgerPhase} from '../../../../../src/data/schema/model/remote/ledger-phase.js';
@@ -25,7 +29,7 @@ import {RemoteConfigSchema} from '../../../../../src/data/schema/model/remote/re
 export function createComponentsDataWrapper(): {
   values: {
     id: ComponentId;
-    cluster: ClusterReference;
+    cluster: ClusterReferenceName;
     namespace: NamespaceNameAsString;
     phase: DeploymentPhase.DEPLOYED;
     consensusNodeIds: NodeId[];
@@ -45,7 +49,7 @@ export function createComponentsDataWrapper(): {
   const id: ComponentId = 1;
   const componentId: ComponentId = id;
 
-  const cluster: ClusterReference = 'cluster';
+  const cluster: ClusterReferenceName = 'cluster';
   const namespace: NamespaceNameAsString = 'namespace';
   const phase: DeploymentPhase = DeploymentPhase.DEPLOYED;
   const consensusNodeIds: NodeId[] = [0, 1];

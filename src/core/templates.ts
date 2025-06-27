@@ -13,7 +13,7 @@ import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {GrpcProxyTlsEnums} from './enumerations.js';
 import {HEDERA_PLATFORM_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
-import {type ClusterReference, type ComponentId, type NamespaceNameAsString} from './../types/index.js';
+import {type ClusterReferenceName, type ComponentId, type NamespaceNameAsString} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 
 export class Templates {
@@ -302,7 +302,7 @@ export class Templates {
     nodeAlias: string,
     nodeId: number,
     namespace: NamespaceNameAsString,
-    cluster: ClusterReference,
+    cluster: ClusterReferenceName,
     dnsBaseDomain: string,
     dnsConsensusNodePattern: string,
   ) {

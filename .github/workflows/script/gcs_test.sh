@@ -65,7 +65,7 @@ else
   echo "Using PREFIX: ${PREFIX}"
   if [ "${storageType}" == "aws_only" ]; then
     STORAGE_OPTIONS=(
-        "--aws-endpoint" "https://storage.googleapis.com"
+        "--aws-endpoint" "storage.googleapis.com"
         "--aws-write-access-key" "${GCS_ACCESS_KEY}"
         "--aws-write-secrets" "${GCS_SECRET_KEY}"
         "--aws-bucket" "${streamBucket}"
@@ -79,7 +79,7 @@ else
     )
   elif [ "${storageType}" == "gcs_only" ]; then
     STORAGE_OPTIONS=(
-        "--gcs-endpoint" "https://storage.googleapis.com"
+        "--gcs-endpoint" "storage.googleapis.com"
         "--gcs-write-access-key" "${GCS_ACCESS_KEY}"
         "--gcs-write-secrets" "${GCS_SECRET_KEY}"
         "--gcs-bucket" "${streamBucket}"

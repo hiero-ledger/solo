@@ -14,7 +14,7 @@ import {ListrLock} from '../core/lock/listr-lock.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {
-  type ClusterReference,
+  type ClusterReferenceName,
   type CommandDefinition,
   type ComponentId,
   type Context,
@@ -40,7 +40,7 @@ import {Templates} from '../core/templates.js';
 interface ExplorerDeployConfigClass {
   cacheDir: string;
   chartDirectory: string;
-  clusterRef: ClusterReference;
+  clusterRef: ClusterReferenceName;
   clusterContext: string;
   enableIngress: boolean;
   enableExplorerTls: boolean;
@@ -74,7 +74,7 @@ interface ExplorerDeployContext {
 interface ExplorerDestroyContext {
   config: {
     clusterContext: string;
-    clusterReference: ClusterReference;
+    clusterReference: ClusterReferenceName;
     namespace: NamespaceName;
     isChartInstalled: boolean;
     id: ComponentId;
@@ -524,7 +524,7 @@ export class ExplorerCommand extends BaseCommand {
               task,
             );
 
-            const clusterReference: ClusterReference = this.configManager.hasFlag(flags.clusterRef)
+            const clusterReference: ClusterReferenceName = this.configManager.hasFlag(flags.clusterRef)
               ? this.configManager.getFlag(flags.clusterRef)
               : this.remoteConfig.currentCluster;
 

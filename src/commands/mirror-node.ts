@@ -19,7 +19,7 @@ import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as fs from 'node:fs';
 import {
-  type ClusterReference,
+  type ClusterReferenceName,
   type ClusterReferences,
   type CommandDefinition,
   type ComponentId,
@@ -58,7 +58,7 @@ interface MirrorNodeDeployConfigClass {
   cacheDir: string;
   chartDirectory: string;
   clusterContext: string;
-  clusterRef: ClusterReference;
+  clusterRef: ClusterReferenceName;
   namespace: NamespaceName;
   enableIngress: boolean;
   ingressControllerValueFile: string;
@@ -104,7 +104,7 @@ interface MirrorNodeDestroyContext {
     namespace: NamespaceName;
     clusterContext: string;
     isChartInstalled: boolean;
-    clusterReference: ClusterReference;
+    clusterReference: ClusterReferenceName;
     id: ComponentId;
     releaseName: string;
     ingressReleaseName: string;
@@ -887,7 +887,7 @@ export class MirrorNodeCommand extends BaseCommand {
               task,
             );
 
-            const clusterReference: ClusterReference =
+            const clusterReference: ClusterReferenceName =
               this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
 
             const clusterContext: Context = this.localConfig.configuration.clusterRefs

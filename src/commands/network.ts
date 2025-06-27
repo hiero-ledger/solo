@@ -34,7 +34,7 @@ import {
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {v4 as uuidv4} from 'uuid';
 import {
-  type ClusterReference,
+  type ClusterReferenceName,
   type ClusterReferences,
   type CommandDefinition,
   type Context,
@@ -95,7 +95,7 @@ export interface NetworkDeployConfigClass {
   stagingDir: string;
   stagingKeysDir: string;
   valuesFile: string;
-  valuesArgMap: Record<ClusterReference, string>;
+  valuesArgMap: Record<ClusterReferenceName, string>;
   grpcTlsCertificatePath: string;
   grpcWebTlsCertificatePath: string;
   grpcTlsKeyPath: string;
@@ -153,7 +153,7 @@ export interface NetworkDestroyContext {
 
 @injectable()
 export class NetworkCommand extends BaseCommand {
-  private profileValuesFile?: Record<ClusterReference, string>;
+  private profileValuesFile?: Record<ClusterReferenceName, string>;
 
   public constructor(
     @inject(InjectTokens.CertificateManager) private readonly certificateManager: CertificateManager,
@@ -390,11 +390,11 @@ export class NetworkCommand extends BaseCommand {
    * Prepare values args string for each cluster-ref
    * @param config
    */
-  private async prepareValuesArgMap(config: NetworkDeployConfigClass): Promise<Record<ClusterReference, string>> {
-    const valuesArguments: Record<ClusterReference, string> = this.prepareValuesArg(config);
+  private async prepareValuesArgMap(config: NetworkDeployConfigClass): Promise<Record<ClusterReferenceName, string>> {
+    const valuesArguments: Record<ClusterReferenceName, string> = this.prepareValuesArg(config);
 
     // prepare values files for each cluster
-    const valuesArgumentMap: Record<ClusterReference, string> = {};
+    const valuesArgumentMap: Record<ClusterReferenceName, string> = {};
     const profileName: string = this.configManager.getFlag(flags.profileName);
     const deploymentName: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
     const applicationPropertiesPath: string = PathEx.joinWithRealPath(
@@ -411,7 +411,7 @@ export class NetworkCommand extends BaseCommand {
       applicationPropertiesPath,
     );
 
-    const valuesFiles: Record<ClusterReference, string> = BaseCommand.prepareValuesFilesMapMulticluster(
+    const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMapMulticluster(
       config.clusterRefs,
       config.chartDirectory,
       this.profileValuesFile,
@@ -432,9 +432,9 @@ export class NetworkCommand extends BaseCommand {
    * Prepare the values argument for the helm chart for a given config
    * @param config
    */
-  private prepareValuesArg(config: NetworkDeployConfigClass): Record<ClusterReference, string> {
-    const valuesArguments: Record<ClusterReference, string> = {};
-    const clusterReferences: ClusterReference[] = [];
+  private prepareValuesArg(config: NetworkDeployConfigClass): Record<ClusterReferenceName, string> {
+    const valuesArguments: Record<ClusterReferenceName, string> = {};
+    const clusterReferences: ClusterReferenceName[] = [];
     let extraEnvironmentIndex: number = 0;
 
     // initialize the valueArgs
@@ -610,7 +610,7 @@ export class NetworkCommand extends BaseCommand {
   private addArgForEachRecord(
     records: Record<NodeAlias, string>,
     consensusNodes: ConsensusNode[],
-    valuesArguments: Record<ClusterReference, string>,
+    valuesArguments: Record<ClusterReferenceName, string>,
     templateString: string,
   ): void {
     if (records) {
@@ -1396,7 +1396,7 @@ export class NetworkCommand extends BaseCommand {
 
         for (const consensusNode of context_.config.consensusNodes) {
           const componentId: ComponentId = Templates.renderComponentIdFromNodeAlias(consensusNode.name);
-          const clusterReference: ClusterReference = consensusNode.cluster;
+          const clusterReference: ClusterReferenceName = consensusNode.cluster;
 
           this.remoteConfig.configuration.components.changeNodePhase(componentId, DeploymentPhase.REQUESTED);
 

@@ -5,7 +5,7 @@ import {ComponentTypes} from './enumerations/component-types.js';
 import {BaseStateSchema} from '../../../data/schema/model/remote/state/base-state-schema.js';
 import {isValidEnum} from '../../util/validation-helpers.js';
 import {type DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
-import {type ClusterReference, type ComponentId} from '../../../types/index.js';
+import {type ClusterReferenceName, type ComponentId} from '../../../types/index.js';
 import {type ComponentsDataWrapperApi} from './api/components-data-wrapper-api.js';
 import {type DeploymentStateSchema} from '../../../data/schema/model/remote/deployment-state-schema.js';
 import {type ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
@@ -99,7 +99,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
 
   public getComponentsByClusterReference<T extends BaseStateSchema>(
     type: ComponentTypes,
-    clusterReference: ClusterReference,
+    clusterReference: ClusterReferenceName,
   ): T[] {
     let filteredComponents: T[] = [];
 

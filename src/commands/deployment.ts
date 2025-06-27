@@ -8,7 +8,7 @@ import * as constants from '../core/constants.js';
 import chalk from 'chalk';
 import {type ClusterCommandTasks} from './cluster/tasks.js';
 import {
-  type ClusterReference,
+  type ClusterReferenceName,
   type CommandDefinition,
   type Context,
   type DeploymentName,
@@ -36,7 +36,7 @@ interface DeploymentAddClusterConfig {
   context: string;
   namespace: NamespaceName;
   deployment: DeploymentName;
-  clusterRef: ClusterReference;
+  clusterRef: ClusterReferenceName;
 
   enableCertManager: boolean;
   numberOfConsensusNodes: number;
@@ -300,7 +300,7 @@ export class DeploymentCommand extends BaseCommand {
     const self = this;
 
     interface Config {
-      clusterName: ClusterReference;
+      clusterName: ClusterReferenceName;
     }
 
     interface Context {
@@ -316,7 +316,7 @@ export class DeploymentCommand extends BaseCommand {
             self.logger.debug('Updated config with argv', {config: self.configManager.config});
             await self.configManager.executePrompt(task, [flags.clusterRef]);
             context_.config = {
-              clusterName: self.configManager.getFlag<ClusterReference>(flags.clusterRef),
+              clusterName: self.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
             } as Config;
 
             self.logger.debug('Prepared config', {config: context_.config, cachedConfig: self.configManager.config});
@@ -491,7 +491,7 @@ export class DeploymentCommand extends BaseCommand {
           quiet: this.configManager.getFlag<boolean>(flags.quiet),
           namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
           deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
-          clusterRef: this.configManager.getFlag<ClusterReference>(flags.clusterRef),
+          clusterRef: this.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
 
           enableCertManager: this.configManager.getFlag<boolean>(flags.enableCertManager),
           numberOfConsensusNodes: this.configManager.getFlag<number>(flags.numberOfConsensusNodes),

@@ -6,8 +6,9 @@
 set -xeo pipefail
 
 export TARGET_DIR=docs/site/content/en/docs
+export TEMPLATE_DIR=docs/site/content/en/templates
 export TARGET_FILE=${TARGET_DIR}/step-by-step-guide.md
-export TEMPLATE_FILE=${TARGET_DIR}/step-by-step-guide.template.md
+export TEMPLATE_FILE=${TEMPLATE_DIR}/step-by-step-guide.template.md
 export BUILD_DIR=docs/site/build
 mkdir -p ${BUILD_DIR}
 pwd

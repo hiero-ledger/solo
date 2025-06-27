@@ -12,6 +12,7 @@ import {type ExplorerCommand} from './explorer.js';
 import {type BlockNodeCommand} from './block-node.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {type QuickStartCommand} from './quick-start.js';
 import {type CommandDefinition} from '../types/index.js';
 
 /**
@@ -29,7 +30,7 @@ export function Initialize(): CommandDefinition[] {
   const explorerCommand: ExplorerCommand = container.resolve(InjectTokens.ExplorerCommand);
   const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
   const blockNodeCommand: BlockNodeCommand = container.resolve(InjectTokens.BlockNodeCommand);
-
+  const quickStartCommand: QuickStartCommand = container.resolve(InjectTokens.QuickStartCommand);
   return [
     initCmd.getCommandDefinition(),
     accountCmd.getCommandDefinition(),
@@ -41,5 +42,6 @@ export function Initialize(): CommandDefinition[] {
     explorerCommand.getCommandDefinition(),
     deploymentCommand.getCommandDefinition(),
     blockNodeCommand.getCommandDefinition(),
+    quickStartCommand.getCommandDefinition(),
   ];
 }

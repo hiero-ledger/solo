@@ -3,7 +3,7 @@
 import {type BaseStateSchema} from '../../../../data/schema/model/remote/state/base-state-schema.js';
 import {type ComponentTypes} from '../enumerations/component-types.js';
 import {type DeploymentPhase} from '../../../../data/schema/model/remote/deployment-phase.js';
-import {type ClusterReference, type ComponentId} from '../../../../types/index.js';
+import {type ClusterReferenceName, type ComponentId} from '../../../../types/index.js';
 import {type DeploymentStateSchema} from '../../../../data/schema/model/remote/deployment-state-schema.js';
 import {type ComponentIdsStructure} from '../../../../data/schema/model/remote/interfaces/components-ids-structure.js';
 
@@ -20,7 +20,7 @@ export interface ComponentsDataWrapperApi {
 
   getComponentsByClusterReference<T extends BaseStateSchema>(
     type: ComponentTypes,
-    clusterReference: ClusterReference,
+    clusterReference: ClusterReferenceName,
   ): T[];
 
   getComponentById<T extends BaseStateSchema>(type: ComponentTypes, id: number): T;

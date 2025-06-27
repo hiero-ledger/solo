@@ -224,8 +224,8 @@ jobs:
             echo "tag_ref=${{ github.ref }}"
           else
             echo "Dry run not enabled, setting ref to 'refs/tags/v${{ needs.prepare-release.outputs.version }}'."
-            echo "tag_ref='refs/tags/v${{ needs.prepare-release.outputs.version }}'" >> $GITHUB_OUTPUT
-            echo "tag_ref='refs/tags/v${{ needs.prepare-release.outputs.version }}'"
+            echo "tag_ref=refs/tags/v${{ needs.prepare-release.outputs.version }}" >> $GITHUB_OUTPUT
+            echo "tag_ref=refs/tags/v${{ needs.prepare-release.outputs.version }}"
           fi
 
   # Do a Hugo build for the docs site for the release branch

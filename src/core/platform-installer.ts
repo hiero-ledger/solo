@@ -126,6 +126,14 @@ export class PlatformInstaller {
 
       return true;
     } catch (error) {
+      const logFile: string = `${constants.HEDERA_HAPI_PATH}/output/extract-platform.log`;
+      const response = await this.k8Factory
+        .getK8(context)
+        .containers()
+        .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
+        .execContainer(['bash', '-c', `cat ${logFile} || echo "Log file not found or empty"`]);
+      this.logger.showUser(`Log file content from ${logFile}:\n${response}`);
+
       const message: string = `failed to extract platform code in this pod '${podReference}' while using the '${context}' context: ${error.message}`;
       throw new SoloError(message, error);
     }
