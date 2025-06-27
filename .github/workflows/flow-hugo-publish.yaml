@@ -167,7 +167,9 @@ jobs:
   # Publish the Hugo docs site to GitHub Pages unless dry-run is enabled or if this is a merge to release/* branch
   hugo-docs-publish:
     name: Hugo Docs Publish
-    if: ${{ inputs.dry-run-enabled != 'true' && startsWith(github.ref_name, 'release/') && !cancelled() && !failure() }}
+    if: >
+      ${{ needs.setup.outputs.versioned-release == 'true' && inputs.dry-run-enabled != 'true' && 
+      startsWith(github.ref_name, 'release/') && !cancelled() && !failure() }}
     uses: ./.github/workflows/zxc-hugo-publish.yaml
     needs:
       - setup
