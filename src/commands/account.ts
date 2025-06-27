@@ -481,9 +481,6 @@ export class AccountCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
-
             self.configManager.update(argv);
 
             flags.disablePrompts([flags.clusterRef]);
@@ -577,9 +574,6 @@ export class AccountCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
-
             self.configManager.update(argv);
 
             flags.disablePrompts([flags.clusterRef]);
@@ -685,9 +679,6 @@ export class AccountCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
-
             self.configManager.update(argv);
             await self.configManager.executePrompt(task, [flags.accountId]);
 
