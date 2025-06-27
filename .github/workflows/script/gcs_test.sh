@@ -119,6 +119,7 @@ kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 
 if [ "${storageType}" == "minio_only" ]; then
   cd examples
+  SOLO_DEPLOYMENT=solo-deployment
   SOLO_DEPLOYMENT=solo-deployment task default-with-mirror
   cd -
 else
