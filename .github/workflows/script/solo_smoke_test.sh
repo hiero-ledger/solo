@@ -69,8 +69,8 @@ function start_contract_test ()
   echo "Wait a few seconds for background transactions to start"
   sleep 10
   echo "Run smart contract test"
-  npm run hh:test
-  result=$?
+  result=0
+  npm run hh:test || result=$?
   cd -
   if [[ $result -ne 0 ]]; then
     echo "Smart contract test failed with exit code $result"
