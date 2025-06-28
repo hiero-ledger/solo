@@ -116,7 +116,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
         callback: async (argv: {_: string[]} & Record<string, any>): Promise<boolean> => blockNodeCommand.add(argv),
       });
 
-      remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(ComponentTypes.BlockNode, 0);
+      remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(ComponentTypes.BlockNode, 1);
     });
 
     deployNetworkTest(argv, commandInvoker, networkCmd);

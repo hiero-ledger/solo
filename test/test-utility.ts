@@ -62,6 +62,7 @@ import {gte as semVersionGte} from 'semver';
 import {type LocalConfigRuntimeState} from '../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type InstanceOverrides} from '../src/core/dependency-injection/container-init.js';
 import {type RemoteConfigRuntimeStateApi} from '../src/business/runtime-state/api/remote-config-runtime-state-api.js';
+import {type ComponentFactoryApi} from '../src/core/config/remote/api/component-factory-api.js';
 
 export const BASE_TEST_DIR = PathEx.join('test', 'data', 'tmp');
 
@@ -156,6 +157,7 @@ interface TestOptions {
   remoteConfig: RemoteConfigRuntimeStateApi;
   localConfig: LocalConfigRuntimeState;
   commandInvoker: CommandInvoker;
+  componentFactory: ComponentFactoryApi;
 }
 
 export interface BootstrapResponse {
@@ -228,7 +230,8 @@ export function bootstrapTestVariables(
   const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
   const remoteConfig: RemoteConfigRuntimeStateApi = container.resolve(InjectTokens.RemoteConfigRuntimeState);
   const testLogger: SoloLogger = getTestLogger();
-  const commandInvoker = container.resolve(InjectTokens.CommandInvoker) as CommandInvoker;
+  const commandInvoker: CommandInvoker = container.resolve(InjectTokens.CommandInvoker);
+  const componentFactory: ComponentFactoryApi = container.resolve(InjectTokens.ComponentFactory);
 
   const options: TestOptions = {
     logger: testLogger,
@@ -248,6 +251,7 @@ export function bootstrapTestVariables(
     localConfig,
     remoteConfig,
     commandInvoker,
+    componentFactory,
   };
 
   return {
