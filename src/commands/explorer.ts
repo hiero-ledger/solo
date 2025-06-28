@@ -228,8 +228,8 @@ export class ExplorerCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
 
             self.configManager.update(argv);
@@ -476,8 +476,8 @@ export class ExplorerCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
 
             if (!argv.force) {

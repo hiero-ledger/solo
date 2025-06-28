@@ -124,13 +124,6 @@ import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 
 @injectable()
 export class NodeCommandTasks {
-  public loadLocalConfig: () => Promise<void>;
-  public loadRemoteConfig: (
-    argv: {_: string[]} & AnyObject,
-    validate?: boolean,
-    validateConsensusNode?: boolean,
-  ) => Promise<void>;
-
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
@@ -156,8 +149,6 @@ export class NodeCommandTasks {
     this.certificateManager = patchInject(certificateManager, InjectTokens.CertificateManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
-    this.loadLocalConfig = BaseCommand.prototype.loadLocalConfig;
-    this.loadRemoteConfig = BaseCommand.prototype.loadRemoteConfig;
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
@@ -2589,8 +2580,8 @@ export class NodeCommandTasks {
     return {
       title: 'Initialize',
       task: async (context_, task): Promise<SoloListr<AnyListrContext> | void> => {
-        await self.loadLocalConfig();
-        await self.loadRemoteConfig(argv);
+        await self.localConfig.load();
+        await self.remoteConfig.loadAndValidate(argv);
 
         if (argv[flags.devMode.name]) {
           this.logger.setDevMode(true);

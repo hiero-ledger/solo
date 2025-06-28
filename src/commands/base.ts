@@ -20,7 +20,6 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {type TaskList} from '../core/task-list/task-list.js';
 import {ListrContext, ListrRendererValue} from 'listr2';
-import {AnyObject} from '../types/aliases.js';
 
 export abstract class BaseCommand extends ShellRunner {
   public constructor(
@@ -48,32 +47,6 @@ export abstract class BaseCommand extends ShellRunner {
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
   }
 
-  /**
-   * Handles loading local config
-   *
-   * @returns callback function to be executed from listr
-   */
-  public async loadLocalConfig(): Promise<void> {
-    this.logger.debug('Loading local config');
-    await this.localConfig.load();
-  }
-
-  /**
-   * Handles loading remote config if the command access the cluster
-   *
-   * @param argv - the command line arguments
-   * @param validate - whether to validate the remote config
-   * @param validateConsensusNode - whether to validate the consensus node
-   * @returns callback function to be executed from listr
-   */
-  public async loadRemoteConfig(
-    argv: {_: string[]} & AnyObject,
-    validate: boolean = true,
-    validateConsensusNode: boolean = true,
-  ): Promise<void> {
-    this.logger.debug('Loading remote config');
-    await this.remoteConfig.loadAndValidate(argv, validate, !validateConsensusNode);
-  }
   /**
    * Prepare the values files map for each cluster
    *

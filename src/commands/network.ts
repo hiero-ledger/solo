@@ -874,8 +874,8 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv, true, false);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv, true, true);
             lease = await this.leaseManager.create();
 
             context_.config = await this.prepareConfig(task, argv);
@@ -1259,8 +1259,8 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task): Promise<SoloListr<NetworkDeployContext>> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
 
             if (!argv.force) {

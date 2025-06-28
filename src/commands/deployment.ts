@@ -122,7 +122,7 @@ export class DeploymentCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
-            await self.loadLocalConfig();
+            await self.localConfig.load();
 
             self.configManager.update(argv);
 
@@ -208,8 +208,8 @@ export class DeploymentCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
 
             self.configManager.update(argv);
 
@@ -332,7 +332,7 @@ export class DeploymentCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
-            await self.loadLocalConfig();
+            await self.localConfig.load();
 
             self.configManager.update(argv);
             self.logger.debug('Updated config with argv', {config: self.configManager.config});
@@ -508,7 +508,7 @@ export class DeploymentCommand extends BaseCommand {
     return {
       title: 'Initialize',
       task: async (context_, task) => {
-        await self.loadLocalConfig();
+        await self.localConfig.load();
 
         this.configManager.update(argv);
 
