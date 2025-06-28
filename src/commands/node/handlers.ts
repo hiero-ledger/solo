@@ -342,7 +342,7 @@ export class NodeCommandHandlers extends CommandHandler {
           task: async (): Promise<void> => {
             await self.loadLocalConfig();
             await self.loadRemoteConfig(argv);
-            lease = await globalThis.leaseManager.create();
+            lease = await self.leaseManager.create();
           },
         },
         ...this.updatePrepareTasks(argv, lease),
@@ -374,7 +374,7 @@ export class NodeCommandHandlers extends CommandHandler {
           task: async (): Promise<void> => {
             await self.loadLocalConfig();
             await self.loadRemoteConfig(argv);
-            lease = await globalThis.leaseManager.create();
+            lease = await self.leaseManager.create();
           },
         },
         ...this.updatePrepareTasks(argv, lease),
@@ -474,7 +474,7 @@ export class NodeCommandHandlers extends CommandHandler {
           task: async (): Promise<void> => {
             await self.loadLocalConfig();
             await self.loadRemoteConfig(argv);
-            lease = await globalThis.leaseManager.create();
+            lease = await self.leaseManager.create();
           },
         },
         ...this.upgradePrepareTasks(argv, lease),
@@ -733,7 +733,7 @@ export class NodeCommandHandlers extends CommandHandler {
           task: async (): Promise<void> => {
             await self.loadLocalConfig();
             await self.loadRemoteConfig(argv);
-            lease = await globalThis.leaseManager.create();
+            lease = await self.leaseManager.create();
           },
         },
         ...this.addPrepareTasks(argv, lease),
@@ -766,7 +766,7 @@ export class NodeCommandHandlers extends CommandHandler {
           task: async (): Promise<void> => {
             await self.loadLocalConfig();
             await self.loadRemoteConfig(argv);
-            lease = await globalThis.leaseManager.create();
+            lease = await self.leaseManager.create();
           },
         },
         ...this.addPrepareTasks(argv, lease),
