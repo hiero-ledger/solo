@@ -16,3 +16,6 @@ eslint-9:
   config_file: eslint.config.mjs
 exclude_paths:
   - "tsdoc-plugin-macros.mjs"
+  - "docs/site/go.mod"
+  - "resources/post-build-script.js"
+  - "tsconfig.json"
