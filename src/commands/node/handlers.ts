@@ -249,8 +249,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -304,8 +304,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -337,8 +337,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -369,8 +369,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -400,8 +400,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -432,8 +432,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -469,8 +469,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -499,8 +499,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -531,8 +531,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -568,8 +568,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -599,8 +599,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -632,8 +632,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -663,8 +663,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -695,8 +695,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -728,8 +728,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -761,8 +761,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -792,8 +792,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -824,8 +824,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -904,8 +904,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -967,8 +967,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -1003,8 +1003,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -1043,8 +1043,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -1081,8 +1081,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
@@ -1116,8 +1116,8 @@ export class NodeCommandHandlers extends CommandHandler {
         {
           title: 'Loading configurations',
           task: async (): Promise<void> => {
-            await self.loadLocalConfig();
-            await self.loadRemoteConfig(argv);
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
             lease = await self.leaseManager.create();
           },
         },
