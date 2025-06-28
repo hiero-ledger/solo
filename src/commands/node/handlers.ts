@@ -330,11 +330,25 @@ export class NodeCommandHandlers extends CommandHandler {
   public async update(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_FLAGS);
 
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    let lease: Lock;
 
     await this.commandAction(
       argv,
-      [...this.updatePrepareTasks(argv, lease), ...this.updateSubmitTransactionsTasks(), ...this.updateExecuteTasks()],
+      [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await self.loadLocalConfig();
+            await self.loadRemoteConfig(argv);
+            lease = await globalThis.leaseManager.create();
+          },
+        },
+        ...this.updatePrepareTasks(argv, lease),
+        ...this.updateSubmitTransactionsTasks(),
+        ...this.updateExecuteTasks(),
+      ],
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
@@ -348,11 +362,21 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async updatePrepare(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_PREPARE_FLAGS);
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    let lease: Lock;
 
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await self.loadLocalConfig();
+            await self.loadRemoteConfig(argv);
+            lease = await globalThis.leaseManager.create();
+          },
+        },
         ...this.updatePrepareTasks(argv, lease),
         this.tasks.saveContextData(argv, NodeCommandHandlers.UPDATE_CONTEXT_FILE, NodeHelper.updateSaveContextParser),
       ],
@@ -439,10 +463,20 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async upgradePrepare(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_PREPARE_FLAGS);
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    let lease: Lock;
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await self.loadLocalConfig();
+            await self.loadRemoteConfig(argv);
+            lease = await globalThis.leaseManager.create();
+          },
+        },
         ...this.upgradePrepareTasks(argv, lease),
         this.tasks.saveContextData(argv, NodeCommandHandlers.UPGRADE_CONTEXT_FILE, NodeHelper.upgradeSaveContextParser),
       ],
@@ -528,10 +562,20 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async upgrade(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_FLAGS);
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    let lease: Lock;
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await self.loadLocalConfig();
+            await self.loadRemoteConfig(argv);
+            lease = await self.leaseManager.create();
+          },
+        },
         ...this.upgradePrepareTasks(argv, lease),
         ...this.upgradeSubmitTransactionsTasks(),
         ...this.upgradeExecuteTasks(),
@@ -549,10 +593,20 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async delete(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_FLAGS);
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    let lease: Lock;
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await self.loadLocalConfig();
+            await self.loadRemoteConfig(argv);
+            lease = await self.leaseManager.create();
+          },
+        },
         ...this.deletePrepareTaskList(argv, lease),
         ...this.deleteSubmitTransactionsTaskList(),
         ...this.deleteExecuteTaskList(),
@@ -571,11 +625,21 @@ export class NodeCommandHandlers extends CommandHandler {
   public async deletePrepare(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_PREPARE_FLAGS);
 
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    let lease: Lock;
 
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await self.loadLocalConfig();
+            await self.loadRemoteConfig(argv);
+            lease = await self.leaseManager.create();
+          },
+        },
         ...this.deletePrepareTaskList(argv, lease),
         this.tasks.saveContextData(argv, NodeCommandHandlers.DELETE_CONTEXT_FILE, NodeHelper.deleteSaveContextParser),
       ],
@@ -657,11 +721,25 @@ export class NodeCommandHandlers extends CommandHandler {
   public async add(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_FLAGS);
 
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    let lease: Lock;
 
     await this.commandAction(
       argv,
-      [...this.addPrepareTasks(argv, lease), ...this.addSubmitTransactionsTasks(), ...this.addExecuteTasks()],
+      [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await self.loadLocalConfig();
+            await self.loadRemoteConfig(argv);
+            lease = await globalThis.leaseManager.create();
+          },
+        },
+        ...this.addPrepareTasks(argv, lease),
+        ...this.addSubmitTransactionsTasks(),
+        ...this.addExecuteTasks(),
+      ],
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
@@ -676,11 +754,21 @@ export class NodeCommandHandlers extends CommandHandler {
   public async addPrepare(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_PREPARE_FLAGS);
 
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    let lease: Lock;
 
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Loading configurations',
+          task: async (): Promise<void> => {
+            await self.loadLocalConfig();
+            await self.loadRemoteConfig(argv);
+            lease = await globalThis.leaseManager.create();
+          },
+        },
         ...this.addPrepareTasks(argv, lease),
         this.tasks.saveContextData(argv, NodeCommandHandlers.ADD_CONTEXT_FILE, helpers.addSaveContextParser),
       ],
