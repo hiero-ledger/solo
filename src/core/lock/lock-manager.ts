@@ -28,7 +28,7 @@ export class LockManager {
    * @param configManager - the configuration manager.
    * @param remoteConfigRuntimeState
    */
-  constructor(
+  public constructor(
     @inject(InjectTokens.LockRenewalService) private readonly _renewalService?: LockRenewalService,
     @inject(InjectTokens.SoloLogger) private readonly _logger?: SoloLogger,
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
