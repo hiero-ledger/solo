@@ -1,0 +1,9 @@
+---
+engines:
+  eslint-8:
+    enabled: false
+  eslint-9:
+    enabled: true
+    config_file: eslint.config.mjs
+exclude_paths:
+  - "tsdoc-plugin-macros.mjs"
