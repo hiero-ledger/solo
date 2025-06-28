@@ -23,7 +23,7 @@
   "author": "Hashgraph",
   "license": "Apache2.0",
   "dependencies": {
-    "@hashgraph/sdk": "^2.66.0",
+    "@hashgraph/sdk": "^2.67.0",
     "@inquirer/prompts": "^7.5.3",
     "@kubernetes/client-node": "^0.22.3",
     "@listr2/prompt-adapter-inquirer": "^2.0.22",
