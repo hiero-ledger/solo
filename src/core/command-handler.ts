@@ -56,7 +56,7 @@ export class CommandHandler {
         if (lease) {
           promises.push(lease.release());
         }
-        await this.accountManager.close();
+        promises.push(this.accountManager.close());
         await Promise.all(promises);
       }
     } else {
@@ -65,7 +65,7 @@ export class CommandHandler {
         if (lease) {
           promises.push(lease.release());
         }
-        await this.accountManager.close();
+        promises.push(this.accountManager.close());
         await Promise.all(promises);
       });
     }
