@@ -27,9 +27,6 @@ tolerations:
       effect: "NoSchedule"
 
 loadGenerator:
-  target:
-    port: 9100 # Default target port for the load test
-    endpoint: "/metrics" # Default target endpoint/path for the load test
   java:
     maxMemory: '30g'
   test:
