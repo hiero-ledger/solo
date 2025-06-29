@@ -193,7 +193,7 @@ export default [
       '@typescript-eslint/no-unused-expressions': 'off',
       'curly': ['error', 'all'],
       '@typescript-eslint/no-extraneous-class': [
-        1,
+        'error',
         {
           allowWithDecorator: true,
           allowStaticOnly: true,
