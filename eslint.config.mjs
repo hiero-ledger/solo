@@ -197,6 +197,7 @@ export default [
         {
           allowWithDecorator: true,
           allowStaticOnly: true,
+          allowConstructorOnly: true,
         },
       ],
       'unicorn/filename-case': [
