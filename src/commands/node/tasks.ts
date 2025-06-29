@@ -31,6 +31,8 @@ import {
   NodeDeleteTransaction,
   NodeUpdateTransaction,
   PrivateKey,
+  ServiceEndpoint,
+  Status,
   Timestamp,
   TransactionReceipt,
   TransactionResponse,
@@ -121,6 +123,8 @@ import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api
 import {type ComponentFactoryApi} from '../../core/config/remote/api/component-factory-api.js';
 import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
+import {NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
+import {SemVer, lt} from 'semver';
 
 @injectable()
 export class NodeCommandTasks {
@@ -1225,12 +1229,15 @@ export class NodeCommandTasks {
   ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext> {
     return {
       title: 'Setup network nodes',
-      task: async (context_, task) => {
-        // @ts-ignore
+      task: async (
+        context_,
+        task,
+      ): Promise<SoloListr<NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext>> => {
+        // @ts-expect-error: all fields are not present in every task's context
         if (!context_.config.nodeAliases || context_.config.nodeAliases.length === 0) {
-          // @ts-ignore
+          // @ts-expect-error: all fields are not present in every task's context
           context_.config.nodeAliases = helpers.parseNodeAliases(
-            // @ts-ignore
+            // @ts-expect-error: all fields are not present in every task's context
             context_.config.nodeAliasesUnparsed,
             this.remoteConfig.getConsensusNodes(),
             this.configManager,
@@ -1240,11 +1247,10 @@ export class NodeCommandTasks {
           await this.generateGenesisNetworkJson(
             context_.config.namespace,
             context_.config.consensusNodes,
-            // @ts-ignore
+            // @ts-expect-error: all fields are not present in every task's context
             context_.config.keysDir,
-            // @ts-ignore
+            // @ts-expect-error: all fields are not present in every task's context
             context_.config.stagingDir,
-            // @ts-ignore
             context_.config.domainNamesMapping,
           );
         }
@@ -1252,21 +1258,26 @@ export class NodeCommandTasks {
         // TODO: during `node add` ctx.config.nodeAliases is empty, since ctx.config.nodeAliasesUnparsed is empty
         await this.generateNodeOverridesJson(
           context_.config.namespace,
-          // @ts-ignore
+          // @ts-expect-error: all fields are not present in every task's context
           context_.config.nodeAliases,
-          // @ts-ignore
+          // @ts-expect-error: all fields are not present in every task's context
           context_.config.stagingDir,
         );
 
-        const consensusNodes = context_.config.consensusNodes;
-        const subTasks = [];
+        const consensusNodes: ConsensusNode[] = context_.config.consensusNodes;
+        const subTasks: SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext>[] =
+          [];
+
         for (const nodeAlias of context_.config[nodeAliasesProperty]) {
-          const podReference = context_.config.podRefs[nodeAlias];
-          const context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+          const podReference: PodReference = context_.config.podRefs[nodeAlias];
+          const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+
           subTasks.push({
             title: `Node: ${chalk.yellow(nodeAlias)}`,
-            // @ts-ignore
-            task: () => this.platformInstaller.taskSetup(podReference, context_.config.stagingDir, isGenesis, context),
+            task: async (context_): Promise<void> => {
+              // @ts-expect-error: all fields are not present in every task's context
+              this.platformInstaller.taskSetup(podReference, context_.config.stagingDir, isGenesis, context);
+            },
           });
         }
 
@@ -1275,6 +1286,67 @@ export class NodeCommandTasks {
           concurrent: true,
           rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
         });
+      },
+    };
+  }
+
+  public setGrpcWebEndpoint(): SoloListrTask<NodeStartContext> {
+    // TODO: add flag to enable it if it needs, add to the end of node start
+    return {
+      title: 'set gRPC Web endpoint',
+      skip: (): boolean => {
+        const currentVersion: SemVer = this.remoteConfig.configuration.versions.consensusNode;
+        const versionRequirement: SemVer = new SemVer('0.63.0');
+        return lt(currentVersion, versionRequirement);
+      },
+      task: async (context_): Promise<void> => {
+        const namespace: NamespaceName = context_.config.namespace;
+
+        const serviceMap: NodeServiceMapping = await this.accountManager.getNodeServiceMap(
+          context_.config.namespace,
+          this.remoteConfig.getClusterRefs(),
+          context_.config.deployment,
+        );
+
+        for (const nodeAlias of context_.config.nodeAliases) {
+          const networkNodeService: NetworkNodeServices = serviceMap.get(nodeAlias);
+
+          const cluster: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
+            (cluster): boolean => cluster.namespace === namespace.name,
+          );
+
+          const grpcProxyAddress: string = Templates.renderSvcFullyQualifiedDomainName(
+            networkNodeService.envoyProxyName,
+            namespace.name,
+            cluster.dnsBaseDomain,
+          );
+
+          const grpcProxyPort: number = +networkNodeService.envoyProxyGrpcWebPort;
+
+          const client = await this.accountManager.loadNodeClient(
+            namespace,
+            this.remoteConfig.getClusterRefs(),
+            context_.config.deployment,
+          );
+
+          const grpcWebProxyEndpoint: ServiceEndpoint = new ServiceEndpoint()
+            .setDomainName(grpcProxyAddress)
+            .setPort(grpcProxyPort);
+
+          const updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
+            .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
+            .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint);
+
+          const updateTransactionResponse: TransactionResponse = await updateTransaction.execute(client);
+
+          const updateTransactionReceipt: TransactionReceipt = await updateTransactionResponse.getReceipt(client);
+
+          console.log(`Node update transaction status: ${updateTransactionReceipt.status.toString()}`);
+
+          if (updateTransactionReceipt.status !== Status.Success) {
+            throw new SoloError('Failed to set gRPC web proxy endpoint');
+          }
+        }
       },
     };
   }
@@ -1328,7 +1400,7 @@ export class NodeCommandTasks {
       // set adminPublicKeys as array of constants.GENESIS_KEY with the same size consensus nodes
       adminPublicKeys = Array.from({length: consensusNodes.length}).fill(constants.GENESIS_KEY);
     }
-    const genesisNetworkData = await GenesisNetworkDataConstructor.initialize(
+    const genesisNetworkData: GenesisNetworkDataConstructor = await GenesisNetworkDataConstructor.initialize(
       consensusNodes,
       this.keyManager,
       this.accountManager,
