@@ -78,7 +78,7 @@ export class K8ClientPod implements Pod {
         }
       }
     } catch (error) {
-      const errorMessage: string = `Failed to delete pod ${this.podReference.name} in namespace ${this.podReference.namespace}: ${error.message}`;
+      const errorMessage: string = `Failed to delete pod ${this.podReference.name.name} in namespace ${this.podReference.namespace}: ${error.message}`;
 
       if (error.body?.code === StatusCodes.NOT_FOUND || error.response?.body?.code === StatusCodes.NOT_FOUND) {
         this.logger.info(`Pod not found: ${errorMessage}`, error);
