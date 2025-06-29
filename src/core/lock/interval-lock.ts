@@ -375,6 +375,10 @@ export class IntervalLock implements Lock {
    */
   private async createOrRenewLease(lease: Lease): Promise<void> {
     try {
+      if (!(await this.k8Factory.default().namespaces().has(this.namespace))) {
+        // handles the condition for creating a lease on cluster setup which may not have a namespace created yet
+        await this.k8Factory.default().namespaces().create(this.namespace);
+      }
       await (lease
         ? this.k8Factory.default().leases().renew(this.namespace, this.leaseName, lease)
         : this.k8Factory
