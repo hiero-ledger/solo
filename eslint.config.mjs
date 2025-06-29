@@ -192,6 +192,13 @@ export default [
       'no-invalid-this': ['off', {}],
       '@typescript-eslint/no-unused-expressions': 'off',
       'curly': ['error', 'all'],
+      '@typescript-eslint/no-extraneous-class': [
+        1,
+        {
+          allowWithDecorator: true,
+          allowStaticOnly: true,
+        },
+      ],
       'unicorn/filename-case': [
         'error',
         {
