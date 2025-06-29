@@ -15,7 +15,7 @@ import {PodName} from '../../../src/integration/kube/resources/pod/pod-name.js';
 import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {NodeCommand} from '../../../src/commands/node/index.js';
-import {InitCommand} from '../../../src/commands/init.js';
+import {InitCommand} from '../../../src/commands/init/init.js';
 import {ClusterCommand} from '../../../src/commands/cluster/index.js';
 import {DeploymentCommand} from '../../../src/commands/deployment.js';
 import {NetworkCommand} from '../../../src/commands/network.js';

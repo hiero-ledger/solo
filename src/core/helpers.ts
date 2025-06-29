@@ -24,8 +24,6 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {type ConfigManager} from './config-manager.js';
 import {Flags as flags} from '../commands/flags.js';
 import {type Realm, type Shard} from './../types/index.js';
-import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
-import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {execSync} from 'node:child_process';
 
 export function getInternalAddress(
@@ -514,9 +512,7 @@ function printPaddedMessage(message: string, totalWidth: number): string {
  * @param type The action that was performed such as 'Installed' or 'Upgraded'
  */
 export function showVersionBanner(logger: SoloLogger, chartName: string, version: string, type: string = 'Installed') {
-  logger.showUser(chalk.cyan(printPaddedMessage(` ${type} ${chartName} chart `, 80)));
-  logger.showUser(chalk.cyan('Version\t\t\t:'), chalk.yellow(version));
-  logger.showUser(chalk.cyan(printPaddedMessage('', 80)));
+  logger.showUser(chalk.cyan(` - ${type} ${chartName} chart, version:`, chalk.yellow(version)));
 }
 
 /**

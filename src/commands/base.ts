@@ -18,9 +18,11 @@ import {inject} from 'tsyringe-neo';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {type TaskList} from '../core/task-list/task-list.js';
+import {ListrContext, ListrRendererValue} from 'listr2';
 
 export abstract class BaseCommand extends ShellRunner {
-  constructor(
+  public constructor(
     @inject(InjectTokens.Helm) protected readonly helm?: HelmClient,
     @inject(InjectTokens.K8Factory) protected readonly k8Factory?: K8Factory,
     @inject(InjectTokens.ChartManager) protected readonly chartManager?: ChartManager,
@@ -29,6 +31,8 @@ export abstract class BaseCommand extends ShellRunner {
     @inject(InjectTokens.LockManager) protected readonly leaseManager?: LockManager,
     @inject(InjectTokens.LocalConfigRuntimeState) public readonly localConfig?: LocalConfigRuntimeState,
     @inject(InjectTokens.RemoteConfigRuntimeState) protected readonly remoteConfig?: RemoteConfigRuntimeStateApi,
+    @inject(InjectTokens.TaskList)
+    protected readonly taskList?: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
   ) {
     super();
 
@@ -40,6 +44,7 @@ export abstract class BaseCommand extends ShellRunner {
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
   }
 
   /**
@@ -54,7 +59,7 @@ export abstract class BaseCommand extends ShellRunner {
    * @param chartDirectory - the chart directory
    * @param profileValuesFile - mapping of clusterRef to the profile values file full path
    */
-  static prepareValuesFilesMapMulticluster(
+  public static prepareValuesFilesMapMultipleCluster(
     clusterReferences: ClusterReferences,
     chartDirectory?: string,
     profileValuesFile?: Record<ClusterReferenceName, string>,
@@ -69,7 +74,7 @@ export abstract class BaseCommand extends ShellRunner {
     // add the chart's default values file for each cluster-ref if chartDirectory is set
     // this should be the first in the list of values files as it will be overridden by user's input
     if (chartDirectory) {
-      const chartValuesFile = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
+      const chartValuesFile: string = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
       for (const clusterReference in valuesFiles) {
         valuesFiles[clusterReference] += ` --values ${chartValuesFile}`;
       }
@@ -77,7 +82,7 @@ export abstract class BaseCommand extends ShellRunner {
 
     if (profileValuesFile) {
       for (const [clusterReference, file] of Object.entries(profileValuesFile)) {
-        const valuesArgument = ` --values ${file}`;
+        const valuesArgument: string = ` --values ${file}`;
 
         if (clusterReference === Flags.KEY_COMMON) {
           for (const clusterReference_ of Object.keys(valuesFiles)) {
@@ -90,9 +95,9 @@ export abstract class BaseCommand extends ShellRunner {
     }
 
     if (valuesFileInput) {
-      const parsed = Flags.parseValuesFilesInput(valuesFileInput);
+      const parsed: Record<string, Array<string>> = Flags.parseValuesFilesInput(valuesFileInput);
       for (const [clusterReference, files] of Object.entries(parsed)) {
-        let vf = '';
+        let vf: string = '';
         for (const file of files) {
           vf += ` --values ${file}`;
         }
@@ -122,12 +127,12 @@ export abstract class BaseCommand extends ShellRunner {
    * 1. Chart's default values file (if chartDirectory is set)
    * 2. Profile values file
    * 3. User's values file
-   * @param clusterRefs
+   * @param clusterReferences
    * @param valuesFileInput - the values file input string
    * @param chartDirectory - the chart directory
    * @param profileValuesFile - the profile values file full path
    */
-  static prepareValuesFilesMap(
+  public static prepareValuesFilesMap(
     clusterReferences: ClusterReferences,
     chartDirectory?: string,
     profileValuesFile?: string,
@@ -144,16 +149,16 @@ export abstract class BaseCommand extends ShellRunner {
     // add the chart's default values file for each cluster-ref if chartDirectory is set
     // this should be the first in the list of values files as it will be overridden by user's input
     if (chartDirectory) {
-      const chartValuesFile = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
+      const chartValuesFile: string = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
       for (const clusterReference in valuesFiles) {
         valuesFiles[clusterReference] += ` --values ${chartValuesFile}`;
       }
     }
 
     if (profileValuesFile) {
-      const parsed = Flags.parseValuesFilesInput(profileValuesFile);
+      const parsed: Record<string, Array<string>> = Flags.parseValuesFilesInput(profileValuesFile);
       for (const [clusterReference, files] of Object.entries(parsed)) {
-        let vf = '';
+        let vf: string = '';
         for (const file of files) {
           vf += ` --values ${file}`;
         }
@@ -169,9 +174,9 @@ export abstract class BaseCommand extends ShellRunner {
     }
 
     if (valuesFileInput) {
-      const parsed = Flags.parseValuesFilesInput(valuesFileInput);
+      const parsed: Record<string, Array<string>> = Flags.parseValuesFilesInput(valuesFileInput);
       for (const [clusterReference, files] of Object.entries(parsed)) {
-        let vf = '';
+        let vf: string = '';
         for (const file of files) {
           vf += ` --values ${file}`;
         }
@@ -194,13 +199,13 @@ export abstract class BaseCommand extends ShellRunner {
     return valuesFiles;
   }
 
-  abstract close(): Promise<void>;
+  public abstract close(): Promise<void>;
 
   /**
    * Setup home directories
-   * @param dirs a list of directories that need to be created in sequence
+   * @param directories
    */
-  public setupHomeDirectory(directories: string[] = []) {
+  public setupHomeDirectory(directories: string[] = []): string[] {
     if (!directories || directories?.length === 0) {
       directories = [
         constants.SOLO_HOME_DIR,

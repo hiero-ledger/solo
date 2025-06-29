@@ -27,7 +27,7 @@ on:
         description: "NodeJS Version:"
         type: string
         required: false
-        default: "20"
+        default: "20.19.3"
       consensus-node-version:
         description: "Consensus Node Version:"
         type: string
@@ -64,7 +64,7 @@ on:
         description: "NodeJS Version:"
         type: string
         required: false
-        default: "20"
+        default: "20.19.3"
       consensus-node-version:
         description: "Consensus Node Version:"
         type: string

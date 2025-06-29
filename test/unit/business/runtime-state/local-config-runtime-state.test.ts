@@ -17,6 +17,9 @@ describe('LocalConfigRuntimeState', () => {
   const testFileName: string = 'local-config.yaml';
 
   async function createDeployment(): Promise<void> {
+    if (!runtimeState.isLoaded) {
+      await runtimeState.load();
+    }
     const deployment: Deployment = runtimeState.configuration.deployments.addNew();
     deployment.name = 'deployment-1';
     deployment.namespace = 'namespace-1';
@@ -52,6 +55,7 @@ describe('LocalConfigRuntimeState', () => {
   });
 
   it('should throw DeploymentNotFoundError if deployment is not found', async (): Promise<void> => {
+    await runtimeState.load();
     expect((): Deployment => runtimeState.configuration.deploymentByName('non-existent-deployment')).to.throw(
       DeploymentNotFoundError,
     );

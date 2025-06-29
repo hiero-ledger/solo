@@ -3,7 +3,7 @@
 import {describe, it} from 'mocha';
 import {expect} from 'chai';
 
-import {type InitCommand} from '../../../../src/commands/init.js';
+import {type InitCommand} from '../../../../src/commands/init/init.js';
 import {K8Client} from '../../../../src/integration/kube/k8-client/k8-client.js';
 import sinon from 'sinon';
 import {Duration} from '../../../../src/core/time/duration.js';

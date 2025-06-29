@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import {Flags as flags} from '../src/commands/flags.js';
 import {ClusterCommand} from '../src/commands/cluster/index.js';
-import {InitCommand} from '../src/commands/init.js';
+import {InitCommand} from '../src/commands/init/init.js';
 import {NetworkCommand} from '../src/commands/network.js';
 import {NodeCommand} from '../src/commands/node/index.js';
 import {type DependencyManager} from '../src/core/dependency-managers/index.js';

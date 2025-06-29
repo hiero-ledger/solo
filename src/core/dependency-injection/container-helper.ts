@@ -8,7 +8,7 @@ import {container} from 'tsyringe-neo';
  * @param registryToken - the token to resolve from the container
  * @param callingClassName - the name of the class that is calling this function
  */
-export function patchInject(parameterValue: any, registryToken: any, callingClassName: string) {
+export function patchInject<T>(parameterValue: T, registryToken: symbol, callingClassName: string): T {
   if (registryToken === undefined || registryToken === null) {
     throw new Error(`registryToken is undefined or null, callingClassName: ${callingClassName}`);
   }

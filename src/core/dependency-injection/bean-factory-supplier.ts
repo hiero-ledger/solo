@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type BeanDefintionSupplier} from './bean-defintion-supplier.js';
+import {type BeanDefinitionSupplier} from './bean-definition-supplier.js';
 import {type DependencyContainer} from 'tsyringe-neo';
 
-export class BeanFactorySupplier<T> implements BeanDefintionSupplier {
+export class BeanFactorySupplier<T> implements BeanDefinitionSupplier {
   private cachedInstance: T;
 
   public constructor(

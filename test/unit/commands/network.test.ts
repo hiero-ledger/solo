@@ -199,20 +199,20 @@ describe('NetworkCommand unit tests', () => {
       options.remoteConfig.isLoaded = sinon.stub().returns(true);
       options.remoteConfig.getConfigMap = sinon.stub().returns(null);
       options.remoteConfig.persist = sinon.stub();
+      options.remoteConfig.loadAndValidate = sinon.stub();
+      options.remoteConfig.getNamespace = sinon.stub();
 
       options.remoteConfig.configuration = {
         components: {changeNodePhase: sinon.stub(), getNewComponentId: sinon.stub(), addNewComponent: sinon.stub()},
       };
 
+      await options.localConfig.load();
       options.localConfig.configuration.clusterRefs.set('solo-e2e', new StringFacade('context-1'));
 
       options.leaseManager = container.resolve<LockManager>(InjectTokens.LockManager);
       options.leaseManager.currentNamespace = sinon.stub().returns(testName);
 
       GenesisNetworkDataConstructor.initialize = sinon.stub().returns(null);
-
-      const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
-      await localConfig.load();
     });
 
     afterEach(() => {

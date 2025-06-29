@@ -15,7 +15,10 @@ import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local
 
 @injectable()
 export class ClusterCommandHandlers extends CommandHandler {
-  constructor(
+  public static readonly CONNECT_COMMAND: string = 'cluster-ref connect';
+  public static readonly SETUP_COMMAND: string = 'cluster-ref setup';
+
+  public constructor(
     @inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.ClusterCommandConfigs) private readonly configs: ClusterCommandConfigs,
@@ -49,6 +52,7 @@ export class ClusterCommandHandlers extends CommandHandler {
       },
       'cluster-ref connect',
       null,
+      ClusterCommandHandlers.CONNECT_COMMAND,
     );
 
     return true;
@@ -125,6 +129,7 @@ export class ClusterCommandHandlers extends CommandHandler {
         },
         'cluster setup',
         null,
+        ClusterCommandHandlers.SETUP_COMMAND,
       );
     } catch (error) {
       throw new SoloError('Error on cluster setup', error);
