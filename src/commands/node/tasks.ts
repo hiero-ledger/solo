@@ -121,6 +121,7 @@ import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api
 import {type ComponentFactoryApi} from '../../core/config/remote/api/component-factory-api.js';
 import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
+import {LockManager} from '../../core/lock/lock-manager.js';
 
 @injectable()
 export class NodeCommandTasks {
@@ -1081,6 +1082,18 @@ export class NodeCommandTasks {
     } catch (error) {
       throw new SoloError(`no pod found for nodeAlias: ${nodeAlias}`, error);
     }
+  }
+
+  public loadConfiguration(argv: ArgvStruct, lease: Lock, leaseManager: LockManager) {
+    const self = this;
+    return {
+      title: 'Load configuration',
+      task: async () => {
+        await self.localConfig.load();
+        await self.remoteConfig.loadAndValidate(argv);
+        lease = await leaseManager.create();
+      },
+    };
   }
 
   public identifyExistingNodes(): SoloListrTask<CheckedNodesContext> {
