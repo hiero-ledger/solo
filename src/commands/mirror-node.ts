@@ -120,10 +120,11 @@ export class MirrorNodeCommand extends BaseCommand {
   private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
 
   private static readonly DEPLOY_FLAGS_LIST = {
-    required: [],
+    required: [
+      flags.clusterRef,
+    ],
     optional: [
       flags.cacheDir,
-      flags.clusterRef,
       flags.chartDirectory,
       flags.deployment,
       flags.enableIngress,
@@ -984,6 +985,9 @@ export class MirrorNodeCommand extends BaseCommand {
       task: async (context_): Promise<void> => {
         const clusterReference: ClusterReferenceName = context_.config.clusterReference;
 
+        if (!clusterReference) {
+          throw new SoloError('Cluster reference is not defined');
+        }
         const mirrorNodeComponents: MirrorNodeStateSchema[] =
           this.remoteConfig.configuration.components.getComponentsByClusterReference<MirrorNodeStateSchema>(
             ComponentTypes.MirrorNode,
@@ -1009,6 +1013,9 @@ export class MirrorNodeCommand extends BaseCommand {
       skip: context_ => !this.remoteConfig.isLoaded() || context_.config.isChartInstalled,
       task: async (context_): Promise<void> => {
         const {namespace, clusterRef} = context_.config;
+        if (!clusterRef) {
+          throw new SoloError('Cluster reference is not defined');
+        }
 
         this.remoteConfig.configuration.components.addNewComponent(
           this.componentFactory.createNewMirrorNodeComponent(clusterRef, namespace),
