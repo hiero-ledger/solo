@@ -35,14 +35,27 @@ permissions:
 
 jobs:
   gcs-storage-test:
-    if: ${{ github.actor != 'dependabot[bot]' &&  !github.event.pull_request.head.repo.fork }}
     timeout-minutes: 20
     runs-on: hiero-solo-linux-large
     strategy:
       fail-fast: false
       matrix:
-        storageType: ["gcs_only", "minio_only", "aws_only"]
+        include:
+          - storageType: "gcs_only"
+            skip: ${{ github.actor == 'dependabot[bot]' || github.event.pull_request.head.repo.fork }}
+          - storageType: "minio_only"
+            skip: ${{ github.actor == 'dependabot[bot]' || github.event.pull_request.head.repo.fork }}
+          - storageType: "aws_only"
+            skip: ${{ github.actor == 'dependabot[bot]' || github.event.pull_request.head.repo.fork }}
     steps:
+      - name: Skip Test
+        id: skip-check
+        run: |
+          if [[ "${{ matrix.skip }}" == "true" ]]; then
+            echo "Skipping test for ${{ matrix.storageType }}"
+            exit 0
+          fi
+
       - name: Harden Runner
         uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
