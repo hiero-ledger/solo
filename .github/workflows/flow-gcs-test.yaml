@@ -43,13 +43,10 @@ jobs:
         include:
           - storageType: "gcs_only"
             skip: ${{ github.actor == 'dependabot[bot]' || github.event.pull_request.head.repo.fork }}
-            name: "gcs-storage-test (gcs_only)"
           - storageType: "minio_only"
             skip: ${{ github.actor == 'dependabot[bot]' || github.event.pull_request.head.repo.fork }}
-            name: "gcs-storage-test (minio_only)"
           - storageType: "aws_only"
             skip: ${{ github.actor == 'dependabot[bot]' || github.event.pull_request.head.repo.fork }}
-            name: "gcs-storage-test (aws_only)"
     steps:
       - name: Harden Runner
         if: ${{ !matrix.skip }}
@@ -79,7 +76,7 @@ jobs:
         id: jobs
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          job_name: "gcs-storage-test (${{ matrix.storageType }})"
+          job_name: "gcs-storage-test (${{ matrix.storageType }}, ${{ matrix.skip }})"
 
       - name: Create Bucket Name and Prefix
         if: ${{ !matrix.skip }}
