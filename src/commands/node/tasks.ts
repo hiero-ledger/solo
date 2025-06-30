@@ -1295,6 +1295,11 @@ export class NodeCommandTasks {
   public setupNetworkNodeFolders(): SoloListrTask<NodeSetupContext> {
     return {
       title: 'setup network node folders',
+      skip: (): boolean => {
+        const currentVersion: SemVer = this.remoteConfig.configuration.versions.consensusNode;
+        const versionRequirement: SemVer = new SemVer('0.63.0');
+        return lt(currentVersion, versionRequirement);
+      },
       task: async (context_): Promise<void> => {
         for (const consensusNode of context_.config.consensusNodes) {
           const podReference: PodReference = await this.k8Factory
@@ -1320,7 +1325,6 @@ export class NodeCommandTasks {
   }
 
   public setGrpcWebEndpoint(): SoloListrTask<NodeStartContext> {
-    // TODO: add flag to enable it if it needs, add to the end of node start
     return {
       title: 'set gRPC Web endpoint',
       skip: (): boolean => {
