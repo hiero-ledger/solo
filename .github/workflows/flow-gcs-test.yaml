@@ -43,10 +43,13 @@ jobs:
         include:
           - storageType: "gcs_only"
             skip: ${{ github.actor == 'dependabot[bot]' || github.event.pull_request.head.repo.fork }}
+            name: "gcs-storage-test (gcs_only)"
           - storageType: "minio_only"
             skip: ${{ github.actor == 'dependabot[bot]' || github.event.pull_request.head.repo.fork }}
+            name: "gcs-storage-test (minio_only)"
           - storageType: "aws_only"
             skip: ${{ github.actor == 'dependabot[bot]' || github.event.pull_request.head.repo.fork }}
+            name: "gcs-storage-test (aws_only)"
     steps:
       - name: Harden Runner
         if: ${{ !matrix.skip }}
@@ -151,7 +154,7 @@ jobs:
           fi
 
       - name: Upload Logs to GitHub
-        if: ${{ always() }}
+        if: ${{ !matrix.skip && always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: solo-logs-${{ matrix.storageType }}
@@ -160,7 +163,7 @@ jobs:
 
       - name: Delete Test Directory after Test
         # add always() to make sure bucket is deleted even if the test failed
-        if: always() && (matrix.storageType == 'gcs_only' || matrix.storageType == 'aws_only')
+        if: (!matrix.skip) && always() && (matrix.storageType == 'gcs_only' || matrix.storageType == 'aws_only')
         run: |
           gcloud storage rm --recursive gs://${BUCKET_NAME}/${{ steps.jobs.outputs.job_id }} --project=${{ vars.GCP_S3_PROJECT_ID }}
           gcloud storage rm --recursive gs://${BACKUP_BUCKET_NAME}/${{ steps.jobs.outputs.job_id }} --project=${{ vars.GCP_S3_PROJECT_ID }}
