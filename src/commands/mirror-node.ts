@@ -120,9 +120,7 @@ export class MirrorNodeCommand extends BaseCommand {
   private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
 
   private static readonly DEPLOY_FLAGS_LIST = {
-    required: [
-      flags.clusterRef,
-    ],
+    required: [flags.clusterRef],
     optional: [
       flags.cacheDir,
       flags.chartDirectory,
