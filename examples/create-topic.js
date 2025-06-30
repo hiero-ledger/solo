@@ -7,13 +7,32 @@ import {
   TopicMessageSubmitTransaction,
   AccountCreateTransaction,
   PrivateKey,
-  Hbar, TopicMessageQuery, Client,
+  Hbar,
+  TopicMessageQuery,
+  Client,
 } from '@hashgraph/sdk';
 
 import dotenv from 'dotenv';
 import http from 'http';
 
 dotenv.config();
+
+async function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function accountCreate(wallet) {
+  const newKey = PrivateKey.generate();
+  let accountCreateTransaction = await new AccountCreateTransaction()
+    .setInitialBalance(new Hbar(10))
+    .setKey(newKey.publicKey)
+    .freezeWithSigner(wallet);
+  accountCreateTransaction = await accountCreateTransaction.signWithSigner(wallet);
+  const accountCreationResponse = await accountCreateTransaction.executeWithSigner(wallet);
+  await sleep(3500); // wait for consensus on write transactions
+  const accountCreationReceipt = await accountCreationResponse.getReceiptWithSigner(wallet);
+  console.log(`account id = ${accountCreationReceipt.accountId.toString()}`);
+}
 
 async function main() {
   if (process.env.OPERATOR_ID === null || process.env.OPERATOR_KEY === null || process.env.HEDERA_NETWORK === null) {
@@ -39,37 +58,42 @@ async function main() {
     let transaction = await new TopicCreateTransaction().setAdminKey(operatorKey).freezeWithSigner(wallet);
     transaction = await transaction.signWithSigner(wallet);
     const createResponse = await transaction.executeWithSigner(wallet);
-    const createReceipt = await createResponse.getReceiptWithSigner(wallet);
+    await sleep(3500); // wait for consensus on write transactions
 
+    const createReceipt = await createResponse.getReceiptWithSigner(wallet);
     console.log(`topic id = ${createReceipt.topicId.toString()}`);
 
-    console.log('Wait a few seconds to create subscribe to new topic');
-    await new Promise(resolve => setTimeout(resolve, 25000));
-    // Create a subscription to the topic
-    const mirrorClient = (
-      await Client.forMirrorNetwork(mirrorNetwork)
-    ).setOperator(process.env.OPERATOR_ID, process.env.OPERATOR_KEY);
+    console.log('Wait to create subscribe to new topic');
+    await sleep(25000);
 
-    let expectedContents = "";
+    // Create a subscription to the topic
+    const mirrorClient = (await Client.forMirrorNetwork(mirrorNetwork)).setOperator(
+      process.env.OPERATOR_ID,
+      process.env.OPERATOR_KEY,
+    );
+
+    let expectedContents = '';
     let finished = false;
     new TopicMessageQuery()
-    .setTopicId(createReceipt.topicId)
-    .setMaxAttempts(400)
-    .setLimit(1)
-    // eslint-disable-next-line no-unused-vars
-    .subscribe(mirrorClient, (topic, error) => {
-      if (error) {
-        console.error(`Error      : ${error}`);
-        finished = true;
-        return;
-      }
-    }, (topic)=>{
-      finished = true;
-      expectedContents = Buffer.from(topic.contents).toString(
-        "utf-8",
+      .setTopicId(createReceipt.topicId)
+      .setMaxAttempts(400)
+      .setLimit(1)
+      // eslint-disable-next-line no-unused-vars
+      .subscribe(
+        mirrorClient,
+        (topic, error) => {
+          if (error) {
+            console.error(`ERROR: ${error}`, error);
+            finished = true;
+            return;
+          }
+        },
+        topic => {
+          finished = true;
+          expectedContents = Buffer.from(topic.contents).toString('utf-8');
+          console.log(`Subscription received message: ${topic.contents}`);
+        },
       );
-      console.log(`Subscription received message: ${topic.contents}`);
-    });
 
     // send one message
     let topicMessageSubmitTransaction = await new TopicMessageSubmitTransaction({
@@ -78,25 +102,15 @@ async function main() {
     }).freezeWithSigner(wallet);
     topicMessageSubmitTransaction = await topicMessageSubmitTransaction.signWithSigner(wallet);
     const sendResponse = await topicMessageSubmitTransaction.executeWithSigner(wallet);
+    await sleep(3500); // wait for consensus on write transactions
 
     const sendReceipt = await sendResponse.getReceiptWithSigner(wallet);
-
     console.log(`topic sequence number = ${sendReceipt.topicSequenceNumber.toString()}`);
 
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
     // send a create account transaction to push record stream files to mirror node
-    const newKey = PrivateKey.generate();
-    let accountCreateTransaction = await new AccountCreateTransaction()
-      .setInitialBalance(new Hbar(10))
-      .setKey(newKey.publicKey)
-      .freezeWithSigner(wallet);
-    accountCreateTransaction = await accountCreateTransaction.signWithSigner(wallet);
-    const accountCreationResponse = await accountCreateTransaction.executeWithSigner(wallet);
-    const accountCreationReceipt = await accountCreationResponse.getReceiptWithSigner(wallet);
-    console.log(`account id = ${accountCreationReceipt.accountId.toString()}`);
-
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await accountCreate(wallet);
+    await sleep(3500); // wait for consensus on write transactions
+    await sleep(1000); // wait for mirror node to sync
 
     // Check submit message result should success
     const queryURL = `http://localhost:8080/api/v1/topics/${createReceipt.topicId}/messages`;
@@ -115,7 +129,7 @@ async function main() {
             console.log('No messages yet');
           } else {
             if (obj.messages.length === 0) {
-              console.error(`No messages found for the topic ${createReceipt.topicId}`);
+              console.error(`ERROR: No messages found for the topic ${createReceipt.topicId}`);
               process.exit(1);
             }
             // convert message from base64 to utf-8
@@ -132,28 +146,31 @@ async function main() {
       });
       req.end(); // make the request
       // wait and try again
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // send a create account transaction to push record stream files to mirror node
+      await accountCreate(wallet);
+      await sleep(3500); // wait for consensus on write transactions
+      await sleep(1000); // wait for mirror node to sync
       retry++;
     }
 
     // wait a few seconds to receive subscription message
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await sleep(5000);
     if (!finished) {
-      console.error("Not received subscription message");
+      console.error('ERROR: Not received subscription message');
       process.exit(1);
     } else if (expectedContents !== TEST_MESSAGE) {
-      console.error('Message received from subscription but not match: ' + expectedContents);
+      console.error('ERROR: Message received from subscription but not match: ' + expectedContents);
       process.exit(1);
     }
 
     if (receivedMessage === TEST_MESSAGE) {
       console.log('Message received successfully');
     } else {
-      console.error('Message received but not match: ' + receivedMessage);
+      console.error('ERROR: Message received but not match: ' + receivedMessage);
       process.exit(1);
     }
   } catch (error) {
-    console.error(error);
+    console.error(`ERROR: ${error}`, error);
     throw error;
   }
   provider.close();

@@ -1,0 +1,21 @@
+---
+engines:
+  eslint-8:
+    enabled: false
+  eslint:
+    enabled: false
+  eslint-9:
+    enabled: true
+    config_file: eslint.config.mjs
+eslint-8:
+  enabled: false
+eslint:
+  enabled: false
+eslint-9:
+  enabled: true
+  config_file: eslint.config.mjs
+exclude_paths:
+  - "tsdoc-plugin-macros.mjs"
+  - "docs/site/go.mod"
+  - "resources/post-build-script.js"
+  - "tsconfig.json"

@@ -31,7 +31,7 @@ function setup_smart_contract_test ()
   rm -f .env
 
   npm install
-  npx hardhat compile || return 1
+  npx hardhat compile || log_and_exit 1
 
   echo "Build .env file"
 
@@ -47,9 +47,9 @@ function check_port_forward ()
   # run background task for few minutes
   for i in {1..20}
   do
-    echo "Check port forward i = $i out of 20"
-    ps -ef |grep port-forward
-    sleep 5
+    echo "Check port forward i = $i out of 20" >> port-forward.log
+    ps -ef |grep port-forward >> port-forward.log
+    sleep 10
   done &
 }
 
@@ -59,7 +59,7 @@ function start_background_transactions ()
   # generate accounts as background traffic for two minutes
   # so record stream files can be kept pushing to mirror node
   cd solo
-  npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --create-amount 15 > /dev/null 2>&1 &
+  npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --create-amount 1000 > /dev/null 2>&1 &
   cd -
 }
 
@@ -67,13 +67,15 @@ function start_contract_test ()
 {
   cd hedera-smart-contracts
   echo "Wait a few seconds for background transactions to start"
-  sleep 5
+  sleep 10
   echo "Run smart contract test"
-  npm run hh:test
-  result=$?
-
+  result=0
+  npm run hh:test || result=$?
   cd -
-  return $result
+  if [[ $result -ne 0 ]]; then
+    echo "Smart contract test failed with exit code $result"
+    log_and_exit $result
+  fi
 }
 
 function start_sdk_test ()
@@ -83,11 +85,13 @@ function start_sdk_test ()
     curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
   fi
   grpcurl -plaintext -d '{"file_id": {"fileNum": 102}, "limit": 0}' localhost:5600 com.hedera.mirror.api.proto.NetworkService/getNodes
-  node examples/create-topic.js
-  result=$?
-
+  result=0
+  node examples/create-topic.js || result=$?
   cd -
-  return $result
+  if [[ $result -ne 0 ]]; then
+    echo "JavaScript SDK test failed with exit code $result"
+    log_and_exit $result
+  fi
 }
 
 function check_monitor_log()
@@ -104,7 +108,7 @@ function check_monitor_log()
     echo
     echo "------- END LOG DUMP -------"
 
-    exit 1
+    log_and_exit 1
   fi
 
   # any line contains "Scenario pinger published" should contain the string "Errors: {}"
@@ -113,7 +117,7 @@ function check_monitor_log()
       echo "mirror-monitor.log contains Scenario pinger published and Errors: {}"
     else
       echo "mirror-monitor.log contains Scenario pinger published but not Errors: {}"
-      exit 1
+      log_and_exit 1
     fi
   fi
 }
@@ -130,6 +134,25 @@ function check_importer_log()
     echo
     echo "------- END LOG DUMP -------"
 
+    log_and_exit 1
+  fi
+}
+
+function log_and_exit()
+{
+  echo "------- Last port-forward check -------" >> port-forward.log
+  ps -ef |grep port-forward >> port-forward.log
+  if [[ "$1" == "0" ]]; then
+    echo "Script completed successfully."
+    echo "------- BEGIN PORT-FORWARD DUMP -------"
+    cat port-forward.log
+    echo "------- END PORT-FORWARD DUMP -------"
+    exit 0
+  else
+    echo "An error occurred while running the script: $1"
+    echo "------- BEGIN PORT-FORWARD DUMP -------"
+    cat port-forward.log
+    echo "------- END PORT-FORWARD DUMP -------"
     exit 1
   fi
 }
@@ -137,6 +160,8 @@ function check_importer_log()
 echo "Change to parent directory"
 
 cd ../
+rm port-forward.log || true
+
 if [ -z "${SOLO_DEPLOYMENT}" ]; then
   export SOLO_DEPLOYMENT="solo-deployment"
 fi
@@ -152,6 +177,12 @@ sleep 30
 
 echo "Run mirror node acceptance test"
 helm test mirror -n solo-e2e --timeout 10m
+result=$?
+if [[ $result -ne 0 ]]; then
+  echo "Mirror node acceptance test failed with exit code $result"
+  log_and_exit $result
+fi
+
 check_monitor_log
 
 if [ -n "$1" ]; then
@@ -159,3 +190,4 @@ if [ -n "$1" ]; then
 else
   check_importer_log
 fi
+log_and_exit $?
