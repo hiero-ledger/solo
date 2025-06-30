@@ -1,18 +1,23 @@
 # Expose NodePort used by mirror-ingress-controller and explorer-ingress-controller
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
+      endpoint = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
 nodes:
   - role: control-plane
+    # stay in the lower range for static ports, full range: 30000-32767
     extraPortMappings:
-      - containerPort: 31000
-        hostPort: 31000
+      - containerPort: 30001
+        hostPort: 30001
         protocol: TCP
-      - containerPort: 31001
-        hostPort: 31001
+      - containerPort: 30002
+        hostPort: 30002
         protocol: TCP
-      - containerPort: 32000
-        hostPort: 32000
+      - containerPort: 30003
+        hostPort: 30003
         protocol: TCP
-      - containerPort: 32001
-        hostPort: 32001
+      - containerPort: 30004
+        hostPort: 30004
         protocol: TCP
