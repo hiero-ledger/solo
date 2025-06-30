@@ -7,11 +7,11 @@ controller:
     httpPorts:
       - port: 9090
         targetPort: 9090
-        nodePort: 32000
+        nodePort: 30003
     httpsPorts:
       - port: 9443
         targetPort: 9443
-        nodePort: 32001
+        nodePort: 30004
   config:
     http-port: "9090"
     https-port: "9443"

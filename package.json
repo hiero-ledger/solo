@@ -1,6 +1,6 @@
 {
   "name": "@hashgraph/solo",
-  "version": "0.37.1",
+  "version": "0.38.0",
   "description": "An opinionated CLI tool to deploy and manage private Hedera Networks.",
   "main": "./dist/src/index.js",
   "type": "module",
@@ -23,7 +23,7 @@
   "author": "Hashgraph",
   "license": "Apache2.0",
   "dependencies": {
-    "@hashgraph/sdk": "^2.66.0",
+    "@hashgraph/sdk": "^2.67.0",
     "@inquirer/prompts": "^7.5.3",
     "@kubernetes/client-node": "^0.22.3",
     "@listr2/prompt-adapter-inquirer": "^2.0.22",
@@ -33,7 +33,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "dot-object": "^2.1.5",
-    "dotenv": "^16.5.0",
+    "dotenv": "^17.0.0",
     "elliptic": "^6.6.1",
     "esm": "^3.2.25",
     "figlet": "^1.8.1",
@@ -103,7 +103,7 @@
     "mocha-each": "^2.0.1",
     "mocha-junit-reporter": "^2.2.1",
     "mocha-multi-reporters": "^1.5.1",
-    "prettier": "^3.6.1",
+    "prettier": "^3.6.2",
     "remark-cli": "^12.0.1",
     "remark-frontmatter": "^5.0.0",
     "remark-lint-list-item-indent": "^4.0.1",
@@ -113,7 +113,7 @@
     "sinon": "^21.0.0",
     "sinon-chai": "^4.0.0",
     "tsx": "^4.20.3",
-    "typedoc": "^0.28.5",
+    "typedoc": "^0.28.6",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.35.0"
   },

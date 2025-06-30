@@ -72,7 +72,12 @@ jobs:
 
       - name: Install Dependencies
         id: npm-deps
-        run: npm ci
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
+        with:
+          max_attempts: 10
+          timeout_minutes: 10
+          command: |
+            npm ci
 
       - name: Check Code Style
         run: task check
