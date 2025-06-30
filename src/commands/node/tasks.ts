@@ -123,6 +123,8 @@ import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/
 import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 import {LockManager} from '../../core/lock/lock-manager.js';
 
+export type LeaseWrapper = {lease: Lock};
+
 @injectable()
 export class NodeCommandTasks {
   public constructor(
@@ -1084,14 +1086,14 @@ export class NodeCommandTasks {
     }
   }
 
-  public loadConfiguration(argv: ArgvStruct, lease: Lock, leaseManager: LockManager) {
+  public loadConfiguration(argv: ArgvStruct, leaseWrapper: LeaseWrapper, leaseManager: LockManager) {
     const self = this;
     return {
       title: 'Load configuration',
       task: async () => {
         await self.localConfig.load();
         await self.remoteConfig.loadAndValidate(argv);
-        lease = await leaseManager.create();
+        leaseWrapper.lease = await leaseManager.create();
       },
     };
   }
