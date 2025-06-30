@@ -1370,15 +1370,9 @@ export class NodeCommandTasks {
 
           const updateTransactionReceipt: TransactionReceipt = await updateTransactionResponse.getReceipt(client);
 
-          console.log(`Node update transaction status: ${updateTransactionReceipt.status.toString()}`);
-
           if (updateTransactionReceipt.status !== Status.Success) {
             throw new SoloError('Failed to set gRPC web proxy endpoint');
           }
-
-          const response: any = await fetch('http://localhost:5551/api/v1/network/nodes');
-          const nodesData: any = await response.json();
-          console.log(nodesData);
         }
       },
     };
