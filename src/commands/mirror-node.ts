@@ -30,7 +30,6 @@ import {
   type Optional,
   type SoloListrTask,
 } from '../types/index.js';
-import * as Base64 from 'js-base64';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
@@ -47,7 +46,6 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {type AccountId} from '@hashgraph/sdk';
 import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
@@ -394,11 +392,9 @@ export class MirrorNodeCommand extends BaseCommand {
             context_.config.namespace = namespace;
 
             // predefined values first
-            if (semver.lt(context_.config.mirrorNodeVersion, '0.130.0')) {
-              context_.config.valuesArg += helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA);
-            } else {
-              context_.config.valuesArg += helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
-            }
+            context_.config.valuesArg += semver.lt(context_.config.mirrorNodeVersion, '0.130.0')
+              ? helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA)
+              : helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
             // user defined values later to override predefined values
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
 

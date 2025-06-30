@@ -164,7 +164,11 @@ export class MirrorNodeTest extends BaseCommandTest {
     }
   }
 
-  private static async verifyPingerStatus(contexts: string[], namespace: NamespaceName, pingerIsEnabled: boolean): Promise<void> {
+  private static async verifyPingerStatus(
+    contexts: string[],
+    namespace: NamespaceName,
+    pingerIsEnabled: boolean,
+  ): Promise<void> {
     const portForwarder: ExtendedNetServer = await MirrorNodeTest.forwardRestServicePort(contexts, namespace);
     try {
       const transactionsEndpoint: string = 'http://localhost:5551/api/v1/transactions';
