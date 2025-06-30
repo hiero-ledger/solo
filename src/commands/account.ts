@@ -11,7 +11,6 @@ import * as helpers from '../core/helpers.js';
 import {entityId} from '../core/helpers.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {type AccountId, AccountInfo, HbarUnit, Long, NodeUpdateTransaction, PrivateKey} from '@hashgraph/sdk';
-import {ListrLock} from '../core/lock/listr-lock.js';
 import {type AnyYargs, type ArgvStruct, type NodeAliases} from '../types/aliases.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
@@ -449,8 +448,8 @@ export class AccountCommand extends BaseCommand {
     } finally {
       await this.closeConnections();
       // create two accounts to force the handler to trigger
-      await self.create({} as ArgvStruct);
-      await self.create({} as ArgvStruct);
+      await self.create(argv);
+      await self.create(argv);
     }
 
     return true;
@@ -458,7 +457,6 @@ export class AccountCommand extends BaseCommand {
 
   public async create(argv: ArgvStruct): Promise<boolean> {
     const self = this;
-    const lease = await self.leaseManager.create();
 
     interface Config {
       amount: number;
@@ -522,8 +520,6 @@ export class AccountCommand extends BaseCommand {
               config.deployment,
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
-
-            return ListrLock.newAcquireLockTask(lease, task);
           },
         },
         {
@@ -564,7 +560,6 @@ export class AccountCommand extends BaseCommand {
     } catch (error) {
       throw new SoloError(`Error in creating account: ${error.message}`, error);
     } finally {
-      await lease.release();
       await this.closeConnections();
     }
 

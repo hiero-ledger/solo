@@ -103,7 +103,7 @@ metadata:
     migratedBy: lenin.mehedy@swirldslabs.com
     fromVersion: 1.0.31 # usually it should be incremental
     ~~configMap: my-network-1-migrate-1.0.31 # config map name. It should have the script and relevant data~~
-clusters: # acquire leases accross all clusters and namespaces
+clusters: # acquire leases across all clusters and namespaces
   - name: cluster-1
     namespace: solo-1
   - name: cluster-2

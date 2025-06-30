@@ -183,7 +183,7 @@ export const ADD_EXECUTE_FLAGS = {
 };
 
 export const LOGS_FLAGS = {
-  required: [flags.deployment, flags.nodeAliasesUnparsed],
+  required: [flags.deployment],
   optional: [flags.quiet],
 };
 
