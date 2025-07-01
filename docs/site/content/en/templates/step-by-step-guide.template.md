@@ -590,10 +590,70 @@ solo node logs --node-aliases node1 --deployment solo-deployment
 
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
-To update nodes to a new Hedera version, you need up upgrade to one minor version higher at a time:
+To update nodes to a new Hedera version, you need to upgrade by one minor version higher at a time:
 
 ```bash
 solo node upgrade --deployment solo-deployment --upgrade-version v0.62.6
+```
+
+{{< /details >}}<br/>
+
+### Updating a single node
+
+{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+
+To update a single node to a new Hedera version, you need to update by one minor version higher at a time:
+
+```bash
+solo node update --deployment solo-deployment --node-alias node1 --release-tag v0.62.6
+```
+
+It is possible to update a single node to a new Hedera version through a process with separated steps. This is only useful in very specific cases, such as when testing the updating process.
+
+```bash
+solo node update-prepare --deployment solo-deployment --node-alias node1 --release-tag v0.62.6 --output-dir context
+solo node update-submit-transactions --deployment solo-deployment --input-dir context
+solo node update-execute --deployment solo-deployment --input-dir context
+```
+
+{{< /details >}}<br/>
+
+### Adding a new node to the network
+
+{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+
+Adding a new node to an existing Solo network:
+
+```bash
+TODO solo node add
+```
+
+It is possible to add a new node through a process with separated steps. This is only useful in very specific cases, such as when testing the node adding process.
+
+```bash
+solo node add-prepare --gossip-keys true --tls-keys true --deployment solo-deployment --pvcs true --admin-key ***** --node-alias node1 --output-dir context
+solo node add-submit-transactions --deployment solo-deployment --input-dir context
+solo node add-execute --deployment solo-deployment --input-dir context
+```
+
+{{< /details >}}<br/>
+
+### Deleting a node from the network
+
+{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+
+This command is used to delete a node from an existing Solo network:
+
+```bash
+TODO solo node delete
+```
+
+It is possible to delete a node through a process with separated steps. This is only useful in very specific cases, such as when testing the delete process.
+
+```bash
+solo node delete-prepare --deployment solo-deployment --node-alias node1 --output-dir context
+solo node delete-submit-transactions --deployment solo-deployment --input-dir context
+solo node delete-execute --deployment solo-deployment --input-dir context
 ```
 
 {{< /details >}}<br/>
