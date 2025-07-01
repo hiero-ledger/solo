@@ -1276,10 +1276,8 @@ export class NodeCommandTasks {
 
           subTasks.push({
             title: `Node: ${chalk.yellow(nodeAlias)}`,
-            task: async (context_): Promise<void> => {
-              // @ts-expect-error: all fields are not present in every task's context
-              this.platformInstaller.taskSetup(podReference, context_.config.stagingDir, isGenesis, context);
-            },
+            // @ts-expect-error: all fields are not present in every task's context
+            task: () => this.platformInstaller.taskSetup(podReference, context_.config.stagingDir, isGenesis, context),
           });
         }
 
@@ -1431,7 +1429,7 @@ export class NodeCommandTasks {
       // set adminPublicKeys as array of constants.GENESIS_KEY with the same size consensus nodes
       adminPublicKeys = Array.from({length: consensusNodes.length}).fill(constants.GENESIS_KEY);
     }
-    const genesisNetworkData: GenesisNetworkDataConstructor = await GenesisNetworkDataConstructor.initialize(
+    const genesisNetworkData = await GenesisNetworkDataConstructor.initialize(
       consensusNodes,
       this.keyManager,
       this.accountManager,
