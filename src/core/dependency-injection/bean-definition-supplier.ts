@@ -2,7 +2,7 @@
 
 import {type DependencyContainer} from 'tsyringe-neo';
 
-export interface BeanDefintionSupplier {
+export interface BeanDefinitionSupplier {
   /**
    * The unique identifier for the bean.
    */
