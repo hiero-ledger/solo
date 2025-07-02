@@ -8,16 +8,29 @@ import {container, inject, injectable} from 'tsyringe-neo';
 import * as constants from '../constants.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {type SoloListrTask} from '../../types/index.js';
+import {KindDependencyManager} from './kind-dependency-manager.js';
 
 @injectable()
 export class DependencyManager extends ShellRunner {
-  private readonly depManagerMap: Map<string, HelmDependencyManager>;
+  private readonly depManagerMap: Map<string, HelmDependencyManager | KindDependencyManager>;
 
-  public constructor(@inject(InjectTokens.HelmDependencyManager) helmDepManager?: HelmDependencyManager) {
+  public constructor(
+    @inject(InjectTokens.HelmDependencyManager) helmDepManager?: HelmDependencyManager,
+    @inject(InjectTokens.KindDependencyManager) kindDepManager?: KindDependencyManager,
+  ) {
     super();
-    this.depManagerMap = helmDepManager
-      ? new Map().set(constants.HELM, helmDepManager)
-      : new Map().set(constants.HELM, container.resolve(HelmDependencyManager));
+    this.depManagerMap = new Map();
+    if (helmDepManager) {
+      this.depManagerMap.set(constants.HELM, helmDepManager);
+    } else {
+      this.depManagerMap.set(constants.HELM, container.resolve(HelmDependencyManager));
+    }
+
+    if (kindDepManager) {
+      this.depManagerMap.set(constants.KIND, kindDepManager);
+    } else {
+      this.depManagerMap.set(constants.KIND, container.resolve(KindDependencyManager));
+    }
   }
 
   /**
@@ -29,7 +42,7 @@ export class DependencyManager extends ShellRunner {
     this.logger.debug(`Checking for dependency: ${dep}`);
 
     let status: boolean = false;
-    const manager: HelmDependencyManager = this.depManagerMap.get(dep);
+    const manager: HelmDependencyManager | KindDependencyManager = this.depManagerMap.get(dep);
     if (manager) {
       status = await manager.checkVersion(shouldInstall);
     }
