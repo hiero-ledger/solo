@@ -24,6 +24,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {type ConfigManager} from './config-manager.js';
 import {Flags as flags} from '../commands/flags.js';
 import {type Realm, type Shard} from './../types/index.js';
+import {execSync} from 'node:child_process';
 
 export function getInternalAddress(
   releaseVersion: semver.SemVer | string,
@@ -511,9 +512,7 @@ function printPaddedMessage(message: string, totalWidth: number): string {
  * @param type The action that was performed such as 'Installed' or 'Upgraded'
  */
 export function showVersionBanner(logger: SoloLogger, chartName: string, version: string, type: string = 'Installed') {
-  logger.showUser(chalk.cyan(printPaddedMessage(` ${type} ${chartName} chart `, 80)));
-  logger.showUser(chalk.cyan('Version\t\t\t:'), chalk.yellow(version));
-  logger.showUser(chalk.cyan(printPaddedMessage('', 80)));
+  logger.showUser(chalk.cyan(` - ${type} ${chartName} chart, version:`, chalk.yellow(version)));
 }
 
 /**
@@ -569,4 +568,25 @@ export async function withTimeout<T>(
 async function throwAfter(duration: Duration, message: string = 'Timeout'): Promise<never> {
   await sleep(duration);
   throw new SoloError(message);
+}
+
+/**
+ * Checks if a Docker image with the given name and tag exists locally.
+ * @param imageName The name of the Docker image (e.g., "block-node-server").
+ * @param imageTag The tag of the Docker image (e.g., "0.12.0").
+ * @returns True if the image exists, false otherwise.
+ */
+export function checkDockerImageExists(imageName: string, imageTag: string): boolean {
+  const fullImageName: string = `${imageName}:${imageTag}`;
+  try {
+    // Execute the 'docker images' command and filter by the image name
+    // The --format "{{.Repository}}:{{.Tag}}" ensures consistent output
+    // We use grep to filter for the exact image:tag
+    const command: string = `docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "^${fullImageName}$"`;
+    const output: string = execSync(command, {encoding: 'utf8', stdio: 'pipe'});
+    return output.trim() === fullImageName;
+  } catch (error: any) {
+    console.error(`Error checking Docker image ${fullImageName}:`, error.message);
+    return false;
+  }
 }

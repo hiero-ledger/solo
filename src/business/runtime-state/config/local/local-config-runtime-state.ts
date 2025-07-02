@@ -25,6 +25,7 @@ export class LocalConfigRuntimeState {
   private readonly source: LocalConfigSource;
   private readonly backend: YamlFileStorageBackend;
   private readonly objectMapper: ObjectMapper;
+  public isLoaded: boolean = false;
 
   private _localConfig: LocalConfig;
 
@@ -36,7 +37,28 @@ export class LocalConfigRuntimeState {
     this.fileName = patchInject(fileName, InjectTokens.LocalConfigFileName, this.constructor.name);
     this.basePath = patchInject(basePath, InjectTokens.HomeDirectory, this.constructor.name);
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
+    this.backend = new YamlFileStorageBackend(this.basePath);
+    this.objectMapper = new ClassToObjectMapper(ConfigKeyFormatter.instance());
+    this.source = new LocalConfigSource(
+      fileName,
+      new LocalConfigSchemaDefinition(this.objectMapper),
+      this.objectMapper,
+      this.backend,
+      LocalConfigSchema.EMPTY,
+    );
+  }
 
+  public get configuration(): LocalConfig {
+    if (!this.isLoaded) {
+      throw new Error('configuration: Local configuration is not loaded yet. Please call load() first.');
+    }
+
+    return this._localConfig;
+  }
+
+  // Loads the source data and writes it back in case of migrations.
+  public async load(): Promise<void> {
+    // TODO this needs to be a migration, not a load
     // check if config from an old version exists under the cache directory
     const oldConfigPath: string = PathEx.join(this.basePath, 'cache');
     const oldConfigFile: string = PathEx.join(oldConfigPath, this.fileName);
@@ -52,25 +74,7 @@ export class LocalConfigRuntimeState {
       fs.rmSync(oldConfigFile);
     }
 
-    this.backend = new YamlFileStorageBackend(this.basePath);
-    this.objectMapper = new ClassToObjectMapper(ConfigKeyFormatter.instance());
-    this.source = new LocalConfigSource(
-      fileName,
-      new LocalConfigSchemaDefinition(this.objectMapper),
-      this.objectMapper,
-      this.backend,
-      LocalConfigSchema.EMPTY,
-    );
-
     this.refresh();
-  }
-
-  public get configuration(): LocalConfig {
-    return this._localConfig;
-  }
-
-  // Loads the source data and writes it back in case of migrations.
-  public async load(): Promise<void> {
     if (!this.configFileExists()) {
       return await this.persist();
     }
@@ -84,6 +88,7 @@ export class LocalConfigRuntimeState {
     await this.persist();
 
     await this.migrateCacheDirectories();
+    this.isLoaded = true;
   }
 
   /**
@@ -91,6 +96,9 @@ export class LocalConfigRuntimeState {
    * It will look for directories in the format 'v0.58/staging/v0.58.10' and move them to current staging directory.
    */
   private async migrateCacheDirectories(): Promise<void> {
+    if (!this.isLoaded) {
+      throw new Error('migrateCacheDirectories: Local configuration is not loaded yet. Please call load() first.');
+    }
     const cacheDirectory: string = PathEx.join(this.basePath, 'cache').toString();
     const releaseTag: string = this.configManager.getFlag(flags.releaseTag);
     const currentStagingDirectory: string = Templates.renderStagingDir(cacheDirectory, releaseTag);
@@ -113,6 +121,11 @@ export class LocalConfigRuntimeState {
   }
 
   private async findMatchingSoloCacheDirectories(baseDirectory: string): Promise<string[]> {
+    if (!this.isLoaded) {
+      throw new Error(
+        'findMatchingSoloCacheDirectories: Local configuration is not loaded yet. Please call load() first.',
+      );
+    }
     // Regex to match directory names like 'v0.58' or 'v0.60'
     // This will capture the version number.
     const versionDirectionRegex: RegExp = /^v(\d+\.\d+)$/;
@@ -158,7 +171,8 @@ export class LocalConfigRuntimeState {
 
   public async persist(): Promise<void> {
     try {
-      return await this.source.persist();
+      await this.source.persist();
+      this.isLoaded = true;
     } catch (error) {
       throw new WriteLocalConfigFileError('Failed to write local config file', error);
     }

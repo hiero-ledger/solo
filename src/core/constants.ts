@@ -29,6 +29,7 @@ export const SKIP_NODE_PING = Boolean(process.env.SKIP_NODE_PING) || false;
 export const DEFAULT_LOCK_ACQUIRE_ATTEMPTS = +process.env.SOLO_LEASE_ACQUIRE_ATTEMPTS || 10;
 export const DEFAULT_LEASE_DURATION = +process.env.SOLO_LEASE_DURATION || 20;
 
+export const SOLO_USER_AGENT_HEADER = 'Solo-User-Agent';
 // --------------- Hedera network and node related constants --------------------------------------------------------------------
 export const HEDERA_CHAIN_ID = process.env.SOLO_CHAIN_ID || '298';
 export const HEDERA_HGCAPP_DIR = '/opt/hgcapp';
@@ -269,6 +270,7 @@ export const BACKUP_SECRET_NAME = 'backup-uploader-secrets';
 export const MIRROR_INGRESS_TLS_SECRET_NAME = 'ca-secret-mirror-node';
 export const EXPLORER_INGRESS_TLS_SECRET_NAME = 'ca-secret-hiero-explorer';
 
+export const BLOCK_NODE_IMAGE_NAME: string = 'block-node-server';
 export const enum StorageType {
   MINIO_ONLY = 'minio_only',
   AWS_ONLY = 'aws_only',

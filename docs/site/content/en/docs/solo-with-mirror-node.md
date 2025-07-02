@@ -66,4 +66,3 @@ curl -s "http://${REST_IP:-127.0.0.1}:5551/api/v1/transactions?limit=1"
 kubectl port-forward service/mirror-restjava -n "${SOLO_NAMESPACE}" 8084:80 &
 curl -s "http://${REST_IP:-127.0.0.1}:8084/api/v1/accounts/0.0.2/allowances/nfts"
 ```
-

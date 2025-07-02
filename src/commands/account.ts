@@ -11,12 +11,11 @@ import * as helpers from '../core/helpers.js';
 import {entityId} from '../core/helpers.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {type AccountId, AccountInfo, HbarUnit, Long, NodeUpdateTransaction, PrivateKey} from '@hashgraph/sdk';
-import {ListrLock} from '../core/lock/listr-lock.js';
 import {type AnyYargs, type ArgvStruct, type NodeAliases} from '../types/aliases.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {
-  type ClusterReference,
+  type ClusterReferenceName,
   type CommandDefinition,
   type DeploymentName,
   type Realm,
@@ -37,7 +36,7 @@ interface UpdateAccountConfig {
   deployment: DeploymentName;
   ecdsaPrivateKey: string;
   ed25519PrivateKey: string;
-  clusterRef: ClusterReference;
+  clusterRef: ClusterReferenceName;
   contextName: string;
 }
 
@@ -227,7 +226,7 @@ export class AccountCommand extends BaseCommand {
     interface Config {
       namespace: NamespaceName;
       nodeAliases: NodeAliases;
-      clusterRef: ClusterReference;
+      clusterRef: ClusterReferenceName;
       deployment: DeploymentName;
       contextName: string;
     }
@@ -248,13 +247,16 @@ export class AccountCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
+
             self.configManager.update(argv);
 
             flags.disablePrompts([flags.clusterRef]);
 
             const config = {
               deployment: self.configManager.getFlag<DeploymentName>(flags.deployment),
-              clusterRef: self.configManager.getFlag(flags.clusterRef) as ClusterReference,
+              clusterRef: self.configManager.getFlag(flags.clusterRef) as ClusterReferenceName,
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
               nodeAliases: helpers.parseNodeAliases(
                 this.configManager.getFlag(flags.nodeAliasesUnparsed),
@@ -449,8 +451,8 @@ export class AccountCommand extends BaseCommand {
     } finally {
       await this.closeConnections();
       // create two accounts to force the handler to trigger
-      await self.create({} as ArgvStruct);
-      await self.create({} as ArgvStruct);
+      await self.create(argv);
+      await self.create(argv);
     }
 
     return true;
@@ -458,7 +460,6 @@ export class AccountCommand extends BaseCommand {
 
   public async create(argv: ArgvStruct): Promise<boolean> {
     const self = this;
-    const lease = await self.leaseManager.create();
 
     interface Config {
       amount: number;
@@ -470,7 +471,7 @@ export class AccountCommand extends BaseCommand {
       generateEcdsaKey: boolean;
       createAmount: number;
       contextName: string;
-      clusterRef: ClusterReference;
+      clusterRef: ClusterReferenceName;
     }
 
     interface Context {
@@ -483,6 +484,9 @@ export class AccountCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
+
             self.configManager.update(argv);
 
             flags.disablePrompts([flags.clusterRef]);
@@ -496,7 +500,7 @@ export class AccountCommand extends BaseCommand {
               setAlias: self.configManager.getFlag<boolean>(flags.setAlias),
               generateEcdsaKey: self.configManager.getFlag<boolean>(flags.generateEcdsaKey),
               createAmount: self.configManager.getFlag<number>(flags.createAmount),
-              clusterRef: self.configManager.getFlag<ClusterReference>(flags.clusterRef),
+              clusterRef: self.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
             } as Config;
 
             config.contextName =
@@ -522,8 +526,6 @@ export class AccountCommand extends BaseCommand {
               config.deployment,
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
-
-            return ListrLock.newAcquireLockTask(lease, task);
           },
         },
         {
@@ -564,7 +566,6 @@ export class AccountCommand extends BaseCommand {
     } catch (error) {
       throw new SoloError(`Error in creating account: ${error.message}`, error);
     } finally {
-      await lease.release();
       await this.closeConnections();
     }
 
@@ -579,6 +580,9 @@ export class AccountCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
+
             self.configManager.update(argv);
 
             flags.disablePrompts([flags.clusterRef]);
@@ -592,7 +596,7 @@ export class AccountCommand extends BaseCommand {
               deployment: self.configManager.getFlag<DeploymentName>(flags.deployment),
               ecdsaPrivateKey: self.configManager.getFlag(flags.ecdsaPrivateKey),
               ed25519PrivateKey: self.configManager.getFlag(flags.ed25519PrivateKey),
-              clusterRef: self.configManager.getFlag<ClusterReference>(flags.clusterRef),
+              clusterRef: self.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
             } as UpdateAccountConfig;
 
             config.contextName =
@@ -671,7 +675,7 @@ export class AccountCommand extends BaseCommand {
       namespace: NamespaceName;
       privateKey: boolean;
       deployment: DeploymentName;
-      clusterRef: ClusterReference;
+      clusterRef: ClusterReferenceName;
       contextName: string;
     }
 
@@ -684,6 +688,9 @@ export class AccountCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
+
             self.configManager.update(argv);
             await self.configManager.executePrompt(task, [flags.accountId]);
 
@@ -694,7 +701,7 @@ export class AccountCommand extends BaseCommand {
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
               deployment: self.configManager.getFlag<DeploymentName>(flags.deployment),
               privateKey: self.configManager.getFlag<boolean>(flags.privateKey),
-              clusterRef: self.configManager.getFlag<ClusterReference>(flags.clusterRef),
+              clusterRef: self.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
             } as Config;
 
             config.contextName =

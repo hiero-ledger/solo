@@ -27,7 +27,7 @@ on:
         description: "NodeJS Version:"
         type: string
         required: false
-        default: "20"
+        default: "20.19.3"
       custom-job-label:
         description: "Custom Job Label:"
         type: string
@@ -52,7 +52,7 @@ jobs:
     runs-on: hiero-solo-linux-medium
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -72,7 +72,12 @@ jobs:
 
       - name: Install Dependencies
         id: npm-deps
-        run: npm ci
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
+        with:
+          max_attempts: 10
+          timeout_minutes: 10
+          command: |
+            npm ci
 
       - name: Check Code Style
         run: task check

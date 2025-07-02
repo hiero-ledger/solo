@@ -20,7 +20,7 @@ import {ListrLock} from '../core/lock/listr-lock.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {
-  type ClusterReference,
+  type ClusterReferenceName,
   type CommandDefinition,
   type Context,
   type Optional,
@@ -37,11 +37,12 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {Lock} from '../core/lock/lock.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
   chartDirectory: string;
-  clusterRef: ClusterReference;
+  clusterRef: ClusterReferenceName;
   clusterContext: string;
   enableIngress: boolean;
   enableExplorerTls: boolean;
@@ -70,7 +71,7 @@ interface ExplorerDeployContext {
 interface ExplorerDestroyContext {
   config: {
     clusterContext: string;
-    clusterReference: ClusterReference;
+    clusterReference: ClusterReferenceName;
     namespace: NamespaceName;
     isChartInstalled: boolean;
   };
@@ -78,6 +79,8 @@ interface ExplorerDestroyContext {
 
 @injectable()
 export class ExplorerCommand extends BaseCommand {
+  public static readonly DEPLOY_COMMAND = 'explorer deploy';
+
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
@@ -218,13 +221,17 @@ export class ExplorerCommand extends BaseCommand {
 
   private async deploy(argv: ArgvStruct): Promise<boolean> {
     const self = this;
-    const lease = await self.leaseManager.create();
+    let lease: Lock;
 
-    const tasks = new Listr<ExplorerDeployContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
+            lease = await self.leaseManager.create();
+
             self.configManager.update(argv);
 
             // disable the prompts that we don't want to prompt the user for
@@ -438,15 +445,23 @@ export class ExplorerCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      ExplorerCommand.DEPLOY_COMMAND,
     );
 
-    try {
-      await tasks.run();
-      self.logger.debug('explorer deployment has completed');
-    } catch (error) {
-      throw new SoloError(`Error deploying explorer: ${error.message}`, error);
-    } finally {
-      await lease.release();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+        self.logger.debug('explorer deployment has completed');
+      } catch (error) {
+        throw new SoloError(`Error deploying explorer: ${error.message}`, error);
+      } finally {
+        await lease.release();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease.release();
+      });
     }
 
     return true;
@@ -454,13 +469,17 @@ export class ExplorerCommand extends BaseCommand {
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
     const self = this;
-    const lease = await self.leaseManager.create();
+    let lease: Lock;
 
     const tasks = new Listr<ExplorerDestroyContext>(
       [
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
+            lease = await self.leaseManager.create();
+
             if (!argv.force) {
               const confirmResult = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
                 default: false,
@@ -475,7 +494,7 @@ export class ExplorerCommand extends BaseCommand {
             self.configManager.update(argv);
             const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
 
-            const clusterReference: ClusterReference = this.configManager.hasFlag(flags.clusterRef)
+            const clusterReference: ClusterReferenceName = this.configManager.hasFlag(flags.clusterRef)
               ? this.configManager.getFlag(flags.clusterRef)
               : this.remoteConfig.currentCluster;
 
@@ -630,7 +649,7 @@ export class ExplorerCommand extends BaseCommand {
       title: 'Remove explorer from remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        const clusterReference: ClusterReference = context_.config.clusterReference;
+        const clusterReference: ClusterReferenceName = context_.config.clusterReference;
 
         const explorerComponents: MirrorNodeStateSchema[] =
           this.remoteConfig.configuration.components.getComponentsByClusterReference<MirrorNodeStateSchema>(

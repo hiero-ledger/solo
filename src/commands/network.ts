@@ -35,7 +35,7 @@ import {
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {v4 as uuidv4} from 'uuid';
 import {
-  type ClusterReference,
+  type ClusterReferenceName,
   type ClusterReferences,
   type NamespaceNameAsString,
   type CommandDefinition,
@@ -96,7 +96,7 @@ export interface NetworkDeployConfigClass {
   stagingDir: string;
   stagingKeysDir: string;
   valuesFile: string;
-  valuesArgMap: Record<ClusterReference, string>;
+  valuesArgMap: Record<ClusterReferenceName, string>;
   grpcTlsCertificatePath: string;
   grpcWebTlsCertificatePath: string;
   grpcTlsKeyPath: string;
@@ -154,7 +154,8 @@ export interface NetworkDestroyContext {
 
 @injectable()
 export class NetworkCommand extends BaseCommand {
-  private profileValuesFile?: Record<ClusterReference, string>;
+  private profileValuesFile?: Record<ClusterReferenceName, string>;
+  public static DEPLOY_COMMAND: string = 'network deploy';
 
   public constructor(
     @inject(InjectTokens.CertificateManager) private readonly certificateManager: CertificateManager,
@@ -169,6 +170,7 @@ export class NetworkCommand extends BaseCommand {
     this.keyManager = patchInject(keyManager, InjectTokens.KeyManager, this.constructor.name);
     this.platformInstaller = patchInject(platformInstaller, InjectTokens.PlatformInstaller, this.constructor.name);
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
+    this.componentFactory = patchInject(componentFactory, InjectTokens.ComponentFactory, this.constructor.name);
   }
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
@@ -392,11 +394,11 @@ export class NetworkCommand extends BaseCommand {
    * Prepare values args string for each cluster-ref
    * @param config
    */
-  private async prepareValuesArgMap(config: NetworkDeployConfigClass): Promise<Record<ClusterReference, string>> {
-    const valuesArguments: Record<ClusterReference, string> = this.prepareValuesArg(config);
+  private async prepareValuesArgMap(config: NetworkDeployConfigClass): Promise<Record<ClusterReferenceName, string>> {
+    const valuesArguments: Record<ClusterReferenceName, string> = this.prepareValuesArg(config);
 
     // prepare values files for each cluster
-    const valuesArgumentMap: Record<ClusterReference, string> = {};
+    const valuesArgumentMap: Record<ClusterReferenceName, string> = {};
     const profileName: string = this.configManager.getFlag(flags.profileName);
     const deploymentName: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
     const applicationPropertiesPath: string = PathEx.joinWithRealPath(
@@ -413,7 +415,7 @@ export class NetworkCommand extends BaseCommand {
       applicationPropertiesPath,
     );
 
-    const valuesFiles: Record<ClusterReference, string> = BaseCommand.prepareValuesFilesMapMulticluster(
+    const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMapMultipleCluster(
       config.clusterRefs,
       config.chartDirectory,
       this.profileValuesFile,
@@ -434,9 +436,9 @@ export class NetworkCommand extends BaseCommand {
    * Prepare the values argument for the helm chart for a given config
    * @param config
    */
-  private prepareValuesArg(config: NetworkDeployConfigClass): Record<ClusterReference, string> {
-    const valuesArguments: Record<ClusterReference, string> = {};
-    const clusterReferences: ClusterReference[] = [];
+  private prepareValuesArg(config: NetworkDeployConfigClass): Record<ClusterReferenceName, string> {
+    const valuesArguments: Record<ClusterReferenceName, string> = {};
+    const clusterReferences: ClusterReferenceName[] = [];
     let extraEnvironmentIndex: number = 0;
 
     // initialize the valueArgs
@@ -612,7 +614,7 @@ export class NetworkCommand extends BaseCommand {
   private addArgForEachRecord(
     records: Record<NodeAlias, string>,
     consensusNodes: ConsensusNode[],
-    valuesArguments: Record<ClusterReference, string>,
+    valuesArguments: Record<ClusterReferenceName, string>,
     templateString: string,
   ): void {
     if (records) {
@@ -863,13 +865,19 @@ export class NetworkCommand extends BaseCommand {
 
   /** Run helm install and deploy network components */
   private async deploy(argv: ArgvStruct): Promise<boolean> {
-    const lease: Lock = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    let lease: Lock;
 
-    const tasks: Listr<NetworkDeployContext> = new Listr<NetworkDeployContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
           task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv, true, true);
+            lease = await this.leaseManager.create();
+
             context_.config = await this.prepareConfig(task, argv);
             return ListrLock.newAcquireLockTask(lease, task);
           },
@@ -1219,21 +1227,31 @@ export class NetworkCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      NetworkCommand.DEPLOY_COMMAND,
     );
 
-    try {
-      await tasks.run();
-    } catch (error) {
-      throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
-    } finally {
-      await lease.release();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
+      } finally {
+        await lease.release();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease.release();
+      });
     }
 
     return true;
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
-    const lease: Lock = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    let lease: Lock;
 
     let networkDestroySuccess: boolean = true;
     const tasks: Listr<NetworkDestroyContext> = new Listr<NetworkDestroyContext>(
@@ -1241,6 +1259,10 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task): Promise<SoloListr<NetworkDeployContext>> => {
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
+            lease = await self.leaseManager.create();
+
             if (!argv.force) {
               const confirmResult: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
                 default: false,
@@ -1404,7 +1426,7 @@ export class NetworkCommand extends BaseCommand {
 
         for (const consensusNode of context_.config.consensusNodes) {
           const nodeId: NodeId = Templates.nodeIdFromNodeAlias(consensusNode.name);
-          const clusterReference: ClusterReference = consensusNode.cluster;
+          const clusterReference: ClusterReferenceName = consensusNode.cluster;
 
           this.remoteConfig.configuration.components.changeNodePhase(nodeId, DeploymentPhase.REQUESTED);
 

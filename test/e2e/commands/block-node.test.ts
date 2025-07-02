@@ -17,7 +17,7 @@ import {BlockNodeCommand} from '../../../src/commands/block-node.js';
 import {ComponentTypes} from '../../../src/core/config/remote/enumerations/component-types.js';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
-import {type ClusterReference, type ExtendedNetServer} from '../../../src/types/index.js';
+import {type ClusterReferenceName, type ExtendedNetServer} from '../../../src/types/index.js';
 import {exec} from 'node:child_process';
 import {promisify} from 'node:util';
 import * as constants from '../../../src/core/constants.js';
@@ -25,6 +25,7 @@ import * as SemVer from 'semver';
 import {type ArgvStruct} from '../../../src/types/aliases.js';
 import {type BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
 import {HEDERA_PLATFORM_VERSION, MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} from '../../../version.js';
+import {TEST_LOCAL_BLOCK_NODE_VERSION} from '../../../version-test.js';
 
 // eslint-disable-next-line @typescript-eslint/typedef
 const execAsync = promisify(exec);
@@ -32,7 +33,7 @@ const execAsync = promisify(exec);
 const testName: string = 'block-node-cmd-e2e';
 const namespace: NamespaceName = NamespaceName.of(testName);
 const argv: Argv = Argv.getDefaultArgv(namespace);
-const clusterReference: ClusterReference = getTestCluster();
+const clusterReference: ClusterReferenceName = getTestCluster();
 argv.setArg(flags.namespace, namespace.name);
 // TODO remove TEST_BLOCK_NODE_MINIMUM_PLATFORM_VERSION and the tertiary when we have a version that supports block node
 argv.setArg(
@@ -50,6 +51,11 @@ argv.setArg(flags.generateTlsKeys, true);
 argv.setArg(flags.clusterRef, clusterReference);
 argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
 argv.setArg(flags.force, true);
+
+// Notes: need to check out block node repo and build the block node image first.
+// Then use the following command to load image into the kind cluster after cluster creation
+// kind load docker-image block-node-server:<tag> --name <cluster-name>
+argv.setArg(flags.imageTag, TEST_LOCAL_BLOCK_NODE_VERSION);
 
 endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, bootstrapResp => {
   describe('BlockNodeCommand', async (): Promise<void> => {

@@ -7,7 +7,7 @@ import * as constants from '../../core/constants.js';
 import {type LockManager} from '../../core/lock/lock-manager.js';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {type Lock} from '../../core/lock/lock.js';
-import {type NodeCommandTasks} from './tasks.js';
+import {LeaseWrapper, type NodeCommandTasks} from './tasks.js';
 import {NodeSubcommandType} from '../../core/enumerations.js';
 import {NodeHelper} from './helper.js';
 import {type ArgvStruct, type NodeAlias, type NodeAliases, NodeId} from '../../types/aliases.js';
@@ -30,14 +30,17 @@ import {ConsensusNodeStateSchema} from '../../data/schema/model/remote/state/con
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {ComponentsDataWrapperApi} from '../../core/config/remote/api/components-data-wrapper-api.js';
 import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
+import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
-  public contexts: string[];
-  public consensusNodes: ConsensusNode[];
+  public static readonly SETUP_COMMAND = 'node setup';
+  public static readonly START_COMMAND = 'node start';
+  public static readonly KEYS_COMMAND: string = 'node keys';
 
   public constructor(
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
+    @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.NodeCommandTasks) private readonly tasks: NodeCommandTasks,
     @inject(InjectTokens.NodeCommandConfigs) private readonly configs: NodeCommandConfigs,
@@ -45,6 +48,7 @@ export class NodeCommandHandlers extends CommandHandler {
     super();
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.configs = patchInject(configs, InjectTokens.NodeCommandConfigs, this.constructor.name);
+    this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.tasks = patchInject(tasks, InjectTokens.NodeCommandTasks, this.constructor.name);
   }
@@ -53,11 +57,6 @@ export class NodeCommandHandlers extends CommandHandler {
   private static readonly DELETE_CONTEXT_FILE = 'node-delete.json';
   private static readonly UPDATE_CONTEXT_FILE = 'node-update.json';
   private static readonly UPGRADE_CONTEXT_FILE = 'node-upgrade.json';
-
-  private init() {
-    this.consensusNodes = this.remoteConfig.getConsensusNodes();
-    this.contexts = this.remoteConfig.getContexts();
-  }
 
   /** ******** Task Lists **********/
 
@@ -239,14 +238,18 @@ export class NodeCommandHandlers extends CommandHandler {
   /** ******** Handlers **********/
 
   public async prepareUpgrade(argv: ArgvStruct): Promise<boolean> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DEFAULT_FLAGS);
-
-    const lease = await this.leaseManager.create();
+    const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.prepareUpgradeConfigBuilder.bind(this.configs), lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        this.tasks.initialize(argv, this.configs.prepareUpgradeConfigBuilder.bind(this.configs), leaseWrapper.lease),
+        this.tasks.identifyExistingNodes(),
+        this.tasks.prepareStagingDirectory('existingNodeAliases'),
         this.tasks.prepareUpgradeZip(),
         this.tasks.sendPrepareUpgradeTransaction(),
       ],
@@ -255,7 +258,7 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in preparing node upgrade',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
@@ -283,14 +286,20 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async downloadGeneratedFiles(argv: ArgvStruct): Promise<boolean> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DEFAULT_FLAGS);
-
-    const lease = await this.leaseManager.create();
+    const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.downloadGeneratedFilesConfigBuilder.bind(this.configs), lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        this.tasks.initialize(
+          argv,
+          this.configs.downloadGeneratedFilesConfigBuilder.bind(this.configs),
+          leaseWrapper.lease,
+        ),
         this.tasks.identifyExistingNodes(),
         this.tasks.downloadNodeGeneratedFiles(),
       ],
@@ -299,7 +308,7 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in downloading generated files',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
@@ -308,17 +317,24 @@ export class NodeCommandHandlers extends CommandHandler {
   public async update(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_FLAGS);
 
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
       argv,
-      [...this.updatePrepareTasks(argv, lease), ...this.updateSubmitTransactionsTasks(), ...this.updateExecuteTasks()],
+      [
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        ...this.updatePrepareTasks(argv, leaseWrapper.lease),
+        ...this.updateSubmitTransactionsTasks(),
+        ...this.updateExecuteTasks(),
+      ],
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in updating nodes',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
@@ -326,12 +342,15 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async updatePrepare(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_PREPARE_FLAGS);
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
       argv,
       [
-        ...this.updatePrepareTasks(argv, lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        ...this.updatePrepareTasks(argv, leaseWrapper.lease),
         this.tasks.saveContextData(argv, NodeCommandHandlers.UPDATE_CONTEXT_FILE, NodeHelper.updateSaveContextParser),
       ],
       {
@@ -339,19 +358,23 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in preparing node update',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
   }
 
   public async updateSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    const leaseWrapper: LeaseWrapper = {lease: null};
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_SUBMIT_TRANSACTIONS_FLAGS);
+
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.updateConfigBuilder.bind(this.configs), lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        this.tasks.initialize(argv, this.configs.updateConfigBuilder.bind(this.configs), leaseWrapper.lease),
         this.tasks.loadContextData(argv, NodeCommandHandlers.UPDATE_CONTEXT_FILE, NodeHelper.updateLoadContextParser),
         ...this.updateSubmitTransactionsTasks(),
       ],
@@ -360,22 +383,26 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in submitting transactions for node update',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
   }
 
   public async updateExecute(argv: ArgvStruct): Promise<boolean> {
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    const leaseWrapper: LeaseWrapper = {lease: null};
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_EXECUTE_FLAGS);
+
     await this.commandAction(
       argv,
       [
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
         this.tasks.initialize(
           argv,
           this.configs.updateConfigBuilder.bind(this.configs),
-          lease,
+          leaseWrapper.lease,
 
           false,
         ),
@@ -387,7 +414,7 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in executing network upgrade',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
@@ -395,11 +422,14 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async upgradePrepare(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_PREPARE_FLAGS);
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    const leaseWrapper: LeaseWrapper = {lease: null};
     await this.commandAction(
       argv,
       [
-        ...this.upgradePrepareTasks(argv, lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        ...this.upgradePrepareTasks(argv, leaseWrapper.lease),
         this.tasks.saveContextData(argv, NodeCommandHandlers.UPGRADE_CONTEXT_FILE, NodeHelper.upgradeSaveContextParser),
       ],
       {
@@ -407,18 +437,22 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in preparing node upgrade',
-      lease,
+      leaseWrapper.lease,
     );
     return true;
   }
 
   public async upgradeSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    const leaseWrapper: LeaseWrapper = {lease: null};
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_SUBMIT_TRANSACTIONS_FLAGS);
+
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.upgradeConfigBuilder.bind(this.configs), lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        this.tasks.initialize(argv, this.configs.upgradeConfigBuilder.bind(this.configs), leaseWrapper.lease),
         this.tasks.loadContextData(argv, NodeCommandHandlers.UPGRADE_CONTEXT_FILE, NodeHelper.upgradeLoadContextParser),
         ...this.upgradeSubmitTransactionsTasks(),
       ],
@@ -427,22 +461,26 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in submitting transactions for node upgrade',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
   }
 
   public async upgradeExecute(argv: ArgvStruct): Promise<boolean> {
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    const leaseWrapper: LeaseWrapper = {lease: null};
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_FLAGS);
+
     await this.commandAction(
       argv,
       [
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
         this.tasks.initialize(
           argv,
           this.configs.upgradeConfigBuilder.bind(this.configs),
-          lease,
+          leaseWrapper.lease,
 
           false,
         ),
@@ -454,7 +492,7 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in executing network upgrade',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
@@ -462,11 +500,14 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async upgrade(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_FLAGS);
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    const leaseWrapper: LeaseWrapper = {lease: null};
     await this.commandAction(
       argv,
       [
-        ...this.upgradePrepareTasks(argv, lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        ...this.upgradePrepareTasks(argv, leaseWrapper.lease),
         ...this.upgradeSubmitTransactionsTasks(),
         ...this.upgradeExecuteTasks(),
       ],
@@ -475,7 +516,7 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in upgrade network',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
@@ -483,11 +524,14 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async delete(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_FLAGS);
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    const leaseWrapper: LeaseWrapper = {lease: null};
     await this.commandAction(
       argv,
       [
-        ...this.deletePrepareTaskList(argv, lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        ...this.deletePrepareTaskList(argv, leaseWrapper.lease),
         ...this.deleteSubmitTransactionsTaskList(),
         ...this.deleteExecuteTaskList(),
       ],
@@ -496,7 +540,7 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in deleting nodes',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
@@ -505,12 +549,15 @@ export class NodeCommandHandlers extends CommandHandler {
   public async deletePrepare(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_PREPARE_FLAGS);
 
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
       argv,
       [
-        ...this.deletePrepareTaskList(argv, lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        ...this.deletePrepareTaskList(argv, leaseWrapper.lease),
         this.tasks.saveContextData(argv, NodeCommandHandlers.DELETE_CONTEXT_FILE, NodeHelper.deleteSaveContextParser),
       ],
       {
@@ -518,21 +565,23 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in preparing to delete a node',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
   }
 
   public async deleteSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_SUBMIT_TRANSACTIONS_FLAGS);
-
-    const lease = await this.leaseManager.create();
+    const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.deleteConfigBuilder.bind(this.configs), lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        this.tasks.initialize(argv, this.configs.deleteConfigBuilder.bind(this.configs), leaseWrapper.lease),
         this.tasks.loadContextData(argv, NodeCommandHandlers.DELETE_CONTEXT_FILE, NodeHelper.deleteLoadContextParser),
         ...this.deleteSubmitTransactionsTaskList(),
       ],
@@ -541,21 +590,23 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in deleting a node',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
   }
 
   public async deleteExecute(argv: ArgvStruct): Promise<boolean> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_EXECUTE_FLAGS);
-
-    const lease = await this.leaseManager.create();
+    const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.deleteConfigBuilder.bind(this.configs), lease, false),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        this.tasks.initialize(argv, this.configs.deleteConfigBuilder.bind(this.configs), leaseWrapper.lease, false),
         this.tasks.loadContextData(argv, NodeCommandHandlers.DELETE_CONTEXT_FILE, NodeHelper.deleteLoadContextParser),
         ...this.deleteExecuteTaskList(),
       ],
@@ -564,7 +615,7 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in deleting a node',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
@@ -573,17 +624,24 @@ export class NodeCommandHandlers extends CommandHandler {
   public async add(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_FLAGS);
 
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
       argv,
-      [...this.addPrepareTasks(argv, lease), ...this.addSubmitTransactionsTasks(), ...this.addExecuteTasks()],
+      [
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        ...this.addPrepareTasks(argv, leaseWrapper.lease),
+        ...this.addSubmitTransactionsTasks(),
+        ...this.addExecuteTasks(),
+      ],
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in adding node',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
@@ -592,12 +650,15 @@ export class NodeCommandHandlers extends CommandHandler {
   public async addPrepare(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_PREPARE_FLAGS);
 
-    const lease = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
       argv,
       [
-        ...this.addPrepareTasks(argv, lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        ...this.addPrepareTasks(argv, leaseWrapper.lease),
         this.tasks.saveContextData(argv, NodeCommandHandlers.ADD_CONTEXT_FILE, helpers.addSaveContextParser),
       ],
       {
@@ -605,21 +666,23 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in preparing node',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
   }
 
   public async addSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_SUBMIT_TRANSACTIONS_FLAGS);
-
-    const lease = await this.leaseManager.create();
+    const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.addConfigBuilder.bind(this.configs), lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        this.tasks.initialize(argv, this.configs.addConfigBuilder.bind(this.configs), leaseWrapper.lease),
         this.tasks.loadContextData(argv, NodeCommandHandlers.ADD_CONTEXT_FILE, helpers.addLoadContextParser),
         ...this.addSubmitTransactionsTasks(),
       ],
@@ -628,24 +691,26 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       '`Error in submitting transactions to node',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
   }
 
   public async addExecute(argv: ArgvStruct): Promise<boolean> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_EXECUTE_FLAGS);
-
-    const lease = await this.leaseManager.create();
+    const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
       argv,
       [
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
         this.tasks.initialize(
           argv,
           this.configs.addConfigBuilder.bind(this.configs),
-          lease,
+          leaseWrapper.lease,
 
           false,
         ),
@@ -658,7 +723,7 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in adding node',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
@@ -706,14 +771,16 @@ export class NodeCommandHandlers extends CommandHandler {
   // TODO this is broken, since genesis reconnects is no longer supported in 0.59+
   // TODO this is not in the test harness
   public async refresh(argv: ArgvStruct): Promise<boolean> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.REFRESH_FLAGS);
-
-    const lease = await this.leaseManager.create();
+    const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.refreshConfigBuilder.bind(this.configs), lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        this.tasks.initialize(argv, this.configs.refreshConfigBuilder.bind(this.configs), leaseWrapper.lease),
         this.validateAllNodePhases({
           acceptedPhases: [DeploymentPhase.STARTED, DeploymentPhase.CONFIGURED, DeploymentPhase.DEPLOYED],
         }),
@@ -730,14 +797,13 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in refreshing nodes',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
   }
 
   public async keys(argv: ArgvStruct): Promise<boolean> {
-    this.init();
     argv = helpers.addFlagsToArgv(argv, NodeFlags.KEYS_FLAGS);
 
     await this.commandAction(
@@ -754,20 +820,23 @@ export class NodeCommandHandlers extends CommandHandler {
       },
       'Error generating keys',
       null,
+      NodeCommandHandlers.KEYS_COMMAND,
     );
 
     return true;
   }
 
   public async stop(argv: ArgvStruct): Promise<boolean> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.STOP_FLAGS);
-
-    const lease = await this.leaseManager.create();
+    const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.stopConfigBuilder.bind(this.configs), lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        this.tasks.initialize(argv, this.configs.stopConfigBuilder.bind(this.configs), leaseWrapper.lease),
         this.validateAllNodePhases({
           acceptedPhases: [DeploymentPhase.STARTED, DeploymentPhase.CONFIGURED],
         }),
@@ -780,21 +849,23 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error stopping node',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
   }
 
   public async start(argv: ArgvStruct): Promise<boolean> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.START_FLAGS);
-
-    const lease = await this.leaseManager.create();
+    const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.startConfigBuilder.bind(this.configs), lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        this.tasks.initialize(argv, this.configs.startConfigBuilder.bind(this.configs), leaseWrapper.lease),
         this.validateAllNodePhases({acceptedPhases: [DeploymentPhase.CONFIGURED]}),
         this.tasks.identifyExistingNodes(),
         this.tasks.uploadStateFiles(context_ => context_.config.stateFile.length === 0),
@@ -810,21 +881,24 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error starting node',
-      lease,
+      leaseWrapper.lease,
+      NodeCommandHandlers.START_COMMAND,
     );
 
     return true;
   }
 
   public async setup(argv: ArgvStruct): Promise<boolean> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.SETUP_FLAGS);
-
-    const lease = await this.leaseManager.create();
+    const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.setupConfigBuilder.bind(this.configs), lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        this.tasks.initialize(argv, this.configs.setupConfigBuilder.bind(this.configs), leaseWrapper.lease),
         this.validateAllNodePhases({
           acceptedPhases: [DeploymentPhase.DEPLOYED],
         }),
@@ -838,20 +912,24 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in setting up nodes',
-      lease,
+      leaseWrapper.lease,
+      NodeCommandHandlers.SETUP_COMMAND,
     );
 
     return true;
   }
 
   public async freeze(argv: ArgvStruct): Promise<boolean> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.FREEZE_FLAGS);
-    const lease = await this.leaseManager.create();
+    const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.freezeConfigBuilder.bind(this.configs), lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        this.tasks.initialize(argv, this.configs.freezeConfigBuilder.bind(this.configs), leaseWrapper.lease),
         this.tasks.identifyExistingNodes(),
         this.tasks.sendFreezeTransaction(),
         this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
@@ -863,20 +941,23 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error freezing node',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;
   }
 
   public async restart(argv: ArgvStruct): Promise<boolean> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.RESTART_FLAGS);
+    const leaseWrapper: LeaseWrapper = {lease: null};
 
-    const lease = await this.leaseManager.create();
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.restartConfigBuilder.bind(this.configs), lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+        this.tasks.initialize(argv, this.configs.restartConfigBuilder.bind(this.configs), leaseWrapper.lease),
         this.tasks.identifyExistingNodes(),
         this.tasks.startNodes('existingNodeAliases'),
         this.tasks.enablePortForwarding(),
@@ -889,7 +970,7 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error restarting node',
-      lease,
+      leaseWrapper.lease,
     );
 
     return true;

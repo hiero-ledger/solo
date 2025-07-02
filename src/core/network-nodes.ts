@@ -152,4 +152,16 @@ export class NetworkNodes {
     }
     this.logger.debug(`getNodeState(${pod.podReference.name.name}): ...end`);
   }
+
+  public async getNetworkNodePodStatus(podReference: PodReference, context?: string): Promise<string> {
+    return this.k8Factory
+      .getK8(context)
+      .containers()
+      .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
+      .execContainer([
+        'bash',
+        '-c',
+        String.raw`curl -s http://localhost:9999/metrics | grep platform_PlatformStatus | grep -v \#`,
+      ]);
+  }
 }

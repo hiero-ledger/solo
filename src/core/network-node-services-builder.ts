@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
-import {type ClusterReference, type Context, type DeploymentName} from './../types/index.js';
+import {type ClusterReferenceName, type Context, type DeploymentName} from './../types/index.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {type NodeAlias} from '../types/aliases.js';
 import {NetworkNodeServices} from './network-node-services.js';
 
 export class NetworkNodeServicesBuilder {
   public namespace: NamespaceName;
-  public clusterRef: ClusterReference;
+  public clusterRef: ClusterReferenceName;
   public context: Context;
   public deployment: DeploymentName;
   public nodeId: string | number;
@@ -40,7 +40,7 @@ export class NetworkNodeServicesBuilder {
     return this;
   }
 
-  public withClusterRef(clusterReference: ClusterReference) {
+  public withClusterRef(clusterReference: ClusterReferenceName) {
     this.clusterRef = clusterReference;
     return this;
   }

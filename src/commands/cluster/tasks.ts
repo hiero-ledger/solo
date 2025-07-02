@@ -11,7 +11,7 @@ import {ErrorMessages} from '../../core/error-messages.js';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {UserBreak} from '../../core/errors/user-break.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
-import {type ClusterReference, type SoloListrTask} from '../../types/index.js';
+import {type ClusterReferenceName, type SoloListrTask} from '../../types/index.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
@@ -27,18 +27,22 @@ import {type ClusterReferenceDefaultContext} from './config-interfaces/cluster-r
 import {type ClusterReferenceSetupContext} from './config-interfaces/cluster-reference-setup-context.js';
 import {type ClusterReferenceResetContext} from './config-interfaces/cluster-reference-reset-context.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {quote} from 'shell-quote';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {StringFacade} from '../../business/runtime-state/facade/string-facade.js';
+import {Lock} from '../../core/lock/lock.js';
+import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';
 
 @injectable()
 export class ClusterCommandTasks {
-  constructor(
+  public constructor(
     @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
     @inject(InjectTokens.ChartManager) private readonly chartManager: ChartManager,
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
     @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
+    @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeState,
   ) {
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
@@ -46,6 +50,7 @@ export class ClusterCommandTasks {
     this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
+    this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
   }
 
   public connectClusterRef(): SoloListrTask<ClusterReferenceConnectContext> {
@@ -76,7 +81,9 @@ export class ClusterCommandTasks {
     };
   }
 
-  public testConnectionToCluster(clusterReference?: ClusterReference): SoloListrTask<ClusterReferenceConnectContext> {
+  public testConnectionToCluster(
+    clusterReference?: ClusterReferenceName,
+  ): SoloListrTask<ClusterReferenceConnectContext> {
     const self = this;
     return {
       title: 'Test connection to cluster: ',
@@ -121,7 +128,12 @@ export class ClusterCommandTasks {
     prometheusStackEnabled = flags.deployPrometheusStack.definition.defaultValue as boolean,
     minioEnabled = flags.deployMinio.definition.defaultValue as boolean,
   ): string {
-    let valuesArgument = chartDirectory ? `-f ${PathEx.join(chartDirectory, 'solo-cluster-setup', 'values.yaml')}` : '';
+    let valuesArgument: string = '';
+    if (chartDirectory) {
+      // Safely construct the path and escape it for shell usage
+      const valuesPath = PathEx.join(chartDirectory, 'solo-cluster-setup', 'values.yaml');
+      valuesArgument = `-f ${quote([valuesPath])}`;
+    }
 
     valuesArgument += ` --set cloud.prometheusStack.enabled=${prometheusStackEnabled}`;
     valuesArgument += ` --set cloud.minio.enabled=${minioEnabled}`;
@@ -130,30 +142,46 @@ export class ClusterCommandTasks {
   }
 
   /** Show list of installed chart */
-  private async showInstalledChartList(clusterSetupNamespace: NamespaceName, context?: string) {
+  private async showInstalledChartList(clusterSetupNamespace: NamespaceName, context?: string): Promise<void> {
     this.logger.showList(
       'Installed Charts',
       await this.chartManager.getInstalledCharts(clusterSetupNamespace, context),
     );
   }
 
-  public initialize(argv: ArgvStruct, configInit: ConfigBuilder): SoloListrTask<AnyListrContext> {
+  public initialize(
+    argv: ArgvStruct,
+    configInit: ConfigBuilder,
+    loadRemoteConfig: boolean = false,
+  ): SoloListrTask<AnyListrContext> {
     const {required, optional} = argv;
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
 
     argv.flags = [...required, ...optional];
 
     return {
       title: 'Initialize',
       task: async (context_, task) => {
+        await self.localConfig.load();
+
+        if (loadRemoteConfig) {
+          await self.remoteConfig.loadAndValidate(argv);
+        }
         context_.config = await configInit(argv, context_, task);
       },
     };
   }
 
   public showClusterList(): SoloListrTask<AnyListrContext> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+
     return {
       title: 'List all available clusters',
       task: async () => {
+        await self.localConfig.load();
+
         const clusterReferences = this.localConfig.configuration.clusterRefs;
         const clusterList = [];
         for (const [clusterName, clusterContext] of clusterReferences) {
@@ -173,7 +201,7 @@ export class ClusterCommandTasks {
         const deployments = this.localConfig.configuration.deployments;
         const context = clusterReferences.get(clusterReference);
 
-        if (context) {
+        if (!context) {
           throw new Error(`Cluster "${clusterReference}" not found in the LocalConfig`);
         }
 
@@ -202,6 +230,7 @@ export class ClusterCommandTasks {
   }
 
   public prepareChartValues(): SoloListrTask<ClusterReferenceSetupContext> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
 
     return {
@@ -218,7 +247,7 @@ export class ClusterCommandTasks {
         // if prometheus is found, don't deploy it
         if (
           context_.config.deployPrometheusStack &&
-          !(await self.clusterChecks.isPrometheusInstalled(context_.config.clusterSetupNamespace))
+          (await self.clusterChecks.isPrometheusInstalled(context_.config.clusterSetupNamespace))
         ) {
           context_.config.deployPrometheusStack = false;
         }
@@ -240,7 +269,9 @@ export class ClusterCommandTasks {
   }
 
   public installClusterChart(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
+
     return {
       title: `Install '${constants.SOLO_CLUSTER_SETUP_CHART}' chart`,
       task: async context_ => {
@@ -271,8 +302,8 @@ export class ClusterCommandTasks {
               constants.SOLO_CLUSTER_SETUP_CHART,
               context_.config.context,
             );
-          } catch {
-            // ignore error during uninstall since we are doing the best-effort uninstall here
+          } catch (error) {
+            this.logger.showUserError(error);
           }
 
           throw new SoloError(
@@ -293,14 +324,16 @@ export class ClusterCommandTasks {
     return {
       title: 'Acquire new lease',
       task: async (_, task) => {
-        const lease = await this.leaseManager.create();
+        const lease: Lock = await this.leaseManager.create();
         return ListrLock.newAcquireLockTask(lease, task);
       },
     };
   }
 
   public uninstallClusterChart(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
+
     return {
       title: `Uninstall '${constants.SOLO_CLUSTER_SETUP_CHART}' chart`,
       task: async (context_, task) => {

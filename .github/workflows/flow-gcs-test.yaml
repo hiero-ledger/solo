@@ -35,9 +35,7 @@ permissions:
 
 jobs:
   gcs-storage-test:
-    if: >
-      github.actor != 'dependabot[bot]' &&
-      github.repository == 'hiero-ledger/solo'
+    if: ${{ github.actor != 'dependabot[bot]' &&  !github.event.pull_request.head.repo.fork }}
     timeout-minutes: 20
     runs-on: hiero-solo-linux-large
     strategy:
@@ -46,7 +44,7 @@ jobs:
         storageType: ["gcs_only", "minio_only", "aws_only"]
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
         with:
           egress-policy: audit
 
@@ -84,7 +82,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20
+          node-version: 20.19.3
           cache: npm
 
       - name: Install Task
@@ -127,7 +125,20 @@ jobs:
           STORAGE_TYPE: ${{ matrix.storageType }}
           GCP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GCP_SERVICE_ACCOUNT_TOKEN }}
         run: |
-          .github/workflows/script/gcs_test.sh
+          .github/workflows/script/gcs_test.sh || RC=$? || true
+          if [[ "${RC}" != "0" ]]; then
+            echo "GCS test failed with exit code ${RC}"
+            npm run solo-test -- node logs --deployment solo-e2e -q --dev || true
+            exit ${RC}
+          fi
+
+      - name: Upload Logs to GitHub
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: solo-logs-${{ matrix.storageType }}
+          path: ~/.solo/logs/*
+          if-no-files-found: error
 
       - name: Delete Test Directory after Test
         # add always() to make sure bucket is deleted even if the test failed

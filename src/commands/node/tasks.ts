@@ -78,7 +78,7 @@ import {ContainerReference} from '../../integration/kube/resources/container/con
 import {NetworkNodes} from '../../core/network-nodes.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import {
-  type ClusterReference,
+  type ClusterReferenceName,
   type Context,
   type DeploymentName,
   type Optional,
@@ -121,6 +121,9 @@ import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api
 import {type ComponentFactoryApi} from '../../core/config/remote/api/component-factory-api.js';
 import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
+import {LockManager} from '../../core/lock/lock-manager.js';
+
+export type LeaseWrapper = {lease: Lock};
 
 @injectable()
 export class NodeCommandTasks {
@@ -459,15 +462,9 @@ export class NodeCommandTasks {
       }, timeout);
 
       try {
-        const response = await this.k8Factory
-          .getK8(context)
-          .containers()
-          .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
-          .execContainer([
-            'bash',
-            '-c',
-            String.raw`curl -s http://localhost:9999/metrics | grep platform_PlatformStatus | grep -v \#`,
-          ]);
+        const response: string = await container
+          .resolve<NetworkNodes>(NetworkNodes)
+          .getNetworkNodePodStatus(podReference, context);
 
         if (!response) {
           task.title = `${title} - status ${chalk.yellow('UNKNOWN')}, attempt ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
@@ -690,6 +687,27 @@ export class NodeCommandTasks {
           context_.upgradeZipFile = upgradeZipFile;
           this.logger.debug(`Using upgrade zip file: ${context_.upgradeZipFile}`);
         } else {
+          // download application.properties from the first node in the deployment
+          const nodeAlias: NodeAlias = config.existingNodeAliases[0];
+
+          const nodeFullyQualifiedPodName = Templates.renderNetworkPodName(nodeAlias);
+          const podReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
+          const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+
+          const context = helpers.extractContextFromConsensusNodes(
+            (context_ as NodeUpdateContext | NodeDeleteContext).config.nodeAlias,
+            context_.config.consensusNodes,
+          );
+
+          const templatesDirectory = PathEx.join(config.stagingDir, 'templates');
+          fs.mkdirSync(templatesDirectory, {recursive: true});
+
+          await this.k8Factory
+            .getK8(context)
+            .containers()
+            .readByRef(containerReference)
+            .copyFrom(`${constants.HEDERA_HAPI_PATH}/data/config/application.properties`, templatesDirectory);
+
           context_.upgradeZipFile = await self._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
         }
         context_.upgradeZipHash = await self._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
@@ -1068,6 +1086,18 @@ export class NodeCommandTasks {
     }
   }
 
+  public loadConfiguration(argv: ArgvStruct, leaseWrapper: LeaseWrapper, leaseManager: LockManager) {
+    const self = this;
+    return {
+      title: 'Load configuration',
+      task: async () => {
+        await self.localConfig.load();
+        await self.remoteConfig.loadAndValidate(argv);
+        leaseWrapper.lease = await leaseManager.create();
+      },
+    };
+  }
+
   public identifyExistingNodes(): SoloListrTask<CheckedNodesContext> {
     const self = this;
     return {
@@ -1334,6 +1364,38 @@ export class NodeCommandTasks {
         const config = context_.config;
         const nodeAliases = config[nodeAliasesProperty];
         const subTasks = [
+          {
+            title: 'Create and populate staging directory',
+            task: async context_ => {
+              const config = context_.config;
+              const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+              const applicationPropertiesPath: string = PathEx.joinWithRealPath(
+                config.cacheDir,
+                'templates',
+                'application.properties',
+              );
+
+              const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
+              const yamlRoot: AnyObject = {};
+              const emptyDomainNamesMapping: Record<string, IP> = {};
+
+              const stagingDirectory = Templates.renderStagingDir(
+                this.configManager.getFlag(flags.cacheDir),
+                this.configManager.getFlag(flags.releaseTag),
+              );
+
+              if (!fs.existsSync(stagingDirectory)) {
+                await this.profileManager.prepareStagingDirectory(
+                  consensusNodes,
+                  nodeAliases,
+                  yamlRoot,
+                  emptyDomainNamesMapping,
+                  deploymentName,
+                  applicationPropertiesPath,
+                );
+              }
+            },
+          },
           {
             title: 'Copy Gossip keys to staging',
             task: async () => {
@@ -1690,10 +1752,30 @@ export class NodeCommandTasks {
   public checkPVCsEnabled(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Check that PVCs are enabled',
-      task: () => {
+      task: async context_ => {
         if (!this.configManager.getFlag(flags.persistentVolumeClaims)) {
-          throw new SoloError('PVCs are not enabled. Please enable PVCs before adding a node');
+          throw new SoloError('PVCs flag are not enabled. Please enable PVCs before adding a node');
         }
+
+        // Create an array of promises
+        const promises = context_.config.contexts.map(async context => {
+          // Fetch all PVCs inside the namespace using the context
+          const pvcs: string[] = await this.k8Factory
+            .getK8(context)
+            .pvcs()
+            .list(context_.config.namespace, ['solo.hedera.com/type=node-pvc']);
+
+          this.logger.info(`Found ${pvcs.length} PVCs in namespace ${context_.config.namespace}: ${pvcs.join(', ')}`);
+          if (pvcs.length === 0) {
+            throw new SoloError(
+              'No PVCs found in the namespace. Please ensure PVCs are enabled during network deployment.',
+            );
+          }
+          return pvcs;
+        });
+
+        // Wait for all promises to resolve
+        await Promise.all(promises);
       },
     };
   }
@@ -1957,7 +2039,7 @@ export class NodeCommandTasks {
         const clusterReferences = this.remoteConfig.getClusterRefs();
 
         // Make sure valuesArgMap is initialized with empty strings
-        const valuesArgumentMap: Record<ClusterReference, string> = {};
+        const valuesArgumentMap: Record<ClusterReferenceName, string> = {};
         for (const [clusterReference] of clusterReferences) {
           valuesArgumentMap[clusterReference] = '';
         }
@@ -1978,7 +2060,10 @@ export class NodeCommandTasks {
 
         const nodeId = maxNodeId + 1;
 
-        const clusterNodeIndexMap: Record<ClusterReference, Record<NodeId, /* index in the chart -> */ number>> = {};
+        const clusterNodeIndexMap: Record<
+          ClusterReferenceName,
+          Record<NodeId, /* index in the chart -> */ number>
+        > = {};
 
         for (const [clusterReference] of clusterReferences) {
           clusterNodeIndexMap[clusterReference] = {};
@@ -2030,13 +2115,13 @@ export class NodeCommandTasks {
         }
 
         // Add profile values files
-        const profileValuesFile = await self.profileManager.prepareValuesForNodeTransaction(
+        const profileValuesFile: string = await self.profileManager.prepareValuesForNodeTransaction(
           PathEx.joinWithRealPath(config.stagingDir, 'config.txt'),
           PathEx.joinWithRealPath(config.stagingDir, 'templates', 'application.properties'),
         );
 
         if (profileValuesFile) {
-          const valuesFiles: Record<ClusterReference, string> = BaseCommand.prepareValuesFilesMap(
+          const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMap(
             clusterReferences,
             undefined, // do not trigger of adding default value file for chart upgrade due to node add or delete
             profileValuesFile,
@@ -2061,7 +2146,7 @@ export class NodeCommandTasks {
           config.debugNodeAlias,
         );
 
-        const clusterReferencesList: ClusterReference[] = [];
+        const clusterReferencesList: ClusterReferenceName[] = [];
         for (const [clusterReference] of clusterReferences) {
           clusterReferencesList.push(clusterReference);
         }
@@ -2096,9 +2181,9 @@ export class NodeCommandTasks {
    */
   private prepareValuesArgForNodeUpdate(
     consensusNodes: ConsensusNode[],
-    valuesArgumentMap: Record<ClusterReference, string>,
+    valuesArgumentMap: Record<ClusterReferenceName, string>,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
-    clusterNodeIndexMap: Record<ClusterReference, Record<NodeId, /* index in the chart -> */ number>>,
+    clusterNodeIndexMap: Record<ClusterReferenceName, Record<NodeId, /* index in the chart -> */ number>>,
     newAccountNumber: string,
     nodeAlias: NodeAlias,
   ): void {
@@ -2131,10 +2216,10 @@ export class NodeCommandTasks {
    */
   private prepareValuesArgForNodeAdd(
     consensusNodes: ConsensusNode[],
-    valuesArgumentMap: Record<ClusterReference, string>,
+    valuesArgumentMap: Record<ClusterReferenceName, string>,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
-    clusterNodeIndexMap: Record<ClusterReference, Record<NodeId, /* index in the chart -> */ number>>,
-    clusterReference: ClusterReference,
+    clusterNodeIndexMap: Record<ClusterReferenceName, Record<NodeId, /* index in the chart -> */ number>>,
+    clusterReference: ClusterReferenceName,
     nodeId: NodeId,
     nodeAlias: NodeAlias,
     newNode: {accountId: string; name: string},
@@ -2191,13 +2276,13 @@ export class NodeCommandTasks {
    */
   private prepareValuesArgForNodeDelete(
     consensusNodes: ConsensusNode[],
-    valuesArgumentMap: Record<ClusterReference, string>,
+    valuesArgumentMap: Record<ClusterReferenceName, string>,
     nodeAlias: NodeAlias,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
-    clusterNodeIndexMap: Record<ClusterReference, Record<NodeId, /* index in the chart -> */ number>>,
+    clusterNodeIndexMap: Record<ClusterReferenceName, Record<NodeId, /* index in the chart -> */ number>>,
   ): void {
     for (const consensusNode of consensusNodes) {
-      const clusterReference: ClusterReference = consensusNode.cluster;
+      const clusterReference: ClusterReferenceName = consensusNode.cluster;
 
       // The index inside the chart
       const index = clusterNodeIndexMap[clusterReference][consensusNode.nodeId];
@@ -2502,12 +2587,17 @@ export class NodeCommandTasks {
     lease: Lock | null,
     shouldLoadNodeClient: boolean = true,
   ): SoloListrTask<AnyListrContext> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
     const {required, optional} = argv;
     argv.flags = [...required, ...optional];
 
     return {
       title: 'Initialize',
       task: async (context_, task): Promise<SoloListr<AnyListrContext> | void> => {
+        await self.localConfig.load();
+        await self.remoteConfig.loadAndValidate(argv);
+
         if (argv[flags.devMode.name]) {
           this.logger.setDevMode(true);
         }
@@ -2553,7 +2643,7 @@ export class NodeCommandTasks {
         const nodeAlias: NodeAlias = context_.config.nodeAlias;
         const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
         const namespace: NamespaceName = context_.config.namespace;
-        const clusterReference: ClusterReference = context_.config.clusterRef;
+        const clusterReference: ClusterReferenceName = context_.config.clusterRef;
         const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
 
         task.title += `: ${nodeAlias}`;
