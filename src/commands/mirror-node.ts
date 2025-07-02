@@ -59,7 +59,7 @@ interface MirrorNodeDeployConfigClass {
   cacheDir: string;
   chartDirectory: string;
   clusterContext: string;
-  clusterRef: ClusterReferenceName;
+  clusterReference: ClusterReferenceName;
   namespace: NamespaceName;
   enableIngress: boolean;
   ingressControllerValueFile: string;
@@ -123,10 +123,11 @@ export class MirrorNodeCommand extends BaseCommand {
   private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
 
   private static readonly DEPLOY_FLAGS_LIST = {
-    required: [flags.clusterRef],
+    required: [],
     optional: [
       flags.cacheDir,
       flags.chartDirectory,
+      flags.clusterRef,
       flags.deployment,
       flags.enableIngress,
       flags.ingressControllerValueFile,
@@ -398,13 +399,17 @@ export class MirrorNodeCommand extends BaseCommand {
 
             context_.config.namespace = namespace;
 
+            context_.config.clusterReference =
+              (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
+              this.k8Factory.default().clusters().readCurrent();
+
             // predefined values first
             context_.config.valuesArg += helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
             // user defined values later to override predefined values
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
 
-            context_.config.clusterContext = context_.config.clusterRef
-              ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString()
+            context_.config.clusterContext = context_.config.clusterReference
+              ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterReference)?.toString()
               : this.k8Factory.default().contexts().readCurrent();
 
             const deploymentName: DeploymentName = self.configManager.getFlag<DeploymentName>(flags.deployment);
@@ -1030,13 +1035,13 @@ export class MirrorNodeCommand extends BaseCommand {
       title: 'Add mirror node to remote config',
       skip: context_ => !this.remoteConfig.isLoaded() || context_.config.isChartInstalled,
       task: async (context_): Promise<void> => {
-        const {namespace, clusterRef} = context_.config;
-        if (!clusterRef) {
+        const {namespace, clusterReference} = context_.config;
+        if (!clusterReference) {
           throw new SoloError('Cluster reference is not defined');
         }
 
         this.remoteConfig.configuration.components.addNewComponent(
-          this.componentFactory.createNewMirrorNodeComponent(clusterRef, namespace),
+          this.componentFactory.createNewMirrorNodeComponent(clusterReference, namespace),
           ComponentTypes.MirrorNode,
         );
 
