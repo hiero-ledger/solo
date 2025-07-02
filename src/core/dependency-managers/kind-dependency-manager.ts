@@ -108,14 +108,28 @@ export class KindDependencyManager extends ShellRunner {
     this.kindPath = Templates.installationPath(constants.KIND, this.osPlatform, this.installationDirectory);
     fs.cpSync(packageFile, this.kindPath);
 
+    let destinationPath: string;
     if (this.osPlatform === constants.OS_WINDOWS) {
       // append .exe for windows
-      fs.renameSync(packageFile, PathEx.join(temporaryDirectory, `${constants.KIND}.exe`));
+      destinationPath = PathEx.join(temporaryDirectory, `${constants.KIND}.exe`);
     } else {
-      fs.renameSync(packageFile, PathEx.join(temporaryDirectory, constants.KIND));
+      destinationPath = PathEx.join(temporaryDirectory, constants.KIND);
     }
 
-    return this.isInstalled();
+    try {
+      fs.renameSync(packageFile, destinationPath);
+      // fs.chmodSync(destinationPath, 0o777);
+    } catch (error: Error | any) {
+      this.logger.error(`Failed to rename kind binary: ${error.message}`);
+      throw new Error(`Failed to install ${constants.KIND}: ${error.message}`);
+    }
+
+    if (!this.isInstalled()) {
+      return false;
+    }
+
+    fs.chmodSync(this.kindPath, 0o755);
+    return true;
   }
 
   async checkVersion(shouldInstall = true) {
@@ -127,10 +141,14 @@ export class KindDependencyManager extends ShellRunner {
       }
     }
 
-    const output = await this.run(`${this.kindPath} version --short`);
-    const parts = output[0].split('+');
-    this.logger.debug(`Found ${constants.KIND}:${parts[0]}`);
-    return semver.gte(parts[0], version.KIND_VERSION);
+    const output: string[] = await this.run(`${this.kindPath} --version`);
+    if (output.length > 0) {
+      const match = output[0].trim().match(/(\d+\.\d+\.\d+)/);
+      const kindVersion = match ? match[1] : null;
+      this.logger.debug(`Found ${constants.KIND}:${kindVersion}`);
+      return semver.gte(kindVersion, version.KIND_VERSION);
+    }
+    return false;
   }
 
   getKindVersion() {
