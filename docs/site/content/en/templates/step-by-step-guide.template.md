@@ -459,7 +459,7 @@ kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:80 > /dev/nu
 # Mirror Node gRPC: localhost:5600
 kubectl port-forward svc/mirror-grpc -n "${SOLO_NAMESPACE}" 5600:5600 &
 # Mirror Node REST API: http://localhost:5551
-kubectl port-forward svc/mirror-rest -n "${SOLO_NAMESPACE}" svc/mirror-rest 5551:80 &
+kubectl port-forward -n solo svc/mirror-rest 5551:80
 # Mirror Node REST Java API http://localhost:8084
 kubectl port-forward service/mirror-restjava -n "${SOLO_NAMESPACE}" 8084:80 &
 # JSON RPC Relay: localhost:7546
