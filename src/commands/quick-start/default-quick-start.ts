@@ -267,7 +267,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             title: 'Finish',
             task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
               this.showQuickStartUserNotes(context_);
-              this.showVersions(context_);
+              this.showVersions();
 
               return;
             },
@@ -293,6 +293,10 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
   private showQuickStartUserNotes(context_: QuickStartSingleDeployContext): void {
     const messageGroupKey: string = 'quick-start-user-notes';
     this.logger.addMessageGroup(messageGroupKey, 'Quick Start User Notes');
+    this.logger.addMessageGroupMessage(messageGroupKey, `Kubernetes Context: ${context_.config.context}`);
+    this.logger.addMessageGroupMessage(messageGroupKey, `Cluster Reference: ${context_.config.clusterRef}`);
+    this.logger.addMessageGroupMessage(messageGroupKey, `Deployment Name: ${context_.config.deployment}`);
+    this.logger.addMessageGroupMessage(messageGroupKey, `Namespace Name: ${context_.config.namespace.name}`);
     this.logger.addMessageGroupMessage(
       messageGroupKey,
       'To quickly delete the deployed resources, run the following command:\n' +
@@ -313,7 +317,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     this.logger.showMessageGroup(messageGroupKey);
   }
 
-  private showVersions(context_: QuickStartSingleDeployContext): void {
+  private showVersions(): void {
     const messageGroupKey: string = 'versions-used';
     this.logger.addMessageGroup(messageGroupKey, 'Versions Used');
 
