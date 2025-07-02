@@ -29,6 +29,7 @@ import {ExplorerCommand} from '../explorer.js';
 import {RelayCommand} from '../relay.js';
 import {TaskList} from '../../core/task-list/task-list.js';
 import {TaskListWrapper} from '../../core/task-list/task-list-wrapper.js';
+import * as version from '../../../version.js';
 
 @injectable()
 export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
@@ -265,25 +266,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           {
             title: 'Finish',
             task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
-              this.logger.addMessageGroup('quick-start-user-notes', 'Quick Start User Notes');
-              this.logger.addMessageGroupMessage(
-                'quick-start-user-notes',
-                'To quickly delete the deployed resources, run the following command:\n' +
-                  `kubectl delete ns ${context_.config.namespace.name}`,
-              );
-
-              this.logger.addMessageGroupMessage(
-                'quick-start-user-notes',
-                'To access the deployed services, use the following commands:\n' +
-                  `kubectl port-forward svc/haproxy-node1-svc -n ${context_.config.namespace.name} 50211:50211 > /dev/null 2>&1 &\n` +
-                  `kubectl port-forward svc/hiero-explorer -n ${context_.config.namespace.name} 8080:80 > /dev/null 2>&1 &\n` +
-                  `kubectl port-forward svc/mirror-grpc -n ${context_.config.namespace.name} 5600:5600 > /dev/null 2>&1 &\n` +
-                  `kubectl port-forward svc/mirror-rest -n ${context_.config.namespace.name} 5551:80 > /dev/null 2>&1 &\n` +
-                  `kubectl port-forward service/mirror-restjava -n ${context_.config.namespace.name} 8084:80 > /dev/null 2>&1 &\n` +
-                  `kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n ${context_.config.namespace.name} 7546:7546 > /dev/null 2>&1 &\n`,
-              );
-
-              this.logger.showMessageGroup('quick-start-user-notes');
+              this.showQuickStartUserNotes(context_);
+              this.showVersions(context_);
 
               return;
             },
@@ -304,6 +288,45 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     }
 
     return true;
+  }
+
+  private showQuickStartUserNotes(context_: QuickStartSingleDeployContext): void {
+    const messageGroupKey: string = 'quick-start-user-notes';
+    this.logger.addMessageGroup(messageGroupKey, 'Quick Start User Notes');
+    this.logger.addMessageGroupMessage(
+      messageGroupKey,
+      'To quickly delete the deployed resources, run the following command:\n' +
+        `kubectl delete ns ${context_.config.namespace.name}`,
+    );
+
+    this.logger.addMessageGroupMessage(
+      messageGroupKey,
+      'To access the deployed services, use the following commands:\n' +
+        `kubectl port-forward svc/haproxy-node1-svc -n ${context_.config.namespace.name} 50211:50211 > /dev/null 2>&1 &\n` +
+        `kubectl port-forward svc/hiero-explorer -n ${context_.config.namespace.name} 8080:80 > /dev/null 2>&1 &\n` +
+        `kubectl port-forward svc/mirror-grpc -n ${context_.config.namespace.name} 5600:5600 > /dev/null 2>&1 &\n` +
+        `kubectl port-forward svc/mirror-rest -n ${context_.config.namespace.name} 5551:80 > /dev/null 2>&1 &\n` +
+        `kubectl port-forward service/mirror-restjava -n ${context_.config.namespace.name} 8084:80 > /dev/null 2>&1 &\n` +
+        `kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n ${context_.config.namespace.name} 7546:7546 > /dev/null 2>&1 &\n`,
+    );
+
+    this.logger.showMessageGroup(messageGroupKey);
+  }
+
+  private showVersions(context_: QuickStartSingleDeployContext): void {
+    const messageGroupKey: string = 'versions-used';
+    this.logger.addMessageGroup(messageGroupKey, 'Versions Used');
+
+    this.logger.addMessageGroupMessage(messageGroupKey, `Solo Chart Version: ${version.SOLO_CHART_VERSION}`);
+    this.logger.addMessageGroupMessage(messageGroupKey, `Consensus Node Version: ${version.HEDERA_PLATFORM_VERSION}`);
+    this.logger.addMessageGroupMessage(messageGroupKey, `Mirror Node Version: ${version.MIRROR_NODE_VERSION}`);
+    this.logger.addMessageGroupMessage(messageGroupKey, `Explorer Version: ${version.EXPLORER_VERSION}`);
+    this.logger.addMessageGroupMessage(
+      messageGroupKey,
+      `JSON RPC Relay Version: ${version.HEDERA_JSON_RPC_RELAY_VERSION}`,
+    );
+
+    this.logger.showMessageGroup(messageGroupKey);
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
