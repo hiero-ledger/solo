@@ -261,9 +261,6 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             return this.argvPushGlobalFlags(argv);
           }),
           // TODO expose port forward endpoints and dump the URLs to the user output
-          // TODO update documentation
-          // TODO make sure CLI Help script is working
-          // TODO manually test from the command line
           {
             title: 'Finish',
             task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
