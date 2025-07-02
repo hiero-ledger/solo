@@ -74,7 +74,7 @@ docker ps
 
 {{< /details >}}<br/>
 
-## Step-by-Step Installation
+## Preparing Your Environment
 
 Now that we have all prerequisites in place, let's install Solo and set up our environment.
 
@@ -174,7 +174,20 @@ kubectl config use-context <context-name>
 
 {{< /details >}}<br/>
 
-### 4. Initialize solo:
+
+## Quick Start Deployment
+
+For a simple setup with a single node with a mirror node, explorer, and JSON RPC relay, you can follow these quick steps. This is ideal for testing and development purposes.
+
+```bash
+solo quick-start single deploy
+```
+
+## Step-by-Step Solo Network Deployment
+
+If you have a more complex setup in mind, such as multiple nodes or specific configurations, follow these detailed steps to deploy your Solo network.
+
+### 1. Initialize solo:
 
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
@@ -192,7 +205,7 @@ $SOLO_INIT_OUTPUT
 
 {{< /details >}}<br/>
 
-### 5. Connect the cluster and create a deployment
+### 2. Connect the cluster and create a deployment
 
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
@@ -228,7 +241,7 @@ $SOLO_DEPLOYMENT_CREATE_OUTPUT
 
 {{< /details >}}<br/>
 
-### 6. Add a cluster to the deployment you created
+### 3. Add a cluster to the deployment you created
 
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
@@ -248,7 +261,7 @@ $SOLO_DEPLOYMENT_ADD_CLUSTER_OUTPUT
 
 {{< /details >}}<br/>
 
-### 7. Generate keys
+### 4. Generate keys
 
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
@@ -275,7 +288,7 @@ hedera-node2.key    hedera-node4.key    s-private-node4.pem s-public-node4.pem
 
 {{< /details >}}<br/>
 
-### 8. Setup cluster with shared components
+### 5. Setup cluster with shared components
 
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
