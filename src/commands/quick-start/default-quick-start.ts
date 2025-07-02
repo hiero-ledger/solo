@@ -51,6 +51,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
       flags.namespace,
       flags.numberOfConsensusNodes,
       flags.quiet,
+      // TODO add flag for consensus node version
     ],
   };
 
@@ -131,10 +132,10 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
 
               const uniquePostfix: string = uuid4().slice(-8);
 
-              context_.config.clusterRef = context_.config.clusterRef || `solo-${uniquePostfix}`; // TODO come up with better solution to avoid conflicts
+              context_.config.clusterRef = context_.config.clusterRef || `solo-${uniquePostfix}`;
               context_.config.context = context_.config.context || this.k8Factory.default().contexts().readCurrent();
-              context_.config.deployment = context_.config.deployment || `solo-deployment-${uniquePostfix}`; // TODO come up with better solution to avoid conflicts
-              context_.config.namespace = context_.config.namespace || NamespaceName.of(`solo-${uniquePostfix}`); // TODO come up with better solution to avoid conflicts
+              context_.config.deployment = context_.config.deployment || `solo-deployment-${uniquePostfix}`;
+              context_.config.namespace = context_.config.namespace || NamespaceName.of(`solo-${uniquePostfix}`);
               context_.config.numberOfConsensusNodes = context_.config.numberOfConsensusNodes || 1;
               return;
             },
@@ -293,7 +294,6 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
   private showQuickStartUserNotes(context_: QuickStartSingleDeployContext): void {
     const messageGroupKey: string = 'quick-start-user-notes';
     this.logger.addMessageGroup(messageGroupKey, 'Quick Start User Notes');
-    this.logger.addMessageGroupMessage(messageGroupKey, `Kubernetes Context: ${context_.config.context}`);
     this.logger.addMessageGroupMessage(messageGroupKey, `Cluster Reference: ${context_.config.clusterRef}`);
     this.logger.addMessageGroupMessage(messageGroupKey, `Deployment Name: ${context_.config.deployment}`);
     this.logger.addMessageGroupMessage(messageGroupKey, `Namespace Name: ${context_.config.namespace.name}`);
