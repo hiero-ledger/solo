@@ -178,11 +178,13 @@ export class MirrorNodeTest extends BaseCommandTest {
       const secondResponse = await fetch(transactionsEndpoint);
       const secondData = await secondResponse.json();
       expect(firstData.transactions).to.not.be.undefined;
+      expect(firstData.transactions.length).to.be.gt(0);
       expect(secondData.transactions).to.not.be.undefined;
+      expect(secondData.transactions.length).to.be.gt(0);
       if (pingerIsEnabled) {
-        expect(firstData.transactions).to.not.deep.equal(secondData.transactions);
+        expect(firstData.transactions[0]).to.not.deep.equal(secondData.transactions[0]);
       } else {
-        expect(firstData.transactions).to.deep.equal(secondData.transactions);
+        expect(firstData.transactions[0]).to.deep.equal(secondData.transactions[0]);
       }
     } finally {
       if (portForwarder) {
