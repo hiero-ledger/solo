@@ -29,6 +29,7 @@ An opinionated CLI tool to deploy and manage standalone test networks.
 | 0.36.1       | >= 20.18.0 (lts/iron)     | >= v1.29.1 | v0.53.0    | v0.58.1+             | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
 | 0.37.0       | >= 20.18.0 (lts/iron)     | >= v1.29.1 | v0.53.0    | v0.58.1+             | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
 | 0.37.1       | >= 20.18.0 (lts/iron)     | >= v1.29.1 | v0.53.0    | v0.58.1+             | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
+| 0.38.0       | >= 20.18.0 (lts/iron)     | >= v1.29.1 | v0.54.3    | v0.58.1+             | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
 
 ### Hardware Requirements
 
