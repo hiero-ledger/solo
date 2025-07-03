@@ -52,7 +52,6 @@ import {MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-no
 import {Lock} from '../core/lock/lock.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import * as semver from 'semver';
-import {Lock} from '../core/lock/lock.js';
 
 interface MirrorNodeDeployConfigClass {
   isChartInstalled: boolean;
@@ -382,7 +381,7 @@ export class MirrorNodeCommand extends BaseCommand {
   private async deploy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
-    const tasks: Listr<MirrorNodeDeployContext> = this.taskList.newTaskList(
+    const tasks: SoloListr<MirrorNodeDeployContext> = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',

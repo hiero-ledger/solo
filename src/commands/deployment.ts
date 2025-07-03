@@ -56,6 +56,9 @@ export interface DeploymentAddClusterContext {
 
 @injectable()
 export class DeploymentCommand extends BaseCommand {
+  public static readonly CREATE_COMMAND: string = 'deployment create';
+  public static readonly ADD_COMMAND: string = 'deployment add-cluster';
+
   public constructor(@inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks) {
     super();
 
