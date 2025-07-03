@@ -163,13 +163,19 @@ export class BlockNodeCommand extends BaseCommand {
   }
 
   private async add(argv: ArgvStruct): Promise<boolean> {
-    const lease: Lock = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    let lease: Lock;
 
     const tasks: Listr<BlockNodeDeployContext> = new Listr<BlockNodeDeployContext>(
       [
         {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
+            lease = await self.leaseManager.create();
+
             this.configManager.update(argv);
 
             flags.disablePrompts(BlockNodeCommand.ADD_FLAGS_LIST.optional);
@@ -333,13 +339,19 @@ export class BlockNodeCommand extends BaseCommand {
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
-    const lease: Lock = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    let lease: Lock;
 
     const tasks: Listr<BlockNodeDestroyContext> = new Listr<BlockNodeDestroyContext>(
       [
         {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
+            lease = await self.leaseManager.create();
+
             this.configManager.update(argv);
 
             flags.disablePrompts(BlockNodeCommand.DESTROY_FLAGS_LIST.optional);
