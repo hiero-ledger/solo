@@ -22,6 +22,7 @@ export interface RemoteConfigRuntimeStateApi {
   getContexts(): Context[];
   getConsensusNodes(): ConsensusNode[];
   deleteComponents(): Promise<void>;
+  getNamespace(): NamespaceName;
 
   isLoaded(): boolean;
   load(namespace?: NamespaceName, context?: Context): Promise<void>;

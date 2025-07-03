@@ -512,9 +512,7 @@ function printPaddedMessage(message: string, totalWidth: number): string {
  * @param type The action that was performed such as 'Installed' or 'Upgraded'
  */
 export function showVersionBanner(logger: SoloLogger, chartName: string, version: string, type: string = 'Installed') {
-  logger.showUser(chalk.cyan(printPaddedMessage(` ${type} ${chartName} chart `, 80)));
-  logger.showUser(chalk.cyan('Version\t\t\t:'), chalk.yellow(version));
-  logger.showUser(chalk.cyan(printPaddedMessage('', 80)));
+  logger.showUser(chalk.cyan(` - ${type} ${chartName} chart, version:`, chalk.yellow(version)));
 }
 
 /**

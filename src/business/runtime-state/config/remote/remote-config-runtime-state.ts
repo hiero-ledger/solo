@@ -82,6 +82,11 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
+    this.remoteConfigValidator = patchInject(
+      remoteConfigValidator,
+      InjectTokens.RemoteConfigValidator,
+      this.constructor.name,
+    );
     this.objectMapper = patchInject(objectMapper, InjectTokens.ObjectMapper, this.constructor.name);
   }
 
@@ -555,5 +560,9 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     this.logger.debug(`Using context ${context} for cluster ${clusterReference} for deployment ${deploymentName}`);
 
     return context;
+  }
+
+  public getNamespace(): NamespaceName {
+    return NamespaceName.of(this.configuration.clusters?.at(0)?.namespace);
   }
 }

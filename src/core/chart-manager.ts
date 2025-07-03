@@ -41,7 +41,7 @@ export class ChartManager {
     try {
       const promises: Promise<string>[] = [];
       for (const [name, url] of repoURLs.entries()) {
-        console.log(`push repo ${name} -> ${url}`);
+        this.logger.debug(`pushing promise for: add repo ${name} -> ${url}`);
         promises.push(this.addRepo(name, url, force));
       }
 

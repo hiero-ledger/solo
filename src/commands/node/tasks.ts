@@ -121,6 +121,9 @@ import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api
 import {type ComponentFactoryApi} from '../../core/config/remote/api/component-factory-api.js';
 import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
+import {LockManager} from '../../core/lock/lock-manager.js';
+
+export type LeaseWrapper = {lease: Lock};
 
 @injectable()
 export class NodeCommandTasks {
@@ -1081,6 +1084,18 @@ export class NodeCommandTasks {
     } catch (error) {
       throw new SoloError(`no pod found for nodeAlias: ${nodeAlias}`, error);
     }
+  }
+
+  public loadConfiguration(argv: ArgvStruct, leaseWrapper: LeaseWrapper, leaseManager: LockManager) {
+    const self = this;
+    return {
+      title: 'Load configuration',
+      task: async () => {
+        await self.localConfig.load();
+        await self.remoteConfig.loadAndValidate(argv);
+        leaseWrapper.lease = await leaseManager.create();
+      },
+    };
   }
 
   public identifyExistingNodes(): SoloListrTask<CheckedNodesContext> {
@@ -2100,7 +2115,7 @@ export class NodeCommandTasks {
         }
 
         // Add profile values files
-        const profileValuesFile = await self.profileManager.prepareValuesForNodeTransaction(
+        const profileValuesFile: string = await self.profileManager.prepareValuesForNodeTransaction(
           PathEx.joinWithRealPath(config.stagingDir, 'config.txt'),
           PathEx.joinWithRealPath(config.stagingDir, 'templates', 'application.properties'),
         );
@@ -2572,12 +2587,17 @@ export class NodeCommandTasks {
     lease: Lock | null,
     shouldLoadNodeClient: boolean = true,
   ): SoloListrTask<AnyListrContext> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
     const {required, optional} = argv;
     argv.flags = [...required, ...optional];
 
     return {
       title: 'Initialize',
       task: async (context_, task): Promise<SoloListr<AnyListrContext> | void> => {
+        await self.localConfig.load();
+        await self.remoteConfig.loadAndValidate(argv);
+
         if (argv[flags.devMode.name]) {
           this.logger.setDevMode(true);
         }

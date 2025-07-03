@@ -12,7 +12,7 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {
-  AnyListrContext,
+  type AnyListrContext,
   type AnyYargs,
   type ArgvStruct,
   type NodeAlias,
@@ -40,8 +40,9 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {CommandFlag, CommandFlags} from '../types/flag-types.js';
 import {Lock} from '../core/lock/lock.js';
 import {NodeServiceMapping} from '../types/mappings/node-service-mapping.js';
-import {RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
+import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -89,6 +90,8 @@ interface RelayDeployContext {
 
 @injectable()
 export class RelayCommand extends BaseCommand {
+  public static readonly DEPLOY_COMMAND = 'relay deploy';
+
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
@@ -274,13 +277,16 @@ export class RelayCommand extends BaseCommand {
   }
 
   private async deploy(argv: ArgvStruct): Promise<boolean> {
-    const lease: Lock = await this.leaseManager.create();
+    let lease: Lock;
 
-    const tasks: Listr<RelayDeployContext> = new Listr<RelayDeployContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
           task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            lease = await this.leaseManager.create();
             // reset nodeAlias
             this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
 
@@ -446,28 +452,40 @@ export class RelayCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      RelayCommand.DEPLOY_COMMAND,
     );
 
-    try {
-      await tasks.run();
-    } catch (error) {
-      throw new SoloError(`Error deploying relay: ${error.message}`, error);
-    } finally {
-      await lease.release();
-      await this.accountManager.close();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError(`Error deploying relay: ${error.message}`, error);
+      } finally {
+        await lease.release();
+        await this.accountManager.close();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease.release();
+        await this.accountManager.close();
+      });
     }
 
     return true;
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
-    const lease: Lock = await this.leaseManager.create();
+    let lease: Lock;
 
     const tasks: Listr<RelayDestroyContext> = new Listr<RelayDestroyContext>(
       [
         {
           title: 'Initialize',
           task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            lease = await this.leaseManager.create();
             // reset nodeAlias
             this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
             this.configManager.update(argv);

@@ -31,6 +31,8 @@ import {KeyManager} from '../core/key-manager.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
+import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {Lock} from '../core/lock/lock.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {CommandFlag, CommandFlags} from '../types/flag-types.js';
@@ -86,6 +88,8 @@ interface ExplorerDestroyContext {
 
 @injectable()
 export class ExplorerCommand extends BaseCommand {
+  public static readonly DEPLOY_COMMAND = 'explorer deploy';
+
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
@@ -254,15 +258,18 @@ export class ExplorerCommand extends BaseCommand {
   }
 
   private async deploy(argv: ArgvStruct): Promise<boolean> {
-    const lease: Lock = await this.leaseManager.create();
+    let lease: Lock;
 
-    const tasks: Listr<ExplorerDeployContext> = new Listr<ExplorerDeployContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
           task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
-            this.configManager.update(argv);
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            lease = await this.leaseManager.create();
 
+            this.configManager.update(argv);
             // disable the prompts that we don't want to prompt the user for
             flags.disablePrompts(ExplorerCommand.DEPLOY_FLAGS_LIST.optional);
 
@@ -484,28 +491,39 @@ export class ExplorerCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      ExplorerCommand.DEPLOY_COMMAND,
     );
 
-    try {
-      await tasks.run();
-      this.logger.debug('explorer deployment has completed');
-    } catch (error) {
-      throw new SoloError(`Error deploying explorer: ${error.message}`, error);
-    } finally {
-      await lease.release();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+        this.logger.debug('explorer deployment has completed');
+      } catch (error) {
+        throw new SoloError(`Error deploying explorer: ${error.message}`, error);
+      } finally {
+        await lease.release();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease.release();
+      });
     }
 
     return true;
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
-    const lease: Lock = await this.leaseManager.create();
+    let lease: Lock;
 
     const tasks: Listr<ExplorerDestroyContext> = new Listr<ExplorerDestroyContext>(
       [
         {
           title: 'Initialize',
           task: async (context_, task): Promise<AnyListrContext> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            lease = await this.leaseManager.create();
             if (!argv.force) {
               const confirmResult: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
                 default: false,
