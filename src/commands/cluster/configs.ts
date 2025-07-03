@@ -112,14 +112,15 @@ export class ClusterCommandConfigs {
 
     this.logger.debug('Prepare ctx.config', {config: context_.config, argv});
 
-    context_.isChartInstalled = await this.chartManager.isChartInstalled(
-      context_.config.clusterSetupNamespace,
-      constants.SOLO_CLUSTER_SETUP_CHART,
-    );
-
     context_.config.context =
       this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString() ??
       this.k8Factory.default().contexts().readCurrent();
+
+    context_.isChartInstalled = await this.chartManager.isChartInstalled(
+      context_.config.clusterSetupNamespace,
+      constants.SOLO_CLUSTER_SETUP_CHART,
+      context_.config.context,
+    );
 
     return context_.config;
   }

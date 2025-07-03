@@ -15,7 +15,7 @@ import {type CommandDefinition} from '../../types/index.js';
  */
 @injectable()
 export class ClusterCommand extends BaseCommand {
-  constructor(@inject(InjectTokens.ClusterCommandHandlers) public readonly handlers?: ClusterCommandHandlers) {
+  public constructor(@inject(InjectTokens.ClusterCommandHandlers) public readonly handlers?: ClusterCommandHandlers) {
     super();
 
     this.handlers = patchInject(handlers, InjectTokens.ClusterCommandHandlers, this.constructor.name);

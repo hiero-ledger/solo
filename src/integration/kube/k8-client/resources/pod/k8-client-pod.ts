@@ -29,11 +29,12 @@ import {ContainerName} from '../../../resources/container/container-name.js';
 import {PodName} from '../../../resources/pod/pod-name.js';
 import {K8ClientPodCondition} from './k8-client-pod-condition.js';
 import {type PodCondition} from '../../../resources/pod/pod-condition.js';
+import {ShellRunner} from '../../../../../core/shell-runner.js';
 
 export class K8ClientPod implements Pod {
   private readonly logger: SoloLogger;
 
-  constructor(
+  public constructor(
     public readonly podReference: PodReference,
     private readonly pods: Pods,
     private readonly kubeClient: CoreV1Api,
@@ -77,7 +78,7 @@ export class K8ClientPod implements Pod {
         }
       }
     } catch (error) {
-      const errorMessage = `Failed to delete pod ${this.podReference.name} in namespace ${this.podReference.namespace}: ${error.message}`;
+      const errorMessage: string = `Failed to delete pod ${this.podReference.name.name} in namespace ${this.podReference.namespace}: ${error.message}`;
 
       if (error.body?.code === StatusCodes.NOT_FOUND || error.response?.body?.code === StatusCodes.NOT_FOUND) {
         this.logger.info(`Pod not found: ${errorMessage}`, error);
@@ -88,17 +89,31 @@ export class K8ClientPod implements Pod {
     }
   }
 
-  public async portForward(localPort: number, podPort: number): Promise<ExtendedNetServer> {
+  public async portForward(localPort: number, podPort: number, detach: boolean = false): Promise<ExtendedNetServer> {
     try {
       this.logger.debug(
         `Creating port-forwarder for ${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${localPort}`,
       );
 
+      if (detach) {
+        this.logger.warn(
+          'Port-forwarding in detached mode has to be manually stopped or will stop when the Kubernetes pod it ',
+          'is connected to terminates.',
+        );
+        await new ShellRunner().run(
+          `kubectl port-forward pods/${this.podReference.name} ${localPort}:${podPort}`,
+          [],
+          false,
+          true,
+        );
+        return undefined; // detached mode does not return a server instance
+      }
+
       const ns: NamespaceName = this.podReference.namespace;
       const forwarder: PortForward = new PortForward(this.kubeConfig, false);
 
-      const server = (await net.createServer(socket => {
-        forwarder.portForward(ns.name, this.podReference.name.toString(), [podPort], socket, null, socket, 3);
+      const server: ExtendedNetServer = (await net.createServer((socket): void => {
+        forwarder.portForward(ns.name, this.podReference.name.toString(), [podPort], socket, undefined, socket, 3);
       })) as ExtendedNetServer;
 
       // add info for logging
@@ -124,8 +139,8 @@ export class K8ClientPod implements Pod {
     this.logger.debug(`Stopping port-forwarder [${server.info}]`);
 
     // try to close the websocket server
-    await new Promise<void>((resolve, reject) => {
-      server.close(error => {
+    await new Promise<void>((resolve, reject): void => {
+      server.close((error): void => {
         if (error) {
           if (error.message?.includes('Server is not running')) {
             this.logger.debug(`Server not running, port-forwarder [${server.info}]`);
@@ -148,17 +163,17 @@ export class K8ClientPod implements Pod {
       attempts++;
 
       try {
-        const isPortOpen = await new Promise(resolve => {
+        const isPortOpen: unknown = await new Promise((resolve): void => {
           const testServer: net.Server = net
             .createServer()
-            .once('error', error => {
+            .once('error', (error): void => {
               if (error) {
                 resolve(false);
               }
             })
-            .once('listening', () => {
+            .once('listening', (): void => {
               testServer
-                .once('close', () => {
+                .once('close', (): void => {
                   hasError++;
                   if (hasError > 1) {
                     resolve(false);
@@ -213,7 +228,7 @@ export class K8ClientPod implements Pod {
 
   public static fromV1Pod(v1Pod: V1Pod, pods: Pods, coreV1Api: CoreV1Api, kubeConfig: KubeConfig): Pod {
     if (!v1Pod) {
-      return null;
+      return undefined;
     }
 
     return new K8ClientPod(
@@ -226,7 +241,9 @@ export class K8ClientPod implements Pod {
       ContainerName.of(v1Pod.spec.containers[0]?.name),
       v1Pod.spec.containers[0]?.image,
       v1Pod.spec.containers[0]?.command,
-      v1Pod.status?.conditions?.map(condition => new K8ClientPodCondition(condition.type, condition.status)),
+      v1Pod.status?.conditions?.map(
+        (condition): K8ClientPodCondition => new K8ClientPodCondition(condition.type, condition.status),
+      ),
       v1Pod.status?.podIP,
       v1Pod.metadata.deletionTimestamp ? new Date(v1Pod.metadata.deletionTimestamp) : undefined,
     );

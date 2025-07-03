@@ -52,13 +52,14 @@ import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirr
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import * as semver from 'semver';
+import {Lock} from '../core/lock/lock.js';
 
 interface MirrorNodeDeployConfigClass {
   isChartInstalled: boolean;
   cacheDir: string;
   chartDirectory: string;
   clusterContext: string;
-  clusterRef: ClusterReferenceName;
+  clusterReference: ClusterReferenceName;
   namespace: NamespaceName;
   enableIngress: boolean;
   ingressControllerValueFile: string;
@@ -104,6 +105,8 @@ interface MirrorNodeDestroyContext {
 
 @injectable()
 export class MirrorNodeCommand extends BaseCommand {
+  public static readonly DEPLOY_COMMAND: string = 'mirror-node deploy';
+
   public constructor(
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
     @inject(InjectTokens.ProfileManager) private readonly profileManager?: ProfileManager,
@@ -120,10 +123,11 @@ export class MirrorNodeCommand extends BaseCommand {
   private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
 
   private static readonly DEPLOY_FLAGS_LIST = {
-    required: [flags.clusterRef],
+    required: [],
     optional: [
       flags.cacheDir,
       flags.chartDirectory,
+      flags.clusterRef,
       flags.deployment,
       flags.enableIngress,
       flags.ingressControllerValueFile,
@@ -349,13 +353,17 @@ export class MirrorNodeCommand extends BaseCommand {
 
   private async deploy(argv: ArgvStruct): Promise<boolean> {
     const self = this;
-    const lease = await self.leaseManager.create();
+    let lease: Lock;
 
-    const tasks = new Listr<MirrorNodeDeployContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
+            lease = await self.leaseManager.create();
+
             self.configManager.update(argv);
 
             // disable the prompts that we don't want to prompt the user for
@@ -391,13 +399,17 @@ export class MirrorNodeCommand extends BaseCommand {
 
             context_.config.namespace = namespace;
 
+            context_.config.clusterReference =
+              (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
+              this.k8Factory.default().clusters().readCurrent();
+
             // predefined values first
             context_.config.valuesArg += helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
             // user defined values later to override predefined values
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
 
-            context_.config.clusterContext = context_.config.clusterRef
-              ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString()
+            context_.config.clusterContext = context_.config.clusterReference
+              ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterReference)?.toString()
               : this.k8Factory.default().contexts().readCurrent();
 
             const deploymentName: DeploymentName = self.configManager.getFlag<DeploymentName>(flags.deployment);
@@ -753,16 +765,25 @@ export class MirrorNodeCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      MirrorNodeCommand.DEPLOY_COMMAND,
     );
 
-    try {
-      await tasks.run();
-      self.logger.debug('mirror node deployment has completed');
-    } catch (error) {
-      throw new SoloError(`Error deploying mirror node: ${error.message}`, error);
-    } finally {
-      await lease.release();
-      await self.accountManager.close();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+        self.logger.debug('mirror node deployment has completed');
+      } catch (error) {
+        throw new SoloError(`Error deploying mirror node: ${error.message}`, error);
+      } finally {
+        await lease.release();
+        await self.accountManager.close();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease.release();
+        await self.accountManager.close();
+      });
     }
 
     return true;
@@ -774,13 +795,17 @@ export class MirrorNodeCommand extends BaseCommand {
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
     const self = this;
-    const lease = await self.leaseManager.create();
+    let lease: Lock;
 
     const tasks = new Listr<MirrorNodeDestroyContext>(
       [
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
+            lease = await self.leaseManager.create();
+
             if (!argv.force) {
               const confirmResult = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
                 default: false,
@@ -1010,13 +1035,13 @@ export class MirrorNodeCommand extends BaseCommand {
       title: 'Add mirror node to remote config',
       skip: context_ => !this.remoteConfig.isLoaded() || context_.config.isChartInstalled,
       task: async (context_): Promise<void> => {
-        const {namespace, clusterRef} = context_.config;
-        if (!clusterRef) {
+        const {namespace, clusterReference} = context_.config;
+        if (!clusterReference) {
           throw new SoloError('Cluster reference is not defined');
         }
 
         this.remoteConfig.configuration.components.addNewComponent(
-          this.componentFactory.createNewMirrorNodeComponent(clusterRef, namespace),
+          this.componentFactory.createNewMirrorNodeComponent(clusterReference, namespace),
           ComponentTypes.MirrorNode,
         );
 
