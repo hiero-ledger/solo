@@ -5,7 +5,7 @@ import {type ClusterReferenceName, type DeploymentName, type ExtendedNetServer} 
 import {Flags} from '../../../../src/commands/flags.js';
 import {main} from '../../../../src/index.js';
 import {Duration} from '../../../../src/core/time/duration.js';
-import {type NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
+import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
@@ -16,6 +16,9 @@ import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
+
+import {exec} from 'node:child_process';
+import * as constants from '../../../../src/core/constants.js';
 
 export class MirrorNodeTest extends BaseCommandTest {
   private static soloMirrorNodeDeployArgv(
@@ -150,5 +153,126 @@ export class MirrorNodeTest extends BaseCommandTest {
       await main(soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
       await verifyMirrorNodeDeployWasSuccessful(contexts, namespace, testLogger, createdAccountIds);
     }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  public static deployWithExternalDatabase(options: BaseTestOptions): void {
+    const {testName, testLogger, deployment, contexts, namespace, clusterReferenceNameArray, createdAccountIds} =
+      options;
+    const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, optionFromFlag} = MirrorNodeTest;
+
+    it(`${testName}: mirror node deploy with external database`, async (): Promise<void> => {
+      const argv = soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1]);
+      
+      // Add external database flags
+      argv.push(
+        optionFromFlag(Flags.useExternalDatabase),
+        optionFromFlag(Flags.externalDatabaseHost),
+        '{{.postgres_host_fqdn}}',
+        optionFromFlag(Flags.externalDatabaseOwnerUsername),
+        '{{.postgres_username}}',
+        optionFromFlag(Flags.externalDatabaseOwnerPassword),
+        '{{.postgres_password}}',
+        optionFromFlag(Flags.externalDatabaseReadonlyUsername),
+        '{{.postgres_readonly_username}}',
+        optionFromFlag(Flags.externalDatabaseReadonlyPassword),
+        '{{.postgres_readonly_password}}'
+      );
+      
+      await main(argv);
+      await verifyMirrorNodeDeployWasSuccessful(contexts, namespace, testLogger, createdAccountIds);
+    }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  public static installPostgres(): void {
+    it('should install postgres chart', async (): Promise<void> => {
+      const postgres_password: string = 'XXXXXXX';
+      const postgresUsername: string = 'postgres';
+
+      //       postgres_readonly_username: "readonlyuser"
+      // postgres_readonly_password: "XXXXXXXX"
+      const postgresReadonlyUsername: string = 'readonlyuser';
+      const postgresReadonlyPassword: string = 'XXXXXXXX';
+
+      const nameSpace: string = 'database';
+      const postgresName: string = 'my-postgresql';
+      const postgresContainerName: string = `${postgresName}-0`;
+
+      // install postgres chart using
+      // helm install my-postgresql https://charts.bitnami.com/bitnami/postgresql-12.1.2.tgz \
+      //   --set image.tag=16.4.0 \
+      //     --namespace database --create-namespace \
+      //     --set global.postgresql.auth.postgresPassword={{.postgres_password}} \
+      //     --set primary.persistence.enabled=false --set secondary.enabled=false
+
+      // Using shell command to install postgres chart
+      const installPostgresChartCommand: string = `helm install my-postgresql https://charts.bitnami.com/bitnami/postgresql-12.1.2.tgz \
+        --set image.tag=16.4.0 \
+        --namespace ${nameSpace} --create-namespace \
+        --set global.postgresql.auth.postgresPassword=${postgres_password} \
+        --set primary.persistence.enabled=false --set secondary.enabled=false`;
+
+      exec(installPostgresChartCommand);
+
+      // kubectl wait --for=condition=ready pod/{{.postgres_container_name}} \
+      //     -n {{.postgres_database_namespace}} --timeout=160s
+      // uisng waitForReadyStatus function to check if postgres pod is ready
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+      const k8: K8 = k8Factory.getK8('default');
+
+      await k8
+        .pods()
+        .waitForReadyStatus(
+          NamespaceName.of(nameSpace),
+          [],
+          constants.PODS_READY_MAX_ATTEMPTS,
+          constants.PODS_READY_DELAY,
+        );
+
+      // kubectl cp {{.TASKFILE_DIR}}/external-database-test/scripts/init.sh \
+      //     {{.postgres_container_name}}:/tmp/init.sh \
+      //     -n {{.postgres_database_namespace}}
+      // using shell command
+      const initScriptPath: string = 'examples/external-database-test/scripts/init.sh';
+      const copyInitScriptCommand: string = `kubectl cp ${initScriptPath} ${postgresContainerName}:/tmp/init.sh -n ${nameSpace}`;
+      exec(copyInitScriptCommand);
+
+      // kubectl exec -it {{.postgres_container_name}} \
+      // -n {{.postgres_database_namespace}} -- chmod +x /tmp/init.sh
+      const chmodInitScriptCommand: string = `kubectl exec -it ${postgresContainerName} -n ${nameSpace} -- chmod +x /tmp/init.sh`;
+      exec(chmodInitScriptCommand);
+
+      // kubectl exec -it {{.postgres_container_name}} \
+      // -n {{.postgres_database_namespace}} \
+      // -- /bin/bash /tmp/init.sh "{{.postgres_username}}" "{{.postgres_readonly_username}}" "{{.postgres_readonly_password}}"
+      const initScriptCommand: string = `kubectl exec -it ${postgresContainerName} -n ${nameSpace} -- /bin/bash /tmp/init.sh "${postgresUsername}" "${postgresReadonlyUsername}" "${postgresReadonlyPassword}"`;
+      exec(initScriptCommand);
+    });
+  }
+
+  public static runSql(): void {
+    it('should run SQL command', async (): Promise<void> => {
+      const postgresPassword: string = 'XXXXXXX';
+      //   postgres_username: "postgres"
+      const postgresUsername: string = 'postgres';
+
+      const nameSpace: string = 'database';
+      const postgresName: string = 'my-postgresql';
+      const postgresContainerName: string = `${postgresName}-0`;
+
+      // postgres_mirror_node_database_name: "mirror_node"
+      const postgresMirrorNodeDatabaseName: string = 'mirror_node';
+
+      // kubectl cp {{.HOME}}/.solo/cache/database-seeding-query.sql {{.postgres_container_name}}:/tmp/database-seeding-query.sql \
+      //     -n {{.postgres_database_namespace}}
+      // using shell command to copy SQL file to postgres container
+      const copySqlCommand: string = `kubectl cp ${process.env.HOME}/.solo/cache/database-seeding-query.sql ${postgresContainerName}:/tmp/database-seeding-query.sql -n ${nameSpace}`;
+      exec(copySqlCommand);
+
+      // kubectl exec -it {{.postgres_container_name}} -n {{.postgres_database_namespace}} -- env PGPASSWORD={{.postgres_password}} psql -U {{.postgres_username}} \
+      //       -f /tmp/database-seeding-query.sql \
+      //       -d {{.postgres_mirror_node_database_name}}
+      const runSqlCommand: string = `kubectl exec -it ${postgresContainerName} -n ${nameSpace} -- env PGPASSWORD=${postgresPassword} psql -U ${postgresUsername} -f /tmp/database-seeding-query.sql -d ${postgresMirrorNodeDatabaseName}`;
+      exec(runSqlCommand);
+    });
   }
 }
