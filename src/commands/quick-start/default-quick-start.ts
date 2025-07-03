@@ -28,6 +28,8 @@ import {MirrorNodeCommand} from '../mirror-node.js';
 import {ExplorerCommand} from '../explorer.js';
 import {RelayCommand} from '../relay.js';
 import {TaskList} from '../../core/task-list/task-list.js';
+import {TaskListWrapper} from '../../core/task-list/task-list-wrapper.js';
+import * as version from '../../../version.js';
 
 @injectable()
 export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
@@ -40,27 +42,16 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
   private static readonly SINGLE_ADD_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
-      // flags.apiPermissionProperties,
-      // flags.applicationEnv,
-      // flags.applicationProperties,
       flags.cacheDir,
       flags.clusterRef,
       flags.clusterSetupNamespace,
       flags.context,
       flags.deployment,
       flags.devMode,
-      // flags.log4j2Xml,
       flags.namespace,
-      // flags.networkDeploymentValuesFile,
       flags.numberOfConsensusNodes,
-      // flags.persistentVolumeClaims,
-      // flags.pinger,
       flags.quiet,
-      // flags.releaseTag,
-      // flags.soloChartVersion,
-      // TODO: flags.mirrorNodeValuesFile,
-      // TODO: flags.explorerValuesFile,
-      // TODO: flags.relayValuesFile,
+      // TODO add flag for consensus node version
     ],
   };
 
@@ -89,10 +80,6 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     return argv;
   }
 
-  private async prepareValuesArgForQuickStart(config: QuickStartSingleDeployConfigClass): Promise<string> {
-    return '';
-  }
-
   private invokeSoloCommand(title: string, commandName: string, callback: () => string[]) {
     return {
       title,
@@ -105,7 +92,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
   private async subTaskSoloCommand(
     commandName: string,
     taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
-    taskListWrapper,
+    taskListWrapper: TaskListWrapper,
     callback: () => string[],
   ): Promise<Listr<ListrContext, any, any> | Listr<ListrContext, any, any>[]> {
     taskList.parentTaskListMap.set(commandName, {taskListWrapper});
@@ -120,7 +107,6 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     const tasks: Listr<QuickStartSingleDeployContext, ListrRendererValue, ListrRendererValue> =
       this.taskList.newQuickStartSingleDeployTaskList(
         [
-          // TODO fix the sysout problem that causes this output only, but then dumps the rest of the output on exit, but it shows multiple lines for all of the row updates
           {
             title: 'Initialize',
             task: async (
@@ -146,10 +132,10 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
 
               const uniquePostfix: string = uuid4().slice(-8);
 
-              context_.config.clusterRef = context_.config.clusterRef || `solo-${uniquePostfix}`; // TODO come up with better solution to avoid conflicts
+              context_.config.clusterRef = context_.config.clusterRef || `solo-${uniquePostfix}`;
               context_.config.context = context_.config.context || this.k8Factory.default().contexts().readCurrent();
-              context_.config.deployment = context_.config.deployment || `solo-deployment-${uniquePostfix}`; // TODO come up with better solution to avoid conflicts
-              context_.config.namespace = context_.config.namespace || NamespaceName.of(`solo-${uniquePostfix}`); // TODO come up with better solution to avoid conflicts
+              context_.config.deployment = context_.config.deployment || `solo-deployment-${uniquePostfix}`;
+              context_.config.namespace = context_.config.namespace || NamespaceName.of(`solo-${uniquePostfix}`);
               context_.config.numberOfConsensusNodes = context_.config.numberOfConsensusNodes || 1;
               return;
             },
@@ -275,13 +261,18 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             return this.argvPushGlobalFlags(argv);
           }),
           // TODO expose port forward endpoints and dump the URLs to the user output
-          // TODO update documentation
-          // TODO make sure CLI Help script is working
-          // TODO manually test from the command line
+          {
+            title: 'Finish',
+            task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
+              this.showQuickStartUserNotes(context_);
+              this.showVersions();
+
+              return;
+            },
+          },
         ],
         {
           concurrent: false,
-          // fallbackRendererCondition: true,
           rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
         },
       );
@@ -295,6 +286,48 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     }
 
     return true;
+  }
+
+  private showQuickStartUserNotes(context_: QuickStartSingleDeployContext): void {
+    const messageGroupKey: string = 'quick-start-user-notes';
+    this.logger.addMessageGroup(messageGroupKey, 'Quick Start User Notes');
+    this.logger.addMessageGroupMessage(messageGroupKey, `Cluster Reference: ${context_.config.clusterRef}`);
+    this.logger.addMessageGroupMessage(messageGroupKey, `Deployment Name: ${context_.config.deployment}`);
+    this.logger.addMessageGroupMessage(messageGroupKey, `Namespace Name: ${context_.config.namespace.name}`);
+    this.logger.addMessageGroupMessage(
+      messageGroupKey,
+      'To quickly delete the deployed resources, run the following command:\n' +
+        `kubectl delete ns ${context_.config.namespace.name}`,
+    );
+
+    this.logger.addMessageGroupMessage(
+      messageGroupKey,
+      'To access the deployed services, use the following commands:\n' +
+        `kubectl port-forward svc/haproxy-node1-svc -n ${context_.config.namespace.name} 50211:50211 > /dev/null 2>&1 &\n` +
+        `kubectl port-forward svc/hiero-explorer -n ${context_.config.namespace.name} 8080:80 > /dev/null 2>&1 &\n` +
+        `kubectl port-forward svc/mirror-grpc -n ${context_.config.namespace.name} 5600:5600 > /dev/null 2>&1 &\n` +
+        `kubectl port-forward svc/mirror-rest -n ${context_.config.namespace.name} 5551:80 > /dev/null 2>&1 &\n` +
+        `kubectl port-forward service/mirror-restjava -n ${context_.config.namespace.name} 8084:80 > /dev/null 2>&1 &\n` +
+        `kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n ${context_.config.namespace.name} 7546:7546 > /dev/null 2>&1 &\n`,
+    );
+
+    this.logger.showMessageGroup(messageGroupKey);
+  }
+
+  private showVersions(): void {
+    const messageGroupKey: string = 'versions-used';
+    this.logger.addMessageGroup(messageGroupKey, 'Versions Used');
+
+    this.logger.addMessageGroupMessage(messageGroupKey, `Solo Chart Version: ${version.SOLO_CHART_VERSION}`);
+    this.logger.addMessageGroupMessage(messageGroupKey, `Consensus Node Version: ${version.HEDERA_PLATFORM_VERSION}`);
+    this.logger.addMessageGroupMessage(messageGroupKey, `Mirror Node Version: ${version.MIRROR_NODE_VERSION}`);
+    this.logger.addMessageGroupMessage(messageGroupKey, `Explorer Version: ${version.EXPLORER_VERSION}`);
+    this.logger.addMessageGroupMessage(
+      messageGroupKey,
+      `JSON RPC Relay Version: ${version.HEDERA_JSON_RPC_RELAY_VERSION}`,
+    );
+
+    this.logger.showMessageGroup(messageGroupKey);
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
