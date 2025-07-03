@@ -12,24 +12,24 @@ import {KindDependencyManager} from './kind-dependency-manager.js';
 
 @injectable()
 export class DependencyManager extends ShellRunner {
-  private readonly depManagerMap: Map<string, HelmDependencyManager | KindDependencyManager>;
+  private readonly dependancyManagerMap: Map<string, HelmDependencyManager | KindDependencyManager>;
 
   public constructor(
     @inject(InjectTokens.HelmDependencyManager) helmDepManager?: HelmDependencyManager,
     @inject(InjectTokens.KindDependencyManager) kindDepManager?: KindDependencyManager,
   ) {
     super();
-    this.depManagerMap = new Map();
+    this.dependancyManagerMap = new Map();
     if (helmDepManager) {
-      this.depManagerMap.set(constants.HELM, helmDepManager);
+      this.dependancyManagerMap.set(constants.HELM, helmDepManager);
     } else {
-      this.depManagerMap.set(constants.HELM, container.resolve(HelmDependencyManager));
+      this.dependancyManagerMap.set(constants.HELM, container.resolve(HelmDependencyManager));
     }
 
     if (kindDepManager) {
-      this.depManagerMap.set(constants.KIND, kindDepManager);
+      this.dependancyManagerMap.set(constants.KIND, kindDepManager);
     } else {
-      this.depManagerMap.set(constants.KIND, container.resolve(KindDependencyManager));
+      this.dependancyManagerMap.set(constants.KIND, container.resolve(KindDependencyManager));
     }
   }
 
@@ -42,7 +42,7 @@ export class DependencyManager extends ShellRunner {
     this.logger.debug(`Checking for dependency: ${dep}`);
 
     let status: boolean = false;
-    const manager: HelmDependencyManager | KindDependencyManager = this.depManagerMap.get(dep);
+    const manager: HelmDependencyManager | KindDependencyManager = this.dependancyManagerMap.get(dep);
     if (manager) {
       status = await manager.checkVersion(shouldInstall);
     }
