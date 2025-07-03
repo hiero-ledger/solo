@@ -127,7 +127,7 @@ import {LockManager} from '../../core/lock/lock-manager.js';
 import {NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
 import {SemVer, lt} from 'semver';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
-import type {Container} from '../../integration/kube/resources/container/container.js';
+import {type Container} from '../../integration/kube/resources/container/container.js';
 
 export type LeaseWrapper = {lease: Lock};
 
