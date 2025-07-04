@@ -10,9 +10,6 @@ test/
 *.spec.ts
 *.test.ts
 
-# Ignore code that is not compiled
-**/*.ts
-
 # Scripts
 Taskfile*
 examples/
