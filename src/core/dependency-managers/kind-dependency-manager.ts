@@ -2,7 +2,6 @@
 
 import fs from 'node:fs';
 import * as util from 'node:util';
-import {MissingArgumentError} from '../errors/missing-argument-error.js';
 import * as helpers from '../helpers.js';
 import * as constants from '../constants.js';
 import {type PackageDownloader} from '../package-downloader.js';
@@ -46,10 +45,6 @@ export class KindDependencyManager extends ShellRunner {
     this.osPlatform = patchInject(osPlatform, InjectTokens.OsPlatform, this.constructor.name);
     this.osArch = patchInject(osArch, InjectTokens.OsArch, this.constructor.name);
     this.kindVersion = patchInject(kindVersion, InjectTokens.KindVersion, this.constructor.name);
-
-    if (!installationDirectory) {
-      throw new MissingArgumentError('installation directory is required');
-    }
 
     this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
     this.installationDirectory = installationDirectory;
