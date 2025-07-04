@@ -16,13 +16,9 @@ import {patchInject} from '../dependency-injection/container-helper.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 
-// constants required by KindDependencyManager
-const KIND_RELEASE_BASE_URL = 'https://kind.sigs.k8s.io/dl';
-const KIND_ARTIFACT_TEMPLATE = '%s/kind-%s-%s';
+const KIND_RELEASE_BASE_URL: string = 'https://kind.sigs.k8s.io/dl';
+const KIND_ARTIFACT_TEMPLATE: string = '%s/kind-%s-%s';
 
-/**
- * Kind dependency manager installs or uninstalls kind client at SOLO_HOME_DIR/bin directory
- */
 @injectable()
 export class KindDependencyManager extends ShellRunner {
   private readonly osPlatform: string;
@@ -57,17 +53,18 @@ export class KindDependencyManager extends ShellRunner {
 
     this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
     this.installationDirectory = installationDirectory;
-    // Node.js uses 'win32' for windows in package.json os field, but kind uses 'windows'
     this.osPlatform = osPlatform === OS_WIN32 ? OS_WINDOWS : osPlatform;
-    this.osArch = ['x64', 'x86-64'].includes(osArch) ? 'amd64' : osArch;
+    this.osArch = ['x64', 'x86-64'].includes(osArch as string) ? 'amd64' : (osArch as string);
     this.localKindPath = Templates.installationPath(constants.KIND, this.osPlatform, this.installationDirectory);
 
     this.artifactName = util.format(KIND_ARTIFACT_TEMPLATE, this.kindVersion, this.osPlatform, this.osArch);
     this.kindURL = `${KIND_RELEASE_BASE_URL}/${this.artifactName}`;
     this.checksumURL = `${KIND_RELEASE_BASE_URL}/${this.artifactName}.sha256sum`;
+    this.globalKindPath = '';
+    this.cachedGlobalExecutablePath = '';
   }
 
-  public getKindPath() {
+  public getKindPath(): string {
     return this.globalKindPath || this.localKindPath;
   }
 
@@ -76,7 +73,7 @@ export class KindDependencyManager extends ShellRunner {
       if (this.cachedGlobalExecutablePath) {
         return this.cachedGlobalExecutablePath;
       }
-      const cmd = this.osPlatform === constants.OS_WINDOWS ? 'where' : 'which';
+      const cmd: string = this.osPlatform === constants.OS_WINDOWS ? 'where' : 'which';
       const path: string[] = await this.run(`${cmd} ${constants.KIND}`);
       if (path.length === 0) {
         return false;
@@ -92,9 +89,9 @@ export class KindDependencyManager extends ShellRunner {
     try {
       const output: string[] = await this.run(`${path} --version`);
       if (output.length > 0) {
-        const match = output[0].trim().match(/(\d+\.\d+\.\d+)/);
-        const kindVersion = match ? match[1] : null;
-        return semver.gte(kindVersion, version.KIND_VERSION);
+        const match: RegExpMatchArray | null = output[0].trim().match(/(\d+\.\d+\.\d+)/);
+        const kindVersion: string | null = match ? match[1] : undefined;
+        return semver.gte(kindVersion as string, version.KIND_VERSION);
       }
     } catch (error: Error | any) {
       this.logger.error(`Failed to check global kind version: ${error.message}`);
@@ -103,7 +100,7 @@ export class KindDependencyManager extends ShellRunner {
   }
 
   async isInstalledGloballyAndMeetsRequirements(): Promise<boolean> {
-    const path = await this.getGlobalExecutablePath();
+    const path: false | string = await this.getGlobalExecutablePath();
     if (path && (await this.installationMeetsRequirements(path))) {
       this.globalKindPath = path;
       return true;
@@ -111,38 +108,33 @@ export class KindDependencyManager extends ShellRunner {
     return false;
   }
 
-  isInstalledLocally(): boolean {
+  public isInstalledLocally(): boolean {
     return fs.existsSync(this.localKindPath);
   }
 
-  /**
-   * Uninstall kind from solo bin folder
-   */
-  uninstallLocal() {
+  public uninstallLocal(): void {
     if (this.isInstalledLocally()) {
       fs.rmSync(this.localKindPath);
     }
   }
 
-  async install(temporaryDirectory: string = helpers.getTemporaryDirectory()) {
+  public async install(temporaryDirectory: string = helpers.getTemporaryDirectory()): Promise<boolean> {
     if (await this.isInstalledGloballyAndMeetsRequirements()) {
       return true;
     }
 
-    const packageFile = await this.downloader.fetchPackage(this.kindURL, this.checksumURL, temporaryDirectory);
+    const packageFile: string = await this.downloader!.fetchPackage(this.kindURL, this.checksumURL, temporaryDirectory);
 
-    if (!fs.existsSync(this.installationDirectory)) {
-      fs.mkdirSync(this.installationDirectory);
+    if (!fs.existsSync(this.installationDirectory!)) {
+      fs.mkdirSync(this.installationDirectory!);
     }
 
-    // install new kind
     this.uninstallLocal();
-    this.localKindPath = Templates.installationPath(constants.KIND, this.osPlatform, this.installationDirectory);
+    this.localKindPath = Templates.installationPath(constants.KIND, this.osPlatform, this.installationDirectory!);
     fs.cpSync(packageFile, this.localKindPath);
 
     let destinationPath: string;
     if (this.osPlatform === constants.OS_WINDOWS) {
-      // append .exe for windows
       destinationPath = PathEx.join(temporaryDirectory, `${constants.KIND}.exe`);
     } else {
       destinationPath = PathEx.join(temporaryDirectory, constants.KIND);
@@ -163,12 +155,12 @@ export class KindDependencyManager extends ShellRunner {
     return true;
   }
 
-  async checkVersion(shouldInstall = true) {
+  public async checkVersion(shouldInstall: boolean = true): Promise<boolean> {
     if (await this.isInstalledGloballyAndMeetsRequirements()) {
       return true;
     }
 
-    if (!(await this.isInstalledLocally())) {
+    if (!this.isInstalledLocally()) {
       if (shouldInstall) {
         await this.install();
       } else {
@@ -179,7 +171,7 @@ export class KindDependencyManager extends ShellRunner {
     return this.installationMeetsRequirements(this.localKindPath);
   }
 
-  getKindVersion() {
+  public getKindVersion(): string {
     return version.KIND_VERSION;
   }
 }
