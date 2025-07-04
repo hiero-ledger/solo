@@ -12,7 +12,7 @@ import {PathEx} from '../../../../../src/business/utils/path-ex.js';
 import sinon from 'sinon';
 
 describe('KindDependencyManager', () => {
-  const temporaryDirectory = PathEx.join(getTemporaryDirectory(), 'bin');
+  const temporaryDirectory: string = PathEx.join(getTemporaryDirectory(), 'bin');
 
   before(() => fs.mkdirSync(temporaryDirectory));
 
@@ -97,6 +97,45 @@ describe('KindDependencyManager', () => {
       expect(await kindDependencyManager.isInstalledLocally()).to.be.ok;
 
       fs.rmSync(temporaryDirectory, {recursive: true});
+    });
+  });
+
+  describe('KindDependencyManager system methods', () => {
+    let kindDependencyManager: KindDependencyManager;
+
+    beforeEach(() => {
+      kindDependencyManager = new KindDependencyManager(undefined, temporaryDirectory, process.platform, process.arch);
+    });
+
+    it('getGlobalExecutablePath returns false if not found', async () => {
+      const runStub = sinon.stub(kindDependencyManager, 'run').resolves([]);
+      expect(await kindDependencyManager.getGlobalExecutablePath()).to.be.false;
+      runStub.restore();
+    });
+
+    it('installationMeetsRequirements returns false on error', async () => {
+      const runStub = sinon.stub(kindDependencyManager, 'run').rejects(new Error('fail'));
+      expect(await kindDependencyManager.installationMeetsRequirements('/bin/kind')).to.be.false;
+      runStub.restore();
+    });
+
+    it('installationMeetsRequirements returns false on invalid version', async () => {
+      const runStub = sinon.stub(kindDependencyManager, 'run').resolves(['not a version']);
+      expect(await kindDependencyManager.installationMeetsRequirements('/bin/kind')).to.be.false;
+      runStub.restore();
+    });
+
+    it('installationMeetsRequirements returns false on lower than required version', async () => {
+      const runStub = sinon.stub(kindDependencyManager, 'run').resolves(['v0.0.5']);
+      expect(await kindDependencyManager.installationMeetsRequirements('/bin/kind')).to.be.false;
+      runStub.restore();
+    });
+
+    it('uninstallLocal removes file if exists', () => {
+      fs.writeFileSync(kindDependencyManager.getKindPath(), '');
+      expect(fs.existsSync(kindDependencyManager.getKindPath())).to.be.true;
+      kindDependencyManager.uninstallLocal();
+      expect(fs.existsSync(kindDependencyManager.getKindPath())).to.be.false;
     });
   });
 });
