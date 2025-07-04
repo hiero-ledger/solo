@@ -28,6 +28,7 @@ import {Base64} from 'js-base64';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 
 interface UpdateAccountConfig {
   accountId: string;
@@ -66,7 +67,7 @@ export class AccountCommand extends BaseCommand {
     this.systemAccounts = patchInject(systemAccounts, InjectTokens.SystemAccounts, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME = 'account';
+  public static readonly COMMAND_NAME = 'ledger';
 
   private static INIT_FLAGS_LIST = {
     required: [],
@@ -755,111 +756,56 @@ export class AccountCommand extends BaseCommand {
   }
 
   public getCommandDefinition(): CommandDefinition {
-    const self: this = this;
-    return {
-      command: AccountCommand.COMMAND_NAME,
-      desc: 'Manage Hedera accounts in solo network',
-      builder: (yargs: AnyYargs) => {
-        return yargs
-          .command({
-            command: 'init',
-            desc: 'Initialize system accounts with new keys',
-            builder: (y: AnyYargs) => {
+    return new CommandBuilder(AccountCommand.COMMAND_NAME, 'List of ledger related commands', this.logger)
+      .addCommandGroup(
+        new CommandGroup('account', 'Manage Hedera accounts in solo network')
+          .addSubcommand(
+            new Subcommand('init', 'Initialize system accounts with new keys', this, this.init, (y: AnyYargs): void => {
               flags.setRequiredCommandFlags(y, ...AccountCommand.INIT_FLAGS_LIST.required);
               flags.setOptionalCommandFlags(y, ...AccountCommand.INIT_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'account init' ===");
-              self.logger.info(argv);
-
-              await self
-                .init(argv)
-                .then(r => {
-                  self.logger.info("==== Finished running 'account init' ===");
-                  if (!r) {
-                    throw new SoloError('Error running init, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error running init: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'create',
-            desc: 'Creates a new account with a new key and stores the key in the Kubernetes secrets, if you supply no key one will be generated for you, otherwise you may supply either a ECDSA or ED25519 private key',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...AccountCommand.CREATE_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...AccountCommand.CREATE_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'account create' ===");
-              self.logger.info(argv);
-
-              await self
-                .create(argv)
-                .then(r => {
-                  self.logger.info("==== Finished running 'account create' ===");
-                  if (!r) {
-                    throw new SoloError('Error running create, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error running create: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'update',
-            desc: 'Updates an existing account with the provided info, if you want to update the private key, you can supply either ECDSA or ED25519 but not both\n',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...AccountCommand.UPDATE_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...AccountCommand.UPDATE_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'account update' ===");
-              self.logger.info(argv);
-
-              await self
-                .update(argv)
-                .then(r => {
-                  self.logger.info("==== Finished running 'account update' ===");
-                  if (!r) {
-                    throw new SoloError('Error running update, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error running update: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'get',
-            desc: 'Gets the account info including the current amount of HBAR',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...AccountCommand.GET_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...AccountCommand.GET_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'account get' ===");
-              self.logger.info(argv);
-
-              await self
-                .get(argv)
-                .then(r => {
-                  self.logger.info("==== Finished running 'account get' ===");
-                  if (!r) {
-                    throw new SoloError('Error running get, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error running get: ${error.message}`, error);
-                });
-            },
-          })
-          .demandCommand(1, 'Select an account command');
-      },
-    };
+            }),
+          )
+          .addSubcommand(
+            new Subcommand(
+              'update',
+              'Updates an existing account with the provided info, ' +
+                'if you want to update the private key, you can supply either ECDSA or ED25519 but not both\n',
+              this,
+              this.update,
+              (y: AnyYargs): void => {
+                flags.setRequiredCommandFlags(y, ...AccountCommand.UPDATE_FLAGS_LIST.required);
+                flags.setOptionalCommandFlags(y, ...AccountCommand.UPDATE_FLAGS_LIST.optional);
+              },
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              'create',
+              'Creates a new account with a new key and stores the key in the Kubernetes secrets, ' +
+                'if you supply no key one will be generated for you, ' +
+                'otherwise you may supply either a ECDSA or ED25519 private key',
+              this,
+              this.create,
+              (y: AnyYargs): void => {
+                flags.setRequiredCommandFlags(y, ...AccountCommand.CREATE_FLAGS_LIST.required);
+                flags.setOptionalCommandFlags(y, ...AccountCommand.CREATE_FLAGS_LIST.optional);
+              },
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              'get',
+              'Gets the account info including the current amount of HBAR',
+              this,
+              this.get,
+              (y: AnyYargs): void => {
+                flags.setRequiredCommandFlags(y, ...AccountCommand.GET_FLAGS_LIST.required);
+                flags.setOptionalCommandFlags(y, ...AccountCommand.GET_FLAGS_LIST.optional);
+              },
+            ),
+          ),
+      )
+      .build();
   }
 
   public close(): Promise<void> {

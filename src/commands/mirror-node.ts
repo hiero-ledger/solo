@@ -37,7 +37,7 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import chalk from 'chalk';
-import {type CommandFlag} from '../types/flag-types.js';
+import {type CommandFlag, CommandFlags} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {KeyManager} from '../core/key-manager.js';
@@ -53,6 +53,7 @@ import {type ComponentFactoryApi} from '../core/config/remote/api/component-fact
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import * as semver from 'semver';
 import {Lock} from '../core/lock/lock.js';
+import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 
 interface MirrorNodeDeployConfigClass {
   isChartInstalled: boolean;
@@ -105,7 +106,7 @@ interface MirrorNodeDestroyContext {
 
 @injectable()
 export class MirrorNodeCommand extends BaseCommand {
-  public static readonly DEPLOY_COMMAND: string = 'mirror-node deploy';
+  public static readonly DEPLOY_COMMAND: string = 'mirror node deploy';
 
   public constructor(
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
@@ -118,11 +119,11 @@ export class MirrorNodeCommand extends BaseCommand {
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME = 'mirror-node';
+  public static readonly COMMAND_NAME = 'mirror';
 
   private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
 
-  private static readonly DEPLOY_FLAGS_LIST = {
+  private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.cacheDir,
@@ -154,6 +155,18 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.externalDatabaseReadonlyUsername,
       flags.externalDatabaseReadonlyPassword,
       flags.domainName,
+    ],
+  };
+
+  private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment],
+    optional: [
+      flags.chartDirectory,
+      flags.clusterRef,
+      flags.force,
+      flags.quiet,
+      flags.forcePortForward,
+      flags.clusterRef,
     ],
   };
 
@@ -936,68 +949,39 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   public getCommandDefinition(): CommandDefinition {
-    const self: this = this;
-    return {
-      command: MirrorNodeCommand.COMMAND_NAME,
-      desc: 'Manage Hedera Mirror Node in solo network',
-      builder: yargs => {
-        return yargs
-          .command({
-            command: 'deploy',
-            desc: 'Deploy mirror-node and its components',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...MirrorNodeCommand.DEPLOY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...MirrorNodeCommand.DEPLOY_FLAGS_LIST.optional);
-            },
-            handler: async argv => {
-              self.logger.info("==== Running 'mirror-node deploy' ===");
-              self.logger.info(argv);
-
-              await self
-                .deploy(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running `mirror-node deploy`====');
-                  if (!r) {
-                    throw new SoloError('Error deploying mirror node, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error deploying mirror node: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'destroy',
-            desc: 'Destroy mirror-node components and database',
-            builder: y =>
-              flags.setOptionalCommandFlags(
-                y,
-                flags.chartDirectory,
-                flags.clusterRef,
-                flags.force,
-                flags.quiet,
-                flags.deployment,
-              ),
-            handler: async argv => {
-              self.logger.info("==== Running 'mirror-node destroy' ===");
-              self.logger.info(argv);
-
-              await self
-                .destroy(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running `mirror-node destroy`====');
-                  if (!r) {
-                    throw new SoloError('Error destroying mirror node, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error destroying mirror node: ${error.message}`, error);
-                });
-            },
-          })
-          .demandCommand(1, 'Select a mirror-node command');
-      },
-    };
+    return new CommandBuilder(
+      MirrorNodeCommand.COMMAND_NAME,
+      'List of commands related to the mirror node',
+      this.logger,
+    )
+      .addCommandGroup(
+        new CommandGroup('node', 'Manage Hedera Mirror Node in solo network')
+          .addSubcommand(
+            new Subcommand(
+              'deploy',
+              'Deploy mirror-node and its components',
+              this,
+              this.deploy,
+              (y: AnyYargs): void => {
+                flags.setRequiredCommandFlags(y, ...MirrorNodeCommand.DEPLOY_FLAGS_LIST.required);
+                flags.setOptionalCommandFlags(y, ...MirrorNodeCommand.DEPLOY_FLAGS_LIST.optional);
+              },
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              'destroy',
+              'Destroy mirror-node components and database',
+              this,
+              this.destroy,
+              (y: AnyYargs): void => {
+                flags.setRequiredCommandFlags(y, ...MirrorNodeCommand.DESTROY_FLAGS_LIST.required);
+                flags.setOptionalCommandFlags(y, ...MirrorNodeCommand.DESTROY_FLAGS_LIST.optional);
+              },
+            ),
+          ),
+      )
+      .build();
   }
 
   /** Removes the mirror node components from remote config. */
