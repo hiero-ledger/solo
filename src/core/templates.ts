@@ -158,7 +158,8 @@ export class Templates {
     installationDirectory: string = PathEx.join(constants.SOLO_HOME_DIR, 'bin'),
   ) {
     switch (dep) {
-      case constants.HELM: {
+      case constants.HELM:
+      case constants.KIND: {
         if (osPlatform === constants.OS_WINDOWS) {
           return PathEx.join(installationDirectory, `${dep}.exe`);
         }
