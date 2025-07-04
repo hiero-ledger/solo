@@ -435,47 +435,32 @@ export class MirrorNodeCommand extends BaseCommand {
             if (context_.config.pinger) {
               context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=5`;
 
-              const startAccumulatorId: AccountId = this.accountManager.getStartAccountId(deploymentName);
-              const networkPods: Pod[] = await this.k8Factory
-                .getK8(context_.config.clusterContext)
-                .pods()
-                .list(namespace, ['solo.hedera.com/type=network-node']);
+              const operatorId: string =
+                context_.config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
+              context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
 
-              if (networkPods.length > 0) {
-                const pod = networkPods[0];
-                context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.nodes.0.accountId=${startAccumulatorId}`;
-                context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.nodes.0.host=${pod.podIp}`;
-                context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.nodes.0.nodeId=0`;
-
-                const operatorId: string =
-                  context_.config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
-                context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
-
-                if (context_.config.operatorKey) {
-                  this.logger.info('Using provided operator key');
-                  context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${context_.config.operatorKey}`;
-                } else {
-                  try {
-                    const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
-                    const secrets = await this.k8Factory
-                      .getK8(context_.config.clusterContext)
-                      .secrets()
-                      .list(namespace, [`solo.hedera.com/account-id=${operatorId}`]);
-                    if (secrets.length === 0) {
-                      this.logger.info(`No k8s secret found for operator account id ${operatorId}, use default one`);
-                      context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${constants.OPERATOR_KEY}`;
-                    } else {
-                      this.logger.info('Using operator key from k8s secret');
-                      const operatorKeyFromK8 = Base64.decode(secrets[0].data.privateKey);
-                      context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${operatorKeyFromK8}`;
-                    }
-                  } catch (error) {
-                    throw new SoloError(`Error getting operator key: ${error.message}`, error);
+              if (context_.config.operatorKey) {
+                this.logger.info('Using provided operator key');
+                context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${context_.config.operatorKey}`;
+              } else {
+                try {
+                  const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+                  const secrets = await this.k8Factory
+                    .getK8(context_.config.clusterContext)
+                    .secrets()
+                    .list(namespace, [`solo.hedera.com/account-id=${operatorId}`]);
+                  if (secrets.length === 0) {
+                    this.logger.info(`No k8s secret found for operator account id ${operatorId}, use default one`);
+                    context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${constants.OPERATOR_KEY}`;
+                  } else {
+                    this.logger.info('Using operator key from k8s secret');
+                    const operatorKeyFromK8 = Base64.decode(secrets[0].data.privateKey);
+                    context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${operatorKeyFromK8}`;
                   }
+                } catch (error) {
+                  throw new SoloError(`Error getting operator key: ${error.message}`, error);
                 }
               }
-
-
             }
 
             const isQuiet = context_.config.quiet;
