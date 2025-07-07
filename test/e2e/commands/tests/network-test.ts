@@ -35,7 +35,7 @@ export class NetworkTest extends BaseCommandTest {
     if (enableLocalBuildPathTesting) {
       argv.push(optionFromFlag(Flags.releaseTag), localBuildReleaseTag);
     }
-    argvPushGlobalFlags(argv, testName, true, true);
+    argvPushGlobalFlags(argv, testName, false, false);
     return argv;
   }
 

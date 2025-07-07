@@ -10,7 +10,7 @@ export class InitTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push('init');
-    argvPushGlobalFlags(argv, testName, true);
+    argvPushGlobalFlags(argv, testName, false);
     return argv;
   }
 

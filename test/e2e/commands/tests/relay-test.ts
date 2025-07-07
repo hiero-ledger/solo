@@ -45,7 +45,7 @@ export class RelayTest extends BaseCommandTest {
   }
 
   public static deploy(options: BaseTestOptions): void {
-    const {testName, deployment, namespace, contexts, clusterReferenceNameArray, testLogger} = options;
+    const {testName, deployment, namespace, contexts, clusterReferenceNameArray} = options;
     const {soloRelayDeployArgv, verifyRelayDeployWasSuccessful} = RelayTest;
 
     it(`${testName}: JSON-RPC relay deploy`, async (): Promise<void> => {
