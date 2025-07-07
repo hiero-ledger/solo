@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {BaseCommandTest} from './base-command-test.js';
-import {type ClusterReferenceName, type DeploymentName, type ExtendedNetServer} from '../../../../src/types/index.js';
+import {type ClusterReferenceName, type DeploymentName} from '../../../../src/types/index.js';
 import {Flags} from '../../../../src/commands/flags.js';
 import {main} from '../../../../src/index.js';
 import {Duration} from '../../../../src/core/time/duration.js';
@@ -11,9 +11,6 @@ import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 import {type K8} from '../../../../src/integration/kube/k8.js';
 import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
-import {sleep} from '../../../../src/core/helpers.js';
-import {type PackageDownloader} from '../../../../src/core/package-downloader.js';
-import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
@@ -32,26 +29,22 @@ export class RelayTest extends BaseCommandTest {
       'deploy',
       optionFromFlag(Flags.deployment),
       deployment,
-      optionFromFlag(Flags.clusterRef),
-      clusterReference,
+      optionFromFlag(Flags.nodeAliasesUnparsed),
+      'node1',
     );
-    argvPushGlobalFlags(argv, testName, true, true);
+    argvPushGlobalFlags(argv, testName, false, false);
     return argv;
   }
 
   private static async verifyRelayDeployWasSuccessful(
     contexts: string[],
     namespace: NamespaceName,
-    testLogger: SoloLogger,
   ): Promise<void> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-    const k8: K8 = k8Factory.getK8(contexts[1]);
+    const k8: K8 = k8Factory.getK8(contexts[0]);
     const relayPods: Pod[] = await k8
       .pods()
-      .list(namespace, [
-        'app.kubernetes.io/instance=json-rpc-relay',
-        'app.kubernetes.io/name=json-rpc-relay',
-      ]);
+      .list(namespace, ['app=hedera-json-rpc-relay', 'app.kubernetes.io/name=hedera-json-rpc-relay']);
     expect(relayPods).to.have.lengthOf(1);
   }
 
@@ -60,8 +53,8 @@ export class RelayTest extends BaseCommandTest {
     const {soloRelayDeployArgv, verifyRelayDeployWasSuccessful} = RelayTest;
 
     it(`${testName}: JSON-RPC relay deploy`, async (): Promise<void> => {
-      await main(soloRelayDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
-      await verifyRelayDeployWasSuccessful(contexts, namespace, testLogger);
+      await main(soloRelayDeployArgv(testName, deployment, clusterReferenceNameArray[0]));
+      await verifyRelayDeployWasSuccessful(contexts, namespace);
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 }

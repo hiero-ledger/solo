@@ -23,6 +23,7 @@ import {NetworkTest} from './tests/network-test.js';
 import {MirrorNodeTest} from './tests/mirror-node-test.js';
 import {ExplorerTest} from './tests/explorer-test.js';
 import {RelayTest} from './tests/relay-test.js';
+import {execSync} from 'node:child_process';
 
 const testName: string = 'dual-cluster-full';
 
@@ -49,7 +50,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         resetForTest(namespace.name, testCacheDirectory, false);
         for (const item of contexts) {
           const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
-          await k8Client.namespaces().delete(namespace);
+          // await k8Client.namespaces().delete(namespace);
         }
         testLogger.info(`${testName}: starting ${testName} e2e test`);
       }).timeout(Duration.ofMinutes(5).toMillis());
@@ -67,27 +68,42 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       DeploymentTest.create(options);
       DeploymentTest.addCluster(options);
       ClusterReferenceTest.setup(options);
+      MirrorNodeTest.installPostgres(options);
+
       NodeTest.keys(options);
       NetworkTest.deploy(options);
       NodeTest.setup(options);
       NodeTest.start(options);
-
-      MirrorNodeTest.installPostgres();
 
       // Using external database for mirror node deployment
       MirrorNodeTest.deployWithExternalDatabase(options);
 
       MirrorNodeTest.runSql();
       ExplorerTest.deploy(options);
-
-
-      // TODO json rpc relay deploy
       RelayTest.deploy(options);
-      // TODO json rpc relay destroy
-      // TODO explorer destroy
-      // TODO mirror node destroy
-      // TODO network destroy
-    });
+
+      it('should run smoke tests', async (): Promise<void> => {
+        const scriptPath: string = `bash .github/workflows/script/solo_smoke_test.sh ${testName}-deployment`;
+        // const cmdString: string = `bash ${scriptPath}`;
+        try {
+          console.log('Running smoke test script:');
+          console.log(scriptPath);
+          const stdout: string = execSync(scriptPath, {encoding: 'utf8'});
+          console.log('Smoke test execution succeeded:');
+          console.log(stdout || '(No output)');
+        } catch (error) {
+          console.error('Smoke test execution failed:');
+          console.error(error.message);
+          if (error.stdout) {
+            console.log('stdout:', error.stdout);
+          }
+          if (error.stderr) {
+            console.log('stderr:', error.stderr);
+          }
+          throw error;
+        }
+      }).timeout(Duration.ofMinutes(5).toMillis());
+    }).timeout(Duration.ofMinutes(5).toMillis());
   })
   .build();
 endToEndTestSuite.runTestSuite();
