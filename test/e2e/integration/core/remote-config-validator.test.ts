@@ -34,6 +34,7 @@ import {DeploymentStateSchema} from '../../../../src/data/schema/model/remote/de
 import {RemoteConfigSchema} from '../../../../src/data/schema/model/remote/remote-config-schema.js';
 import {LocalConfigRuntimeState} from '../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type BlockNodeStateSchema} from '../../../../src/data/schema/model/remote/state/block-node-state-schema.js';
+import {resetForTest} from '../../../test-container.js';
 
 interface ComponentsRecord {
   explorers: ExplorerStateSchema;
@@ -131,12 +132,15 @@ describe('RemoteConfigValidator', () => {
   let podNames: Record<string, string>;
   let componentFactory: ComponentFactoryApi;
   let state: any;
+  let remoteConfigValidator: RemoteConfigValidator;
 
   before(async () => {
+    resetForTest(namespace.name, `${getTestCacheDirectory('LocalConfig')}`, false);
     k8Factory = container.resolve(InjectTokens.K8Factory);
-    localConfig = new LocalConfigRuntimeState(`${getTestCacheDirectory('LocalConfig')}`, 'localConfig.yaml');
+    localConfig = container.resolve(InjectTokens.LocalConfigRuntimeState);
     await localConfig.load();
     await k8Factory.default().namespaces().create(namespace);
+    remoteConfigValidator = new RemoteConfigValidator(k8Factory, localConfig);
   });
 
   beforeEach(() => {
@@ -187,8 +191,6 @@ describe('RemoteConfigValidator', () => {
     {componentKey: 'consensusNodes', displayName: 'Consensus Node', type: ComponentTypes.ConsensusNode},
     {componentKey: 'explorers', displayName: 'Explorer', type: ComponentTypes.Explorers},
   ];
-
-  const remoteConfigValidator: RemoteConfigValidator = new RemoteConfigValidator(k8Factory, localConfig);
 
   for (const {componentKey, displayName, type} of testCasesForIndividualComponents) {
     describe(`${displayName} validation`, () => {

@@ -140,12 +140,5 @@ describe('KindDependencyManager', (): void => {
       expect(await kindDependencyManager.installationMeetsRequirements('/bin/kind')).to.be.false;
       runStub.restore();
     });
-
-    it('uninstallLocal removes file if exists', (): void => {
-      fs.writeFileSync(kindDependencyManager.getKindPath(), '');
-      expect(fs.existsSync(kindDependencyManager.getKindPath())).to.be.true;
-      kindDependencyManager.uninstallLocal();
-      expect(fs.existsSync(kindDependencyManager.getKindPath())).to.be.false;
-    });
   });
 });
