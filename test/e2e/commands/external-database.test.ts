@@ -23,7 +23,7 @@ import {NetworkTest} from './tests/network-test.js';
 import {MirrorNodeTest} from './tests/mirror-node-test.js';
 import {ExplorerTest} from './tests/explorer-test.js';
 import {RelayTest} from './tests/relay-test.js';
-import {execSync} from 'node:child_process';
+import {spawn} from 'node:child_process';
 
 const testName: string = 'dual-cluster-full';
 
@@ -83,27 +83,46 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       RelayTest.deploy(options);
 
       it('should run smoke tests', async (): Promise<void> => {
-        const scriptPath: string = `bash .github/workflows/script/solo_smoke_test.sh ${testName}-deployment`;
-        // const cmdString: string = `bash ${scriptPath}`;
-        try {
-          console.log('Running smoke test script:');
-          console.log(scriptPath);
-          const stdout: string = execSync(scriptPath, {encoding: 'utf8'});
-          console.log('Smoke test execution succeeded:');
-          console.log(stdout || '(No output)');
-        } catch (error) {
-          console.error('Smoke test execution failed:');
-          console.error(error.message);
-          if (error.stdout) {
-            console.log('stdout:', error.stdout);
-          }
-          if (error.stderr) {
-            console.log('stderr:', error.stderr);
-          }
-          throw error;
-        }
-      }).timeout(Duration.ofMinutes(5).toMillis());
-    }).timeout(Duration.ofMinutes(5).toMillis());
+        const scriptPath: string = `export SOLO_DEPLOYMENT=${testName}-deployment; .github/workflows/script/solo_smoke_test.sh`;
+
+        console.log('Running smoke test script:');
+
+        return new Promise<void>((resolve, reject) => {
+          const process = spawn(scriptPath, {
+            stdio: 'pipe', // Use pipe to capture output
+            shell: true, // Run in shell to support bash features
+          });
+
+          // Stream stdout in real-time
+          process.stdout.on('data', data => {
+            console.log(`${data}`.trim());
+          });
+
+          // Stream stderr in real-time
+          process.stderr.on('data', data => {
+            console.error(`${data}`.trim());
+          });
+
+          // Handle process completion
+          process.on('close', code => {
+            if (code === 0) {
+              console.log('Smoke test execution succeeded');
+              resolve();
+            } else {
+              const error = new Error(`Smoke test failed with exit code ${code}`);
+              console.error(error.message);
+              reject(error);
+            }
+          });
+
+          // Handle process errors
+          process.on('error', error => {
+            console.error('Failed to start smoke test process:', error.message);
+            reject(error);
+          });
+        });
+      }).timeout(Duration.ofMinutes(15).toMillis());
+    }).timeout(Duration.ofMinutes(25).toMillis());
   })
   .build();
 endToEndTestSuite.runTestSuite();

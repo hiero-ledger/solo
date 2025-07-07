@@ -160,7 +160,7 @@ function log_and_exit()
 echo "Change to parent directory"
 
 cd ../
-rm port-forward.log || true
+rm -rf port-forward.log || true
 
 if [ -z "${SOLO_DEPLOYMENT}" ]; then
   export SOLO_DEPLOYMENT="solo-deployment"

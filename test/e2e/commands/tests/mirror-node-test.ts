@@ -22,6 +22,35 @@ import * as constants from '../../../../src/core/constants.js';
 import fs from 'node:fs';
 
 export class MirrorNodeTest extends BaseCommandTest {
+  /**
+   * Execute a shell command and handle output/errors consistently
+   * @param command The command to execute
+   * @param label A descriptive label for the command (used in logs)
+   * @returns The command output as string
+   * @throws Error if the command fails
+   */
+  private static executeCommand(command: string, label: string): string {
+    console.log(`${label} command:`);
+    console.log(command);
+
+    try {
+      const stdout = execSync(command, {encoding: 'utf8'});
+      console.log(`${label} succeeded:`);
+      console.log(stdout || '(No output)');
+      return stdout;
+    } catch (error) {
+      console.error(`${label} failed:`);
+      console.error(error.message);
+      if (error.stdout) {
+        console.log('stdout:', error.stdout);
+      }
+      if (error.stderr) {
+        console.log('stderr:', error.stderr);
+      }
+      throw error;
+    }
+  }
+
   private static soloMirrorNodeDeployArgv(
     testName: string,
     deployment: DeploymentName,
@@ -161,17 +190,12 @@ export class MirrorNodeTest extends BaseCommandTest {
       options;
     const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, optionFromFlag} = MirrorNodeTest;
 
-    const postgres_password: string = 'XXXXXXX';
+    const postgresPassword: string = 'XXXXXXX';
     const postgresUsername: string = 'postgres';
 
-    //       postgres_readonly_username: "readonlyuser"
-    // postgres_readonly_password: "XXXXXXXX"
     const postgresReadonlyUsername: string = 'readonlyuser';
     const postgresReadonlyPassword: string = 'XXXXXXXX';
-    // postgres_host_fqdn: "{{.postgres_name}}.database.svc.cluster.local"
     const postgresHostFqdn: string = 'my-postgresql.database.svc.cluster.local';
-    // postgres_name: "my-postgresql"
-    const postgresName: string = 'my-postgresql';
 
     it(`${testName}: mirror node deploy with external database`, async (): Promise<void> => {
       const argv = soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[0]);
@@ -184,7 +208,7 @@ export class MirrorNodeTest extends BaseCommandTest {
         optionFromFlag(Flags.externalDatabaseOwnerUsername),
         postgresUsername,
         optionFromFlag(Flags.externalDatabaseOwnerPassword),
-        postgres_password,
+        postgresPassword,
         optionFromFlag(Flags.externalDatabaseReadonlyUsername),
         postgresReadonlyUsername,
         optionFromFlag(Flags.externalDatabaseReadonlyPassword),
@@ -199,11 +223,9 @@ export class MirrorNodeTest extends BaseCommandTest {
   public static installPostgres(options: BaseTestOptions): void {
     const {contexts} = options;
     it('should install postgres chart', async (): Promise<void> => {
-      const postgres_password: string = 'XXXXXXX';
+      const postgresPassword: string = 'XXXXXXX';
       const postgresUsername: string = 'postgres';
 
-      //       postgres_readonly_username: "readonlyuser"
-      // postgres_readonly_password: "XXXXXXXX"
       const postgresReadonlyUsername: string = 'readonlyuser';
       const postgresReadonlyPassword: string = 'XXXXXXXX';
 
@@ -215,31 +237,17 @@ export class MirrorNodeTest extends BaseCommandTest {
       // helm install my-postgresql https://charts.bitnami.com/bitnami/postgresql-12.1.2.tgz \
       //   --set image.tag=16.4.0 \
       //     --namespace database --create-namespace \
-      //     --set global.postgresql.auth.postgresPassword={{.postgres_password}} \
+      //     --set global.postgresql.auth.postgresPassword={{.postgresPassword}} \
       //     --set primary.persistence.enabled=false --set secondary.enabled=false
 
       // Using shell command to install postgres chart
       const installPostgresChartCommand: string = `helm install my-postgresql https://charts.bitnami.com/bitnami/postgresql-12.1.2.tgz \
         --set image.tag=16.4.0 \
         --namespace ${nameSpace} --create-namespace \
-        --set global.postgresql.auth.postgresPassword=${postgres_password} \
+        --set global.postgresql.auth.postgresPassword=${postgresPassword} \
         --set primary.persistence.enabled=false --set secondary.enabled=false`;
 
-      try {
-        const stdout = execSync(installPostgresChartCommand, {encoding: 'utf8'});
-        console.log('PostgreSQL chart installation succeeded:');
-        console.log(stdout || '(No output)');
-      } catch (error) {
-        console.error('PostgreSQL chart installation failed:');
-        console.error(error.message);
-        if (error.stdout) {
-          console.log('stdout:', error.stdout);
-        }
-        if (error.stderr) {
-          console.log('stderr:', error.stderr);
-        }
-        throw error;
-      }
+      MirrorNodeTest.executeCommand(installPostgresChartCommand, 'PostgreSQL chart installation');
 
       console.log(`contexts are ${JSON.stringify(contexts)}`);
       // kubectl wait --for=condition=ready pod/{{.postgres_container_name}} \
@@ -268,124 +276,42 @@ export class MirrorNodeTest extends BaseCommandTest {
       }
 
       const copyInitScriptCommand: string = `kubectl cp ${initScriptPath} ${postgresContainerName}:/tmp/init.sh -n ${nameSpace}`;
-      console.log('Copy command:');
-      console.log(copyInitScriptCommand);
-      try {
-        const stdout = execSync(copyInitScriptCommand, {encoding: 'utf8'});
-        console.log('Copy command succeeded:');
-        console.log(stdout || '(No output)');
-      } catch (error) {
-        console.error('Copy command failed:');
-        console.error(error.message);
-        if (error.stdout) {
-          console.log('stdout:', error.stdout);
-        }
-        if (error.stderr) {
-          console.log('stderr:', error.stderr);
-        }
-        throw error;
-      }
+      MirrorNodeTest.executeCommand(copyInitScriptCommand, 'Copy');
 
       // kubectl exec -it {{.postgres_container_name}} \
       // -n {{.postgres_database_namespace}} -- chmod +x /tmp/init.sh
       const chmodInitScriptCommand: string = `kubectl exec -it ${postgresContainerName} -n ${nameSpace} -- chmod +x /tmp/init.sh`;
-      console.log('Chmod command:');
-      console.log(chmodInitScriptCommand);
-      try {
-        const stdout = execSync(chmodInitScriptCommand, {encoding: 'utf8'});
-        console.log('Chmod command succeeded:');
-        console.log(stdout || '(No output)');
-      } catch (error) {
-        console.error('Chmod command failed:');
-        console.error(error.message);
-        if (error.stdout) {
-          console.log('stdout:', error.stdout);
-        }
-        if (error.stderr) {
-          console.log('stderr:', error.stderr);
-        }
-        throw error;
-      }
+      MirrorNodeTest.executeCommand(chmodInitScriptCommand, 'Chmod');
       // kubectl exec -it {{.postgres_container_name}} \
       // -n {{.postgres_database_namespace}} \
       // -- /bin/bash /tmp/init.sh "{{.postgres_username}}" "{{.postgres_readonly_username}}" "{{.postgres_readonly_password}}"
       const initScriptCommand: string = `kubectl exec -it ${postgresContainerName} -n ${nameSpace} -- /bin/bash /tmp/init.sh "${postgresUsername}" "${postgresReadonlyUsername}" "${postgresReadonlyPassword}"`;
-      console.log('Init script command:');
-      console.log(initScriptCommand);
-      try {
-        const stdout = execSync(initScriptCommand, {encoding: 'utf8'});
-        console.log('Init script execution succeeded:');
-        console.log(stdout || '(No output)');
-      } catch (error) {
-        console.error('Init script execution failed:');
-        console.error(error.message);
-        if (error.stdout) {
-          console.log('stdout:', error.stdout);
-        }
-        if (error.stderr) {
-          console.log('stderr:', error.stderr);
-        }
-        throw error;
-      }
+      MirrorNodeTest.executeCommand(initScriptCommand, 'Init script execution');
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
   public static runSql(): void {
     it('should run SQL command', async (): Promise<void> => {
       const postgresPassword: string = 'XXXXXXX';
-      //   postgres_username: "postgres"
       const postgresUsername: string = 'postgres';
 
       const nameSpace: string = 'database';
       const postgresName: string = 'my-postgresql';
       const postgresContainerName: string = `${postgresName}-0`;
 
-      // postgres_mirror_node_database_name: "mirror_node"
       const postgresMirrorNodeDatabaseName: string = 'mirror_node';
 
       // kubectl cp {{.HOME}}/.solo/cache/database-seeding-query.sql {{.postgres_container_name}}:/tmp/database-seeding-query.sql \
       //     -n {{.postgres_database_namespace}}
       // using shell command to copy SQL file to postgres container
       const copySqlCommand: string = `kubectl cp ${process.env.HOME}/.solo/cache/database-seeding-query.sql ${postgresContainerName}:/tmp/database-seeding-query.sql -n ${nameSpace}`;
-      console.log('Copy command:');
-      console.log(copySqlCommand);
-      try {
-        const stdout = execSync(copySqlCommand, {encoding: 'utf8'});
-        console.log('SQL file copy succeeded:');
-        console.log(stdout || '(No output)');
-      } catch (error) {
-        console.error('SQL file copy failed:');
-        console.error(error.message);
-        if (error.stdout) {
-          console.log('stdout:', error.stdout);
-        }
-        if (error.stderr) {
-          console.log('stderr:', error.stderr);
-        }
-        throw error;
-      }
+      MirrorNodeTest.executeCommand(copySqlCommand, 'SQL file copy');
 
       // kubectl exec -it {{.postgres_container_name}} -n {{.postgres_database_namespace}} -- env PGPASSWORD={{.postgres_password}} psql -U {{.postgres_username}} \
       //       -f /tmp/database-seeding-query.sql \
       //       -d {{.postgres_mirror_node_database_name}}
       const runSqlCommand: string = `kubectl exec -it ${postgresContainerName} -n ${nameSpace} -- env PGPASSWORD=${postgresPassword} psql -U ${postgresUsername} -f /tmp/database-seeding-query.sql -d ${postgresMirrorNodeDatabaseName}`;
-      console.log('Run command:');
-      console.log(runSqlCommand);
-      try {
-        const stdout = execSync(runSqlCommand, {encoding: 'utf8'});
-        console.log('SQL execution succeeded:');
-        console.log(stdout || '(No output)');
-      } catch (error) {
-        console.error('SQL execution failed:');
-        console.error(error.message);
-        if (error.stdout) {
-          console.log('stdout:', error.stdout);
-        }
-        if (error.stderr) {
-          console.log('stderr:', error.stderr);
-        }
-        throw error;
-      }
+      MirrorNodeTest.executeCommand(runSqlCommand, 'SQL execution');
     });
   }
 }

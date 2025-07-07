@@ -6,7 +6,6 @@ import {Flags} from '../../../../src/commands/flags.js';
 import {main} from '../../../../src/index.js';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {type NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
-import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 import {type K8} from '../../../../src/integration/kube/k8.js';
@@ -36,10 +35,7 @@ export class RelayTest extends BaseCommandTest {
     return argv;
   }
 
-  private static async verifyRelayDeployWasSuccessful(
-    contexts: string[],
-    namespace: NamespaceName,
-  ): Promise<void> {
+  private static async verifyRelayDeployWasSuccessful(contexts: string[], namespace: NamespaceName): Promise<void> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
     const k8: K8 = k8Factory.getK8(contexts[0]);
     const relayPods: Pod[] = await k8
