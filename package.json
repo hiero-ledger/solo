@@ -41,7 +41,7 @@
     "http-status-codes": "^2.3.0",
     "ip": "^2.0.1",
     "js-base64": "^3.7.7",
-    "listr2": "^8.3.3",
+    "listr2": "^9.0.0",
     "selfsigned": "^2.4.1",
     "semver": "^7.7.2",
     "shell-quote": "^1.8.3",
