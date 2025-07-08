@@ -228,6 +228,12 @@ export class MirrorNodeTest extends BaseCommandTest {
   public static installPostgres(options: BaseTestOptions): void {
     const {contexts} = options;
     it('should install postgres chart', async (): Promise<void> => {
+      // switch to second cluster
+      // kubectl config use-context "kind-${SOLO_CLUSTER_NAME}-c1"
+      MirrorNodeTest.executeCommand(
+        `kubectl config use-context "${contexts[1]}"`,
+        'Switching to second cluster context',
+      );
       const installPostgresChartCommand: string = `helm install my-postgresql https://charts.bitnami.com/bitnami/postgresql-12.1.2.tgz \
         --set image.tag=16.4.0 \
         --namespace ${this.nameSpace} --create-namespace \
@@ -262,6 +268,12 @@ export class MirrorNodeTest extends BaseCommandTest {
 
       const initScriptCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- /bin/bash /tmp/init.sh "${this.postgresUsername}" "${this.postgresReadonlyUsername}" "${this.postgresReadonlyPassword}"`;
       MirrorNodeTest.executeCommand(initScriptCommand, 'Init script execution');
+
+      // switch back to the first cluster context
+      MirrorNodeTest.executeCommand(
+        `kubectl config use-context "${contexts[0]}"`,
+        'Switching back to first cluster context',
+      );
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
