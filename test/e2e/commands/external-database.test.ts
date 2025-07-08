@@ -61,8 +61,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         testLogger.info(`${testName}: finished resetting containers for each test`);
       });
 
-      // TODO after all test are done delete the namespace for the next test
-
       InitTest.init(options);
       ClusterReferenceTest.connect(options);
       DeploymentTest.create(options);
@@ -75,16 +73,13 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       NodeTest.start(options);
 
       MirrorNodeTest.installPostgres(options);
-      // Using external database for mirror node deployment
       MirrorNodeTest.deployWithExternalDatabase(options);
 
-      MirrorNodeTest.runSql();
+      MirrorNodeTest.runSql(options);
       ExplorerTest.deploy(options);
       RelayTest.deploy(options);
 
       it('should run smoke tests', async (): Promise<void> => {
-        // kubectl port-forward -n "${SOLO_NAMESPACE}" svc/haproxy-node1-svc 50211:50211 &
-        // kubectl port-forward -n "${SOLO_NAMESPACE}" svc/relay-node1-hedera-json-rpc-relay 7546:7546 &
         MirrorNodeTest.executeCommand(
           `kubectl port-forward -n "${namespace.name}" svc/haproxy-node1-svc 50211:50211 &`,
           'Port Forward',

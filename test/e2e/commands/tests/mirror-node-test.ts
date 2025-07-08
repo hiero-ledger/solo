@@ -270,16 +270,17 @@ export class MirrorNodeTest extends BaseCommandTest {
       MirrorNodeTest.executeCommand(initScriptCommand, 'Init script execution');
 
       // switch back to the first cluster context
-      MirrorNodeTest.executeCommand(
-        `kubectl config use-context "${contexts[0]}"`,
-        'Switching back to first cluster context',
-      );
+      // MirrorNodeTest.executeCommand(
+      //   `kubectl config use-context "${contexts[0]}"`,
+      //   'Switching back to first cluster context',
+      // );
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
-  public static runSql(): void {
+  public static runSql(options: BaseTestOptions): void {
     it('should run SQL command', async (): Promise<void> => {
-      const copySqlCommand: string = `kubectl cp ${process.env.HOME}/.solo/cache/database-seeding-query.sql ${this.postgresContainerName}:/tmp/database-seeding-query.sql -n ${this.nameSpace}`;
+      const {testCacheDirectory} = options;
+      const copySqlCommand: string = `kubectl cp ${testCacheDirectory}/database-seeding-query.sql ${this.postgresContainerName}:/tmp/database-seeding-query.sql -n ${this.nameSpace}`;
       MirrorNodeTest.executeCommand(copySqlCommand, 'SQL file copy');
 
       const runSqlCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- env PGPASSWORD=${this.postgresPassword} psql -U ${this.postgresUsername} -f /tmp/database-seeding-query.sql -d ${this.postgresMirrorNodeDatabaseName}`;
