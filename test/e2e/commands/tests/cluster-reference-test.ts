@@ -57,7 +57,7 @@ export class ClusterReferenceTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push('cluster-ref', 'setup', optionFromFlag(Flags.clusterRef), clusterReference);
-    argvPushGlobalFlags(argv, testName, false, false);
+    argvPushGlobalFlags(argv, testName, false, true);
     return argv;
   }
 

@@ -44,7 +44,7 @@ export class NodeTest extends BaseCommandTest {
       'true',
       optionFromFlag(Flags.generateTlsKeys),
     );
-    argvPushGlobalFlags(argv, testName, false);
+    argvPushGlobalFlags(argv, testName, true);
     return argv;
   }
 
@@ -82,7 +82,7 @@ export class NodeTest extends BaseCommandTest {
         localBuildReleaseTag,
       );
     }
-    argvPushGlobalFlags(argv, testName, false);
+    argvPushGlobalFlags(argv, testName, true);
     return argv;
   }
 

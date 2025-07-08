@@ -68,7 +68,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       clusterReference,
       optionFromFlag(Flags.pinger),
     );
-    argvPushGlobalFlags(argv, testName, false, false);
+    argvPushGlobalFlags(argv, testName, true, true);
     return argv;
   }
 
