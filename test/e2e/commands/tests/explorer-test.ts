@@ -46,7 +46,7 @@ export class ExplorerTest extends BaseCommandTest {
     testLogger: SoloLogger,
   ): Promise<void> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-    const k8: K8 = k8Factory.getK8(contexts[0]);
+    const k8: K8 = k8Factory.getK8(contexts[1]);
     const explorerPods: Pod[] = await k8
       .pods()
       .list(namespace, [
@@ -113,7 +113,7 @@ export class ExplorerTest extends BaseCommandTest {
     const {soloExplorerDeployArgv, verifyExplorerDeployWasSuccessful} = ExplorerTest;
 
     it(`${testName}: explorer deploy`, async (): Promise<void> => {
-      await main(soloExplorerDeployArgv(testName, deployment, clusterReferenceNameArray[0]));
+      await main(soloExplorerDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
       await verifyExplorerDeployWasSuccessful(contexts, namespace, createdAccountIds, testLogger);
     }).timeout(Duration.ofMinutes(5).toMillis());
   }

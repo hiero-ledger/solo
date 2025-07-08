@@ -5,5 +5,12 @@
     "coverage-subdirectory": "e2e-external-database",
     "coverage-report-name": "External_Database_Tests_Coverage_Report",
     "local-java-build": false
+  },
+  {
+    "name": "External database",
+    "test-script": "test-external-database",
+    "coverage-subdirectory": "external-database",
+    "coverage-report-name": "External_Database_Tests_Coverage_Report",
+    "local-java-build": false
   }
 ]

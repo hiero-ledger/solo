@@ -86,11 +86,11 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         // kubectl port-forward -n "${SOLO_NAMESPACE}" svc/haproxy-node1-svc 50211:50211 &
         // kubectl port-forward -n "${SOLO_NAMESPACE}" svc/relay-node1-hedera-json-rpc-relay 7546:7546 &
         MirrorNodeTest.executeCommand(
-          'kubectl port-forward -n "${namespace.name}" svc/haproxy-node1-svc 50211:50211 &',
+          `kubectl port-forward -n "${namespace.name}" svc/haproxy-node1-svc 50211:50211 &`,
           'Port Forward',
         );
         MirrorNodeTest.executeCommand(
-          'kubectl port-forward -n "${namespace.name}" svc/relay-node1-hedera-json-rpc-relay 7546:7546 &',
+          `kubectl port-forward -n "${namespace.name}" svc/relay-node1-hedera-json-rpc-relay 7546:7546 &`,
           'Port Forward',
         );
 
