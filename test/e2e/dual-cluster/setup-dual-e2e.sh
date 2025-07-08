@@ -39,57 +39,6 @@ helm repo add metallb https://metallb.github.io/metallb
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   kind create cluster -n "${SOLO_CLUSTER_NAME}-c${i}" --image "${KIND_IMAGE}" --config "${SCRIPT_PATH}/kind-cluster-${i}.yaml" || exit 1
 
-
-  sleep 10 # wait for control plane to come up
-
-  kubectl config set-context kind-${SOLO_CLUSTER_NAME}
-
-
-  echo "SOLO_CLUSTER_NAME **** = ${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image quay.io/frrouting/frr:9.1.0 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image busybox:1.36.1 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image curlimages/curl:8.9.1 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image envoyproxy/envoy:v1.21.1 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image ghcr.io/hashgraph/solo-containers/backup-uploader:0.35.0 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image ghcr.io/hashgraph/solo-containers/ubi8-init-java21:0.38.0 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image ghcr.io/mhga24/envoyproxy/envoy:v1.22.0 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image ghcr.io/mhga24/grafana/grafana:8.5.16 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image ghcr.io/mhga24/minio/minio:latest --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image ghcr.io/mhga24/postgres:latest --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image ghcr.io/mhga24/prom/prometheus:v2.41.0 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image haproxytech/haproxy-alpine:2.4.25 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image quay.io/minio/operator:v5.0.7  --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image quay.io/minio/minio:RELEASE.2024-02-09T21-25-16Z  --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image ghcr.io/hashgraph/solo-cheetah/cheetah:0.3.1 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image docker.io/otel/opentelemetry-collector-contrib:0.72.0 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  # quay.io/jetstack/cert-manager-cainjector:v1.13.3
-  kind load docker-image quay.io/jetstack/cert-manager-controller:v1.13.3 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  # quay.io/jetstack/cert-manager-webhook:v1.13.3
-  kind load docker-image quay.io/jetstack/cert-manager-webhook:v1.13.3 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  # quay.io/jetstack/cert-manager-controller:v1.13.3
-  kind load docker-image quay.io/jetstack/cert-manager-cainjector:v1.13.3 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  # quay.io/jcmoraisjr/haproxy-ingress:v0.14.5
-  kind load docker-image quay.io/jcmoraisjr/haproxy-ingress:v0.14.5 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  # docker.io/bitnami/redis:7.4.2-debian-12-r6
-  kind load docker-image docker.io/bitnami/redis:7.4.2-debian-12-r6 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  # docker.io/bitnami/redis-sentinel:7.4.2-debian-12-r6
-  kind load docker-image docker.io/bitnami/redis-sentinel:7.4.2-debian-12-r6 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image registry.k8s.io/metrics-server/metrics-server:v0.7.2 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image quay.io/metallb/controller:v0.15.2 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image ubuntu:noble --name "${SOLO_CLUSTER_NAME}-c${i}"
-
-
-  kind load docker-image gcr.io/mirrornode/hedera-mirror-grpc:0.131.0 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image gcr.io/mirrornode/hedera-mirror-importer:0.131.0 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image gcr.io/mirrornode/hedera-mirror-monitor:0.131.0 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image gcr.io/mirrornode/hedera-mirror-rest:0.131.0 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image gcr.io/mirrornode/hedera-mirror-rest-java:0.131.0 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image gcr.io/mirrornode/hedera-mirror-web3:0.131.0 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image docker.io/bitnami/postgresql-repmgr:17.4.0-debian-12-r15 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image docker.io/bitnami/postgresql:16.4.0 --name "${SOLO_CLUSTER_NAME}-c${i}"
-
-  kind load docker-image ghcr.io/hiero-ledger/hiero-json-rpc-relay:0.67.0 --name "${SOLO_CLUSTER_NAME}-c${i}"
-  kind load docker-image ghcr.io/hiero-ledger/hiero-mirror-node-explorer/hiero-explorer:25.0.0 --name "${SOLO_CLUSTER_NAME}-c${i}"
   # Deploy the metrics-server if not running in CI
   if [[ -z "${CI}" ]]; then
     helm upgrade --install metrics-server metrics-server/metrics-server \
