@@ -13,6 +13,7 @@ import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
+import {MirrorNodeTest} from './mirror-node-test.js';
 
 export class RelayTest extends BaseCommandTest {
   private static soloRelayDeployArgv(
@@ -37,7 +38,7 @@ export class RelayTest extends BaseCommandTest {
 
   private static async verifyRelayDeployWasSuccessful(contexts: string[], namespace: NamespaceName): Promise<void> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-    const k8: K8 = k8Factory.getK8(contexts[1]);
+    const k8: K8 = k8Factory.getK8(contexts[0]);
     const relayPods: Pod[] = await k8
       .pods()
       .list(namespace, ['app=hedera-json-rpc-relay', 'app.kubernetes.io/name=hedera-json-rpc-relay']);
@@ -49,7 +50,13 @@ export class RelayTest extends BaseCommandTest {
     const {soloRelayDeployArgv, verifyRelayDeployWasSuccessful} = RelayTest;
 
     it(`${testName}: JSON-RPC relay deploy`, async (): Promise<void> => {
-      await main(soloRelayDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
+      // switch back to the first cluster context
+      MirrorNodeTest.executeCommand(
+        `kubectl config use-context "${contexts[0]}"`,
+        'Switching back to first cluster context',
+      );
+
+      await main(soloRelayDeployArgv(testName, deployment, clusterReferenceNameArray[0]));
       await verifyRelayDeployWasSuccessful(contexts, namespace);
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
