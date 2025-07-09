@@ -267,13 +267,13 @@ export class MirrorNodeTest extends BaseCommandTest {
           'app.kubernetes.io/component=grpc',
         ]);
       const mirrorNodePod: Pod = mirrorNodePods[0];
-      // await k8.pods().readByReference(mirrorNodePod.podReference).portForward(5600, 5600);
+      await k8.pods().readByReference(mirrorNodePod.podReference).portForward(5600, 5600);
 
       // kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-grpc 5600:5600
-      MirrorNodeTest.executeBackgroundCommand(
-        `kubectl port-forward -n "${namespace.name}" svc/mirror-grpc 5600:5600`,
-        'Mirror Port Forward',
-      );
+      // MirrorNodeTest.executeBackgroundCommand(
+      //   `kubectl port-forward -n "${namespace.name}" svc/mirror-grpc 5600:5600`,
+      //   'Mirror Port Forward',
+      // );
     });
   }
 
