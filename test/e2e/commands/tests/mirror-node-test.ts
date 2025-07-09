@@ -255,10 +255,24 @@ export class MirrorNodeTest extends BaseCommandTest {
       await main(argv);
       await verifyMirrorNodeDeployWasSuccessful(contexts, namespace, testLogger, createdAccountIds);
     }).timeout(Duration.ofMinutes(10).toMillis());
+
+    it('Enable port-forward for mirror node gRPC', async (): Promise<void> => {
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+      const k8: K8 = k8Factory.getK8(contexts[1]);
+      const mirrorNodePods: Pod[] = await k8
+        .pods()
+        .list(namespace, [
+          'app.kubernetes.io/instance=mirror',
+          'app.kubernetes.io/name=grpc',
+          'app.kubernetes.io/component=grpc',
+        ]);
+      const mirrorNodePod: Pod = mirrorNodePods[0];
+      await k8.pods().readByReference(mirrorNodePod.podReference).portForward(5600, 5600);
+    });
   }
 
   public static installPostgres(options: BaseTestOptions): void {
-    const {contexts, namespace} = options;
+    const {contexts} = options;
     it('should install postgres chart', async (): Promise<void> => {
       MirrorNodeTest.executeCommand(
         `kubectl config use-context "${contexts[1]}"`,
@@ -304,16 +318,6 @@ export class MirrorNodeTest extends BaseCommandTest {
       //   `kubectl port-forward -n "${namespace.name} svc/mirror-grpc 5600:5600`,
       //   'Mirror Port Forward',
       // );
-
-      const mirrorNodePods: Pod[] = await k8
-        .pods()
-        .list(namespace, [
-          'app.kubernetes.io/instance=mirror',
-          'app.kubernetes.io/name=grpc',
-          'app.kubernetes.io/component=grpc',
-        ]);
-      const mirrorNodePod: Pod = mirrorNodePods[0];
-      await k8.pods().readByReference(mirrorNodePod.podReference).portForward(5600, 5600);
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 

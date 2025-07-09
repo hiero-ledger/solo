@@ -211,18 +211,16 @@ export class NodeTest extends BaseCommandTest {
           await verifyAccountCreateWasSuccessful(namespace, clusterReferences, deployment),
           await verifyAccountCreateWasSuccessful(namespace, clusterReferences, deployment),
         );
-
-        await k8.pods().readByReference(networkNodePod[0].podReference).portForward(50_211, 50_211);
       }
       // create one more account to make sure that the last one gets pushed to mirror node
       await verifyAccountCreateWasSuccessful(namespace, clusterReferences, deployment);
     }).timeout(Duration.ofMinutes(5).toMillis());
 
-    // it('Enable service port forwarding', async (): Promise<void> => {
-    //   MirrorNodeTest.executeBackgroundCommand(
-    //     `kubectl port-forward -n "${namespace.name}" svc/haproxy-node1-svc 50211:50211`,
-    //     'Haproxy Port Forward',
-    //   );
-    // });
+    it('Enable service port forwarding', async (): Promise<void> => {
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+      const k8: K8 = k8Factory.getK8(contexts[1]);
+      const networkNodePod: Pod[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
+      await k8.pods().readByReference(networkNodePod[0].podReference).portForward(50_211, 50_211);
+    });
   }
 }
