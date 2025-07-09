@@ -31,6 +31,8 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {Lock} from '../core/lock/lock.js';
+import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
+import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -400,6 +402,32 @@ export class RelayCommand extends BaseCommand {
           },
         },
         this.addRelayComponent(),
+        {
+          title: 'Enable port forwarding',
+          task: async (context_): Promise<void> => {
+            const nodeAlias: NodeAlias = context_.config.nodeAliases[0];
+            const podReference: PodReference = PodReference.of(
+              context_.config.namespace,
+              PodName.of(`network-${nodeAlias}-0`),
+            );
+            await this.k8Factory
+              .getK8(context_.config.context)
+              .pods()
+              .readByReference(podReference)
+              .portForward(constants.GRPC_PORT, constants.GRPC_PORT);
+            this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+            this.logger.addMessageGroupMessage(
+              constants.PORT_FORWARDING_MESSAGE_GROUP,
+              `JSON RPC Relay forward enabled on localhost:${constants.GRPC_PORT}`,
+            );
+          },
+        },
+        {
+          title: 'Show user messages',
+          task: (): void => {
+            this.logger.showAllMessageGroups();
+          },
+        },
       ],
       {
         concurrent: false,

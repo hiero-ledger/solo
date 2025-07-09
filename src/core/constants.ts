@@ -254,7 +254,9 @@ export const BLOCK_NODE_ACTIVE_TIMEOUT: number = +process.env.NETWORK_NODE_ACTIV
 export const BLOCK_NODE_PORT: number = +process.env.BLOCK_NODE_PORT || 8080;
 export const BLOCK_ITEM_BATCH_SIZE: number = +process.env.BLOCK_ITEM_BATCH_SIZE || 256;
 
-export const GRPC_PORT = +process.env.GRPC_PORT || 50_211;
+export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
+export const GRPC_PORT: number = +process.env.GRPC_PORT || 50_211;
+export const JSON_RPC_RELAY_PORT: number = +process.env.JSON_RPC_RELAY_PORT || 7546;
 export const LOCAL_BUILD_COPY_RETRY = +process.env.LOCAL_BUILD_COPY_RETRY || 3;
 
 export const LOAD_BALANCER_CHECK_DELAY_SECS = +process.env.LOAD_BALANCER_CHECK_DELAY_SECS || 5;

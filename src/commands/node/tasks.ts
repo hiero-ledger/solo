@@ -1337,6 +1337,15 @@ export class NodeCommandTasks {
     };
   }
 
+  public showUserMessages(): SoloListrTask<NodeStartContext> {
+    return {
+      title: 'Show user messages',
+      task: (): void => {
+        this.logger.showAllMessageGroups();
+      },
+    };
+  }
+
   public setGrpcWebEndpoint(): SoloListrTask<NodeStartContext> {
     return {
       title: 'set gRPC Web endpoint',
@@ -1561,22 +1570,32 @@ export class NodeCommandTasks {
     return {
       title: 'Enable port forwarding for JVM debugger',
       task: async context_ => {
-        const context = helpers.extractContextFromConsensusNodes(
-          context_.config.debugNodeAlias,
-          context_.config.consensusNodes,
-        );
-        const podReference = PodReference.of(
+        const nodeAlias: NodeAlias = context_.config.debugNodeAlias || 'node1';
+        const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+        const podReference: PodReference = PodReference.of(
           context_.config.namespace,
-          PodName.of(`network-${context_.config.debugNodeAlias}-0`),
+          PodName.of(`network-${nodeAlias}-0`),
         );
-        this.logger.debug(`Enable port forwarding for JVM debugger on pod ${podReference.name}`);
+        if (context_.config.debugNodeAlias) {
+          this.logger.showUser('Enable port forwarding for JVM debugger');
+          this.logger.debug(`Enable port forwarding for JVM debugger on pod ${podReference.name}`);
+          await this.k8Factory
+            .getK8(context)
+            .pods()
+            .readByReference(podReference)
+            .portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT);
+        }
         await this.k8Factory
           .getK8(context)
           .pods()
           .readByReference(podReference)
-          .portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT);
+          .portForward(constants.GRPC_PORT, constants.GRPC_PORT);
+        this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+        this.logger.addMessageGroupMessage(
+          constants.PORT_FORWARDING_MESSAGE_GROUP,
+          `Consensus Node gRPC port forward enabled on localhost:${constants.GRPC_PORT}`,
+        );
       },
-      skip: context_ => !context_.config.debugNodeAlias,
     };
   }
 
