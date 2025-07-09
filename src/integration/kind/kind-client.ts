@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type SemanticVersion} from '../helm/base/api/version/semantic-version.js';
+import {type SemVer} from 'semver';
+import {type KindCluster} from './model/kind-cluster.js';
+import {type ClusterCreateResponse} from './model/create-cluster/cluster-create-response.js';
 
 /**
  * The KindClient is a bridge between TypeScript and the Kind CLI.
@@ -11,14 +13,14 @@ export interface KindClient {
    *
    * @returns the version of the Kind CLI that is being used by this client.
    */
-  version(): Promise<SemanticVersion>;
+  version(): Promise<SemVer>;
 
   /**
    * Executes the Kind CLI cluster create sub-command.
    *
    * @param clusterName the name of the cluster to create. If not provided, a default name will be used.
    */
-  createCluster(clusterName?: string): Promise<void>;
+  createCluster(clusterName?: string): Promise<ClusterCreateResponse>;
 
   /**
    * Executes the Kind CLI cluster delete sub-command and returns the result.
@@ -57,7 +59,7 @@ export interface KindClient {
    *
    * @returns a list of cluster names.
    */
-  getClusters(): Promise<string[]>;
+  getClusters(): Promise<KindCluster[]>;
 
   /**
    * Returns a list of nodes in the specified cluster.
