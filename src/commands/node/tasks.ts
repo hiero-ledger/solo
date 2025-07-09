@@ -1568,7 +1568,7 @@ export class NodeCommandTasks {
 
   public enablePortForwarding() {
     return {
-      title: 'Enable port forwarding for JVM debugger',
+      title: 'Enable port forwarding',
       task: async context_ => {
         const nodeAlias: NodeAlias = context_.config.debugNodeAlias || 'node1';
         const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
@@ -1596,6 +1596,7 @@ export class NodeCommandTasks {
           `Consensus Node gRPC port forward enabled on localhost:${constants.GRPC_PORT}`,
         );
       },
+      skip: context_ => !context_.config.debugNodeAlias && !context_.config.forcePortForward,
     };
   }
 

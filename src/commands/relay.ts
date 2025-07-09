@@ -69,6 +69,7 @@ interface RelayDeployConfigClass {
   clusterRef: Optional<ClusterReferenceName>;
   domainName: Optional<string>;
   context: Optional<string>;
+  forcePortForward: Optional<boolean>;
 }
 
 interface RelayDeployContext {
@@ -111,6 +112,7 @@ export class RelayCommand extends BaseCommand {
       flags.replicaCount,
       flags.valuesFile,
       flags.domainName,
+      flags.forcePortForward,
     ],
   };
 
@@ -274,6 +276,7 @@ export class RelayCommand extends BaseCommand {
               flags.clusterRef,
               flags.profileFile,
               flags.profileName,
+              flags.forcePortForward,
             ]);
 
             const allFlags = [...RelayCommand.DEPLOY_FLAGS_LIST.required, ...RelayCommand.DEPLOY_FLAGS_LIST.optional];
@@ -421,6 +424,7 @@ export class RelayCommand extends BaseCommand {
               `JSON RPC Relay forward enabled on localhost:${constants.JSON_RPC_RELAY_PORT}`,
             );
           },
+          skip: context_ => !context_.config.forcePortForward,
         },
         {
           title: 'Show user messages',

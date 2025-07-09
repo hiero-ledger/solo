@@ -19,8 +19,8 @@ import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
-import {type AnyYargs, type ArgvStruct} from '../types/aliases.js';
-import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
+import {type AnyYargs, type ArgvStruct, type NodeAlias} from '../types/aliases.js';
+import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as fs from 'node:fs';
 import {
@@ -86,6 +86,7 @@ interface MirrorNodeDeployConfigClass {
   externalDatabaseReadonlyUsername: Optional<string>;
   externalDatabaseReadonlyPassword: Optional<string>;
   domainName: Optional<string>;
+  forcePortForward: Optional<boolean>;
 }
 
 interface MirrorNodeDeployContext {
@@ -153,6 +154,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.externalDatabaseReadonlyUsername,
       flags.externalDatabaseReadonlyPassword,
       flags.domainName,
+      flags.forcePortForward,
     ],
   };
 
@@ -370,6 +372,7 @@ export class MirrorNodeCommand extends BaseCommand {
               flags.profileFile,
               flags.profileName,
               flags.domainName,
+              flags.forcePortForward,
             ]);
 
             const allFlags = [
@@ -748,6 +751,35 @@ export class MirrorNodeCommand extends BaseCommand {
           },
         },
         this.addMirrorNodeComponents(),
+        {
+          title: 'Enable port forwarding',
+          skip: context_ => !context_.config.forcePortForward && !context_.config.enableIngress,
+          task: async context_ => {
+            const nodeAlias: NodeAlias = 'node1';
+            const context = this.remoteConfig.extractContextFromConsensusNodes(nodeAlias);
+            const podReference: PodReference = PodReference.of(
+              context_.config.namespace,
+              PodName.of(`network-${nodeAlias}-0`),
+            );
+
+            await this.k8Factory
+              .getK8(context)
+              .pods()
+              .readByReference(podReference)
+              .portForward(constants.MIRROR_NODE_PORT, constants.MIRROR_NODE_PORT);
+            this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+            this.logger.addMessageGroupMessage(
+              constants.PORT_FORWARDING_MESSAGE_GROUP,
+              `Mirror Node port forward enabled on localhost:${constants.MIRROR_NODE_PORT}`,
+            );
+          },
+        },
+        {
+          title: 'Show user messages',
+          task: (): void => {
+            this.logger.showAllMessageGroups();
+          },
+        },
       ],
       {
         concurrent: false,
