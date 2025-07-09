@@ -1588,7 +1588,7 @@ export class NodeCommandTasks {
         await this.k8Factory
           .getK8(context)
           .pods()
-          .readByReference(podReference)
+          .readByReference(podReference) // TODO this should be on the haproxy for network node
           .portForward(constants.GRPC_PORT, constants.GRPC_PORT);
         this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
         this.logger.addMessageGroupMessage(
