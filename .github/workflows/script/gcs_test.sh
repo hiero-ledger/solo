@@ -145,15 +145,14 @@ else
 
   npm run solo-test -- node setup -i node1 --deployment "${SOLO_DEPLOYMENT}"
   npm run solo-test -- node start -i node1 --deployment "${SOLO_DEPLOYMENT}"
-  npm run solo-test -- mirror-node deploy  --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} \
+  npm run solo-test -- mirror-node deploy  --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --cluster-ref kind-${SOLO_CLUSTER_NAME} \
     --storage-type "${storageType}" \
     "${MIRROR_STORAGE_OPTIONS[@]}" \
     --ingress-controller-value-file "${script_dir}"/mirror-ingress-controller-values.yaml \
     --enable-ingress --domain-name localhost \
     --pinger
 
-  kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-grpc 5600:5600 > /dev/null 2>&1 &
-  kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-rest 5551:80 > /dev/null 2>&1 &
+  kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-ingress-controller 8081:80 > /dev/null 2>&1 &
 
   npm run solo-test -- explorer deploy -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" \
     --cluster-ref kind-${SOLO_CLUSTER_NAME} --tls-cluster-issuer-type self-signed --enable-explorer-tls \
@@ -182,7 +181,7 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
   curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
 fi
 
-grpcurl -plaintext -d '{"file_id": {"fileNum": 102}, "limit": 0}' localhost:5600 com.hedera.mirror.api.proto.NetworkService/getNodes
+grpcurl -plaintext -d '{"file_id": {"fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes
 
 node examples/create-topic.js
 
