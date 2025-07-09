@@ -30,7 +30,7 @@ export class RelayTest extends BaseCommandTest {
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.nodeAliasesUnparsed),
-      'node1',
+      'node2',
     );
     argvPushGlobalFlags(argv, testName, false, false);
     return argv;
@@ -38,7 +38,7 @@ export class RelayTest extends BaseCommandTest {
 
   private static async verifyRelayDeployWasSuccessful(contexts: string[], namespace: NamespaceName): Promise<void> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-    const k8: K8 = k8Factory.getK8(contexts[0]);
+    const k8: K8 = k8Factory.getK8(contexts[1]);
     const relayPods: Pod[] = await k8
       .pods()
       .list(namespace, ['app=hedera-json-rpc-relay', 'app.kubernetes.io/name=hedera-json-rpc-relay']);
@@ -52,12 +52,18 @@ export class RelayTest extends BaseCommandTest {
     it(`${testName}: JSON-RPC relay deploy`, async (): Promise<void> => {
       // switch back to the first cluster context
       MirrorNodeTest.executeCommand(
-        `kubectl config use-context "${contexts[0]}"`,
+        `kubectl config use-context "${contexts[1]}"`,
         'Switching back to first cluster context',
       );
 
-      await main(soloRelayDeployArgv(testName, deployment, clusterReferenceNameArray[0]));
+      await main(soloRelayDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
       await verifyRelayDeployWasSuccessful(contexts, namespace);
+
+      // make sure this is running in second cluster
+      MirrorNodeTest.executeBackgroundCommand(
+        `kubectl port-forward -n "${namespace.name}" svc/relay-node2-hedera-json-rpc-relay 7546:7546`,
+        'Relay Port Forward',
+      );
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 }

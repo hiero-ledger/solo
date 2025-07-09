@@ -72,6 +72,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       NodeTest.setup(options);
       NodeTest.start(options);
 
+      it('Enable service port forwarding', async (): Promise<void> => {
+        MirrorNodeTest.executeBackgroundCommand(
+          `kubectl port-forward -n "${namespace.name}" svc/haproxy-node1-svc 50211:50211`,
+          'Haproxy Port Forward',
+        );
+      });
       MirrorNodeTest.installPostgres(options);
       MirrorNodeTest.deployWithExternalDatabase(options);
 
@@ -80,23 +86,10 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       RelayTest.deploy(options);
 
       it('should run smoke tests', async (): Promise<void> => {
-        MirrorNodeTest.executeCommand(
-          `kubectl port-forward -n "${namespace.name}" svc/haproxy-node1-svc 50211:50211 &`,
-          'Port Forward',
-        );
-        MirrorNodeTest.executeCommand(
-          `kubectl port-forward -n "${namespace.name}" svc/relay-node1-hedera-json-rpc-relay 7546:7546 &`,
-          'Port Forward',
-        );
-
         const scriptPath: string = `export SOLO_HOME=${testCacheDirectory}; \
             export SOLO_CACHE_DIR=${testCacheDirectory}; \
             export SOLO_DEPLOYMENT=${testName}-deployment; \
             .github/workflows/script/solo_smoke_test.sh`;
-
-        console.log(
-          `Running smoke test script: testCacheDirectory = ${testCacheDirectory}, scriptPath = ${scriptPath}`,
-        );
 
         return new Promise<void>((resolve, reject) => {
           const process = spawn(scriptPath, {
