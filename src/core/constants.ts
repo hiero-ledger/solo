@@ -257,6 +257,8 @@ export const BLOCK_ITEM_BATCH_SIZE: number = +process.env.BLOCK_ITEM_BATCH_SIZE 
 export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
 export const GRPC_PORT: number = +process.env.GRPC_PORT || 50_211;
 export const JSON_RPC_RELAY_PORT: number = +process.env.JSON_RPC_RELAY_PORT || 7546;
+export const EXPLORER_PORT: number = +process.env.EXPLORER_PORT || 8080;
+export const MIRROR_NODE_PORT: number = +process.env.MIRROR_NODE_PORT || 8081;
 export const LOCAL_BUILD_COPY_RETRY = +process.env.LOCAL_BUILD_COPY_RETRY || 3;
 
 export const LOAD_BALANCER_CHECK_DELAY_SECS = +process.env.LOAD_BALANCER_CHECK_DELAY_SECS || 5;
