@@ -15,7 +15,7 @@ import {
 import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
+import {type AnyListrContext, type AnyYargs, type ArgvStruct, type NodeAlias} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
@@ -38,6 +38,8 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {Lock} from '../core/lock/lock.js';
+import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
+import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -61,6 +63,7 @@ interface ExplorerDeployConfigClass {
   getUnusedConfigs: () => string[];
   soloChartVersion: string;
   domainName: Optional<string>;
+  forcePortForward: Optional<boolean>;
 }
 
 interface ExplorerDeployContext {
@@ -119,6 +122,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.valuesFile,
       flags.clusterSetupNamespace,
       flags.domainName,
+      flags.forcePortForward,
     ],
   };
 
@@ -245,6 +249,7 @@ export class ExplorerCommand extends BaseCommand {
               flags.tlsClusterIssuerType,
               flags.valuesFile,
               flags.profileFile,
+              flags.forcePortForward,
             ]);
 
             const allFlags = [
@@ -440,6 +445,35 @@ export class ExplorerCommand extends BaseCommand {
           skip: context_ => !context_.config.enableIngress,
         },
         this.addMirrorNodeExplorerComponents(),
+        {
+          title: 'Enable port forwarding',
+          skip: context_ => !context_.config.forcePortForward,
+          task: async context_ => {
+            const nodeAlias: NodeAlias = 'node1';
+            const context = this.remoteConfig.extractContextFromConsensusNodes(nodeAlias);
+            const podReference: PodReference = PodReference.of(
+              context_.config.namespace,
+              PodName.of(`network-${nodeAlias}-0`),
+            );
+
+            await this.k8Factory
+              .getK8(context)
+              .pods()
+              .readByReference(podReference)
+              .portForward(constants.EXPLORER_PORT, constants.EXPLORER_PORT);
+            this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+            this.logger.addMessageGroupMessage(
+              constants.PORT_FORWARDING_MESSAGE_GROUP,
+              `Explorer port forward enabled on http://localhost:${constants.EXPLORER_PORT}`,
+            );
+          },
+        },
+        {
+          title: 'Show user messages',
+          task: (): void => {
+            this.logger.showAllMessageGroups();
+          },
+        },
       ],
       {
         concurrent: false,
