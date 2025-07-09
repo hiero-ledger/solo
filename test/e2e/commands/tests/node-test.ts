@@ -218,7 +218,7 @@ export class NodeTest extends BaseCommandTest {
 
     it('Enable service port forwarding', async (): Promise<void> => {
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-      const k8: K8 = k8Factory.getK8(contexts[1]);
+      const k8: K8 = k8Factory.getK8(contexts[0]);
       const networkNodePod: Pod[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
       await k8.pods().readByReference(networkNodePod[0].podReference).portForward(50_211, 50_211);
     });
