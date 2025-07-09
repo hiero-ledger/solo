@@ -69,7 +69,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       const process = spawn(cleanCommand, {
         shell: true,
         detached: true,
-        stdio: 'ignore'
+        stdio: 'ignore',
       });
 
       // Unref the child process so the parent can exit independently
@@ -258,7 +258,7 @@ export class MirrorNodeTest extends BaseCommandTest {
   }
 
   public static installPostgres(options: BaseTestOptions): void {
-    const {contexts} = options;
+    const {contexts, namespace} = options;
     it('should install postgres chart', async (): Promise<void> => {
       MirrorNodeTest.executeCommand(
         `kubectl config use-context "${contexts[1]}"`,
@@ -300,10 +300,20 @@ export class MirrorNodeTest extends BaseCommandTest {
       MirrorNodeTest.executeCommand(initScriptCommand, 'Init script execution');
 
       // kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-grpc 5600:5600
-      MirrorNodeTest.executeBackgroundCommand(
-        `kubectl port-forward -n "${this.nameSpace}" svc/mirror-grpc 5600:5600`,
-        'Mirror Port Forward',
-      );
+      // MirrorNodeTest.executeBackgroundCommand(
+      //   `kubectl port-forward -n "${namespace.name} svc/mirror-grpc 5600:5600`,
+      //   'Mirror Port Forward',
+      // );
+
+      const mirrorNodePods: Pod[] = await k8
+        .pods()
+        .list(namespace, [
+          'app.kubernetes.io/instance=mirror',
+          'app.kubernetes.io/name=grpc',
+          'app.kubernetes.io/component=grpc',
+        ]);
+      const mirrorNodePod: Pod = mirrorNodePods[0];
+      await k8.pods().readByReference(mirrorNodePod.podReference).portForward(5600, 5600);
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 

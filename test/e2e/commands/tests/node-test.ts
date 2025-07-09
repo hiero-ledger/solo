@@ -211,9 +211,18 @@ export class NodeTest extends BaseCommandTest {
           await verifyAccountCreateWasSuccessful(namespace, clusterReferences, deployment),
           await verifyAccountCreateWasSuccessful(namespace, clusterReferences, deployment),
         );
+
+        await k8.pods().readByReference(networkNodePod[0].podReference).portForward(50_211, 50_211);
       }
       // create one more account to make sure that the last one gets pushed to mirror node
       await verifyAccountCreateWasSuccessful(namespace, clusterReferences, deployment);
     }).timeout(Duration.ofMinutes(5).toMillis());
+
+    // it('Enable service port forwarding', async (): Promise<void> => {
+    //   MirrorNodeTest.executeBackgroundCommand(
+    //     `kubectl port-forward -n "${namespace.name}" svc/haproxy-node1-svc 50211:50211`,
+    //     'Haproxy Port Forward',
+    //   );
+    // });
   }
 }

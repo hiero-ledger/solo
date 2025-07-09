@@ -25,19 +25,18 @@ import {ExplorerTest} from './tests/explorer-test.js';
 import {RelayTest} from './tests/relay-test.js';
 import {spawn} from 'node:child_process';
 
-const testName: string = 'dual-cluster-full';
+const testName: string = 'external-database-test';
 
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
-  .withTestSuiteName('Dual Cluster Full E2E Test Suite')
+  .withTestSuiteName('External Database E2E Test Suite')
   .withNamespace(testName)
   .withDeployment(`${testName}-deployment`)
   .withClusterCount(2)
   .withTestSuiteCallback((options: BaseTestOptions): void => {
-    describe('Dual Cluster Full E2E Test', (): void => {
+    describe('External Database E2E Test', (): void => {
       const {testCacheDirectory, testLogger, namespace, contexts} = options;
 
-      // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
       before(async (): Promise<void> => {
         fs.rmSync(testCacheDirectory, {recursive: true, force: true});
         try {
@@ -50,7 +49,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         resetForTest(namespace.name, testCacheDirectory, false);
         for (const item of contexts) {
           const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
-          // await k8Client.namespaces().delete(namespace);
+          await k8Client.namespaces().delete(namespace);
         }
         testLogger.info(`${testName}: starting ${testName} e2e test`);
       }).timeout(Duration.ofMinutes(5).toMillis());
@@ -72,16 +71,10 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       NodeTest.setup(options);
       NodeTest.start(options);
 
-      it('Enable service port forwarding', async (): Promise<void> => {
-        MirrorNodeTest.executeBackgroundCommand(
-          `kubectl port-forward -n "${namespace.name}" svc/haproxy-node1-svc 50211:50211`,
-          'Haproxy Port Forward',
-        );
-      });
       MirrorNodeTest.installPostgres(options);
       MirrorNodeTest.deployWithExternalDatabase(options);
-
       MirrorNodeTest.runSql(options);
+
       ExplorerTest.deploy(options);
       RelayTest.deploy(options);
 

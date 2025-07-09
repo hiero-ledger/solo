@@ -43,6 +43,10 @@ export class RelayTest extends BaseCommandTest {
       .pods()
       .list(namespace, ['app=hedera-json-rpc-relay', 'app.kubernetes.io/name=hedera-json-rpc-relay']);
     expect(relayPods).to.have.lengthOf(1);
+
+    // enable port forward 7546 to 7546
+    const relayPod: Pod = relayPods[0];
+    await k8.pods().readByReference(relayPod.podReference).portForward(7546, 7546);
   }
 
   public static deploy(options: BaseTestOptions): void {
@@ -50,7 +54,7 @@ export class RelayTest extends BaseCommandTest {
     const {soloRelayDeployArgv, verifyRelayDeployWasSuccessful} = RelayTest;
 
     it(`${testName}: JSON-RPC relay deploy`, async (): Promise<void> => {
-      // switch back to the first cluster context
+      // switch back to the target cluster context
       MirrorNodeTest.executeCommand(
         `kubectl config use-context "${contexts[1]}"`,
         'Switching back to first cluster context',
@@ -59,7 +63,6 @@ export class RelayTest extends BaseCommandTest {
       await main(soloRelayDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
       await verifyRelayDeployWasSuccessful(contexts, namespace);
 
-      // make sure this is running in second cluster
       MirrorNodeTest.executeBackgroundCommand(
         `kubectl port-forward -n "${namespace.name}" svc/relay-node2-hedera-json-rpc-relay 7546:7546`,
         'Relay Port Forward',
