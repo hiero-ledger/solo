@@ -30,4 +30,6 @@ export interface SoloLogger {
   showMessageGroup(key: string): void;
 
   getMessageGroupKeys(): string[];
+
+  showAllMessageGroups(): void;
 }

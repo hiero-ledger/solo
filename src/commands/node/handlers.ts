@@ -829,6 +829,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
         this.tasks.addNodeStakes(),
         this.tasks.setGrpcWebEndpoint(),
+        this.tasks.showUserMessages(),
       ],
       {
         concurrent: false,

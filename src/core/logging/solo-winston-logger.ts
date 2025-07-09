@@ -197,4 +197,15 @@ export class SoloWinstonLogger implements SoloLogger {
   public getMessageGroupKeys(): string[] {
     return [...this.messageGroupMap.keys()];
   }
+
+  public showAllMessageGroups(): void {
+    const keys: string[] = this.getMessageGroupKeys();
+    if (keys.length === 0) {
+      this.debug('No message groups available.');
+      return;
+    }
+    for (const key of keys) {
+      this.showMessageGroup(key);
+    }
+  }
 }
