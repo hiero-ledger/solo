@@ -267,12 +267,18 @@ export class MirrorNodeTest extends BaseCommandTest {
           'app.kubernetes.io/component=grpc',
         ]);
       const mirrorNodePod: Pod = mirrorNodePods[0];
-      await k8.pods().readByReference(mirrorNodePod.podReference).portForward(5600, 5600);
+      // await k8.pods().readByReference(mirrorNodePod.podReference).portForward(5600, 5600);
+
+      // kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-grpc 5600:5600
+      MirrorNodeTest.executeBackgroundCommand(
+        `kubectl port-forward -n "${namespace.name}" svc/mirror-grpc 5600:5600`,
+        'Mirror Port Forward',
+      );
     });
   }
 
   public static installPostgres(options: BaseTestOptions): void {
-    const {contexts} = options;
+    const {contexts, namespace} = options;
     it('should install postgres chart', async (): Promise<void> => {
       MirrorNodeTest.executeCommand(
         `kubectl config use-context "${contexts[1]}"`,
@@ -313,11 +319,6 @@ export class MirrorNodeTest extends BaseCommandTest {
       const initScriptCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- /bin/bash /tmp/init.sh "${this.postgresUsername}" "${this.postgresReadonlyUsername}" "${this.postgresReadonlyPassword}"`;
       MirrorNodeTest.executeCommand(initScriptCommand, 'Init script execution');
 
-      // kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-grpc 5600:5600
-      // MirrorNodeTest.executeBackgroundCommand(
-      //   `kubectl port-forward -n "${namespace.name} svc/mirror-grpc 5600:5600`,
-      //   'Mirror Port Forward',
-      // );
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 

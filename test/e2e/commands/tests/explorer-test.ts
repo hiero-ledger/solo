@@ -17,6 +17,7 @@ import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
+import {MirrorNodeTest} from './mirror-node-test.js';
 
 export class ExplorerTest extends BaseCommandTest {
   private static soloExplorerDeployArgv(
@@ -115,6 +116,12 @@ export class ExplorerTest extends BaseCommandTest {
     it(`${testName}: explorer deploy`, async (): Promise<void> => {
       await main(soloExplorerDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
       await verifyExplorerDeployWasSuccessful(contexts, namespace, createdAccountIds, testLogger);
+
+      // kubectl port-forward -n solo-e2e svc/hiero-explorer 8080:80
+      MirrorNodeTest.executeBackgroundCommand(
+        `kubectl port-forward -n "${namespace.name}" svc/hiero-explorer 8080:80`,
+        'Explorer Port Forward',
+      );
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 }

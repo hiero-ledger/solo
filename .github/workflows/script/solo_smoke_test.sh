@@ -175,19 +175,20 @@ start_sdk_test
 echo "Sleep a while to wait background transactions to finish"
 sleep 30
 
-echo "Run mirror node acceptance test"
-helm test mirror -n solo-e2e --timeout 10m
-result=$?
-if [[ $result -ne 0 ]]; then
-  echo "Mirror node acceptance test failed with exit code $result"
-  log_and_exit $result
-fi
 
 check_monitor_log
 
 if [ -n "$1" ]; then
-  echo "Skip mirror importer log check"
+  echo "Skip mirror acceptance test & mirror importer log check"
 else
+  echo "Run mirror node acceptance test"
+  helm test mirror -n "${SOLO_DEPLOYMENT}" --timeout 10m
+  result=$?
+  if [[ $result -ne 0 ]]; then
+    echo "Mirror node acceptance test failed with exit code $result"
+    log_and_exit $result
+  fi
+
   check_importer_log
 fi
 log_and_exit $?
