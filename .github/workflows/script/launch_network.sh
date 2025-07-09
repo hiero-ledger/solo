@@ -45,7 +45,7 @@ solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO
 solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 solo relay deploy -i node1 --deployment "${SOLO_DEPLOYMENT}"
 
-export CONSENSUS_NODE_VERSION=v0.60.1
+export CONSENSUS_NODE_VERSION=v0.58.10
 # Use custom settings file for the deployment to avoid too many state saved in disk causing the no space left on device error
 solo network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --settings-txt .github/workflows/support/v58-test/settings.txt
 solo node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
@@ -111,8 +111,8 @@ kubectl port-forward -n "${SOLO_NAMESPACE}" svc/hiero-explorer 8080:80 > /dev/nu
 # Test transaction can still be sent and processed
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
-# Upgrade to v0.61.7
-npm run solo-test -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version v0.61.7 -q
+# Upgrade to v0.59.5
+npm run solo-test -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version v0.59.5 -q
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
 # Upgrade to latest version
