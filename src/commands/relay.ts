@@ -411,7 +411,7 @@ export class RelayCommand extends BaseCommand {
             const nodeAlias: NodeAlias = context_.config.nodeAliases[0];
             const podReference: PodReference = PodReference.of(
               context_.config.namespace,
-              PodName.of(`network-${nodeAlias}-0`),
+              PodName.of(`network-${nodeAlias}-0`), // TODO pod name of the relay
             );
             await this.k8Factory
               .getK8(context_.config.context)

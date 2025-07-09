@@ -453,7 +453,7 @@ export class ExplorerCommand extends BaseCommand {
             const context = this.remoteConfig.extractContextFromConsensusNodes(nodeAlias);
             const podReference: PodReference = PodReference.of(
               context_.config.namespace,
-              PodName.of(`network-${nodeAlias}-0`),
+              PodName.of(`network-${nodeAlias}-0`), // TODO pod name of the explorer pod
             );
 
             await this.k8Factory
