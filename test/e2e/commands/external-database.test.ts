@@ -80,6 +80,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       it('should run smoke tests', async (): Promise<void> => {
         const scriptPath: string = `export SOLO_HOME=${testCacheDirectory}; \
+            export SOLO_NAMESPACE=${namespace.name}; \
             export SOLO_CACHE_DIR=${testCacheDirectory}; \
             export SOLO_DEPLOYMENT=${testName}-deployment; \
             .github/workflows/script/solo_smoke_test.sh`;
