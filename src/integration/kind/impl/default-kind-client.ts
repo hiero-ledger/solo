@@ -23,6 +23,10 @@ import {ClusterDeleteRequest} from '../request/cluster/cluster-delete-request.js
 import {BuildNodeImagesResponse} from '../model/build-node-images/build-node-images-response.js';
 import {BuildNodeImagesOptions} from '../model/build-node-images/build-node-images-options.js';
 import {BuildNodeImagesRequest} from '../request/build/build-node-images-request.js';
+import {ExportLogsRequest} from '../request/export/export-logs-request.js';
+import {ExportLogsOptions} from '../model/export-logs/export-logs-options.js';
+import {ExportLogsResponse} from '../model/export-logs/export-logs-response.js';
+import {ExportLogsOptionsBuilder} from '../model/export-logs/export-logs-options-builder.js';
 
 type BiFunction<T, U, R> = (t: T, u: U) => R;
 
@@ -65,9 +69,9 @@ export class DefaultKindClient implements KindClient {
     return this.executeAsync(new BuildNodeImagesRequest(options), BuildNodeImagesResponse);
   }
 
-  public async exportLogs(clusterName?: string): Promise<string> {
-    // @ts-ignore
-    return 'logs';
+  public async exportLogs(clusterName?: string): Promise<ExportLogsResponse> {
+    const options: ExportLogsOptions = ExportLogsOptionsBuilder.builder().name(clusterName).build();
+    return this.executeAsync(new ExportLogsRequest(options), ExportLogsResponse);
   }
 
   public async exportKubeconfig(clusterName?: string): Promise<string> {

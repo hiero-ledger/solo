@@ -8,6 +8,7 @@ import {type ClusterDeleteOptions} from './model/delete-cluster/cluster-delete-o
 import {type ClusterCreateOptions} from './model/create-cluster/cluster-create-options.js';
 import {type BuildNodeImagesResponse} from './model/build-node-images/build-node-images-response.js';
 import {type BuildNodeImagesOptions} from './model/build-node-images/build-node-images-options.js';
+import {type ExportLogsResponse} from './model/export-logs/export-logs-response.js';
 
 /**
  * The KindClient is a bridge between TypeScript and the Kind CLI.
@@ -52,7 +53,7 @@ export interface KindClient {
    * @param clusterName the name of the cluster to export logs from. If not provided, the default cluster will be used.
    * @returns the logs of the cluster.
    */
-  exportLogs(clusterName?: string): Promise<string>;
+  exportLogs(clusterName?: string): Promise<ExportLogsResponse>;
 
   /**
    * Executes the Kind CLI kubeconfig export sub-command and returns the kubeconfig of the cluster.
