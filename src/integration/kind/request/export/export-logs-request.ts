@@ -5,7 +5,7 @@ import {type KindExecutionBuilder} from '../../execution/kind-execution-builder.
 import {type ExportLogsOptions} from '../../model/export-logs/export-logs-options.js';
 
 /**
- * A request to delete a Kind cluster.
+ * A request to export the logs of a Kind cluster.
  */
 export class ExportLogsRequest implements KindRequest {
   constructor(private readonly options: ExportLogsOptions) {}

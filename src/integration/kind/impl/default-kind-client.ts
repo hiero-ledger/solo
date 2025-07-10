@@ -27,6 +27,10 @@ import {ExportLogsRequest} from '../request/export/export-logs-request.js';
 import {ExportLogsOptions} from '../model/export-logs/export-logs-options.js';
 import {ExportLogsResponse} from '../model/export-logs/export-logs-response.js';
 import {ExportLogsOptionsBuilder} from '../model/export-logs/export-logs-options-builder.js';
+import {ExportKubeconfigOptionsBuilder} from '../model/export-kubeconfig/export-kubeconfig-options-builder.js';
+import {ExportKubeconfigOptions} from '../model/export-kubeconfig/export-kubeconfig-options.js';
+import {ExportKubeconfigRequest} from '../request/export/export-kubeconfig-request.js';
+import {ExportKubeconfigResponse} from '../model/export-kubeconfig/export-kubeconfig-response.js';
 
 type BiFunction<T, U, R> = (t: T, u: U) => R;
 
@@ -74,9 +78,9 @@ export class DefaultKindClient implements KindClient {
     return this.executeAsync(new ExportLogsRequest(options), ExportLogsResponse);
   }
 
-  public async exportKubeconfig(clusterName?: string): Promise<string> {
-    // @ts-ignore
-    return 'kubeconfig';
+  public async exportKubeconfig(clusterName?: string): Promise<ExportKubeconfigResponse> {
+    const options: ExportKubeconfigOptions = ExportKubeconfigOptionsBuilder.builder().name(clusterName).build();
+    return this.executeAsync(new ExportKubeconfigRequest(options), ExportKubeconfigResponse);
   }
 
   public async getClusters(): Promise<KindCluster[]> {
