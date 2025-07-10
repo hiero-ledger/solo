@@ -31,6 +31,8 @@ import {
   NodeDeleteTransaction,
   NodeUpdateTransaction,
   PrivateKey,
+  ServiceEndpoint,
+  Status,
   Timestamp,
   TransactionReceipt,
   TransactionResponse,
@@ -72,7 +74,7 @@ import {Duration} from '../../core/time/duration.js';
 import {type NodeAddConfigClass} from './config-interfaces/node-add-config-class.js';
 import {GenesisNetworkDataConstructor} from '../../core/genesis-network-models/genesis-network-data-constructor.js';
 import {NodeOverridesModel} from '../../core/node-overrides-model.js';
-import {type NamespaceName} from '../../types/namespace/namespace-name.js';
+import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {PodReference} from '../../integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../../integration/kube/resources/container/container-reference.js';
 import {NetworkNodes} from '../../core/network-nodes.js';
@@ -122,6 +124,10 @@ import {type ComponentFactoryApi} from '../../core/config/remote/api/component-f
 import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 import {LockManager} from '../../core/lock/lock-manager.js';
+import {NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
+import {SemVer, lt} from 'semver';
+import {Pod} from '../../integration/kube/resources/pod/pod.js';
+import {type Container} from '../../integration/kube/resources/container/container.js';
 
 export type LeaseWrapper = {lease: Lock};
 
@@ -1240,12 +1246,15 @@ export class NodeCommandTasks {
   ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext> {
     return {
       title: 'Setup network nodes',
-      task: async (context_, task) => {
-        // @ts-ignore
+      task: async (
+        context_,
+        task,
+      ): Promise<SoloListr<NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext>> => {
+        // @ts-expect-error: all fields are not present in every task's context
         if (!context_.config.nodeAliases || context_.config.nodeAliases.length === 0) {
-          // @ts-ignore
+          // @ts-expect-error: all fields are not present in every task's context
           context_.config.nodeAliases = helpers.parseNodeAliases(
-            // @ts-ignore
+            // @ts-expect-error: all fields are not present in every task's context
             context_.config.nodeAliasesUnparsed,
             this.remoteConfig.getConsensusNodes(),
             this.configManager,
@@ -1255,11 +1264,10 @@ export class NodeCommandTasks {
           await this.generateGenesisNetworkJson(
             context_.config.namespace,
             context_.config.consensusNodes,
-            // @ts-ignore
+            // @ts-expect-error: all fields are not present in every task's context
             context_.config.keysDir,
-            // @ts-ignore
+            // @ts-expect-error: all fields are not present in every task's context
             context_.config.stagingDir,
-            // @ts-ignore
             context_.config.domainNamesMapping,
           );
         }
@@ -1267,20 +1275,23 @@ export class NodeCommandTasks {
         // TODO: during `node add` ctx.config.nodeAliases is empty, since ctx.config.nodeAliasesUnparsed is empty
         await this.generateNodeOverridesJson(
           context_.config.namespace,
-          // @ts-ignore
+          // @ts-expect-error: all fields are not present in every task's context
           context_.config.nodeAliases,
-          // @ts-ignore
+          // @ts-expect-error: all fields are not present in every task's context
           context_.config.stagingDir,
         );
 
-        const consensusNodes = context_.config.consensusNodes;
-        const subTasks = [];
+        const consensusNodes: ConsensusNode[] = context_.config.consensusNodes;
+        const subTasks: SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext>[] =
+          [];
+
         for (const nodeAlias of context_.config[nodeAliasesProperty]) {
-          const podReference = context_.config.podRefs[nodeAlias];
-          const context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+          const podReference: PodReference = context_.config.podRefs[nodeAlias];
+          const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+
           subTasks.push({
             title: `Node: ${chalk.yellow(nodeAlias)}`,
-            // @ts-ignore
+            // @ts-expect-error: all fields are not present in every task's context
             task: () => this.platformInstaller.taskSetup(podReference, context_.config.stagingDir, isGenesis, context),
           });
         }
@@ -1290,6 +1301,96 @@ export class NodeCommandTasks {
           concurrent: true,
           rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
         });
+      },
+    };
+  }
+
+  public setupNetworkNodeFolders(): SoloListrTask<NodeSetupContext> {
+    return {
+      title: 'setup network node folders',
+      skip: (): boolean => {
+        const currentVersion: SemVer = this.remoteConfig.configuration.versions.consensusNode;
+        const versionRequirement: SemVer = new SemVer('0.63.0');
+        return lt(currentVersion, versionRequirement);
+      },
+      task: async (context_): Promise<void> => {
+        for (const consensusNode of context_.config.consensusNodes) {
+          const podReference: PodReference = await this.k8Factory
+            .getK8(consensusNode.cluster)
+            .pods()
+            .list(NamespaceName.of(consensusNode.namespace), [
+              `solo.hedera.com/node-name=${consensusNode.name}`,
+              'solo.hedera.com/type=network-node',
+            ])
+            .then((pods: Pod[]): PodReference => pods[0].podReference);
+
+          const rootContainer: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+
+          const container: Container = this.k8Factory
+            .getK8(consensusNode.context)
+            .containers()
+            .readByRef(rootContainer);
+
+          await container.execContainer('chmod 777 /opt/hgcapp/services-hedera/HapiApp2.0/data');
+        }
+      },
+    };
+  }
+
+  public setGrpcWebEndpoint(): SoloListrTask<NodeStartContext> {
+    return {
+      title: 'set gRPC Web endpoint',
+      skip: (): boolean => {
+        const currentVersion: SemVer = this.remoteConfig.configuration.versions.consensusNode;
+        const versionRequirement: SemVer = new SemVer('0.63.0');
+        return lt(currentVersion, versionRequirement);
+      },
+      task: async (context_): Promise<void> => {
+        const namespace: NamespaceName = context_.config.namespace;
+
+        const serviceMap: NodeServiceMapping = await this.accountManager.getNodeServiceMap(
+          context_.config.namespace,
+          this.remoteConfig.getClusterRefs(),
+          context_.config.deployment,
+        );
+
+        for (const nodeAlias of context_.config.nodeAliases) {
+          const networkNodeService: NetworkNodeServices = serviceMap.get(nodeAlias);
+
+          const cluster: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
+            (cluster): boolean => cluster.namespace === namespace.name,
+          );
+
+          const grpcProxyAddress: string = Templates.renderSvcFullyQualifiedDomainName(
+            networkNodeService.envoyProxyName,
+            namespace.name,
+            cluster.dnsBaseDomain,
+          );
+
+          const grpcProxyPort: number = +networkNodeService.envoyProxyGrpcWebPort;
+
+          const client = await this.accountManager.loadNodeClient(
+            namespace,
+            this.remoteConfig.getClusterRefs(),
+            context_.config.deployment,
+          );
+
+          const grpcWebProxyEndpoint: ServiceEndpoint = new ServiceEndpoint()
+            .setDomainName(grpcProxyAddress)
+            .setPort(grpcProxyPort);
+
+          const updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
+            .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
+            .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint);
+
+          const updateTransactionResponse: TransactionResponse = await updateTransaction.execute(client);
+
+          const updateTransactionReceipt: TransactionReceipt = await updateTransactionResponse.getReceipt(client);
+
+          if (updateTransactionReceipt.status !== Status.Success) {
+            throw new SoloError('Failed to set gRPC web proxy endpoint');
+          }
+        }
       },
     };
   }

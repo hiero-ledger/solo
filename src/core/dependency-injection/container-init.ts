@@ -62,6 +62,7 @@ import {BeanFactorySupplier} from './bean-factory-supplier.js';
 import {DefaultQuickStartCommand} from '../../commands/quick-start/default-quick-start.js';
 import {DefaultTaskList} from '../task-list/default-task-list.js';
 import {Commands} from '../../commands/commands.js';
+import {KindDependencyManager} from '../dependency-managers/kind-dependency-manager.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -97,6 +98,7 @@ export class Container {
       new SingletonContainer(InjectTokens.Helm, DefaultHelmClient),
       new SingletonContainer(InjectTokens.HelmExecutionBuilder, HelmExecutionBuilder),
       new SingletonContainer(InjectTokens.HelmDependencyManager, HelmDependencyManager),
+      new SingletonContainer(InjectTokens.KindDependencyManager, KindDependencyManager),
       new SingletonContainer(InjectTokens.ChartManager, ChartManager),
       new SingletonContainer(InjectTokens.ConfigManager, ConfigManager),
       new SingletonContainer(InjectTokens.AccountManager, AccountManager),
@@ -151,7 +153,9 @@ export class Container {
       new ValueContainer(InjectTokens.OsPlatform, os.platform()),
       new ValueContainer(InjectTokens.OsArch, os.arch()),
       new ValueContainer(InjectTokens.HelmInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
+      new ValueContainer(InjectTokens.KindInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.HelmVersion, version.HELM_VERSION),
+      new ValueContainer(InjectTokens.KindVersion, version.KIND_VERSION),
       new ValueContainer(InjectTokens.SystemAccounts, constants.SYSTEM_ACCOUNTS),
       new ValueContainer(InjectTokens.CacheDir, cacheDirectory),
       new ValueContainer(InjectTokens.LocalConfigFileName, constants.DEFAULT_LOCAL_CONFIG_FILE),
