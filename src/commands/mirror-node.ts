@@ -50,7 +50,6 @@ import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirr
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import * as semver from 'semver';
-import {AccountId} from '@hashgraph/sdk';
 import {Base64} from 'js-base64';
 import {Lock} from '../core/lock/lock.js';
 

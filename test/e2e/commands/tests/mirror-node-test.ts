@@ -298,7 +298,13 @@ export class MirrorNodeTest extends BaseCommandTest {
       );
 
       await main(argv);
-      await verifyMirrorNodeDeployWasSuccessful(contexts, namespace, testLogger, createdAccountIds, consensusNodesCount);
+      await verifyMirrorNodeDeployWasSuccessful(
+        contexts,
+        namespace,
+        testLogger,
+        createdAccountIds,
+        consensusNodesCount,
+      );
     }).timeout(Duration.ofMinutes(10).toMillis());
 
     it('Enable port-forward for mirror node gRPC', async (): Promise<void> => {
