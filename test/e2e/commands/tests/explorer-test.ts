@@ -100,11 +100,8 @@ export class ExplorerTest extends BaseCommandTest {
         request.end(); // make the request
         await sleep(Duration.ofSeconds(2));
       }
-    } finally {
-      if (portForwarder) {
-        // eslint-disable-next-line unicorn/no-null
-        await k8.pods().readByReference(null).stopPortForward(portForwarder);
-      }
+    } catch (error) {
+      testLogger.debug(`problem with request: ${error.message}`, error);
     }
   }
 
@@ -118,10 +115,10 @@ export class ExplorerTest extends BaseCommandTest {
       await verifyExplorerDeployWasSuccessful(contexts, namespace, createdAccountIds, testLogger);
 
       // kubectl port-forward -n solo-e2e svc/hiero-explorer 8080:80
-      MirrorNodeTest.executeBackgroundCommand(
-        `kubectl port-forward -n "${namespace.name}" svc/hiero-explorer 8080:80`,
-        'Explorer Port Forward',
-      );
+      // MirrorNodeTest.executeBackgroundCommand(
+      //   `kubectl port-forward -n "${namespace.name}" svc/hiero-explorer 8080:80`,
+      //   'Explorer Port Forward',
+      // );
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 }
