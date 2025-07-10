@@ -33,6 +33,11 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withNamespace(testName)
   .withDeployment(`${testName}-deployment`)
   .withClusterCount(2)
+  .withConsensusNodesCount(2)
+  .withLoadBalancerEnabled(true)
+  .withPinger(true)
+  .withRealm(2)
+  .withShard(3)
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe('External Database E2E Test', (): void => {
       const {testCacheDirectory, testLogger, namespace, contexts} = options;

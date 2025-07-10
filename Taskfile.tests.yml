@@ -79,6 +79,7 @@ tasks:
           --ignore 'test/e2e/commands/relay*.ts' 
           --ignore 'test/e2e/commands/block-node.test.ts' 
           --ignore 'test/e2e/commands/dual-*.ts'
+          --ignore 'test/e2e/commands/external-*.ts'
           --ignore 'test/e2e/commands/quick-start-single.test.ts'
           --ignore 'test/e2e/commands/separate-node-add.test.ts' 
           --ignore 'test/e2e/commands/separate-node-delete.test.ts' 
