@@ -16,6 +16,10 @@ import {ClusterCreateRequest} from '../request/cluster/cluster-create-request.js
 import {ClusterCreateOptions} from '../model/create-cluster/cluster-create-options.js';
 import {ClusterCreateOptionsBuilder} from '../model/create-cluster/create-cluster-options-builder.js';
 import {ClusterCreateResponse} from '../model/create-cluster/cluster-create-response.js';
+import {ClusterDeleteResponse} from '../model/delete-cluster/cluster-delete-response.js';
+import {ClusterDeleteOptions} from '../model/delete-cluster/cluster-delete-options.js';
+import {ClusterDeleteOptionsBuilder} from '../model/delete-cluster/cluster-delete-options-builder.js';
+import {ClusterDeleteRequest} from '../request/cluster/cluster-delete-request.js';
 
 type BiFunction<T, U, R> = (t: T, u: U) => R;
 
@@ -45,12 +49,13 @@ export class DefaultKindClient implements KindClient {
   public async createCluster(clusterName: string, options?: ClusterCreateOptions): Promise<ClusterCreateResponse> {
     const builder: ClusterCreateOptionsBuilder = ClusterCreateOptionsBuilder.from(options);
     builder.name(clusterName);
-    return await this.executeAsync(new ClusterCreateRequest(builder.build()), ClusterCreateResponse);
+    return this.executeAsync(new ClusterCreateRequest(builder.build()), ClusterCreateResponse);
   }
 
-  public async deleteCluster(clusterName?: string): Promise<boolean> {
-    // @ts-ignore
-    return true;
+  public async deleteCluster(clusterName?: string, options?: ClusterDeleteOptions): Promise<ClusterDeleteResponse> {
+    const builder: ClusterDeleteOptionsBuilder = ClusterDeleteOptionsBuilder.from(options);
+    builder.name(clusterName);
+    return this.executeAsync(new ClusterDeleteRequest(builder.build()), ClusterDeleteResponse);
   }
 
   public async buildNodeImage(imageName?: string): Promise<void> {

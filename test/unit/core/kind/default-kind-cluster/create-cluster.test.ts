@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {expect} from 'chai';
-import sinon, {SinonSpy} from 'sinon';
+import sinon, {type SinonSpy} from 'sinon';
 import {type ClusterCreateOptions} from '../../../../../src/integration/kind/model/create-cluster/cluster-create-options.js';
 import {DefaultKindClient} from '../../../../../src/integration/kind/impl/default-kind-client.js';
 import {KindExecutionBuilder} from '../../../../../src/integration/kind/execution/kind-execution-builder.js';
@@ -94,7 +94,7 @@ describe('DefaultKindClient - createCluster', () => {
       name: clusterName,
       retain: true,
       wait: '120s',
-    };
+    } as ClusterCreateOptions;
 
     // Create a spy to track subcommands and arguments
     const subcommandsSpy: SinonSpy<string[], KindExecutionBuilder> = sinon.spy(

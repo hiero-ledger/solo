@@ -2,20 +2,20 @@
 
 import {type KindRequest} from '../kind-request.js';
 import {type KindExecutionBuilder} from '../../execution/kind-execution-builder.js';
-import {type ClusterCreateOptions} from '../../model/create-cluster/cluster-create-options.js';
+import {type ClusterDeleteOptions} from '../../model/delete-cluster/cluster-delete-options.js';
 
 /**
- * A request to create a new Kind cluster.
+ * A request to delete a Kind cluster.
  */
-export class ClusterCreateRequest implements KindRequest {
-  constructor(private readonly options: ClusterCreateOptions) {
+export class ClusterDeleteRequest implements KindRequest {
+  constructor(private readonly options: ClusterDeleteOptions) {
     if (!options) {
       throw new Error('options must not be null');
     }
   }
 
   apply(builder: KindExecutionBuilder): void {
-    builder.subcommands('create', 'cluster');
+    builder.subcommands('delete', 'cluster');
     this.options.apply(builder);
   }
 }

@@ -4,7 +4,7 @@ import {type Options} from '../../request/options.js';
 import {type KindExecutionBuilder} from '../../execution/kind-execution-builder.js';
 
 /**
- * Options for the `helm repo add` command.
+ * Options for the `kind cluster create` command.
  */
 export class ClusterCreateOptions implements Options {
   /**
@@ -49,8 +49,8 @@ export class ClusterCreateOptions implements Options {
   }
 
   /**
-   * Apply the options to the HelmExecutionBuilder.
-   * @param builder The HelmExecutionBuilder to apply options to.
+   * Apply the options to the KindExecutionBuilder.
+   * @param builder The KindExecutionBuilder to apply options to.
    */
   public apply(builder: KindExecutionBuilder): void {
     if (this._config) {

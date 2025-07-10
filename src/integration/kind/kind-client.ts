@@ -3,6 +3,9 @@
 import {type SemVer} from 'semver';
 import {type KindCluster} from './model/kind-cluster.js';
 import {type ClusterCreateResponse} from './model/create-cluster/cluster-create-response.js';
+import {type ClusterDeleteResponse} from './model/delete-cluster/cluster-delete-response.js';
+import {type ClusterDeleteOptions} from './model/delete-cluster/cluster-delete-options.js';
+import {type ClusterCreateOptions} from './model/create-cluster/cluster-create-options.js';
 
 /**
  * The KindClient is a bridge between TypeScript and the Kind CLI.
@@ -19,16 +22,19 @@ export interface KindClient {
    * Executes the Kind CLI cluster create sub-command.
    *
    * @param clusterName the name of the cluster to create. If not provided, a default name will be used.
+   * @param options the options to use for creating the cluster. If not provided, default options will be used.
+   * @returns the response of the create operation, which includes the name of the created cluster and other details.
    */
-  createCluster(clusterName?: string): Promise<ClusterCreateResponse>;
+  createCluster(clusterName?: string, options?: ClusterCreateOptions): Promise<ClusterCreateResponse>;
 
   /**
    * Executes the Kind CLI cluster delete sub-command and returns the result.
    *
    * @param clusterName the name of the cluster to delete. If not provided, the default cluster will be deleted.
-   * @returns boolean.
+   * @param options the options to use for deleting the cluster. If not provided, default options will be used.
+   * @returns the response of the delete operation.
    */
-  deleteCluster(clusterName?: string): Promise<boolean>;
+  deleteCluster(clusterName?: string, options?: ClusterDeleteOptions): Promise<ClusterDeleteResponse>;
 
   /**
    * Executes the Kind CLI cluster list sub-command and returns the list of clusters.
