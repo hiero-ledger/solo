@@ -220,6 +220,9 @@ export class NodeTest extends BaseCommandTest {
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
       const k8: K8 = k8Factory.getK8(contexts[0]);
       const networkNodePod: Pod[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
+      if (networkNodePod.length === 0) {
+        throw new Error('No network-node pods found with the specified label selector.');
+      }
       await k8.pods().readByReference(networkNodePod[0].podReference).portForward(50_211, 50_211);
     });
   }
