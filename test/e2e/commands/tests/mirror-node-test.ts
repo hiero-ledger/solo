@@ -266,12 +266,21 @@ export class MirrorNodeTest extends BaseCommandTest {
   private static postgresMirrorNodeDatabaseName: string = 'mirror_node';
 
   public static deployWithExternalDatabase(options: BaseTestOptions): void {
-    const {testName, testLogger, deployment, contexts, namespace, clusterReferenceNameArray, createdAccountIds} =
-      options;
+    const {
+      testName,
+      testLogger,
+      deployment,
+      contexts,
+      namespace,
+      clusterReferenceNameArray,
+      createdAccountIds,
+      consensusNodesCount,
+      pinger,
+    } = options;
     const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, optionFromFlag} = MirrorNodeTest;
 
     it(`${testName}: mirror node deploy with external database`, async (): Promise<void> => {
-      const argv = soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1]);
+      const argv = soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger);
 
       // Add external database flags
       argv.push(
@@ -289,7 +298,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       );
 
       await main(argv);
-      await verifyMirrorNodeDeployWasSuccessful(contexts, namespace, testLogger, createdAccountIds);
+      await verifyMirrorNodeDeployWasSuccessful(contexts, namespace, testLogger, createdAccountIds, consensusNodesCount);
     }).timeout(Duration.ofMinutes(10).toMillis());
 
     it('Enable port-forward for mirror node gRPC', async (): Promise<void> => {

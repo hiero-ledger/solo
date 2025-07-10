@@ -100,6 +100,7 @@ export class ExplorerTest extends BaseCommandTest {
         await sleep(Duration.ofSeconds(2));
       }
     } catch (error) {
+      // do not stop portforward since it will be used by smoke test
       testLogger.debug(`problem with request: ${error.message}`, error);
     }
   }
