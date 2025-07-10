@@ -37,19 +37,18 @@ describe('HelmDependencyManager', () => {
     expect(helmDependencyManager.isInstalled()).to.be.ok;
   });
 
-  // TODO: disabled until we can get this working again, broke during conversion from Jest to Mocha
-  describe.skip('Helm Installation Tests', () => {
+  describe('Helm Installation Tests', () => {
     each([
-      // { osPlatform: 'linux',  osArch: 'x64' },
-      // { osRelease: 'linux',  osArch: 'amd64' },
-      // { osRelease: 'windows',  osArch: 'amd64' }
-    ]).it('should be able to install helm base on os and architecture', async input => {
+      ['linux', 'x64'],
+      ['linux', 'amd64'],
+      ['windows', 'amd64'],
+    ]).it('should be able to install helm base on %s and %s', async (osPlatform: any, osArch: string) => {
       const helmDependencyManager = new HelmDependencyManager(
         undefined,
         undefined,
         temporaryDirectory,
-        input.osPlatform,
-        input.osArch,
+        osPlatform,
+        osArch,
       );
 
       if (fs.existsSync(temporaryDirectory)) {

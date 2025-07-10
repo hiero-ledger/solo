@@ -22,4 +22,12 @@ export interface SoloLogger {
   showList(title: string, items: string[]): void;
 
   showJSON(title: string, object: object): void;
+
+  addMessageGroup(key: string, title: string): void;
+
+  addMessageGroupMessage(key: string, message: string): void;
+
+  showMessageGroup(key: string): void;
+
+  getMessageGroupKeys(): string[];
 }

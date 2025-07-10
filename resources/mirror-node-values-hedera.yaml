@@ -1,10 +1,10 @@
 labels:
-  solo.hiero.com/testSuiteName: ""
-  solo.hiero.com/testName: ""
-  solo.hiero.com/testRunUID: ""
-  solo.hiero.com/testCreationTimestamp: ""
-  solo.hiero.com/testExpirationTimestamp: ""
-  solo.hiero.com/testRequester: ""
+  solo.hedera.com/testSuiteName: ""
+  solo.hedera.com/testName: ""
+  solo.hedera.com/testRunUID: ""
+  solo.hedera.com/testCreationTimestamp: ""
+  solo.hedera.com/testExpirationTimestamp: ""
+  solo.hedera.com/testRequester: ""
 graphql: # not needed for default use case
   enabled: false
 rosetta: # not needed for default use case
@@ -12,8 +12,8 @@ rosetta: # not needed for default use case
 redis:
   enabled: true
 #  namespaceOverride: "{{ tpl (.Values.global.namespaceOverride | toString) }}"
-# importer is a component of the hiero mirror node
-# config for subchart hiero-mirror/importer
+# importer is a component of the hedera mirror node
+# config for subchart hedera-mirror/importer
 importer:
   nodeSelector: {}
   tolerations:
@@ -36,8 +36,8 @@ importer:
   addressBook: ""
   config:
     # importer is a springboot app, its application.yaml configuration starts here
-    # This config is mounted at [/usr/etc/hiero/application.yaml] in the importer pod
-    hiero:
+    # This config is mounted at [/usr/etc/hedera/application.yaml] in the importer pod
+    hedera:
       mirror:
         importer:
           startDate: 1970-01-01T00:00:00Z
@@ -115,7 +115,7 @@ web3:
       value: "network"
       effect: "NoSchedule"
 
-# config for subchart hiero-mirror/monitor
+# config for subchart hedera-mirror/monitor
 # Sets up a Pinger service that periodically submits CRYPTO_TRANSFER transactions
 # Additional configuration for node addresses, operator id and key should be handled by infrastructure code or solo
 monitor:
@@ -137,7 +137,7 @@ monitor:
     - secretRef:
         name: uploader-mirror-secrets
   config:
-    hiero:
+    hedera:
       mirror:
         common:
           realm: 0

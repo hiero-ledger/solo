@@ -59,7 +59,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       }).timeout(Duration.ofMinutes(15).toMillis());
 
       // TODO add verifications
-      // TODO integrate into CI e2e test suite
     });
   })
   .build();
