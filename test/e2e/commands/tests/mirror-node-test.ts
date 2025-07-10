@@ -29,23 +29,23 @@ export class MirrorNodeTest extends BaseCommandTest {
    * @returns The command output as string
    * @throws Error if the command fails
    */
-  static executeCommand(command: string, label: string): string {
-    console.log(`${label} command:`);
-    console.log(command);
+  static executeCommand(command: string, label: string, testLogger: SoloLogger): string {
+    testLogger.info(`${label} command:`);
+    testLogger.info(command);
 
     try {
       const stdout = execSync(command, {encoding: 'utf8'});
-      console.log(`${label} succeeded:`);
-      console.log(stdout || '(No output)');
+      testLogger.info(`${label} succeeded:`);
+      testLogger.info(stdout || '(No output)');
       return stdout;
     } catch (error) {
-      console.error(`${label} failed:`);
-      console.error(error.message);
+      testLogger.error(`${label} failed:`);
+      testLogger.error(error.message);
       if (error.stdout) {
-        console.log('stdout:', error.stdout);
+        testLogger.info('stdout:', error.stdout);
       }
       if (error.stderr) {
-        console.log('stderr:', error.stderr);
+        testLogger.info('stderr:', error.stderr);
       }
       throw error;
     }
@@ -240,11 +240,12 @@ export class MirrorNodeTest extends BaseCommandTest {
   }
 
   public static installPostgres(options: BaseTestOptions): void {
-    const {contexts, namespace} = options;
+    const {contexts, namespace, testLogger} = options;
     it('should install postgres chart', async (): Promise<void> => {
       MirrorNodeTest.executeCommand(
         `kubectl config use-context "${contexts[1]}"`,
         'Switching to second cluster context',
+        testLogger,
       );
       const installPostgresChartCommand: string = `helm install my-postgresql https://charts.bitnami.com/bitnami/postgresql-12.1.2.tgz \
         --set image.tag=16.4.0 \
@@ -252,7 +253,7 @@ export class MirrorNodeTest extends BaseCommandTest {
         --set global.postgresql.auth.postgresPassword=${this.postgresPassword} \
         --set primary.persistence.enabled=false --set secondary.enabled=false`;
 
-      MirrorNodeTest.executeCommand(installPostgresChartCommand, 'PostgreSQL chart installation');
+      MirrorNodeTest.executeCommand(installPostgresChartCommand, 'PostgreSQL chart installation', testLogger);
 
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
       const k8: K8 = k8Factory.getK8(contexts[1]);
@@ -273,24 +274,24 @@ export class MirrorNodeTest extends BaseCommandTest {
       }
 
       const copyInitScriptCommand: string = `kubectl cp ${initScriptPath} ${this.postgresContainerName}:/tmp/init.sh -n ${this.nameSpace}`;
-      MirrorNodeTest.executeCommand(copyInitScriptCommand, 'Copy');
+      MirrorNodeTest.executeCommand(copyInitScriptCommand, 'Copy', testLogger);
 
       const chmodInitScriptCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- chmod +x /tmp/init.sh`;
-      MirrorNodeTest.executeCommand(chmodInitScriptCommand, 'Chmod');
+      MirrorNodeTest.executeCommand(chmodInitScriptCommand, 'Chmod', testLogger);
 
       const initScriptCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- /bin/bash /tmp/init.sh "${this.postgresUsername}" "${this.postgresReadonlyUsername}" "${this.postgresReadonlyPassword}"`;
-      MirrorNodeTest.executeCommand(initScriptCommand, 'Init script execution');
+      MirrorNodeTest.executeCommand(initScriptCommand, 'Init script execution', testLogger);
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
   public static runSql(options: BaseTestOptions): void {
     it('should run SQL command', async (): Promise<void> => {
-      const {testCacheDirectory} = options;
+      const {testCacheDirectory, testLogger} = options;
       const copySqlCommand: string = `kubectl cp ${testCacheDirectory}/database-seeding-query.sql ${this.postgresContainerName}:/tmp/database-seeding-query.sql -n ${this.nameSpace}`;
-      MirrorNodeTest.executeCommand(copySqlCommand, 'SQL file copy');
+      MirrorNodeTest.executeCommand(copySqlCommand, 'SQL file copy', testLogger);
 
       const runSqlCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- env PGPASSWORD=${this.postgresPassword} psql -U ${this.postgresUsername} -f /tmp/database-seeding-query.sql -d ${this.postgresMirrorNodeDatabaseName}`;
-      MirrorNodeTest.executeCommand(runSqlCommand, 'SQL execution');
+      MirrorNodeTest.executeCommand(runSqlCommand, 'SQL execution', testLogger);
     });
   }
 }

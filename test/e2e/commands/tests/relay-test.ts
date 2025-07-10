@@ -50,7 +50,7 @@ export class RelayTest extends BaseCommandTest {
   }
 
   public static deploy(options: BaseTestOptions): void {
-    const {testName, deployment, namespace, contexts, clusterReferenceNameArray} = options;
+    const {testName, deployment, namespace, contexts, clusterReferenceNameArray, testLogger} = options;
     const {soloRelayDeployArgv, verifyRelayDeployWasSuccessful} = RelayTest;
 
     it(`${testName}: JSON-RPC relay deploy`, async (): Promise<void> => {
@@ -58,6 +58,7 @@ export class RelayTest extends BaseCommandTest {
       MirrorNodeTest.executeCommand(
         `kubectl config use-context "${contexts[1]}"`,
         'Switching back to first cluster context',
+        testLogger,
       );
 
       await main(soloRelayDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
