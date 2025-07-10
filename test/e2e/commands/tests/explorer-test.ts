@@ -118,25 +118,10 @@ export class ExplorerTest extends BaseCommandTest {
       await verifyExplorerDeployWasSuccessful(contexts, namespace, createdAccountIds, testLogger);
 
       // kubectl port-forward -n solo-e2e svc/hiero-explorer 8080:80
-      // MirrorNodeTest.executeBackgroundCommand(
-      //   `kubectl port-forward -n "${namespace.name}" svc/hiero-explorer 8080:80`,
-      //   'Explorer Port Forward',
-      // );
-    }).timeout(Duration.ofMinutes(5).toMillis());
-
-    it('Enable port-forward for explorer', async (): Promise<void> => {
-      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-      const k8: K8 = k8Factory.getK8(contexts[1]);
-      const explorerPods: Pod[] = await k8
-        .pods()
-        .list(namespace, [
-          'app.kubernetes.io/instance=hiero-explorer',
-          'app.kubernetes.io/name=hiero-explorer-chart',
-          'app.kubernetes.io/component=hiero-explorer',
-        ]);
-      expect(explorerPods).to.have.lengthOf(1);
-      const explorerPod: Pod = explorerPods[0];
-      await k8.pods().readByReference(explorerPod.podReference).portForward(8080, 80);
+      MirrorNodeTest.executeBackgroundCommand(
+        `kubectl port-forward -n "${namespace.name}" svc/hiero-explorer 8080:80`,
+        'Explorer Port Forward',
+      );
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 }
