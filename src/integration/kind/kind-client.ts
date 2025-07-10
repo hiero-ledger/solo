@@ -6,6 +6,8 @@ import {type ClusterCreateResponse} from './model/create-cluster/cluster-create-
 import {type ClusterDeleteResponse} from './model/delete-cluster/cluster-delete-response.js';
 import {type ClusterDeleteOptions} from './model/delete-cluster/cluster-delete-options.js';
 import {type ClusterCreateOptions} from './model/create-cluster/cluster-create-options.js';
+import {type BuildNodeImagesResponse} from './model/build-node-images/build-node-images-response.js';
+import {type BuildNodeImagesOptions} from './model/build-node-images/build-node-images-options.js';
 
 /**
  * The KindClient is a bridge between TypeScript and the Kind CLI.
@@ -37,12 +39,12 @@ export interface KindClient {
   deleteCluster(clusterName?: string, options?: ClusterDeleteOptions): Promise<ClusterDeleteResponse>;
 
   /**
-   * Executes the Kind CLI cluster list sub-command and returns the list of clusters.
+   * Build the node image
    *
-   * @param imageName the name of the image to use for the nodes. If not provided, the default Kind image will be used.
+   * @param options the options to use for building the node images.
    * @returns the list of clusters.
    */
-  buildNodeImage(imageName?: string): Promise<void>;
+  buildNodeImage(options?: BuildNodeImagesOptions): Promise<BuildNodeImagesResponse>;
 
   /**
    * Executes the Kind CLI cluster export sub-command and returns the logs of the cluster.

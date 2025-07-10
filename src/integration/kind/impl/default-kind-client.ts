@@ -20,6 +20,9 @@ import {ClusterDeleteResponse} from '../model/delete-cluster/cluster-delete-resp
 import {ClusterDeleteOptions} from '../model/delete-cluster/cluster-delete-options.js';
 import {ClusterDeleteOptionsBuilder} from '../model/delete-cluster/cluster-delete-options-builder.js';
 import {ClusterDeleteRequest} from '../request/cluster/cluster-delete-request.js';
+import {BuildNodeImagesResponse} from '../model/build-node-images/build-node-images-response.js';
+import {BuildNodeImagesOptions} from '../model/build-node-images/build-node-images-options.js';
+import {BuildNodeImagesRequest} from '../request/build/build-node-images-request.js';
 
 type BiFunction<T, U, R> = (t: T, u: U) => R;
 
@@ -58,9 +61,8 @@ export class DefaultKindClient implements KindClient {
     return this.executeAsync(new ClusterDeleteRequest(builder.build()), ClusterDeleteResponse);
   }
 
-  public async buildNodeImage(imageName?: string): Promise<void> {
-    // @ts-ignore
-    return;
+  public async buildNodeImage(options?: BuildNodeImagesOptions): Promise<BuildNodeImagesResponse> {
+    return this.executeAsync(new BuildNodeImagesRequest(options), BuildNodeImagesResponse);
   }
 
   public async exportLogs(clusterName?: string): Promise<string> {
@@ -133,12 +135,6 @@ export class DefaultKindClient implements KindClient {
     });
   }
 
-  /**
-   * Applies the default namespace and authentication configuration to the given builder.
-   * @param builder - The builder to apply to which the defaults should be applied
-   */
-  private applyBuilderDefaults(builder: KindExecutionBuilder): void {}
-
   private async executeInternal<T extends KindRequest, R, V>(
     namespace: string | undefined,
     request: T,
@@ -150,7 +146,6 @@ export class DefaultKindClient implements KindClient {
     }
 
     const builder = new KindExecutionBuilder();
-    this.applyBuilderDefaults(builder);
     request.apply(builder);
     const execution = builder.build();
     return responseFunction(execution, responseClass);
