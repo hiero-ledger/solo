@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {spawn} from 'node:child_process';
 import {BaseCommandTest} from './base-command-test.js';
 import {type ClusterReferenceName, type DeploymentName, type ExtendedNetServer} from '../../../../src/types/index.js';
 import {Flags} from '../../../../src/commands/flags.js';
@@ -48,37 +47,6 @@ export class MirrorNodeTest extends BaseCommandTest {
       if (error.stderr) {
         console.log('stderr:', error.stderr);
       }
-      throw error;
-    }
-  }
-
-  /**
-   * Execute a command in the background without waiting for it to complete
-   * @param command The command to execute in background
-   * @param label A descriptive label for the command (used in logs)
-   */
-  static executeBackgroundCommand(command: string, label: string): void {
-    console.log(`${label} background command:`);
-    console.log(command);
-
-    try {
-      // Remove any trailing & as we'll handle the background process ourselves
-      const cleanCommand = command.replace(/\s*&\s*$/, '');
-
-      // For background commands, we use spawn instead of execSync
-      const process = spawn(cleanCommand, {
-        shell: true,
-        detached: true,
-        stdio: 'ignore',
-      });
-
-      // Unref the child process so the parent can exit independently
-      process.unref();
-
-      console.log(`${label} background command started with PID: ${process.pid}`);
-    } catch (error) {
-      console.error(`${label} background command failed to start:`);
-      console.error(error.message);
       throw error;
     }
   }
@@ -268,12 +236,6 @@ export class MirrorNodeTest extends BaseCommandTest {
         ]);
       const mirrorNodePod: Pod = mirrorNodePods[0];
       await k8.pods().readByReference(mirrorNodePod.podReference).portForward(5600, 5600);
-
-      // kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-grpc 5600:5600
-      // MirrorNodeTest.executeBackgroundCommand(
-      //   `kubectl port-forward -n "${namespace.name}" svc/mirror-grpc 5600:5600`,
-      //   'Mirror Port Forward',
-      // );
     });
   }
 
@@ -318,7 +280,6 @@ export class MirrorNodeTest extends BaseCommandTest {
 
       const initScriptCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- /bin/bash /tmp/init.sh "${this.postgresUsername}" "${this.postgresReadonlyUsername}" "${this.postgresReadonlyPassword}"`;
       MirrorNodeTest.executeCommand(initScriptCommand, 'Init script execution');
-
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 

@@ -29,7 +29,6 @@ import {
   type TransactionResponse,
 } from '@hashgraph/sdk';
 import {type BaseTestOptions} from './base-test-options.js';
-import {MirrorNodeTest} from './mirror-node-test.js';
 
 export class NodeTest extends BaseCommandTest {
   private static soloNodeKeysArgv(testName: string, deployment: DeploymentName): string[] {
@@ -221,13 +220,7 @@ export class NodeTest extends BaseCommandTest {
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
       const k8: K8 = k8Factory.getK8(contexts[0]);
       const networkNodePod: Pod[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
-      await k8.pods().readByReference(networkNodePod[0].podReference).portForward(50211, 50211);
-
-      // // make sure call this in cluster one context
-      // MirrorNodeTest.executeBackgroundCommand(
-      //   `kubectl port-forward -n "${namespace.name}" svc/haproxy-node1-svc 50211:50211`,
-      //   'Haproxy Port Forward',
-      // );
+      await k8.pods().readByReference(networkNodePod[0].podReference).portForward(50_211, 50_211);
     });
   }
 }

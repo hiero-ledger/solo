@@ -12,12 +12,5 @@
     "coverage-subdirectory": "e2e-dual-cluster-full",
     "coverage-report-name": "E2E_Dual_Cluster_Full_Tests_Coverage_Report",
     "local-java-build": false
-  },
-  {
-    "name": "External database old",
-    "test-script": "test-external-database",
-    "coverage-subdirectory": "external-database",
-    "coverage-report-name": "External_Database_Tests_Coverage_Report",
-    "local-java-build": false
   }
 ]
