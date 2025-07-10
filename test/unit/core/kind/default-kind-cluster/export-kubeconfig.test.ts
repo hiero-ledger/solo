@@ -69,7 +69,7 @@ describe('DefaultKindClient - exportKubeconfig', () => {
     await client.exportKubeconfig(clusterName);
 
     // Verify subcommands were called correctly
-    expect(subcommandsSpy.calledWith('export', 'kubectl')).to.be.true;
+    expect(subcommandsSpy.calledWith('export', 'kubeconfig')).to.be.true;
 
     // Verify arguments were set correctly
     expect(argumentSpy.calledWith('name', clusterName)).to.be.true;

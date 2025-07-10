@@ -10,6 +10,9 @@ import {type BuildNodeImagesResponse} from './model/build-node-images/build-node
 import {type BuildNodeImagesOptions} from './model/build-node-images/build-node-images-options.js';
 import {type ExportLogsResponse} from './model/export-logs/export-logs-response.js';
 import {type ExportKubeconfigResponse} from './model/export-kubeconfig/export-kubeconfig-response.js';
+import {GetNodesOptions} from './model/get-nodes/get-nodes-options.js';
+import {GetNodesRequest} from './request/get/get-nodes-request.js';
+import {GetNodesResponse} from './model/get-nodes/get-nodes-response.js';
 
 /**
  * The KindClient is a bridge between TypeScript and the Kind CLI.
@@ -74,10 +77,11 @@ export interface KindClient {
   /**
    * Returns a list of nodes in the specified cluster.
    *
-   * @param clusterName the name of the cluster to get nodes from. If not provided, the default cluster will be used.
+   * @param contextName the name of the cluster context to get nodes from. If not provided, the current context will be used.
+   * @param options the options to use for getting nodes.
    * @returns a list of node names.
    */
-  getNodes(clusterName?: string): Promise<string[]>;
+  getNodes(contextName?: string, options?: GetNodesOptions): Promise<GetNodesResponse>;
 
   /**
    * Returns the kubeconfig of the specified cluster.

@@ -31,6 +31,10 @@ import {ExportKubeconfigOptionsBuilder} from '../model/export-kubeconfig/export-
 import {ExportKubeconfigOptions} from '../model/export-kubeconfig/export-kubeconfig-options.js';
 import {ExportKubeconfigRequest} from '../request/export/export-kubeconfig-request.js';
 import {ExportKubeconfigResponse} from '../model/export-kubeconfig/export-kubeconfig-response.js';
+import {GetNodesResponse} from '../model/get-nodes/get-nodes-response.js';
+import {GetNodesOptions} from '../model/get-nodes/get-nodes-options.js';
+import {GetNodesOptionsBuilder} from '../model/get-nodes/get-nodes-options-builder.js';
+import {GetNodesRequest} from '../request/get/get-nodes-request.js';
 
 type BiFunction<T, U, R> = (t: T, u: U) => R;
 
@@ -87,9 +91,9 @@ export class DefaultKindClient implements KindClient {
     return this.executeAsList(new GetClustersRequest(), KindCluster);
   }
 
-  public async getNodes(clusterName?: string): Promise<string[]> {
-    // @ts-ignore
-    return [];
+  public async getNodes(contextName?: string, options?: GetNodesOptions): Promise<GetNodesResponse> {
+    const builder: GetNodesOptionsBuilder = GetNodesOptionsBuilder.from(options).name(contextName);
+    return this.executeAsync(new GetNodesRequest(builder.build()), GetNodesResponse);
   }
 
   public async getKubeconfig(clusterName?: string): Promise<string> {

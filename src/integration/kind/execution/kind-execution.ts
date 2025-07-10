@@ -122,7 +122,7 @@ export class KindExecution {
    * @returns concatenated standard output as a string
    */
   standardOutput(): string {
-    return this.output.join('');
+    return this.output.join('\n');
   }
 
   /**
@@ -130,7 +130,7 @@ export class KindExecution {
    * @returns concatenated standard error as a string
    */
   standardError(): string {
-    return this.errOutput.join('');
+    return this.errOutput.join('\n');
   }
 
   /**
