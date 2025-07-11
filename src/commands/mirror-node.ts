@@ -50,7 +50,6 @@ import {MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-no
 import {Lock} from '../core/lock/lock.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import * as semver from 'semver';
-import {AccountId} from '@hashgraph/sdk';
 import {Base64} from 'js-base64';
 
 interface MirrorNodeDeployConfigClass {
@@ -515,18 +514,18 @@ export class MirrorNodeCommand extends BaseCommand {
               } else {
                 try {
                   const namespace: NamespaceName = await resolveNamespaceFromDeployment(
-                      this.localConfig,
-                      this.configManager,
-                      task,
+                    this.localConfig,
+                    this.configManager,
+                    task,
                   );
 
-                    const secrets = await this.k8Factory
-                      .getK8(context_.config.clusterContext)
-                      .secrets()
-                      .list(namespace, [`solo.hedera.com/account-id=${operatorId}`]);
-                    if (secrets.length === 0) {
-                      this.logger.info(`No k8s secret found for operator account id ${operatorId}, use default one`);
-                      context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${constants.OPERATOR_KEY}`;
+                  const secrets = await this.k8Factory
+                    .getK8(context_.config.clusterContext)
+                    .secrets()
+                    .list(namespace, [`solo.hedera.com/account-id=${operatorId}`]);
+                  if (secrets.length === 0) {
+                    this.logger.info(`No k8s secret found for operator account id ${operatorId}, use default one`);
+                    context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${constants.OPERATOR_KEY}`;
                   } else {
                     this.logger.info('Using operator key from k8s secret');
                     const operatorKeyFromK8: string = Base64.decode(secrets[0].data.privateKey);

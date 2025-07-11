@@ -20,7 +20,6 @@ import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type ClusterReferenceName, type ExtendedNetServer} from '../../../src/types/index.js';
 import {exec} from 'node:child_process';
 import {promisify} from 'node:util';
-import * as constants from '../../../src/core/constants.js';
 import * as SemVer from 'semver';
 import {type ArgvStruct} from '../../../src/types/aliases.js';
 import {type BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
