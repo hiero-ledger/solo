@@ -19,7 +19,7 @@ import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
-import {type AnyYargs, type ArgvStruct, type NodeAlias} from '../types/aliases.js';
+import {type AnyYargs, type ArgvStruct} from '../types/aliases.js';
 import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as fs from 'node:fs';
@@ -755,15 +755,17 @@ export class MirrorNodeCommand extends BaseCommand {
           title: 'Enable port forwarding',
           skip: context_ => !context_.config.forcePortForward && !context_.config.enableIngress,
           task: async context_ => {
-            const nodeAlias: NodeAlias = 'node1';
-            const context = this.remoteConfig.extractContextFromConsensusNodes(nodeAlias);
-            const podReference: PodReference = PodReference.of(
-              context_.config.namespace,
-              PodName.of(`network-${nodeAlias}-0`), // TODO pod name of the mirror node ingress controller
-            );
+            const pods: Pod[] = await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .pods()
+              .list(context_.config.namespace, ['app.kubernetes.io/instance=hiero-explorer']); // TODO change to mirror node
+            if (pods.length === 0) {
+              throw new SoloError('No Hiero Explorer pod found');
+            }
+            const podReference: PodReference = pods[0].podReference;
 
             await this.k8Factory
-              .getK8(context)
+              .getK8(context_.config.clusterContext)
               .pods()
               .readByReference(podReference)
               .portForward(constants.MIRROR_NODE_PORT, constants.MIRROR_NODE_PORT);
