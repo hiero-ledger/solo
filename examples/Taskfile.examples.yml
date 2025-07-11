@@ -340,7 +340,7 @@ tasks:
       - |
         if [[ "{{ .use_port_forwards }}" == "true" ]];then
           echo "Enable port forwarding for Hedera JSON RPC Relay"
-          /bin/bash -c "nohup kubectl port-forward -n \"${SOLO_NAMESPACE}\" svc/relay-node1-hedera-json-rpc-relay 7546:7546 > /dev/null 2>&1 &"
+          /bin/bash -c "nohup kubectl port-forward -n \"${SOLO_NAMESPACE}\" svc/relay-node1 7546:7546 > /dev/null 2>&1 &"
           sleep 4
         fi
 
