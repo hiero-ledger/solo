@@ -137,6 +137,7 @@ export class RelayCommand extends BaseCommand {
       valuesArgument += helpers.prepareValuesFiles(profileValuesFile);
     }
 
+    // TODO need to change this so that the json rpc relay does not have to be in the same cluster as the mirror node
     valuesArgument += ' --install';
     valuesArgument += ' --set ws.enabled=true';
     valuesArgument += ` --set relay.config.MIRROR_NODE_URL=http://${constants.MIRROR_NODE_RELEASE_NAME}-rest`;
@@ -307,7 +308,7 @@ export class RelayCommand extends BaseCommand {
             context_.config.releaseName = self.prepareReleaseName(context_.config.nodeAliases);
 
             if (context_.config.clusterRef) {
-              const context = self.remoteConfig.getClusterRefs()[context_.config.clusterRef];
+              const context: string = self.remoteConfig.getClusterRefs().get(context_.config.clusterRef);
               if (context) {
                 context_.config.context = context;
               }
@@ -427,7 +428,9 @@ export class RelayCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error deploying relay: ${error.message}`, error);
       } finally {
-        await lease.release();
+        if (lease) {
+          await lease.release();
+        }
         await self.accountManager.close();
       }
     } else {
@@ -519,7 +522,9 @@ export class RelayCommand extends BaseCommand {
     } catch (error) {
       throw new SoloError('Error uninstalling relays', error);
     } finally {
-      await lease.release();
+      if (lease) {
+        await lease.release();
+      }
     }
 
     return true;

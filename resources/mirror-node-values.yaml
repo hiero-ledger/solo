@@ -51,6 +51,9 @@ importer:
               sidecar:
                 enabled: true
 grpc:
+  ingress:
+    annotations:
+      haproxy-ingress.github.io/backend-protocol: h2
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"

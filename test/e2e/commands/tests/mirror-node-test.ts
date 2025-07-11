@@ -34,6 +34,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       deployment,
       optionFromFlag(Flags.clusterRef),
       clusterReference,
+      optionFromFlag(Flags.enableIngress),
     );
 
     if (pinger) {
