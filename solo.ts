@@ -14,8 +14,12 @@ await fnm
   .main(process.argv, context)
   .then(() => {
     context.logger.info('Solo CLI completed, via entrypoint');
+    // @ts-expect-error - process._getActiveHandles is not part of the public API
+    context.logger.info('handles: ', process._getActiveHandles());
+    // @ts-expect-error - process._getActiveHandles is not part of the public API
+    context.logger.info('requests: ', process._getActiveRequests());
   })
-  .catch(error => {
+  .catch((error): void => {
     const errorHandler: ErrorHandler = container.resolve(InjectTokens.ErrorHandler);
     errorHandler.handle(error);
   });
