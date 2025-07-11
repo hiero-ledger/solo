@@ -77,6 +77,9 @@ if ! grep -q "schemaVersion: 1" ./remote-config-after.yaml; then
   exit 1
 fi
 
+# need to add ingress controller helm repo
+npm run solo-test -- init
+
 # using new solo to redeploy solo deployment chart to new version
 npm run solo-test -- node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 
