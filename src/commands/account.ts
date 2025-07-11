@@ -761,10 +761,13 @@ export class AccountCommand extends BaseCommand {
       .addCommandGroup(
         new CommandGroup(AccountCommand.SUBCOMMAND_NAME, 'Manage Hedera accounts in solo network')
           .addSubcommand(
-            new Subcommand('init', 'Initialize system accounts with new keys', this, this.init, (y: AnyYargs): void => {
-              flags.setRequiredCommandFlags(y, ...AccountCommand.INIT_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...AccountCommand.INIT_FLAGS_LIST.optional);
-            }),
+            new Subcommand(
+              'init',
+              'Initialize system accounts with new keys',
+              this,
+              this.init,
+              AccountCommand.INIT_FLAGS_LIST,
+            ),
           )
           .addSubcommand(
             new Subcommand(
@@ -773,10 +776,7 @@ export class AccountCommand extends BaseCommand {
                 'if you want to update the private key, you can supply either ECDSA or ED25519 but not both\n',
               this,
               this.update,
-              (y: AnyYargs): void => {
-                flags.setRequiredCommandFlags(y, ...AccountCommand.UPDATE_FLAGS_LIST.required);
-                flags.setOptionalCommandFlags(y, ...AccountCommand.UPDATE_FLAGS_LIST.optional);
-              },
+              AccountCommand.UPDATE_FLAGS_LIST,
             ),
           )
           .addSubcommand(
@@ -787,10 +787,7 @@ export class AccountCommand extends BaseCommand {
                 'otherwise you may supply either a ECDSA or ED25519 private key',
               this,
               this.create,
-              (y: AnyYargs): void => {
-                flags.setRequiredCommandFlags(y, ...AccountCommand.CREATE_FLAGS_LIST.required);
-                flags.setOptionalCommandFlags(y, ...AccountCommand.CREATE_FLAGS_LIST.optional);
-              },
+              AccountCommand.CREATE_FLAGS_LIST,
             ),
           )
           .addSubcommand(
@@ -799,10 +796,7 @@ export class AccountCommand extends BaseCommand {
               'Gets the account info including the current amount of HBAR',
               this,
               this.get,
-              (y: AnyYargs): void => {
-                flags.setRequiredCommandFlags(y, ...AccountCommand.GET_FLAGS_LIST.required);
-                flags.setOptionalCommandFlags(y, ...AccountCommand.GET_FLAGS_LIST.optional);
-              },
+              AccountCommand.GET_FLAGS_LIST,
             ),
           ),
       )

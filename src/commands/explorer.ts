@@ -581,16 +581,10 @@ export class ExplorerCommand extends BaseCommand {
       .addCommandGroup(
         new CommandGroup(ExplorerCommand.SUBCOMMAND_NAME, '')
           .addSubcommand(
-            new Subcommand('deploy', 'Deploy explorer', this, this.deploy, (y: AnyYargs): void => {
-              flags.setRequiredCommandFlags(y, ...ExplorerCommand.DEPLOY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...ExplorerCommand.DEPLOY_FLAGS_LIST.optional);
-            }),
+            new Subcommand('deploy', 'Deploy explorer', this, this.deploy, ExplorerCommand.DEPLOY_FLAGS_LIST),
           )
           .addSubcommand(
-            new Subcommand('destroy', 'Destroy explorer', this, this.destroy, (y: AnyYargs): void => {
-              flags.setRequiredCommandFlags(y, ...ExplorerCommand.DESTROY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...ExplorerCommand.DESTROY_FLAGS_LIST.optional);
-            }),
+            new Subcommand('destroy', 'Destroy explorer', this, this.destroy, ExplorerCommand.DESTROY_FLAGS_LIST),
           ),
       )
       .build();

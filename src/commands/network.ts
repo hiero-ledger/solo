@@ -1368,10 +1368,7 @@ export class NetworkCommand extends BaseCommand {
                 "If it hasn't the following command can be ran: `solo cluster-ref setup`",
               this,
               this.deploy,
-              (y: AnyYargs): void => {
-                flags.setRequiredCommandFlags(y, ...NetworkCommand.DEPLOY_FLAGS_LIST.required);
-                flags.setOptionalCommandFlags(y, ...NetworkCommand.DEPLOY_FLAGS_LIST.optional);
-              },
+              NetworkCommand.DEPLOY_FLAGS_LIST,
             ),
           )
           .addSubcommand(
@@ -1381,10 +1378,7 @@ export class NetworkCommand extends BaseCommand {
                 'the namespace will be deleted.',
               this,
               this.destroy,
-              (y: AnyYargs): void => {
-                flags.setRequiredCommandFlags(y, ...NetworkCommand.DESTROY_FLAGS_LIST.required);
-                flags.setOptionalCommandFlags(y, ...NetworkCommand.DESTROY_FLAGS_LIST.optional);
-              },
+              NetworkCommand.DESTROY_FLAGS_LIST,
             ),
           ),
       )

@@ -376,10 +376,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
               'Deploys all required components for the selected quick start configuration',
               this,
               this.deploy,
-              (y: AnyYargs): void => {
-                flags.setRequiredCommandFlags(y, ...DefaultQuickStartCommand.SINGLE_ADD_FLAGS_LIST.required);
-                flags.setOptionalCommandFlags(y, ...DefaultQuickStartCommand.SINGLE_ADD_FLAGS_LIST.optional);
-              },
+              DefaultQuickStartCommand.SINGLE_ADD_FLAGS_LIST,
             ),
           )
           .addSubcommand(
@@ -388,10 +385,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
               'Removes the deployed resources for the selected quick start configuration',
               this,
               this.destroy,
-              (y: AnyYargs): void => {
-                flags.setRequiredCommandFlags(y, ...DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST.required);
-                flags.setOptionalCommandFlags(y, ...DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST.optional);
-              },
+              DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST,
             ),
           ),
       )

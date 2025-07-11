@@ -519,16 +519,10 @@ export class RelayCommand extends BaseCommand {
       .addCommandGroup(
         new CommandGroup(RelayCommand.SUBCOMMAND_NAME, '')
           .addSubcommand(
-            new Subcommand('deploy', 'Deploy a JSON RPC relay', this, this.deploy, (y: AnyYargs): void => {
-              flags.setRequiredCommandFlags(y, ...RelayCommand.DEPLOY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...RelayCommand.DEPLOY_FLAGS_LIST.optional);
-            }),
+            new Subcommand('deploy', 'Deploy a JSON RPC relay', this, this.deploy, RelayCommand.DEPLOY_FLAGS_LIST),
           )
           .addSubcommand(
-            new Subcommand('destroy', 'Destroy JSON RPC relay', this, this.destroy, (y: AnyYargs): void => {
-              flags.setRequiredCommandFlags(y, ...RelayCommand.DESTROY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...RelayCommand.DESTROY_FLAGS_LIST.optional);
-            }),
+            new Subcommand('destroy', 'Destroy JSON RPC relay', this, this.destroy, RelayCommand.DESTROY_FLAGS_LIST),
           ),
       )
       .build();

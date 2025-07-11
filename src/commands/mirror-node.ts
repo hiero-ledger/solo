@@ -969,10 +969,7 @@ export class MirrorNodeCommand extends BaseCommand {
               'Deploy mirror-node and its components',
               this,
               this.deploy,
-              (y: AnyYargs): void => {
-                flags.setRequiredCommandFlags(y, ...MirrorNodeCommand.DEPLOY_FLAGS_LIST.required);
-                flags.setOptionalCommandFlags(y, ...MirrorNodeCommand.DEPLOY_FLAGS_LIST.optional);
-              },
+              MirrorNodeCommand.DEPLOY_FLAGS_LIST,
             ),
           )
           .addSubcommand(
@@ -981,10 +978,7 @@ export class MirrorNodeCommand extends BaseCommand {
               'Destroy mirror-node components and database',
               this,
               this.destroy,
-              (y: AnyYargs): void => {
-                flags.setRequiredCommandFlags(y, ...MirrorNodeCommand.DESTROY_FLAGS_LIST.required);
-                flags.setOptionalCommandFlags(y, ...MirrorNodeCommand.DESTROY_FLAGS_LIST.optional);
-              },
+              MirrorNodeCommand.DESTROY_FLAGS_LIST,
             ),
           ),
       )

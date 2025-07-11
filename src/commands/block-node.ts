@@ -8,13 +8,7 @@ import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {
-  type AnyListrContext,
-  type AnyYargs,
-  type ArgvStruct,
-  type NodeAlias,
-  type NodeAliases,
-} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct, type NodeAlias, type NodeAliases} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {
   type ClusterReferenceName,
@@ -472,7 +466,7 @@ export class BlockNodeCommand extends BaseCommand {
     return {
       title: 'Disable block node component in remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
-      task: async (context_): Promise<void> => {
+      task: async (): Promise<void> => {
         // TODO: Add support for multiple block nodes
         this.remoteConfig.configuration.components.removeComponent(0, ComponentTypes.BlockNode);
 
@@ -571,17 +565,9 @@ export class BlockNodeCommand extends BaseCommand {
     )
       .addCommandGroup(
         new CommandGroup(BlockNodeCommand.SUBCOMMAND_NAME, 'Manage block nodes in solo network')
+          .addSubcommand(new Subcommand('add', 'Add block node', this, this.add, BlockNodeCommand.ADD_FLAGS_LIST))
           .addSubcommand(
-            new Subcommand('add', 'Add block node', this, this.add, (y: AnyYargs): void => {
-              flags.setRequiredCommandFlags(y, ...BlockNodeCommand.ADD_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...BlockNodeCommand.ADD_FLAGS_LIST.optional);
-            }),
-          )
-          .addSubcommand(
-            new Subcommand('destroy', 'destroy block node', this, this.destroy, (y: AnyYargs): void => {
-              flags.setRequiredCommandFlags(y, ...BlockNodeCommand.DESTROY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...BlockNodeCommand.DESTROY_FLAGS_LIST.optional);
-            }),
+            new Subcommand('destroy', 'destroy block node', this, this.destroy, BlockNodeCommand.DESTROY_FLAGS_LIST),
           ),
       )
       .build();

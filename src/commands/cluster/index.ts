@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as ContextFlags from './flags.js';
-import {YargsCommand} from '../../core/yargs-command.js';
 import {BaseCommand} from './../base.js';
 import {type ClusterCommandHandlers} from './handlers.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
-import {type AnyYargs} from '../../types/aliases.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type CommandDefinition} from '../../types/index.js';
+import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';
 
 /**
  * Defines the core functionalities of 'node' command
@@ -21,86 +20,72 @@ export class ClusterCommand extends BaseCommand {
     this.handlers = patchInject(handlers, InjectTokens.ClusterCommandHandlers, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME = 'cluster-ref';
+  public static readonly COMMAND_NAME: 'cluster-ref' = 'cluster-ref' as const;
+  public static readonly SUBCOMMAND_NAME: 'cluster-ref' = 'cluster-ref' as const;
 
   public getCommandDefinition(): CommandDefinition {
-    return {
-      command: ClusterCommand.COMMAND_NAME,
-      desc: 'Manage solo testing cluster',
-      builder: (yargs: AnyYargs) => {
-        return yargs
-          .command(
-            new YargsCommand(
-              {
-                command: 'connect',
-                description: 'associates a cluster reference to a k8s context',
-                commandDef: this,
-                handler: 'connect',
-              },
+    return new CommandBuilder(ClusterCommand.COMMAND_NAME, 'Manage solo testing cluster', this.logger)
+      .addCommandGroup(
+        new CommandGroup(ClusterCommand.SUBCOMMAND_NAME, '')
+          .addSubcommand(
+            new Subcommand(
+              'connect',
+              'Associates a cluster reference to a k8s context',
+              this.handlers,
+              this.handlers.connect,
               ContextFlags.CONNECT_FLAGS,
             ),
           )
-          .command(
-            new YargsCommand(
-              {
-                command: 'disconnect',
-                description: 'dissociates a cluster reference from a k8s context',
-                commandDef: this,
-                handler: 'disconnect',
-              },
+          .addSubcommand(
+            new Subcommand(
+              'disconnect',
+              'dissociates a cluster reference from a k8s context',
+              this.handlers,
+              this.handlers.disconnect,
               ContextFlags.DEFAULT_FLAGS,
             ),
           )
-          .command(
-            new YargsCommand(
-              {
-                command: 'list',
-                description: 'List all available clusters',
-                commandDef: this,
-                handler: 'list',
-              },
+          .addSubcommand(
+            new Subcommand(
+              'list',
+              'List all available clusters',
+              this.handlers,
+              this.handlers.list,
               ContextFlags.NO_FLAGS,
             ),
           )
-          .command(
-            new YargsCommand(
-              {
-                command: 'info',
-                description: 'Get cluster info',
-                commandDef: this,
-                handler: 'info',
-              },
+          .addSubcommand(
+            new Subcommand(
+              'info',
+              'Get information about the cluster',
+              this.handlers,
+              this.handlers.info,
               ContextFlags.DEFAULT_FLAGS,
             ),
           )
-          .command(
-            new YargsCommand(
-              {
-                command: 'setup',
-                description: 'Setup cluster with shared components',
-                commandDef: this,
-                handler: 'setup',
-              },
+          .addSubcommand(
+            new Subcommand(
+              'setup',
+              'Setup cluster with shared components',
+              this.handlers,
+              this.handlers.setup,
               ContextFlags.SETUP_FLAGS,
             ),
           )
-          .command(
-            new YargsCommand(
-              {
-                command: 'reset',
-                description: 'Uninstall shared components from cluster',
-                commandDef: this,
-                handler: 'reset',
-              },
+          .addSubcommand(
+            new Subcommand(
+              'reset',
+              'Uninstall shared components from cluster',
+              this.handlers,
+              this.handlers.reset,
               ContextFlags.RESET_FLAGS,
             ),
-          )
-          .demandCommand(1, 'Select a context command');
-      },
-    };
+          ),
+      )
+      .build();
   }
 
-  close(): Promise<void> {
+  public close(): Promise<void> {
     // no-op
     return Promise.resolve();
   }
