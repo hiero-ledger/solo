@@ -423,7 +423,7 @@ export class RelayCommand extends BaseCommand {
               .getK8(context_.config.context)
               .pods()
               .readByReference(podReference)
-              .portForward(constants.JSON_RPC_RELAY_PORT, constants.JSON_RPC_RELAY_PORT);
+              .portForward(constants.JSON_RPC_RELAY_PORT, constants.JSON_RPC_RELAY_PORT, true);
             this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
             this.logger.addMessageGroupMessage(
               constants.PORT_FORWARDING_MESSAGE_GROUP,

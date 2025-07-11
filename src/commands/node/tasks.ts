@@ -1599,7 +1599,7 @@ export class NodeCommandTasks {
             .getK8(context)
             .pods()
             .readByReference(podReference)
-            .portForward(constants.GRPC_PORT, constants.GRPC_PORT);
+            .portForward(constants.GRPC_PORT, constants.GRPC_PORT, true);
           this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
           this.logger.addMessageGroupMessage(
             constants.PORT_FORWARDING_MESSAGE_GROUP,
