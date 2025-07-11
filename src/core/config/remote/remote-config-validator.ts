@@ -20,7 +20,7 @@ import {DeploymentStateSchema} from '../../../data/schema/model/remote/deploymen
 import {ExplorerStateSchema} from '../../../data/schema/model/remote/state/explorer-state-schema.js';
 import {SemVer} from 'semver';
 import {EXPLORER_OLD_VERSION_BEFORE_LABEL_CHANGE} from '../../../../version.js';
-import {RelayNodeStateSchema} from '../../../data/schema/model/remote/state/relay-node-state-schema.js';
+import {type RelayNodeStateSchema} from '../../../data/schema/model/remote/state/relay-node-state-schema.js';
 
 /**
  * Static class is used to validate that components in the remote config
@@ -42,12 +42,12 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     //  Add logic for selecting by specific label,
     //  when multiple instances can be deployed at the same time.
     const relayComponent = component as RelayNodeStateSchema;
-    const ids = relayComponent.consensusNodeIds;
-    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(component.metadata.id + 1);
-    // generate lable such as relay-node1 or relay-node1-node2
-    let label = 'relay'
-    for (let i = 0; i < ids.length; i++) {
-      label += '-' + Templates.renderNodeAliasFromNumber(ids[i] + 1);
+    const ids: number[] = relayComponent.consensusNodeIds;
+    console.log(`relayComponent.consensusNodeIds = ${JSON.stringify(relayComponent.consensusNodeIds)}`);
+    // generate label such as relay-node1 or relay-node1-node2
+    let label: string = 'relay';
+    for (const id of ids) {
+      label += '-' + Templates.renderNodeAliasFromNumber(id + 1);
     }
     return [`app.kubernetes.io/instance=${label}`];
   }
