@@ -30,7 +30,6 @@ import {
   type Optional,
   type SoloListrTask,
 } from '../types/index.js';
-import * as Base64 from 'js-base64';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
@@ -47,11 +46,12 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {type AccountId} from '@hashgraph/sdk';
 import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import * as semver from 'semver';
+import {AccountId} from '@hashgraph/sdk';
+import {Base64} from 'js-base64';
 import {Lock} from '../core/lock/lock.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 
@@ -184,17 +184,18 @@ export class MirrorNodeCommand extends BaseCommand {
     if (config.valuesFile) {
       valuesArgument += helpers.prepareValuesFiles(config.valuesFile);
     }
+    const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
+    const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
 
     if (config.storageBucket) {
-      valuesArgument += ` --set importer.config.hedera.mirror.importer.downloader.bucketName=${config.storageBucket}`;
+      valuesArgument += ` --set importer.config.${chartNamespace}.mirror.importer.downloader.bucketName=${config.storageBucket}`;
     }
     if (config.storageBucketPrefix) {
       this.logger.info(`Setting storage bucket prefix to ${config.storageBucketPrefix}`);
-      valuesArgument += ` --set importer.config.hedera.mirror.importer.downloader.pathPrefix=${config.storageBucketPrefix}`;
+      valuesArgument += ` --set importer.config.${chartNamespace}.mirror.importer.downloader.pathPrefix=${config.storageBucketPrefix}`;
     }
 
     let storageType = '';
-    const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
     if (
       config.storageType !== constants.StorageType.MINIO_ONLY &&
       config.storageReadAccessKey &&
@@ -418,7 +419,9 @@ export class MirrorNodeCommand extends BaseCommand {
               this.k8Factory.default().clusters().readCurrent();
 
             // predefined values first
-            context_.config.valuesArg += helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
+            context_.config.valuesArg += semver.lt(context_.config.mirrorNodeVersion, '0.130.0')
+              ? helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA)
+              : helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
             // user defined values later to override predefined values
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
 
@@ -433,44 +436,43 @@ export class MirrorNodeCommand extends BaseCommand {
               deploymentName,
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
+            const realm = this.localConfig.configuration.realmForDeployment(deploymentName);
+            const shard = this.localConfig.configuration.shardForDeployment(deploymentName);
+            const chartNamespace: string = this.getChartNamespace(context_.config.mirrorNodeVersion);
+
+            const modules = ['monitor', 'rest', 'grpc', 'importer', 'restJava', 'graphql', 'rosetta', 'web3'];
+            for (const module of modules) {
+              context_.config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.realm=${realm}`;
+              context_.config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.shard=${shard}`;
+            }
+
             if (context_.config.pinger) {
-              const startAccumulatorId: AccountId = this.accountManager.getStartAccountId(deploymentName);
-              const networkPods: Pod[] = await this.k8Factory
-                .getK8(context_.config.clusterContext)
-                .pods()
-                .list(namespace, ['solo.hedera.com/type=network-node']);
+              context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=5`;
 
-              if (networkPods.length > 0) {
-                const pod = networkPods[0];
-                context_.config.valuesArg += ` --set monitor.config.hedera.mirror.monitor.nodes.0.accountId=${startAccumulatorId}`;
-                context_.config.valuesArg += ` --set monitor.config.hedera.mirror.monitor.nodes.0.host=${pod.podIp}`;
-                context_.config.valuesArg += ' --set monitor.config.hedera.mirror.monitor.nodes.0.nodeId=0';
+              const operatorId: string =
+                context_.config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
+              context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
 
-                const operatorId: string =
-                  context_.config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
-                context_.config.valuesArg += ` --set monitor.config.hedera.mirror.monitor.operator.accountId=${operatorId}`;
-
-                if (context_.config.operatorKey) {
-                  this.logger.info('Using provided operator key');
-                  context_.config.valuesArg += ` --set monitor.config.hedera.mirror.monitor.operator.privateKey=${context_.config.operatorKey}`;
-                } else {
-                  try {
-                    const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
-                    const secrets = await this.k8Factory
-                      .getK8(context_.config.clusterContext)
-                      .secrets()
-                      .list(namespace, [`solo.hedera.com/account-id=${operatorId}`]);
-                    if (secrets.length === 0) {
-                      this.logger.info(`No k8s secret found for operator account id ${operatorId}, use default one`);
-                      context_.config.valuesArg += ` --set monitor.config.hedera.mirror.monitor.operator.privateKey=${constants.OPERATOR_KEY}`;
-                    } else {
-                      this.logger.info('Using operator key from k8s secret');
-                      const operatorKeyFromK8 = Base64.decode(secrets[0].data.privateKey);
-                      context_.config.valuesArg += ` --set monitor.config.hedera.mirror.monitor.operator.privateKey=${operatorKeyFromK8}`;
-                    }
-                  } catch (error) {
-                    throw new SoloError(`Error getting operator key: ${error.message}`, error);
+              if (context_.config.operatorKey) {
+                this.logger.info('Using provided operator key');
+                context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${context_.config.operatorKey}`;
+              } else {
+                try {
+                  const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+                  const secrets = await this.k8Factory
+                    .getK8(context_.config.clusterContext)
+                    .secrets()
+                    .list(namespace, [`solo.hedera.com/account-id=${operatorId}`]);
+                  if (secrets.length === 0) {
+                    this.logger.info(`No k8s secret found for operator account id ${operatorId}, use default one`);
+                    context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${constants.OPERATOR_KEY}`;
+                  } else {
+                    this.logger.info('Using operator key from k8s secret');
+                    const operatorKeyFromK8 = Base64.decode(secrets[0].data.privateKey);
+                    context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${operatorKeyFromK8}`;
                   }
+                } catch (error) {
+                  throw new SoloError(`Error getting operator key: ${error.message}`, error);
                 }
               }
             }
@@ -805,6 +807,10 @@ export class MirrorNodeCommand extends BaseCommand {
 
   private getEnvironmentVariablePrefix(version: string): string {
     return semver.lt(version, '0.130.0') ? 'HEDERA' : 'HIERO';
+  }
+
+  private getChartNamespace(version: string): string {
+    return semver.lt(version, '0.130.0') ? 'hedera' : 'hiero';
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
