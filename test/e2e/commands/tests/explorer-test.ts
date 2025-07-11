@@ -17,6 +17,7 @@ import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
+import {MirrorNodeTest} from './mirror-node-test.js';
 
 export class ExplorerTest extends BaseCommandTest {
   private static soloExplorerDeployArgv(
@@ -99,9 +100,12 @@ export class ExplorerTest extends BaseCommandTest {
         request.end(); // make the request
         await sleep(Duration.ofSeconds(2));
       }
-    } catch (error) {
-      // do not stop portforward since it will be used by smoke test
-      testLogger.debug(`problem with request: ${error.message}`, error);
+    } finally {
+      if (portForwarder) {
+        // eslint-disable-next-line unicorn/no-null
+        await k8.pods().readByReference(null).stopPortForward(portForwarder);
+      }
+
     }
   }
 
@@ -113,6 +117,12 @@ export class ExplorerTest extends BaseCommandTest {
     it(`${testName}: explorer deploy`, async (): Promise<void> => {
       await main(soloExplorerDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
       await verifyExplorerDeployWasSuccessful(contexts, namespace, createdAccountIds, testLogger);
+
+      // kubectl port-forward -n solo-e2e svc/hiero-explorer 8080:80
+      MirrorNodeTest.executeBackgroundCommand(
+        `kubectl port-forward -n "${namespace.name}" svc/hiero-explorer 8080:80`,
+        'Explorer Port Forward',
+      );
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 }

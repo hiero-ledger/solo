@@ -17,7 +17,7 @@ import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
 
-import {execSync} from 'node:child_process';
+import {execSync, spawn} from 'node:child_process';
 import * as constants from '../../../../src/core/constants.js';
 import fs from 'node:fs';
 
@@ -47,6 +47,37 @@ export class MirrorNodeTest extends BaseCommandTest {
       if (error.stderr) {
         testLogger.info('stderr:', error.stderr);
       }
+      throw error;
+    }
+  }
+
+  /**
+   * Execute a command in the background without waiting for it to complete
+   * @param command The command to execute in background
+   * @param label A descriptive label for the command (used in logs)
+   */
+  static executeBackgroundCommand(command: string, label: string): void {
+    console.log(`${label} background command:`);
+    console.log(command);
+
+    try {
+      // Remove any trailing & as we'll handle the background process ourselves
+      const cleanCommand = command.replace(/\s*&\s*$/, '');
+
+      // For background commands, we use spawn instead of execSync
+      const process = spawn(cleanCommand, {
+        shell: true,
+        detached: true,
+        stdio: 'ignore',
+      });
+
+      // Unref the child process so the parent can exit independently
+      process.unref();
+
+      console.log(`${label} background command started with PID: ${process.pid}`);
+    } catch (error) {
+      console.error(`${label} background command failed to start:`);
+      console.error(error.message);
       throw error;
     }
   }
@@ -277,7 +308,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       consensusNodesCount,
       pinger,
     } = options;
-    const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, optionFromFlag} = MirrorNodeTest;
+    const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, verifyPingerStatus, optionFromFlag} = MirrorNodeTest;
 
     it(`${testName}: mirror node deploy with external database`, async (): Promise<void> => {
       const argv = soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger);
@@ -305,6 +336,7 @@ export class MirrorNodeTest extends BaseCommandTest {
         createdAccountIds,
         consensusNodesCount,
       );
+      await verifyPingerStatus(contexts, namespace, pinger);
     }).timeout(Duration.ofMinutes(10).toMillis());
 
     it('Enable port-forward for mirror node gRPC', async (): Promise<void> => {
@@ -318,7 +350,13 @@ export class MirrorNodeTest extends BaseCommandTest {
           'app.kubernetes.io/component=grpc',
         ]);
       const mirrorNodePod: Pod = mirrorNodePods[0];
-      await k8.pods().readByReference(mirrorNodePod.podReference).portForward(5600, 5600);
+      // await k8.pods().readByReference(mirrorNodePod.podReference).portForward(5600, 5600);
+
+      // kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-grpc 5600:5600
+      MirrorNodeTest.executeBackgroundCommand(
+        `kubectl port-forward -n "${namespace.name}" svc/mirror-grpc 5600:5600`,
+        'Mirror Port Forward',
+      );
     });
   }
 

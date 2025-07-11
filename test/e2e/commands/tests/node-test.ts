@@ -29,6 +29,7 @@ import {
   type TransactionResponse,
 } from '@hashgraph/sdk';
 import {type BaseTestOptions} from './base-test-options.js';
+import {MirrorNodeTest} from './mirror-node-test.js';
 
 export class NodeTest extends BaseCommandTest {
   private static soloNodeKeysArgv(testName: string, deployment: DeploymentName): string[] {
@@ -223,7 +224,11 @@ export class NodeTest extends BaseCommandTest {
       if (networkNodePod.length === 0) {
         throw new Error('No network-node pods found with the specified label selector.');
       }
-      await k8.pods().readByReference(networkNodePod[0].podReference).portForward(50_211, 50_211);
+      // await k8.pods().readByReference(networkNodePod[0].podReference).portForward(50_211, 50_211);
+      MirrorNodeTest.executeBackgroundCommand(
+        `kubectl port-forward -n "${namespace.name}" svc/haproxy-node1-svc 50211:50211`,
+        'Haproxy Port Forward',
+      );
     });
   }
 }
