@@ -15,7 +15,7 @@ import {
 import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {type AnyListrContext, type AnyYargs, type ArgvStruct, type NodeAlias} from '../types/aliases.js';
+import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
@@ -449,10 +449,8 @@ export class ExplorerCommand extends BaseCommand {
           title: 'Enable port forwarding',
           skip: context_ => !context_.config.forcePortForward,
           task: async context_ => {
-            const nodeAlias: NodeAlias = 'node1';
-            const context = this.remoteConfig.extractContextFromConsensusNodes(nodeAlias);
             const pods: Pod[] = await this.k8Factory
-              .getK8(context)
+              .getK8(context_.config.clusterContext)
               .pods()
               .list(context_.config.namespace, ['app.kubernetes.io/instance=hiero-explorer']);
             if (pods.length === 0) {
@@ -461,7 +459,7 @@ export class ExplorerCommand extends BaseCommand {
             const podReference: PodReference = pods[0].podReference;
 
             await this.k8Factory
-              .getK8(context)
+              .getK8(context_.config.clusterContext)
               .pods()
               .readByReference(podReference)
               .portForward(constants.EXPLORER_PORT, constants.EXPLORER_PORT);
