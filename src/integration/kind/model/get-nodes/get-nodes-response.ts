@@ -6,7 +6,7 @@ export class GetNodesResponse {
 
   public constructor() {
     // eslint-disable-next-line prefer-rest-params
-    this._rawOutput = Array.from(arguments).join('\n');
+    this._rawOutput = [...arguments].join('\n');
 
     // Check if the output indicates no nodes were found
     // If the output doesn't contain nodes, leave _nodes empty

@@ -6,7 +6,6 @@ import {DefaultKindClient} from '../../../../../src/integration/kind/impl/defaul
 import {KindExecutionBuilder} from '../../../../../src/integration/kind/execution/kind-execution-builder.js';
 import {KindExecution} from '../../../../../src/integration/kind/execution/kind-execution.js';
 import {ExportKubeconfigResponse} from '../../../../../src/integration/kind/model/export-kubeconfig/export-kubeconfig-response.js';
-import {ExportKubeconfigOptionsBuilder} from '../../../../../src/integration/kind/model/export-kubeconfig/export-kubeconfig-options-builder.js';
 
 describe('DefaultKindClient - exportKubeconfig', () => {
   let client: DefaultKindClient;
@@ -84,7 +83,7 @@ describe('DefaultKindClient - exportKubeconfig', () => {
 
     // Output with default 'kind' cluster name
     executionStub.responseAs.callsFake((responseClass: any) => {
-      const output = `Set kubectl context to "kind-kind"`;
+      const output = 'Set kubectl context to "kind-kind"';
       return Promise.resolve(new responseClass(output));
     });
 
@@ -97,7 +96,7 @@ describe('DefaultKindClient - exportKubeconfig', () => {
   it('should handle malformed output response', async () => {
     executionStub.responseAs.callsFake((responseClass: any) => {
       // Output missing the expected format
-      const output = `Kubeconfig exported but no context information provided`;
+      const output = 'Kubeconfig exported but no context information provided';
       return Promise.resolve(new responseClass(output));
     });
 

@@ -17,7 +17,7 @@ export class GetKubeconfigOptions implements Options {
    */
   private readonly _internal: boolean;
 
-  constructor(name?: string, internal: boolean = false) {
+  public constructor(name?: string, internal: boolean = false) {
     if (name) {
       this._name = name;
     }

@@ -19,7 +19,7 @@ export class GetKubeconfigResponse {
 
   public constructor() {
     // eslint-disable-next-line prefer-rest-params
-    this._rawOutput = Array.from(arguments).join('\n');
+    this._rawOutput = [...arguments].join('\n');
 
     try {
       // Parse the YAML output

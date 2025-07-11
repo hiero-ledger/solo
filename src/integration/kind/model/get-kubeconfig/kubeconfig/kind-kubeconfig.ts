@@ -5,7 +5,7 @@ import {type KindKubeconfigCluster} from './kind-kubeconfig-custer.js';
 import {type KindKubeconfigContext} from './kind-kubeconfig-context.js';
 
 export class KindKubeconfig {
-  constructor(
+  public constructor(
     public readonly apiVersion: string,
     public readonly clusters: KindKubeconfigCluster[],
     public readonly contexts: KindKubeconfigContext[],

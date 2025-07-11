@@ -92,7 +92,7 @@ describe('DefaultKindClient.loadImageArchive', () => {
     const imageName: string = 'test-archive.tar';
     const clusterName: string = 'custom-cluster';
     const options: LoadImageArchiveOptions = new LoadImageArchiveOptions(clusterName);
-    const mockOutput: string = `Image archive loaded successfully`;
+    const mockOutput: string = 'Image archive loaded successfully';
 
     executionStub.responseAs.callsFake((responseClass: any) => {
       return Promise.resolve(new responseClass(mockOutput));
@@ -108,7 +108,7 @@ describe('DefaultKindClient.loadImageArchive', () => {
     const imageName: string = 'test-archive.tar';
     const nodes: string = 'control-plane,worker1,worker2';
     const options: LoadImageArchiveOptions = new LoadImageArchiveOptions(undefined, nodes);
-    const mockOutput: string = `Image archive loaded successfully`;
+    const mockOutput: string = 'Image archive loaded successfully';
 
     executionStub.responseAs.callsFake((responseClass: any) => {
       return Promise.resolve(new responseClass(mockOutput));
@@ -125,7 +125,7 @@ describe('DefaultKindClient.loadImageArchive', () => {
     const clusterName: string = 'custom-cluster';
     const nodes: string = 'worker1,worker2';
     const options: LoadImageArchiveOptions = new LoadImageArchiveOptions(clusterName, nodes);
-    const mockOutput: string = `Image archive loaded successfully`;
+    const mockOutput: string = 'Image archive loaded successfully';
 
     executionStub.responseAs.callsFake((responseClass: any) => {
       return Promise.resolve(new responseClass(mockOutput));
@@ -140,7 +140,7 @@ describe('DefaultKindClient.loadImageArchive', () => {
 
   it('should handle archive paths with special characters', async () => {
     const imageName: string = '/path/to/archive with spaces.tar';
-    const mockOutput: string = `Image archive loaded successfully`;
+    const mockOutput: string = 'Image archive loaded successfully';
 
     executionStub.responseAs.callsFake((responseClass: any) => {
       return Promise.resolve(new responseClass(mockOutput));

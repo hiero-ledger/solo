@@ -6,7 +6,6 @@ import {DefaultKindClient} from '../../../../../src/integration/kind/impl/defaul
 import {KindExecutionBuilder} from '../../../../../src/integration/kind/execution/kind-execution-builder.js';
 import {KindExecution} from '../../../../../src/integration/kind/execution/kind-execution.js';
 import {ExportLogsResponse} from '../../../../../src/integration/kind/model/export-logs/export-logs-response.js';
-import {ExportLogsOptionsBuilder} from '../../../../../src/integration/kind/model/export-logs/export-logs-options-builder.js';
 
 describe('DefaultKindClient - exportLogs', () => {
   let client: DefaultKindClient;
@@ -110,7 +109,7 @@ to:
   it('should handle malformed output response', async () => {
     executionStub.responseAs.callsFake((responseClass: any) => {
       // Output missing the destination path
-      const output = `Exporting logs for cluster "malformed-output"`;
+      const output = 'Exporting logs for cluster "malformed-output"';
       return Promise.resolve(new responseClass(output));
     });
 

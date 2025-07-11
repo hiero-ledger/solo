@@ -60,7 +60,7 @@ export class KindExecutionBuilder {
   /**
    * Creates a new KindExecutionBuilder instance.
    */
-  constructor(
+  public constructor(
     @inject(InjectTokens.OsPlatform) private readonly osPlatform?: NodeJS.Platform,
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
   ) {

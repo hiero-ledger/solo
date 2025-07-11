@@ -7,7 +7,7 @@ export class KindExecutionException extends Error {
   /**
    * The default message to use when no message is provided
    */
-  private static readonly DEFAULT_MESSAGE = 'Execution of the Kind command failed with exit code: %d';
+  private static readonly DEFAULT_MESSAGE: string = 'Execution of the Kind command failed with exit code: %d';
 
   /**
    * The non-zero system exit code returned by the Kind executable or the operating system
@@ -24,7 +24,7 @@ export class KindExecutionException extends Error {
    */
   private readonly stdErr: string;
 
-  constructor(
+  public constructor(
     exitCode: number,
     messageOrStdOutOrCause?: string | Error,
     stdErrorOrCause?: string | Error,
