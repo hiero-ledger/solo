@@ -32,7 +32,7 @@ import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {Lock} from '../core/lock/lock.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
-import {PodName} from '../integration/kube/resources/pod/pod-name.js';
+import {Pod} from '../integration/kube/resources/pod/pod.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -408,11 +408,17 @@ export class RelayCommand extends BaseCommand {
         {
           title: 'Enable port forwarding',
           task: async (context_): Promise<void> => {
-            const nodeAlias: NodeAlias = context_.config.nodeAliases[0];
-            const podReference: PodReference = PodReference.of(
-              context_.config.namespace,
-              PodName.of(`network-${nodeAlias}-0`), // TODO pod name of the relay
-            );
+            const pods: Pod[] = await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .pods()
+              .list(context_.config.namespace, [
+                'app=hedera-json-rpc-relay',
+                `app.kubernetes.io/instance=${context_.config.releaseName}`,
+              ]);
+            if (pods.length === 0) {
+              throw new SoloError('No Relay pod found');
+            }
+            const podReference: PodReference = pods[0].podReference;
             await this.k8Factory
               .getK8(context_.config.context)
               .pods()
