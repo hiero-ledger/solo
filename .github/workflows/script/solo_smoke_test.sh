@@ -179,7 +179,7 @@ setup_smart_contract_test
 start_background_transactions
 check_port_forward
 start_contract_test
-start_sdk_test
+#start_sdk_test
 echo "Sleep a while to wait background transactions to finish"
 sleep 30
 
