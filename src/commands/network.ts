@@ -25,7 +25,6 @@ import {type ProfileManager} from '../core/profile-manager.js';
 import {type CertificateManager} from '../core/certificate-manager.js';
 import {
   type AnyListrContext,
-  type AnyYargs,
   type ArgvStruct,
   type IP,
   type NodeAlias,

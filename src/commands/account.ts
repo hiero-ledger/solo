@@ -29,6 +29,7 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
+import {CommandFlags} from '../types/flag-types.js';
 
 interface UpdateAccountConfig {
   accountId: string;
@@ -70,12 +71,12 @@ export class AccountCommand extends BaseCommand {
   public static readonly COMMAND_NAME: 'ledger' = 'ledger' as const;
   public static readonly SUBCOMMAND_NAME: 'account' = 'account' as const;
 
-  private static INIT_FLAGS_LIST = {
+  private static INIT_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.deployment, flags.nodeAliasesUnparsed, flags.clusterRef],
   };
 
-  private static CREATE_FLAGS_LIST = {
+  private static CREATE_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.amount,
@@ -89,7 +90,7 @@ export class AccountCommand extends BaseCommand {
     ],
   };
 
-  private static UPDATE_FLAGS_LIST = {
+  private static UPDATE_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.accountId,
@@ -101,7 +102,7 @@ export class AccountCommand extends BaseCommand {
     ],
   };
 
-  private static GET_FLAGS_LIST = {
+  private static GET_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.accountId, flags.privateKey, flags.deployment, flags.clusterRef],
   };

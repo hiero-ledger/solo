@@ -19,7 +19,7 @@ import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
-import {type AnyYargs, type ArgvStruct} from '../types/aliases.js';
+import {type ArgvStruct} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as fs from 'node:fs';
@@ -50,7 +50,6 @@ import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirr
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import * as semver from 'semver';
-import {AccountId} from '@hashgraph/sdk';
 import {Base64} from 'js-base64';
 import {Lock} from '../core/lock/lock.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
@@ -122,7 +121,7 @@ export class MirrorNodeCommand extends BaseCommand {
   public static readonly COMMAND_NAME: 'mirror' = 'mirror' as const;
   public static readonly SUBCOMMAND_NAME: 'node' = 'node' as const;
 
-  private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
+  private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
   private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],

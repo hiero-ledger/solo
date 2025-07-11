@@ -15,7 +15,7 @@ import {
 import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
@@ -39,6 +39,7 @@ import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirr
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {Lock} from '../core/lock/lock.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
+import {CommandFlags} from '../types/flag-types.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -80,7 +81,7 @@ interface ExplorerDestroyContext {
 
 @injectable()
 export class ExplorerCommand extends BaseCommand {
-  public static readonly DEPLOY_COMMAND = 'explorer deploy';
+  public static readonly DEPLOY_COMMAND: string = 'explorer deploy';
 
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
@@ -96,9 +97,9 @@ export class ExplorerCommand extends BaseCommand {
   public static readonly COMMAND_NAME: 'explorer' = 'explorer' as const;
   public static readonly SUBCOMMAND_NAME: 'node' = 'node' as const;
 
-  private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
+  private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
-  private static readonly DEPLOY_FLAGS_LIST = {
+  private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.cacheDir,
@@ -124,14 +125,11 @@ export class ExplorerCommand extends BaseCommand {
     ],
   };
 
-  private static readonly DESTROY_FLAGS_LIST = {
+  private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.deployment],
   };
 
-  /**
-   * @param config - the configuration object
-   */
   private async prepareHederaExplorerValuesArg(config: ExplorerDeployConfigClass): Promise<string> {
     let valuesArgument: string = '';
 
@@ -182,9 +180,6 @@ export class ExplorerCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  /**
-   * @param config - the configuration object
-   */
   private async prepareCertManagerChartValuesArg(config: ExplorerDeployConfigClass): Promise<string> {
     const {tlsClusterIssuerType, namespace} = config;
 
@@ -213,7 +208,7 @@ export class ExplorerCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private async prepareValuesArg(config: ExplorerDeployConfigClass) {
+  private async prepareValuesArg(config: ExplorerDeployConfigClass): Promise<string> {
     let valuesArgument = '';
     if (config.valuesFile) {
       valuesArgument += prepareValuesFiles(config.valuesFile);

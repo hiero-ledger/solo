@@ -22,7 +22,7 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterChecks} from '../core/cluster-checks.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
-import {type AnyYargs, type ArgvStruct, type NodeAliases} from '../types/aliases.js';
+import {type ArgvStruct, type NodeAliases} from '../types/aliases.js';
 import {Templates} from '../core/templates.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
@@ -32,6 +32,7 @@ import {type ComponentFactoryApi} from '../core/config/remote/api/component-fact
 import {StringFacade} from '../business/runtime-state/facade/string-facade.js';
 import {Deployment} from '../business/runtime-state/config/local/deployment.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
+import {CommandFlags} from '../types/flag-types.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -70,20 +71,20 @@ export class DeploymentCommand extends BaseCommand {
     this.tasks = patchInject(tasks, InjectTokens.ClusterCommandTasks, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME = 'deployment';
-  public static readonly SUBCOMMAND_NAME = 'config';
+  public static readonly COMMAND_NAME: 'deployment' = 'deployment' as const;
+  public static readonly SUBCOMMAND_NAME: 'config' = 'config' as const;
 
-  private static CREATE_FLAGS_LIST = {
+  private static CREATE_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.quiet, flags.namespace, flags.deployment, flags.realm, flags.shard],
   };
 
-  private static DELETE_FLAGS_LIST = {
+  private static DELETE_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.quiet, flags.deployment],
   };
 
-  private static ADD_CLUSTER_FLAGS_LIST = {
+  private static ADD_CLUSTER_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.quiet,
@@ -96,7 +97,7 @@ export class DeploymentCommand extends BaseCommand {
     ],
   };
 
-  private static LIST_DEPLOYMENTS_FLAGS_LIST = {
+  private static LIST_DEPLOYMENTS_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.quiet, flags.clusterRef],
   };
@@ -441,7 +442,7 @@ export class DeploymentCommand extends BaseCommand {
 
     return {
       title: 'Initialize',
-      task: async (context_, task) => {
+      task: async (context_, task): Promise<void> => {
         await self.localConfig.load();
 
         this.configManager.update(argv);
