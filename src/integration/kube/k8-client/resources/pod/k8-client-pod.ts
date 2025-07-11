@@ -101,7 +101,7 @@ export class K8ClientPod implements Pod {
           'is connected to terminates.',
         );
         await new ShellRunner().run(
-          `kubectl port-forward pods/${this.podReference.name} ${localPort}:${podPort}`,
+          `kubectl port-forward -n ${this.podReference.namespace.name} pods/${this.podReference.name} ${localPort}:${podPort}`,
           [],
           false,
           true,
