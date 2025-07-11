@@ -470,12 +470,13 @@ export class ExplorerCommand extends BaseCommand {
             );
           },
         },
-        {
-          title: 'Show user messages',
-          task: (): void => {
-            this.logger.showAllMessageGroups();
-          },
-        },
+        // TODO only show this if we are not running in quick-start mode
+        // {
+        //   title: 'Show user messages',
+        //   task: (): void => {
+        //     this.logger.showAllMessageGroups();
+        //   },
+        // },
       ],
       {
         concurrent: false,

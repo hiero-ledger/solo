@@ -432,12 +432,13 @@ export class RelayCommand extends BaseCommand {
           },
           skip: context_ => !context_.config.forcePortForward,
         },
-        {
-          title: 'Show user messages',
-          task: (): void => {
-            this.logger.showAllMessageGroups();
-          },
-        },
+        // TODO only show this if we are not running in quick-start mode
+        // {
+        //   title: 'Show user messages',
+        //   task: (): void => {
+        //     this.logger.showAllMessageGroups();
+        //   },
+        // },
       ],
       {
         concurrent: false,
