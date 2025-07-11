@@ -39,6 +39,14 @@ import {GetKubeconfigOptionsBuilder} from '../model/get-kubeconfig/get-kubeconfi
 import {GetKubeconfigOptions} from '../model/get-kubeconfig/get-kubeconfig-options.js';
 import {GetKubeconfigRequest} from '../request/get/get-kubeconfig-request.js';
 import {GetKubeconfigResponse} from '../model/get-kubeconfig/get-kubeconfig-response.js';
+import {LoadDockerImageOptions} from '../model/load-docker-image/load-docker-image-options.js';
+import {LoadDockerImageRequest} from '../request/load/docker-image.js';
+import {LoadDockerImageResponse} from '../model/load-docker-image/load-docker-image-response.js';
+import {LoadDockerImageOptionsBuilder} from '../model/load-docker-image/load-docker-image-options-builder.js';
+import {LoadImageArchiveOptions} from '../model/load-image-archive/load-image-archive-options.js';
+import {LoadImageArchiveOptionsBuilder} from '../model/load-image-archive/load-image-archive-options-builder.js';
+import {LoadImageArchiveResponse} from '../model/load-image-archive/load-image-archive-response.js';
+import {LoadImageArchiveRequest} from '../request/load/image-archive.js';
 
 type BiFunction<T, U, R> = (t: T, u: U) => R;
 
@@ -105,14 +113,17 @@ export class DefaultKindClient implements KindClient {
     return this.executeAsync(new GetKubeconfigRequest(builder.build()), GetKubeconfigResponse);
   }
 
-  public async loadImages(clusterName: string, imageNames: string[]): Promise<void> {
-    // @ts-ignore
-    return;
+  public async loadDockerImage(imageName: string, options?: LoadDockerImageOptions): Promise<LoadDockerImageResponse> {
+    const builder: LoadDockerImageOptionsBuilder = LoadDockerImageOptionsBuilder.from(options).name(imageName);
+    return this.executeAsync(new LoadDockerImageRequest(builder.build()), LoadDockerImageResponse);
   }
 
-  public async loadImageArchive(clusterName: string, archivePath: string): Promise<void> {
-    // @ts-ignore
-    return;
+  public async loadImageArchive(
+    imageName: string,
+    options?: LoadImageArchiveOptions,
+  ): Promise<LoadImageArchiveResponse> {
+    const builder: LoadImageArchiveOptionsBuilder = LoadImageArchiveOptionsBuilder.from(options).name(imageName);
+    return this.executeAsync(new LoadImageArchiveRequest(builder.build()), LoadImageArchiveResponse);
   }
 
   /**

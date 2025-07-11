@@ -16,6 +16,7 @@ describe('DefaultKindClient - getKubeconfig', () => {
 
     // Mock the KindExecution that will be returned from the builder
     mockExecution = {
+      // @ts-expect-error TS2554: Expected 0 arguments, but got 1
       responseAs: sinon.stub().resolves(new GetKubeconfigResponse(getSampleKubeconfig())),
     } as unknown as KindExecution;
 
@@ -67,7 +68,8 @@ describe('DefaultKindClient - getKubeconfig', () => {
 
   it('should handle error when parsing invalid YAML', async () => {
     try {
-      new GetKubeconfigResponse('invalid: yaml: {')
+      // @ts-expect-error TS2554: Expected 0 arguments, but got 1
+      new GetKubeconfigResponse('invalid: yaml: {');
       expect.fail('Expected error to be thrown');
     } catch (error) {
       expect(error).to.be.instanceOf(Error);

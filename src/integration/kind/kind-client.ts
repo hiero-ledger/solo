@@ -10,11 +10,14 @@ import {type BuildNodeImagesResponse} from './model/build-node-images/build-node
 import {type BuildNodeImagesOptions} from './model/build-node-images/build-node-images-options.js';
 import {type ExportLogsResponse} from './model/export-logs/export-logs-response.js';
 import {type ExportKubeconfigResponse} from './model/export-kubeconfig/export-kubeconfig-response.js';
-import {GetNodesOptions} from './model/get-nodes/get-nodes-options.js';
-import {GetNodesRequest} from './request/get/get-nodes-request.js';
-import {GetNodesResponse} from './model/get-nodes/get-nodes-response.js';
-import {GetKubeconfigOptions} from './model/get-kubeconfig/get-kubeconfig-options.js';
-import {GetKubeconfigResponse} from './model/get-kubeconfig/get-kubeconfig-response.js';
+import {type GetNodesOptions} from './model/get-nodes/get-nodes-options.js';
+import {type GetNodesResponse} from './model/get-nodes/get-nodes-response.js';
+import {type GetKubeconfigOptions} from './model/get-kubeconfig/get-kubeconfig-options.js';
+import {type GetKubeconfigResponse} from './model/get-kubeconfig/get-kubeconfig-response.js';
+import {type LoadDockerImageOptions} from './model/load-docker-image/load-docker-image-options.js';
+import {type LoadDockerImageResponse} from './model/load-docker-image/load-docker-image-response.js';
+import {type LoadImageArchiveOptions} from './model/load-image-archive/load-image-archive-options.js';
+import {type LoadImageArchiveResponse} from './model/load-image-archive/load-image-archive-response.js';
 
 /**
  * The KindClient is a bridge between TypeScript and the Kind CLI.
@@ -97,16 +100,16 @@ export interface KindClient {
   /**
    * Loads the specified images into the Kind cluster.
    *
-   * @param clusterName the name of the cluster to load images into.
-   * @param imageNames the names of the images to load.
+   * @param imageName the names of the images to load.
+   * @param options the options to use for loading the images
    */
-  loadImages(clusterName: string, imageNames: string[]): Promise<void>;
+  loadDockerImage(imageName: string, options?: LoadDockerImageOptions): Promise<LoadDockerImageResponse>;
 
   /**
    * Loads an image archive into the Kind cluster.
    *
-   * @param clusterName the name of the cluster to load the image archive into.
-   * @param archivePath the path to the image archive file.
+   * @param imageName the name of the images to load from the archive.
+   * @param options the options to use for loading the image archive
    */
-  loadImageArchive(clusterName: string, archivePath: string): Promise<void>;
+  loadImageArchive(imageName: string, options?: LoadImageArchiveOptions): Promise<LoadImageArchiveResponse>;
 }
