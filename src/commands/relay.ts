@@ -198,9 +198,9 @@ export class RelayCommand extends BaseCommand {
 
     const networkJsonString = await this.prepareNetworkJsonString(nodeAliases, namespace);
     console.log(`networkJsonString = ${networkJsonString}`);
-    valuesArgument += ` --set relay.config.HEDERA_NETWORK='${networkJsonString}'`;
-    const wsNetworkJsonString = '{"10.96.238.53:50211":"0.0.3"}';
-    valuesArgument += ` --set ws.config.HEDERA_NETWORK='${wsNetworkJsonString}'`;
+    valuesArgument += ` --set relay.config.HEDERA_NETWORK=' ${networkJsonString}'`;
+    const wsNetworkJsonString = networkJsonString;
+    valuesArgument += ` --set ws.config.HEDERA_NETWORK=' ${wsNetworkJsonString}'`;
 
     if (domainName) {
       valuesArgument += helpers.populateHelmArguments({
