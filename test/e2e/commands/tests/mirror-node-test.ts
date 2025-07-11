@@ -30,22 +30,22 @@ export class MirrorNodeTest extends BaseCommandTest {
    * @throws Error if the command fails
    */
   static executeCommand(command: string, label: string, testLogger: SoloLogger): string {
-    testLogger.info(`${label} command:`);
-    testLogger.info(command);
+    console.log(`${label} command:`);
+    console.log(command);
 
     try {
       const stdout = execSync(command, {encoding: 'utf8'});
-      testLogger.info(`${label} succeeded:`);
-      testLogger.info(stdout || '(No output)');
+      console.log(`${label} succeeded:`);
+      console.log(stdout || '(No output)');
       return stdout;
     } catch (error) {
-      testLogger.error(`${label} failed:`);
-      testLogger.error(error.message);
+      console.error(`${label} failed:`);
+      console.error(error.message);
       if (error.stdout) {
-        testLogger.info('stdout:', error.stdout);
+        console.log('stdout:', error.stdout);
       }
       if (error.stderr) {
-        testLogger.info('stderr:', error.stderr);
+        console.log('stderr:', error.stderr);
       }
       throw error;
     }
