@@ -1566,7 +1566,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public enablePortForwarding() {
+  public enablePortForwarding(enablePortForwardHaProxy: boolean = false) {
     return {
       title: 'Enable port forwarding',
       task: async context_ => {
@@ -1586,7 +1586,7 @@ export class NodeCommandTasks {
             .readByReference(podReference)
             .portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT);
         }
-        if (context_.config.forcePortForward) {
+        if (context_.config.forcePortForward && enablePortForwardHaProxy) {
           const pods: Pod[] = await this.k8Factory
             .getK8(context)
             .pods()
