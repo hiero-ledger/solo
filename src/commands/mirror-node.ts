@@ -774,7 +774,7 @@ export class MirrorNodeCommand extends BaseCommand {
               .getK8(context_.config.clusterContext)
               .pods()
               .readByReference(podReference)
-              .portForward(constants.MIRROR_NODE_PORT, constants.MIRROR_NODE_PORT);
+              .portForward(constants.MIRROR_NODE_PORT, constants.MIRROR_NODE_PORT, true);
             this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
             this.logger.addMessageGroupMessage(
               constants.PORT_FORWARDING_MESSAGE_GROUP,
