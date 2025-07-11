@@ -39,7 +39,7 @@ import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirr
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {Lock} from '../core/lock/lock.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
-import {PodName} from '../integration/kube/resources/pod/pod-name.js';
+import {Pod} from '../integration/kube/resources/pod/pod.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -451,10 +451,14 @@ export class ExplorerCommand extends BaseCommand {
           task: async context_ => {
             const nodeAlias: NodeAlias = 'node1';
             const context = this.remoteConfig.extractContextFromConsensusNodes(nodeAlias);
-            const podReference: PodReference = PodReference.of(
-              context_.config.namespace,
-              PodName.of(`network-${nodeAlias}-0`), // TODO pod name of the explorer pod
-            );
+            const pods: Pod[] = await this.k8Factory
+              .getK8(context)
+              .pods()
+              .list(context_.config.namespace, ['app.kubernetes.io/instance=hiero-explorer']);
+            if (pods.length === 0) {
+              throw new SoloError('No Hiero Explorer pod found');
+            }
+            const podReference: PodReference = pods[0].podReference;
 
             await this.k8Factory
               .getK8(context)
