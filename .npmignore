@@ -16,9 +16,6 @@ examples/
 images/
 solo-compose/
 
-# Docs
-*.md
-
 # Configs
 .c8rc.json
 .codacy.yaml
