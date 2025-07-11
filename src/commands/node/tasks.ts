@@ -1572,11 +1572,12 @@ export class NodeCommandTasks {
       task: async context_ => {
         const nodeAlias: NodeAlias = context_.config.debugNodeAlias || 'node1';
         const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
-        const podReference: PodReference = PodReference.of(
-          context_.config.namespace,
-          PodName.of(`network-${nodeAlias}-0`),
-        );
+
         if (context_.config.debugNodeAlias) {
+          const podReference: PodReference = PodReference.of(
+            context_.config.namespace,
+            PodName.of(`network-${nodeAlias}-0`),
+          );
           this.logger.showUser('Enable port forwarding for JVM debugger');
           this.logger.debug(`Enable port forwarding for JVM debugger on pod ${podReference.name}`);
           await this.k8Factory
@@ -1585,16 +1586,26 @@ export class NodeCommandTasks {
             .readByReference(podReference)
             .portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT);
         }
-        await this.k8Factory
-          .getK8(context)
-          .pods()
-          .readByReference(podReference) // TODO this should be on the haproxy for network node
-          .portForward(constants.GRPC_PORT, constants.GRPC_PORT);
-        this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-        this.logger.addMessageGroupMessage(
-          constants.PORT_FORWARDING_MESSAGE_GROUP,
-          `Consensus Node gRPC port forward enabled on localhost:${constants.GRPC_PORT}`,
-        );
+        if (!context_.config.forcePortForward) {
+          const pods: Pod[] = await this.k8Factory
+            .getK8(context)
+            .pods()
+            .list(context_.config.namespace, ['solo.hedera.com/node-id=0', 'solo.hedera.com/type=haproxy']);
+          if (pods.length === 0) {
+            throw new SoloError(`No HAProxy pod found for node alias: ${nodeAlias}`);
+          }
+          const podReference: PodReference = pods[0].podReference;
+          await this.k8Factory
+            .getK8(context)
+            .pods()
+            .readByReference(podReference)
+            .portForward(constants.GRPC_PORT, constants.GRPC_PORT);
+          this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+          this.logger.addMessageGroupMessage(
+            constants.PORT_FORWARDING_MESSAGE_GROUP,
+            `Consensus Node gRPC port forward enabled on localhost:${constants.GRPC_PORT}`,
+          );
+        }
       },
       skip: context_ => !context_.config.debugNodeAlias && !context_.config.forcePortForward,
     };
