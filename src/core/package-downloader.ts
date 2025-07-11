@@ -59,7 +59,7 @@ export class PackageDownloader {
             },
           });
           request.destroy();
-          if ([StatusCodes.OK, StatusCodes.MOVED_TEMPORARILY].includes(statusCode)) {
+          if ([StatusCodes.OK, StatusCodes.MOVED_TEMPORARILY, StatusCodes.MOVED_PERMANENTLY].includes(statusCode)) {
             resolve(true);
           }
 
