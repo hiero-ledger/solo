@@ -38,6 +38,8 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {Lock} from '../core/lock/lock.js';
+import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
+import {Pod} from '../integration/kube/resources/pod/pod.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -61,6 +63,7 @@ interface ExplorerDeployConfigClass {
   getUnusedConfigs: () => string[];
   soloChartVersion: string;
   domainName: Optional<string>;
+  forcePortForward: Optional<boolean>;
 }
 
 interface ExplorerDeployContext {
@@ -119,6 +122,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.valuesFile,
       flags.clusterSetupNamespace,
       flags.domainName,
+      flags.forcePortForward,
     ],
   };
 
@@ -245,6 +249,7 @@ export class ExplorerCommand extends BaseCommand {
               flags.tlsClusterIssuerType,
               flags.valuesFile,
               flags.profileFile,
+              flags.forcePortForward,
             ]);
 
             const allFlags = [
@@ -440,6 +445,38 @@ export class ExplorerCommand extends BaseCommand {
           skip: context_ => !context_.config.enableIngress,
         },
         this.addMirrorNodeExplorerComponents(),
+        {
+          title: 'Enable port forwarding',
+          skip: context_ => !context_.config.forcePortForward,
+          task: async context_ => {
+            const pods: Pod[] = await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .pods()
+              .list(context_.config.namespace, ['app.kubernetes.io/instance=hiero-explorer']);
+            if (pods.length === 0) {
+              throw new SoloError('No Hiero Explorer pod found');
+            }
+            const podReference: PodReference = pods[0].podReference;
+
+            await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .pods()
+              .readByReference(podReference)
+              .portForward(constants.EXPLORER_PORT, constants.EXPLORER_PORT, true);
+            this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+            this.logger.addMessageGroupMessage(
+              constants.PORT_FORWARDING_MESSAGE_GROUP,
+              `Explorer port forward enabled on http://localhost:${constants.EXPLORER_PORT}`,
+            );
+          },
+        },
+        // TODO only show this if we are not running in quick-start mode
+        // {
+        //   title: 'Show user messages',
+        //   task: (): void => {
+        //     this.logger.showAllMessageGroups();
+        //   },
+        // },
       ],
       {
         concurrent: false,

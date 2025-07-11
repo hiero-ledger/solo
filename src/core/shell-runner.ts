@@ -32,6 +32,7 @@ export class ShellRunner {
       });
 
       if (detached) {
+        child.unref(); // allow the parent process to exit independently of this child
         resolve([]);
       }
 

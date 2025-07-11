@@ -165,7 +165,8 @@ export class SoloWinstonLogger implements SoloLogger {
 
   public addMessageGroup(key: string, title: string): void {
     if (this.messageGroupMap.has(key)) {
-      this.warn(`Message group with key "${key}" already exists. Overwriting.`);
+      this.warn(`Message group with key "${key}" already exists. Skipping.`);
+      return;
     }
     this.messageGroupMap.set(key, [`${title}:`]);
     this.debug(`Added message group "${title}" with key "${key}".`);
@@ -196,5 +197,16 @@ export class SoloWinstonLogger implements SoloLogger {
 
   public getMessageGroupKeys(): string[] {
     return [...this.messageGroupMap.keys()];
+  }
+
+  public showAllMessageGroups(): void {
+    const keys: string[] = this.getMessageGroupKeys();
+    if (keys.length === 0) {
+      this.debug('No message groups available.');
+      return;
+    }
+    for (const key of keys) {
+      this.showMessageGroup(key);
+    }
   }
 }

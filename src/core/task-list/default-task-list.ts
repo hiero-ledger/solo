@@ -87,7 +87,12 @@ export class DefaultTaskList<
   public async callCloseFunctions(): Promise<void> {
     for (const closeFunction of this.trailingCloseFunctions) {
       try {
-        await closeFunction();
+        await closeFunction()
+          .then()
+          .catch((error): void => {
+            // Log the error or handle it as needed
+            this.logger.error('Error during trailing close function:', error);
+          });
       } catch (error) {
         // Log the error or handle it as needed
         this.logger.error('Error during trailing close function:', error);

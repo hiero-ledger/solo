@@ -230,6 +230,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
                 this.optionFromFlag(Flags.clusterRef),
                 config.clusterRef,
                 this.optionFromFlag(Flags.pinger),
+                this.optionFromFlag(Flags.enableIngress),
               );
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
@@ -260,12 +261,12 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             );
             return this.argvPushGlobalFlags(argv);
           }),
-          // TODO expose port forward endpoints and dump the URLs to the user output
           {
             title: 'Finish',
             task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
               this.showQuickStartUserNotes(context_);
               this.showVersions();
+              this.showPortForwards();
 
               return;
             },
@@ -282,7 +283,12 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     } catch (error) {
       throw new SoloError(`Error deploying Solo in quick-start mode: ${error.message}`, error);
     } finally {
-      await this.taskList.callCloseFunctions();
+      await this.taskList
+        .callCloseFunctions()
+        .then()
+        .catch((error): void => {
+          this.logger.error('Error during closing task list:', error);
+        });
     }
 
     return true;
@@ -328,6 +334,10 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     );
 
     this.logger.showMessageGroup(messageGroupKey);
+  }
+
+  private showPortForwards(): void {
+    this.logger.showMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP);
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
