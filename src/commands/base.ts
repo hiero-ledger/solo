@@ -20,6 +20,7 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {type TaskList} from '../core/task-list/task-list.js';
 import {ListrContext, ListrRendererValue} from 'listr2';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 
 export abstract class BaseCommand extends ShellRunner {
   public constructor(
@@ -33,6 +34,7 @@ export abstract class BaseCommand extends ShellRunner {
     @inject(InjectTokens.RemoteConfigRuntimeState) protected readonly remoteConfig?: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.TaskList)
     protected readonly taskList?: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
+    @inject(InjectTokens.ComponentFactory) protected readonly componentFactory?: ComponentFactoryApi,
   ) {
     super();
 
@@ -45,6 +47,7 @@ export abstract class BaseCommand extends ShellRunner {
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
+    this.componentFactory = patchInject(componentFactory, InjectTokens.ComponentFactory, this.constructor.name);
   }
 
   /**
