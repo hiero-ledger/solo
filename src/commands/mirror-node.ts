@@ -753,16 +753,22 @@ export class MirrorNodeCommand extends BaseCommand {
         this.addMirrorNodeComponents(),
         {
           title: 'Enable port forwarding',
-          skip: context_ => !context_.config.forcePortForward && !context_.config.enableIngress,
+          skip: context_ => !context_.config.forcePortForward || !context_.config.enableIngress,
           task: async context_ => {
             const pods: Pod[] = await this.k8Factory
               .getK8(context_.config.clusterContext)
               .pods()
-              .list(context_.config.namespace, ['app.kubernetes.io/instance=hiero-explorer']); // TODO change to mirror node
+              .list(context_.config.namespace, ['app.kubernetes.io/instance=haproxy-ingress']);
             if (pods.length === 0) {
               throw new SoloError('No Hiero Explorer pod found');
             }
-            const podReference: PodReference = pods[0].podReference;
+            let podReference: PodReference;
+            for (const pod of pods) {
+              if (pod.podReference.name.name.startsWith('mirror-ingress-controller')) {
+                podReference = pod.podReference;
+                break;
+              }
+            }
 
             await this.k8Factory
               .getK8(context_.config.clusterContext)
