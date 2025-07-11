@@ -35,6 +35,10 @@ import {GetNodesResponse} from '../model/get-nodes/get-nodes-response.js';
 import {GetNodesOptions} from '../model/get-nodes/get-nodes-options.js';
 import {GetNodesOptionsBuilder} from '../model/get-nodes/get-nodes-options-builder.js';
 import {GetNodesRequest} from '../request/get/get-nodes-request.js';
+import {GetKubeconfigOptionsBuilder} from '../model/get-kubeconfig/get-kubeconfig-options-builder.js';
+import {GetKubeconfigOptions} from '../model/get-kubeconfig/get-kubeconfig-options.js';
+import {GetKubeconfigRequest} from '../request/get/get-kubeconfig-request.js';
+import {GetKubeconfigResponse} from '../model/get-kubeconfig/get-kubeconfig-response.js';
 
 type BiFunction<T, U, R> = (t: T, u: U) => R;
 
@@ -96,9 +100,9 @@ export class DefaultKindClient implements KindClient {
     return this.executeAsync(new GetNodesRequest(builder.build()), GetNodesResponse);
   }
 
-  public async getKubeconfig(clusterName?: string): Promise<string> {
-    // @ts-ignore
-    return 'kubeconfig';
+  public async getKubeconfig(contextName?: string, options?: GetKubeconfigOptions): Promise<GetKubeconfigResponse> {
+    const builder: GetKubeconfigOptionsBuilder = GetKubeconfigOptionsBuilder.from(options).name(contextName);
+    return this.executeAsync(new GetKubeconfigRequest(builder.build()), GetKubeconfigResponse);
   }
 
   public async loadImages(clusterName: string, imageNames: string[]): Promise<void> {
