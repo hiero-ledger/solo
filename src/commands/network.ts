@@ -75,6 +75,7 @@ import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
+import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -155,7 +156,7 @@ export interface NetworkDestroyContext {
 @injectable()
 export class NetworkCommand extends BaseCommand {
   private profileValuesFile?: Record<ClusterReferenceName, string>;
-  public static DEPLOY_COMMAND: string = 'network deploy';
+  public static DEPLOY_COMMAND: string = 'consensus network deploy';
 
   public constructor(
     @inject(InjectTokens.CertificateManager) private readonly certificateManager: CertificateManager,
@@ -234,7 +235,8 @@ export class NetworkCommand extends BaseCommand {
     ],
   };
 
-  public static readonly COMMAND_NAME: string = 'network';
+  public static readonly COMMAND_NAME: 'consensus' = 'consensus' as const;
+  public static readonly SUBCOMMAND_NAME: 'network' = 'network' as const;
 
   private waitForNetworkPods(): SoloListrTask<NetworkDeployContext> {
     return {
@@ -1355,65 +1357,38 @@ export class NetworkCommand extends BaseCommand {
   }
 
   public getCommandDefinition(): CommandDefinition {
-    const self: this = this;
-    return {
-      command: NetworkCommand.COMMAND_NAME,
-      desc: 'Manage solo network deployment',
-      builder: (yargs: AnyYargs): AnyYargs => {
-        return yargs
-          .command({
-            command: 'deploy',
-            desc: "Deploy solo network.  Requires the chart `solo-cluster-setup` to have been installed in the cluster.  If it hasn't the following command can be ran: `solo cluster-ref setup`",
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...NetworkCommand.DEPLOY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...NetworkCommand.DEPLOY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct): Promise<void> => {
-              self.logger.info("==== Running 'network deploy' ===");
-              self.logger.info(argv);
-
-              await self
-                .deploy(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running `network deploy`====');
-
-                  if (!r) {
-                    throw new SoloError('Error deploying network, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error deploying network: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'destroy',
-            desc: 'Destroy solo network. If both --delete-pvcs and --delete-secrets are set to true, the namespace will be deleted.',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...NetworkCommand.DESTROY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...NetworkCommand.DESTROY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct): Promise<void> => {
-              self.logger.info("==== Running 'network destroy' ===");
-              self.logger.info(argv);
-
-              await self
-                .destroy(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running `network destroy`====');
-
-                  if (!r) {
-                    throw new SoloError('Error destroying network, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error destroying network: ${error.message}`, error);
-                });
-            },
-          })
-          .demandCommand(1, 'Select a chart command');
-      },
-    };
+    return new CommandBuilder(NetworkCommand.COMMAND_NAME, 'Consensus related commands', this.logger)
+      .addCommandGroup(
+        new CommandGroup(NetworkCommand.SUBCOMMAND_NAME, 'Manage solo network deployment')
+          .addSubcommand(
+            new Subcommand(
+              'deploy',
+              'Deploy solo network. ' +
+                'Requires the chart `solo-cluster-setup` to have been installed in the cluster. `' +
+                "If it hasn't the following command can be ran: `solo cluster-ref setup`",
+              this,
+              this.deploy,
+              (y: AnyYargs): void => {
+                flags.setRequiredCommandFlags(y, ...NetworkCommand.DEPLOY_FLAGS_LIST.required);
+                flags.setOptionalCommandFlags(y, ...NetworkCommand.DEPLOY_FLAGS_LIST.optional);
+              },
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              'destroy',
+              'Destroy solo network. If both --delete-pvcs and --delete-secrets are set to true, ' +
+                'the namespace will be deleted.',
+              this,
+              this.destroy,
+              (y: AnyYargs): void => {
+                flags.setRequiredCommandFlags(y, ...NetworkCommand.DESTROY_FLAGS_LIST.required);
+                flags.setOptionalCommandFlags(y, ...NetworkCommand.DESTROY_FLAGS_LIST.optional);
+              },
+            ),
+          ),
+      )
+      .build();
   }
 
   /** Adds the consensus node, envoy and haproxy components to remote config.  */

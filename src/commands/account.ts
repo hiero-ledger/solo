@@ -67,7 +67,8 @@ export class AccountCommand extends BaseCommand {
     this.systemAccounts = patchInject(systemAccounts, InjectTokens.SystemAccounts, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME = 'ledger';
+  public static readonly COMMAND_NAME: 'ledger' = 'ledger' as const;
+  public static readonly SUBCOMMAND_NAME: 'account' = 'account' as const;
 
   private static INIT_FLAGS_LIST = {
     required: [],
@@ -758,7 +759,7 @@ export class AccountCommand extends BaseCommand {
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(AccountCommand.COMMAND_NAME, 'List of ledger related commands', this.logger)
       .addCommandGroup(
-        new CommandGroup('account', 'Manage Hedera accounts in solo network')
+        new CommandGroup(AccountCommand.SUBCOMMAND_NAME, 'Manage Hedera accounts in solo network')
           .addSubcommand(
             new Subcommand('init', 'Initialize system accounts with new keys', this, this.init, (y: AnyYargs): void => {
               flags.setRequiredCommandFlags(y, ...AccountCommand.INIT_FLAGS_LIST.required);

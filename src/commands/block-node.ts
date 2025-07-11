@@ -91,7 +91,8 @@ export class BlockNodeCommand extends BaseCommand {
     super();
   }
 
-  public static readonly COMMAND_NAME: string = 'block';
+  public static readonly COMMAND_NAME: 'block' = 'block' as const;
+  public static readonly SUBCOMMAND_NAME: 'node' = 'node' as const;
 
   private static readonly ADD_CONFIGS_NAME: string = 'addConfigs';
 
@@ -569,7 +570,7 @@ export class BlockNodeCommand extends BaseCommand {
       this.logger,
     )
       .addCommandGroup(
-        new CommandGroup('node', 'Manage block nodes in solo network')
+        new CommandGroup(BlockNodeCommand.SUBCOMMAND_NAME, 'Manage block nodes in solo network')
           .addSubcommand(
             new Subcommand('add', 'Add block node', this, this.add, (y: AnyYargs): void => {
               flags.setRequiredCommandFlags(y, ...BlockNodeCommand.ADD_FLAGS_LIST.required);

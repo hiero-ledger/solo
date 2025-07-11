@@ -70,6 +70,7 @@ export class DeploymentCommand extends BaseCommand {
   }
 
   public static readonly COMMAND_NAME = 'deployment';
+  public static readonly SUBCOMMAND_NAME = 'deployment';
 
   private static CREATE_FLAGS_LIST = {
     required: [],

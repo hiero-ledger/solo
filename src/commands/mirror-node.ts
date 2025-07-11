@@ -119,7 +119,8 @@ export class MirrorNodeCommand extends BaseCommand {
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME = 'mirror';
+  public static readonly COMMAND_NAME: 'mirror' = 'mirror' as const;
+  public static readonly SUBCOMMAND_NAME: 'node' = 'node' as const;
 
   private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
 
@@ -955,7 +956,7 @@ export class MirrorNodeCommand extends BaseCommand {
       this.logger,
     )
       .addCommandGroup(
-        new CommandGroup('node', 'Manage Hedera Mirror Node in solo network')
+        new CommandGroup(MirrorNodeCommand.SUBCOMMAND_NAME, 'Manage Hedera Mirror Node in solo network')
           .addSubcommand(
             new Subcommand(
               'deploy',

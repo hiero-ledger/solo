@@ -38,6 +38,7 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {Lock} from '../core/lock/lock.js';
+import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -92,7 +93,8 @@ export class ExplorerCommand extends BaseCommand {
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME = 'explorer';
+  public static readonly COMMAND_NAME: 'explorer' = 'explorer' as const;
+  public static readonly SUBCOMMAND_NAME: 'node' = 'node' as const;
 
   private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
 
@@ -575,63 +577,23 @@ export class ExplorerCommand extends BaseCommand {
   }
 
   public getCommandDefinition(): CommandDefinition {
-    const self: this = this;
-    return {
-      command: ExplorerCommand.COMMAND_NAME,
-      desc: 'Manage Explorer in solo network',
-      builder: (yargs: AnyYargs) => {
-        return yargs
-          .command({
-            command: 'deploy',
-            desc: 'Deploy explorer',
-            builder: (y: AnyYargs) => {
+    return new CommandBuilder(ExplorerCommand.COMMAND_NAME, 'Manage Explorer in solo network', this.logger)
+      .addCommandGroup(
+        new CommandGroup(ExplorerCommand.SUBCOMMAND_NAME, '')
+          .addSubcommand(
+            new Subcommand('deploy', 'Deploy explorer', this, this.deploy, (y: AnyYargs): void => {
               flags.setRequiredCommandFlags(y, ...ExplorerCommand.DEPLOY_FLAGS_LIST.required);
               flags.setOptionalCommandFlags(y, ...ExplorerCommand.DEPLOY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running explorer deploy' ===");
-              self.logger.info(argv);
-
-              await self
-                .deploy(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running explorer deploy`====');
-                  if (!r) {
-                    throw new Error('Explorer deployment failed, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Explorer deployment failed: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'destroy',
-            desc: 'Destroy explorer',
-            builder: (y: AnyYargs) => {
+            }),
+          )
+          .addSubcommand(
+            new Subcommand('destroy', 'Destroy explorer', this, this.destroy, (y: AnyYargs): void => {
               flags.setRequiredCommandFlags(y, ...ExplorerCommand.DESTROY_FLAGS_LIST.required);
               flags.setOptionalCommandFlags(y, ...ExplorerCommand.DESTROY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info('==== Running explorer destroy ===');
-              self.logger.info(argv);
-
-              await self
-                .destroy(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running explorer destroy ====');
-                  if (!r) {
-                    throw new SoloError('Explorer destruction failed, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Explorer destruction failed: ${error.message}`, error);
-                });
-            },
-          })
-          .demandCommand(1, 'Select a explorer command');
-      },
-    };
+            }),
+          ),
+      )
+      .build();
   }
 
   private loadRemoteConfigTask(argv: ArgvStruct): SoloListrTask<AnyListrContext> {
