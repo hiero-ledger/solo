@@ -828,6 +828,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.checkNodeProxiesAreActive(),
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
         this.tasks.addNodeStakes(),
+        this.tasks.setGrpcWebEndpoint(),
       ],
       {
         concurrent: false,
@@ -856,6 +857,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.identifyNetworkPods(),
         this.tasks.fetchPlatformSoftware('nodeAliases'),
         this.tasks.setupNetworkNodes('nodeAliases', true),
+        this.tasks.setupNetworkNodeFolders(),
         this.changeAllNodePhases(DeploymentPhase.CONFIGURED),
       ],
       {

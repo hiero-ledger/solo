@@ -31,6 +31,11 @@ export class EndToEndTestSuite extends Suite {
     public readonly namespace: NamespaceName,
     public readonly deployment: DeploymentName,
     public readonly clusterCount: number,
+    public readonly consensusNodesCount: number,
+    public readonly loadBalancerEnabled: boolean,
+    public readonly pinger: boolean,
+    public readonly realm: number = 0,
+    public readonly shard: number = 0,
     public readonly testSuiteCallback: (options: BaseTestOptions) => void,
   ) {
     super(testName);
@@ -76,6 +81,11 @@ export class EndToEndTestSuite extends Suite {
       localBuildReleaseTag: this.localBuildReleaseTag,
       localBuildPath: this.localBuildPath,
       createdAccountIds: this.createdAccountIds,
+      consensusNodesCount: this.consensusNodesCount,
+      loadBalancerEnabled: this.loadBalancerEnabled,
+      pinger: this.pinger,
+      realm: this.realm,
+      shard: this.shard,
     } as BaseTestOptions;
   }
 
