@@ -829,7 +829,8 @@ export class NodeCommandHandlers extends CommandHandler {
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
         this.tasks.addNodeStakes(),
         this.tasks.setGrpcWebEndpoint(),
-        this.tasks.showUserMessages(),
+        // TODO only show this if we are not running in quick-start mode
+        // this.tasks.showUserMessages(),
       ],
       {
         concurrent: false,
