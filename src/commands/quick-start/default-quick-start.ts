@@ -230,6 +230,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
                 this.optionFromFlag(Flags.clusterRef),
                 config.clusterRef,
                 this.optionFromFlag(Flags.pinger),
+                this.optionFromFlag(Flags.enableIngress),
               );
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
