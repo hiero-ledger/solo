@@ -25,46 +25,7 @@ export SOLO_DEPLOYMENT=solo-e2e
 kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 
-
-rm -rf ~/.solo/*; rm -rf test/data/tmp/*; cp /Users/jeffrey/Documents/kind-darwin-arm64  ~/Downloads/
-
-  kind load docker-image docker.io/otel/opentelemetry-collector-contrib:0.72.0 --name "${SOLO_CLUSTER_NAME}"
-  kind load docker-image curlimages/curl:8.9.1 --name "${SOLO_CLUSTER_NAME}"
-  kind load docker-image busybox:1.36.1 --name "${SOLO_CLUSTER_NAME}"
-  kind load docker-image envoyproxy/envoy:v1.21.1 --name "${SOLO_CLUSTER_NAME}"
-  kind load docker-image haproxytech/haproxy-alpine:2.4.25 --name "${SOLO_CLUSTER_NAME}"
-  kind load docker-image ghcr.io/hashgraph/solo-containers/ubi8-init-java21:0.38.0 --name "${SOLO_CLUSTER_NAME}"
-
-  kind load docker-image ghcr.io/hashgraph/solo-containers/ubi8-init-java21:0.33.2 --name "${SOLO_CLUSTER_NAME}"
-  kind load docker-image gcr.io/hedera-registry/uploader-mirror:2.0.0 --name "${SOLO_CLUSTER_NAME}"
-  kind load docker-image gcr.io/hedera-registry/uploader-mirror:1.3.0 --name "${SOLO_CLUSTER_NAME}"
-
-  kind load docker-image quay.io/minio/operator:v5.0.7  --name "${SOLO_CLUSTER_NAME}"
-  kind load docker-image quay.io/minio/minio:RELEASE.2024-02-09T21-25-16Z  --name "${SOLO_CLUSTER_NAME}"
-  kind load docker-image ghcr.io/hashgraph/solo-cheetah/cheetah:0.3.1 --name "${SOLO_CLUSTER_NAME}"
-  kind load docker-image quay.io/jcmoraisjr/haproxy-ingress:v0.14.5 --name "${SOLO_CLUSTER_NAME}"
-
-#  kind load docker-image gcr.io/mirrornode/hedera-mirror-grpc:0.131.0 --name "${SOLO_CLUSTER_NAME}"
-#  kind load docker-image gcr.io/mirrornode/hedera-mirror-importer:0.131.0 --name "${SOLO_CLUSTER_NAME}"
-#  kind load docker-image gcr.io/mirrornode/hedera-mirror-monitor:0.131.0 --name "${SOLO_CLUSTER_NAME}"
-#  kind load docker-image gcr.io/mirrornode/hedera-mirror-rest:0.131.0 --name "${SOLO_CLUSTER_NAME}"
-#  kind load docker-image gcr.io/mirrornode/hedera-mirror-rest-java:0.131.0 --name "${SOLO_CLUSTER_NAME}"
-#  kind load docker-image gcr.io/mirrornode/hedera-mirror-web3:0.131.0 --name "${SOLO_CLUSTER_NAME}"
-#  kind load docker-image docker.io/bitnami/postgresql-repmgr:17.4.0-debian-12-r15 --name "${SOLO_CLUSTER_NAME}"
-#  kind load docker-image docker.io/bitnami/postgresql:16.4.0 --name "${SOLO_CLUSTER_NAME}"
-
-#  kind load docker-image ghcr.io/hiero-ledger/hiero-json-rpc-relay:0.67.0 --name "${SOLO_CLUSTER_NAME}"
-
-  kind load docker-image gcr.io/mirrornode/hedera-mirror-grpc:0.122.0 --name "${SOLO_CLUSTER_NAME}"
-  kind load docker-image gcr.io/mirrornode/hedera-mirror-importer:0.122.0 --name "${SOLO_CLUSTER_NAME}"
-  kind load docker-image gcr.io/mirrornode/hedera-mirror-monitor:0.122.0 --name "${SOLO_CLUSTER_NAME}"
-  kind load docker-image gcr.io/mirrornode/hedera-mirror-rest:0.122.0 --name "${SOLO_CLUSTER_NAME}"
-  kind load docker-image gcr.io/mirrornode/hedera-mirror-rest-java:0.122.0 --name "${SOLO_CLUSTER_NAME}"
-  kind load docker-image gcr.io/mirrornode/hedera-mirror-web3:0.122.0 --name "${SOLO_CLUSTER_NAME}"
-  kind load docker-image docker.io/bitnami/postgresql-repmgr:16.4.0-debian-12-r14 --name "${SOLO_CLUSTER_NAME}"
-  kind load docker-image docker.io/bitnami/redis:7.4.0-debian-12-r2 --name "${SOLO_CLUSTER_NAME}"
-  kind load docker-image docker.io/bitnami/redis-sentinel:7.4.0-debian-12-r1 --name "${SOLO_CLUSTER_NAME}"
-  kind load docker-image ghcr.io/hiero-ledger/hiero-json-rpc-relay:0.63.2 --name "${SOLO_CLUSTER_NAME}"
+rm -rf ~/.solo/*
 
 
 echo "Launch solo using released Solo version ${releaseTag}"
@@ -85,7 +46,7 @@ solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
 solo mirror-node deploy  --deployment "${SOLO_DEPLOYMENT}" --pinger
 solo explorer deploy -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
-solo relay deploy -i node1 --deployment "${SOLO_DEPLOYMENT}"
+solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 
 cp ~/.solo/cache/local-config.yaml ./local-config-before.yaml
 cat ./local-config-before.yaml
@@ -98,7 +59,7 @@ solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
 
 # must uninstall relay before migration, because the change of relay chart to umbrella chart
 # make it harder to uninstall or upgrade after migration
-solo relay destroy -i node1 --deployment "${SOLO_DEPLOYMENT}"
+solo relay destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 
 # trigger migration
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}"
@@ -135,13 +96,13 @@ npm run solo-test -- node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 npm run solo-test -- mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --dev
 
 # redeploy explorer and relay node to upgrade to a newer version
-npm run solo-test -- relay deploy -i node1 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+npm run solo-test -- relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 npm run solo-test -- explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace solo-e2e -q --dev
 
 # wait a few seconds for the pods to be ready before enabling port-forwarding
 sleep 10
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/haproxy-node1-svc 50211:50211 > /dev/null 2>&1 &
-kubectl port-forward -n "${SOLO_NAMESPACE}" svc/relay-node1 7546:7546 > /dev/null 2>&1 &
+kubectl port-forward -n "${SOLO_NAMESPACE}" svc/relay-node1-node2 7546:7546 > /dev/null 2>&1 &
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-ingress-controller 8081:80 > /dev/null 2>&1 &
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/hiero-explorer 8080:80 > /dev/null 2>&1 &
 
@@ -162,7 +123,7 @@ SKIP_IMPORTER_CHECK=true
 
 # uninstall components using current Solo version
 npm run solo-test -- explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
-npm run solo-test -- relay destroy -i node1 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+npm run solo-test -- relay destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 npm run solo-test -- mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --force
 npm run solo-test -- node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 npm run solo-test -- network destroy --deployment "${SOLO_DEPLOYMENT}" --force
