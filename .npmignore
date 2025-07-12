@@ -1,8 +1,38 @@
-test/*
 .idea/
 coverage/
-solo-compose/
 junit*.xml
 .github/
 docs/
 *.log
+
+# Ignore tests
+test/
+*.spec.ts
+*.test.ts
+
+# Scripts
+Taskfile*
+examples/
+images/
+solo-compose/
+
+# Configs
+.c8rc.json
+.codacy.yaml
+.editorconfig
+.gitattributes
+.mocharc.yaml
+.pre-commit-config.yaml
+.prettierrc.json
+.releaserc
+.remarkrc.yml
+.semgrep.yaml
+c8-nyc-bridge.mjs
+codecov.yml
+eslint.config.mjs
+mocha-multi-reporter.json
+ruleset.xml
+tsconfig.json
+tsconfig-google.json
+tsdoc.json
+typedoc.json
