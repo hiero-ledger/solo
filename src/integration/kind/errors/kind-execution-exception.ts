@@ -1,30 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Exception thrown when the execution of the Helm executable fails.
+ * Exception thrown when the execution of the Kind executable fails.
  */
-export class HelmExecutionException extends Error {
+export class KindExecutionException extends Error {
   /**
    * The default message to use when no message is provided
    */
-  private static readonly DEFAULT_MESSAGE = 'Execution of the Helm command failed with exit code: %d';
+  private static readonly DEFAULT_MESSAGE: string = 'Execution of the Kind command failed with exit code: %d';
 
   /**
-   * The non-zero system exit code returned by the Helm executable or the operating system
+   * The non-zero system exit code returned by the Kind executable or the operating system
    */
   private readonly exitCode: number;
 
   /**
-   * The standard output of the Helm executable
+   * The standard output of the Kind executable
    */
   private readonly stdOut: string;
 
   /**
-   * The standard error of the Helm executable
+   * The standard error of the Kind executable
    */
   private readonly stdErr: string;
 
-  constructor(
+  public constructor(
     exitCode: number,
     messageOrStdOutOrCause?: string | Error,
     stdErrorOrCause?: string | Error,
@@ -37,7 +37,7 @@ export class HelmExecutionException extends Error {
 
     if (messageOrStdOutOrCause instanceof Error) {
       // Constructor with exitCode and cause
-      message = HelmExecutionException.DEFAULT_MESSAGE.replace('%d', exitCode.toString());
+      message = KindExecutionException.DEFAULT_MESSAGE.replace('%d', exitCode.toString());
       cause = messageOrStdOutOrCause;
     } else if (typeof messageOrStdOutOrCause === 'string') {
       if (stdErrorOrCause instanceof Error) {
@@ -52,21 +52,21 @@ export class HelmExecutionException extends Error {
           stdError = stdErrorParameter;
         } else {
           // Constructor with exitCode, stdOut, and stdErr
-          message = HelmExecutionException.DEFAULT_MESSAGE.replace('%d', exitCode.toString());
+          message = KindExecutionException.DEFAULT_MESSAGE.replace('%d', exitCode.toString());
           stdOut = messageOrStdOutOrCause;
           stdError = stdErrorOrCause;
         }
       } else {
         // Constructor with just exitCode
-        message = HelmExecutionException.DEFAULT_MESSAGE.replace('%d', exitCode.toString());
+        message = KindExecutionException.DEFAULT_MESSAGE.replace('%d', exitCode.toString());
       }
     } else {
       // Constructor with just exitCode
-      message = HelmExecutionException.DEFAULT_MESSAGE.replace('%d', exitCode.toString());
+      message = KindExecutionException.DEFAULT_MESSAGE.replace('%d', exitCode.toString());
     }
 
     super(message);
-    this.name = 'HelmExecutionException';
+    this.name = this.constructor.name;
     this.exitCode = exitCode;
     this.stdOut = stdOut;
     this.stdErr = stdError;
@@ -76,34 +76,10 @@ export class HelmExecutionException extends Error {
   }
 
   /**
-   * Returns the exit code returned by the Helm executable or the operating system.
-   * @returns The exit code returned by the Helm executable or the operating system
-   */
-  getExitCode(): number {
-    return this.exitCode;
-  }
-
-  /**
-   * Returns the standard output of the Helm executable.
-   * @returns The standard output of the Helm executable
-   */
-  getStdOut(): string {
-    return this.stdOut;
-  }
-
-  /**
-   * Returns the standard error of the Helm executable.
-   * @returns The standard error of the Helm executable
-   */
-  getStdErr(): string {
-    return this.stdErr;
-  }
-
-  /**
    * Returns a string representation of the exception.
    * @returns A string representation of the exception
    */
   override toString(): string {
-    return `HelmExecutionException{message=${this.message}, exitCode=${this.getExitCode()}, stdOut='${this.getStdOut()}', stdErr='${this.getStdErr()}'}`;
+    return `KindExecutionException{message=${this.message}, exitCode=${this.exitCode}, stdOut='${this.stdOut}', stdErr='${this.stdErr}'}`;
   }
 }
