@@ -103,8 +103,10 @@ npm run solo-test -- explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster
 sleep 10
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/haproxy-node1-svc 50211:50211 > /dev/null 2>&1 &
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/relay-node1-node2 7546:7546 > /dev/null 2>&1 &
+kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-grpc 5600:5600 > /dev/null 2>&1 &
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-ingress-controller 8081:80 > /dev/null 2>&1 &
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/hiero-explorer 8080:80 > /dev/null 2>&1 &
+kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-rest 5551:80 > /dev/null 2>&1 &
 
 # Test transaction can still be sent and processed
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
