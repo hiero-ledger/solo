@@ -476,7 +476,7 @@ kubectl port-forward svc/mirror-rest -n "${SOLO_NAMESPACE}" 5551:80 > /dev/null 
 # Mirror Node REST Java API http://localhost:8084
 kubectl port-forward service/mirror-restjava -n "${SOLO_NAMESPACE}" 8084:80 > /dev/null 2>&1 &
 # JSON RPC Relay: localhost:7546
-kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n "${SOLO_NAMESPACE}" 7546:7546 > /dev/null 2>&1 &
+kubectl port-forward svc/relay-node1 -n "${SOLO_NAMESPACE}" 7546:7546 > /dev/null 2>&1 &
 ```
 
 {{< /details >}}<br/>

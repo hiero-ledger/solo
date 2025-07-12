@@ -68,7 +68,7 @@ export const SOLO_CERT_MANAGER_CHART = 'solo-cert-manager';
 
 export const JSON_RPC_RELAY_CHART_URL =
   process.env.JSON_RPC_RELAY_CHART_URL ?? 'https://hiero-ledger.github.io/hiero-json-rpc-relay/charts';
-export const JSON_RPC_RELAY_CHART = 'hedera-json-rpc-relay';
+export const JSON_RPC_RELAY_CHART = 'hedera-json-rpc';
 
 export const MIRROR_NODE_CHART_URL =
   process.env.MIRROR_NODE_CHART_URL ?? 'https://hashgraph.github.io/hedera-mirror-node/charts';
@@ -78,7 +78,7 @@ export const MIRROR_NODE_RELEASE_NAME = 'mirror';
 export const EXPLORER_CHART_URL =
   process.env.EXPLORER_CHART_URL ?? 'oci://ghcr.io/hiero-ledger/hiero-mirror-node-explorer/hiero-explorer-chart';
 export const EXPLORER_RELEASE_NAME = 'hiero-explorer';
-export const SOLO_RELAY_LABEL = 'app=hedera-json-rpc-relay';
+export const SOLO_RELAY_LABEL = 'app=hedera-json-rpc';
 export const SOLO_EXPLORER_LABEL = 'app.kubernetes.io/component=hiero-explorer';
 export const OLD_SOLO_EXPLORER_LABEL = 'app.kubernetes.io/component=hedera-explorer';
 

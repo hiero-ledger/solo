@@ -86,7 +86,7 @@ function prepareComponentsData(namespace: NamespaceName): ComponentsData {
 
   const labelRecord: LabelRecord = {
     // @ts-expect-error - to access private property
-    relayNodes: RemoteConfigValidator.getRelayLabels(),
+    relayNodes: RemoteConfigValidator.getRelayLabels(components.relayNodes),
     // @ts-expect-error - to access private property
     haProxies: RemoteConfigValidator.getHaProxyLabels(components.haProxies),
     // @ts-expect-error - to access private property
