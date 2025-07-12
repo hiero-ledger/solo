@@ -164,9 +164,9 @@ async function main() {
     }
 
     if (receivedMessage === TEST_MESSAGE) {
-      console.log('Message received successfully');
+      console.log('Message received through query successfully');
     } else {
-      console.error('ERROR: Message received but not match: ' + receivedMessage);
+      console.error('ERROR: Message received through query but not match: ' + receivedMessage);
       process.exit(1);
     }
   } catch (error) {

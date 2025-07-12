@@ -5,7 +5,7 @@ import {type ClusterReferenceName, type DeploymentName, type ExtendedNetServer} 
 import {Flags} from '../../../../src/commands/flags.js';
 import {main} from '../../../../src/index.js';
 import {Duration} from '../../../../src/core/time/duration.js';
-import {type NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
+import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
@@ -17,7 +17,40 @@ import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
 
+import {execSync} from 'node:child_process';
+import * as constants from '../../../../src/core/constants.js';
+import fs from 'node:fs';
+
 export class MirrorNodeTest extends BaseCommandTest {
+  /**
+   * Execute a shell command and handle output/errors consistently
+   * @param command The command to execute
+   * @param label A descriptive label for the command (used in logs)
+   * @returns The command output as string
+   * @throws Error if the command fails
+   */
+  static executeCommand(command: string, label: string, testLogger: SoloLogger): string {
+    testLogger.info(`${label} command:`);
+    testLogger.info(command);
+
+    try {
+      const stdout = execSync(command, {encoding: 'utf8'});
+      testLogger.info(`${label} succeeded:`);
+      testLogger.info(stdout || '(No output)');
+      return stdout;
+    } catch (error) {
+      testLogger.error(`${label} failed:`);
+      testLogger.error(error.message);
+      if (error.stdout) {
+        testLogger.info('stdout:', error.stdout);
+      }
+      if (error.stderr) {
+        testLogger.info('stderr:', error.stderr);
+      }
+      throw error;
+    }
+  }
+
   private static soloMirrorNodeDeployArgv(
     testName: string,
     deployment: DeploymentName,
@@ -219,5 +252,130 @@ export class MirrorNodeTest extends BaseCommandTest {
       );
       await verifyPingerStatus(contexts, namespace, pinger);
     }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  private static postgresPassword: string = 'XXXXXXX';
+  private static postgresUsername: string = 'postgres';
+
+  private static postgresReadonlyUsername: string = 'readonlyuser';
+  private static postgresReadonlyPassword: string = 'XXXXXXXX';
+  private static postgresHostFqdn: string = 'my-postgresql.database.svc.cluster.local';
+
+  private static nameSpace: string = 'database';
+  private static postgresName: string = 'my-postgresql';
+  private static postgresContainerName: string = `${this.postgresName}-0`;
+  private static postgresMirrorNodeDatabaseName: string = 'mirror_node';
+
+  public static deployWithExternalDatabase(options: BaseTestOptions): void {
+    const {
+      testName,
+      testLogger,
+      deployment,
+      contexts,
+      namespace,
+      clusterReferenceNameArray,
+      createdAccountIds,
+      consensusNodesCount,
+      pinger,
+    } = options;
+    const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, optionFromFlag} = MirrorNodeTest;
+
+    it(`${testName}: mirror node deploy with external database`, async (): Promise<void> => {
+      const argv = soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger);
+
+      // Add external database flags
+      argv.push(
+        optionFromFlag(Flags.useExternalDatabase),
+        optionFromFlag(Flags.externalDatabaseHost),
+        this.postgresHostFqdn,
+        optionFromFlag(Flags.externalDatabaseOwnerUsername),
+        this.postgresUsername,
+        optionFromFlag(Flags.externalDatabaseOwnerPassword),
+        this.postgresPassword,
+        optionFromFlag(Flags.externalDatabaseReadonlyUsername),
+        this.postgresReadonlyUsername,
+        optionFromFlag(Flags.externalDatabaseReadonlyPassword),
+        this.postgresReadonlyPassword,
+      );
+
+      await main(argv);
+      await verifyMirrorNodeDeployWasSuccessful(
+        contexts,
+        namespace,
+        testLogger,
+        createdAccountIds,
+        consensusNodesCount,
+      );
+    }).timeout(Duration.ofMinutes(10).toMillis());
+
+    it('Enable port-forward for mirror node gRPC', async (): Promise<void> => {
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+      const k8: K8 = k8Factory.getK8(contexts[1]);
+      const mirrorNodePods: Pod[] = await k8
+        .pods()
+        .list(namespace, [
+          'app.kubernetes.io/instance=mirror',
+          'app.kubernetes.io/name=grpc',
+          'app.kubernetes.io/component=grpc',
+        ]);
+      const mirrorNodePod: Pod = mirrorNodePods[0];
+      await k8.pods().readByReference(mirrorNodePod.podReference).portForward(5600, 5600);
+    });
+  }
+
+  public static installPostgres(options: BaseTestOptions): void {
+    const {contexts, namespace, testLogger} = options;
+    it('should install postgres chart', async (): Promise<void> => {
+      MirrorNodeTest.executeCommand(
+        `kubectl config use-context "${contexts[1]}"`,
+        'Switching to second cluster context',
+        testLogger,
+      );
+      const installPostgresChartCommand: string = `helm install my-postgresql https://charts.bitnami.com/bitnami/postgresql-12.1.2.tgz \
+        --set image.tag=16.4.0 \
+        --namespace ${this.nameSpace} --create-namespace \
+        --set global.postgresql.auth.postgresPassword=${this.postgresPassword} \
+        --set primary.persistence.enabled=false --set secondary.enabled=false`;
+
+      MirrorNodeTest.executeCommand(installPostgresChartCommand, 'PostgreSQL chart installation', testLogger);
+
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+      const k8: K8 = k8Factory.getK8(contexts[1]);
+      await k8
+        .pods()
+        .waitForReadyStatus(
+          NamespaceName.of(this.nameSpace),
+          ['app.kubernetes.io/name=postgresql'],
+          constants.PODS_READY_MAX_ATTEMPTS,
+          constants.PODS_READY_DELAY,
+        );
+
+      const initScriptPath: string = 'examples/external-database-test/scripts/init.sh';
+
+      // check if initScriptPath exist, otherwise throw error
+      if (!fs.existsSync(initScriptPath)) {
+        throw new Error(`Init script not found at path: ${initScriptPath}`);
+      }
+
+      const copyInitScriptCommand: string = `kubectl cp ${initScriptPath} ${this.postgresContainerName}:/tmp/init.sh -n ${this.nameSpace}`;
+      MirrorNodeTest.executeCommand(copyInitScriptCommand, 'Copy', testLogger);
+
+      const chmodInitScriptCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- chmod +x /tmp/init.sh`;
+      MirrorNodeTest.executeCommand(chmodInitScriptCommand, 'Chmod', testLogger);
+
+      const initScriptCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- /bin/bash /tmp/init.sh "${this.postgresUsername}" "${this.postgresReadonlyUsername}" "${this.postgresReadonlyPassword}"`;
+      MirrorNodeTest.executeCommand(initScriptCommand, 'Init script execution', testLogger);
+    }).timeout(Duration.ofMinutes(2).toMillis());
+  }
+
+  public static runSql(options: BaseTestOptions): void {
+    it('should run SQL command', async (): Promise<void> => {
+      const {testCacheDirectory, testLogger} = options;
+      const copySqlCommand: string = `kubectl cp ${testCacheDirectory}/database-seeding-query.sql ${this.postgresContainerName}:/tmp/database-seeding-query.sql -n ${this.nameSpace}`;
+      MirrorNodeTest.executeCommand(copySqlCommand, 'SQL file copy', testLogger);
+
+      const runSqlCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- env PGPASSWORD=${this.postgresPassword} psql -U ${this.postgresUsername} -f /tmp/database-seeding-query.sql -d ${this.postgresMirrorNodeDatabaseName}`;
+      MirrorNodeTest.executeCommand(runSqlCommand, 'SQL execution', testLogger);
+    });
   }
 }

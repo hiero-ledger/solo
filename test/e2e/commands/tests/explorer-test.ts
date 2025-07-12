@@ -99,11 +99,9 @@ export class ExplorerTest extends BaseCommandTest {
         request.end(); // make the request
         await sleep(Duration.ofSeconds(2));
       }
-    } finally {
-      if (portForwarder) {
-        // eslint-disable-next-line unicorn/no-null
-        await k8.pods().readByReference(null).stopPortForward(portForwarder);
-      }
+    } catch (error) {
+      // do not stop portforward since it will be used by smoke test
+      testLogger.debug(`problem with request: ${error.message}`, error);
     }
   }
 

@@ -100,8 +100,9 @@ function start_sdk_test ()
 
 function check_monitor_log()
 {
+  namespace="${1}"
   # get the logs of mirror-monitor
-  kubectl get pods -n solo-e2e | grep mirror-monitor | awk '{print $1}' | xargs -IPOD kubectl logs -n solo-e2e POD > mirror-monitor.log
+  kubectl get pods -n "${namespace}" | grep mirror-monitor | awk '{print $1}' | xargs -IPOD kubectl logs -n "${namespace}" POD > mirror-monitor.log
 
   if grep -q "ERROR" mirror-monitor.log; then
     echo "mirror-monitor.log contains ERROR"
@@ -128,7 +129,9 @@ function check_monitor_log()
 
 function check_importer_log()
 {
-  kubectl get pods -n solo-e2e | grep mirror-importer | awk '{print $1}' | xargs -IPOD kubectl logs -n solo-e2e POD > mirror-importer.log
+  namespace="${1}"
+
+  kubectl get pods -n "${namespace}" | grep mirror-importer | awk '{print $1}' | xargs -IPOD kubectl logs -n "${namespace}" POD > mirror-importer.log
   if grep -q "ERROR" mirror-importer.log; then
     echo "mirror-importer.log contains ERROR"
 
@@ -164,11 +167,16 @@ function log_and_exit()
 echo "Change to parent directory"
 
 cd ../
-rm port-forward.log || true
+rm -rf port-forward.log || true
 
 if [ -z "${SOLO_DEPLOYMENT}" ]; then
   export SOLO_DEPLOYMENT="solo-deployment"
 fi
+
+if [ -z "${SOLO_NAMESPACE}" ]; then
+  export SOLO_NAMESPACE="solo-e2e"
+fi
+
 create_test_account "${SOLO_DEPLOYMENT}"
 clone_smart_contract_repo
 setup_smart_contract_test
@@ -180,18 +188,18 @@ echo "Sleep a while to wait background transactions to finish"
 sleep 30
 
 echo "Run mirror node acceptance test"
-helm test mirror -n solo-e2e --timeout 10m
+helm test mirror -n "${SOLO_NAMESPACE}" --timeout 10m
 result=$?
 if [[ $result -ne 0 ]]; then
   echo "Mirror node acceptance test failed with exit code $result"
   log_and_exit $result
 fi
 
-check_monitor_log
+check_monitor_log "${SOLO_NAMESPACE}"
 
 if [ -n "$1" ]; then
   echo "Skip mirror importer log check"
 else
-  check_importer_log
+  check_importer_log "${SOLO_NAMESPACE}"
 fi
 log_and_exit $?
