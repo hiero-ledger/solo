@@ -197,11 +197,9 @@ export class RelayCommand extends BaseCommand {
       throw new MissingArgumentError('Node IDs must be specified');
     }
 
-    const networkJsonString = await this.prepareNetworkJsonString(nodeAliases, namespace);
-    console.log(`networkJsonString = ${networkJsonString}`);
-    valuesArgument += ` --set relay.config.HEDERA_NETWORK=' ${networkJsonString}'`;
-    const wsNetworkJsonString = networkJsonString;
-    valuesArgument += ` --set ws.config.HEDERA_NETWORK=' ${wsNetworkJsonString}'`;
+    const networkJsonString: string = await this.prepareNetworkJsonString(nodeAliases, namespace);
+    valuesArgument += ` --set-literal relay.config.HEDERA_NETWORK='${networkJsonString}'`;
+    valuesArgument += ` --set-literal ws.config.HEDERA_NETWORK='${networkJsonString}'`;
 
     if (domainName) {
       valuesArgument += helpers.populateHelmArguments({
