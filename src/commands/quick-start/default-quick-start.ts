@@ -145,7 +145,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             argv.push('init');
             return this.argvPushGlobalFlags(argv, config.cacheDir);
           }),
-          this.invokeSoloCommand('solo cluster-ref connect', ClusterCommandHandlers.CONNECT_COMMAND, () => {
+          this.invokeSoloCommand('solo cluster-ref config connect', ClusterCommandHandlers.CONNECT_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push(
               'cluster-ref',
@@ -183,7 +183,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             );
             return this.argvPushGlobalFlags(argv);
           }),
-          this.invokeSoloCommand('solo cluster-ref setup', ClusterCommandHandlers.SETUP_COMMAND, () => {
+          this.invokeSoloCommand('solo cluster-ref config setup', ClusterCommandHandlers.SETUP_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push('cluster-ref', 'setup', this.optionFromFlag(Flags.clusterRef), config.clusterRef);
             return this.argvPushGlobalFlags(argv);

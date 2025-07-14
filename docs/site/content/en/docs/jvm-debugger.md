@@ -81,9 +81,9 @@ rm -Rf ~/.solo # to avoid name collision issues if you ran previously with the s
 kind delete cluster -n "${SOLO_CLUSTER_NAME}" 
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 solo init
-solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 
-solo cluster-ref connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+solo cluster-ref config connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
 solo deployment config create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 solo deployment config add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
 solo consensus node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
@@ -119,9 +119,9 @@ rm -Rf ~/.solo
 kind delete cluster -n "${SOLO_CLUSTER_NAME}" 
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 solo init
-solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 
-solo cluster-ref connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+solo cluster-ref config connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
 solo deployment config create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 solo deployment config add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
 solo consensus node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
@@ -145,9 +145,9 @@ rm -Rf ~/.solo
 kind delete cluster -n "${SOLO_CLUSTER_NAME}" 
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 solo init
-solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 
-solo cluster-ref connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+solo cluster-ref config connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
 solo deployment config create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 solo deployment config add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
 solo consensus node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
@@ -171,9 +171,9 @@ rm -Rf ~/.solo
 kind delete cluster -n "${SOLO_CLUSTER_NAME}" 
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 solo init
-solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 
-solo cluster-ref connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+solo cluster-ref config connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
 solo deployment config create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 solo deployment config add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
 solo consensus node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
@@ -219,9 +219,9 @@ rm -Rf ~/.solo
 kind delete cluster -n "${SOLO_CLUSTER_NAME}" 
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 solo init
-solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 
-solo cluster-ref connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+solo cluster-ref config connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
 solo deployment config create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 solo deployment config add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
 solo consensus node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3

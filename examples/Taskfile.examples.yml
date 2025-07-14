@@ -37,7 +37,7 @@ tasks:
       - task: "start"
 
   install:
-    desc: solo init, solo cluster-ref create, solo consensus node keys, solo consensus network deploy
+    desc: solo init, solo cluster-ref config create, solo consensus node keys, solo consensus network deploy
     deps:
       - task: "init"
     cmds:
@@ -217,7 +217,7 @@ tasks:
         else
           export CLUSTER_REF="kind-${SOLO_CLUSTER_NAME}"
         fi
-        SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- cluster-ref connect --cluster-ref ${CLUSTER_REF} --context ${CONTEXT}
+        SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- cluster-ref config connect --cluster-ref ${CLUSTER_REF} --context ${CONTEXT}
 
   solo:deployment:create:
     silent: true
@@ -442,7 +442,7 @@ tasks:
     cmds:
       - |
         export MINIO_FLAG=$(cat {{ .minio_flag_file }})
-        SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- cluster-ref setup --cluster-setup-namespace "${SOLO_CLUSTER_SETUP_NAMESPACE}" ${MINIO_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${CLUSTER_TLS_FLAGS} -q --dev
+        SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- cluster-ref config setup --cluster-setup-namespace "${SOLO_CLUSTER_SETUP_NAMESPACE}" ${MINIO_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${CLUSTER_TLS_FLAGS} -q --dev
 
   solo:node:addresses:
     internal: true

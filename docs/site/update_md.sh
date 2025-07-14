@@ -39,7 +39,7 @@ export KIND_CREATE_CLUSTER_OUTPUT=$( cat ${BUILD_DIR}/create-cluster.log | tee $
 solo init | tee ${BUILD_DIR}/init.log
 export SOLO_INIT_OUTPUT=$( cat ${BUILD_DIR}/init.log | tee ${BUILD_DIR}/test.log )
 
-solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} | tee ${BUILD_DIR}/cluster-ref-connect.log
+solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} | tee ${BUILD_DIR}/cluster-ref-connect.log
 export SOLO_CLUSTER_REF_CONNECT_OUTPUT=$( cat ${BUILD_DIR}/cluster-ref-connect.log | tee ${BUILD_DIR}/test.log )
 
 solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/deployment-create.log
@@ -51,7 +51,7 @@ export SOLO_DEPLOYMENT_ADD_CLUSTER_OUTPUT=$( cat ${BUILD_DIR}/deployment-add-clu
 solo consensus node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/keys.log
 export SOLO_NODE_KEY_PEM_OUTPUT=$( cat ${BUILD_DIR}/keys.log | tee ${BUILD_DIR}/test.log )
 
-solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" | tee ${BUILD_DIR}/cluster-setup.log
+solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" | tee ${BUILD_DIR}/cluster-setup.log
 export SOLO_CLUSTER_SETUP_OUTPUT=$( cat ${BUILD_DIR}/cluster-setup.log | tee ${BUILD_DIR}/test.log )
 
 solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-"${SOLO_CLUSTER_NAME}" "${CONSENSUS_NODE_FLAG[@]}" | tee ${BUILD_DIR}/block-node-add.log

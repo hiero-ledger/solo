@@ -223,7 +223,7 @@ The deployment will:
 
 ```bash
 # connect to the cluster you created in a previous command
-solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
 
 #create the deployment
 solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
@@ -293,7 +293,7 @@ hedera-node2.key    hedera-node4.key    s-private-node4.pem s-public-node4.pem
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
 ```bash
-solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 ```
 
 Example output:

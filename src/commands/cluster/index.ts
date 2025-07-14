@@ -21,7 +21,7 @@ export class ClusterCommand extends BaseCommand {
   }
 
   public static readonly COMMAND_NAME: 'cluster-ref' = 'cluster-ref' as const;
-  public static readonly SUBCOMMAND_NAME: 'cluster-ref' = 'cluster-ref' as const;
+  public static readonly SUBCOMMAND_NAME: 'config' = 'config' as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(ClusterCommand.COMMAND_NAME, 'Manage solo testing cluster', this.logger)

@@ -907,7 +907,7 @@ export class NetworkCommand extends BaseCommand {
               );
               if (!isChartInstalled) {
                 throw new SoloError(
-                  `Chart ${constants.SOLO_CLUSTER_SETUP_CHART} is not installed for cluster: ${context}. Run 'solo cluster-ref setup'`,
+                  `Chart ${constants.SOLO_CLUSTER_SETUP_CHART} is not installed for cluster: ${context}. Run 'solo cluster-ref config setup'`,
                 );
               }
             }
@@ -1366,7 +1366,7 @@ export class NetworkCommand extends BaseCommand {
               'deploy',
               'Deploy solo network. ' +
                 'Requires the chart `solo-cluster-setup` to have been installed in the cluster. `' +
-                "If it hasn't the following command can be ran: `solo cluster-ref setup`",
+                "If it hasn't the following command can be ran: `solo cluster-ref config setup`",
               this,
               this.deploy,
               NetworkCommand.DEPLOY_FLAGS_LIST,
