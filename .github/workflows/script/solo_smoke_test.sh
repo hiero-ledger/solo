@@ -84,7 +84,7 @@ function start_sdk_test ()
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
   fi
-  grpcurl -plaintext -d '{"file_id": {"fileNum": 102}, "limit": 0}' localhost:5600 com.hedera.mirror.api.proto.NetworkService/getNodes
+#  grpcurl -plaintext -d '{"file_id": {"fileNum": 102}, "limit": 0}' localhost:5600 com.hedera.mirror.api.proto.NetworkService/getNodes
   result=0
   node examples/create-topic.js || result=$?
   cd -
@@ -179,7 +179,7 @@ setup_smart_contract_test
 start_background_transactions
 check_port_forward
 start_contract_test
-#start_sdk_test
+start_sdk_test
 echo "Sleep a while to wait background transactions to finish"
 sleep 30
 
