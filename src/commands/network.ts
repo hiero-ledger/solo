@@ -178,12 +178,12 @@ export class NetworkCommand extends BaseCommand {
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
-  private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.deletePvcs, flags.deleteSecrets, flags.enableTimeout, flags.force, flags.deployment, flags.quiet],
   };
 
-  private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
+  public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.apiPermissionProperties,
@@ -865,7 +865,7 @@ export class NetworkCommand extends BaseCommand {
   }
 
   /** Run helm install and deploy network components */
-  private async deploy(argv: ArgvStruct): Promise<boolean> {
+  public async deploy(argv: ArgvStruct): Promise<boolean> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
     let lease: Lock;
@@ -1251,7 +1251,7 @@ export class NetworkCommand extends BaseCommand {
     return true;
   }
 
-  private async destroy(argv: ArgvStruct): Promise<boolean> {
+  public async destroy(argv: ArgvStruct): Promise<boolean> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
     let lease: Lock;
@@ -1357,33 +1357,11 @@ export class NetworkCommand extends BaseCommand {
     return networkDestroySuccess;
   }
 
+  /**
+   * @deprecated because of common group use `CommandDefinitionBuilder.getConsensusCommandDefinition()`
+   */
   public getCommandDefinition(): CommandDefinition {
-    return new CommandBuilder(NetworkCommand.COMMAND_NAME, 'Consensus related commands', this.logger)
-      .addCommandGroup(
-        new CommandGroup(NetworkCommand.SUBCOMMAND_NAME, 'Manage solo network deployment')
-          .addSubcommand(
-            new Subcommand(
-              'deploy',
-              'Deploy solo network. ' +
-                'Requires the chart `solo-cluster-setup` to have been installed in the cluster. `' +
-                "If it hasn't the following command can be ran: `solo cluster-ref config setup`",
-              this,
-              this.deploy,
-              NetworkCommand.DEPLOY_FLAGS_LIST,
-            ),
-          )
-          .addSubcommand(
-            new Subcommand(
-              'destroy',
-              'Destroy solo network. If both --delete-pvcs and --delete-secrets are set to true, ' +
-                'the namespace will be deleted.',
-              this,
-              this.destroy,
-              NetworkCommand.DESTROY_FLAGS_LIST,
-            ),
-          ),
-      )
-      .build();
+    return new CommandBuilder('', '', this.logger).build();
   }
 
   /** Adds the consensus node, envoy and haproxy components to remote config.  */

@@ -15,6 +15,7 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type QuickStartCommand} from './quick-start/quick-start.js';
 import {type CommandDefinition} from '../types/index.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {CommandDefinitionBuilder} from './command-definition-builder.js';
 
 /**
  * Return a list of Yargs command builder to be exposed through CLI
@@ -49,18 +50,20 @@ export class Commands {
   }
 
   public getCommandDefinitions(): CommandDefinition[] {
+    const commandDefinitionBuilder: CommandDefinitionBuilder = new CommandDefinitionBuilder(
+      this.blockNodeCommand.logger,
+    );
     return [
       this.initCommand.getCommandDefinition(),
       this.accountCommand.getCommandDefinition(),
       this.clusterCommand.getCommandDefinition(),
-      this.networkCommand.getCommandDefinition(),
-      this.nodeCommand.getCommandDefinition(),
       this.relayCommand.getCommandDefinition(),
       this.mirrorNodeCommand.getCommandDefinition(),
       this.explorerCommand.getCommandDefinition(),
       this.deploymentCommand.getCommandDefinition(),
       this.blockNodeCommand.getCommandDefinition(),
       this.quickStartCommand.getCommandDefinition(),
+      commandDefinitionBuilder.getConsensusCommandDefinition(this.networkCommand, this.nodeCommand),
     ];
   }
 }
