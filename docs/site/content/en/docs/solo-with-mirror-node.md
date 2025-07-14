@@ -29,7 +29,7 @@ solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
 solo node setup     --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
 solo node start     --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
 solo mirror node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} 
-solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME}
+solo explorer node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME}
 
 kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &
 kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:80 > /dev/null 2>&1 &

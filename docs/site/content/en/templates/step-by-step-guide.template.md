@@ -411,7 +411,7 @@ Watch the deployment progress:
 
 ```bash
 # deploy explorer
-solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+solo explorer node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 ```
 
 Example output:
@@ -714,7 +714,7 @@ $SOLO_MIRROR_NODE_DESTROY_OUTPUT
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
 ```
-solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
+solo explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --force
 ```
 
 Example output:

@@ -235,7 +235,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
           ),
-          this.invokeSoloCommand('solo explorer deploy', ExplorerCommand.DEPLOY_COMMAND, () => {
+          this.invokeSoloCommand('solo explorer node deploy', ExplorerCommand.DEPLOY_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push(
               'explorer',

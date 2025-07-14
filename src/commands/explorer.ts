@@ -83,6 +83,9 @@ interface ExplorerDestroyContext {
 export class ExplorerCommand extends BaseCommand {
   public static readonly DEPLOY_COMMAND: string = 'explorer deploy';
 
+  public static readonly COMMAND_NAME: 'explorer' = 'explorer' as const;
+  public static readonly SUBCOMMAND_NAME: 'node' = 'node' as const;
+
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
@@ -93,9 +96,6 @@ export class ExplorerCommand extends BaseCommand {
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
   }
-
-  public static readonly COMMAND_NAME: 'explorer' = 'explorer' as const;
-  public static readonly SUBCOMMAND_NAME: 'node' = 'node' as const;
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
