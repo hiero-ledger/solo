@@ -40,7 +40,7 @@ You can deploy JSON RPC Relays for one or more nodes as below:
 
 ```bash
 # deploy relay node first
-solo relay deploy -i node1 --deployment "${SOLO_DEPLOYMENT}"
+solo relay node deploy -i node1 --deployment "${SOLO_DEPLOYMENT}"
 
 # enable relay for node1
 kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n "${SOLO_NAMESPACE}" 7546:7546 &

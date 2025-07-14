@@ -313,7 +313,7 @@ Watch your `k9s` terminal and ensure status of all pods (with prefix `fullstack-
 Here we are deploying a single relay pointing to all three nodes. If needed you may deploy more relays by specifying the node IDs using the `-i` switch, but for this workshop demo purpose just one is enough.
 
 ```bash
-solo relay deploy -i node1,node2,node3
+solo relay node deploy -i node1,node2,node3
 ```
 
 #### Checkpoint

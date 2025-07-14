@@ -73,10 +73,10 @@ export SOLO_MIRROR_NODE_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/mirror-node-deploy.log
 solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q | tee ${BUILD_DIR}/explorer-deploy.log
 export SOLO_EXPLORER_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/explorer-deploy.log | tee ${BUILD_DIR}/test.log )
 
-solo relay deploy -i node1 --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/relay-deploy.log
+solo relay node deploy -i node1 --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/relay-deploy.log
 export SOLO_RELAY_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/relay-deploy.log | tee ${BUILD_DIR}/test.log )
 
-solo relay destroy -i node1 --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/relay-destroy.log
+solo relay node destroy -i node1 --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/relay-destroy.log
 export SOLO_RELAY_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/relay-destroy.log | tee ${BUILD_DIR}/test.log )
 
 solo mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/mirror-node-destroy.log

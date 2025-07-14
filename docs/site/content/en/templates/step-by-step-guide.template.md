@@ -430,7 +430,7 @@ The JSON RPC relay allows you to interact with your Hedera network using standar
 
 ```bash
 #deploy a solo JSON RPC relay
-solo relay deploy -i node1 --deployment "${SOLO_DEPLOYMENT}"
+solo relay node deploy -i node1 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 Example output:
@@ -682,7 +682,7 @@ rm -Rf ~/.solo
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
 ```
-solo relay destroy -i node1 --deployment "${SOLO_DEPLOYMENT}"
+solo relay node destroy -i node1 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 Example output:

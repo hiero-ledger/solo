@@ -246,7 +246,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             );
             return this.argvPushGlobalFlags(argv, config.cacheDir);
           }),
-          this.invokeSoloCommand('solo relay deploy', RelayCommand.DEPLOY_COMMAND, () => {
+          this.invokeSoloCommand('solo relay node deploy', RelayCommand.DEPLOY_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push(
               'relay',
