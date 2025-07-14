@@ -157,7 +157,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             );
             return this.argvPushGlobalFlags(argv);
           }),
-          this.invokeSoloCommand('solo deployment create', DeploymentCommand.CREATE_COMMAND, () => {
+          this.invokeSoloCommand('solo deployment config create', DeploymentCommand.CREATE_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push(
               'deployment',
@@ -169,7 +169,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             );
             return this.argvPushGlobalFlags(argv);
           }),
-          this.invokeSoloCommand('solo deployment add-cluster', DeploymentCommand.ADD_COMMAND, () => {
+          this.invokeSoloCommand('solo deployment config add-cluster', DeploymentCommand.ADD_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push(
               'deployment',

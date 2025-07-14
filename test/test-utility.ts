@@ -370,7 +370,7 @@ export function endToEndTestSuite(
         });
       });
 
-      it('should succeed with deployment create', async () => {
+      it('should succeed with deployment config create', async () => {
         await commandInvoker.invoke({
           argv: argv,
           command: DeploymentCommand.COMMAND_NAME,

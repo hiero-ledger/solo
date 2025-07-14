@@ -43,11 +43,11 @@ export class DeploymentTest extends BaseCommandTest {
     const {testName, testLogger, deployment, namespace, realm, shard} = options;
     const {soloDeploymentCreateArgv} = DeploymentTest;
 
-    it(`${testName}: solo deployment create`, async (): Promise<void> => {
-      testLogger.info(`${testName}: beginning solo deployment create`);
+    it(`${testName}: solo deployment config create`, async (): Promise<void> => {
+      testLogger.info(`${testName}: beginning solo deployment config create`);
       await main(soloDeploymentCreateArgv(testName, deployment, namespace, realm, shard));
       // TODO check that the deployment was created
-      testLogger.info(`${testName}: finished solo deployment create`);
+      testLogger.info(`${testName}: finished solo deployment config create`);
     });
   }
 
@@ -78,8 +78,8 @@ export class DeploymentTest extends BaseCommandTest {
     const {testName, testLogger, deployment, clusterReferenceNameArray, consensusNodesCount} = options;
     const {soloDeploymentAddClusterArgv} = DeploymentTest;
 
-    it(`${testName}: solo deployment add-cluster`, async (): Promise<void> => {
-      testLogger.info(`${testName}: beginning solo deployment add-cluster`);
+    it(`${testName}: solo deployment config add-cluster`, async (): Promise<void> => {
+      testLogger.info(`${testName}: beginning solo deployment config add-cluster`);
       for (const element of clusterReferenceNameArray) {
         await main(soloDeploymentAddClusterArgv(testName, deployment, element, 1));
       }
@@ -93,7 +93,7 @@ export class DeploymentTest extends BaseCommandTest {
       for (const [index, element] of clusterReferenceNameArray.entries()) {
         expect(consensusNodes[index].metadata.cluster).to.equal(element);
       }
-      testLogger.info(`${testName}: finished solo deployment add-cluster`);
+      testLogger.info(`${testName}: finished solo deployment config add-cluster`);
     });
   }
 }
