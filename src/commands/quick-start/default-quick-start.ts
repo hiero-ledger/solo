@@ -305,19 +305,6 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
       'To quickly delete the deployed resources, run the following command:\n' +
         `kubectl delete ns ${context_.config.namespace.name}`,
     );
-
-    this.logger.addMessageGroupMessage(
-      messageGroupKey,
-      'To access the deployed services, use the following commands:\n' +
-        `kubectl port-forward svc/haproxy-node1-svc -n ${context_.config.namespace.name} 50211:50211 > /dev/null 2>&1 &\n` +
-        `kubectl port-forward svc/hiero-explorer -n ${context_.config.namespace.name} 8080:80 > /dev/null 2>&1 &\n` +
-        `kubectl port-forward svc/mirror-grpc -n ${context_.config.namespace.name} 5600:5600 > /dev/null 2>&1 &\n` +
-        `kubectl port-forward svc/mirror-rest -n ${context_.config.namespace.name} 5551:80 > /dev/null 2>&1 &\n` +
-        `kubectl port-forward service/mirror-restjava -n ${context_.config.namespace.name} 8084:80 > /dev/null 2>&1 &\n` +
-        `kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n ${context_.config.namespace.name} 7546:7546 > /dev/null 2>&1 &\n`,
-    );
-
-    this.logger.showMessageGroup(messageGroupKey);
   }
 
   private showVersions(): void {
