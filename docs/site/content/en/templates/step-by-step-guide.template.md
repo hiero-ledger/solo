@@ -314,7 +314,7 @@ Now comes the exciting part – deploying your Hedera test network!
 
 > ⚠️ Block Node is experimental in Solo.  It requires a minimum of 16 GB of memory allocated to Docker. If you have less than 16 GB of memory, skip this step.
 
-As mentioned in the warning, Block Node uses a lot of memory.  In addition, it requires a version of Consensus Node to be at least v0.62.3.  You will need to augment the `solo network deploy` & `solo node setup` command with the `--release-tag v0.62.6` option to ensure that the Consensus Node is at the correct version. \*note: v0.62.6 is the latest patch for v0.62
+As mentioned in the warning, Block Node uses a lot of memory.  In addition, it requires a version of Consensus Node to be at least v0.62.3.  You will need to augment the `solo consensus network deploy` & `solo node setup` command with the `--release-tag v0.62.6` option to ensure that the Consensus Node is at the correct version. \*note: v0.62.6 is the latest patch for v0.62
 
 ```
 solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-"${SOLO_CLUSTER_NAME}" --release-tag v0.62.6
@@ -335,7 +335,7 @@ $SOLO_BLOCK_NODE_ADD_OUTPUT
 Deploying the network runs risks of timeouts as images are downloaded, and pods are starting. If you experience a failure double check the resources you've allocated in docker engine and give it another try.
 
 ```bash
-solo network deploy --deployment "${SOLO_DEPLOYMENT}"
+solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 Example output:
@@ -748,7 +748,7 @@ $SOLO_BLOCK_NODE_DESTROY_OUTPUT
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
 ```
-solo network destroy --deployment "${SOLO_DEPLOYMENT}" --force
+solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force
 ```
 
 Example output:

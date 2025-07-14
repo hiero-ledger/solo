@@ -20,7 +20,7 @@ kubectl delete namespace ${SOLO_NAMESPACE}
 solo init -n $SOLO_NAMESPACE -i node1,node2,node3 -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 ```
 
-then, you can jump to section 3 with the `solo network deploy...` steps.
+then, you can jump to section 3 with the `solo consensus network deploy...` steps.
 
 NOTE: if you continuously are having issues, delete the cluster and start over:
 
@@ -245,7 +245,7 @@ onboard
 
 ```bash
 # pvcs (Persistent Volume Claims are needed to do the Node Add to retain data when pods are brought down)
-solo network deploy --pvcs --prometheus-svc-monitor
+solo consensus network deploy --pvcs --prometheus-svc-monitor
 ```
 
 #### Checkpoint

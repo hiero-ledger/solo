@@ -157,6 +157,9 @@ export class NetworkCommand extends BaseCommand {
   private profileValuesFile?: Record<ClusterReferenceName, string>;
   public static DEPLOY_COMMAND: string = 'consensus network deploy';
 
+  public static readonly COMMAND_NAME: 'consensus' = 'consensus' as const;
+  public static readonly SUBCOMMAND_NAME: 'network' = 'network' as const;
+
   public constructor(
     @inject(InjectTokens.CertificateManager) private readonly certificateManager: CertificateManager,
     @inject(InjectTokens.KeyManager) private readonly keyManager: KeyManager,
@@ -233,9 +236,6 @@ export class NetworkCommand extends BaseCommand {
       flags.domainNames,
     ],
   };
-
-  public static readonly COMMAND_NAME: 'consensus' = 'consensus' as const;
-  public static readonly SUBCOMMAND_NAME: 'network' = 'network' as const;
 
   private waitForNetworkPods(): SoloListrTask<NetworkDeployContext> {
     return {

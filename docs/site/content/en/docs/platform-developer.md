@@ -31,7 +31,7 @@ solo deployment config create --namespace "${SOLO_NAMESPACE}" --deployment "${SO
 solo deployment config add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
 
 solo node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3 
-solo network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 
+solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 
 
 # option 1) if all nodes are running the same version of Hiero app
 solo node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data/
@@ -56,5 +56,5 @@ If need to provide customized configuration files for Hedera application, please
 For example:
 
 ```bash
-solo network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --settings-txt <path-to-settings-txt> 
+solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --settings-txt <path-to-settings-txt> 
 ```

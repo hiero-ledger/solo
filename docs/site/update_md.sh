@@ -57,7 +57,7 @@ export SOLO_CLUSTER_SETUP_OUTPUT=$( cat ${BUILD_DIR}/cluster-setup.log | tee ${B
 solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-"${SOLO_CLUSTER_NAME}" "${CONSENSUS_NODE_FLAG[@]}" | tee ${BUILD_DIR}/block-node-add.log
 export SOLO_BLOCK_NODE_ADD_OUTPUT=$( cat ${BUILD_DIR}/block-node-add.log | tee ${BUILD_DIR}/test.log )
 
-solo network deploy --deployment "${SOLO_DEPLOYMENT}" "${CONSENSUS_NODE_FLAG[@]}" | tee ${BUILD_DIR}/network-deploy.log
+solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" "${CONSENSUS_NODE_FLAG[@]}" | tee ${BUILD_DIR}/network-deploy.log
 export SOLO_NETWORK_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/network-deploy.log | tee ${BUILD_DIR}/test.log )
 
 solo node setup --deployment "${SOLO_DEPLOYMENT}" "${CONSENSUS_NODE_FLAG[@]}" | tee ${BUILD_DIR}/node-setup.log
@@ -88,7 +88,7 @@ export SOLO_EXPLORER_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/explorer-destroy.log | t
 solo block node destroy --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/block-node-destroy.log
 export SOLO_BLOCK_NODE_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/block-node-destroy.log | tee ${BUILD_DIR}/test.log )
 
-solo network destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/network-destroy.log
+solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/network-destroy.log
 export SOLO_NETWORK_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/network-destroy.log | tee ${BUILD_DIR}/test.log )
 
 echo "Generating ${TARGET_FILE} from ${TEMPLATE_FILE}"

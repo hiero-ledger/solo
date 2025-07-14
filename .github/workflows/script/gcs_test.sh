@@ -139,7 +139,7 @@ else
 
   npm run solo-test -- node keys --gossip-keys --tls-keys -i node1 --deployment "${SOLO_DEPLOYMENT}"
 
-  npm run solo-test -- network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1 \
+  npm run solo-test -- consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1 \
     --storage-type "${storageType}" \
     "${STORAGE_OPTIONS[@]}"
 
@@ -203,7 +203,7 @@ if [ "${storageType}" == "aws_only" ] || [ "${storageType}" == "gcs_only" ]; the
   fi
 fi
 
-npm run solo-test -- network destroy --deployment "${SOLO_DEPLOYMENT}" --force -q
+npm run solo-test -- consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force -q
 
 echo "-----------------------------------------"
 echo "Solo test finished successfully"

@@ -37,7 +37,7 @@ tasks:
       - task: "start"
 
   install:
-    desc: solo init, solo cluster-ref create, solo node keys, solo network deploy
+    desc: solo init, solo cluster-ref create, solo node keys, solo consensus network deploy
     deps:
       - task: "init"
     cmds:
@@ -281,7 +281,7 @@ tasks:
         if [[ "${SOLO_CHART_VERSION}" != "" ]]; then
           export SOLO_CHART_FLAG="--solo-chart-version ${SOLO_CHART_VERSION}"
         fi
-        SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- network deploy --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${SOLO_CHART_FLAG} ${VALUES_FLAG} ${SETTINGS_FLAG} ${LOG4J2_FLAG} ${APPLICATION_PROPERTIES_FLAG} ${GENESIS_THROTTLES_FLAG} ${DEBUG_NODE_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${LOAD_BALANCER_FLAG} ${NETWORK_DEPLOY_EXTRA_FLAGS} -q --dev
+        SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${SOLO_CHART_FLAG} ${VALUES_FLAG} ${SETTINGS_FLAG} ${LOG4J2_FLAG} ${APPLICATION_PROPERTIES_FLAG} ${GENESIS_THROTTLES_FLAG} ${DEBUG_NODE_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${LOAD_BALANCER_FLAG} ${NETWORK_DEPLOY_EXTRA_FLAGS} -q --dev
       - task: "solo:node:setup"
 
   solo:node:setup:
@@ -302,7 +302,7 @@ tasks:
     deps:
       - task: "init"
     cmds:
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- network destroy --deployment "${SOLO_DEPLOYMENT}" --delete-pvcs --delete-secrets --force -q --dev
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --delete-pvcs --delete-secrets --force -q --dev
 
   solo:node:start:
     silent: true
