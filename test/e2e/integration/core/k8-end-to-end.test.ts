@@ -218,6 +218,13 @@ describe('K8', () => {
 
           // client
           const s = new net.Socket();
+          s.on('open', () => {
+            s.unref(); // Allow the server to close even if this socket is still open
+            // @ts-expect-error - store a source location stack for diagnostics
+            s.sourceLocation = new Error('sourceLocation').stack;
+            // @ts-expect-error - store a source location stack for diagnostics
+            console.log(JSON.stringify(s.sourceLocation));
+          });
           s.on('ready', async () => {
             s.destroy();
             await k8Factory.default().pods().readByReference(podReference).stopPortForward(server);

@@ -11,6 +11,7 @@ import {type ErrorHandler} from './src/core/error-handler.js';
 import * as wtf from 'wtfnode';
 
 const context: {logger: SoloLogger} = {logger: undefined};
+
 await fnm
   .main(process.argv, context)
   .then((): void => {
@@ -24,7 +25,7 @@ await fnm
       context.logger.error(message);
     });
     context.logger.info('Solo CLI completed, via entrypoint');
-    wtf.dump(); // Dump the active handles and requests
+    wtf.dump({fullStacks: true}); // Dump the active handles and requests
   })
   .catch((error): void => {
     const errorHandler: ErrorHandler = container.resolve(InjectTokens.ErrorHandler);

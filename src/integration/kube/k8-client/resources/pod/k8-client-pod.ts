@@ -113,6 +113,13 @@ export class K8ClientPod implements Pod {
       const forwarder: PortForward = new PortForward(this.kubeConfig, false);
 
       const server: ExtendedNetServer = (await net.createServer((socket): void => {
+        socket.on('open', (): void => {
+          socket.unref(); // Allow the server to close even if this socket is still open
+          // @ts-expect-error - store a source location stack for diagnostics
+          socket.sourceLocation = new Error('sourceLocation').stack;
+          // @ts-expect-error - store a source location stack for diagnostics
+          console.log(JSON.stringify(socket.sourceLocation));
+        });
         forwarder.portForward(ns.name, this.podReference.name.toString(), [podPort], socket, undefined, socket, 3);
       })) as ExtendedNetServer;
 
