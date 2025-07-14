@@ -57,7 +57,7 @@ export class ExplorerTest extends BaseCommandTest {
     expect(explorerPods).to.have.lengthOf(1);
     let portForwarder: ExtendedNetServer;
     try {
-      portForwarder = await k8.pods().readByReference(explorerPods[0].podReference).portForward(8080, 8080);
+      portForwarder = await k8.pods().readByReference(explorerPods[0].podReference).portForward(8080, 80);
       await sleep(Duration.ofSeconds(2));
       const queryUrl: string = 'http://127.0.0.1:8080/api/v1/accounts?limit=15&order=desc';
       const packageDownloader: PackageDownloader = container.resolve<PackageDownloader>(InjectTokens.PackageDownloader);
