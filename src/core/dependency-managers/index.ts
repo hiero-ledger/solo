@@ -3,3 +3,4 @@
 export {DependencyManager} from './dependency-manager.js';
 
 export {HelmDependencyManager} from './helm-dependency-manager.js';
+export {KindDependencyManager} from './kind-dependency-manager.js';

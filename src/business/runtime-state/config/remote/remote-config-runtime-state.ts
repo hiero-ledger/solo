@@ -322,7 +322,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       this.clusterReferences.set(context, clusterReference.toString());
     }
 
-    return this.localConfig.configuration.clusterRefs.get(deployment.clusters[0])?.toString();
+    return this.localConfig.configuration.clusterRefs.get(deployment.clusters.get(0)?.toString())?.toString();
   }
 
   /**
