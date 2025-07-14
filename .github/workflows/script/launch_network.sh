@@ -41,7 +41,7 @@ export CONSENSUS_NODE_VERSION=v0.58.10
 solo consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --settings-txt .github/workflows/support/v58-test/settings.txt
 solo node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
 solo node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
-solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
+solo ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
 
 solo mirror node deploy  --deployment "${SOLO_DEPLOYMENT}" --pinger
@@ -58,7 +58,7 @@ cat remote-config-before.yaml
  solo explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --force
 
 # trigger migration
-npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}"
+npm run solo-test -- ledger account create --deployment "${SOLO_DEPLOYMENT}"
 
 cp ~/.solo/local-config.yaml ./local-config-after.yaml
 cat ./local-config-after.yaml
@@ -103,16 +103,16 @@ kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-ingress-controller 8081:8
 kubectl port-forward -n "${SOLO_NAMESPACE}" svc/hiero-explorer 8080:80 > /dev/null 2>&1 &
 
 # Test transaction can still be sent and processed
-npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
+npm run solo-test -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
 # Upgrade to v0.59.5
 npm run solo-test -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version v0.59.5 -q
-npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
+npm run solo-test -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
 # Upgrade to latest version
 export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
 npm run solo-test -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q
-npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
+npm run solo-test -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
 SKIP_IMPORTER_CHECK=true
 .github/workflows/script/solo_smoke_test.sh "${SKIP_IMPORTER_CHECK}"

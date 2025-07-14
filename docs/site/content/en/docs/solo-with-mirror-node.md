@@ -42,8 +42,8 @@ Or you can use Task tool to deploy Solo network with Mirror Node with a single c
 Next, you can try to create a few accounts with Solo and see the transactions in the Explorer.
 
 ```bash
-solo account create -n solo-e2e --hbar-amount 100
-solo account create -n solo-e2e --hbar-amount 100
+solo ledger account create -n solo-e2e --hbar-amount 100
+solo ledger account create -n solo-e2e --hbar-amount 100
 ```
 
 Or you can use Hedera JavaScript SDK examples to create topic, submit message and subscribe to the topic.

@@ -353,8 +353,8 @@ NOTE: click Transactions and then Dashboards and the URL will update from mainne
 ### 4.2 Create some transaction data to view in Hedera Explorer
 
 ```bash
-solo account create
-solo account create
+solo ledger account create
+solo ledger account create
 ```
 
 #### Checkpoint
