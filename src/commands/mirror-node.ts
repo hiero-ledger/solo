@@ -815,7 +815,7 @@ export class MirrorNodeCommand extends BaseCommand {
             if (!argv.force) {
               const confirmResult = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
                 default: false,
-                message: 'Are you sure you would like to destroy the mirror-node components?',
+                message: 'Are you sure you would like to destroy the mirror node components?',
               });
 
               if (!confirmResult) {
@@ -952,7 +952,7 @@ export class MirrorNodeCommand extends BaseCommand {
           .addSubcommand(
             new Subcommand(
               'deploy',
-              'Deploy mirror-node and its components',
+              'Deploy mirror node and its components',
               this,
               this.deploy,
               MirrorNodeCommand.DEPLOY_FLAGS_LIST,
@@ -961,7 +961,7 @@ export class MirrorNodeCommand extends BaseCommand {
           .addSubcommand(
             new Subcommand(
               'destroy',
-              'Destroy mirror-node components and database',
+              'Destroy mirror node components and database',
               this,
               this.destroy,
               MirrorNodeCommand.DESTROY_FLAGS_LIST,

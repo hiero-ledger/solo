@@ -392,7 +392,7 @@ This is the most memory intensive step from a resource perspective. If you have 
 
 ```bash
 # Deploy with explicit configuration
-solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+solo mirror node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 ```
 
 Example output:
@@ -698,7 +698,7 @@ $SOLO_RELAY_DESTROY_OUTPUT
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
 ```
-solo mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --force
+solo mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force
 ```
 
 Example output:

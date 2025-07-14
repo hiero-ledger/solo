@@ -217,13 +217,14 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             return this.argvPushGlobalFlags(argv);
           }),
           this.invokeSoloCommand(
-            'solo mirror-node deploy',
+            'solo mirror node deploy',
             MirrorNodeCommand.DEPLOY_COMMAND,
 
             () => {
               const argv: string[] = this.newArgv();
               argv.push(
-                'mirror-node',
+                'mirror',
+                'node',
                 'deploy',
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,

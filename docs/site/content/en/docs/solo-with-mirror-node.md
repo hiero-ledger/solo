@@ -28,7 +28,7 @@ solo node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i nod
 solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
 solo node setup     --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
 solo node start     --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
-solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} 
+solo mirror node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} 
 solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME}
 
 kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &
