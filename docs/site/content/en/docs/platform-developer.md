@@ -30,16 +30,16 @@ solo cluster-ref connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOL
 solo deployment config create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 solo deployment config add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
 
-solo node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3 
+solo consensus node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3 
 solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 
 
 # option 1) if all nodes are running the same version of Hiero app
-solo node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data/
+solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data/
 
 # option 2) if each node is running different version of Hiero app, please provide different paths to the local repositories
-solo node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path node1=../hiero-consensus-node/hedera-node/data/,node1=<path2>,node3=<path3>
+solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path node1=../hiero-consensus-node/hedera-node/data/,node1=<path2>,node3=<path3>
 
-solo node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 
+solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 
 
 ```
 

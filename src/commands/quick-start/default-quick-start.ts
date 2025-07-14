@@ -188,7 +188,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             argv.push('cluster-ref', 'setup', this.optionFromFlag(Flags.clusterRef), config.clusterRef);
             return this.argvPushGlobalFlags(argv);
           }),
-          this.invokeSoloCommand('solo node keys', NodeCommandHandlers.KEYS_COMMAND, () => {
+          this.invokeSoloCommand('solo consensus node keys', NodeCommandHandlers.KEYS_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push(
               'node',
@@ -206,12 +206,12 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             argv.push('network', 'deploy', this.optionFromFlag(Flags.deployment), config.deployment);
             return this.argvPushGlobalFlags(argv, config.cacheDir);
           }),
-          this.invokeSoloCommand('solo node setup', NodeCommandHandlers.SETUP_COMMAND, () => {
+          this.invokeSoloCommand('solo consensus node setup', NodeCommandHandlers.SETUP_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push('node', 'setup', this.optionFromFlag(Flags.deployment), config.deployment);
             return this.argvPushGlobalFlags(argv, config.cacheDir);
           }),
-          this.invokeSoloCommand('solo node start', NodeCommandHandlers.START_COMMAND, () => {
+          this.invokeSoloCommand('solo consensus node start', NodeCommandHandlers.START_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push('node', 'start', this.optionFromFlag(Flags.deployment), config.deployment);
             return this.argvPushGlobalFlags(argv);

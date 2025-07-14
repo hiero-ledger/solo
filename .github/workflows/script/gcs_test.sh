@@ -137,14 +137,14 @@ else
 
   npm run solo-test -- deployment config add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
 
-  npm run solo-test -- node keys --gossip-keys --tls-keys -i node1 --deployment "${SOLO_DEPLOYMENT}"
+  npm run solo-test -- consensus node keys --gossip-keys --tls-keys -i node1 --deployment "${SOLO_DEPLOYMENT}"
 
   npm run solo-test -- consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1 \
     --storage-type "${storageType}" \
     "${STORAGE_OPTIONS[@]}"
 
-  npm run solo-test -- node setup -i node1 --deployment "${SOLO_DEPLOYMENT}"
-  npm run solo-test -- node start -i node1 --deployment "${SOLO_DEPLOYMENT}"
+  npm run solo-test -- consensus node setup -i node1 --deployment "${SOLO_DEPLOYMENT}"
+  npm run solo-test -- consensus node start -i node1 --deployment "${SOLO_DEPLOYMENT}"
   npm run solo-test -- mirror node deploy  --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --cluster-ref kind-${SOLO_CLUSTER_NAME} \
     --storage-type "${storageType}" \
     "${MIRROR_STORAGE_OPTIONS[@]}" \
@@ -185,7 +185,7 @@ grpcurl -plaintext -d '{"file_id": {"fileNum": 102}, "limit": 0}' localhost:8081
 
 node examples/create-topic.js
 
-npm run solo-test -- node stop -i node1 --deployment "${SOLO_DEPLOYMENT}"
+npm run solo-test -- consensus node stop -i node1 --deployment "${SOLO_DEPLOYMENT}"
 
 if [ "${storageType}" == "aws_only" ] || [ "${storageType}" == "gcs_only" ]; then
   echo "Waiting for backup uploader to run"

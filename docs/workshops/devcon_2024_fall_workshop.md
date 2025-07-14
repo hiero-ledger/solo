@@ -151,7 +151,7 @@ solo init -n $SOLO_NAMESPACE -i node1,node2,node3 -s "${SOLO_CLUSTER_SETUP_NAMES
 You need to create the gossip and TLS keys for your network nodes.
 
 ```bash
-solo node keys --gossip-keys --tls-keys
+solo consensus node keys --gossip-keys --tls-keys
 ```
 
 #### Checkpoint
@@ -263,7 +263,7 @@ In k9s type: `:pods` to switch back to the pods screen
 ### 3.3a (Option 1) Setup consensus nodes with platform version
 
 ```bash
-solo node setup
+solo consensus node setup
 ```
 
 #### Checkpoint
@@ -275,7 +275,7 @@ solo node setup
 ```bash
 # make sure your build path is relative or fully qualified where `hedera-services` is pointing to the root 
 # directory of the folder containing your hashgraph/hedera-services repo
-solo node setup --local-build-path ../hedera-services/hedera-node/data
+solo consensus node setup --local-build-path ../hedera-services/hedera-node/data
 ```
 
 #### Checkpoint
@@ -285,7 +285,7 @@ solo node setup --local-build-path ../hedera-services/hedera-node/data
 ### 3.4. Start Hedera consensus nodes
 
 ```bash
-solo node start
+solo consensus node start
 ```
 
 #### Checkpoint
@@ -370,7 +370,7 @@ View Hedera Explorer in your browser and click transactions: <http://localhost:8
 ### 5.1 (Option 1) Run Solo Node Add
 
 ```bash
-solo node add --gossip-keys --tls-keys
+solo consensus node add --gossip-keys --tls-keys
 ```
 
 #### Checkpoint
@@ -405,7 +405,7 @@ In IntelliJ Ultimate set a breakpoint, example `java/com/hedera/node/app/Service
 ### 5.4 (Option 2) Run Solo Node Add with Debugger Attached
 
 ```bash
-solo node add --debug-nodeid node4 --gossip-keys --tls-keys
+solo consensus node add --debug-nodeid node4 --gossip-keys --tls-keys
 ```
 
 When you see the message `Please attach JVM debugger now`

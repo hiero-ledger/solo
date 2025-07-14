@@ -8,7 +8,7 @@ type: docs
 
 ### How can I avoid using genesis keys ?
 
-You can run `solo ledger account init` anytime after `solo node start`
+You can run `solo ledger account init` anytime after `solo consensus node start`
 
 ### Where can I find the default account keys ?
 
