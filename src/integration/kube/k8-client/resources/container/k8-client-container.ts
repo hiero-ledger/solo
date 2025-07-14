@@ -119,10 +119,6 @@ export class K8ClientContainer implements Container {
             conn.on('open', (): void => {
               // @ts-expect-error - Unref is not defined in the type definitions for ws, but it is a valid property
               conn._socket.unref(); // Unref the socket to allow the process to exit if this is the only connection
-              // @ts-expect-error - store a source location stack for diagnostics
-              conn._socket.sourceLocation = new Error('sourceLocation').stack;
-              // @ts-expect-error - store a source location stack for diagnostics
-              console.log(JSON.stringify(conn._socket.sourceLocation));
             });
             localContext.connection = conn;
 
@@ -241,10 +237,6 @@ export class K8ClientContainer implements Container {
             conn.on('open', (): void => {
               // @ts-expect-error - Unref is not defined in the type definitions for ws, but it is a valid property
               conn._socket.unref(); // Unref the socket to allow the process to exit if this is the only connection
-              // @ts-expect-error - store a source location stack for diagnostics
-              conn._socket.sourceLocation = new Error('sourceLocation').stack;
-              // @ts-expect-error - store a source location stack for diagnostics
-              console.log(JSON.stringify(conn._socket.sourceLocation));
             });
             localContext.connection = conn;
 
@@ -335,10 +327,6 @@ export class K8ClientContainer implements Container {
           conn.on('open', (): void => {
             // @ts-expect-error - Unref is not defined in the type definitions for ws, but it is a valid property
             conn._socket.unref(); // Unref the socket to allow the process to exit if this is the only connection
-            // @ts-expect-error - store a source location stack for diagnostics
-            conn._socket.sourceLocation = new Error('sourceLocation').stack;
-            // @ts-expect-error - store a source location stack for diagnostics
-            console.log(JSON.stringify(conn._socket.sourceLocation));
           });
           localContext.connection = conn;
 
