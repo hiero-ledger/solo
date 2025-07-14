@@ -152,17 +152,10 @@ else
     --enable-ingress --domain-name localhost \
     --pinger
 
-  kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-ingress-controller 8081:80 > /dev/null 2>&1 &
-
   npm run solo-test -- explorer deploy -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" \
     --cluster-ref kind-${SOLO_CLUSTER_NAME} --tls-cluster-issuer-type self-signed --enable-explorer-tls \
     --ingress-controller-value-file "${script_dir}"/explorer-ingress-controller-values.yaml \
     --enable-ingress --domain-name localhost
-
-  kubectl port-forward -n "${SOLO_NAMESPACE}" svc/haproxy-node1-svc 50211:50211 > /dev/null 2>&1 &
-
-  explorer_svc="$(kubectl get svc -l app.kubernetes.io/component=hiero-explorer -n ${SOLO_NAMESPACE} --output json | jq -r '.items[].metadata.name')"
-  kubectl port-forward -n "${SOLO_NAMESPACE}" svc/"${explorer_svc}" 8080:80 > /dev/null 2>&1 &
 
   # Check Explorer endpoints
   check_service_health "http://localhost:30001" "SPDX-License" "Explorer" "http" || exit 1

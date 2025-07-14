@@ -16,11 +16,11 @@ Once the nodes are up, you may now expose various services (using `k9s` (shift-f
   ```bash
   # enable port forwarding for haproxy
   # node1 grpc port accessed by localhost:50211
-  kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 &
+  kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 51211:50211 &
   # node2 grpc port accessed by localhost:51211
-  kubectl port-forward svc/haproxy-node2-svc -n "${SOLO_NAMESPACE}" 51211:50211 &
+  kubectl port-forward svc/haproxy-node2-svc -n "${SOLO_NAMESPACE}" 52211:50211 &
   # node3 grpc port accessed by localhost:52211
-  kubectl port-forward svc/haproxy-node3-svc -n "${SOLO_NAMESPACE}" 52211:50211 &
+  kubectl port-forward svc/haproxy-node3-svc -n "${SOLO_NAMESPACE}" 53211:50211 &
   ```
 * Envoy Proxy: `envoy-proxy-<node name>-svc`
   ```bash
@@ -31,8 +31,9 @@ Once the nodes are up, you may now expose various services (using `k9s` (shift-f
   ```
 * Hiero explorer: `solo-deployment-hiero-explorer`
   ```bash
-  #enable portforwarding for hiero explorer, can be access at http://localhost:8080/
-  kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:80 &
+  # enable port forwarding for hiero explorer, can be access at http://localhost:8080/
+  # check to see if it is already enabled, port forwarding for explorer should be handled by solo automatically
+  # kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:80 &
   ```
 * JSON RPC Relays
 
@@ -43,5 +44,6 @@ You can deploy JSON RPC Relays for one or more nodes as below:
 solo relay deploy -i node1 --deployment "${SOLO_DEPLOYMENT}"
 
 # enable relay for node1
-kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n "${SOLO_NAMESPACE}" 7546:7546 &
+# check to see if it is already enabled, port forwarding for relay should be handled by solo automatically
+# kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n "${SOLO_NAMESPACE}" 7546:7546 &
 ```
