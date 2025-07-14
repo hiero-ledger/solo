@@ -33,7 +33,7 @@ Once the nodes are up, you may now expose various services (using `k9s` (shift-f
   ```bash
   # enable port forwarding for hiero explorer, can be access at http://localhost:8080/
   # check to see if it is already enabled, port forwarding for explorer should be handled by solo automatically
-  # kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:80 &
+  # kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:8080 &
   ```
 * JSON RPC Relays
 

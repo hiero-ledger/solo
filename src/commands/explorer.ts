@@ -462,7 +462,7 @@ export class ExplorerCommand extends BaseCommand {
               .getK8(context_.config.clusterContext)
               .pods()
               .readByReference(podReference)
-              .portForward(constants.EXPLORER_PORT, 80, true);
+              .portForward(constants.EXPLORER_PORT, constants.EXPLORER_PORT, true);
             this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
             this.logger.addMessageGroupMessage(
               constants.PORT_FORWARDING_MESSAGE_GROUP,

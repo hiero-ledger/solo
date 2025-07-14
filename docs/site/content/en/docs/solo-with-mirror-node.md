@@ -33,7 +33,7 @@ solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUS
 
 # check to see if it is already enabled, port forwarding for explorer and consensus node grpc should be handled by solo automatically
 # kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &
-# kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:80 > /dev/null 2>&1 &
+# kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:8080 > /dev/null 2>&1 &
 ```
 
 Then you can access the Explorer at <http://localhost:8080>
