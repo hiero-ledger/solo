@@ -2,13 +2,12 @@
 
 import {type AccountManager} from '../../core/account-manager.js';
 import {BaseCommand} from './../base.js';
-import * as NodeFlags from './flags.js';
 import {type NodeCommandHandlers} from './handlers.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type CommandDefinition} from '../../types/index.js';
-import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';
+import {CommandBuilder} from '../../core/command-path-builders/command-builder.js';
 
 /**
  * Defines the core functionalities of 'node' command

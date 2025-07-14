@@ -5,7 +5,7 @@ import {SoloError} from '../../core/errors/solo-error.js';
 import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
 import {Flags, Flags as flags} from '../flags.js';
-import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct} from '../../types/aliases.js';
 import {type CommandDefinition, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';

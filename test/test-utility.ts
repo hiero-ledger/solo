@@ -97,7 +97,6 @@ export function deployNetworkTest(argv: Argv, commandInvoker: CommandInvoker, ne
       argv: argv,
       command: NetworkCommand.COMMAND_NAME,
       subcommand: 'deploy',
-      // @ts-expect-error - to access private property
       callback: async argv => networkCmd.deploy(argv),
     });
   }).timeout(Duration.ofMinutes(5).toMillis());
