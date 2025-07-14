@@ -116,10 +116,6 @@ export class K8ClientContainer implements Container {
             },
           )
           .then(conn => {
-            conn.on('open', (): void => {
-              // @ts-expect-error - Unref is not defined in the type definitions for ws, but it is a valid property
-              conn._socket.unref(); // Unref the socket to allow the process to exit if this is the only connection
-            });
             localContext.connection = conn;
 
             conn.on('error', error => {
@@ -234,10 +230,6 @@ export class K8ClientContainer implements Container {
             ({status}) => self.handleCallback(status, localContext, messagePrefix),
           )
           .then(conn => {
-            conn.on('open', (): void => {
-              // @ts-expect-error - Unref is not defined in the type definitions for ws, but it is a valid property
-              conn._socket.unref(); // Unref the socket to allow the process to exit if this is the only connection
-            });
             localContext.connection = conn;
 
             self.registerConnectionOnError(localContext, messagePrefix, conn);
@@ -324,10 +316,6 @@ export class K8ClientContainer implements Container {
           ({status}) => self.handleCallback(status, localContext, messagePrefix),
         )
         .then(conn => {
-          conn.on('open', (): void => {
-            // @ts-expect-error - Unref is not defined in the type definitions for ws, but it is a valid property
-            conn._socket.unref(); // Unref the socket to allow the process to exit if this is the only connection
-          });
           localContext.connection = conn;
 
           self.registerConnectionOnError(localContext, messagePrefix, conn);

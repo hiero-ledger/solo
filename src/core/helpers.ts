@@ -89,8 +89,7 @@ async function resolveLoadBalancerAddress(consensusNode: ConsensusNode, k8: K8):
 
 export function sleep(duration: Duration): Promise<void> {
   return new Promise<void>((resolve): void => {
-    const timeout: NodeJS.Timeout = setTimeout(resolve, duration.toMillis());
-    timeout.unref(); // Allow the process to exit if this is the only thing left running
+    setTimeout(resolve, duration.toMillis());
   });
 }
 
