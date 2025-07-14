@@ -10,7 +10,7 @@ describe('DefaultKindClient - getClusters', () => {
   let executeAsListStub: SinonStub;
 
   beforeEach(() => {
-    client = new DefaultKindClient();
+    client = new DefaultKindClient('/usr/local/bin/kind');
     executeAsListStub = sinon.stub(client as any, 'executeAsList');
   });
 

@@ -17,9 +17,10 @@ export interface KindClientBuilder {
    *
    * @returns the KindClient instance.
    * @throws KindConfigurationException if the KindClient instance cannot be constructed.
+   * @throws KindVersionRequirementException if the Kind CLI version does not meet the required version.
    * @implNote This method is responsible for extracting the appropriate Kind executable from the package to a
    * temporary working directory. The temporary working directory should be supplied to the KindClient instance.
    * @see KindClient
    */
-  build(): KindClient;
+  build(): Promise<KindClient>;
 }

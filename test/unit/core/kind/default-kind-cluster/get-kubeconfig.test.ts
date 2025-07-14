@@ -12,7 +12,7 @@ describe('DefaultKindClient - getKubeconfig', () => {
   let mockExecution: KindExecution;
 
   beforeEach(() => {
-    client = new DefaultKindClient();
+    client = new DefaultKindClient('/usr/local/bin/kind');
 
     // Mock the KindExecution that will be returned from the builder
     mockExecution = {

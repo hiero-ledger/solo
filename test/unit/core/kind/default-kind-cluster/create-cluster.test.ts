@@ -14,7 +14,7 @@ describe('DefaultKindClient - createCluster', () => {
   let executionStub: sinon.SinonStubbedInstance<KindExecution>;
 
   beforeEach(() => {
-    client = new DefaultKindClient();
+    client = new DefaultKindClient('/usr/local/bin/kind');
     executionBuilderStub = sinon.createStubInstance(KindExecutionBuilder);
     executionStub = sinon.createStubInstance(KindExecution);
 

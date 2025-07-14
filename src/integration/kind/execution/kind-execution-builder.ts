@@ -2,14 +2,7 @@
 
 import {join} from 'node:path';
 import {KindExecution} from './kind-execution.js';
-import {inject, injectable} from 'tsyringe-neo';
-import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
-import {patchInject} from '../../../core/dependency-injection/container-helper.js';
-import {type SoloLogger} from '../../../core/logging/solo-logger.js';
-import {Templates} from '../../../core/templates.js';
-import * as constants from '../../../core/constants.js';
 
-@injectable()
 /**
  * A builder for creating a kind command execution.
  */
@@ -20,7 +13,7 @@ export class KindExecutionBuilder {
   /**
    * The path to the kind executable.
    */
-  private readonly kindExecutable: string;
+  private kindExecutable: string;
 
   /**
    * The list of subcommands to be used when execute the kind command.
@@ -60,20 +53,7 @@ export class KindExecutionBuilder {
   /**
    * Creates a new KindExecutionBuilder instance.
    */
-  public constructor(
-    @inject(InjectTokens.OsPlatform) private readonly osPlatform?: NodeJS.Platform,
-    @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
-  ) {
-    this.osPlatform = patchInject(osPlatform, InjectTokens.OsPlatform, this.constructor.name);
-    this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
-
-    try {
-      this.kindExecutable = Templates.installationPath(constants.KIND, this.osPlatform);
-    } catch (error) {
-      this.logger?.error('Failed to find kind executable:', error);
-      throw new Error('Failed to find kind executable. Please ensure kind is installed and in your PATH.');
-    }
-
+  public constructor() {
     const workingDirectoryString = process.env.PWD;
     this._workingDirectory =
       workingDirectoryString && workingDirectoryString.trim() !== ''
@@ -81,13 +61,24 @@ export class KindExecutionBuilder {
         : join(this.kindExecutable, '..');
   }
 
+  public executable(kindExecutable: string): KindExecutionBuilder {
+    if (!kindExecutable) {
+      throw new Error('kindExecutable must not be null');
+    }
+    this.kindExecutable = kindExecutable;
+    if (!this._workingDirectory) {
+      this._workingDirectory = join(this.kindExecutable, '..')
+    }
+    return this;
+  }
+
   /**
    * Adds the list of subcommands to the kind execution.
    * @param commands the list of subcommands to be added
    * @returns this builder
    */
-  subcommands(...commands: string[]): KindExecutionBuilder {
-    if (!commands) {
+  public subcommands(...commands: string[]): KindExecutionBuilder {
+    if (!commands || commands.length === 0) {
       throw new Error('commands must not be null');
     }
     this._subcommands.push(...commands);
@@ -100,7 +91,7 @@ export class KindExecutionBuilder {
    * @param value the value of the argument
    * @returns this builder
    */
-  argument(name: string, value: string): KindExecutionBuilder {
+  public argument(name: string, value: string): KindExecutionBuilder {
     if (!name) {
       throw new Error(KindExecutionBuilder.NAME_MUST_NOT_BE_NULL);
     }
@@ -117,7 +108,7 @@ export class KindExecutionBuilder {
    * @param value the list of values for the option
    * @returns this builder
    */
-  optionsWithMultipleValues(name: string, value: string[]): KindExecutionBuilder {
+  public optionsWithMultipleValues(name: string, value: string[]): KindExecutionBuilder {
     if (!name) {
       throw new Error(KindExecutionBuilder.NAME_MUST_NOT_BE_NULL);
     }
@@ -133,7 +124,7 @@ export class KindExecutionBuilder {
    * @param value the value of the positional argument
    * @returns this builder
    */
-  positional(value: string): KindExecutionBuilder {
+  public positional(value: string): KindExecutionBuilder {
     if (!value) {
       throw new Error(KindExecutionBuilder.VALUE_MUST_NOT_BE_NULL);
     }
@@ -147,7 +138,7 @@ export class KindExecutionBuilder {
    * @param value the value of the environment variable
    * @returns this builder
    */
-  environmentVariable(name: string, value: string): KindExecutionBuilder {
+  public environmentVariable(name: string, value: string): KindExecutionBuilder {
     if (!name) {
       throw new Error(KindExecutionBuilder.NAME_MUST_NOT_BE_NULL);
     }
@@ -163,7 +154,7 @@ export class KindExecutionBuilder {
    * @param workingDirectoryPath the path to the working directory
    * @returns this builder
    */
-  workingDirectory(workingDirectoryPath: string): KindExecutionBuilder {
+  public workingDirectory(workingDirectoryPath: string): KindExecutionBuilder {
     if (!workingDirectoryPath) {
       throw new Error('workingDirectoryPath must not be null');
     }
@@ -176,7 +167,7 @@ export class KindExecutionBuilder {
    * @param flag the flag to be added
    * @returns this builder
    */
-  flag(flag: string): KindExecutionBuilder {
+  public flag(flag: string): KindExecutionBuilder {
     if (!flag) {
       throw new Error('flag must not be null');
     }
@@ -217,8 +208,6 @@ export class KindExecutionBuilder {
     }
 
     command.push(...this._positionals);
-
-    this.logger.debug(`Kind command: kind ${command.slice(1).join(' ')}`);
 
     return command;
   }

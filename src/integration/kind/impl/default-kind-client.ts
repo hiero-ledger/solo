@@ -1,59 +1,71 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {inject, injectable} from 'tsyringe-neo';
 import {type KindClient} from '../kind-client.js';
-import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
-import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import {SemVer} from 'semver';
 import {GetClustersRequest} from '../request/get/get-clusters-request.js';
 import {KindCluster} from '../model/kind-cluster.js';
-import {KindRequest} from '../request/kind-request.js';
+import {type KindRequest} from '../request/kind-request.js';
 import {KindExecutionBuilder} from '../execution/kind-execution-builder.js';
-import {KindExecution} from '../execution/kind-execution.js';
+import {type KindExecution} from '../execution/kind-execution.js';
 import {VersionRequest} from '../request/version-request.js';
 import {KindVersion} from '../model/kind-version.js';
 import {ClusterCreateRequest} from '../request/cluster/cluster-create-request.js';
-import {ClusterCreateOptions} from '../model/create-cluster/cluster-create-options.js';
+import {type ClusterCreateOptions} from '../model/create-cluster/cluster-create-options.js';
 import {ClusterCreateOptionsBuilder} from '../model/create-cluster/create-cluster-options-builder.js';
 import {ClusterCreateResponse} from '../model/create-cluster/cluster-create-response.js';
 import {ClusterDeleteResponse} from '../model/delete-cluster/cluster-delete-response.js';
-import {ClusterDeleteOptions} from '../model/delete-cluster/cluster-delete-options.js';
+import {type ClusterDeleteOptions} from '../model/delete-cluster/cluster-delete-options.js';
 import {ClusterDeleteOptionsBuilder} from '../model/delete-cluster/cluster-delete-options-builder.js';
 import {ClusterDeleteRequest} from '../request/cluster/cluster-delete-request.js';
 import {BuildNodeImagesResponse} from '../model/build-node-images/build-node-images-response.js';
-import {BuildNodeImagesOptions} from '../model/build-node-images/build-node-images-options.js';
+import {type BuildNodeImagesOptions} from '../model/build-node-images/build-node-images-options.js';
 import {BuildNodeImagesRequest} from '../request/build/build-node-images-request.js';
 import {ExportLogsRequest} from '../request/export/export-logs-request.js';
-import {ExportLogsOptions} from '../model/export-logs/export-logs-options.js';
+import {type ExportLogsOptions} from '../model/export-logs/export-logs-options.js';
 import {ExportLogsResponse} from '../model/export-logs/export-logs-response.js';
 import {ExportLogsOptionsBuilder} from '../model/export-logs/export-logs-options-builder.js';
 import {ExportKubeconfigOptionsBuilder} from '../model/export-kubeconfig/export-kubeconfig-options-builder.js';
-import {ExportKubeconfigOptions} from '../model/export-kubeconfig/export-kubeconfig-options.js';
+import {type ExportKubeconfigOptions} from '../model/export-kubeconfig/export-kubeconfig-options.js';
 import {ExportKubeconfigRequest} from '../request/export/export-kubeconfig-request.js';
 import {ExportKubeconfigResponse} from '../model/export-kubeconfig/export-kubeconfig-response.js';
 import {GetNodesResponse} from '../model/get-nodes/get-nodes-response.js';
-import {GetNodesOptions} from '../model/get-nodes/get-nodes-options.js';
+import {type GetNodesOptions} from '../model/get-nodes/get-nodes-options.js';
 import {GetNodesOptionsBuilder} from '../model/get-nodes/get-nodes-options-builder.js';
 import {GetNodesRequest} from '../request/get/get-nodes-request.js';
 import {GetKubeconfigOptionsBuilder} from '../model/get-kubeconfig/get-kubeconfig-options-builder.js';
-import {GetKubeconfigOptions} from '../model/get-kubeconfig/get-kubeconfig-options.js';
+import {type GetKubeconfigOptions} from '../model/get-kubeconfig/get-kubeconfig-options.js';
 import {GetKubeconfigRequest} from '../request/get/get-kubeconfig-request.js';
 import {GetKubeconfigResponse} from '../model/get-kubeconfig/get-kubeconfig-response.js';
-import {LoadDockerImageOptions} from '../model/load-docker-image/load-docker-image-options.js';
-import {LoadDockerImageRequest} from '../request/load/docker-image.js';
+import {type LoadDockerImageOptions} from '../model/load-docker-image/load-docker-image-options.js';
+import {LoadDockerImageRequest} from '../request/load/docker-image-request.js';
 import {LoadDockerImageResponse} from '../model/load-docker-image/load-docker-image-response.js';
 import {LoadDockerImageOptionsBuilder} from '../model/load-docker-image/load-docker-image-options-builder.js';
-import {LoadImageArchiveOptions} from '../model/load-image-archive/load-image-archive-options.js';
+import {type LoadImageArchiveOptions} from '../model/load-image-archive/load-image-archive-options.js';
 import {LoadImageArchiveOptionsBuilder} from '../model/load-image-archive/load-image-archive-options-builder.js';
 import {LoadImageArchiveResponse} from '../model/load-image-archive/load-image-archive-response.js';
-import {LoadImageArchiveRequest} from '../request/load/image-archive.js';
+import {LoadImageArchiveRequest} from '../request/load/image-archive-request.js';
+import {KIND_VERSION} from '../../../../version.js';
+import {KindVersionRequirementException} from '../errors/kind-version-requirement-exception.js';
 
 type BiFunction<T, U, R> = (t: T, u: U) => R;
 
-@injectable()
 export class DefaultKindClient implements KindClient {
-  constructor(@inject(InjectTokens.SoloLogger) private readonly logger?: any) {
-    this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
+  private static minimumVersion: SemVer = new SemVer(KIND_VERSION);
+
+  public constructor(private executable: string) {
+    if (!executable || !executable.trim()) {
+      throw new Error('executable must not be blank');
+    }
+    this.executable = executable;
+  }
+
+  public async checkVersion(): Promise<void> {
+    const version: SemVer = await this.version();
+    if (version.compare(DefaultKindClient.minimumVersion) < 0) {
+      throw new KindVersionRequirementException(
+        `The Kind CLI version ${version} is lower than the minimum required version ${DefaultKindClient.minimumVersion}.`,
+      );
+    }
   }
 
   public async version(): Promise<SemVer> {

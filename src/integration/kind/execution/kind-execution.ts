@@ -10,11 +10,11 @@ import {type Duration} from '../../../core/time/duration.js';
  */
 export class KindExecution {
   /**
-   * The logger for this class which should be used for all logging.
+   * The message for a timeout error.
    */
   private static readonly MSG_TIMEOUT_ERROR = 'Timed out waiting for the process to complete';
   /**
-   * The message for a timeout error.
+   * The message for an error deserializing the output into a specified class.
    */
   private static readonly MSG_DESERIALIZATION_ERROR = 'Failed to deserialize the output into the specified class: %s';
   /**

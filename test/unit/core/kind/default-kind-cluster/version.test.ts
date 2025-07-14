@@ -12,7 +12,7 @@ describe('DefaultKindClient - version', () => {
   let client: DefaultKindClient;
 
   beforeEach(() => {
-    client = new DefaultKindClient();
+    client = new DefaultKindClient('/usr/local/bin/kind');
   });
 
   afterEach(() => {
