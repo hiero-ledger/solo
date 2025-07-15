@@ -353,27 +353,26 @@ export class MirrorNodeTest extends BaseCommandTest {
         ]);
       const mirrorNodePod: Pod = mirrorNodePods[0];
       await k8.pods().readByReference(mirrorNodePod.podReference).portForward(5600, 5600);
-
-      // kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-grpc 5600:5600
-      // MirrorNodeTest.executeBackgroundCommand(
-      //   `kubectl port-forward -n "${namespace.name}" svc/mirror-grpc 5600:5600`,
-      //   'Mirror Port Forward',
-      // );
-      // kubectl port-forward -n \"${SOLO_NAMESPACE}\" svc/mirror-ingress-controller 8081:80
-      // MirrorNodeTest.executeBackgroundCommand(
-      //   `kubectl port-forward -n "${namespace.name}" svc/mirror-ingress-controller 8081:80`,
-      //   'Mirror Ingress Port Forward',
-      // );
     });
     it('Enable port-forward for mirror ingress controller', async (): Promise<void> => {
       // kubectl port-forward -n \"${SOLO_NAMESPACE}\" svc/mirror-ingress-controller 8081:80
+
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
       const k8: K8 = k8Factory.getK8(contexts[1]);
       const mirrorNodePods: Pod[] = await k8
         .pods()
         .list(namespace, ['app.kubernetes.io/instance=haproxy-ingress', 'app.kubernetes.io/name=haproxy-ingress']);
-      const mirrorNodePod: Pod = mirrorNodePods[0];
-      await k8.pods().readByReference(mirrorNodePod.podReference).portForward(8081, 80);
+      // itereate print all pod names
+      mirrorNodePods.forEach((pod: Pod): void => {
+        console.log(`find pod ${pod.podReference.name}`);
+      });
+      // const mirrorNodePod: Pod = mirrorNodePods[0];
+      // await k8.pods().readByReference(mirrorNodePod.podReference).portForward(8081, 80);
+
+      MirrorNodeTest.executeBackgroundCommand(
+        `kubectl port-forward -n "${namespace.name}" svc/mirror-ingress-controller 8081:80`,
+        'Mirror Ingress Port Forward',
+      );
     });
   }
 

@@ -36,8 +36,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withConsensusNodesCount(2)
   .withLoadBalancerEnabled(true)
   .withPinger(true)
-  .withRealm(0)
-  .withShard(0)
+  .withShard(3)
+  .withRealm(2)
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe('External Database E2E Test', (): void => {
       const {testCacheDirectory, testLogger, namespace, contexts} = options;
@@ -85,7 +85,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       it('should run smoke tests', async (): Promise<void> => {
         const scriptPath: string = `export SOLO_HOME=${testCacheDirectory}; \
-            export NEW_NODE_ACCOUNT_ID=0.0.3; \
+            export SHARD_NUM=3; \
+            export REALM_NUM=2; \
+            export NEW_NODE_ACCOUNT_ID=3.2.3; \
             export SOLO_NAMESPACE=${namespace.name}; \
             export SOLO_CACHE_DIR=${testCacheDirectory}; \
             export SOLO_DEPLOYMENT=${testName}-deployment; \
