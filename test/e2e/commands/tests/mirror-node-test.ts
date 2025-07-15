@@ -358,6 +358,11 @@ export class MirrorNodeTest extends BaseCommandTest {
         `kubectl port-forward -n "${namespace.name}" svc/mirror-grpc 5600:5600`,
         'Mirror Port Forward',
       );
+      // kubectl port-forward -n \"${SOLO_NAMESPACE}\" svc/mirror-ingress-controller 8081:80
+      MirrorNodeTest.executeBackgroundCommand(
+        `kubectl port-forward -n "${namespace.name}" svc/mirror-ingress-controller 8081:80`,
+        'Mirror Ingress Port Forward',
+      );
     });
   }
 
