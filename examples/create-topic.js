@@ -42,7 +42,7 @@ async function main() {
 
   console.log(`Hedera network = ${process.env.HEDERA_NETWORK}`);
   const provider = new LocalProvider();
-  const mirrorNetwork = '127.0.0.1:5600';
+  const mirrorNetwork = '127.0.0.1:8081';
   provider._client.setMirrorNetwork(mirrorNetwork);
 
   const wallet = new Wallet(process.env.OPERATOR_ID, process.env.OPERATOR_KEY, provider);

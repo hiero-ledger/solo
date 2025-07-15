@@ -314,13 +314,8 @@ export class MirrorNodeCommand extends BaseCommand {
         context_.config.cacheDir,
         MIRROR_INGRESS_TLS_SECRET_NAME,
       );
-      // patch ingressClassName of mirror ingress so it can be recognized by haproxy ingress controller
+      // patch ingressClassName of mirror ingress, so it can be recognized by haproxy ingress controller
       const updated: object = {
-        metadata: {
-          annotations: {
-            'haproxy-ingress.github.io/backend-protocol': 'h1',
-          },
-        },
         spec: {
           ingressClassName: `${constants.MIRROR_INGRESS_CLASS_NAME}`,
           tls: [
@@ -335,14 +330,6 @@ export class MirrorNodeCommand extends BaseCommand {
         .getK8(context_.config.clusterContext)
         .ingresses()
         .update(context_.config.namespace, constants.MIRROR_NODE_RELEASE_NAME, updated);
-
-      // to support GRPC over HTTP/2
-      await this.k8Factory
-        .getK8(context_.config.clusterContext)
-        .configMaps()
-        .update(context_.config.namespace, MIRROR_INGRESS_CONTROLLER, {
-          'backend-protocol': 'h2',
-        });
 
       await this.k8Factory
         .getK8(context_.config.clusterContext)
