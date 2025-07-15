@@ -225,10 +225,6 @@ export class NodeTest extends BaseCommandTest {
         throw new Error('No network-node pods found with the specified label selector.');
       }
       await k8.pods().readByReference(networkNodePod[0].podReference).portForward(50_211, 50_211);
-      // MirrorNodeTest.executeBackgroundCommand(
-      //   `kubectl port-forward -n "${namespace.name}" svc/haproxy-node1-svc 50211:50211`,
-      //   'Haproxy Port Forward',
-      // );
     });
   }
 }

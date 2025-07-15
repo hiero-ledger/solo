@@ -17,7 +17,6 @@ import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
-import {MirrorNodeTest} from './mirror-node-test.js';
 
 export class ExplorerTest extends BaseCommandTest {
   private static soloExplorerDeployArgv(
