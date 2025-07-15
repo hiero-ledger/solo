@@ -320,6 +320,8 @@ export class MirrorNodeTest extends BaseCommandTest {
         ]);
       const mirrorNodePod: Pod = mirrorNodePods[0];
       await k8.pods().readByReference(mirrorNodePod.podReference).portForward(5600, 5600);
+      // svc/mirror-ingress-controller 8081:80
+      await k8.pods().readByReference(mirrorNodePod.podReference).portForward(8081, 80);
     });
   }
 
