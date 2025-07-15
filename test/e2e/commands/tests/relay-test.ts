@@ -46,7 +46,7 @@ export class RelayTest extends BaseCommandTest {
 
     // enable port forward 7546 to 7546
     const relayPod: Pod = relayPods[0];
-    await k8.pods().readByReference(relayPod.podReference).portForward(7546, 7546);
+    // await k8.pods().readByReference(relayPod.podReference).portForward(7546, 7546);
   }
 
   public static deploy(options: BaseTestOptions): void {
@@ -63,6 +63,10 @@ export class RelayTest extends BaseCommandTest {
 
       await main(soloRelayDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
       await verifyRelayDeployWasSuccessful(contexts, namespace);
+      MirrorNodeTest.executeBackgroundCommand(
+        `kubectl port-forward -n "${namespace.name}" svc/relay-node2-hedera-json-rpc-relay 7546:7546`,
+        'Relay Port Forward',
+      );
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 }
