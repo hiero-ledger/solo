@@ -8,7 +8,7 @@ import {type ConfigManager} from '../../../src/core/config-manager.js';
 import {K8Client} from '../../../src/integration/kube/k8-client/k8-client.js';
 import {BaseCommand} from '../../../src/commands/base.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
-import sinon, {SinonStub, SinonStubbedInstance} from 'sinon';
+import sinon, {type SinonStub, type SinonStubbedInstance} from 'sinon';
 import {container} from 'tsyringe-neo';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {resetForTest} from '../../test-container.js';
@@ -21,7 +21,7 @@ import {type HelmClient} from '../../../src/integration/helm/helm-client.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../../../src/business/runtime-state/api/remote-config-runtime-state-api.js';
 import {RemoteConfigRuntimeState} from '../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
-import {CommandFlag} from '../../../src/types/flag-types.js';
+import {type CommandFlag} from '../../../src/types/flag-types.js';
 
 describe('BaseCommand', () => {
   let helm: HelmClient;
