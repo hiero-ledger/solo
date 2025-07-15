@@ -240,6 +240,7 @@ export const START_FLAGS = {
     flags.debugNodeAlias,
     flags.stateFile,
     flags.stakeAmounts,
+    flags.forcePortForward,
   ],
 };
 
