@@ -296,12 +296,17 @@ export class MirrorNodeTest extends BaseCommandTest {
     });
 
     it('Enable port-forward for mirror ingress controller', async (): Promise<void> => {
-      await new ShellRunner().run(`kubectl port-forward -n "${namespace.name}" svc/mirror-ingress-controller 8081:80`);
+      await new ShellRunner().run(
+        `kubectl port-forward -n "${namespace.name}" svc/mirror-ingress-controller 8081:80`,
+        [],
+        true,
+        true,
+      );
     });
   }
 
   public static installPostgres(options: BaseTestOptions): void {
-    const {contexts, namespace, testLogger} = options;
+    const {contexts} = options;
     it('should install postgres chart', async (): Promise<void> => {
       await new ShellRunner().run(`kubectl config use-context "${contexts[1]}"`);
       const installPostgresChartCommand: string = `helm install my-postgresql https://charts.bitnami.com/bitnami/postgresql-12.1.2.tgz \

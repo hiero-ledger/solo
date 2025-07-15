@@ -49,7 +49,6 @@ async function main() {
 
   const TEST_MESSAGE = 'Hello World';
   try {
-    // if NEW_NODE_ACCOUNT_ID defined in env varilabe, provider._client.setNetwork() to update 
     if (process.env.NEW_NODE_ACCOUNT_ID) {
       console.log(`NEW_NODE_ACCOUNT_ID = ${process.env.NEW_NODE_ACCOUNT_ID}`);
       provider._client.setNetwork({
