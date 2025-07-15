@@ -47,7 +47,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     // generate label such as relay-node1 or relay-node1-node2
     let label: string = 'relay';
     for (const id of ids) {
-      label += '-' + Templates.renderNodeAliasFromNumber(id + 1);
+      label += `-${Templates.renderNodeAliasFromNumber(id + 1)}`;
     }
     return [`app.kubernetes.io/instance=${label}`];
   }
