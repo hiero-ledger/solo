@@ -3,8 +3,8 @@
 import {expect} from 'chai';
 import Sinon from 'sinon';
 import {ClusterDeleteRequest} from '../../../../../../src/integration/kind/request/cluster/cluster-delete-request.js';
-import {KindExecutionBuilder} from '../../../../../../src/integration/kind/execution/kind-execution-builder.js';
-import {ClusterDeleteOptions} from '../../../../../../src/integration/kind/model/delete-cluster/cluster-delete-options.js';
+import {type KindExecutionBuilder} from '../../../../../../src/integration/kind/execution/kind-execution-builder.js';
+import {type ClusterDeleteOptions} from '../../../../../../src/integration/kind/model/delete-cluster/cluster-delete-options.js';
 
 describe('ClusterDeleteRequest', () => {
   let builder: KindExecutionBuilder;
@@ -14,11 +14,11 @@ describe('ClusterDeleteRequest', () => {
   beforeEach(() => {
     // Create a stub for the builder
     builder = {
-      subcommands: Sinon.stub().returnsThis()
+      subcommands: Sinon.stub().returnsThis(),
     } as unknown as KindExecutionBuilder;
 
     // Create mock options with a stub for apply method
-    options = { apply: Sinon.stub() } as unknown as ClusterDeleteOptions;
+    options = {apply: Sinon.stub()} as unknown as ClusterDeleteOptions;
 
     // Create the request with mocked options
     request = new ClusterDeleteRequest(options);
@@ -34,7 +34,9 @@ describe('ClusterDeleteRequest', () => {
     });
 
     it('should throw an error if options are null', () => {
-      expect(() => new ClusterDeleteRequest(null as unknown as ClusterDeleteOptions)).to.throw('options must not be null');
+      expect(() => new ClusterDeleteRequest(null as unknown as ClusterDeleteOptions)).to.throw(
+        'options must not be null',
+      );
     });
   });
 

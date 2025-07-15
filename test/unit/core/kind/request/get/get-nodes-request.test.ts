@@ -13,7 +13,7 @@ describe('GetNodesRequest', () => {
   beforeEach(() => {
     // Create a stub for the builder
     builder = {
-      subcommands: Sinon.stub().returnsThis()
+      subcommands: Sinon.stub().returnsThis(),
     } as unknown as KindExecutionBuilder;
   });
 

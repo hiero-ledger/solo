@@ -3,7 +3,7 @@
 import {expect} from 'chai';
 import Sinon from 'sinon';
 import {GetClustersRequest} from '../../../../../../src/integration/kind/request/get/get-clusters-request.js';
-import {KindExecutionBuilder} from '../../../../../../src/integration/kind/execution/kind-execution-builder.js';
+import {type KindExecutionBuilder} from '../../../../../../src/integration/kind/execution/kind-execution-builder.js';
 
 describe('GetClustersRequest', () => {
   let builder: KindExecutionBuilder;
@@ -12,7 +12,7 @@ describe('GetClustersRequest', () => {
   beforeEach(() => {
     // Create a stub for the builder
     builder = {
-      subcommands: Sinon.stub().returnsThis()
+      subcommands: Sinon.stub().returnsThis(),
     } as unknown as KindExecutionBuilder;
 
     // Create the request

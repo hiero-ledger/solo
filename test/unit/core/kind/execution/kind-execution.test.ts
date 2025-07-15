@@ -62,7 +62,7 @@ class MockKindExecution {
         }, timeout);
       }
 
-      this.mockProcess.on('exit', (code) => {
+      this.mockProcess.on('exit', code => {
         if (code === 0) {
           resolve();
         } else {
@@ -76,7 +76,7 @@ class MockKindExecution {
     });
   }
 
-  public async responseAs<T>(clazz: new () => T & {fromString(string_: string): T }): Promise<T> {
+  public async responseAs<T>(clazz: new () => T & {fromString(string_: string): T}): Promise<T> {
     try {
       await this.waitForCompletion();
 
@@ -97,19 +97,25 @@ class MockKindExecution {
     }
   }
 
-  public async responseAsList<T>(clazz: new () => T & { fromString(str: string): T }): Promise<T[]> {
+  public async responseAsList<T>(clazz: new () => T & {fromString(string_: string): T}): Promise<T[]> {
     try {
       await this.waitForCompletion();
 
-      const lines = this.output.join('').split('\n').filter(line => line.trim().length > 0);
+      const lines = this.output
+        .join('')
+        .split('\n')
+        .filter(line => line.trim().length > 0);
       const result: T[] = [];
 
       for (const line of lines) {
         try {
-          const constructor = clazz as unknown as { fromString(str: string): T };
+          const constructor = clazz as unknown as {fromString(string_: string): T};
           result.push(constructor.fromString(line));
         } catch (error) {
-          throw new KindParserException(`Failed to deserialize the output into a list of the specified class: ${clazz.name}`, error as Error);
+          throw new KindParserException(
+            `Failed to deserialize the output into a list of the specified class: ${clazz.name}`,
+            error as Error,
+          );
         }
       }
 
@@ -128,11 +134,7 @@ describe('KindExecution', () => {
 
   beforeEach(() => {
     // Create a test execution using our mock class
-    execution = new MockKindExecution(
-      ['kind', 'create', 'cluster'],
-      '/test/working/dir',
-      { 'TEST_ENV': 'value' }
-    );
+    execution = new MockKindExecution(['kind', 'create', 'cluster'], '/test/working/dir', {TEST_ENV: 'value'});
   });
 
   afterEach(() => {
@@ -194,9 +196,9 @@ describe('KindExecution', () => {
     class TestResponse {
       public value: string = '';
 
-      public static fromString(str: string): TestResponse {
+      public static fromString(string_: string): TestResponse {
         const instance = new TestResponse();
-        instance.value = str.trim();
+        instance.value = string_.trim();
         return instance;
       }
     }
@@ -210,17 +212,16 @@ describe('KindExecution', () => {
             expect(result).to.be.instanceOf(TestResponse);
             expect(result.value).to.equal('test response');
             resolve(true);
-          }
-          catch {
+          } catch {
             resolve(false);
           }
         }),
-        new Promise<boolean>(async (resolve) => {
+        new Promise<boolean>(async resolve => {
           execution.emitStdout('test response');
           execution.emitExit(0);
           resolve(true);
         }),
-      ])
+      ]);
 
       expect(allPassing).to.deep.equal([true, true]);
     });
@@ -232,18 +233,17 @@ describe('KindExecution', () => {
             // @ts-expect-error TS2345: Argument of type typeof TestResponse is not assignable to parameter of type
             await execution.responseAs(TestResponse);
             resolve(true);
-          }
-          catch (error) {
+          } catch (error) {
             expect(error.name).to.be.equal(KindExecutionException.name);
             resolve(false);
           }
         }),
-        new Promise<boolean>(async (resolve) => {
+        new Promise<boolean>(async resolve => {
           execution.emitStderr('error output');
           execution.emitExit(1);
           resolve(true);
         }),
-      ])
+      ]);
 
       expect(allPassing).to.deep.equal([false, true]);
     });
@@ -262,18 +262,17 @@ describe('KindExecution', () => {
             // @ts-expect-error TS2345: Argument of type typeof FailingClass is not assignable to parameter of type
             await execution.responseAs(FailingClass);
             resolve(true);
-          }
-          catch (error) {
+          } catch (error) {
             expect(error.name).to.be.equal(KindParserException.name);
             resolve(false);
           }
         }),
-        new Promise<boolean>(async (resolve) => {
+        new Promise<boolean>(async resolve => {
           execution.emitStdout('some output');
           execution.emitExit(0);
           resolve(true);
         }),
-      ])
+      ]);
 
       expect(allPassing).to.deep.equal([false, true]);
     });
@@ -283,9 +282,9 @@ describe('KindExecution', () => {
     class TestItem {
       public value: string = '';
 
-      public static fromString(str: string): TestItem {
+      public static fromString(string_: string): TestItem {
         const instance = new TestItem();
-        instance.value = str.trim();
+        instance.value = string_.trim();
         return instance;
       }
     }
@@ -302,17 +301,16 @@ describe('KindExecution', () => {
             expect(result[1].value).to.equal('item2');
             expect(result[2].value).to.equal('item3');
             resolve(true);
-          }
-          catch (error) {
+          } catch {
             resolve(false);
           }
         }),
-        new Promise<boolean>(async (resolve) => {
+        new Promise<boolean>(async resolve => {
           execution.emitStdout('item1\nitem2\nitem3');
           execution.emitExit(0);
           resolve(true);
         }),
-      ])
+      ]);
 
       expect(allPassing).to.deep.equal([true, true]);
     });
@@ -325,17 +323,16 @@ describe('KindExecution', () => {
             const result = await execution.responseAsList(TestItem);
             expect(result).to.be.an('array').with.lengthOf(0);
             resolve(true);
-          }
-          catch (error) {
+          } catch {
             resolve(false);
           }
         }),
-        new Promise<boolean>(async (resolve) => {
+        new Promise<boolean>(async resolve => {
           execution.emitStdout('');
           execution.emitExit(0);
           resolve(true);
         }),
-      ])
+      ]);
 
       expect(allPassing).to.deep.equal([true, true]);
     });
@@ -354,21 +351,19 @@ describe('KindExecution', () => {
             const result = await execution.responseAsList(FailingItem);
             expect(result).to.be.an('array').with.lengthOf(0);
             resolve(true);
-          }
-          catch (error) {
+          } catch (error) {
             expect(error.name).to.be.equal(KindParserException.name);
             resolve(false);
           }
         }),
-        new Promise<boolean>(async (resolve) => {
+        new Promise<boolean>(async resolve => {
           execution.emitStdout('item1\nitem2');
           execution.emitExit(0);
           resolve(true);
         }),
-      ])
+      ]);
 
       expect(allPassing).to.deep.equal([false, true]);
     });
   });
 });
-

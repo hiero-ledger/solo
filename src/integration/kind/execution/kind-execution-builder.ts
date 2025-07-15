@@ -67,7 +67,7 @@ export class KindExecutionBuilder {
     }
     this.kindExecutable = kindExecutable;
     if (!this._workingDirectory) {
-      this._workingDirectory = join(this.kindExecutable, '..')
+      this._workingDirectory = join(this.kindExecutable, '..');
     }
     return this;
   }

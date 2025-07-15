@@ -18,7 +18,7 @@ describe('ClusterCreateRequest', () => {
     (builder.subcommands as Sinon.SinonStub).returns(builder);
 
     // Create options with a stub for apply method
-    options = { apply: Sinon.stub() } as unknown as ClusterCreateOptions;
+    options = {apply: Sinon.stub()} as unknown as ClusterCreateOptions;
 
     // Create the request with mocked options
     request = new ClusterCreateRequest(options);
@@ -34,7 +34,9 @@ describe('ClusterCreateRequest', () => {
     });
 
     it('should throw an error if options are null', () => {
-      expect(() => new ClusterCreateRequest(null as unknown as ClusterCreateOptions)).to.throw('options must not be null');
+      expect(() => new ClusterCreateRequest(null as unknown as ClusterCreateOptions)).to.throw(
+        'options must not be null',
+      );
     });
   });
 

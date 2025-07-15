@@ -86,7 +86,7 @@ describe('DefaultKindClient - exportLogs', () => {
     );
 
     // Output with default 'kind' cluster name
-    const output = `/tmp/kind-logs-kind-2025-07-10T12-34-56`;
+    const output = '/tmp/kind-logs-kind-2025-07-10T12-34-56';
     executionStub.responseAs.callsFake((responseClass: any) => {
       return Promise.resolve(new responseClass(output));
     });

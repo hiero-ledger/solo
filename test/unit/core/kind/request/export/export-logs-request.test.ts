@@ -13,7 +13,7 @@ describe('ExportLogsRequest', () => {
   beforeEach(() => {
     // Create a stub for the builder
     builder = {
-      subcommands: Sinon.stub().returnsThis()
+      subcommands: Sinon.stub().returnsThis(),
     } as unknown as KindExecutionBuilder;
   });
 
@@ -35,7 +35,7 @@ describe('ExportLogsRequest', () => {
 
     it('should delegate to options.apply when options are provided', () => {
       // Create mock options with a stub for apply method
-      const options = { apply: Sinon.stub() } as unknown as ExportLogsOptions;
+      const options = {apply: Sinon.stub()} as unknown as ExportLogsOptions;
 
       // Create request with options
       request = new ExportLogsRequest(options);
