@@ -36,8 +36,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withConsensusNodesCount(2)
   .withLoadBalancerEnabled(true)
   .withPinger(true)
-  .withRealm(2)
-  .withShard(3)
+  .withRealm(0)
+  .withShard(0)
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe('External Database E2E Test', (): void => {
       const {testCacheDirectory, testLogger, namespace, contexts} = options;
@@ -79,13 +79,13 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       // Mirror node, explorer and relay node are deployed to the second cluster
       MirrorNodeTest.installPostgres(options);
       MirrorNodeTest.deployWithExternalDatabase(options);
-      MirrorNodeTest.runSql(options);
-
       ExplorerTest.deploy(options);
+      MirrorNodeTest.runSql(options);
       RelayTest.deploy(options);
 
       it('should run smoke tests', async (): Promise<void> => {
         const scriptPath: string = `export SOLO_HOME=${testCacheDirectory}; \
+            export NEW_NODE_ACCOUNT_ID=0.0.3; \
             export SOLO_NAMESPACE=${namespace.name}; \
             export SOLO_CACHE_DIR=${testCacheDirectory}; \
             export SOLO_DEPLOYMENT=${testName}-deployment; \
