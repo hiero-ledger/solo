@@ -63,7 +63,7 @@ export class GetKubeconfigResponse {
   /**
    * Gets the full parsed config object
    */
-  public get config(): any {
+  public get config(): KindKubeconfig {
     return this._config;
   }
 }

@@ -28,18 +28,17 @@ describe('DefaultKindClient - exportLogs', () => {
 
   it('should export logs and parse the response correctly', async () => {
     const clusterName = 'test-cluster';
-    const destinationPath = '/tmp/kind-logs-test-cluster-2025-07-10T12-34-56';
+    const exportPath = '/tmp/kind-logs-test-cluster-2025-07-10T12-34-56';
 
     executionStub.responseAs.callsFake((responseClass: any) => {
-      const output = `Exporting logs for cluster "${clusterName}" to: ${destinationPath}`;
+      const output = exportPath;
       return Promise.resolve(new responseClass(output));
     });
 
     const result = await client.exportLogs(clusterName);
 
     expect(result).to.be.instanceOf(ExportLogsResponse);
-    expect(result.clusterName).to.equal(clusterName);
-    expect(result.destinationPath).to.equal(destinationPath);
+    expect(result.exportPath).to.equal(exportPath);
   });
 
   it('should throw if responseAs throws', async () => {
@@ -87,10 +86,8 @@ describe('DefaultKindClient - exportLogs', () => {
     );
 
     // Output with default 'kind' cluster name
+    const output = `/tmp/kind-logs-kind-2025-07-10T12-34-56`;
     executionStub.responseAs.callsFake((responseClass: any) => {
-      const output = `Exporting logs for cluster "kind"
-to:
-/tmp/kind-logs-kind-2025-07-10T12-34-56`;
       return Promise.resolve(new responseClass(output));
     });
 
@@ -101,22 +98,6 @@ to:
 
     // Should not set name argument when undefined
     expect(argumentSpy.callCount).to.equal(0);
-
-    // Response should contain default cluster name
-    expect(result.clusterName).to.equal('kind');
-  });
-
-  it('should handle malformed output response', async () => {
-    executionStub.responseAs.callsFake((responseClass: any) => {
-      // Output missing the destination path
-      const output = 'Exporting logs for cluster "malformed-output"';
-      return Promise.resolve(new responseClass(output));
-    });
-
-    const result = await client.exportLogs('malformed-output');
-
-    expect(result).to.be.instanceOf(ExportLogsResponse);
-    expect(result.clusterName).to.equal('malformed-output');
-    expect(result.destinationPath).to.be.undefined;
+    expect(result.exportPath).to.be.equal(output);
   });
 });

@@ -71,6 +71,7 @@ export class DefaultKindClient implements KindClient {
   public async version(): Promise<SemVer> {
     const request = new VersionRequest();
     const builder = new KindExecutionBuilder();
+    builder.executable(this.executable);
     request.apply(builder);
     const execution = builder.build();
     if (execution instanceof Promise) {
@@ -185,6 +186,7 @@ export class DefaultKindClient implements KindClient {
     }
 
     const builder = new KindExecutionBuilder();
+    builder.executable(this.executable);
     request.apply(builder);
     const execution = builder.build();
     return responseFunction(execution, responseClass);
