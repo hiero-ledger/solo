@@ -32,7 +32,7 @@ echo "Launch solo using released Solo version ${releaseTag}"
 
 
 solo init
-solo cluster setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 solo consensus node keys --gossip-keys --tls-keys -i node1,node2
 solo deployment config create -i node1,node2 -n "${SOLO_NAMESPACE}" --context kind-"${SOLO_CLUSTER_NAME}" --email john@doe.com --deployment-clusters kind-"${SOLO_CLUSTER_NAME}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --deployment "${SOLO_DEPLOYMENT}"
 
