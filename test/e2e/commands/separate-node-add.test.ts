@@ -66,15 +66,17 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argv,
         command: NodeCommand.COMMAND_NAME,
-        subcommand: 'stop',
-        callback: async argv => nodeCmd.handlers.stop(argv),
+        subcommand: NodeCommand.SUBCOMMAND_NAME,
+        action: 'stop',
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.stop(argv),
       });
 
       await commandInvoker.invoke({
         argv: argv,
         command: NetworkCommand.COMMAND_NAME,
-        subcommand: 'destroy',
-        callback: async argv => networkCmd.destroy(argv),
+        subcommand: NetworkCommand.SUBCOMMAND_NAME,
+        action: 'destroy',
+        callback: async (argv): Promise<boolean> => networkCmd.destroy(argv),
       });
 
       await k8Factory.default().namespaces().delete(namespace);
@@ -97,8 +99,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argv,
         command: AccountCommand.COMMAND_NAME,
-        subcommand: 'init',
-        callback: async argv => accountCmd.init(argv),
+        subcommand: AccountCommand.SUBCOMMAND_NAME,
+        action: 'init',
+        callback: async (argv): Promise<boolean> => accountCmd.init(argv),
       });
     }).timeout(Duration.ofMinutes(8).toMillis());
 
@@ -106,22 +109,25 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argvPrepare,
         command: NodeCommand.COMMAND_NAME,
-        subcommand: 'add-prepare',
-        callback: async argv => nodeCmd.handlers.addPrepare(argv),
+        subcommand: NodeCommand.SUBCOMMAND_NAME,
+        action: 'add-prepare',
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.addPrepare(argv),
       });
 
       await commandInvoker.invoke({
         argv: argvExecute,
         command: NodeCommand.COMMAND_NAME,
-        subcommand: 'add-submit-transactions',
-        callback: async argv => nodeCmd.handlers.addSubmitTransactions(argv),
+        subcommand: NodeCommand.SUBCOMMAND_NAME,
+        action: 'add-submit-transactions',
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.addSubmitTransactions(argv),
       });
 
       await commandInvoker.invoke({
         argv: argvExecute,
         command: NodeCommand.COMMAND_NAME,
-        subcommand: 'add-execute',
-        callback: async argv => nodeCmd.handlers.addExecute(argv),
+        subcommand: NodeCommand.SUBCOMMAND_NAME,
+        action: 'add-execute',
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.addExecute(argv),
       });
 
       await accountManager.close();

@@ -60,8 +60,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argv,
         command: AccountCommand.COMMAND_NAME,
-        subcommand: 'init',
-        callback: async argv => accountCmd.init(argv),
+        subcommand: AccountCommand.SUBCOMMAND_NAME,
+        action: 'init',
+        callback: async (argv): Promise<boolean> => accountCmd.init(argv),
       });
     }).timeout(Duration.ofMinutes(8).toMillis());
 
@@ -69,8 +70,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argv,
         command: NodeCommand.COMMAND_NAME,
-        subcommand: 'delete',
-        callback: async argv => nodeCmd.handlers.delete(argv),
+        subcommand: NodeCommand.SUBCOMMAND_NAME,
+        action: 'delete',
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.delete(argv),
       });
 
       await accountManager.close();
@@ -80,8 +82,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argv,
         command: AccountCommand.COMMAND_NAME,
-        subcommand: 'create',
-        callback: async argv => accountCmd.create(argv),
+        subcommand: AccountCommand.SUBCOMMAND_NAME,
+        action: 'create',
+        callback: async (argv): Promise<boolean> => accountCmd.create(argv),
       });
 
       // Create a new account to update the node account id
@@ -98,8 +101,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argv,
         command: NodeCommand.COMMAND_NAME,
-        subcommand: 'update',
-        callback: async argv => nodeCmd.handlers.update(argv),
+        subcommand: NodeCommand.SUBCOMMAND_NAME,
+        action: 'update',
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.update(argv),
       });
 
       await accountManager.close();

@@ -78,25 +78,27 @@ describe('NetworkCommand', function networkCommand() {
     this.timeout(Duration.ofMinutes(1).toMillis());
     await k8Factory.default().namespaces().delete(namespace);
 
+    // @ts-expect-error: TODO: Remove once the init command is removed
     await commandInvoker.invoke({
       argv: argv,
       command: InitCommand.COMMAND_NAME,
-      subcommand: 'init',
-      callback: async argv => initCmd.init(argv),
+      callback: async (argv): Promise<boolean> => initCmd.init(argv),
     });
 
     await commandInvoker.invoke({
       argv: argv,
       command: ClusterCommand.COMMAND_NAME,
-      subcommand: 'setup',
-      callback: async argv => clusterCmd.handlers.setup(argv),
+      subcommand: ClusterCommand.SUBCOMMAND_NAME,
+      action: 'setup',
+      callback: async (argv): Promise<boolean> => clusterCmd.handlers.setup(argv),
     });
 
     await commandInvoker.invoke({
       argv: argv,
       command: ClusterCommand.COMMAND_NAME,
-      subcommand: 'connect',
-      callback: async argv => clusterCmd.handlers.connect(argv),
+      subcommand: ClusterCommand.SUBCOMMAND_NAME,
+      action: 'connect',
+      callback: async (argv): Promise<boolean> => clusterCmd.handlers.connect(argv),
     });
 
     fs.mkdirSync(applicationEnvironmentParentDirectory, {recursive: true});
@@ -107,8 +109,9 @@ describe('NetworkCommand', function networkCommand() {
     await commandInvoker.invoke({
       argv: argv,
       command: DeploymentCommand.COMMAND_NAME,
-      subcommand: 'create',
-      callback: async argv => deploymentCmd.create(argv),
+      subcommand: DeploymentCommand.SUBCOMMAND_NAME,
+      action: 'create',
+      callback: async (argv): Promise<boolean> => deploymentCmd.create(argv),
     });
 
     argv.setArg(flags.nodeAliasesUnparsed, undefined);
@@ -120,8 +123,9 @@ describe('NetworkCommand', function networkCommand() {
     await commandInvoker.invoke({
       argv: argv,
       command: DeploymentCommand.COMMAND_NAME,
-      subcommand: 'add-cluster',
-      callback: async argv => deploymentCmd.addCluster(argv),
+      subcommand: DeploymentCommand.SUBCOMMAND_NAME,
+      action: 'add-cluster',
+      callback: async (argv): Promise<boolean> => deploymentCmd.addCluster(argv),
     });
 
     argv.setArg(flags.nodeAliasesUnparsed, undefined);
@@ -133,8 +137,9 @@ describe('NetworkCommand', function networkCommand() {
     await commandInvoker.invoke({
       argv: argv,
       command: NodeCommand.COMMAND_NAME,
-      subcommand: 'keys',
-      callback: async argv => nodeCmd.handlers.keys(argv),
+      subcommand: NodeCommand.SUBCOMMAND_NAME,
+      action: 'keys',
+      callback: async (argv): Promise<boolean> => nodeCmd.handlers.keys(argv),
     });
   });
 
@@ -142,8 +147,9 @@ describe('NetworkCommand', function networkCommand() {
     await commandInvoker.invoke({
       argv: argv,
       command: NetworkCommand.COMMAND_NAME,
-      subcommand: 'deploy',
-      callback: async argv => networkCmd.deploy(argv),
+      subcommand: NetworkCommand.SUBCOMMAND_NAME,
+      action: 'deploy',
+      callback: async (argv): Promise<boolean> => networkCmd.deploy(argv),
     });
 
     // check pod names should match expected values
@@ -177,8 +183,9 @@ describe('NetworkCommand', function networkCommand() {
       await commandInvoker.invoke({
         argv: argv,
         command: NetworkCommand.COMMAND_NAME,
-        subcommand: 'destroy',
-        callback: async argv => networkCmd.destroy(argv),
+        subcommand: NetworkCommand.SUBCOMMAND_NAME,
+        action: 'destroy',
+        callback: async (argv): Promise<boolean> => networkCmd.destroy(argv),
       });
 
       while ((await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node'])).length > 0) {

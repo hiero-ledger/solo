@@ -66,8 +66,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argv,
         command: NodeCommand.COMMAND_NAME,
-        subcommand: 'stop',
-        callback: async argv => nodeCmd.handlers.stop(argv),
+        subcommand: NodeCommand.SUBCOMMAND_NAME,
+        action: 'stop',
+        callback: (argv): Promise<boolean> => nodeCmd.handlers.stop(argv),
       });
 
       await k8Factory.default().namespaces().delete(namespace);
@@ -91,8 +92,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argv,
         command: AccountCommand.COMMAND_NAME,
-        subcommand: 'init',
-        callback: async argv => accountCmd.init(argv),
+        subcommand: AccountCommand.SUBCOMMAND_NAME,
+        action: 'init',
+        callback: (argv): Promise<boolean> => accountCmd.init(argv),
       });
     }).timeout(Duration.ofMinutes(8).toMillis());
 
@@ -115,8 +117,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argv,
         command: NodeCommand.COMMAND_NAME,
-        subcommand: 'update',
-        callback: async argv => nodeCmd.handlers.update(argv),
+        subcommand: NodeCommand.SUBCOMMAND_NAME,
+        action: 'update',
+        callback: (argv): Promise<boolean> => nodeCmd.handlers.update(argv),
       });
 
       await accountManager.close();

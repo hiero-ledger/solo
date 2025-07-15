@@ -99,8 +99,9 @@ export function endToEndNodeKeyRefreshTest(testName: string, mode: string, relea
             await commandInvoker.invoke({
               argv: argv,
               command: NodeCommand.COMMAND_NAME,
-              subcommand: 'stop',
-              callback: async argv => nodeCmd.handlers.stop(argv),
+              subcommand: NodeCommand.SUBCOMMAND_NAME,
+              action: 'stop',
+              callback: async (argv): Promise<boolean> => nodeCmd.handlers.stop(argv),
             });
 
             await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
@@ -143,8 +144,9 @@ export function endToEndNodeKeyRefreshTest(testName: string, mode: string, relea
             await commandInvoker.invoke({
               argv: argv,
               command: NodeCommand.COMMAND_NAME,
-              subcommand: 'refresh',
-              callback: async argv => nodeCmd.handlers.refresh(argv),
+              subcommand: NodeCommand.SUBCOMMAND_NAME,
+              action: 'refresh',
+              callback: async (argv): Promise<boolean> => nodeCmd.handlers.refresh(argv),
             });
           } catch (error) {
             logger.showUserError(error);

@@ -110,8 +110,9 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
         await commandInvoker.invoke({
           argv: argv,
           command: AccountCommand.COMMAND_NAME,
-          subcommand: 'init',
-          callback: async argv => accountCmd.init(argv),
+          subcommand: AccountCommand.SUBCOMMAND_NAME,
+          action: 'init',
+          callback: async (argv): Promise<boolean> => accountCmd.init(argv),
         });
       }).timeout(Duration.ofMinutes(8).toMillis());
 
@@ -181,8 +182,9 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           await commandInvoker.invoke({
             argv: argv,
             command: AccountCommand.COMMAND_NAME,
-            subcommand: 'create',
-            callback: async argv => accountCmd.create(argv),
+            subcommand: AccountCommand.SUBCOMMAND_NAME,
+            action: 'create',
+            callback: async (argv): Promise<boolean> => accountCmd.create(argv),
           });
 
           // @ts-expect-error - TS2341: to access private property
@@ -210,8 +212,9 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           await commandInvoker.invoke({
             argv: argv,
             command: AccountCommand.COMMAND_NAME,
-            subcommand: 'create',
-            callback: async argv => accountCmd.create(argv),
+            subcommand: AccountCommand.SUBCOMMAND_NAME,
+            action: 'create',
+            callback: async (argv): Promise<boolean> => accountCmd.create(argv),
           });
 
           // @ts-expect-error - TS2341: to access private property
@@ -236,8 +239,9 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           await commandInvoker.invoke({
             argv: argv,
             command: AccountCommand.COMMAND_NAME,
-            subcommand: 'update',
-            callback: async argv => accountCmd.update(argv),
+            subcommand: AccountCommand.SUBCOMMAND_NAME,
+            action: 'update',
+            callback: async (argv): Promise<boolean> => accountCmd.update(argv),
           });
 
           // @ts-expect-error - TS2341: to access private property
@@ -262,8 +266,9 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           await commandInvoker.invoke({
             argv: argv,
             command: AccountCommand.COMMAND_NAME,
-            subcommand: 'update',
-            callback: async argv => accountCmd.update(argv),
+            subcommand: AccountCommand.SUBCOMMAND_NAME,
+            action: 'update',
+            callback: async (argv): Promise<boolean> => accountCmd.update(argv),
           });
 
           // @ts-expect-error - TS2341: to access private property
@@ -286,8 +291,9 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           await commandInvoker.invoke({
             argv: argv,
             command: AccountCommand.COMMAND_NAME,
-            subcommand: 'get',
-            callback: async argv => accountCmd.get(argv),
+            subcommand: AccountCommand.SUBCOMMAND_NAME,
+            action: 'get',
+            callback: async (argv): Promise<boolean> => accountCmd.get(argv),
           });
 
           // @ts-expect-error - TS2341: to access private property
@@ -310,8 +316,9 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           await commandInvoker.invoke({
             argv: argv,
             command: AccountCommand.COMMAND_NAME,
-            subcommand: 'get',
-            callback: async argv => accountCmd.get(argv),
+            subcommand: AccountCommand.SUBCOMMAND_NAME,
+            action: 'get',
+            callback: async (argv): Promise<boolean> => accountCmd.get(argv),
           });
 
           // @ts-expect-error - TS2341: to access private property
@@ -337,8 +344,9 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           await commandInvoker.invoke({
             argv: argv,
             command: AccountCommand.COMMAND_NAME,
-            subcommand: 'create',
-            callback: async argv => accountCmd.create(argv),
+            subcommand: AccountCommand.SUBCOMMAND_NAME,
+            action: 'create',
+            callback: async (argv): Promise<boolean> => accountCmd.create(argv),
           });
 
           // @ts-expect-error - TS2341: to access private property
@@ -451,15 +459,17 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           await commandInvoker.invoke({
             argv: argv,
             command: NodeCommand.COMMAND_NAME,
-            subcommand: 'freeze',
-            callback: async argv => nodeCmd.handlers.freeze(argv),
+            subcommand: NodeCommand.SUBCOMMAND_NAME,
+            action: 'freeze',
+            callback: async (argv): Promise<boolean> => nodeCmd.handlers.freeze(argv),
           });
 
           await commandInvoker.invoke({
             argv: argv,
             command: NodeCommand.COMMAND_NAME,
-            subcommand: 'restart',
-            callback: async argv => nodeCmd.handlers.restart(argv),
+            subcommand: NodeCommand.SUBCOMMAND_NAME,
+            action: 'restart',
+            callback: async (argv): Promise<boolean> => nodeCmd.handlers.restart(argv),
           });
         } catch (error) {
           testLogger.showUserError(error);

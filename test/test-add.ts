@@ -81,7 +81,7 @@ export function testNodeAdd(
         await commandInvoker.invoke({
           argv: argv,
           command: NetworkCommand.COMMAND_NAME,
-          subcommand: NodeCommand.SUBCOMMAND_NAME,
+          subcommand: NetworkCommand.SUBCOMMAND_NAME,
           action: 'destroy',
           callback: async (argv): Promise<boolean> => networkCmd.destroy(argv),
         });
@@ -105,7 +105,7 @@ export function testNodeAdd(
         await commandInvoker.invoke({
           argv: argv,
           command: AccountCommand.COMMAND_NAME,
-          subcommand: NodeCommand.SUBCOMMAND_NAME,
+          subcommand: AccountCommand.SUBCOMMAND_NAME,
           action: 'init',
           callback: async (argv): Promise<boolean> => accountCmd.init(argv),
         });
@@ -132,7 +132,7 @@ export function testNodeAdd(
         await commandInvoker.invoke({
           argv: argv,
           command: AccountCommand.COMMAND_NAME,
-          subcommand: NodeCommand.SUBCOMMAND_NAME,
+          subcommand: AccountCommand.SUBCOMMAND_NAME,
           action: 'create',
           callback: async (argv): Promise<boolean> => accountCmd.create(argv),
         });

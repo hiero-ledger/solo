@@ -77,7 +77,8 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
             await commandInvoker.invoke({
               argv: argv,
               command: RelayCommand.COMMAND_NAME,
-              subcommand: 'deploy',
+              subcommand: RelayCommand.SUBCOMMAND_NAME,
+              action: 'deploy',
               // @ts-expect-error to access private property
               callback: async (argv: ArgvStruct): Promise<boolean> => relayCommand.deploy(argv),
             });
@@ -92,7 +93,8 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
             await commandInvoker.invoke({
               argv: argv,
               command: RelayCommand.COMMAND_NAME,
-              subcommand: 'destroy',
+              subcommand: RelayCommand.SUBCOMMAND_NAME,
+              action: 'destroy',
               // @ts-expect-error to access private modifier
               callback: async (argv: ArgvStruct): Promise<boolean> => relayCommand.destroy(argv),
             });
