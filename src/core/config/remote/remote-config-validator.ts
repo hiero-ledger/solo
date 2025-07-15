@@ -43,7 +43,6 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     //  when multiple instances can be deployed at the same time.
     const relayComponent = component as RelayNodeStateSchema;
     const ids: number[] = relayComponent.consensusNodeIds;
-    console.log(`relayComponent.consensusNodeIds = ${JSON.stringify(relayComponent.consensusNodeIds)}`);
     // generate label such as relay-node1 or relay-node1-node2
     let label: string = 'relay';
     for (const id of ids) {
