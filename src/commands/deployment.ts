@@ -59,6 +59,9 @@ export interface DeploymentAddClusterContext {
 
 @injectable()
 export class DeploymentCommand extends BaseCommand {
+  public static readonly COMMAND_NAME: 'deployment' = 'deployment' as const;
+  public static readonly SUBCOMMAND_NAME: 'config' = 'config' as const;
+
   public static readonly CREATE_COMMAND: string = 'deployment config create';
   public static readonly ADD_COMMAND: string = 'deployment config add-cluster';
 
@@ -70,9 +73,6 @@ export class DeploymentCommand extends BaseCommand {
 
     this.tasks = patchInject(tasks, InjectTokens.ClusterCommandTasks, this.constructor.name);
   }
-
-  public static readonly COMMAND_NAME: 'deployment' = 'deployment' as const;
-  public static readonly SUBCOMMAND_NAME: 'config' = 'config' as const;
 
   private static CREATE_FLAGS_LIST: CommandFlags = {
     required: [],

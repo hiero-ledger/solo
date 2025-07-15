@@ -25,7 +25,7 @@ export class CommandDefinitionBuilder {
               'Deploy solo network. ' +
                 'Requires the chart `solo-cluster-setup` to have been installed in the cluster. `' +
                 "If it hasn't the following command can be ran: `solo cluster-ref config setup`",
-              this,
+              networkCommand,
               networkCommand.deploy,
               NetworkCommand.DEPLOY_FLAGS_LIST,
             ),
@@ -35,7 +35,7 @@ export class CommandDefinitionBuilder {
               'destroy',
               'Destroy solo network. If both --delete-pvcs and --delete-secrets are set to true, ' +
                 'the namespace will be deleted.',
-              this,
+              networkCommand,
               networkCommand.destroy,
               NetworkCommand.DESTROY_FLAGS_LIST,
             ),
