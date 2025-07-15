@@ -10,7 +10,6 @@ import {
   Hbar,
   TopicMessageQuery,
   Client,
-  AccountId,
 } from '@hashgraph/sdk';
 
 import dotenv from 'dotenv';
@@ -49,14 +48,6 @@ async function main() {
 
   const TEST_MESSAGE = 'Hello World';
   try {
-    // if NEW_NODE_ACCOUNT_ID defined in env varilabe, provider._client.setNetwork() to update 
-    if (process.env.NEW_NODE_ACCOUNT_ID) {
-      console.log(`NEW_NODE_ACCOUNT_ID = ${process.env.NEW_NODE_ACCOUNT_ID}`);
-      provider._client.setNetwork({
-        "127.0.0.1:50211": AccountId.fromString(process.env.NEW_NODE_ACCOUNT_ID),
-    })
-    }
-
     // if process.env.OPERATOR_KEY string size is 100, it is ECDSA key, if 96, it is ED25519 key
     const operatorKeySize = process.env.OPERATOR_KEY.length;
     // create topic
