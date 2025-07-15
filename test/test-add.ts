@@ -28,7 +28,7 @@ import {type NodeServiceMapping} from '../src/types/mappings/node-service-mappin
 import {Templates} from '../src/core/templates.js';
 import fs from 'node:fs';
 
-const defaultTimeout = Duration.ofMinutes(2).toMillis();
+const defaultTimeout: number = Duration.ofMinutes(2).toMillis();
 
 export function testNodeAdd(
   localBuildPath: string,
@@ -73,15 +73,17 @@ export function testNodeAdd(
         await commandInvoker.invoke({
           argv: argv,
           command: NodeCommand.COMMAND_NAME,
-          subcommand: 'stop',
-          callback: async argv => nodeCmd.handlers.stop(argv),
+          subcommand: NodeCommand.SUBCOMMAND_NAME,
+          action: 'stop',
+          callback: async (argv): Promise<boolean> => nodeCmd.handlers.stop(argv),
         });
 
         await commandInvoker.invoke({
           argv: argv,
           command: NetworkCommand.COMMAND_NAME,
-          subcommand: 'destroy',
-          callback: async argv => networkCmd.destroy(argv),
+          subcommand: NodeCommand.SUBCOMMAND_NAME,
+          action: 'destroy',
+          callback: async (argv): Promise<boolean> => networkCmd.destroy(argv),
         });
         await k8Factory.default().namespaces().delete(namespace);
       });
@@ -103,8 +105,9 @@ export function testNodeAdd(
         await commandInvoker.invoke({
           argv: argv,
           command: AccountCommand.COMMAND_NAME,
-          subcommand: 'init',
-          callback: async argv => accountCmd.init(argv),
+          subcommand: NodeCommand.SUBCOMMAND_NAME,
+          action: 'init',
+          callback: async (argv): Promise<boolean> => accountCmd.init(argv),
         });
       }).timeout(Duration.ofMinutes(8).toMillis());
 
@@ -116,8 +119,9 @@ export function testNodeAdd(
         await commandInvoker.invoke({
           argv: argv,
           command: NodeCommand.COMMAND_NAME,
-          subcommand: 'add',
-          callback: async argv => nodeCmd.handlers.add(argv),
+          subcommand: NodeCommand.SUBCOMMAND_NAME,
+          action: 'add',
+          callback: async (argv): Promise<boolean> => nodeCmd.handlers.add(argv),
         });
 
         argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
@@ -128,8 +132,9 @@ export function testNodeAdd(
         await commandInvoker.invoke({
           argv: argv,
           command: AccountCommand.COMMAND_NAME,
-          subcommand: 'create',
-          callback: async argv => accountCmd.create(argv),
+          subcommand: NodeCommand.SUBCOMMAND_NAME,
+          action: 'create',
+          callback: async (argv): Promise<boolean> => accountCmd.create(argv),
         });
       });
 
