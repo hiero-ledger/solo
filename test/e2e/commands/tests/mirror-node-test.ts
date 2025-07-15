@@ -17,40 +17,11 @@ import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
 
-import {execSync} from 'node:child_process';
 import * as constants from '../../../../src/core/constants.js';
 import fs from 'node:fs';
+import {ShellRunner} from '../../../../src/core/shell-runner.js';
 
 export class MirrorNodeTest extends BaseCommandTest {
-  /**
-   * Execute a shell command and handle output/errors consistently
-   * @param command The command to execute
-   * @param label A descriptive label for the command (used in logs)
-   * @returns The command output as string
-   * @throws Error if the command fails
-   */
-  static executeCommand(command: string, label: string, testLogger: SoloLogger): string {
-    testLogger.info(`${label} command:`);
-    testLogger.info(command);
-
-    try {
-      const stdout = execSync(command, {encoding: 'utf8'});
-      testLogger.info(`${label} succeeded:`);
-      testLogger.info(stdout || '(No output)');
-      return stdout;
-    } catch (error) {
-      testLogger.error(`${label} failed:`);
-      testLogger.error(error.message);
-      if (error.stdout) {
-        testLogger.info('stdout:', error.stdout);
-      }
-      if (error.stderr) {
-        testLogger.info('stderr:', error.stderr);
-      }
-      throw error;
-    }
-  }
-
   private static soloMirrorNodeDeployArgv(
     testName: string,
     deployment: DeploymentName,
@@ -325,35 +296,21 @@ export class MirrorNodeTest extends BaseCommandTest {
     });
 
     it('Enable port-forward for mirror ingress controller', async (): Promise<void> => {
-      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-      const k8: K8 = k8Factory.getK8(contexts[1]);
-      const mirrorNodePods: Pod[] = await k8
-        .pods()
-        .list(namespace, ['app.kubernetes.io/instance=haproxy-ingress', 'app.kubernetes.io/name=haproxy-ingress']);
-      // itereate print all pod names
-      mirrorNodePods.forEach((pod: Pod): void => {
-        console.log(`find pod ${pod.podReference.name}`);
-      });
-      const mirrorNodePod: Pod = mirrorNodePods[0];
-      await k8.pods().readByReference(mirrorNodePod.podReference).portForward(8081, 80);
+      await new ShellRunner().run(`kubectl port-forward -n "${namespace.name}" svc/mirror-ingress-controller 8081:80`);
     });
   }
 
   public static installPostgres(options: BaseTestOptions): void {
     const {contexts, namespace, testLogger} = options;
     it('should install postgres chart', async (): Promise<void> => {
-      MirrorNodeTest.executeCommand(
-        `kubectl config use-context "${contexts[1]}"`,
-        'Switching to second cluster context',
-        testLogger,
-      );
+      await new ShellRunner().run(`kubectl config use-context "${contexts[1]}"`);
       const installPostgresChartCommand: string = `helm install my-postgresql https://charts.bitnami.com/bitnami/postgresql-12.1.2.tgz \
         --set image.tag=16.4.0 \
         --namespace ${this.nameSpace} --create-namespace \
         --set global.postgresql.auth.postgresPassword=${this.postgresPassword} \
         --set primary.persistence.enabled=false --set secondary.enabled=false`;
 
-      MirrorNodeTest.executeCommand(installPostgresChartCommand, 'PostgreSQL chart installation', testLogger);
+      await new ShellRunner().run(installPostgresChartCommand);
 
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
       const k8: K8 = k8Factory.getK8(contexts[1]);
@@ -374,13 +331,13 @@ export class MirrorNodeTest extends BaseCommandTest {
       }
 
       const copyInitScriptCommand: string = `kubectl cp ${initScriptPath} ${this.postgresContainerName}:/tmp/init.sh -n ${this.nameSpace}`;
-      MirrorNodeTest.executeCommand(copyInitScriptCommand, 'Copy', testLogger);
+      await new ShellRunner().run(copyInitScriptCommand);
 
       const chmodInitScriptCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- chmod +x /tmp/init.sh`;
-      MirrorNodeTest.executeCommand(chmodInitScriptCommand, 'Chmod', testLogger);
+      await new ShellRunner().run(chmodInitScriptCommand);
 
       const initScriptCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- /bin/bash /tmp/init.sh "${this.postgresUsername}" "${this.postgresReadonlyUsername}" "${this.postgresReadonlyPassword}"`;
-      MirrorNodeTest.executeCommand(initScriptCommand, 'Init script execution', testLogger);
+      await new ShellRunner().run(initScriptCommand);
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
@@ -388,10 +345,10 @@ export class MirrorNodeTest extends BaseCommandTest {
     it('should run SQL command', async (): Promise<void> => {
       const {testCacheDirectory, testLogger} = options;
       const copySqlCommand: string = `kubectl cp ${testCacheDirectory}/database-seeding-query.sql ${this.postgresContainerName}:/tmp/database-seeding-query.sql -n ${this.nameSpace}`;
-      MirrorNodeTest.executeCommand(copySqlCommand, 'SQL file copy', testLogger);
+      await new ShellRunner().run(copySqlCommand);
 
       const runSqlCommand: string = `kubectl exec -it ${this.postgresContainerName} -n ${this.nameSpace} -- env PGPASSWORD=${this.postgresPassword} psql -U ${this.postgresUsername} -f /tmp/database-seeding-query.sql -d ${this.postgresMirrorNodeDatabaseName}`;
-      MirrorNodeTest.executeCommand(runSqlCommand, 'SQL execution', testLogger);
+      await new ShellRunner().run(runSqlCommand);
     });
   }
 }

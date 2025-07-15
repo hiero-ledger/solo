@@ -13,7 +13,7 @@ import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
-import {MirrorNodeTest} from './mirror-node-test.js';
+import {ShellRunner} from '../../../../src/core/shell-runner.js';
 
 export class RelayTest extends BaseCommandTest {
   private static soloRelayDeployArgv(
@@ -55,11 +55,7 @@ export class RelayTest extends BaseCommandTest {
 
     it(`${testName}: JSON-RPC relay deploy`, async (): Promise<void> => {
       // switch back to the target cluster context
-      MirrorNodeTest.executeCommand(
-        `kubectl config use-context "${contexts[1]}"`,
-        'Switching back to first cluster context',
-        testLogger,
-      );
+      await new ShellRunner().run(`kubectl config use-context "${contexts[1]}"`);
 
       await main(soloRelayDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
       await verifyRelayDeployWasSuccessful(contexts, namespace);

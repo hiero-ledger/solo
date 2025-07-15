@@ -93,6 +93,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             export SOLO_DEPLOYMENT=${testName}-deployment; \
             .github/workflows/script/solo_smoke_test.sh`;
 
+        // running the script and show its output in real time for easy to debug
+        // and check its progress
         return new Promise<void>((resolve, reject) => {
           const process = spawn(scriptPath, {
             stdio: 'pipe', // Use pipe to capture output
