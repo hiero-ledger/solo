@@ -16,12 +16,15 @@ import {NodeCommand} from '../src/commands/node/index.js';
 import {type DependencyManager} from '../src/core/dependency-managers/index.js';
 import {sleep} from '../src/core/helpers.js';
 import {
+  type AccountBalance,
   AccountBalanceQuery,
   AccountCreateTransaction,
   type AccountId,
   Hbar,
   HbarUnit,
   PrivateKey,
+  type TransactionReceipt,
+  type TransactionResponse,
 } from '@hashgraph/sdk';
 import * as constants from '../src/core/constants.js';
 import {NODE_LOG_FAILURE_MSG, ROOT_CONTAINER, SOLO_LOGS_DIR} from '../src/core/constants.js';
@@ -63,7 +66,7 @@ import {type LocalConfigRuntimeState} from '../src/business/runtime-state/config
 import {type InstanceOverrides} from '../src/core/dependency-injection/container-init.js';
 import {type RemoteConfigRuntimeStateApi} from '../src/business/runtime-state/api/remote-config-runtime-state-api.js';
 
-export const BASE_TEST_DIR = PathEx.join('test', 'data', 'tmp');
+export const BASE_TEST_DIR: string = PathEx.join('test', 'data', 'tmp');
 
 export function getTestCluster(): ClusterReferenceName {
   const soloTestCluster: ClusterReferenceName =
@@ -74,12 +77,12 @@ export function getTestCluster(): ClusterReferenceName {
   return soloTestCluster.startsWith('kind-') ? soloTestCluster : `kind-${soloTestCluster}`;
 }
 
-export function getTestLogger() {
+export function getTestLogger(): SoloLogger {
   return container.resolve<SoloLogger>(InjectTokens.SoloLogger);
 }
 
-export function getTestCacheDirectory(testName?: string) {
-  const d = testName ? PathEx.join(BASE_TEST_DIR, testName) : BASE_TEST_DIR;
+export function getTestCacheDirectory(testName?: string): string {
+  const d: string = testName ? PathEx.join(BASE_TEST_DIR, testName) : BASE_TEST_DIR;
 
   if (!fs.existsSync(d)) {
     fs.mkdirSync(d, {recursive: true});
@@ -87,47 +90,51 @@ export function getTestCacheDirectory(testName?: string) {
   return d;
 }
 
-export function getTemporaryDirectory() {
+export function getTemporaryDirectory(): string {
   return fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-'));
 }
 
 export function deployNetworkTest(argv: Argv, commandInvoker: CommandInvoker, networkCmd: NetworkCommand): void {
-  it('should succeed with network deploy', async () => {
+  it('should succeed with network deploy', async (): Promise<void> => {
     await commandInvoker.invoke({
       argv: argv,
       command: NetworkCommand.COMMAND_NAME,
-      subcommand: 'deploy',
-      callback: async argv => networkCmd.deploy(argv),
+      subcommand: NetworkCommand.SUBCOMMAND_NAME,
+      action: 'deploy',
+      callback: async (argv): Promise<boolean> => networkCmd.deploy(argv),
     });
   }).timeout(Duration.ofMinutes(5).toMillis());
 }
 
 export function startNodesTest(argv: Argv, commandInvoker: CommandInvoker, nodeCmd: NodeCommand): void {
-  it('should succeed with node setup command', async () => {
+  it('should succeed with node setup command', async (): Promise<void> => {
     // cache this, because `solo node setup.finalize()` will reset it to false
     await commandInvoker.invoke({
       argv: argv,
       command: NodeCommand.COMMAND_NAME,
-      subcommand: 'setup',
-      callback: async argv => nodeCmd.handlers.setup(argv),
+      subcommand: NodeCommand.SUBCOMMAND_NAME,
+      action: 'setup',
+      callback: async (argv): Promise<boolean> => nodeCmd.handlers.setup(argv),
     });
   }).timeout(Duration.ofMinutes(4).toMillis());
 
-  it('should succeed with node start command', async () => {
+  it('should succeed with node start command', async (): Promise<void> => {
     await commandInvoker.invoke({
       argv: argv,
       command: NodeCommand.COMMAND_NAME,
-      subcommand: 'start',
-      callback: async argv => nodeCmd.handlers.start(argv),
+      subcommand: NodeCommand.SUBCOMMAND_NAME,
+      action: 'start',
+      callback: async (argv): Promise<boolean> => nodeCmd.handlers.start(argv),
     });
   }).timeout(Duration.ofMinutes(30).toMillis());
 
-  it('node log command should work', async () => {
+  it('node log command should work', async (): Promise<void> => {
     await commandInvoker.invoke({
       argv: argv,
       command: NodeCommand.COMMAND_NAME,
-      subcommand: 'logs',
-      callback: async argv => nodeCmd.handlers.logs(argv),
+      subcommand: NodeCommand.SUBCOMMAND_NAME,
+      action: 'logs',
+      callback: async (argv): Promise<boolean> => nodeCmd.handlers.logs(argv),
     });
 
     const soloLogPath: string = PathEx.joinWithRealPath(SOLO_LOGS_DIR, 'solo.log');
@@ -227,7 +234,7 @@ export function bootstrapTestVariables(
   const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
   const remoteConfig: RemoteConfigRuntimeStateApi = container.resolve(InjectTokens.RemoteConfigRuntimeState);
   const testLogger: SoloLogger = getTestLogger();
-  const commandInvoker = container.resolve(InjectTokens.CommandInvoker) as CommandInvoker;
+  const commandInvoker: CommandInvoker = container.resolve(InjectTokens.CommandInvoker) as CommandInvoker;
 
   const options: TestOptions = {
     logger: testLogger,
@@ -282,7 +289,7 @@ export function endToEndTestSuite(
     containerOverrides,
     deployNetwork,
   }: Cmd & {startNodes?: boolean; deployNetwork?: boolean},
-  testsCallBack: (bootstrapResp: BootstrapResponse) => void = () => {},
+  testsCallBack: (bootstrapResp: BootstrapResponse) => void = (): void => {},
 ): void {
   const testLogger: SoloLogger = getTestLogger();
   const testNamespace: NamespaceName = getTestNamespace(argv);
@@ -294,7 +301,7 @@ export function endToEndTestSuite(
     deployNetwork = true;
   }
 
-  const bootstrapResp = bootstrapTestVariables(testName, argv, {
+  const bootstrapResp: BootstrapResponse = bootstrapTestVariables(testName, argv, {
     k8FactoryArg,
     initCmdArg,
     clusterCmdArg,
@@ -309,32 +316,35 @@ export function endToEndTestSuite(
     opts: {k8Factory, chartManager, commandInvoker},
   } = bootstrapResp;
 
-  describe(`E2E Test Suite for '${testName}'`, function () {
+  describe(`E2E Test Suite for '${testName}'`, function (): void {
     before(async (): Promise<void> => {
-      const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+      const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
+        InjectTokens.LocalConfigRuntimeState,
+      );
       await localConfig.load();
     });
 
     this.bail(true); // stop on first failure, nothing else will matter if network doesn't come up correctly
 
-    describe(`Bootstrap network for test [release ${argv.getArg<string>(flags.releaseTag)}]`, () => {
-      before(() => {
+    describe(`Bootstrap network for test [release ${argv.getArg<string>(flags.releaseTag)}]`, (): void => {
+      before((): void => {
         testLogger.showUser(`------------------------- START: bootstrap (${testName}) ----------------------------`);
       });
 
       // TODO: add rest of prerequisites for setup
 
-      after(async function () {
+      after(async function (): Promise<void> {
         this.timeout(Duration.ofMinutes(5).toMillis());
         await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
         testLogger.showUser(`------------------------- END: bootstrap (${testName}) ----------------------------`);
       });
 
-      it('should cleanup previous deployment', async () => {
+      it('should cleanup previous deployment', async (): Promise<void> => {
+        // @ts-expect-error - TODO: Remove once the init command is removed
         await commandInvoker.invoke({
           argv: argv,
           command: InitCommand.COMMAND_NAME,
-          callback: async argv => initCmd.init(argv),
+          callback: async (argv): Promise<boolean> => initCmd.init(argv),
         });
 
         if (await k8Factory.default().namespaces().has(namespace)) {
@@ -352,48 +362,54 @@ export function endToEndTestSuite(
           await commandInvoker.invoke({
             argv: argv,
             command: ClusterCommand.COMMAND_NAME,
-            subcommand: 'setup',
-            callback: async argv => clusterCmd.handlers.setup(argv),
+            subcommand: ClusterCommand.SUBCOMMAND_NAME,
+            action: 'setup',
+            callback: async (argv): Promise<boolean> => clusterCmd.handlers.setup(argv),
           });
         }
       }).timeout(Duration.ofMinutes(2).toMillis());
 
-      it("should success with 'cluster-ref connect'", async () => {
-        const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
+      it("should success with 'cluster-ref connect'", async (): Promise<void> => {
+        const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
+          InjectTokens.LocalConfigRuntimeState,
+        );
         await localConfig.load();
         await commandInvoker.invoke({
           argv: argv,
           command: ClusterCommand.COMMAND_NAME,
-          subcommand: 'connect',
-          callback: async argv => clusterCmd.handlers.connect(argv),
+          subcommand: ClusterCommand.SUBCOMMAND_NAME,
+          action: 'connect',
+          callback: async (argv): Promise<boolean> => clusterCmd.handlers.connect(argv),
         });
       });
 
-      it('should succeed with deployment config create', async () => {
+      it('should succeed with deployment config create', async (): Promise<void> => {
         await commandInvoker.invoke({
           argv: argv,
           command: DeploymentCommand.COMMAND_NAME,
-          subcommand: 'create',
-          callback: async argv => deploymentCmd.create(argv),
+          subcommand: DeploymentCommand.SUBCOMMAND_NAME,
+          action: 'create',
+          callback: async (argv): Promise<boolean> => deploymentCmd.create(argv),
         });
       });
 
-      it("should succeed with 'deployment add-cluster'", async () => {
+      it("should succeed with 'deployment add-cluster'", async (): Promise<void> => {
         await commandInvoker.invoke({
           argv: argv,
           command: DeploymentCommand.COMMAND_NAME,
-          subcommand: 'add-cluster',
-          callback: async argv => deploymentCmd.addCluster(argv),
+          subcommand: DeploymentCommand.SUBCOMMAND_NAME,
+          action: 'add-cluster',
+          callback: async (argv): Promise<boolean> => deploymentCmd.addCluster(argv),
         });
       });
 
-      it('generate key files', async () => {
-        const localConfig = container.resolve(InjectTokens.LocalConfigRuntimeState);
+      it('generate key files', async (): Promise<void> => {
         await commandInvoker.invoke({
           argv: argv,
           command: NodeCommand.COMMAND_NAME,
-          subcommand: 'keys',
-          callback: async argv => nodeCmd.handlers.keys(argv),
+          subcommand: NodeCommand.SUBCOMMAND_NAME,
+          action: 'keys',
+          callback: async (argv): Promise<boolean> => nodeCmd.handlers.keys(argv),
         });
       }).timeout(Duration.ofMinutes(2).toMillis());
 
@@ -406,7 +422,7 @@ export function endToEndTestSuite(
       }
     });
 
-    describe(testName, () => {
+    describe(testName, (): void => {
       testsCallBack(bootstrapResp);
     });
   });
@@ -419,9 +435,9 @@ export function balanceQueryShouldSucceed(
   logger: SoloLogger,
   skipNodeAlias?: NodeAlias,
 ): void {
-  it('Balance query should succeed', async () => {
+  it('Balance query should succeed', async (): Promise<void> => {
     try {
-      const argv = Argv.getDefaultArgv(namespace);
+      const argv: Argv = Argv.getDefaultArgv(namespace);
       expect(accountManager._nodeClient).to.be.null;
 
       await accountManager.refreshNodeClient(
@@ -432,7 +448,7 @@ export function balanceQueryShouldSucceed(
       );
       expect(accountManager._nodeClient).not.to.be.null;
 
-      const balance = await new AccountBalanceQuery()
+      const balance: AccountBalance = await new AccountBalanceQuery()
         .setAccountId(accountManager._nodeClient.getOperator().accountId)
         .execute(accountManager._nodeClient);
 
@@ -456,9 +472,9 @@ export function accountCreationShouldSucceed(
   it(
     'Account creation should succeed' +
       (expectedAccountId ? ` with expected AccountId: ${expectedAccountId.toString()}` : ''),
-    async () => {
+    async (): Promise<void> => {
       try {
-        const argv = Argv.getDefaultArgv(namespace);
+        const argv: Argv = Argv.getDefaultArgv(namespace);
         await accountManager.refreshNodeClient(
           namespace,
           remoteConfig.getClusterRefs(),
@@ -466,16 +482,16 @@ export function accountCreationShouldSucceed(
           argv.getArg<DeploymentName>(flags.deployment),
         );
         expect(accountManager._nodeClient).not.to.be.null;
-        const privateKey = PrivateKey.generate();
-        const amount = 100;
+        const privateKey: PrivateKey = PrivateKey.generate();
+        const amount: number = 100;
 
-        const newAccount = await new AccountCreateTransaction()
+        const newAccount: TransactionResponse = await new AccountCreateTransaction()
           .setKey(privateKey)
           .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
           .execute(accountManager._nodeClient);
 
         // Get the new account ID
-        const getReceipt = await newAccount.getReceipt(accountManager._nodeClient);
+        const getReceipt: TransactionReceipt = await newAccount.getReceipt(accountManager._nodeClient);
         const accountInfo = {
           accountId: getReceipt.accountId.toString(),
           privateKey: privateKey.toString(),
@@ -500,7 +516,7 @@ export async function getNodeAliasesPrivateKeysHash(
   networkNodeServicesMap: NodeServiceMapping,
   k8Factory: K8Factory,
   destinationDirectory: string,
-) {
+): Promise<Map<NodeAlias, Map<string, string>>> {
   const dataKeysDirectory = `${constants.HEDERA_HAPI_PATH}/data/keys`;
   const tlsKeysDirectory = constants.HEDERA_HAPI_PATH;
   const nodeKeyHashMap = new Map<NodeAlias, Map<string, string>>();
@@ -589,10 +605,10 @@ export const testLocalConfigData = {
 
 export {HEDERA_PLATFORM_VERSION as HEDERA_PLATFORM_VERSION_TAG} from '../version.js';
 
-export function hederaPlatformSupportsNonZeroRealms() {
+export function hederaPlatformSupportsNonZeroRealms(): boolean {
   return semVersionGte(HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
 }
 
-export function localHederaPlatformSupportsNonZeroRealms() {
+export function localHederaPlatformSupportsNonZeroRealms(): boolean {
   return semVersionGte(TEST_LOCAL_HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
 }
