@@ -6,7 +6,7 @@ import {DefaultKindClientBuilder} from '../../../../../src/integration/kind/impl
 import {type KindClient} from '../../../../../src/integration/kind/kind-client.js';
 import {ClusterCreateOptionsBuilder} from '../../../../../src/integration/kind/model/create-cluster/create-cluster-options-builder.js';
 import {KindCluster} from '../../../../../src/integration/kind/model/kind-cluster.js';
-import {KindDependencyManager} from '../../../../../src/core/dependency-managers/kind-dependency-manager.js';
+import {KindDependencyManager} from '../../../../../src/core/dependency-managers/index.js';
 import {container} from 'tsyringe-neo';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,6 +20,10 @@ import {type ClusterCreateResponse} from '../../../../../src/integration/kind/mo
 import {type ClusterDeleteResponse} from '../../../../../src/integration/kind/model/delete-cluster/cluster-delete-response.js';
 import {resetForTest} from '../../../../test-container.js';
 import {Duration} from '../../../../../src/core/time/duration.js';
+import {exec} from 'node:child_process';
+import {promisify} from 'node:util';
+
+const execAsync = promisify(exec);
 
 describe('KindClient Integration Tests', function () {
   this.timeout(Duration.ofMinutes(1).toMillis());
@@ -28,9 +32,20 @@ describe('KindClient Integration Tests', function () {
   let kindPath: string;
   const testClusterName: string = 'test-kind-client';
   const temporaryDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'kind-test-'));
+  let originalKubectlContext: string | null = null;
 
   before(async () => {
     resetForTest();
+
+    // Save original kubectl context if it exists
+    try {
+      const {stdout} = await execAsync('kubectl config current-context');
+      originalKubectlContext = stdout.trim();
+      console.log(`Saved original kubectl context: ${originalKubectlContext}`);
+    } catch (error) {
+      console.log('No kubectl context found or kubectl not available');
+      originalKubectlContext = null;
+    }
 
     // Download and install Kind
     const kindManager: KindDependencyManager = container.resolve(KindDependencyManager);
@@ -55,6 +70,16 @@ describe('KindClient Integration Tests', function () {
         }
       } catch (error) {
         console.error('Error during cleanup:', error);
+      }
+    }
+
+    // Restore original kubectl context if it existed
+    if (originalKubectlContext) {
+      try {
+        console.log(`Restoring original kubectl context: ${originalKubectlContext}`);
+        await execAsync(`kubectl config use-context ${originalKubectlContext}`);
+      } catch (error) {
+        console.error('Error restoring kubectl context:', error);
       }
     }
 
