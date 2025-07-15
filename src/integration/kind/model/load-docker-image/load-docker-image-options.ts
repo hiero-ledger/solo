@@ -17,7 +17,13 @@ export class LoadDockerImageOptions implements Options {
    */
   private readonly _nodes: string;
 
-  constructor(name?: string, nodes?: string) {
+  /**
+   * The Docker image to load.
+   */
+  private readonly _imageName: string;
+
+  constructor(imageName: string, name?: string, nodes?: string) {
+    this._imageName = imageName;
     if (name) {
       this._name = name;
     }
@@ -31,6 +37,7 @@ export class LoadDockerImageOptions implements Options {
    * @param builder The KindExecutionBuilder to apply options to.
    */
   public apply(builder: KindExecutionBuilder): void {
+    builder.positional(this._imageName);
     if (this._name) {
       builder.argument('name', this._name);
     }

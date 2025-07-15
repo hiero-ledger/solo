@@ -6,6 +6,7 @@ export class LoadDockerImageOptionsBuilder {
   private constructor(
     private _name?: string,
     private _nodes?: string,
+    private _imageName?: string,
   ) {}
 
   public static builder(): LoadDockerImageOptionsBuilder {
@@ -31,10 +32,19 @@ export class LoadDockerImageOptionsBuilder {
   }
 
   /**
+   * Set the image name to load.
+   * @param imageName
+   */
+  public imageName(imageName: string): LoadDockerImageOptionsBuilder {
+    this._imageName = imageName;
+    return this;
+  }
+
+  /**
    * Build the ExportLogsOptions instance.
    */
   public build(): LoadDockerImageOptions {
-    return new LoadDockerImageOptions(this._name, this._nodes);
+    return new LoadDockerImageOptions(this._imageName, this._name, this._nodes);
   }
 
   public static from(options: LoadDockerImageOptions): LoadDockerImageOptionsBuilder {

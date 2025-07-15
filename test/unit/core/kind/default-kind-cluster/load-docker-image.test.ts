@@ -15,6 +15,7 @@ describe('DefaultKindClient.loadDockerImage', () => {
   let executionBuilderStub: sinon.SinonStubbedInstance<KindExecutionBuilder>;
   let executionStub: sinon.SinonStubbedInstance<KindExecution>;
   let builderArguments: Map<string, string>;
+  let builderPositionals: string[];
   let builderSubcommands: string[];
 
   beforeEach(() => {
@@ -22,6 +23,7 @@ describe('DefaultKindClient.loadDockerImage', () => {
     executionBuilderStub = sinon.createStubInstance(KindExecutionBuilder);
     executionStub = sinon.createStubInstance(KindExecution);
     builderArguments = new Map<string, string>();
+    builderPositionals = [];
     builderSubcommands = [];
 
     // Set up the builder stub
@@ -31,6 +33,10 @@ describe('DefaultKindClient.loadDockerImage', () => {
     // Track the arguments and subcommands for verification
     sinon.stub(KindExecutionBuilder.prototype, 'argument').callsFake((name: string, value: string) => {
       builderArguments.set(name, value);
+      return KindExecutionBuilder.prototype;
+    });
+    sinon.stub(KindExecutionBuilder.prototype, 'positional').callsFake((value: string) => {
+      builderPositionals.push(value);
       return KindExecutionBuilder.prototype;
     });
 
@@ -65,22 +71,6 @@ describe('DefaultKindClient.loadDockerImage', () => {
     expect(builderSubcommands).to.include('docker-image');
   });
 
-  it('should handle empty image name gracefully', async () => {
-    const imageName: string = '';
-    executionStub.responseAs.callsFake((responseClass: any) => {
-      return Promise.resolve(new responseClass(''));
-    });
-
-    const result: LoadDockerImageResponse = await client.loadDockerImage(imageName);
-
-    expect(result).to.be.instanceOf(LoadDockerImageResponse);
-    expect(result.imageName).to.equal(undefined);
-    expect(result.imageId).to.equal(undefined);
-
-    // Verify image name was passed even if empty
-    expect(builderArguments.get('name')).to.equal(undefined);
-  });
-
   it('should throw if responseAs rejects', async () => {
     const imageName: string = 'test-image:fail';
     executionStub.responseAs.rejects(new Error('Failed to load image'));
@@ -93,26 +83,10 @@ describe('DefaultKindClient.loadDockerImage', () => {
     }
   });
 
-  it('imageName overrides provided name in options parameter', async () => {
-    const imageName: string = 'test-image:latest';
-    const clusterName: string = 'custom-cluster';
-    const options: LoadDockerImageOptions = new LoadDockerImageOptions(clusterName);
-    const mockOutput: string = `Image: "${imageName}" with ID "sha256:1234567890abcdef"`;
-
-    executionStub.responseAs.callsFake((responseClass: any) => {
-      return Promise.resolve(new responseClass(mockOutput));
-    });
-
-    await client.loadDockerImage(imageName, options);
-
-    // Verify the cluster name was passed correctly
-    expect(builderArguments.get('name')).to.equal(imageName);
-  });
-
   it('should pass nodes parameter when provided in options', async () => {
     const imageName: string = 'test-image:latest';
     const nodes: string = 'control-plane,worker1,worker2';
-    const options: LoadDockerImageOptions = new LoadDockerImageOptions(undefined, nodes);
+    const options: LoadDockerImageOptions = new LoadDockerImageOptions(undefined, undefined, nodes);
     const mockOutput: string = `Image: "${imageName}" with ID "sha256:1234567890abcdef"`;
 
     executionStub.responseAs.callsFake((responseClass: any) => {
@@ -125,11 +99,11 @@ describe('DefaultKindClient.loadDockerImage', () => {
     expect(builderArguments.get('nodes')).to.equal(nodes);
   });
 
-  it('should handle both cluster name and nodes parameters', async () => {
+  it('should handle all parameters', async () => {
     const imageName: string = 'test-image:latest';
     const clusterName: string = 'custom-cluster';
     const nodes: string = 'worker1,worker2';
-    const options: LoadDockerImageOptions = new LoadDockerImageOptions(clusterName, nodes);
+    const options: LoadDockerImageOptions = new LoadDockerImageOptions(imageName, clusterName, nodes);
     const mockOutput: string = `Image: "${imageName}" with ID "sha256:1234567890abcdef"`;
 
     executionStub.responseAs.callsFake((responseClass: any) => {
@@ -139,7 +113,9 @@ describe('DefaultKindClient.loadDockerImage', () => {
     await client.loadDockerImage(imageName, options);
 
     // Verify both parameters were passed correctly
-    expect(builderArguments.get('name')).to.equal(imageName);
+    expect(builderPositionals.length).to.equal(1);
+    expect(builderPositionals[0]).to.equal(imageName);
+    expect(builderArguments.get('name')).to.equal(clusterName);
     expect(builderArguments.get('nodes')).to.equal(nodes);
   });
 

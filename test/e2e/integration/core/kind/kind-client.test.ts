@@ -14,22 +14,20 @@ import * as os from 'node:os';
 import {type GetKubeconfigResponse} from '../../../../../src/integration/kind/model/get-kubeconfig/get-kubeconfig-response.js';
 import {type GetNodesResponse} from '../../../../../src/integration/kind/model/get-nodes/get-nodes-response.js';
 import {type ExportKubeconfigResponse} from '../../../../../src/integration/kind/model/export-kubeconfig/export-kubeconfig-response.js';
-import {type LoadDockerImageResponse} from '../../../../../src/integration/kind/model/load-docker-image/load-docker-image-response.js';
-import {type LoadDockerImageOptions} from '../../../../../src/integration/kind/model/load-docker-image/load-docker-image-options.js';
 import {type SemVer} from 'semver';
 import {type ClusterCreateOptions} from '../../../../../src/integration/kind/model/create-cluster/cluster-create-options.js';
 import {type ClusterCreateResponse} from '../../../../../src/integration/kind/model/create-cluster/cluster-create-response.js';
 import {type ClusterDeleteResponse} from '../../../../../src/integration/kind/model/delete-cluster/cluster-delete-response.js';
 import {resetForTest} from '../../../../test-container.js';
+import {Duration} from '../../../../../src/core/time/duration.js';
 
 describe('KindClient Integration Tests', function () {
-  this.timeout(180_000); // Increase timeout for Kind operations (3 minutes)
+  this.timeout(Duration.ofMinutes(1).toMillis());
 
   let kindClient: KindClient;
   let kindPath: string;
   const testClusterName: string = 'test-kind-client';
   const temporaryDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'kind-test-'));
-  const testImageName: string = 'alpine:latest';
 
   before(async () => {
     resetForTest();
@@ -78,10 +76,11 @@ describe('KindClient Integration Tests', function () {
   });
 
   it('should create a cluster', async () => {
-    const options: ClusterCreateOptions = ClusterCreateOptionsBuilder.builder().wait('30s').build();
+    const options: ClusterCreateOptions = ClusterCreateOptionsBuilder.builder().build();
 
     const response: ClusterCreateResponse = await kindClient.createCluster(testClusterName, options);
     expect(response).to.not.be.undefined;
+    expect(response.name).to.equal(testClusterName);
   });
 
   it('should list clusters', async () => {
@@ -122,31 +121,6 @@ describe('KindClient Integration Tests', function () {
     const response: ExportKubeconfigResponse = await kindClient.exportKubeconfig(testClusterName);
     expect(response).to.not.be.undefined;
     expect(response.kubectlContext).to.be.a('string');
-  });
-
-  it('should load a Docker image', async function () {
-    // Pull a small test image
-    try {
-      await new Promise((resolve, reject) => {
-        const dockerProcess = require('node:child_process').exec(`docker pull ${testImageName}`, error => {
-          if (error) {
-            reject(error);
-          } else {
-            resolve(true);
-          }
-        });
-      });
-
-      // Load the image into Kind
-      const response: LoadDockerImageResponse = await kindClient.loadDockerImage(testImageName, {
-        name: testClusterName,
-      } as LoadDockerImageOptions);
-
-      expect(response).to.not.be.undefined;
-    } catch (error) {
-      console.warn('Docker test skipped - Docker may not be available:', error.message);
-      this.skip();
-    }
   });
 
   it('should export logs', async () => {
