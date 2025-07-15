@@ -17,7 +17,7 @@ import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
 
-import {execSync, spawn} from 'node:child_process';
+import {execSync} from 'node:child_process';
 import * as constants from '../../../../src/core/constants.js';
 import fs from 'node:fs';
 
@@ -30,54 +30,23 @@ export class MirrorNodeTest extends BaseCommandTest {
    * @throws Error if the command fails
    */
   static executeCommand(command: string, label: string, testLogger: SoloLogger): string {
-    console.log(`${label} command:`);
-    console.log(command);
+    testLogger.info(`${label} command:`);
+    testLogger.info(command);
 
     try {
       const stdout = execSync(command, {encoding: 'utf8'});
-      console.log(`${label} succeeded:`);
-      console.log(stdout || '(No output)');
+      testLogger.info(`${label} succeeded:`);
+      testLogger.info(stdout || '(No output)');
       return stdout;
     } catch (error) {
-      console.error(`${label} failed:`);
-      console.error(error.message);
+      testLogger.error(`${label} failed:`);
+      testLogger.error(error.message);
       if (error.stdout) {
-        console.log('stdout:', error.stdout);
+        testLogger.info('stdout:', error.stdout);
       }
       if (error.stderr) {
-        console.log('stderr:', error.stderr);
+        testLogger.info('stderr:', error.stderr);
       }
-      throw error;
-    }
-  }
-
-  /**
-   * Execute a command in the background without waiting for it to complete
-   * @param command The command to execute in background
-   * @param label A descriptive label for the command (used in logs)
-   */
-  static executeBackgroundCommand(command: string, label: string): void {
-    console.log(`${label} background command:`);
-    console.log(command);
-
-    try {
-      // Remove any trailing & as we'll handle the background process ourselves
-      const cleanCommand = command.replace(/\s*&\s*$/, '');
-
-      // For background commands, we use spawn instead of execSync
-      const process = spawn(cleanCommand, {
-        shell: true,
-        detached: true,
-        stdio: 'ignore',
-      });
-
-      // Unref the child process so the parent can exit independently
-      process.unref();
-
-      console.log(`${label} background command started with PID: ${process.pid}`);
-    } catch (error) {
-      console.error(`${label} background command failed to start:`);
-      console.error(error.message);
       throw error;
     }
   }
@@ -354,9 +323,8 @@ export class MirrorNodeTest extends BaseCommandTest {
       const mirrorNodePod: Pod = mirrorNodePods[0];
       await k8.pods().readByReference(mirrorNodePod.podReference).portForward(5600, 5600);
     });
-    it('Enable port-forward for mirror ingress controller', async (): Promise<void> => {
-      // kubectl port-forward -n \"${SOLO_NAMESPACE}\" svc/mirror-ingress-controller 8081:80
 
+    it('Enable port-forward for mirror ingress controller', async (): Promise<void> => {
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
       const k8: K8 = k8Factory.getK8(contexts[1]);
       const mirrorNodePods: Pod[] = await k8
@@ -366,13 +334,8 @@ export class MirrorNodeTest extends BaseCommandTest {
       mirrorNodePods.forEach((pod: Pod): void => {
         console.log(`find pod ${pod.podReference.name}`);
       });
-      // const mirrorNodePod: Pod = mirrorNodePods[0];
-      // await k8.pods().readByReference(mirrorNodePod.podReference).portForward(8081, 80);
-
-      MirrorNodeTest.executeBackgroundCommand(
-        `kubectl port-forward -n "${namespace.name}" svc/mirror-ingress-controller 8081:80`,
-        'Mirror Ingress Port Forward',
-      );
+      const mirrorNodePod: Pod = mirrorNodePods[0];
+      await k8.pods().readByReference(mirrorNodePod.podReference).portForward(8081, 80);
     });
   }
 

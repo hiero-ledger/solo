@@ -113,12 +113,6 @@ export class ExplorerTest extends BaseCommandTest {
     it(`${testName}: explorer deploy`, async (): Promise<void> => {
       await main(soloExplorerDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
       await verifyExplorerDeployWasSuccessful(contexts, namespace, createdAccountIds, testLogger);
-
-      // kubectl port-forward -n solo-e2e svc/hiero-explorer 8080:80
-      // MirrorNodeTest.executeBackgroundCommand(
-      //   `kubectl port-forward -n "${namespace.name}" svc/hiero-explorer 8080:80`,
-      //   'Explorer Port Forward',
-      // );
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 }

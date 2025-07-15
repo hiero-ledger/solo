@@ -29,7 +29,6 @@ import {
   type TransactionResponse,
 } from '@hashgraph/sdk';
 import {type BaseTestOptions} from './base-test-options.js';
-import {MirrorNodeTest} from './mirror-node-test.js';
 
 export class NodeTest extends BaseCommandTest {
   private static soloNodeKeysArgv(testName: string, deployment: DeploymentName): string[] {
