@@ -365,7 +365,7 @@ export class RelayCommand extends BaseCommand {
             );
 
             showVersionBanner(self.logger, config.releaseName, HEDERA_JSON_RPC_RELAY_VERSION);
-            await helpers.sleep(Duration.ofSeconds(20)); // wait for the pod to destroy in case it was an upgrade
+            await helpers.sleep(Duration.ofSeconds(40)); // wait for the pod to destroy in case it was an upgrade
           },
         },
         {
