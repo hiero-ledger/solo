@@ -33,6 +33,7 @@ import {type ComponentFactoryApi} from '../core/config/remote/api/component-fact
 import {Lock} from '../core/lock/lock.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
+import {Duration} from '../core/time/duration.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -364,6 +365,7 @@ export class RelayCommand extends BaseCommand {
             );
 
             showVersionBanner(self.logger, config.releaseName, HEDERA_JSON_RPC_RELAY_VERSION);
+            await helpers.sleep(Duration.ofSeconds(20)); // wait for the pod to destroy in case it was an upgrade
           },
         },
         {
