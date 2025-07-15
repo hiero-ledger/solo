@@ -354,7 +354,8 @@ This step downloads the hedera platform code and sets up your node/nodes.
 
 ```bash
 # node setup
-solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" "${CONSENSUS_NODE_FLAG[@]}"
+export CONSENSUS_NODE_VERSION=v0.63.9 # or whatever version you are trying to deploy starting with a `v`
+solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}"
 ```
 
 Example output:
