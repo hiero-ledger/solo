@@ -29,6 +29,7 @@ import {
   type TransactionResponse,
 } from '@hashgraph/sdk';
 import {type BaseTestOptions} from './base-test-options.js';
+import {NodeCommand} from '../../../../src/commands/node/index.js';
 
 export class NodeTest extends BaseCommandTest {
   private static soloNodeKeysArgv(testName: string, deployment: DeploymentName): string[] {
@@ -36,7 +37,8 @@ export class NodeTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      'node',
+      NodeCommand.COMMAND_NAME,
+      NodeCommand.SUBCOMMAND_NAME,
       'keys',
       optionFromFlag(Flags.deployment),
       deployment,
@@ -73,7 +75,13 @@ export class NodeTest extends BaseCommandTest {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
 
     const argv: string[] = newArgv();
-    argv.push('node', 'setup', optionFromFlag(Flags.deployment), deployment);
+    argv.push(
+      NodeCommand.COMMAND_NAME,
+      NodeCommand.SUBCOMMAND_NAME,
+      'setup',
+      optionFromFlag(Flags.deployment),
+      deployment,
+    );
     if (enableLocalBuildPathTesting) {
       argv.push(
         optionFromFlag(Flags.localBuildPath),
@@ -139,7 +147,13 @@ export class NodeTest extends BaseCommandTest {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
 
     const argv: string[] = newArgv();
-    argv.push('node', 'start', optionFromFlag(Flags.deployment), deployment);
+    argv.push(
+      NodeCommand.COMMAND_NAME,
+      NodeCommand.SUBCOMMAND_NAME,
+      'start',
+      optionFromFlag(Flags.deployment),
+      deployment,
+    );
     argvPushGlobalFlags(argv, testName);
     return argv;
   }

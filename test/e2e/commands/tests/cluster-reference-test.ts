@@ -11,6 +11,7 @@ import {Flags} from '../../../../src/commands/flags.js';
 import {container} from 'tsyringe-neo';
 import {expect} from 'chai';
 import {type BaseTestOptions} from './base-test-options.js';
+import {ClusterCommand} from '../../../../src/commands/cluster/index.js';
 
 export class ClusterReferenceTest extends BaseCommandTest {
   private static soloClusterReferenceConnectArgv(
@@ -22,7 +23,8 @@ export class ClusterReferenceTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      'cluster-ref',
+      ClusterCommand.COMMAND_NAME,
+      ClusterCommand.SUBCOMMAND_NAME,
       'connect',
       optionFromFlag(Flags.clusterRef),
       clusterReference,
@@ -56,7 +58,13 @@ export class ClusterReferenceTest extends BaseCommandTest {
     const {newArgv, optionFromFlag, argvPushGlobalFlags} = ClusterReferenceTest;
 
     const argv: string[] = newArgv();
-    argv.push('cluster-ref', 'setup', optionFromFlag(Flags.clusterRef), clusterReference);
+    argv.push(
+      ClusterCommand.COMMAND_NAME,
+      ClusterCommand.SUBCOMMAND_NAME,
+      'setup',
+      optionFromFlag(Flags.clusterRef),
+      clusterReference,
+    );
     argvPushGlobalFlags(argv, testName, false, true);
     return argv;
   }

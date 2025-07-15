@@ -11,6 +11,7 @@ import {type ConsensusNodeStateSchema} from '../../../../src/data/schema/model/r
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
+import {DeploymentCommand} from '../../../../src/commands/deployment.js';
 
 export class DeploymentTest extends BaseCommandTest {
   private static soloDeploymentCreateArgv(
@@ -24,7 +25,8 @@ export class DeploymentTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      'deployment',
+      DeploymentCommand.COMMAND_NAME,
+      DeploymentCommand.SUBCOMMAND_NAME,
       'create',
       optionFromFlag(Flags.deployment),
       deployment,
@@ -61,7 +63,8 @@ export class DeploymentTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      'deployment',
+      DeploymentCommand.COMMAND_NAME,
+      DeploymentCommand.SUBCOMMAND_NAME,
       'add-cluster',
       optionFromFlag(Flags.deployment),
       deployment,

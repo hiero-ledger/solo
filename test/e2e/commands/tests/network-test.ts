@@ -14,6 +14,7 @@ import {expect} from 'chai';
 import {type DeploymentName} from '../../../../src/types/index.js';
 import {Flags} from '../../../../src/commands/flags.js';
 import {type BaseTestOptions} from './base-test-options.js';
+import {NetworkCommand} from '../../../../src/commands/network.js';
 
 export class NetworkTest extends BaseCommandTest {
   private static soloNetworkDeployArgv(
@@ -26,7 +27,13 @@ export class NetworkTest extends BaseCommandTest {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NetworkTest;
 
     const argv: string[] = newArgv();
-    argv.push('network', 'deploy', optionFromFlag(Flags.deployment), deployment);
+    argv.push(
+      NetworkCommand.COMMAND_NAME,
+      NetworkCommand.SUBCOMMAND_NAME,
+      'deploy',
+      optionFromFlag(Flags.deployment),
+      deployment,
+    );
 
     // have to enable load balancer to resolve cross cluster in multi-cluster
     if (loadBalancerEnabled) {
@@ -78,7 +85,13 @@ export class NetworkTest extends BaseCommandTest {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NetworkTest;
 
     const argv: string[] = newArgv();
-    argv.push('network', 'destroy', optionFromFlag(Flags.deployment), deployment);
+    argv.push(
+      NetworkCommand.COMMAND_NAME,
+      NetworkCommand.SUBCOMMAND_NAME,
+      'destroy',
+      optionFromFlag(Flags.deployment),
+      deployment,
+    );
     argvPushGlobalFlags(argv, testName, false, true);
     return argv;
   }
