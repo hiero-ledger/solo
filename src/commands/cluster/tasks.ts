@@ -143,6 +143,7 @@ export class ClusterCommandTasks {
 
   /** Show list of installed chart */
   private async showInstalledChartList(clusterSetupNamespace: NamespaceName, context?: string): Promise<void> {
+    // TODO convert to logger.addMessageGroup() & logger.addMessageGroupMessage()
     this.logger.showList(
       'Installed Charts',
       await this.chartManager.getInstalledCharts(clusterSetupNamespace, context),

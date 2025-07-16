@@ -31,6 +31,9 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {Lock} from '../core/lock/lock.js';
+import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
+import {Pod} from '../integration/kube/resources/pod/pod.js';
+import {Duration} from '../core/time/duration.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -67,6 +70,7 @@ interface RelayDeployConfigClass {
   clusterRef: Optional<ClusterReferenceName>;
   domainName: Optional<string>;
   context: Optional<string>;
+  forcePortForward: Optional<boolean>;
 }
 
 interface RelayDeployContext {
@@ -109,6 +113,7 @@ export class RelayCommand extends BaseCommand {
       flags.replicaCount,
       flags.valuesFile,
       flags.domainName,
+      flags.forcePortForward,
     ],
   };
 
@@ -283,6 +288,7 @@ export class RelayCommand extends BaseCommand {
               flags.clusterRef,
               flags.profileFile,
               flags.profileName,
+              flags.forcePortForward,
             ]);
 
             const allFlags = [...RelayCommand.DEPLOY_FLAGS_LIST.required, ...RelayCommand.DEPLOY_FLAGS_LIST.optional];
@@ -370,6 +376,7 @@ export class RelayCommand extends BaseCommand {
             );
 
             showVersionBanner(self.logger, config.releaseName, HEDERA_JSON_RPC_RELAY_VERSION);
+            await helpers.sleep(Duration.ofSeconds(40)); // wait for the pod to destroy in case it was an upgrade
           },
         },
         {
@@ -411,6 +418,40 @@ export class RelayCommand extends BaseCommand {
           },
         },
         this.addRelayComponent(),
+        {
+          title: 'Enable port forwarding',
+          task: async (context_): Promise<void> => {
+            const pods: Pod[] = await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .pods()
+              .list(context_.config.namespace, [
+                'app=hedera-json-rpc-relay',
+                `app.kubernetes.io/instance=${context_.config.releaseName}`,
+              ]);
+            if (pods.length === 0) {
+              throw new SoloError('No Relay pod found');
+            }
+            const podReference: PodReference = pods[0].podReference;
+            await this.k8Factory
+              .getK8(context_.config.context)
+              .pods()
+              .readByReference(podReference)
+              .portForward(constants.JSON_RPC_RELAY_PORT, constants.JSON_RPC_RELAY_PORT, true);
+            this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+            this.logger.addMessageGroupMessage(
+              constants.PORT_FORWARDING_MESSAGE_GROUP,
+              `JSON RPC Relay forward enabled on localhost:${constants.JSON_RPC_RELAY_PORT}`,
+            );
+          },
+          skip: context_ => !context_.config.forcePortForward,
+        },
+        // TODO only show this if we are not running in quick-start mode
+        // {
+        //   title: 'Show user messages',
+        //   task: (): void => {
+        //     this.logger.showAllMessageGroups();
+        //   },
+        // },
       ],
       {
         concurrent: false,
