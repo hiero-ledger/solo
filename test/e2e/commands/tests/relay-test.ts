@@ -43,10 +43,6 @@ export class RelayTest extends BaseCommandTest {
       .pods()
       .list(namespace, ['app=hedera-json-rpc-relay', 'app.kubernetes.io/name=hedera-json-rpc-relay']);
     expect(relayPods).to.have.lengthOf(1);
-
-    // enable port forward 7546 to 7546
-    const relayPod: Pod = relayPods[0];
-    await k8.pods().readByReference(relayPod.podReference).portForward(7546, 7546);
   }
 
   public static deploy(options: BaseTestOptions): void {
