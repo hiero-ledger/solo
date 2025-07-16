@@ -50,9 +50,6 @@ export class RelayTest extends BaseCommandTest {
     const {soloRelayDeployArgv, verifyRelayDeployWasSuccessful} = RelayTest;
 
     it(`${testName}: JSON-RPC relay deploy`, async (): Promise<void> => {
-      // switch back to the target cluster context
-      await new ShellRunner().run(`kubectl config use-context "${contexts[1]}"`);
-
       await main(soloRelayDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
       await verifyRelayDeployWasSuccessful(contexts, namespace);
     }).timeout(Duration.ofMinutes(5).toMillis());

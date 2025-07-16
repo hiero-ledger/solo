@@ -258,6 +258,7 @@ export class MirrorNodeTest extends BaseCommandTest {
 
       // Add external database flags
       argv.push(
+        optionFromFlag(Flags.enableIngress),
         optionFromFlag(Flags.useExternalDatabase),
         optionFromFlag(Flags.externalDatabaseHost),
         this.postgresHostFqdn,
@@ -294,17 +295,6 @@ export class MirrorNodeTest extends BaseCommandTest {
         ]);
       const mirrorNodePod: Pod = mirrorNodePods[0];
       await k8.pods().readByReference(mirrorNodePod.podReference).portForward(5600, 5600);
-    });
-
-    it('Enable port-forward for mirror ingress controller', async (): Promise<void> => {
-      // somehow portForward(8081:80) for ingress controller pod worked in local macOS
-      // but not working in github workflow may due to how load balancer works differently in
-      // github workflow
-      MirrorNodeTest.executeBackgroundCommand(
-        `kubectl port-forward -n "${namespace.name}" svc/mirror-ingress-controller 8081:80`,
-        'Mirror Ingress Port Forward',
-        testLogger,
-      );
     });
   }
 
