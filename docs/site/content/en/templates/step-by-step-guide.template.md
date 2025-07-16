@@ -354,7 +354,8 @@ This step downloads the hedera platform code and sets up your node/nodes.
 
 ```bash
 # node setup
-solo node setup --deployment "${SOLO_DEPLOYMENT}" "${CONSENSUS_NODE_FLAG[@]}"
+export CONSENSUS_NODE_VERSION=v0.63.9 # or whatever version you are trying to deploy starting with a `v`
+solo node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}"
 ```
 
 Example output:
@@ -392,7 +393,7 @@ This is the most memory intensive step from a resource perspective. If you have 
 
 ```bash
 # Deploy with explicit configuration
-solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress
 ```
 
 Example output:
@@ -462,13 +463,14 @@ kubectl get pods -n solo
 
 At this time Solo doesn't automatically set up port forwarding for you, so you'll need to do that manually.
 
-The port forwarding can be done using `kubectl port-forward` command. For example, to forward the consensus service port:
+The port forwarding is now automatic for many endpoints.  However, you can set up your own using `kubectl port-forward` command: 
 
 ```bash
 # Consensus Service for node1 (node ID = 0): localhost:50211
-kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &
+# should be automatic: kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &
 # Explorer UI: http://localhost:8080
-kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:80 > /dev/null 2>&1 &
+# should be automatic: kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:8080 > /dev/null 2>&1 &
+# Mirror Node gRPC, REST, REST Java, Web3 will be automatic on `localhost:8081` if you passed `--enable-ingress` to the `solo mirror-node deploy` command
 # Mirror Node gRPC: localhost:5600
 kubectl port-forward svc/mirror-grpc -n "${SOLO_NAMESPACE}" 5600:5600 > /dev/null 2>&1 &
 # Mirror Node REST API: http://localhost:5551
@@ -476,7 +478,7 @@ kubectl port-forward svc/mirror-rest -n "${SOLO_NAMESPACE}" 5551:80 > /dev/null 
 # Mirror Node REST Java API http://localhost:8084
 kubectl port-forward service/mirror-restjava -n "${SOLO_NAMESPACE}" 8084:80 > /dev/null 2>&1 &
 # JSON RPC Relay: localhost:7546
-kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n "${SOLO_NAMESPACE}" 7546:7546 > /dev/null 2>&1 &
+# should be automatic: kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n "${SOLO_NAMESPACE}" 7546:7546 > /dev/null 2>&1 &
 ```
 
 {{< /details >}}<br/>

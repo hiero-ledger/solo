@@ -21,6 +21,7 @@ import {
   type Context,
   type DeploymentName,
   type NamespaceNameAsString,
+  Optional,
 } from '../../../../types/index.js';
 import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases, NodeId} from '../../../../types/aliases.js';
 import {NamespaceName} from '../../../../types/namespace/namespace-name.js';
@@ -50,6 +51,7 @@ import {UserIdentitySchema} from '../../../../data/schema/model/common/user-iden
 import {Deployment} from '../local/deployment.js';
 import {RemoteConfig} from './remote-config.js';
 import {ComponentIdsSchema} from '../../../../data/schema/model/remote/state/component-ids-schema.js';
+import * as helpers from '../../../../core/helpers.js';
 
 enum RuntimeStatePhase {
   Loaded = 'loaded',
@@ -323,7 +325,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       this.clusterReferences.set(context, clusterReference.toString());
     }
 
-    return this.localConfig.configuration.clusterRefs.get(deployment.clusters[0])?.toString();
+    return this.localConfig.configuration.clusterRefs.get(deployment.clusters.get(0)?.toString())?.toString();
   }
 
   /**
@@ -564,5 +566,9 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
   public getNamespace(): NamespaceName {
     return NamespaceName.of(this.configuration.clusters?.at(0)?.namespace);
+  }
+
+  public extractContextFromConsensusNodes(nodeAlias: NodeAlias): Optional<string> {
+    return helpers.extractContextFromConsensusNodes(nodeAlias, this.getConsensusNodes());
   }
 }

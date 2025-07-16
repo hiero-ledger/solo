@@ -1228,7 +1228,9 @@ export class NetworkCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
       } finally {
-        await lease.release();
+        if (lease) {
+          await lease.release();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {

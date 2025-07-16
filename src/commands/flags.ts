@@ -2252,6 +2252,7 @@ export class Flags {
       defaultValue: '',
       describe: 'path prefix of aws storage bucket',
       type: 'string',
+      dataMask: constants.STANDARD_DATAMASK,
     },
     prompt: undefined,
   };
