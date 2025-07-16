@@ -39,7 +39,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        release-tag: ["0.39.0"]
+        release-tag: ["0.35.2"]
+        # release-tag: ["0.39.0"]
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
