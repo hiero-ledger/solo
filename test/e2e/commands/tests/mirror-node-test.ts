@@ -20,7 +20,6 @@ import {type BaseTestOptions} from './base-test-options.js';
 import * as constants from '../../../../src/core/constants.js';
 import fs from 'node:fs';
 import {ShellRunner} from '../../../../src/core/shell-runner.js';
-import {spawn} from 'node:child_process';
 
 export class MirrorNodeTest extends BaseCommandTest {
   private static soloMirrorNodeDeployArgv(
@@ -296,37 +295,6 @@ export class MirrorNodeTest extends BaseCommandTest {
       const mirrorNodePod: Pod = mirrorNodePods[0];
       await k8.pods().readByReference(mirrorNodePod.podReference).portForward(5600, 5600);
     });
-  }
-
-  /**
-   * Execute a command in the background without waiting for it to complete
-   * @param command The command to execute in background
-   * @param label A descriptive label for the command (used in logs)
-   */
-  static executeBackgroundCommand(command: string, label: string, testLogger: SoloLogger): void {
-    console.log(`${label} background command:`);
-    console.log(command);
-
-    try {
-      // Remove any trailing & as we'll handle the background process ourselves
-      const cleanCommand = command.replace(/\s*&\s*$/, '');
-
-      // For background commands, we use spawn instead of execSync
-      const process = spawn(cleanCommand, {
-        shell: true,
-        detached: true,
-        stdio: 'ignore',
-      });
-
-      // Unref the child process so the parent can exit independently
-      process.unref();
-
-      testLogger.info(`${label} background command started with PID: ${process.pid}`);
-    } catch (error) {
-      testLogger.error(`${label} background command failed to start:`);
-      testLogger.error(error.message);
-      throw error;
-    }
   }
 
   public static installPostgres(options: BaseTestOptions): void {

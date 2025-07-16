@@ -13,7 +13,6 @@ import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
-import {ShellRunner} from '../../../../src/core/shell-runner.js';
 
 export class RelayTest extends BaseCommandTest {
   private static soloRelayDeployArgv(
