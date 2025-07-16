@@ -31,8 +31,9 @@ solo consensus node start     --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
 solo mirror node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} 
 solo explorer node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME}
 
-kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &
-kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:80 > /dev/null 2>&1 &
+# check to see if it is already enabled, port forwarding for explorer and consensus node grpc should be handled by solo automatically
+# kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &
+# kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:8080 > /dev/null 2>&1 &
 ```
 
 Then you can access the Explorer at <http://localhost:8080>
@@ -54,7 +55,7 @@ Add SDK.md link here
 
 * [Instructions for using Solo with Hiero JavaScript SDK](javascript-sdk.md)
 
-If you need to access mirror node service directly, use the following command to enable port forwarding:
+If you need to access mirror node service directly, use the following command to enable port forwarding, or just use `localhost:8081` as it should have all the mirror node services exposed to this port:
 
 ```bash
 kubectl port-forward svc/mirror-grpc -n "${SOLO_NAMESPACE}" 5600:5600 &

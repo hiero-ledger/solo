@@ -97,10 +97,6 @@ npm run solo-test -- explorer node deploy --deployment "${SOLO_DEPLOYMENT}" --cl
 
 # wait a few seconds for the pods to be ready before enabling port-forwarding
 sleep 10
-kubectl port-forward -n "${SOLO_NAMESPACE}" svc/haproxy-node1-svc 50211:50211 > /dev/null 2>&1 &
-kubectl port-forward -n "${SOLO_NAMESPACE}" svc/relay-node1-node2-hedera-json-rpc-relay 7546:7546 > /dev/null 2>&1 &
-kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-ingress-controller 8081:80 > /dev/null 2>&1 &
-kubectl port-forward -n "${SOLO_NAMESPACE}" svc/hiero-explorer 8080:80 > /dev/null 2>&1 &
 
 # Test transaction can still be sent and processed
 npm run solo-test -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100

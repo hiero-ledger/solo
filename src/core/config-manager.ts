@@ -54,7 +54,7 @@ export class ConfigManager {
    */
   public applyPrecedence(argv: yargs.Argv<AnyYargs>, aliases: AnyObject): yargs.Argv<AnyYargs> {
     for (const key of Object.keys(aliases)) {
-      const flag = flags.allFlagsMap.get(key);
+      const flag: CommandFlag = flags.allFlagsMap.get(key);
       if (flag) {
         if (argv[key] !== undefined) {
           // argv takes precedence, nothing to do
@@ -136,13 +136,13 @@ export class ConfigManager {
 
     this.config.updatedAt = new Date().toISOString();
 
-    const flagMessage = Object.entries(this.config.flags)
-      .filter(entries => entries[1] !== undefined && entries[1] !== null)
-      .map(([key, value]) => {
-        const flag = flags.allFlagsMap.get(key);
+    const flagMessage: string = Object.entries(this.config.flags)
+      .filter((entries): boolean => entries[1] !== undefined && entries[1] !== null)
+      .map(([key, value]): `${string}=${string}` => {
+        const flag: CommandFlag = flags.allFlagsMap.get(key);
         const dataMask: Optional<string> = flag.definition.dataMask;
 
-        return `${key}=${dataMask ? dataMask : value}`;
+        return `${key}=${dataMask || value}`;
       })
       .join(', ');
 
@@ -223,7 +223,6 @@ export class ConfigManager {
         // add the flags as properties to this class
         if (flags) {
           for (const flag of flags) {
-            // @ts-ignore
             this[`_${flag.constName}`] = self.getFlag(flag);
             Object.defineProperty(this, flag.constName, {
               get() {
@@ -240,7 +239,6 @@ export class ConfigManager {
         // add the extra properties as properties to this class
         if (extraProperties) {
           for (const name of extraProperties) {
-            // @ts-ignore
             this[`_${name}`] = '';
             Object.defineProperty(this, name, {
               get() {
@@ -256,7 +254,7 @@ export class ConfigManager {
       }
 
       /** Get the list of unused configurations that were not accessed */
-      getUnusedConfigs() {
+      public getUnusedConfigs(): string[] {
         const unusedConfigs: string[] = [];
 
         // add the flag constName to the unusedConfigs array if it was not accessed
@@ -298,7 +296,7 @@ export class ConfigManager {
   }
 
   public getFlagFile(flag: CommandFlag): string {
-    const value = this.getFlag(flag);
+    const value: string = this.getFlag(flag);
     if (value === flag.definition.defaultValue || !value) {
       const cacheDirectory: string =
         (this.getFlag(flags.cacheDir) as string) || (flags.cacheDir.definition.defaultValue as string);
