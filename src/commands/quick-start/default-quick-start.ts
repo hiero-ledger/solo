@@ -230,6 +230,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
                 this.optionFromFlag(Flags.clusterRef),
                 config.clusterRef,
                 this.optionFromFlag(Flags.pinger),
+                this.optionFromFlag(Flags.enableIngress),
               );
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
@@ -260,12 +261,12 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             );
             return this.argvPushGlobalFlags(argv);
           }),
-          // TODO expose port forward endpoints and dump the URLs to the user output
           {
             title: 'Finish',
             task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
               this.showQuickStartUserNotes(context_);
               this.showVersions();
+              this.showPortForwards();
 
               return;
             },
@@ -282,7 +283,12 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     } catch (error) {
       throw new SoloError(`Error deploying Solo in quick-start mode: ${error.message}`, error);
     } finally {
-      await this.taskList.callCloseFunctions();
+      await this.taskList
+        .callCloseFunctions()
+        .then()
+        .catch((error): void => {
+          this.logger.error('Error during closing task list:', error);
+        });
     }
 
     return true;
@@ -299,19 +305,6 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
       'To quickly delete the deployed resources, run the following command:\n' +
         `kubectl delete ns ${context_.config.namespace.name}`,
     );
-
-    this.logger.addMessageGroupMessage(
-      messageGroupKey,
-      'To access the deployed services, use the following commands:\n' +
-        `kubectl port-forward svc/haproxy-node1-svc -n ${context_.config.namespace.name} 50211:50211 > /dev/null 2>&1 &\n` +
-        `kubectl port-forward svc/hiero-explorer -n ${context_.config.namespace.name} 8080:80 > /dev/null 2>&1 &\n` +
-        `kubectl port-forward svc/mirror-grpc -n ${context_.config.namespace.name} 5600:5600 > /dev/null 2>&1 &\n` +
-        `kubectl port-forward svc/mirror-rest -n ${context_.config.namespace.name} 5551:80 > /dev/null 2>&1 &\n` +
-        `kubectl port-forward service/mirror-restjava -n ${context_.config.namespace.name} 8084:80 > /dev/null 2>&1 &\n` +
-        `kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n ${context_.config.namespace.name} 7546:7546 > /dev/null 2>&1 &\n`,
-    );
-
-    this.logger.showMessageGroup(messageGroupKey);
   }
 
   private showVersions(): void {
@@ -328,6 +321,10 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     );
 
     this.logger.showMessageGroup(messageGroupKey);
+  }
+
+  private showPortForwards(): void {
+    this.logger.showMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP);
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
