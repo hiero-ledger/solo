@@ -614,7 +614,7 @@ export class MirrorNodeCommand extends BaseCommand {
                       mirrorIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${context_.config.mirrorStaticIp}`;
                     }
                     mirrorIngressControllerValuesArgument += ` --set fullnameOverride=${constants.MIRROR_INGRESS_CONTROLLER}`;
-                    mirrorIngressControllerValuesArgument += ` --set controller.ingressClass=${constants.MIRROR_INGRESS_CLASS_NAME}`;
+                    mirrorIngressControllerValuesArgument += ` --set controller.ingressClass=${constants.MIRROR_INGRESS_CONTROLLER}`;
                     mirrorIngressControllerValuesArgument += ` --set controller.extraArgs.controller-class=${constants.MIRROR_INGRESS_CONTROLLER}`;
 
                     mirrorIngressControllerValuesArgument += prepareValuesFiles(config.ingressControllerValueFile);
@@ -839,23 +839,25 @@ export class MirrorNodeCommand extends BaseCommand {
           title: 'Enable port forwarding',
           skip: context_ => !context_.config.forcePortForward || !context_.config.enableIngress,
           task: async context_ => {
+            const config: MirrorNodeDeployConfigClass = context_.config;
+
             const pods: Pod[] = await this.k8Factory
-              .getK8(context_.config.clusterContext)
+              .getK8(config.clusterContext)
               .pods()
-              .list(context_.config.namespace, ['app.kubernetes.io/instance=haproxy-ingress']);
+              .list(config.namespace, [`app.kubernetes.io/instance=${config.ingressReleaseName}`]);
             if (pods.length === 0) {
               throw new SoloError('No Hiero Explorer pod found');
             }
             let podReference: PodReference;
             for (const pod of pods) {
-              if (pod.podReference.name.name.startsWith('mirror-ingress-controller')) {
+              if (pod?.podReference?.name?.name?.startsWith('mirror-ingress')) {
                 podReference = pod.podReference;
                 break;
               }
             }
 
             await this.k8Factory
-              .getK8(context_.config.clusterContext)
+              .getK8(config.clusterContext)
               .pods()
               .readByReference(podReference)
               .portForward(constants.MIRROR_NODE_PORT, 80, true);

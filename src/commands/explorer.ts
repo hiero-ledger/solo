@@ -497,7 +497,7 @@ export class ExplorerCommand extends BaseCommand {
             const pods: Pod[] = await this.k8Factory
               .getK8(config.clusterContext)
               .pods()
-              .list(config.namespace, [`app.kubernetes.io/instance=${config.releaseName}`]);
+              .list(config.namespace, Templates.renderExplorerLabels(context_.config.newExplorerComponent.metadata.id));
             if (pods.length === 0) {
               throw new SoloError('No Hiero Explorer pod found');
             }
