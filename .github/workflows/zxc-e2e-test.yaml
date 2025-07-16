@@ -292,7 +292,8 @@ jobs:
       - name: Run E2E Tests
         run: |
           if [ -z "${{ inputs.consensus-node-version }}" ]; then
-              echo "No consensus node version provided, defaulting to what is specified in the test"
+              export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+              # echo "No consensus node version provided, defaulting to what is specified in the test"
           else
               export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
           fi
