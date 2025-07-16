@@ -461,7 +461,7 @@ export class RelayCommand extends BaseCommand {
               .getK8(context_.config.clusterContext)
               .pods()
               .list(context_.config.namespace, [
-                'app=hedera-json-rpc-relay',
+                `app=${context_.config.releaseName}`,
                 `app.kubernetes.io/instance=${context_.config.releaseName}`,
               ]);
             if (pods.length === 0) {

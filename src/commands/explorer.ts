@@ -492,17 +492,19 @@ export class ExplorerCommand extends BaseCommand {
           title: 'Enable port forwarding',
           skip: context_ => !context_.config.forcePortForward,
           task: async context_ => {
+            const config: ExplorerDeployConfigClass = context_.config;
+
             const pods: Pod[] = await this.k8Factory
-              .getK8(context_.config.clusterContext)
+              .getK8(config.clusterContext)
               .pods()
-              .list(context_.config.namespace, ['app.kubernetes.io/instance=hiero-explorer']);
+              .list(config.namespace, [`app.kubernetes.io/instance=${config.releaseName}`]);
             if (pods.length === 0) {
               throw new SoloError('No Hiero Explorer pod found');
             }
             const podReference: PodReference = pods[0].podReference;
 
             await this.k8Factory
-              .getK8(context_.config.clusterContext)
+              .getK8(config.clusterContext)
               .pods()
               .readByReference(podReference)
               .portForward(constants.EXPLORER_PORT, constants.EXPLORER_PORT, true);
