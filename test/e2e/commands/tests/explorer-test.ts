@@ -55,9 +55,7 @@ export class ExplorerTest extends BaseCommandTest {
         'app.kubernetes.io/component=hiero-explorer',
       ]);
     expect(explorerPods).to.have.lengthOf(1);
-    let portForwarder: ExtendedNetServer;
     try {
-      portForwarder = await k8.pods().readByReference(explorerPods[0].podReference).portForward(8080, 8080);
       await sleep(Duration.ofSeconds(2));
       const queryUrl: string = 'http://127.0.0.1:8080/api/v1/accounts?limit=15&order=desc';
       const packageDownloader: PackageDownloader = container.resolve<PackageDownloader>(InjectTokens.PackageDownloader);
@@ -100,7 +98,6 @@ export class ExplorerTest extends BaseCommandTest {
         await sleep(Duration.ofSeconds(2));
       }
     } catch (error) {
-      // do not stop portforward since it will be used by smoke test
       testLogger.debug(`problem with request: ${error.message}`, error);
     }
   }
