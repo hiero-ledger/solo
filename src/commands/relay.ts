@@ -151,7 +151,7 @@ export class RelayCommand extends BaseCommand {
     valuesArgument += ' --set relay.config.MIRROR_NODE_RETRY_DELAY=2001';
     valuesArgument += ' --set relay.config.MIRROR_NODE_GET_CONTRACT_RESULTS_DEFAULT_RETRIES=21';
 
-    valuesArgument += ` --set ws.config.MIRROR_NODE_URL=http://${constants.MIRROR_NODE_RELEASE_NAME}-rest`;
+    valuesArgument += ` --set ws.config.SUBSCRIPTIONS_ENABLED=true`;
 
     if (chainID) {
       valuesArgument += ` --set relay.config.CHAIN_ID=${chainID}`;
