@@ -24,8 +24,6 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {type ConfigManager} from './config-manager.js';
 import {Flags as flags} from '../commands/flags.js';
 import {type Realm, type Shard} from './../types/index.js';
-import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
-import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {execSync} from 'node:child_process';
 
 export function getInternalAddress(
@@ -89,8 +87,8 @@ async function resolveLoadBalancerAddress(consensusNode: ConsensusNode, k8: K8):
   return consensusNode.fullyQualifiedDomainName;
 }
 
-export function sleep(duration: Duration) {
-  return new Promise<void>(resolve => {
+export function sleep(duration: Duration): Promise<void> {
+  return new Promise<void>((resolve): void => {
     setTimeout(resolve, duration.toMillis());
   });
 }
@@ -513,10 +511,9 @@ function printPaddedMessage(message: string, totalWidth: number): string {
  * @param version The version of the chart
  * @param type The action that was performed such as 'Installed' or 'Upgraded'
  */
+// TODO convert usages to leverage the logger.addMessageGroupMessage()
 export function showVersionBanner(logger: SoloLogger, chartName: string, version: string, type: string = 'Installed') {
-  logger.showUser(chalk.cyan(printPaddedMessage(` ${type} ${chartName} chart `, 80)));
-  logger.showUser(chalk.cyan('Version\t\t\t:'), chalk.yellow(version));
-  logger.showUser(chalk.cyan(printPaddedMessage('', 80)));
+  logger.showUser(chalk.cyan(` - ${type} ${chartName} chart, version:`, chalk.yellow(version)));
 }
 
 /**

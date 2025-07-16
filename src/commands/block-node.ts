@@ -85,6 +85,22 @@ interface BlockNodeDestroyContext {
   config: BlockNodeDestroyConfigClass;
 }
 
+interface BlockNodeUpgradeConfigClass {
+  chartDirectory: string;
+  clusterRef: ClusterReferenceName;
+  deployment: DeploymentName;
+  devMode: boolean;
+  quiet: boolean;
+  namespace: NamespaceName;
+  context: string;
+  releaseName: string;
+  upgradeVersion: string;
+}
+
+interface BlockNodeUpgradeContext {
+  config: BlockNodeUpgradeConfigClass;
+}
+
 @injectable()
 export class BlockNodeCommand extends BaseCommand {
   public constructor(@inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi) {
@@ -96,6 +112,8 @@ export class BlockNodeCommand extends BaseCommand {
   private static readonly ADD_CONFIGS_NAME: string = 'addConfigs';
 
   private static readonly DESTROY_CONFIGS_NAME: string = 'destroyConfigs';
+
+  private static readonly UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
 
   private static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [],
@@ -116,6 +134,11 @@ export class BlockNodeCommand extends BaseCommand {
 
   private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.deployment, flags.devMode, flags.force, flags.quiet],
+  };
+
+  private static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
+    required: [flags.upgradeVersion],
     optional: [flags.chartDirectory, flags.clusterRef, flags.deployment, flags.devMode, flags.force, flags.quiet],
   };
 
@@ -163,13 +186,19 @@ export class BlockNodeCommand extends BaseCommand {
   }
 
   private async add(argv: ArgvStruct): Promise<boolean> {
-    const lease: Lock = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    let lease: Lock;
 
     const tasks: Listr<BlockNodeDeployContext> = new Listr<BlockNodeDeployContext>(
       [
         {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
+            lease = await self.leaseManager.create();
+
             this.configManager.update(argv);
 
             flags.disablePrompts(BlockNodeCommand.ADD_FLAGS_LIST.optional);
@@ -333,13 +362,19 @@ export class BlockNodeCommand extends BaseCommand {
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
-    const lease: Lock = await this.leaseManager.create();
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+    let lease: Lock;
 
     const tasks: Listr<BlockNodeDestroyContext> = new Listr<BlockNodeDestroyContext>(
       [
         {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
+            lease = await self.leaseManager.create();
+
             this.configManager.update(argv);
 
             flags.disablePrompts(BlockNodeCommand.DESTROY_FLAGS_LIST.optional);
@@ -437,6 +472,102 @@ export class BlockNodeCommand extends BaseCommand {
     return true;
   }
 
+  private async upgrade(argv: ArgvStruct): Promise<boolean> {
+    let lease: Lock;
+
+    const tasks: Listr<BlockNodeUpgradeContext> = new Listr<BlockNodeUpgradeContext>(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            lease = await this.leaseManager.create();
+
+            this.configManager.update(argv);
+
+            flags.disablePrompts(BlockNodeCommand.UPGRADE_FLAGS_LIST.optional);
+
+            const allFlags: CommandFlag[] = [
+              ...BlockNodeCommand.UPGRADE_FLAGS_LIST.required,
+              ...BlockNodeCommand.UPGRADE_FLAGS_LIST.optional,
+            ];
+
+            await this.configManager.executePrompt(task, allFlags);
+
+            context_.config = this.configManager.getConfig(
+              BlockNodeCommand.UPGRADE_CONFIGS_NAME,
+              allFlags,
+            ) as BlockNodeUpgradeConfigClass;
+
+            context_.config.namespace = await resolveNamespaceFromDeployment(
+              this.localConfig,
+              this.configManager,
+              task,
+            );
+
+            if (!context_.config.clusterRef) {
+              context_.config.clusterRef = this.k8Factory.default().clusters().readCurrent();
+            }
+
+            context_.config.releaseName = `${constants.BLOCK_NODE_RELEASE_NAME}-0`;
+
+            context_.config.context = this.remoteConfig.getClusterRefs()[context_.config.clusterRef];
+
+            this.logger.debug('Initialized config', {config: context_.config});
+
+            return ListrLock.newAcquireLockTask(lease, task);
+          },
+        },
+        {
+          title: 'Look-up block node',
+          task: async (context_): Promise<void> => {
+            const config: BlockNodeUpgradeConfigClass = context_.config;
+            try {
+              // TODO: Add support for multiple block nodes
+              this.remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(
+                ComponentTypes.BlockNode,
+                0,
+              );
+            } catch (error) {
+              throw new SoloError(`Block node ${config.releaseName} was not found`, error);
+            }
+          },
+        },
+        {
+          title: 'Update block node chart',
+          task: async (context_): Promise<void> => {
+            const {namespace, releaseName, context, upgradeVersion} = context_.config;
+
+            await this.chartManager.upgrade(
+              namespace,
+              releaseName,
+              constants.BLOCK_NODE_CHART,
+              constants.BLOCK_NODE_CHART_URL,
+              upgradeVersion,
+              '',
+              context,
+            );
+          },
+        },
+      ],
+      {
+        concurrent: false,
+        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+      },
+    );
+
+    try {
+      await tasks.run();
+    } catch (error) {
+      throw new SoloError(`Error upgrading block node: ${error.message}`, error);
+    } finally {
+      await lease.release();
+    }
+
+    return true;
+  }
+
   /** Adds the block node component to remote config. */
   private addBlockNodeComponent(): SoloListrTask<BlockNodeDeployContext> {
     return {
@@ -459,7 +590,7 @@ export class BlockNodeCommand extends BaseCommand {
     return {
       title: 'Disable block node component in remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
-      task: async (context_): Promise<void> => {
+      task: async (): Promise<void> => {
         // TODO: Add support for multiple block nodes
         this.remoteConfig.configuration.components.removeComponent(0, ComponentTypes.BlockNode);
 
@@ -568,6 +699,12 @@ export class BlockNodeCommand extends BaseCommand {
             new Subcommand('destroy', 'destroy block node', this, this.destroy, (y: AnyYargs): void => {
               flags.setRequiredCommandFlags(y, ...BlockNodeCommand.DESTROY_FLAGS_LIST.required);
               flags.setOptionalCommandFlags(y, ...BlockNodeCommand.DESTROY_FLAGS_LIST.optional);
+            }),
+          )
+          .addSubcommand(
+            new Subcommand('upgrade', 'upgrade block node', this, this.upgrade, (y: AnyYargs): void => {
+              flags.setRequiredCommandFlags(y, ...BlockNodeCommand.UPGRADE_FLAGS_LIST.required);
+              flags.setOptionalCommandFlags(y, ...BlockNodeCommand.UPGRADE_FLAGS_LIST.optional);
             }),
           ),
       )

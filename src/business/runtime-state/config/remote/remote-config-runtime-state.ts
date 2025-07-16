@@ -21,6 +21,7 @@ import {
   type Context,
   type DeploymentName,
   type NamespaceNameAsString,
+  Optional,
 } from '../../../../types/index.js';
 import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases} from '../../../../types/aliases.js';
 import {NamespaceName} from '../../../../types/namespace/namespace-name.js';
@@ -49,6 +50,7 @@ import {ConsensusNodeStateSchema} from '../../../../data/schema/model/remote/sta
 import {UserIdentitySchema} from '../../../../data/schema/model/common/user-identity-schema.js';
 import {Deployment} from '../local/deployment.js';
 import {RemoteConfig} from './remote-config.js';
+import * as helpers from '../../../../core/helpers.js';
 
 enum RuntimeStatePhase {
   Loaded = 'loaded',
@@ -81,6 +83,11 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
+    this.remoteConfigValidator = patchInject(
+      remoteConfigValidator,
+      InjectTokens.RemoteConfigValidator,
+      this.constructor.name,
+    );
     this.objectMapper = patchInject(objectMapper, InjectTokens.ObjectMapper, this.constructor.name);
   }
 
@@ -317,7 +324,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       this.clusterReferences.set(context, clusterReference.toString());
     }
 
-    return this.localConfig.configuration.clusterRefs.get(deployment.clusters[0])?.toString();
+    return this.localConfig.configuration.clusterRefs.get(deployment.clusters.get(0)?.toString())?.toString();
   }
 
   /**
@@ -553,5 +560,13 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     this.logger.debug(`Using context ${context} for cluster ${clusterReference} for deployment ${deploymentName}`);
 
     return context;
+  }
+
+  public getNamespace(): NamespaceName {
+    return NamespaceName.of(this.configuration.clusters?.at(0)?.namespace);
+  }
+
+  public extractContextFromConsensusNodes(nodeAlias: NodeAlias): Optional<string> {
+    return helpers.extractContextFromConsensusNodes(nodeAlias, this.getConsensusNodes());
   }
 }

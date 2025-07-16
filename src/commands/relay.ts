@@ -30,6 +30,10 @@ import {Templates} from '../core/templates.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {Lock} from '../core/lock/lock.js';
+import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
+import {Pod} from '../integration/kube/resources/pod/pod.js';
+import {Duration} from '../core/time/duration.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -66,6 +70,7 @@ interface RelayDeployConfigClass {
   clusterRef: Optional<ClusterReferenceName>;
   domainName: Optional<string>;
   context: Optional<string>;
+  forcePortForward: Optional<boolean>;
 }
 
 interface RelayDeployContext {
@@ -74,6 +79,8 @@ interface RelayDeployContext {
 
 @injectable()
 export class RelayCommand extends BaseCommand {
+  public static readonly DEPLOY_COMMAND = 'relay deploy';
+
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
@@ -106,6 +113,7 @@ export class RelayCommand extends BaseCommand {
       flags.replicaCount,
       flags.valuesFile,
       flags.domainName,
+      flags.forcePortForward,
     ],
   };
 
@@ -134,6 +142,7 @@ export class RelayCommand extends BaseCommand {
       valuesArgument += helpers.prepareValuesFiles(profileValuesFile);
     }
 
+    // TODO need to change this so that the json rpc relay does not have to be in the same cluster as the mirror node
     valuesArgument += ' --install';
     valuesArgument += ` --set config.MIRROR_NODE_URL=http://${constants.MIRROR_NODE_RELEASE_NAME}-rest`;
     valuesArgument += ` --set config.MIRROR_NODE_URL_WEB3=http://${constants.MIRROR_NODE_RELEASE_NAME}-web3`;
@@ -244,14 +253,19 @@ export class RelayCommand extends BaseCommand {
   }
 
   private async deploy(argv: ArgvStruct) {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
-    const lease = await self.leaseManager.create();
+    let lease: Lock;
 
-    const tasks = new Listr<RelayDeployContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
+            lease = await self.leaseManager.create();
+
             // reset nodeAlias
             self.configManager.setFlag(flags.nodeAliasesUnparsed, '');
 
@@ -263,6 +277,7 @@ export class RelayCommand extends BaseCommand {
               flags.clusterRef,
               flags.profileFile,
               flags.profileName,
+              flags.forcePortForward,
             ]);
 
             const allFlags = [...RelayCommand.DEPLOY_FLAGS_LIST.required, ...RelayCommand.DEPLOY_FLAGS_LIST.optional];
@@ -286,7 +301,7 @@ export class RelayCommand extends BaseCommand {
             context_.config.releaseName = self.prepareReleaseName(context_.config.nodeAliases);
 
             if (context_.config.clusterRef) {
-              const context = self.remoteConfig.getClusterRefs()[context_.config.clusterRef];
+              const context: string = self.remoteConfig.getClusterRefs().get(context_.config.clusterRef);
               if (context) {
                 context_.config.context = context;
               }
@@ -350,6 +365,7 @@ export class RelayCommand extends BaseCommand {
             );
 
             showVersionBanner(self.logger, config.releaseName, HEDERA_JSON_RPC_RELAY_VERSION);
+            await helpers.sleep(Duration.ofSeconds(40)); // wait for the pod to destroy in case it was an upgrade
           },
         },
         {
@@ -391,34 +407,84 @@ export class RelayCommand extends BaseCommand {
           },
         },
         this.addRelayComponent(),
+        {
+          title: 'Enable port forwarding',
+          task: async (context_): Promise<void> => {
+            const pods: Pod[] = await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .pods()
+              .list(context_.config.namespace, [
+                'app=hedera-json-rpc-relay',
+                `app.kubernetes.io/instance=${context_.config.releaseName}`,
+              ]);
+            if (pods.length === 0) {
+              throw new SoloError('No Relay pod found');
+            }
+            const podReference: PodReference = pods[0].podReference;
+            await this.k8Factory
+              .getK8(context_.config.context)
+              .pods()
+              .readByReference(podReference)
+              .portForward(constants.JSON_RPC_RELAY_PORT, constants.JSON_RPC_RELAY_PORT, true);
+            this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+            this.logger.addMessageGroupMessage(
+              constants.PORT_FORWARDING_MESSAGE_GROUP,
+              `JSON RPC Relay forward enabled on localhost:${constants.JSON_RPC_RELAY_PORT}`,
+            );
+          },
+          skip: context_ => !context_.config.forcePortForward,
+        },
+        // TODO only show this if we are not running in quick-start mode
+        // {
+        //   title: 'Show user messages',
+        //   task: (): void => {
+        //     this.logger.showAllMessageGroups();
+        //   },
+        // },
       ],
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      RelayCommand.DEPLOY_COMMAND,
     );
 
-    try {
-      await tasks.run();
-    } catch (error) {
-      throw new SoloError(`Error deploying relay: ${error.message}`, error);
-    } finally {
-      await lease.release();
-      await self.accountManager.close();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError(`Error deploying relay: ${error.message}`, error);
+      } finally {
+        if (lease) {
+          await lease.release();
+        }
+        await self.accountManager.close();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease.release();
+        await self.accountManager.close();
+      });
     }
 
     return true;
   }
 
   private async destroy(argv: ArgvStruct) {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
-    const lease = await self.leaseManager.create();
+    let lease: Lock;
 
     const tasks = new Listr<RelayDestroyContext>(
       [
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
+            lease = await self.leaseManager.create();
+
             // reset nodeAlias
             self.configManager.setFlag(flags.nodeAliasesUnparsed, '');
             self.configManager.update(argv);
@@ -484,7 +550,9 @@ export class RelayCommand extends BaseCommand {
     } catch (error) {
       throw new SoloError('Error uninstalling relays', error);
     } finally {
-      await lease.release();
+      if (lease) {
+        await lease.release();
+      }
     }
 
     return true;

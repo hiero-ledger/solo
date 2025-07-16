@@ -1,22 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {Listr} from 'listr2';
-import {BaseCommand} from './base.js';
+import {BaseCommand} from '../base.js';
 import fs from 'node:fs';
-import * as constants from '../core/constants.js';
-import {SoloError} from '../core/errors/solo-error.js';
-import {Flags as flags} from './flags.js';
+import * as constants from '../../core/constants.js';
+import {SoloError} from '../../core/errors/solo-error.js';
+import {Flags as flags} from '../flags.js';
 import chalk from 'chalk';
-import {PathEx} from '../business/utils/path-ex.js';
+import {PathEx} from '../../business/utils/path-ex.js';
 import {injectable} from 'tsyringe-neo';
-import {type CommandDefinition} from '../types/index.js';
+import {type CommandDefinition} from '../../types/index.js';
+import {InitConfig} from './init-config.js';
+import {InitContext} from './init-context.js';
+import {Listr, ListrRendererValue} from 'listr2';
 
 /**
  * Defines the core functionalities of 'init' command
  */
 @injectable()
 export class InitCommand extends BaseCommand {
-  public static readonly COMMAND_NAME = 'init';
+  public static readonly COMMAND_NAME: string = 'init';
+  public static readonly INIT_COMMAND_NAME: string = InitCommand.COMMAND_NAME;
 
   // Although empty, tsyringe requires the constructor to be present
   public constructor() {
@@ -24,7 +27,7 @@ export class InitCommand extends BaseCommand {
   }
 
   /** Executes the init CLI command */
-  async init(argv: any) {
+  public async init(argv: any): Promise<boolean> {
     const self = this;
 
     let cacheDirectory: string = this.configManager.getFlag<string>(flags.cacheDir) as string;
@@ -32,17 +35,7 @@ export class InitCommand extends BaseCommand {
       cacheDirectory = constants.SOLO_CACHE_DIR as string;
     }
 
-    interface Config {
-      username: string;
-    }
-
-    interface Context {
-      repoURLs: string[];
-      dirs: string[];
-      config: Config;
-    }
-
-    const tasks = new Listr<Context>(
+    const tasks: Listr<InitContext, ListrRendererValue, ListrRendererValue> = this.taskList.newTaskList(
       [
         {
           title: 'Setup home directory and cache',
@@ -53,15 +46,15 @@ export class InitCommand extends BaseCommand {
             if (username && !flags.username.validate(username)) {
               username = await flags.username.prompt(task, username);
             }
-            context_.config = {username} as Config;
+            context_.config = {username} as InitConfig;
           },
         },
         {
           title: 'Check dependencies',
           task: (_, task) => {
-            const deps = [constants.HELM];
+            const deps = [constants.HELM, constants.KIND];
 
-            const subTasks = self.depManager.taskCheckDependencies<Context>(deps);
+            const subTasks = self.depManager.taskCheckDependencies<InitContext>(deps);
 
             // set up the sub-tasks
             return task.newListr(subTasks, {
@@ -75,8 +68,7 @@ export class InitCommand extends BaseCommand {
         {
           title: 'Create local configuration',
           skip: () => this.localConfig.configFileExists(),
-          task: async (context_, task): Promise<void> => {
-            // await this.localConfig.create(context_.config.username);
+          task: async (): Promise<void> => {
             await this.localConfig.load();
           },
         },
@@ -132,12 +124,16 @@ export class InitCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      InitCommand.INIT_COMMAND_NAME,
     );
 
-    try {
-      await tasks.run();
-    } catch (error: Error | any) {
-      throw new SoloError('Error running init', error);
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error: Error | any) {
+        throw new SoloError('Error running init', error);
+      }
     }
 
     return true;

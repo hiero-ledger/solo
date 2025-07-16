@@ -35,7 +35,6 @@ permissions:
 
 jobs:
   gcs-storage-test:
-    if: ${{ github.actor != 'dependabot[bot]' &&  !github.event.pull_request.head.repo.fork }}
     timeout-minutes: 20
     runs-on: hiero-solo-linux-large
     strategy:
@@ -43,15 +42,27 @@ jobs:
       matrix:
         storageType: ["gcs_only", "minio_only", "aws_only"]
     steps:
+      - name: Check if job should be skipped
+        id: check
+        run: |
+          if [[ "${{ github.actor }}" == "dependabot[bot]" || "${{ github.event.pull_request.head.repo.fork }}" == "true" ]]; then
+            echo "run=false" >> $GITHUB_OUTPUT
+          else
+            echo "run=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Harden Runner
-        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
+        if: steps.check.outputs.run == 'true'
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
       - name: Checkout Code
+        if: steps.check.outputs.run == 'true'
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Authenticate to Google Cloud
+        if: steps.check.outputs.run == 'true'
         id: google-auth
         uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
@@ -59,9 +70,11 @@ jobs:
           service_account: "solo-bucket-reader-writer@solo-bucket-dev.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
+        if: steps.check.outputs.run == 'true'
         uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
 
       - name: Get Current Job Log URL
+        if: steps.check.outputs.run == 'true'
         uses: Tiryoh/gha-jobid-action@be260d8673c9211a84cdcf37794ebd654ba81eef # v1.4.0
         id: jobs
         with:
@@ -69,6 +82,7 @@ jobs:
           job_name: "gcs-storage-test (${{ matrix.storageType }})"
 
       - name: Create Bucket Name and Prefix
+        if: steps.check.outputs.run == 'true'
         run: |
           export BUCKET_NAME="solo-ci-test-streams"
           export PREFIX=${{ steps.jobs.outputs.job_id }}
@@ -80,23 +94,27 @@ jobs:
           echo "BACKUP_BUCKET_NAME=${BACKUP_BUCKET_NAME}" >> $GITHUB_ENV
 
       - name: Setup Node
+        if: steps.check.outputs.run == 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20
+          node-version: 20.19.3
           cache: npm
 
       - name: Install Task
+        if: steps.check.outputs.run == 'true'
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
           version: 3.39.2
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Helm
+        if: steps.check.outputs.run == 'true'
         uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
         with:
           version: "v3.12.3" # helm version
 
       - name: Setup Kind
+        if: steps.check.outputs.run == 'true'
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
         with:
           install_only: true
@@ -107,15 +125,18 @@ jobs:
           wait: 120s
 
       - name: Install Dependencies
+        if: steps.check.outputs.run == 'true'
         id: npm-deps
         run: |
           npm ci
           npm install -g @hashgraph/solo
 
       - name: Compile Project
+        if: steps.check.outputs.run == 'true'
         run: task build
 
       - name: Run GCS Test Script for type ${{ matrix.storageType }}
+        if: steps.check.outputs.run == 'true'
         env:
           GCS_ACCESS_KEY: ${{ secrets.GCP_S3_ACCESS_KEY }}
           GCS_SECRET_KEY: ${{ secrets.GCP_S3_SECRET_KEY }}
@@ -133,7 +154,7 @@ jobs:
           fi
 
       - name: Upload Logs to GitHub
-        if: ${{ always() }}
+        if: ${{ steps.check.outputs.run == 'true' && always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: solo-logs-${{ matrix.storageType }}
@@ -142,7 +163,7 @@ jobs:
 
       - name: Delete Test Directory after Test
         # add always() to make sure bucket is deleted even if the test failed
-        if: always() && (matrix.storageType == 'gcs_only' || matrix.storageType == 'aws_only')
+        if: (steps.check.outputs.run == 'true' && always() && (matrix.storageType == 'gcs_only' || matrix.storageType == 'aws_only'))
         run: |
           gcloud storage rm --recursive gs://${BUCKET_NAME}/${{ steps.jobs.outputs.job_id }} --project=${{ vars.GCP_S3_PROJECT_ID }}
           gcloud storage rm --recursive gs://${BACKUP_BUCKET_NAME}/${{ steps.jobs.outputs.job_id }} --project=${{ vars.GCP_S3_PROJECT_ID }}

@@ -37,6 +37,9 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {Lock} from '../core/lock/lock.js';
+import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
+import {Pod} from '../integration/kube/resources/pod/pod.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -60,6 +63,7 @@ interface ExplorerDeployConfigClass {
   getUnusedConfigs: () => string[];
   soloChartVersion: string;
   domainName: Optional<string>;
+  forcePortForward: Optional<boolean>;
 }
 
 interface ExplorerDeployContext {
@@ -78,6 +82,8 @@ interface ExplorerDestroyContext {
 
 @injectable()
 export class ExplorerCommand extends BaseCommand {
+  public static readonly DEPLOY_COMMAND = 'explorer deploy';
+
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
@@ -116,6 +122,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.valuesFile,
       flags.clusterSetupNamespace,
       flags.domainName,
+      flags.forcePortForward,
     ],
   };
 
@@ -218,13 +225,17 @@ export class ExplorerCommand extends BaseCommand {
 
   private async deploy(argv: ArgvStruct): Promise<boolean> {
     const self = this;
-    const lease = await self.leaseManager.create();
+    let lease: Lock;
 
-    const tasks = new Listr<ExplorerDeployContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
+            lease = await self.leaseManager.create();
+
             self.configManager.update(argv);
 
             // disable the prompts that we don't want to prompt the user for
@@ -238,6 +249,7 @@ export class ExplorerCommand extends BaseCommand {
               flags.tlsClusterIssuerType,
               flags.valuesFile,
               flags.profileFile,
+              flags.forcePortForward,
             ]);
 
             const allFlags = [
@@ -433,20 +445,60 @@ export class ExplorerCommand extends BaseCommand {
           skip: context_ => !context_.config.enableIngress,
         },
         this.addMirrorNodeExplorerComponents(),
+        {
+          title: 'Enable port forwarding',
+          skip: context_ => !context_.config.forcePortForward,
+          task: async context_ => {
+            const pods: Pod[] = await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .pods()
+              .list(context_.config.namespace, ['app.kubernetes.io/instance=hiero-explorer']);
+            if (pods.length === 0) {
+              throw new SoloError('No Hiero Explorer pod found');
+            }
+            const podReference: PodReference = pods[0].podReference;
+
+            await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .pods()
+              .readByReference(podReference)
+              .portForward(constants.EXPLORER_PORT, constants.EXPLORER_PORT, true);
+            this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+            this.logger.addMessageGroupMessage(
+              constants.PORT_FORWARDING_MESSAGE_GROUP,
+              `Explorer port forward enabled on http://localhost:${constants.EXPLORER_PORT}`,
+            );
+          },
+        },
+        // TODO only show this if we are not running in quick-start mode
+        // {
+        //   title: 'Show user messages',
+        //   task: (): void => {
+        //     this.logger.showAllMessageGroups();
+        //   },
+        // },
       ],
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      ExplorerCommand.DEPLOY_COMMAND,
     );
 
-    try {
-      await tasks.run();
-      self.logger.debug('explorer deployment has completed');
-    } catch (error) {
-      throw new SoloError(`Error deploying explorer: ${error.message}`, error);
-    } finally {
-      await lease.release();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+        self.logger.debug('explorer deployment has completed');
+      } catch (error) {
+        throw new SoloError(`Error deploying explorer: ${error.message}`, error);
+      } finally {
+        await lease.release();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease.release();
+      });
     }
 
     return true;
@@ -454,13 +506,17 @@ export class ExplorerCommand extends BaseCommand {
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
     const self = this;
-    const lease = await self.leaseManager.create();
+    let lease: Lock;
 
     const tasks = new Listr<ExplorerDestroyContext>(
       [
         {
           title: 'Initialize',
           task: async (context_, task) => {
+            await self.localConfig.load();
+            await self.remoteConfig.loadAndValidate(argv);
+            lease = await self.leaseManager.create();
+
             if (!argv.force) {
               const confirmResult = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
                 default: false,

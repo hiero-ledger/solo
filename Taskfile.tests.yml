@@ -79,6 +79,7 @@ tasks:
           --ignore 'test/e2e/commands/relay*.ts' 
           --ignore 'test/e2e/commands/block-node.test.ts' 
           --ignore 'test/e2e/commands/dual-*.ts'
+          --ignore 'test/e2e/commands/quick-start-single.test.ts'
           --ignore 'test/e2e/commands/separate-node-add.test.ts' 
           --ignore 'test/e2e/commands/separate-node-delete.test.ts' 
           --ignore 'test/e2e/commands/separate-node-update.test.ts' 
@@ -209,3 +210,10 @@ tasks:
   test-update-markdown:
     cmd: |
       docs/site/wrapper_for_update_md.sh
+
+  test-e2e-quick-start-single:
+    cmds:
+      - "{{ .test_prefix }}=\"Mocha E2E Quick Start Single Test\"
+        {{ .reporter_prefix }}='coverage/e2e-quick-start-single'
+        {{ .mocha_bin }} 'test/e2e/commands/quick-start-single.test.ts' 
+        {{ .reporter_options_prefix }}-e2e-quick-start-single.xml"

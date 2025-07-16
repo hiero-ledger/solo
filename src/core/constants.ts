@@ -17,6 +17,7 @@ export const SOLO_VALUES_DIR = PathEx.join(SOLO_CACHE_DIR, 'values-files');
 export const DEFAULT_NAMESPACE = NamespaceName.of('default');
 export const DEFAULT_CERT_MANAGER_NAMESPACE = NamespaceName.of('cert-manager');
 export const HELM = 'helm';
+export const KIND = 'kind';
 export const RESOURCES_DIR = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
 
 export const ROOT_CONTAINER = ContainerName.of('root-container');
@@ -148,6 +149,7 @@ export const POD_CONDITION_STATUS_TRUE = 'True';
 
 export const EXPLORER_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'hiero-explorer-values.yaml');
 export const MIRROR_NODE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values.yaml');
+export const MIRROR_NODE_VALUES_FILE_HEDERA = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values-hedera.yaml');
 export const BLOCK_NODE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
 export const NODE_LOG_FAILURE_MSG = 'failed to download logs from pod';
 
@@ -252,7 +254,11 @@ export const BLOCK_NODE_ACTIVE_TIMEOUT: number = +process.env.NETWORK_NODE_ACTIV
 export const BLOCK_NODE_PORT: number = +process.env.BLOCK_NODE_PORT || 8080;
 export const BLOCK_ITEM_BATCH_SIZE: number = +process.env.BLOCK_ITEM_BATCH_SIZE || 256;
 
-export const GRPC_PORT = +process.env.GRPC_PORT || 50_211;
+export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
+export const GRPC_PORT: number = +process.env.GRPC_PORT || 50_211;
+export const JSON_RPC_RELAY_PORT: number = +process.env.JSON_RPC_RELAY_PORT || 7546;
+export const EXPLORER_PORT: number = +process.env.EXPLORER_PORT || 8080;
+export const MIRROR_NODE_PORT: number = +process.env.MIRROR_NODE_PORT || 8081;
 export const LOCAL_BUILD_COPY_RETRY = +process.env.LOCAL_BUILD_COPY_RETRY || 3;
 
 export const LOAD_BALANCER_CHECK_DELAY_SECS = +process.env.LOAD_BALANCER_CHECK_DELAY_SECS || 5;

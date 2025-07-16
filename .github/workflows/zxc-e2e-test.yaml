@@ -27,7 +27,7 @@ on:
         description: "NodeJS Version:"
         type: string
         required: false
-        default: "20"
+        default: "20.19.3"
       consensus-node-version:
         description: "Consensus Node Version:"
         type: string
@@ -64,7 +64,7 @@ on:
         description: "NodeJS Version:"
         type: string
         required: false
-        default: "20"
+        default: "20.19.3"
       consensus-node-version:
         description: "Consensus Node Version:"
         type: string
@@ -124,7 +124,7 @@ jobs:
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 

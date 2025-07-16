@@ -38,7 +38,7 @@ import {ConfigKeyFormatter} from '../../data/key/config-key-formatter.js';
 import {AccountCommand} from '../../commands/account.js';
 import {DeploymentCommand} from '../../commands/deployment.js';
 import {ExplorerCommand} from '../../commands/explorer.js';
-import {InitCommand} from '../../commands/init.js';
+import {InitCommand} from '../../commands/init/init.js';
 import {MirrorNodeCommand} from '../../commands/mirror-node.js';
 import {RelayCommand} from '../../commands/relay.js';
 import {NetworkCommand} from '../../commands/network.js';
@@ -59,7 +59,10 @@ import {DefaultConfigSource} from '../../data/configuration/impl/default-config-
 import {type SoloConfigSchema} from '../../data/schema/model/solo/solo-config-schema.js';
 import {SoloConfigSchemaDefinition} from '../../data/schema/migration/impl/solo/solo-config-schema-definition.js';
 import {BeanFactorySupplier} from './bean-factory-supplier.js';
-import {QuickStartCommandDefault} from '../../commands/quick-start-default.js';
+import {DefaultQuickStartCommand} from '../../commands/quick-start/default-quick-start.js';
+import {DefaultTaskList} from '../task-list/default-task-list.js';
+import {Commands} from '../../commands/commands.js';
+import {KindDependencyManager} from '../dependency-managers/kind-dependency-manager.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -95,6 +98,7 @@ export class Container {
       new SingletonContainer(InjectTokens.Helm, DefaultHelmClient),
       new SingletonContainer(InjectTokens.HelmExecutionBuilder, HelmExecutionBuilder),
       new SingletonContainer(InjectTokens.HelmDependencyManager, HelmDependencyManager),
+      new SingletonContainer(InjectTokens.KindDependencyManager, KindDependencyManager),
       new SingletonContainer(InjectTokens.ChartManager, ChartManager),
       new SingletonContainer(InjectTokens.ConfigManager, ConfigManager),
       new SingletonContainer(InjectTokens.AccountManager, AccountManager),
@@ -130,7 +134,9 @@ export class Container {
       new SingletonContainer(InjectTokens.ObjectMapper, ClassToObjectMapper),
       new SingletonContainer(InjectTokens.ComponentFactory, ComponentFactory),
       new SingletonContainer(InjectTokens.RemoteConfigValidator, RemoteConfigValidator),
-      new SingletonContainer(InjectTokens.QuickStartCommand, QuickStartCommandDefault),
+      new SingletonContainer(InjectTokens.QuickStartCommand, DefaultQuickStartCommand),
+      new SingletonContainer(InjectTokens.TaskList, DefaultTaskList),
+      new SingletonContainer(InjectTokens.Commands, Commands),
     ];
   }
 
@@ -147,7 +153,9 @@ export class Container {
       new ValueContainer(InjectTokens.OsPlatform, os.platform()),
       new ValueContainer(InjectTokens.OsArch, os.arch()),
       new ValueContainer(InjectTokens.HelmInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
+      new ValueContainer(InjectTokens.KindInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.HelmVersion, version.HELM_VERSION),
+      new ValueContainer(InjectTokens.KindVersion, version.KIND_VERSION),
       new ValueContainer(InjectTokens.SystemAccounts, constants.SYSTEM_ACCOUNTS),
       new ValueContainer(InjectTokens.CacheDir, cacheDirectory),
       new ValueContainer(InjectTokens.LocalConfigFileName, constants.DEFAULT_LOCAL_CONFIG_FILE),

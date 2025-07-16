@@ -25,6 +25,7 @@ env:
   SOLO_CLUSTER_NAME: "solo-e2e"
   MIRROR_NODE_DEPLOY_EXTRA_FLAGS: |
     --use-external-database 
+    --enable-ingress
     --external-database-host {{.postgres_host_fqdn}} 
     --external-database-owner-username {{.postgres_username}} 
     --external-database-owner-password {{.postgres_password}}

@@ -74,7 +74,7 @@ docker ps
 
 {{< /details >}}<br/>
 
-## Step-by-Step Installation
+## Preparing Your Environment
 
 Now that we have all prerequisites in place, let's install Solo and set up our environment.
 
@@ -174,7 +174,20 @@ kubectl config use-context <context-name>
 
 {{< /details >}}<br/>
 
-### 4. Initialize solo:
+
+## Quick Start Deployment
+
+For a simple setup with a single node with a mirror node, explorer, and JSON RPC relay, you can follow these quick steps. This is ideal for testing and development purposes.
+
+```bash
+solo quick-start single deploy
+```
+
+## Step-by-Step Solo Network Deployment
+
+If you have a more complex setup in mind, such as multiple nodes or specific configurations, follow these detailed steps to deploy your Solo network.
+
+### 1. Initialize solo:
 
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
@@ -192,7 +205,7 @@ $SOLO_INIT_OUTPUT
 
 {{< /details >}}<br/>
 
-### 5. Connect the cluster and create a deployment
+### 2. Connect the cluster and create a deployment
 
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
@@ -228,7 +241,7 @@ $SOLO_DEPLOYMENT_CREATE_OUTPUT
 
 {{< /details >}}<br/>
 
-### 6. Add a cluster to the deployment you created
+### 3. Add a cluster to the deployment you created
 
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
@@ -248,7 +261,7 @@ $SOLO_DEPLOYMENT_ADD_CLUSTER_OUTPUT
 
 {{< /details >}}<br/>
 
-### 7. Generate keys
+### 4. Generate keys
 
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
@@ -275,7 +288,7 @@ hedera-node2.key    hedera-node4.key    s-private-node4.pem s-public-node4.pem
 
 {{< /details >}}<br/>
 
-### 8. Setup cluster with shared components
+### 5. Setup cluster with shared components
 
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
@@ -341,7 +354,8 @@ This step downloads the hedera platform code and sets up your node/nodes.
 
 ```bash
 # node setup
-solo node setup --deployment "${SOLO_DEPLOYMENT}" "${CONSENSUS_NODE_FLAG[@]}"
+export CONSENSUS_NODE_VERSION=v0.63.9 # or whatever version you are trying to deploy starting with a `v`
+solo node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}"
 ```
 
 Example output:
@@ -379,7 +393,7 @@ This is the most memory intensive step from a resource perspective. If you have 
 
 ```bash
 # Deploy with explicit configuration
-solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress
 ```
 
 Example output:
@@ -449,103 +463,26 @@ kubectl get pods -n solo
 
 At this time Solo doesn't automatically set up port forwarding for you, so you'll need to do that manually.
 
-The port forwarding can be done using `kubectl port-forward` command. For example, to forward the consensus service port:
+The port forwarding is now automatic for many endpoints.  However, you can set up your own using `kubectl port-forward` command: 
 
 ```bash
 # Consensus Service for node1 (node ID = 0): localhost:50211
-kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &
+# should be automatic: kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &
 # Explorer UI: http://localhost:8080
-kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:80 > /dev/null 2>&1 &
+# should be automatic: kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:8080 > /dev/null 2>&1 &
+# Mirror Node gRPC, REST, REST Java, Web3 will be automatic on `localhost:8081` if you passed `--enable-ingress` to the `solo mirror-node deploy` command
 # Mirror Node gRPC: localhost:5600
-kubectl port-forward svc/mirror-grpc -n "${SOLO_NAMESPACE}" 5600:5600 &
+kubectl port-forward svc/mirror-grpc -n "${SOLO_NAMESPACE}" 5600:5600 > /dev/null 2>&1 &
 # Mirror Node REST API: http://localhost:5551
-kubectl port-forward svc/mirror-rest -n "${SOLO_NAMESPACE}" svc/mirror-rest 5551:80 &
+kubectl port-forward svc/mirror-rest -n "${SOLO_NAMESPACE}" 5551:80 > /dev/null 2>&1 &
 # Mirror Node REST Java API http://localhost:8084
-kubectl port-forward service/mirror-restjava -n "${SOLO_NAMESPACE}" 8084:80 &
+kubectl port-forward service/mirror-restjava -n "${SOLO_NAMESPACE}" 8084:80 > /dev/null 2>&1 &
 # JSON RPC Relay: localhost:7546
-kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n "${SOLO_NAMESPACE}" 7546:7546 > /dev/null 2>&1 &
+# should be automatic: kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n "${SOLO_NAMESPACE}" 7546:7546 > /dev/null 2>&1 &
 ```
 
 {{< /details >}}<br/>
 
-### ❌ BELOW THIS LINE IS A WORK IN PROGRESS VENTURE AT YOUR OWN RISK
-
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
-
-Connecting with the Hedera SDK
-
-Here's a simple example to connect to your local network:
-
-```javascript
-// test-connection.js
-const { Client, AccountBalanceQuery } = require("@hashgraph/sdk");
-
-async function main() {
-// Create client for local network
-    const client = Client.forNetwork({
-        "127.0.0.1:50211": "0.0.3"
-    });
-
-// Set operator (treasury account for local network)
-    client.setOperator("0.0.2", "302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137");
-
-// Query account balance
-    const balance = await new AccountBalanceQuery()
-        .setAccountId("0.0.2")
-        .execute(client);
-
-    console.log("Account balance:", balance.hbars.toString());
-}
-
-main().catch(console.error);
-```
-
-{{< /details >}}<br/>
-
-### Submitting Transactions
-
-{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
-
-Create and submit your first transaction:
-
-```javascript
-// submit-transaction.js
-const {
-    Client,
-    TransferTransaction,
-    Hbar,
-    PrivateKey
-} = require("@hashgraph/sdk");
-
-async function main() {
-// Setup client (same as above)
-    const client = Client.forNetwork({
-        "127.0.0.1:50211": "0.0.3"
-    });
-
-    const treasuryKey = PrivateKey.fromString("302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137");
-    client.setOperator("0.0.2", treasuryKey);
-
-// Create new account
-    const newAccountPrivateKey = PrivateKey.generateED25519();
-    const newAccountPublicKey = newAccountPrivateKey.publicKey;
-
-// Create transaction
-    const transaction = await new TransferTransaction()
-        .addHbarTransfer("0.0.2", new Hbar(-10))
-        .addHbarTransfer("0.0.1001", new Hbar(10))
-        .execute(client);
-
-// Get receipt
-    const receipt = await transaction.getReceipt(client);
-
-    console.log("Transaction status:", receipt.status.toString());
-}
-
-main().catch(console.error);
-```
-
-{{< /details >}}<br/>
 
 ## Managing Your Network
 
@@ -590,10 +527,70 @@ solo node logs --node-aliases node1 --deployment solo-deployment
 
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
-To update nodes to a new Hedera version, you need up upgrade to one minor version higher at a time:
+To update nodes to a new Hedera version, you need to upgrade by one minor version higher at a time:
 
 ```bash
 solo node upgrade --deployment solo-deployment --upgrade-version v0.62.6
+```
+
+{{< /details >}}<br/>
+
+### Updating a single node
+
+{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+
+To update a single node to a new Hedera version, you need to update by one minor version higher at a time:
+
+```bash
+solo node update --deployment solo-deployment --node-alias node1 --release-tag v0.62.6
+```
+
+It is possible to update a single node to a new Hedera version through a process with separated steps. This is only useful in very specific cases, such as when testing the updating process.
+
+```bash
+solo node update-prepare --deployment solo-deployment --node-alias node1 --release-tag v0.62.6 --output-dir context
+solo node update-submit-transactions --deployment solo-deployment --input-dir context
+solo node update-execute --deployment solo-deployment --input-dir context
+```
+
+{{< /details >}}<br/>
+
+### Adding a new node to the network
+
+{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+
+Adding a new node to an existing Solo network:
+
+```bash
+TODO solo node add
+```
+
+It is possible to add a new node through a process with separated steps. This is only useful in very specific cases, such as when testing the node adding process.
+
+```bash
+solo node add-prepare --gossip-keys true --tls-keys true --deployment solo-deployment --pvcs true --admin-key ***** --node-alias node1 --output-dir context
+solo node add-submit-transactions --deployment solo-deployment --input-dir context
+solo node add-execute --deployment solo-deployment --input-dir context
+```
+
+{{< /details >}}<br/>
+
+### Deleting a node from the network
+
+{{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
+
+This command is used to delete a node from an existing Solo network:
+
+```bash
+TODO solo node delete
+```
+
+It is possible to delete a node through a process with separated steps. This is only useful in very specific cases, such as when testing the delete process.
+
+```bash
+solo node delete-prepare --deployment solo-deployment --node-alias node1 --output-dir context
+solo node delete-submit-transactions --deployment solo-deployment --input-dir context
+solo node delete-execute --deployment solo-deployment --input-dir context
 ```
 
 {{< /details >}}<br/>
