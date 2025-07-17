@@ -79,7 +79,7 @@ export class DeploymentCommand extends BaseCommand {
     optional: [flags.quiet, flags.namespace, flags.deployment, flags.realm, flags.shard],
   };
 
-  private static DELETE_FLAGS_LIST: CommandFlags = {
+  private static DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.quiet, flags.deployment],
   };
@@ -406,7 +406,7 @@ export class DeploymentCommand extends BaseCommand {
               'Deletes a solo deployment',
               this,
               this.delete,
-              DeploymentCommand.DELETE_FLAGS_LIST,
+              DeploymentCommand.DESTROY_FLAGS_LIST,
             ),
           )
           .addSubcommand(

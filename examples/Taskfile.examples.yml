@@ -330,7 +330,7 @@ tasks:
     deps:
       -
     cmds:
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- relay node deploy --deployment "${SOLO_DEPLOYMENT}" -i node1 ${RELAY_NODE_DEPLOY_EXTRA_FLAGS} -q --dev
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- relay node add --deployment "${SOLO_DEPLOYMENT}" -i node1 ${RELAY_NODE_DEPLOY_EXTRA_FLAGS} -q --dev
 
   solo:destroy-relay:
     silent: true
@@ -516,7 +516,7 @@ tasks:
 
   solo:explorer:
     silent: true
-    desc: solo explorer node deploy with port forward on explorer
+    desc: solo explorer node add with port forward on explorer
     deps:
       - task: "init"
     cmds:
@@ -526,10 +526,10 @@ tasks:
           SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo-test -- deployment config create --deployment ${EXPLORER_DEPLOYMENT} --namespace ${EXPLORER_NAME_SPACE}  
           SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo-test -- deployment config attach --deployment ${EXPLORER_DEPLOYMENT} --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --num-consensus-nodes ${SOLO_NETWORK_SIZE}
         
-          npm run solo -- explorer node deploy --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS}  ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
+          npm run solo -- explorer node add --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS}  ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
           export EXPLORER_DEPLOYED_NAME_SPACE=${EXPLORER_NAME_SPACE}
         else
-          SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- explorer node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
           export EXPLORER_DEPLOYED_NAME_SPACE=${SOLO_NAMESPACE}
         fi
         if [[ "{{ .use_port_forwards }}" == "true" ]];then

@@ -57,7 +57,7 @@ import {SemVer} from 'semver';
 const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
 const DOWNLOAD_GENERATED_FILES_CONFIGS_NAME = 'downloadGeneratedFilesConfig';
 const ADD_CONFIGS_NAME = 'addConfigs';
-const DELETE_CONFIGS_NAME = 'deleteConfigs';
+const DESTROY_CONFIGS_NAME = 'destroyConfigs';
 const UPDATE_CONFIGS_NAME = 'updateConfigs';
 const UPGRADE_CONFIGS_NAME = 'upgradeConfigs';
 const REFRESH_CONFIGS_NAME = 'refreshConfigs';
@@ -280,13 +280,13 @@ export class NodeCommandConfigs {
     return context_.config;
   }
 
-  public async deleteConfigBuilder(
+  public async destroyConfigBuilder(
     argv: ArgvStruct,
     context_: NodeDestroyContext,
     task: SoloListrTaskWrapper<NodeDestroyContext>,
     shouldLoadNodeClient: boolean = true,
   ): Promise<NodeDestroyConfigClass> {
-    context_.config = this.configManager.getConfig(DELETE_CONFIGS_NAME, argv.flags, [
+    context_.config = this.configManager.getConfig(DESTROY_CONFIGS_NAME, argv.flags, [
       'adminKey',
       'allNodeAliases',
       'existingNodeAliases',

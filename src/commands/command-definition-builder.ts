@@ -203,7 +203,7 @@ export class CommandDefinitionBuilder {
               nodeCommand.handlers,
               // @ts-expect-error not all contexts have field
               nodeCommand.handlers.delete,
-              NodeFlags.DELETE_FLAGS,
+              NodeFlags.DESTROY_FLAGS,
             ),
           )
           .addSubcommand(
@@ -211,8 +211,8 @@ export class CommandDefinitionBuilder {
               'delete-prepare',
               'Prepares the deletion of a node with a specific version of Hedera platform',
               nodeCommand.handlers,
-              nodeCommand.handlers.deletePrepare,
-              NodeFlags.DELETE_PREPARE_FLAGS,
+              nodeCommand.handlers.destroyPrepare,
+              NodeFlags.DESTROY_PREPARE_FLAGS,
             ),
           )
           .addSubcommand(
@@ -220,8 +220,8 @@ export class CommandDefinitionBuilder {
               'delete-submit-transactions',
               'Submits transactions to the network nodes for deleting a node',
               nodeCommand.handlers,
-              nodeCommand.handlers.deleteSubmitTransactions,
-              NodeFlags.DELETE_SUBMIT_TRANSACTIONS_FLAGS,
+              nodeCommand.handlers.destroySubmitTransactions,
+              NodeFlags.DESTROY_SUBMIT_TRANSACTIONS_FLAGS,
             ),
           )
           .addSubcommand(
@@ -229,8 +229,8 @@ export class CommandDefinitionBuilder {
               'delete-execute',
               'Executes the deletion of a previously prepared node',
               nodeCommand.handlers,
-              nodeCommand.handlers.deleteExecute,
-              NodeFlags.DELETE_EXECUTE_FLAGS,
+              nodeCommand.handlers.destroyExecute,
+              NodeFlags.DESTROY_EXECUTE_FLAGS,
             ),
           )
           .addSubcommand(

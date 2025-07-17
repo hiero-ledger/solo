@@ -73,7 +73,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
         command: NodeCommand.COMMAND_NAME,
         subcommand: NodeCommand.SUBCOMMAND_NAME,
         action: 'delete-prepare',
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.deletePrepare(argv),
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.destroyPrepare(argv),
       });
 
       await commandInvoker.invoke({
@@ -81,7 +81,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
         command: NodeCommand.COMMAND_NAME,
         subcommand: NodeCommand.SUBCOMMAND_NAME,
         action: 'delete-submit-transactions',
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.deleteSubmitTransactions(argv),
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.destroySubmitTransactions(argv),
       });
 
       await commandInvoker.invoke({
@@ -89,7 +89,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
         command: NodeCommand.COMMAND_NAME,
         subcommand: NodeCommand.SUBCOMMAND_NAME,
         action: 'delete-execute',
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.deleteExecute(argv),
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.destroyExecute(argv),
       });
 
       await accountManager.close();

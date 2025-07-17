@@ -151,14 +151,14 @@ tasks:
 
   test-e2e-node-destroy:
     cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Delete Tests\"
+      - "{{ .test_prefix }}=\"Mocha E2E Node Destroy Tests\"
         {{ .reporter_prefix }}='coverage/e2e-node-destroy'
         {{ .mocha_bin }} 'test/e2e/commands/node-destroy.test.ts'
         {{ .reporter_options_prefix }}-e2e-node-destroy.xml"
 
   test-e2e-node-destroy-separate:
     cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Delete - Separate commands Tests\"
+      - "{{ .test_prefix }}=\"Mocha E2E Node Destroy - Separate commands Tests\"
         {{ .reporter_prefix }}='coverage/e2e-node-destroy-separate'
         {{ .mocha_bin }} 'test/e2e/commands/separate-node-destroy.test.ts'
         {{ .reporter_options_prefix }}-e2e-node-destroy-separate.xml"

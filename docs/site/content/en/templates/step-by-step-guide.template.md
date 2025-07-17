@@ -412,7 +412,7 @@ Watch the deployment progress:
 
 ```bash
 # deploy explorer
-solo explorer node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 ```
 
 Example output:
@@ -431,7 +431,7 @@ The JSON RPC relay allows you to interact with your Hedera network using standar
 
 ```bash
 #deploy a solo JSON RPC relay
-solo relay node deploy -i node1 --deployment "${SOLO_DEPLOYMENT}"
+solo relay node add -i node1 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 Example output:

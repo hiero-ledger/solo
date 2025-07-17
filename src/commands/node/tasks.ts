@@ -1690,7 +1690,7 @@ export class NodeCommandTasks {
             }
             break;
           }
-          case NodeSubcommandType.DELETE: {
+          case NodeSubcommandType.DESTROY: {
             if (config.nodeAlias) {
               accountMap.delete(config.nodeAlias);
               skipNodeAlias = config.nodeAlias;
@@ -2220,8 +2220,8 @@ export class NodeCommandTasks {
             );
             break;
           }
-          case NodeSubcommandType.DELETE: {
-            this.prepareValuesArgForNodeDelete(
+          case NodeSubcommandType.DESTROY: {
+            this.prepareValuesArgForNodeDestroy(
               consensusNodes,
               valuesArgumentMap,
               config.nodeAlias,
@@ -2406,7 +2406,7 @@ export class NodeCommandTasks {
    * - Remove the specified node
    * - Keeps the rest the same
    */
-  private prepareValuesArgForNodeDelete(
+  private prepareValuesArgForNodeDestroy(
     consensusNodes: ConsensusNode[],
     valuesArgumentMap: Record<ClusterReferenceName, string>,
     nodeAlias: NodeAlias,
