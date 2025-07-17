@@ -152,7 +152,7 @@ export class RelayCommand extends BaseCommand {
     valuesArgument += ' --set relay.config.MIRROR_NODE_GET_CONTRACT_RESULTS_DEFAULT_RETRIES=21';
 
     valuesArgument += ` --set ws.config.MIRROR_NODE_URL=http://${constants.MIRROR_NODE_RELEASE_NAME}-rest`;
-    valuesArgument += ` --set ws.config.SUBSCRIPTIONS_ENABLED=true`;
+    valuesArgument += ' --set ws.config.SUBSCRIPTIONS_ENABLED=true';
 
     if (chainID) {
       valuesArgument += ` --set relay.config.CHAIN_ID=${chainID}`;
@@ -425,10 +425,7 @@ export class RelayCommand extends BaseCommand {
             const pods: Pod[] = await this.k8Factory
               .getK8(context_.config.clusterContext)
               .pods()
-              .list(context_.config.namespace, [
-                'app=hedera-json-rpc-relay',
-                `app.kubernetes.io/instance=${context_.config.releaseName}`,
-              ]);
+              .list(context_.config.namespace, [`app.kubernetes.io/name=relay`]);
             if (pods.length === 0) {
               throw new SoloError('No Relay pod found');
             }
