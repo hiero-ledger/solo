@@ -407,13 +407,13 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
   private showCreatedAccounts(createdAccounts: CreatedPredefinedAccount[] = []): void {
     if (createdAccounts.length > 0) {
       const ecdsaAccounts = createdAccounts.filter(
-        (account: CreatedPredefinedAccount) => (account.data.group = 'ecdsa'),
+        (account: CreatedPredefinedAccount) => (account.data.group === 'ecdsa'),
       );
       const aliasAccounts = createdAccounts.filter(
-        (account: CreatedPredefinedAccount) => (account.data.group = 'ecdsa-alias'),
+        (account: CreatedPredefinedAccount) => (account.data.group === 'ecdsa-alias'),
       );
       const ed25519Accounts = createdAccounts.filter(
-        (account: CreatedPredefinedAccount) => (account.data.group = 'ed25519'),
+        (account: CreatedPredefinedAccount) => (account.data.group === 'ed25519'),
       );
 
       const messageGroupKey: string = 'accounts-created';
