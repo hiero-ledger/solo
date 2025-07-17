@@ -523,10 +523,11 @@ tasks:
       - |
         if [[ "${EXPLORER_DEPLOYMENT}" != "" ]]; then
           if [ -n "${SOLO_CLUSTER_NAME}" ]; then
-            echo "EXPLORER_CLUSTER_CONTEXT=kind-${SOLO_CLUSTER_NAME}"
+            export EXPLORER_CLUSTER_CONTEXT=kind-${SOLO_CLUSTER_NAME}
           else
-            echo "EXPLORER_CLUSTER_CONTEXT=kind-{{ .SOLO_CLUSTER_NAME }}"
-          fi        
+            export EXPLORER_CLUSTER_CONTEXT=kind-{{ .SOLO_CLUSTER_NAME }}
+          fi
+          echo "EXPLORER_CLUSTER_CONTEXT=${EXPLORER_CLUSTER_CONTEXT}"
           # create deployment on different namespace
           SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo-test -- deployment create --deployment ${EXPLORER_DEPLOYMENT} --namespace ${EXPLORER_NAME_SPACE}  
           SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo-test -- deployment add-cluster --deployment ${EXPLORER_DEPLOYMENT} --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --num-consensus-nodes ${SOLO_NETWORK_SIZE}
