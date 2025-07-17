@@ -20,12 +20,12 @@ import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type ClusterReferenceName, type ExtendedNetServer} from '../../../src/types/index.js';
 import {exec} from 'node:child_process';
 import {promisify} from 'node:util';
-import * as constants from '../../../src/core/constants.js';
 import * as SemVer from 'semver';
 import {type ArgvStruct} from '../../../src/types/aliases.js';
 import {type BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
 import {HEDERA_PLATFORM_VERSION, MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} from '../../../version.js';
 import {TEST_LOCAL_BLOCK_NODE_VERSION} from '../../../version-test.js';
+import {Templates} from '../../../src/core/templates.js';
 
 // eslint-disable-next-line @typescript-eslint/typedef
 const execAsync = promisify(exec);
@@ -116,7 +116,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
         callback: async (argv: {_: string[]} & Record<string, any>): Promise<boolean> => blockNodeCommand.add(argv),
       });
 
-      remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(ComponentTypes.BlockNode, 0);
+      remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(ComponentTypes.BlockNode, 1);
     });
 
     deployNetworkTest(argv, commandInvoker, networkCmd);
@@ -127,7 +127,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
       const pod: Pod = await k8Factory
         .default()
         .pods()
-        .list(namespace, [`app.kubernetes.io/instance=${constants.BLOCK_NODE_RELEASE_NAME}-0`])
+        .list(namespace, Templates.renderBlockNodeLabels(1))
         .then((pods: Pod[]): Pod => pods[0]);
 
       const srv: ExtendedNetServer = await pod.portForward(8080, 8080);
