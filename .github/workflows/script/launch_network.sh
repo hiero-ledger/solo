@@ -57,6 +57,10 @@ cat remote-config-before.yaml
 # make it harder to uninstall or upgrade after migration
 solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
 
+# must uninstall relay before migration, because the change to relay umbrella chart lead to different name and labels
+# and make it hard to uninstall or upgrade after migration
+solo relay destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
+
 # trigger migration
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}"
 
