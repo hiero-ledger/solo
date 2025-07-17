@@ -582,15 +582,15 @@ solo consensus node add-execute --deployment solo-deployment --input-dir context
 This command is used to delete a node from an existing Solo network:
 
 ```bash
-TODO solo consensus node delete
+TODO solo consensus node destroy
 ```
 
 It is possible to delete a node through a process with separated steps. This is only useful in very specific cases, such as when testing the delete process.
 
 ```bash
-solo consensus node delete-prepare --deployment solo-deployment --node-alias node1 --output-dir context
-solo consensus node delete-submit-transactions --deployment solo-deployment --input-dir context
-solo consensus node delete-execute --deployment solo-deployment --input-dir context
+solo consensus node destroy-prepare --deployment solo-deployment --node-alias node1 --output-dir context
+solo consensus node destroy-submit-transactions --deployment solo-deployment --input-dir context
+solo consensus node destroy-execute --deployment solo-deployment --input-dir context
 ```
 
 {{< /details >}}<br/>

@@ -573,7 +573,7 @@ export class ExplorerCommand extends BaseCommand {
               context_.config.namespace,
               constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME,
             );
-            // delete ingress class if found one
+            // destroy ingress class if found one
             const existingIngressClasses = await this.k8Factory
               .getK8(context_.config.clusterContext)
               .ingressClasses()

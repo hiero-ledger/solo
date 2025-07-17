@@ -19,7 +19,7 @@ import {CommandHandler} from '../../core/command-handler.js';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {type ConsensusNode} from '../../core/model/consensus-node.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
-import {type NodeDeleteContext} from './config-interfaces/node-delete-context.js';
+import {type NodeDestroyContext} from './config-interfaces/node-destroy-context.js';
 import {type NodeAddContext} from './config-interfaces/node-add-context.js';
 import {type NodeUpdateContext} from './config-interfaces/node-update-context.js';
 import {type NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
@@ -54,13 +54,13 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   private static readonly ADD_CONTEXT_FILE = 'node-add.json';
-  private static readonly DELETE_CONTEXT_FILE = 'node-delete.json';
+  private static readonly DELETE_CONTEXT_FILE = 'node-destroy.json';
   private static readonly UPDATE_CONTEXT_FILE = 'node-update.json';
   private static readonly UPGRADE_CONTEXT_FILE = 'node-upgrade.json';
 
   /** ******** Task Lists **********/
 
-  private deletePrepareTaskList(argv: ArgvStruct, lease: Lock): SoloListrTask<NodeDeleteContext>[] {
+  private deletePrepareTaskList(argv: ArgvStruct, lease: Lock): SoloListrTask<NodeDestroyContext>[] {
     return [
       this.tasks.initialize(argv, this.configs.deleteConfigBuilder.bind(this.configs), lease),
       this.validateSingleNodeState({excludedPhases: []}),
@@ -71,15 +71,15 @@ export class NodeCommandHandlers extends CommandHandler {
     ];
   }
 
-  private deleteSubmitTransactionsTaskList(): SoloListrTask<NodeDeleteContext>[] {
+  private deleteSubmitTransactionsTaskList(): SoloListrTask<NodeDestroyContext>[] {
     return [
       this.tasks.sendNodeDeleteTransaction(),
-      this.tasks.sendPrepareUpgradeTransaction() as SoloListrTask<NodeDeleteContext>,
-      this.tasks.sendFreezeUpgradeTransaction() as SoloListrTask<NodeDeleteContext>,
+      this.tasks.sendPrepareUpgradeTransaction() as SoloListrTask<NodeDestroyContext>,
+      this.tasks.sendFreezeUpgradeTransaction() as SoloListrTask<NodeDestroyContext>,
     ];
   }
 
-  private deleteExecuteTaskList(): SoloListrTask<NodeDeleteContext>[] {
+  private deleteExecuteTaskList(): SoloListrTask<NodeDestroyContext>[] {
     return [
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
       this.tasks.stopNodes('existingNodeAliases'),
@@ -99,7 +99,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
       this.tasks.checkAllNodeProxiesAreActive(),
-      this.tasks.triggerStakeWeightCalculate<NodeDeleteContext>(NodeSubcommandType.DELETE),
+      this.tasks.triggerStakeWeightCalculate<NodeDestroyContext>(NodeSubcommandType.DELETE),
       this.tasks.finalize(),
     ];
   }
@@ -500,7 +500,7 @@ export class NodeCommandHandlers extends CommandHandler {
     return true;
   }
 
-  public async delete(argv: ArgvStruct): Promise<boolean> {
+  public async destroy(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};
     await this.commandAction(
@@ -537,7 +537,7 @@ export class NodeCommandHandlers extends CommandHandler {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
-      'Error in preparing to delete a node',
+      'Error in preparing to destroy a node',
       leaseWrapper.lease,
     );
 

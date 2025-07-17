@@ -383,8 +383,8 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       (command === 'node' && subcommand === 'update-execute') ||
       (command === 'node' && subcommand === 'add') ||
       (command === 'node' && subcommand === 'add-execute') ||
-      (command === 'node' && subcommand === 'delete') ||
-      (command === 'node' && subcommand === 'delete-execute');
+      (command === 'node' && subcommand === 'destroy') ||
+      (command === 'node' && subcommand === 'destroy-execute');
 
     // TBD how to update remoteConfig.versions.cli
 

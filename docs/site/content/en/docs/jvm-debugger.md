@@ -182,7 +182,7 @@ solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,n
 solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data
 solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
 
-solo consensus node delete --deployment "${SOLO_DEPLOYMENT}" --node-alias node2  --debug-node-alias node3 --local-build-path ../hiero-consensus-node/hedera-node/data
+solo consensus node destroy --deployment "${SOLO_DEPLOYMENT}" --node-alias node2  --debug-node-alias node3 --local-build-path ../hiero-consensus-node/hedera-node/data
 ```
 
 ### 3. Save and reuse network state files

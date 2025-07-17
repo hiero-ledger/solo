@@ -97,11 +97,11 @@ import {BaseCommand} from '../base.js';
 import {HEDERA_PLATFORM_VERSION} from '../../../version.js';
 import {ShellRunner} from '../../core/shell-runner.js';
 import {PathEx} from '../../business/utils/path-ex.js';
-import {type NodeDeleteConfigClass} from './config-interfaces/node-delete-config-class.js';
+import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
 import {type NodeRefreshConfigClass} from './config-interfaces/node-refresh-config-class.js';
 import {type NodeUpdateConfigClass} from './config-interfaces/node-update-config-class.js';
 import {type NodeAddContext} from './config-interfaces/node-add-context.js';
-import {type NodeDeleteContext} from './config-interfaces/node-delete-context.js';
+import {type NodeDestroyContext} from './config-interfaces/node-destroy-context.js';
 import {type NodeUpdateContext} from './config-interfaces/node-update-context.js';
 import {type NodeStatesContext} from './config-interfaces/node-states-context.js';
 import {NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
@@ -701,7 +701,7 @@ export class NodeCommandTasks {
           const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
 
           const context = helpers.extractContextFromConsensusNodes(
-            (context_ as NodeUpdateContext | NodeDeleteContext).config.nodeAlias,
+            (context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias,
             context_.config.consensusNodes,
           );
 
@@ -721,15 +721,15 @@ export class NodeCommandTasks {
     };
   }
 
-  public loadAdminKey(): SoloListrTask<NodeUpdateContext | NodeUpgradeContext | NodeDeleteContext> {
+  public loadAdminKey(): SoloListrTask<NodeUpdateContext | NodeUpgradeContext | NodeDestroyContext> {
     return {
       title: 'Load node admin key',
       task: async context_ => {
         const config = context_.config;
-        if ((context_ as NodeUpdateContext | NodeDeleteContext).config.nodeAlias) {
+        if ((context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias) {
           try {
             const context = helpers.extractContextFromConsensusNodes(
-              (context_ as NodeUpdateContext | NodeDeleteContext).config.nodeAlias,
+              (context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias,
               context_.config.consensusNodes,
             );
 
@@ -739,7 +739,7 @@ export class NodeCommandTasks {
               .secrets()
               .read(
                 config.namespace,
-                Templates.renderNodeAdminKeyName((context_ as NodeUpdateContext | NodeDeleteContext).config.nodeAlias),
+                Templates.renderNodeAdminKeyName((context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias),
               );
             const privateKey = Base64.decode(keyFromK8.data.privateKey);
             config.adminKey = PrivateKey.fromStringED25519(privateKey);
@@ -755,7 +755,7 @@ export class NodeCommandTasks {
   }
 
   public checkExistingNodesStakedAmount(): SoloListrTask<
-    NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeUpgradeContext
+    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
   > {
     const self = this;
     return {
@@ -776,7 +776,7 @@ export class NodeCommandTasks {
   }
 
   public sendPrepareUpgradeTransaction(): SoloListrTask<
-    NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeUpgradeContext
+    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
   > {
     const self = this;
     return {
@@ -819,7 +819,7 @@ export class NodeCommandTasks {
   }
 
   public sendFreezeUpgradeTransaction(): SoloListrTask<
-    NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeUpgradeContext
+    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
   > {
     const self = this;
     return {
@@ -902,7 +902,7 @@ export class NodeCommandTasks {
 
   /** Download generated config files and key files from the network node */
   public downloadNodeGeneratedFiles(): SoloListrTask<
-    NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeDownloadGeneratedFilesContext
+    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeDownloadGeneratedFilesContext
   > {
     const self = this;
     return {
@@ -1182,7 +1182,7 @@ export class NodeCommandTasks {
   public fetchPlatformSoftware(
     aliasesField: string,
   ): SoloListrTask<
-    NodeUpgradeContext | NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext | NodeSetupContext
+    NodeUpgradeContext | NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeRefreshContext | NodeSetupContext
   > {
     const self = this;
     return {
@@ -1219,7 +1219,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public populateServiceMap(): SoloListrTask<NodeAddContext | NodeDeleteContext> {
+  public populateServiceMap(): SoloListrTask<NodeAddContext | NodeDestroyContext> {
     return {
       title: 'Populate serviceMap',
       task: async context_ => {
@@ -1243,13 +1243,13 @@ export class NodeCommandTasks {
   public setupNetworkNodes(
     nodeAliasesProperty: string,
     isGenesis: boolean,
-  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext> {
+  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeRefreshContext> {
     return {
       title: 'Setup network nodes',
       task: async (
         context_,
         task,
-      ): Promise<SoloListr<NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext>> => {
+      ): Promise<SoloListr<NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeRefreshContext>> => {
         // @ts-expect-error: all fields are not present in every task's context
         if (!context_.config.nodeAliases || context_.config.nodeAliases.length === 0) {
           // @ts-expect-error: all fields are not present in every task's context
@@ -1282,7 +1282,7 @@ export class NodeCommandTasks {
         );
 
         const consensusNodes: ConsensusNode[] = context_.config.consensusNodes;
-        const subTasks: SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext>[] =
+        const subTasks: SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeRefreshContext>[] =
           [];
 
         for (const nodeAlias of context_.config[nodeAliasesProperty]) {
@@ -1291,7 +1291,7 @@ export class NodeCommandTasks {
 
           subTasks.push({
             title: `Node: ${chalk.yellow(nodeAlias)}`,
-            // @ts-expect-error: all fields are not present in every task's context
+            // @ts-expect-error not all contexts have field
             task: () => this.platformInstaller.taskSetup(podReference, context_.config.stagingDir, isGenesis, context),
           });
         }
@@ -1649,7 +1649,7 @@ export class NodeCommandTasks {
   }
 
   public checkAllNodeProxiesAreActive(): SoloListrTask<
-    NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeUpgradeContext
+    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
   > {
     return {
       title: 'Check all node proxies are ACTIVE',
@@ -1772,11 +1772,11 @@ export class NodeCommandTasks {
 
   public stopNodes(
     nodeAliasesProperty: string,
-  ): SoloListrTask<NodeStopContext | NodeFreezeContext | NodeDeleteContext> {
+  ): SoloListrTask<NodeStopContext | NodeFreezeContext | NodeDestroyContext> {
     return {
       title: 'Stopping nodes',
       task: async (context_, task) => {
-        const subTasks: SoloListrTask<NodeStopContext | NodeFreezeContext | NodeDeleteContext>[] = [];
+        const subTasks: SoloListrTask<NodeStopContext | NodeFreezeContext | NodeDestroyContext>[] = [];
 
         if (!(context_.config as CheckedNodesConfigClass).skipStop) {
           await this.accountManager.close();
@@ -1855,7 +1855,7 @@ export class NodeCommandTasks {
   }
 
   public getNodeLogsAndConfigs(): SoloListrTask<
-    NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeUpgradeContext
+    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
   > {
     return {
       title: 'Get node logs and configs',
@@ -2021,7 +2021,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public refreshNodeList(): SoloListrTask<NodeDeleteContext> {
+  public refreshNodeList(): SoloListrTask<NodeDestroyContext> {
     return {
       title: 'Refresh node alias list',
       task: context_ => {
@@ -2137,7 +2137,7 @@ export class NodeCommandTasks {
 
   public copyNodeKeysToSecrets(
     nodeListOverride?: string,
-  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDeleteContext> {
+  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext> {
     return {
       title: 'Copy node keys to secrets',
       task: (context_, task) => {
@@ -2160,7 +2160,7 @@ export class NodeCommandTasks {
     title: string,
     transactionType: NodeSubcommandType,
     skip: SkipCheck | boolean = false,
-  ): SoloListrTask<NodeDeleteContext | NodeAddContext | NodeUpdateContext> {
+  ): SoloListrTask<NodeDestroyContext | NodeAddContext | NodeUpdateContext> {
     const self = this;
     return {
       title,
@@ -2255,7 +2255,7 @@ export class NodeCommandTasks {
         if (profileValuesFile) {
           const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMap(
             clusterReferences,
-            undefined, // do not trigger of adding default value file for chart upgrade due to node add or delete
+            undefined, // do not trigger of adding default value file for chart upgrade due to node add or destroy
             profileValuesFile,
             (config as any).valuesFile,
           );
@@ -2444,7 +2444,7 @@ export class NodeCommandTasks {
     argv: ArgvStruct,
     targetFile: string,
     parser: (context_: AnyListrContext) => AnyObject,
-  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDeleteContext> {
+  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext> {
     return {
       title: 'Save context data',
       task: context_ => {
@@ -2484,7 +2484,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public killNodes(): SoloListrTask<NodeDeleteContext | NodeAddContext> {
+  public killNodes(): SoloListrTask<NodeDestroyContext | NodeAddContext> {
     return {
       title: 'Kill nodes',
       task: async context_ => {
@@ -2536,12 +2536,12 @@ export class NodeCommandTasks {
     };
   }
 
-  public checkNodePodsAreRunning(): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDeleteContext> {
+  public checkNodePodsAreRunning(): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext> {
     return {
       title: 'Check node pods are running',
       task: (context_, task) => {
         const config = context_.config;
-        const subTasks: SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDeleteContext>[] = [];
+        const subTasks: SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext>[] = [];
 
         for (const nodeAlias of config.allNodeAliases) {
           const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
@@ -2661,11 +2661,11 @@ export class NodeCommandTasks {
     };
   }
 
-  public sendNodeDeleteTransaction(): SoloListrTask<NodeDeleteContext> {
+  public sendNodeDeleteTransaction(): SoloListrTask<NodeDestroyContext> {
     return {
       title: 'Send node delete transaction',
       task: async context_ => {
-        const config: NodeDeleteConfigClass = context_.config;
+        const config: NodeDestroyConfigClass = context_.config;
 
         try {
           const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);

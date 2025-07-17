@@ -201,6 +201,7 @@ export class CommandDefinitionBuilder {
               'delete',
               'Delete a node with a specific version of Hedera platform',
               nodeCommand.handlers,
+              // @ts-expect-error not all contexts have field
               nodeCommand.handlers.delete,
               NodeFlags.DELETE_FLAGS,
             ),

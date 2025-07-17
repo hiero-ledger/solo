@@ -72,13 +72,13 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
         command: NodeCommand.COMMAND_NAME,
         subcommand: NodeCommand.SUBCOMMAND_NAME,
         action: 'delete',
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.delete(argv),
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.destroy(argv),
       });
 
       await accountManager.close();
     }).timeout(Duration.ofMinutes(10).toMillis());
 
-    it('should be able to create account after a node delete', async () => {
+    it('should be able to create account after a node destroy', async () => {
       await commandInvoker.invoke({
         argv: argv,
         command: AccountCommand.COMMAND_NAME,
@@ -94,7 +94,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       updateAcccountPrivateKey = newAccountInfo.privateKey;
     });
 
-    it('should be able to update a node after node delete', async () => {
+    it('should be able to update a node after node destroy', async () => {
       argv.setArg(flags.newAccountNumber, updateAcccountId.toString());
       argv.setArg(flags.nodeAlias, updateNodeAlias);
       argv.setArg(flags.newAdminKey, updateAcccountPrivateKey);
