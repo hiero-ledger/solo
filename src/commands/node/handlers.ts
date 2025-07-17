@@ -19,7 +19,7 @@ import {CommandHandler} from '../../core/command-handler.js';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {type ConsensusNode} from '../../core/model/consensus-node.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
-import {type NodeDeleteContext} from './config-interfaces/node-delete-context.js';
+import {type NodeDestroyContext} from './config-interfaces/node-destroy-context.js';
 import {type NodeAddContext} from './config-interfaces/node-add-context.js';
 import {type NodeUpdateContext} from './config-interfaces/node-update-context.js';
 import {type NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
@@ -54,15 +54,15 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   private static readonly ADD_CONTEXT_FILE = 'node-add.json';
-  private static readonly DELETE_CONTEXT_FILE = 'node-delete.json';
+  private static readonly DESTROY_CONTEXT_FILE = 'node-destroy.json';
   private static readonly UPDATE_CONTEXT_FILE = 'node-update.json';
   private static readonly UPGRADE_CONTEXT_FILE = 'node-upgrade.json';
 
   /** ******** Task Lists **********/
 
-  private deletePrepareTaskList(argv: ArgvStruct, lease: Lock): SoloListrTask<NodeDeleteContext>[] {
+  private destroyPrepareTaskList(argv: ArgvStruct, lease: Lock): SoloListrTask<NodeDestroyContext>[] {
     return [
-      this.tasks.initialize(argv, this.configs.deleteConfigBuilder.bind(this.configs), lease),
+      this.tasks.initialize(argv, this.configs.destroyConfigBuilder.bind(this.configs), lease),
       this.validateSingleNodeState({excludedPhases: []}),
       this.tasks.identifyExistingNodes(),
       this.tasks.loadAdminKey(),
@@ -71,15 +71,15 @@ export class NodeCommandHandlers extends CommandHandler {
     ];
   }
 
-  private deleteSubmitTransactionsTaskList(): SoloListrTask<NodeDeleteContext>[] {
+  private destroySubmitTransactionsTaskList(): SoloListrTask<NodeDestroyContext>[] {
     return [
       this.tasks.sendNodeDeleteTransaction(),
-      this.tasks.sendPrepareUpgradeTransaction() as SoloListrTask<NodeDeleteContext>,
-      this.tasks.sendFreezeUpgradeTransaction() as SoloListrTask<NodeDeleteContext>,
+      this.tasks.sendPrepareUpgradeTransaction() as SoloListrTask<NodeDestroyContext>,
+      this.tasks.sendFreezeUpgradeTransaction() as SoloListrTask<NodeDestroyContext>,
     ];
   }
 
-  private deleteExecuteTaskList(): SoloListrTask<NodeDeleteContext>[] {
+  private destroyExecuteTaskList(): SoloListrTask<NodeDestroyContext>[] {
     return [
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
       this.tasks.stopNodes('existingNodeAliases'),
@@ -88,7 +88,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.refreshNodeList(),
       this.tasks.copyNodeKeysToSecrets('refreshedConsensusNodes'),
       this.tasks.getNodeLogsAndConfigs(),
-      this.tasks.updateChartWithConfigMap('Delete network node and update configMaps', NodeSubcommandType.DELETE),
+      this.tasks.updateChartWithConfigMap('Delete network node and update configMaps', NodeSubcommandType.DESTROY),
       this.tasks.killNodes(),
       this.tasks.sleep('Give time for pods to come up after being killed', 20_000),
       this.tasks.checkNodePodsAreRunning(),
@@ -99,7 +99,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
       this.tasks.checkAllNodeProxiesAreActive(),
-      this.tasks.triggerStakeWeightCalculate<NodeDeleteContext>(NodeSubcommandType.DELETE),
+      this.tasks.triggerStakeWeightCalculate<NodeDestroyContext>(NodeSubcommandType.DESTROY),
       this.tasks.finalize(),
     ];
   }
@@ -500,16 +500,16 @@ export class NodeCommandHandlers extends CommandHandler {
     return true;
   }
 
-  public async delete(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_FLAGS);
+  public async destroy(argv: ArgvStruct): Promise<boolean> {
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.DESTROY_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};
     await this.commandAction(
       argv,
       [
         this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
-        ...this.deletePrepareTaskList(argv, leaseWrapper.lease),
-        ...this.deleteSubmitTransactionsTaskList(),
-        ...this.deleteExecuteTaskList(),
+        ...this.destroyPrepareTaskList(argv, leaseWrapper.lease),
+        ...this.destroySubmitTransactionsTaskList(),
+        ...this.destroyExecuteTaskList(),
       ],
       {
         concurrent: false,
@@ -522,39 +522,39 @@ export class NodeCommandHandlers extends CommandHandler {
     return true;
   }
 
-  public async deletePrepare(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_PREPARE_FLAGS);
+  public async destroyPrepare(argv: ArgvStruct): Promise<boolean> {
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.DESTROY_PREPARE_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
       argv,
       [
         this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
-        ...this.deletePrepareTaskList(argv, leaseWrapper.lease),
-        this.tasks.saveContextData(argv, NodeCommandHandlers.DELETE_CONTEXT_FILE, NodeHelper.deleteSaveContextParser),
+        ...this.destroyPrepareTaskList(argv, leaseWrapper.lease),
+        this.tasks.saveContextData(argv, NodeCommandHandlers.DESTROY_CONTEXT_FILE, NodeHelper.deleteSaveContextParser),
       ],
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
-      'Error in preparing to delete a node',
+      'Error in preparing to destroy a node',
       leaseWrapper.lease,
     );
 
     return true;
   }
 
-  public async deleteSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_SUBMIT_TRANSACTIONS_FLAGS);
+  public async destroySubmitTransactions(argv: ArgvStruct): Promise<boolean> {
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.DESTROY_SUBMIT_TRANSACTIONS_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
       argv,
       [
         this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
-        this.tasks.initialize(argv, this.configs.deleteConfigBuilder.bind(this.configs), leaseWrapper.lease),
-        this.tasks.loadContextData(argv, NodeCommandHandlers.DELETE_CONTEXT_FILE, NodeHelper.deleteLoadContextParser),
-        ...this.deleteSubmitTransactionsTaskList(),
+        this.tasks.initialize(argv, this.configs.destroyConfigBuilder.bind(this.configs), leaseWrapper.lease),
+        this.tasks.loadContextData(argv, NodeCommandHandlers.DESTROY_CONTEXT_FILE, NodeHelper.deleteLoadContextParser),
+        ...this.destroySubmitTransactionsTaskList(),
       ],
       {
         concurrent: false,
@@ -567,17 +567,17 @@ export class NodeCommandHandlers extends CommandHandler {
     return true;
   }
 
-  public async deleteExecute(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_EXECUTE_FLAGS);
+  public async destroyExecute(argv: ArgvStruct): Promise<boolean> {
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.DESTROY_EXECUTE_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
       argv,
       [
         this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
-        this.tasks.initialize(argv, this.configs.deleteConfigBuilder.bind(this.configs), leaseWrapper.lease, false),
-        this.tasks.loadContextData(argv, NodeCommandHandlers.DELETE_CONTEXT_FILE, NodeHelper.deleteLoadContextParser),
-        ...this.deleteExecuteTaskList(),
+        this.tasks.initialize(argv, this.configs.destroyConfigBuilder.bind(this.configs), leaseWrapper.lease, false),
+        this.tasks.loadContextData(argv, NodeCommandHandlers.DESTROY_CONTEXT_FILE, NodeHelper.deleteLoadContextParser),
+        ...this.destroyExecuteTaskList(),
       ],
       {
         concurrent: false,

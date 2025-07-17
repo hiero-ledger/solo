@@ -63,6 +63,7 @@ import {DefaultQuickStartCommand} from '../../commands/quick-start/default-quick
 import {DefaultTaskList} from '../task-list/default-task-list.js';
 import {Commands} from '../../commands/commands.js';
 import {KindDependencyManager} from '../dependency-managers/kind-dependency-manager.js';
+import {CommandDefinitionBuilder} from '../../commands/command-definition-builder.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -124,6 +125,7 @@ export class Container {
       new SingletonContainer(InjectTokens.NetworkCommand, NetworkCommand),
       new SingletonContainer(InjectTokens.RelayCommand, RelayCommand),
       new SingletonContainer(InjectTokens.BlockNodeCommand, BlockNodeCommand),
+      new SingletonContainer(InjectTokens.CommandDefinitionBuilder, CommandDefinitionBuilder),
       new SingletonContainer(InjectTokens.ClusterCommandTasks, ClusterCommandTasks),
       new SingletonContainer(InjectTokens.ClusterCommandHandlers, ClusterCommandHandlers),
       new SingletonContainer(InjectTokens.NodeCommandTasks, NodeCommandTasks),

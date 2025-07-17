@@ -51,8 +51,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argv,
         command: AccountCommand.COMMAND_NAME,
-        subcommand: 'init',
-        callback: async argv => accountCmd.init(argv),
+        subcommand: AccountCommand.SUBCOMMAND_NAME,
+        action: 'init',
+        callback: async (argv): Promise<boolean> => accountCmd.init(argv),
       });
     }).timeout(Duration.ofMinutes(8).toMillis());
 
@@ -77,22 +78,25 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argvPrepare,
         command: NodeCommand.COMMAND_NAME,
-        subcommand: 'upgrade-prepare',
-        callback: async argv => nodeCmd.handlers.upgradePrepare(argv),
+        subcommand: NodeCommand.SUBCOMMAND_NAME,
+        action: 'upgrade-prepare',
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgradePrepare(argv),
       });
 
       await commandInvoker.invoke({
         argv: argvExecute,
         command: NodeCommand.COMMAND_NAME,
-        subcommand: 'upgrade-submit-transactions',
-        callback: async argv => nodeCmd.handlers.upgradeSubmitTransactions(argv),
+        subcommand: NodeCommand.SUBCOMMAND_NAME,
+        action: 'upgrade-submit-transactions',
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgradeSubmitTransactions(argv),
       });
 
       await commandInvoker.invoke({
         argv: argvExecute,
         command: NodeCommand.COMMAND_NAME,
-        subcommand: 'upgrade-execute',
-        callback: async argv => nodeCmd.handlers.upgradeExecute(argv),
+        subcommand: NodeCommand.SUBCOMMAND_NAME,
+        action: 'upgrade-execute',
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgradeExecute(argv),
       });
     }).timeout(Duration.ofMinutes(5).toMillis());
 

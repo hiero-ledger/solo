@@ -60,8 +60,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argv,
         command: AccountCommand.COMMAND_NAME,
-        subcommand: 'init',
-        callback: async argv => accountCmd.init(argv),
+        subcommand: AccountCommand.SUBCOMMAND_NAME,
+        action: 'init',
+        callback: async (argv): Promise<boolean> => accountCmd.init(argv),
       });
     }).timeout(Duration.ofMinutes(8).toMillis());
 
@@ -69,19 +70,21 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argv,
         command: NodeCommand.COMMAND_NAME,
-        subcommand: 'delete',
-        callback: async argv => nodeCmd.handlers.delete(argv),
+        subcommand: NodeCommand.SUBCOMMAND_NAME,
+        action: 'delete',
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.destroy(argv),
       });
 
       await accountManager.close();
     }).timeout(Duration.ofMinutes(10).toMillis());
 
-    it('should be able to create account after a node delete', async () => {
+    it('should be able to create account after a node destroy', async () => {
       await commandInvoker.invoke({
         argv: argv,
         command: AccountCommand.COMMAND_NAME,
-        subcommand: 'create',
-        callback: async argv => accountCmd.create(argv),
+        subcommand: AccountCommand.SUBCOMMAND_NAME,
+        action: 'create',
+        callback: async (argv): Promise<boolean> => accountCmd.create(argv),
       });
 
       // Create a new account to update the node account id
@@ -91,15 +94,16 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       updateAcccountPrivateKey = newAccountInfo.privateKey;
     });
 
-    it('should be able to update a node after node delete', async () => {
+    it('should be able to update a node after node destroy', async () => {
       argv.setArg(flags.newAccountNumber, updateAcccountId.toString());
       argv.setArg(flags.nodeAlias, updateNodeAlias);
       argv.setArg(flags.newAdminKey, updateAcccountPrivateKey);
       await commandInvoker.invoke({
         argv: argv,
         command: NodeCommand.COMMAND_NAME,
-        subcommand: 'update',
-        callback: async argv => nodeCmd.handlers.update(argv),
+        subcommand: NodeCommand.SUBCOMMAND_NAME,
+        action: 'update',
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.update(argv),
       });
 
       await accountManager.close();

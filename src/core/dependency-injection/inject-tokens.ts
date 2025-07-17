@@ -60,6 +60,7 @@ export class InjectTokens {
   public static CommandInvoker: symbol = Symbol.for('CommandInvoker');
   public static ConfigProvider: symbol = Symbol.for('ConfigProvider');
   public static BlockNodeCommand: symbol = Symbol.for('BlockNodeCommand');
+  public static CommandDefinitionBuilder: symbol = Symbol.for('CommandDefinitionBuilder');
   public static LocalConfigFileName: symbol = Symbol.for('LocalConfigFileName');
   public static LocalConfigSource: symbol = Symbol.for('LocalConfigSource');
   public static LocalConfigRuntimeState: symbol = Symbol.for('LocalConfigRuntimeState');

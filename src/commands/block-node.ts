@@ -8,13 +8,7 @@ import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {
-  type AnyListrContext,
-  type AnyYargs,
-  type ArgvStruct,
-  type NodeAlias,
-  type NodeAliases,
-} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct, type NodeAlias, type NodeAliases} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {
   type ClusterReferenceName,
@@ -107,7 +101,8 @@ export class BlockNodeCommand extends BaseCommand {
     super();
   }
 
-  public static readonly COMMAND_NAME: string = 'block';
+  public static readonly COMMAND_NAME: 'block' = 'block' as const;
+  public static readonly SUBCOMMAND_NAME: 'node' = 'node' as const;
 
   private static readonly ADD_CONFIGS_NAME: string = 'addConfigs';
 
@@ -688,24 +683,13 @@ export class BlockNodeCommand extends BaseCommand {
       this.logger,
     )
       .addCommandGroup(
-        new CommandGroup('node', 'Manage block nodes in solo network')
+        new CommandGroup(BlockNodeCommand.SUBCOMMAND_NAME, 'Manage block nodes in solo network')
+          .addSubcommand(new Subcommand('add', 'Add block node', this, this.add, BlockNodeCommand.ADD_FLAGS_LIST))
           .addSubcommand(
-            new Subcommand('add', 'Add block node', this, this.add, (y: AnyYargs): void => {
-              flags.setRequiredCommandFlags(y, ...BlockNodeCommand.ADD_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...BlockNodeCommand.ADD_FLAGS_LIST.optional);
-            }),
+            new Subcommand('destroy', 'destroy block node', this, this.destroy, BlockNodeCommand.DESTROY_FLAGS_LIST),
           )
           .addSubcommand(
-            new Subcommand('destroy', 'destroy block node', this, this.destroy, (y: AnyYargs): void => {
-              flags.setRequiredCommandFlags(y, ...BlockNodeCommand.DESTROY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...BlockNodeCommand.DESTROY_FLAGS_LIST.optional);
-            }),
-          )
-          .addSubcommand(
-            new Subcommand('upgrade', 'upgrade block node', this, this.upgrade, (y: AnyYargs): void => {
-              flags.setRequiredCommandFlags(y, ...BlockNodeCommand.UPGRADE_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...BlockNodeCommand.UPGRADE_FLAGS_LIST.optional);
-            }),
+            new Subcommand('upgrade', 'upgrade block node', this, this.upgrade, BlockNodeCommand.UPGRADE_FLAGS_LIST),
           ),
       )
       .build();

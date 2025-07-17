@@ -74,8 +74,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argv,
         command: AccountCommand.COMMAND_NAME,
-        subcommand: 'create',
-        callback: async argv => accountCmd.create(argv),
+        subcommand: AccountCommand.SUBCOMMAND_NAME,
+        action: 'create',
+        callback: async (argv): Promise<boolean> => accountCmd.create(argv),
       });
 
       await sleep(Duration.ofMillis(3));
@@ -83,8 +84,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argv,
         command: AccountCommand.COMMAND_NAME,
-        subcommand: 'create',
-        callback: async argv => accountCmd.create(argv),
+        subcommand: AccountCommand.SUBCOMMAND_NAME,
+        action: 'create',
+        callback: async (argv): Promise<boolean> => accountCmd.create(argv),
       });
 
       await sleep(Duration.ofMillis(3));
@@ -93,15 +95,17 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argv,
         command: NodeCommand.COMMAND_NAME,
-        subcommand: 'stop',
-        callback: async argv => nodeCmd.handlers.stop(argv),
+        subcommand: NodeCommand.SUBCOMMAND_NAME,
+        action: 'stop',
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.stop(argv),
       });
 
       await commandInvoker.invoke({
         argv: argv,
         command: NodeCommand.COMMAND_NAME,
-        subcommand: 'states',
-        callback: async argv => nodeCmd.handlers.states(argv),
+        subcommand: NodeCommand.SUBCOMMAND_NAME,
+        action: 'states',
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.states(argv),
       });
 
       argv.setArg(flags.stateFile, PathEx.joinWithRealPath(SOLO_LOGS_DIR, namespace.name, 'network-node1-0-state.zip'));
@@ -109,8 +113,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argv,
         command: NodeCommand.COMMAND_NAME,
-        subcommand: 'start',
-        callback: async argv => nodeCmd.handlers.start(argv),
+        subcommand: NodeCommand.SUBCOMMAND_NAME,
+        action: 'start',
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.start(argv),
       });
 
       // check balance of accountInfo.accountId

@@ -134,11 +134,11 @@ export class KindDependencyManager extends ShellRunner {
     fs.cpSync(packageFile, this.localKindPath);
 
     let destinationPath: string;
-    if (this.osPlatform === constants.OS_WINDOWS) {
-      destinationPath = PathEx.join(temporaryDirectory, `${constants.KIND}.exe`);
-    } else {
-      destinationPath = PathEx.join(temporaryDirectory, constants.KIND);
-    }
+    // eslint-disable-next-line prefer-const
+    destinationPath =
+      this.osPlatform === constants.OS_WINDOWS
+        ? PathEx.join(temporaryDirectory, `${constants.KIND}.exe`)
+        : PathEx.join(temporaryDirectory, constants.KIND);
 
     try {
       fs.renameSync(packageFile, destinationPath);

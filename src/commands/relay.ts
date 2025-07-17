@@ -11,7 +11,7 @@ import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {type AnyYargs, type ArgvStruct, type NodeAlias, type NodeAliases, type NodeId} from '../types/aliases.js';
+import {type ArgvStruct, type NodeAlias, type NodeAliases, type NodeId} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as Base64 from 'js-base64';
 import {
@@ -31,6 +31,8 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {Lock} from '../core/lock/lock.js';
+import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
+import {CommandFlags} from '../types/flag-types.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Duration} from '../core/time/duration.js';
@@ -79,7 +81,7 @@ interface RelayDeployContext {
 
 @injectable()
 export class RelayCommand extends BaseCommand {
-  public static readonly DEPLOY_COMMAND = 'relay deploy';
+  public static readonly DEPLOY_COMMAND = 'relay node add';
 
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
@@ -92,11 +94,12 @@ export class RelayCommand extends BaseCommand {
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME = 'relay';
+  public static readonly COMMAND_NAME: 'relay' = 'relay' as const;
+  public static readonly SUBCOMMAND_NAME: 'node' = 'node' as const;
 
-  private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
+  private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
-  private static readonly DEPLOY_FLAGS_LIST = {
+  private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.chainId,
@@ -117,7 +120,7 @@ export class RelayCommand extends BaseCommand {
     ],
   };
 
-  private static readonly DESTROY_FLAGS_LIST = {
+  private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.chartDirectory, flags.deployment, flags.nodeAliasesUnparsed, flags.clusterRef, flags.quiet],
   };
@@ -252,7 +255,7 @@ export class RelayCommand extends BaseCommand {
     return releaseName;
   }
 
-  private async deploy(argv: ArgvStruct) {
+  private async add(argv: ArgvStruct) {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
     let lease: Lock;
@@ -559,54 +562,17 @@ export class RelayCommand extends BaseCommand {
   }
 
   public getCommandDefinition(): CommandDefinition {
-    const self: this = this;
-    return {
-      command: RelayCommand.COMMAND_NAME,
-      desc: 'Manage JSON RPC relays in solo network',
-      builder: (yargs: AnyYargs) => {
-        return yargs
-          .command({
-            command: 'deploy',
-            desc: 'Deploy a JSON RPC relay',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...RelayCommand.DEPLOY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...RelayCommand.DEPLOY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'relay deploy' ===", {argv});
-              self.logger.info(argv);
-
-              await self.deploy(argv).then(r => {
-                self.logger.info('==== Finished running `relay deploy`====');
-                if (!r) {
-                  throw new SoloError('Error deploying relay, expected return value to be true');
-                }
-              });
-            },
-          })
-          .command({
-            command: 'destroy',
-            desc: 'Destroy JSON RPC relay',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...RelayCommand.DESTROY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...RelayCommand.DESTROY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'relay destroy' ===", {argv});
-              self.logger.debug(argv);
-
-              await self.destroy(argv).then(r => {
-                self.logger.info('==== Finished running `relay destroy`====');
-
-                if (!r) {
-                  throw new SoloError('Error destroying relay, expected return value to be true');
-                }
-              });
-            },
-          })
-          .demandCommand(1, 'Select a relay command');
-      },
-    };
+    return new CommandBuilder(RelayCommand.COMMAND_NAME, 'Manage JSON RPC relays in solo network', this.logger)
+      .addCommandGroup(
+        new CommandGroup(RelayCommand.SUBCOMMAND_NAME, '')
+          .addSubcommand(
+            new Subcommand('add', 'Deploy a JSON RPC relay', this, this.add, RelayCommand.DEPLOY_FLAGS_LIST),
+          )
+          .addSubcommand(
+            new Subcommand('destroy', 'Destroy JSON RPC relay', this, this.destroy, RelayCommand.DESTROY_FLAGS_LIST),
+          ),
+      )
+      .build();
   }
 
   /** Adds the relay component to remote config. */

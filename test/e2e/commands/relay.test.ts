@@ -54,7 +54,7 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
     });
 
     afterEach(async (): Promise<void> => {
-      // wait for k8s to finish destroying containers from relay destroy
+      // wait for k8s to finish destroying containers from relay node destroy
       await sleep(Duration.ofMillis(5));
     });
 
@@ -68,7 +68,7 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
       'relay and deploy and destroy for each',
       async (relayNodes: string): Promise<void> => {
         it(`relay deploy and destroy should work with ${relayNodes}`, async function (): Promise<void> {
-          testLogger.info(`#### Running relay deploy for: ${relayNodes} ####`);
+          testLogger.info(`#### Running relay node add for: ${relayNodes} ####`);
           this.timeout(Duration.ofMinutes(5).toMillis());
 
           argv.setArg(flags.nodeAliasesUnparsed, relayNodes);
@@ -77,9 +77,10 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
             await commandInvoker.invoke({
               argv: argv,
               command: RelayCommand.COMMAND_NAME,
-              subcommand: 'deploy',
+              subcommand: RelayCommand.SUBCOMMAND_NAME,
+              action: 'add',
               // @ts-expect-error to access private property
-              callback: async (argv: ArgvStruct): Promise<boolean> => relayCommand.deploy(argv),
+              callback: async (argv: ArgvStruct): Promise<boolean> => relayCommand.add(argv),
             });
           } catch (error) {
             logger.showUserError(error);
@@ -87,12 +88,13 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
           }
           await sleep(Duration.ofMillis(500));
 
-          testLogger.info(`#### Running relay destroy for: ${relayNodes} ####`);
+          testLogger.info(`#### Running relay node destroy for: ${relayNodes} ####`);
           try {
             await commandInvoker.invoke({
               argv: argv,
               command: RelayCommand.COMMAND_NAME,
-              subcommand: 'destroy',
+              subcommand: RelayCommand.SUBCOMMAND_NAME,
+              action: 'destroy',
               // @ts-expect-error to access private modifier
               callback: async (argv: ArgvStruct): Promise<boolean> => relayCommand.destroy(argv),
             });
@@ -100,7 +102,7 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
             logger.showUserError(error);
             expect.fail();
           }
-          testLogger.info(`#### Finished relay deploy and destroy for: ${relayNodes} ####`);
+          testLogger.info(`#### Finished relay node add and destroy for: ${relayNodes} ####`);
         });
       },
     );

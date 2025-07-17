@@ -17,6 +17,7 @@ import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
+import {ExplorerCommand} from '../../../../src/commands/explorer.js';
 
 export class ExplorerTest extends BaseCommandTest {
   private static soloExplorerDeployArgv(
@@ -28,8 +29,9 @@ export class ExplorerTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      'explorer',
-      'deploy',
+      ExplorerCommand.COMMAND_NAME,
+      ExplorerCommand.SUBCOMMAND_NAME,
+      'add',
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.clusterRef),
@@ -107,12 +109,12 @@ export class ExplorerTest extends BaseCommandTest {
     }
   }
 
-  public static deploy(options: BaseTestOptions): void {
+  public static add(options: BaseTestOptions): void {
     const {testName, deployment, namespace, contexts, clusterReferenceNameArray, testLogger, createdAccountIds} =
       options;
     const {soloExplorerDeployArgv, verifyExplorerDeployWasSuccessful} = ExplorerTest;
 
-    it(`${testName}: explorer deploy`, async (): Promise<void> => {
+    it(`${testName}: explorer node add`, async (): Promise<void> => {
       await main(soloExplorerDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
       await verifyExplorerDeployWasSuccessful(contexts, namespace, createdAccountIds, testLogger);
     }).timeout(Duration.ofMinutes(5).toMillis());

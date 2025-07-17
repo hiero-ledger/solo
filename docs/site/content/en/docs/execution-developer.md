@@ -41,7 +41,7 @@ You can deploy JSON RPC Relays for one or more nodes as below:
 
 ```bash
 # deploy relay node first
-solo relay deploy -i node1 --deployment "${SOLO_DEPLOYMENT}"
+solo relay node add -i node1 --deployment "${SOLO_DEPLOYMENT}"
 
 # enable relay for node1
 # check to see if it is already enabled, port forwarding for relay should be handled by solo automatically

@@ -145,7 +145,7 @@ describe('ClusterCommand', () => {
     expect(await clusterCmdHandlers.reset(argv.build())).to.be.true;
   }).timeout(Duration.ofMinutes(1).toMillis());
 
-  // 'solo cluster-ref connect' tests
+  // 'solo cluster-ref config connect' tests
   function getClusterConnectDefaultArgv(): {argv: Argv; clusterRef: string; contextName: string} {
     const clusterReference = `${TEST_CLUSTER_REFERENCE}-ref`;
     const contextName = TEST_CONTEXT;

@@ -75,8 +75,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: upgradeWithVersionArgv,
         command: NodeCommand.COMMAND_NAME,
-        subcommand: 'upgrade',
-        callback: async argv => nodeCmd.handlers.upgrade(argv),
+        subcommand: NodeCommand.SUBCOMMAND_NAME,
+        action: 'upgrade',
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgrade(argv),
       });
     }).timeout(Duration.ofMinutes(5).toMillis());
 
@@ -127,8 +128,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: upgradeWithZipArgv,
         command: NodeCommand.COMMAND_NAME,
-        subcommand: 'upgrade',
-        callback: async argv => nodeCmd.handlers.upgrade(argv),
+        subcommand: NodeCommand.SUBCOMMAND_NAME,
+        action: 'upgrade',
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgrade(argv),
       });
 
       const modifiedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');

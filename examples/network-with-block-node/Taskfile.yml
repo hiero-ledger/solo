@@ -36,7 +36,7 @@ tasks:
       - task: "solo:cluster:setup"
       - task: "solo:cluster-ref:connect"
       - task: "solo:deployment:create"
-      - task: "solo:deployment:add-cluster"
+      - task: "solo:deployment:attach"
       - task: "solo:block:add"
       - task: "solo:keys"
       - task: "solo:network:deploy"

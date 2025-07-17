@@ -70,7 +70,7 @@ Our official docs site: <https://solo.hiero.org/>
 
   * Deploy/Destroy/Add/Refresh consensus node including proxies and uploaders (record-stream, event-stream etc.)
   * Create/Top-up/Update accounts
-  * Deploy/Destroy mirror-node components including explorer
+  * Deploy/Destroy mirror node components including explorer
   * Deploy/Destroy one or more json-rpc-relays
   * Connect Telemetry (Grafana, Prometheus, Tempo etc.)
 * **What’s on deck  (As of May 2024)**
