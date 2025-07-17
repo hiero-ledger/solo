@@ -28,8 +28,8 @@ solo consensus node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-k
 solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
 solo consensus node setup     --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
 solo consensus node start     --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
-solo mirror node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} 
-solo explorer node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME}
+solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} 
+solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME}
 
 # check to see if it is already enabled, port forwarding for explorer and consensus node grpc should be handled by solo automatically
 # kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &

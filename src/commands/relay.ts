@@ -81,7 +81,7 @@ interface RelayDeployContext {
 
 @injectable()
 export class RelayCommand extends BaseCommand {
-  public static readonly DEPLOY_COMMAND = 'relay node deploy';
+  public static readonly DEPLOY_COMMAND = 'relay node add';
 
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
@@ -255,7 +255,7 @@ export class RelayCommand extends BaseCommand {
     return releaseName;
   }
 
-  private async deploy(argv: ArgvStruct) {
+  private async add(argv: ArgvStruct) {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
     let lease: Lock;
@@ -566,7 +566,7 @@ export class RelayCommand extends BaseCommand {
       .addCommandGroup(
         new CommandGroup(RelayCommand.SUBCOMMAND_NAME, '')
           .addSubcommand(
-            new Subcommand('deploy', 'Deploy a JSON RPC relay', this, this.deploy, RelayCommand.DEPLOY_FLAGS_LIST),
+            new Subcommand('add', 'Deploy a JSON RPC relay', this, this.add, RelayCommand.DEPLOY_FLAGS_LIST),
           )
           .addSubcommand(
             new Subcommand('destroy', 'Destroy JSON RPC relay', this, this.destroy, RelayCommand.DESTROY_FLAGS_LIST),

@@ -44,9 +44,9 @@ solo node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
 
-solo mirror-node deploy  --deployment "${SOLO_DEPLOYMENT}" --pinger
-solo explorer deploy -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
-solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
+solo mirror-node add  --deployment "${SOLO_DEPLOYMENT}" --pinger
+solo explorer add -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+solo relay add -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 
 cp ~/.solo/cache/local-config.yaml ./local-config-before.yaml
 cat ./local-config-before.yaml
@@ -89,11 +89,11 @@ npm run solo-test -- consensus node setup -i node1,node2 --deployment "${SOLO_DE
 npm run solo-test -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 
 # redeploy mirror node to upgrade to a newer version
-npm run solo-test -- mirror node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --dev
+npm run solo-test -- mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --dev
 
 # redeploy explorer and relay node to upgrade to a newer version
-npm run solo-test -- relay node deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
-npm run solo-test -- explorer node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace solo-e2e -q --dev
+npm run solo-test -- relay node add -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+npm run solo-test -- explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace solo-e2e -q --dev
 
 # wait a few seconds for the pods to be ready before enabling port-forwarding
 sleep 10

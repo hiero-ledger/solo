@@ -406,19 +406,19 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
     if (argv[flags.mirrorNodeVersion.name]) {
       remoteConfig.versions.mirrorNodeChart = new SemVer(argv[flags.mirrorNodeVersion.name]);
-    } else if (command === 'mirror-node' && subcommand === 'deploy') {
+    } else if (command === 'mirror-node' && subcommand === 'add') {
       remoteConfig.versions.mirrorNodeChart = new SemVer(flags.mirrorNodeVersion.definition.defaultValue as string);
     }
 
     if (argv[flags.explorerVersion.name]) {
       remoteConfig.versions.explorerChart = new SemVer(argv[flags.explorerVersion.name]);
-    } else if (command === 'explorer' && subcommand === 'deploy') {
+    } else if (command === 'explorer' && subcommand === 'add') {
       remoteConfig.versions.explorerChart = new SemVer(flags.explorerVersion.definition.defaultValue as string);
     }
 
     if (argv[flags.relayReleaseTag.name]) {
       remoteConfig.versions.jsonRpcRelayChart = new SemVer(argv[flags.relayReleaseTag.name]);
-    } else if (command === 'relay' && subcommand === 'deploy') {
+    } else if (command === 'relay' && subcommand === 'add') {
       remoteConfig.versions.jsonRpcRelayChart = new SemVer(flags.relayReleaseTag.definition.defaultValue as string);
     }
   }

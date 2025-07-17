@@ -31,7 +31,7 @@ export class ExplorerTest extends BaseCommandTest {
     argv.push(
       ExplorerCommand.COMMAND_NAME,
       ExplorerCommand.SUBCOMMAND_NAME,
-      'deploy',
+      'add',
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.clusterRef),
@@ -109,12 +109,12 @@ export class ExplorerTest extends BaseCommandTest {
     }
   }
 
-  public static deploy(options: BaseTestOptions): void {
+  public static add(options: BaseTestOptions): void {
     const {testName, deployment, namespace, contexts, clusterReferenceNameArray, testLogger, createdAccountIds} =
       options;
     const {soloExplorerDeployArgv, verifyExplorerDeployWasSuccessful} = ExplorerTest;
 
-    it(`${testName}: explorer node deploy`, async (): Promise<void> => {
+    it(`${testName}: explorer node add`, async (): Promise<void> => {
       await main(soloExplorerDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
       await verifyExplorerDeployWasSuccessful(contexts, namespace, createdAccountIds, testLogger);
     }).timeout(Duration.ofMinutes(5).toMillis());

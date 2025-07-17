@@ -145,7 +145,7 @@ else
 
   npm run solo-test -- consensus node setup -i node1 --deployment "${SOLO_DEPLOYMENT}"
   npm run solo-test -- consensus node start -i node1 --deployment "${SOLO_DEPLOYMENT}"
-  npm run solo-test -- mirror node deploy  --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --cluster-ref kind-${SOLO_CLUSTER_NAME} \
+  npm run solo-test -- mirror node add  --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --cluster-ref kind-${SOLO_CLUSTER_NAME} \
     --storage-type "${storageType}" \
     "${MIRROR_STORAGE_OPTIONS[@]}" \
     --ingress-controller-value-file "${script_dir}"/mirror-ingress-controller-values.yaml \

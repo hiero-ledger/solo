@@ -59,7 +59,7 @@ export class NetworkTest extends BaseCommandTest {
     } = options;
     const {soloNetworkDeployArgv} = NetworkTest;
 
-    it(`${testName}: network deploy`, async (): Promise<void> => {
+    it(`${testName}: consensus network deploy`, async (): Promise<void> => {
       await main(
         soloNetworkDeployArgv(
           testName,

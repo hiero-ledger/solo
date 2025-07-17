@@ -68,7 +68,7 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
       'relay and deploy and destroy for each',
       async (relayNodes: string): Promise<void> => {
         it(`relay deploy and destroy should work with ${relayNodes}`, async function (): Promise<void> {
-          testLogger.info(`#### Running relay node deploy for: ${relayNodes} ####`);
+          testLogger.info(`#### Running relay node add for: ${relayNodes} ####`);
           this.timeout(Duration.ofMinutes(5).toMillis());
 
           argv.setArg(flags.nodeAliasesUnparsed, relayNodes);
@@ -78,9 +78,9 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
               argv: argv,
               command: RelayCommand.COMMAND_NAME,
               subcommand: RelayCommand.SUBCOMMAND_NAME,
-              action: 'deploy',
+              action: 'add',
               // @ts-expect-error to access private property
-              callback: async (argv: ArgvStruct): Promise<boolean> => relayCommand.deploy(argv),
+              callback: async (argv: ArgvStruct): Promise<boolean> => relayCommand.add(argv),
             });
           } catch (error) {
             logger.showUserError(error);
@@ -102,7 +102,7 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
             logger.showUserError(error);
             expect.fail();
           }
-          testLogger.info(`#### Finished relay node deploy and destroy for: ${relayNodes} ####`);
+          testLogger.info(`#### Finished relay node add and destroy for: ${relayNodes} ####`);
         });
       },
     );

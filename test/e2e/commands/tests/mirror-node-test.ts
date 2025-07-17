@@ -31,7 +31,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     argv.push(
       MirrorNodeCommand.COMMAND_NAME,
       MirrorNodeCommand.SUBCOMMAND_NAME,
-      'deploy',
+      'add',
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.clusterRef),
@@ -196,7 +196,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     }
   }
 
-  public static deploy(options: BaseTestOptions): void {
+  public static add(options: BaseTestOptions): void {
     const {
       testName,
       testLogger,
@@ -210,7 +210,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     } = options;
     const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, verifyPingerStatus} = MirrorNodeTest;
 
-    it(`${testName}: mirror node deploy`, async (): Promise<void> => {
+    it(`${testName}: mirror node add`, async (): Promise<void> => {
       await main(soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger));
       await verifyMirrorNodeDeployWasSuccessful(
         contexts,

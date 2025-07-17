@@ -255,7 +255,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             return this.argvPushGlobalFlags(argv);
           }),
           this.invokeSoloCommand(
-            'solo mirror node deploy',
+            'solo mirror node add',
             MirrorNodeCommand.DEPLOY_COMMAND,
 
             (): string[] => {
@@ -263,7 +263,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
               argv.push(
                 MirrorNodeCommand.COMMAND_NAME,
                 MirrorNodeCommand.SUBCOMMAND_NAME,
-                'deploy',
+                'add',
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,
                 this.optionFromFlag(Flags.clusterRef),
@@ -274,12 +274,12 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
           ),
-          this.invokeSoloCommand('solo explorer node deploy', ExplorerCommand.DEPLOY_COMMAND, (): string[] => {
+          this.invokeSoloCommand('solo explorer node add', ExplorerCommand.DEPLOY_COMMAND, (): string[] => {
             const argv: string[] = this.newArgv();
             argv.push(
               ExplorerCommand.COMMAND_NAME,
               ExplorerCommand.SUBCOMMAND_NAME,
-              'deploy',
+              'add',
               this.optionFromFlag(Flags.deployment),
               config.deployment,
               this.optionFromFlag(Flags.clusterRef),
@@ -287,12 +287,12 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             );
             return this.argvPushGlobalFlags(argv, config.cacheDir);
           }),
-          this.invokeSoloCommand('solo relay node deploy', RelayCommand.DEPLOY_COMMAND, (): string[] => {
+          this.invokeSoloCommand('solo relay node add', RelayCommand.DEPLOY_COMMAND, (): string[] => {
             const argv: string[] = this.newArgv();
             argv.push(
               RelayCommand.COMMAND_NAME,
               RelayCommand.SUBCOMMAND_NAME,
-              'deploy',
+              'add',
               this.optionFromFlag(Flags.deployment),
               config.deployment,
               this.optionFromFlag(Flags.clusterRef),

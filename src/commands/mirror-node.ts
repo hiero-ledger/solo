@@ -106,7 +106,7 @@ interface MirrorNodeDestroyContext {
 
 @injectable()
 export class MirrorNodeCommand extends BaseCommand {
-  public static readonly DEPLOY_COMMAND: string = 'mirror node deploy';
+  public static readonly DEPLOY_COMMAND: string = 'mirror node add';
 
   public constructor(
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
@@ -354,7 +354,7 @@ export class MirrorNodeCommand extends BaseCommand {
     }
   }
 
-  private async deploy(argv: ArgvStruct): Promise<boolean> {
+  private async add(argv: ArgvStruct): Promise<boolean> {
     const self = this;
     let lease: Lock;
 
@@ -992,10 +992,10 @@ export class MirrorNodeCommand extends BaseCommand {
         new CommandGroup(MirrorNodeCommand.SUBCOMMAND_NAME, 'Manage Hedera Mirror Node in solo network')
           .addSubcommand(
             new Subcommand(
-              'deploy',
+              'add',
               'Deploy mirror node and its components',
               this,
-              this.deploy,
+              this.add,
               MirrorNodeCommand.DEPLOY_FLAGS_LIST,
             ),
           )

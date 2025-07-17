@@ -84,7 +84,7 @@ interface ExplorerDestroyContext {
 
 @injectable()
 export class ExplorerCommand extends BaseCommand {
-  public static readonly DEPLOY_COMMAND: string = 'explorer deploy';
+  public static readonly DEPLOY_COMMAND: string = 'explorer add';
 
   public static readonly COMMAND_NAME: 'explorer' = 'explorer' as const;
   public static readonly SUBCOMMAND_NAME: 'node' = 'node' as const;
@@ -220,7 +220,7 @@ export class ExplorerCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private async deploy(argv: ArgvStruct): Promise<boolean> {
+  private async add(argv: ArgvStruct): Promise<boolean> {
     const self = this;
     let lease: Lock;
 
@@ -613,7 +613,7 @@ export class ExplorerCommand extends BaseCommand {
       .addCommandGroup(
         new CommandGroup(ExplorerCommand.SUBCOMMAND_NAME, '')
           .addSubcommand(
-            new Subcommand('deploy', 'Deploy explorer', this, this.deploy, ExplorerCommand.DEPLOY_FLAGS_LIST),
+            new Subcommand('add', 'Deploy explorer', this, this.add, ExplorerCommand.DEPLOY_FLAGS_LIST),
           )
           .addSubcommand(
             new Subcommand('destroy', 'Destroy explorer', this, this.destroy, ExplorerCommand.DESTROY_FLAGS_LIST),

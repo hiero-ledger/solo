@@ -297,7 +297,7 @@ solo consensus node start
 ### 3.5 Deploy mirror node components
 
 ```bash
-solo mirror node deploy
+solo mirror node add
 ```
 
 #### Checkpoint

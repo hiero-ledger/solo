@@ -393,7 +393,7 @@ This is the most memory intensive step from a resource perspective. If you have 
 
 ```bash
 # Deploy with explicit configuration
-solo mirror node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress
+solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress
 ```
 
 Example output:
