@@ -6,7 +6,7 @@ docs/
 *.log
 
 # Ignore tests
-test/
+/test/
 *.spec.ts
 *.test.ts
 
