@@ -131,6 +131,10 @@ npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amo
 npm run solo-test -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version v0.59.5 -q
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
+# Upgrade to v0.61.7
+npm run solo-test -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version v0.61.7 -q
+npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
+
 # Upgrade to latest version
 export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
 npm run solo-test -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q
