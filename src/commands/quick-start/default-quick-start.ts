@@ -63,6 +63,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
       flags.devMode,
       flags.namespace,
       flags.numberOfConsensusNodes,
+      flags.predefinedAccounts,
       flags.quiet,
       // TODO add flag for consensus node version
     ],
@@ -279,6 +280,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           }),
           {
             title: 'Create Accounts',
+            skip: () => config.predefinedAccounts === false,
             task: async (
               context_: QuickStartSingleDeployContext,
               task: SoloListrTaskWrapper<QuickStartSingleDeployContext>,
@@ -347,7 +349,10 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
               this.showQuickStartUserNotes(context_);
               this.showVersions();
               this.showPortForwards();
-              this.showCreatedAccounts(context_.createdAccounts);
+
+              if (context_.config.predefinedAccounts) {
+                this.showCreatedAccounts(context_.createdAccounts);
+              }
 
               return;
             },
