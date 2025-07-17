@@ -2,13 +2,13 @@
 
 import {type KindRequest} from '../kind-request.js';
 import {type KindExecutionBuilder} from '../../execution/kind-execution-builder.js';
-import {type GetKubeconfigOptions} from '../../model/get-kubeconfig/get-kubeconfig-options.js';
+import {type GetKubeConfigOptions} from '../../model/get-kubeconfig/get-kubeconfig-options.js';
 
 /**
  * A request to retrieve kubeconfig data.
  */
-export class GetKubeconfigRequest implements KindRequest {
-  constructor(private readonly options: GetKubeconfigOptions) {}
+export class GetKubeConfigRequest implements KindRequest {
+  constructor(private readonly options: GetKubeConfigOptions) {}
 
   apply(builder: KindExecutionBuilder): void {
     builder.subcommands('get', 'kubeconfig');

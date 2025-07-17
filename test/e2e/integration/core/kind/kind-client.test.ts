@@ -11,9 +11,9 @@ import {container} from 'tsyringe-neo';
 import fs from 'node:fs';
 import path from 'node:path';
 import * as os from 'node:os';
-import {type GetKubeconfigResponse} from '../../../../../src/integration/kind/model/get-kubeconfig/get-kubeconfig-response.js';
+import {type GetKubeConfigResponse} from '../../../../../src/integration/kind/model/get-kubeconfig/get-kubeconfig-response.js';
 import {type GetNodesResponse} from '../../../../../src/integration/kind/model/get-nodes/get-nodes-response.js';
-import {type ExportKubeconfigResponse} from '../../../../../src/integration/kind/model/export-kubeconfig/export-kubeconfig-response.js';
+import {type ExportKubeConfigResponse} from '../../../../../src/integration/kind/model/export-kubeconfig/export-kubeconfig-response.js';
 import {type SemVer} from 'semver';
 import {type ClusterCreateOptions} from '../../../../../src/integration/kind/model/create-cluster/cluster-create-options.js';
 import {type ClusterCreateResponse} from '../../../../../src/integration/kind/model/create-cluster/cluster-create-response.js';
@@ -32,7 +32,7 @@ describe('KindClient Integration Tests', function () {
   let kindPath: string;
   const testClusterName: string = 'test-kind-client';
   const temporaryDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'kind-test-'));
-  let originalKubectlContext: string | null = null;
+  let originalKubeConfigContext: string | null = null;
 
   before(async () => {
     resetForTest();
@@ -40,11 +40,11 @@ describe('KindClient Integration Tests', function () {
     // Save original kubectl context if it exists
     try {
       const {stdout} = await execAsync('kubectl config current-context');
-      originalKubectlContext = stdout.trim();
-      console.log(`Saved original kubectl context: ${originalKubectlContext}`);
+      originalKubeConfigContext = stdout.trim();
+      console.log(`Saved original kubectl context: ${originalKubeConfigContext}`);
     } catch (error) {
       console.log('No kubectl context found or kubectl not available');
-      originalKubectlContext = null;
+      originalKubeConfigContext = null;
     }
 
     // Download and install Kind
@@ -74,10 +74,10 @@ describe('KindClient Integration Tests', function () {
     }
 
     // Restore original kubectl context if it existed
-    if (originalKubectlContext) {
+    if (originalKubeConfigContext) {
       try {
-        console.log(`Restoring original kubectl context: ${originalKubectlContext}`);
-        await execAsync(`kubectl config use-context ${originalKubectlContext}`);
+        console.log(`Restoring original kubectl context: ${originalKubeConfigContext}`);
+        await execAsync(`kubectl config use-context ${originalKubeConfigContext}`);
       } catch (error) {
         console.error('Error restoring kubectl context:', error);
       }
@@ -133,7 +133,7 @@ describe('KindClient Integration Tests', function () {
   });
 
   it('should get kubeconfig', async () => {
-    const response: GetKubeconfigResponse = await kindClient.getKubeconfig(testClusterName);
+    const response: GetKubeConfigResponse = await kindClient.getKubeConfig(testClusterName);
     expect(response).to.not.be.undefined;
     expect(response.config).to.exist;
     expect(response.config.apiVersion).to.eq('v1');
@@ -143,9 +143,9 @@ describe('KindClient Integration Tests', function () {
   });
 
   it('should export kubeconfig', async () => {
-    const response: ExportKubeconfigResponse = await kindClient.exportKubeconfig(testClusterName);
+    const response: ExportKubeConfigResponse = await kindClient.exportKubeConfig(testClusterName);
     expect(response).to.not.be.undefined;
-    expect(response.kubectlContext).to.be.a('string');
+    expect(response.kubeConfigContext).to.be.a('string');
   });
 
   it('should export logs', async () => {

@@ -9,11 +9,11 @@ import {type ClusterCreateOptions} from './model/create-cluster/cluster-create-o
 import {type BuildNodeImagesResponse} from './model/build-node-images/build-node-images-response.js';
 import {type BuildNodeImagesOptions} from './model/build-node-images/build-node-images-options.js';
 import {type ExportLogsResponse} from './model/export-logs/export-logs-response.js';
-import {type ExportKubeconfigResponse} from './model/export-kubeconfig/export-kubeconfig-response.js';
+import {type ExportKubeConfigResponse} from './model/export-kubeconfig/export-kubeconfig-response.js';
 import {type GetNodesOptions} from './model/get-nodes/get-nodes-options.js';
 import {type GetNodesResponse} from './model/get-nodes/get-nodes-response.js';
-import {type GetKubeconfigOptions} from './model/get-kubeconfig/get-kubeconfig-options.js';
-import {type GetKubeconfigResponse} from './model/get-kubeconfig/get-kubeconfig-response.js';
+import {type GetKubeConfigOptions} from './model/get-kubeconfig/get-kubeconfig-options.js';
+import {type GetKubeConfigResponse} from './model/get-kubeconfig/get-kubeconfig-response.js';
 import {type LoadDockerImageOptions} from './model/load-docker-image/load-docker-image-options.js';
 import {type LoadDockerImageResponse} from './model/load-docker-image/load-docker-image-response.js';
 import {type LoadImageArchiveOptions} from './model/load-image-archive/load-image-archive-options.js';
@@ -70,7 +70,7 @@ export interface KindClient {
    * @param clusterName the name of the cluster to export the kubeconfig from. If not provided, the default cluster will be used.
    * @returns the kubeconfig of the cluster.
    */
-  exportKubeconfig(clusterName?: string): Promise<ExportKubeconfigResponse>;
+  exportKubeConfig(clusterName?: string): Promise<ExportKubeConfigResponse>;
 
   /**
    * Returns a list of clusters that are managed by Kind.
@@ -95,7 +95,7 @@ export interface KindClient {
    * @param options the options to use for getting the kubeconfig.
    * @returns the kubeconfig of the cluster.
    */
-  getKubeconfig(contextName?: string, options?: GetKubeconfigOptions): Promise<GetKubeconfigResponse>;
+  getKubeConfig(contextName?: string, options?: GetKubeConfigOptions): Promise<GetKubeConfigResponse>;
 
   /**
    * Loads the specified images into the Kind cluster.

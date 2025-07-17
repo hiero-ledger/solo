@@ -2,13 +2,13 @@
 
 import {type KindRequest} from '../kind-request.js';
 import {type KindExecutionBuilder} from '../../execution/kind-execution-builder.js';
-import {type ExportKubeconfigOptions} from '../../model/export-kubeconfig/export-kubeconfig-options.js';
+import {type ExportKubeConfigOptions} from '../../model/export-kubeconfig/export-kubeconfig-options.js';
 
 /**
  * A request to export the kubectl configuration of a Kind cluster.
  */
-export class ExportKubeconfigRequest implements KindRequest {
-  constructor(private readonly options: ExportKubeconfigOptions) {}
+export class ExportKubeConfigRequest implements KindRequest {
+  constructor(private readonly options: ExportKubeConfigOptions) {}
 
   apply(builder: KindExecutionBuilder): void {
     builder.subcommands('export', 'kubeconfig');

@@ -5,9 +5,9 @@ import sinon, {type SinonSpy} from 'sinon';
 import {DefaultKindClient} from '../../../../../src/integration/kind/impl/default-kind-client.js';
 import {KindExecutionBuilder} from '../../../../../src/integration/kind/execution/kind-execution-builder.js';
 import {KindExecution} from '../../../../../src/integration/kind/execution/kind-execution.js';
-import {ExportKubeconfigResponse} from '../../../../../src/integration/kind/model/export-kubeconfig/export-kubeconfig-response.js';
+import {ExportKubeConfigResponse} from '../../../../../src/integration/kind/model/export-kubeconfig/export-kubeconfig-response.js';
 
-describe('DefaultKindClient - exportKubeconfig', () => {
+describe('DefaultKindClient - exportKubeConfig', () => {
   let client: DefaultKindClient;
   let executionBuilderStub: sinon.SinonStubbedInstance<KindExecutionBuilder>;
   let executionStub: sinon.SinonStubbedInstance<KindExecution>;
@@ -28,24 +28,24 @@ describe('DefaultKindClient - exportKubeconfig', () => {
 
   it('should export kubeconfig and parse the response correctly', async () => {
     const clusterName = 'test-cluster';
-    const kubectlContext = 'kind-test-cluster';
+    const kubeConfigContext = 'kind-test-cluster';
 
     executionStub.responseAs.callsFake((responseClass: any) => {
-      const output = `Set kubectl context to "${kubectlContext}"`;
+      const output = `Set kubectl context to "${kubeConfigContext}"`;
       return Promise.resolve(new responseClass(output));
     });
 
-    const result = await client.exportKubeconfig(clusterName);
+    const result = await client.exportKubeConfig(clusterName);
 
-    expect(result).to.be.instanceOf(ExportKubeconfigResponse);
-    expect(result.kubectlContext).to.equal(kubectlContext);
+    expect(result).to.be.instanceOf(ExportKubeConfigResponse);
+    expect(result.kubeConfigContext).to.equal(kubeConfigContext);
   });
 
   it('should throw if responseAs throws', async () => {
     executionStub.responseAs.rejects(new Error('export kubeconfig failed'));
 
     try {
-      await client.exportKubeconfig('test-cluster');
+      await client.exportKubeConfig('test-cluster');
       expect.fail('Expected error');
     } catch (error) {
       expect((error as Error).message).to.equal('export kubeconfig failed');
@@ -65,7 +65,7 @@ describe('DefaultKindClient - exportKubeconfig', () => {
       'argument',
     );
 
-    await client.exportKubeconfig(clusterName);
+    await client.exportKubeConfig(clusterName);
 
     // Verify subcommands were called correctly
     expect(subcommandsSpy.calledWith('export', 'kubeconfig')).to.be.true;
@@ -87,22 +87,22 @@ describe('DefaultKindClient - exportKubeconfig', () => {
       return Promise.resolve(new responseClass(output));
     });
 
-    const result = await client.exportKubeconfig();
+    const result = await client.exportKubeConfig();
 
     // Response should contain default context name
-    expect(result.kubectlContext).to.equal('kind-kind');
+    expect(result.kubeConfigContext).to.equal('kind-kind');
   });
 
   it('should handle malformed output response', async () => {
     executionStub.responseAs.callsFake((responseClass: any) => {
       // Output missing the expected format
-      const output = 'Kubeconfig exported but no context information provided';
+      const output = 'KubeConfig exported but no context information provided';
       return Promise.resolve(new responseClass(output));
     });
 
-    const result = await client.exportKubeconfig('malformed-output');
+    const result = await client.exportKubeConfig('malformed-output');
 
-    expect(result).to.be.instanceOf(ExportKubeconfigResponse);
-    expect(result.kubectlContext).to.be.undefined;
+    expect(result).to.be.instanceOf(ExportKubeConfigResponse);
+    expect(result.kubeConfigContext).to.be.undefined;
   });
 });

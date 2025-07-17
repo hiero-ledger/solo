@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {ExportKubeconfigOptions} from './export-kubeconfig-options.js';
+import {ExportKubeConfigOptions} from './export-kubeconfig-options.js';
 
-export class ExportKubeconfigOptionsBuilder {
+export class ExportKubeConfigOptionsBuilder {
   private constructor(
     private _name: string = 'kind',
     private _internal: boolean = false,
     private _kubeconfig?: string,
   ) {}
 
-  public static builder(): ExportKubeconfigOptionsBuilder {
-    return new ExportKubeconfigOptionsBuilder();
+  public static builder(): ExportKubeConfigOptionsBuilder {
+    return new ExportKubeConfigOptionsBuilder();
   }
 
   /**
    * Set the name of the cluster (default "kind").
    * @param name
    */
-  public name(name: string): ExportKubeconfigOptionsBuilder {
+  public name(name: string): ExportKubeConfigOptionsBuilder {
     this._name = name;
     return this;
   }
@@ -26,7 +26,7 @@ export class ExportKubeconfigOptionsBuilder {
    * Set whether to use internal or external address (default false).
    * @param internal
    */
-  public internal(internal: boolean): ExportKubeconfigOptionsBuilder {
+  public internal(internal: boolean): ExportKubeConfigOptionsBuilder {
     this._internal = internal;
     return this;
   }
@@ -35,7 +35,7 @@ export class ExportKubeconfigOptionsBuilder {
    * Set the kubeconfig path (default $KUBECONFIG or $HOME/.kube/config).
    * @param kubeconfig
    */
-  public kubeconfig(kubeconfig: string): ExportKubeconfigOptionsBuilder {
+  public kubeconfig(kubeconfig: string): ExportKubeConfigOptionsBuilder {
     this._kubeconfig = kubeconfig;
     return this;
   }
@@ -43,14 +43,14 @@ export class ExportKubeconfigOptionsBuilder {
   /**
    * Build the ExportLogsOptions instance.
    */
-  public build(): ExportKubeconfigOptions {
-    return new ExportKubeconfigOptions(this._name, this._internal, this._kubeconfig);
+  public build(): ExportKubeConfigOptions {
+    return new ExportKubeConfigOptions(this._name, this._internal, this._kubeconfig);
   }
 
-  public static from(options: ExportKubeconfigOptions): ExportKubeconfigOptionsBuilder {
+  public static from(options: ExportKubeConfigOptions): ExportKubeConfigOptionsBuilder {
     if (!options) {
-      return new ExportKubeconfigOptionsBuilder();
+      return new ExportKubeConfigOptionsBuilder();
     }
-    return new ExportKubeconfigOptionsBuilder(options.name, options.internal, options.kubeconfig);
+    return new ExportKubeConfigOptionsBuilder(options.name, options.internal, options.kubeconfig);
   }
 }

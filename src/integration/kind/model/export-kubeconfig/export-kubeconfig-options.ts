@@ -6,7 +6,7 @@ import {type KindExecutionBuilder} from '../../execution/kind-execution-builder.
 /**
  * Options for the `kind export kubeconfig` command.
  */
-export class ExportKubeconfigOptions implements Options {
+export class ExportKubeConfigOptions implements Options {
   /**
    * The name of the cluster context name (default "kind")
    */

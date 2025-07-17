@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type KindKubeconfigUserData} from './kind-kubeconfig-user-data.js';
+import {type KindKubeConfigUserData} from './kind-kubeconfig-user-data.js';
 
-export class KindKubeconfigUser {
+export class KindKubeConfigUser {
   public constructor(
-    public readonly user: KindKubeconfigUserData,
+    public readonly user: KindKubeConfigUserData,
     public readonly name: string,
   ) {}
 }

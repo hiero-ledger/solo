@@ -6,7 +6,7 @@ import {type KindExecutionBuilder} from '../../execution/kind-execution-builder.
 /**
  * Options for the `kind get nodes` command.
  */
-export class GetKubeconfigOptions implements Options {
+export class GetKubeConfigOptions implements Options {
   /**
    * The name of the cluster context name (default "kind")
    */

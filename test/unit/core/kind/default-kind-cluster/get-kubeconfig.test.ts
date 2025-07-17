@@ -3,11 +3,11 @@
 import {expect} from 'chai';
 import sinon from 'sinon';
 import {DefaultKindClient} from '../../../../../src/integration/kind/impl/default-kind-client.js';
-import {GetKubeconfigResponse} from '../../../../../src/integration/kind/model/get-kubeconfig/get-kubeconfig-response.js';
+import {GetKubeConfigResponse} from '../../../../../src/integration/kind/model/get-kubeconfig/get-kubeconfig-response.js';
 import {type KindExecution} from '../../../../../src/integration/kind/execution/kind-execution.js';
-import {type GetKubeconfigOptions} from '../../../../../src/integration/kind/model/get-kubeconfig/get-kubeconfig-options.js';
+import {type GetKubeConfigOptions} from '../../../../../src/integration/kind/model/get-kubeconfig/get-kubeconfig-options.js';
 
-describe('DefaultKindClient - getKubeconfig', () => {
+describe('DefaultKindClient - getKubeConfig', () => {
   let client: DefaultKindClient;
   let mockExecution: KindExecution;
 
@@ -17,7 +17,7 @@ describe('DefaultKindClient - getKubeconfig', () => {
     // Mock the KindExecution that will be returned from the builder
     mockExecution = {
       // @ts-expect-error TS2554: Expected 0 arguments, but got 1
-      responseAs: sinon.stub().resolves(new GetKubeconfigResponse(getSampleKubeconfig())),
+      responseAs: sinon.stub().resolves(new GetKubeConfigResponse(getSampleKubeConfig())),
     } as unknown as KindExecution;
 
     // @ts-ignore - Replace the constructor
@@ -31,32 +31,32 @@ describe('DefaultKindClient - getKubeconfig', () => {
   });
 
   it('should get kubeconfig with default parameters', async () => {
-    const result: GetKubeconfigResponse = await client.getKubeconfig();
+    const result: GetKubeConfigResponse = await client.getKubeConfig();
 
-    expect(result).to.be.instanceOf(GetKubeconfigResponse);
+    expect(result).to.be.instanceOf(GetKubeConfigResponse);
     expect(result.config).to.not.be.undefined;
     expect(result.rawOutput).to.include('apiVersion: v1');
   });
 
   it('should get kubeconfig for a specified cluster name', async () => {
-    const result: GetKubeconfigResponse = await client.getKubeconfig('test-cluster');
+    const result: GetKubeConfigResponse = await client.getKubeConfig('test-cluster');
 
-    expect(result).to.be.instanceOf(GetKubeconfigResponse);
+    expect(result).to.be.instanceOf(GetKubeConfigResponse);
   });
 
   it('should get kubeconfig with internal flag set', async () => {
-    const options: GetKubeconfigOptions = {
+    const options: GetKubeConfigOptions = {
       name: 'test-cluster',
       internal: true,
-    } as GetKubeconfigOptions;
+    } as GetKubeConfigOptions;
 
-    const result = await client.getKubeconfig('test-cluster', options);
+    const result = await client.getKubeConfig('test-cluster', options);
 
-    expect(result).to.be.instanceOf(GetKubeconfigResponse);
+    expect(result).to.be.instanceOf(GetKubeConfigResponse);
   });
 
   it('should parse kubeconfig data correctly', async () => {
-    const result = await client.getKubeconfig();
+    const result = await client.getKubeConfig();
 
     expect(result.config).to.not.be.undefined;
     expect(result.config.apiVersion).to.equal('v1');
@@ -69,7 +69,7 @@ describe('DefaultKindClient - getKubeconfig', () => {
   it('should handle error when parsing invalid YAML', async () => {
     try {
       // @ts-expect-error TS2554: Expected 0 arguments, but got 1
-      new GetKubeconfigResponse('invalid: yaml: {');
+      new GetKubeConfigResponse('invalid: yaml: {');
       expect.fail('Expected error to be thrown');
     } catch (error) {
       expect(error).to.be.instanceOf(Error);
@@ -78,7 +78,7 @@ describe('DefaultKindClient - getKubeconfig', () => {
   });
 
   // Helper function to generate a sample kubeconfig YAML response
-  function getSampleKubeconfig(): string {
+  function getSampleKubeConfig(): string {
     return `apiVersion: v1
 clusters:
 - cluster:
