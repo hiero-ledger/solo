@@ -63,7 +63,7 @@ export class DeploymentCommand extends BaseCommand {
   public static readonly SUBCOMMAND_NAME: 'config' = 'config' as const;
 
   public static readonly CREATE_COMMAND: string = 'deployment config create';
-  public static readonly ADD_COMMAND: string = 'deployment config add-cluster';
+  public static readonly ADD_COMMAND: string = 'deployment config attach';
 
   public constructor(
     @inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks,
@@ -420,8 +420,8 @@ export class DeploymentCommand extends BaseCommand {
           )
           .addSubcommand(
             new Subcommand(
-              'add-cluster',
-              'Adds cluster to solo deployments',
+              'attach',
+              'Attach cluster to solo deployments',
               this,
               this.addCluster,
               DeploymentCommand.ADD_CLUSTER_FLAGS_LIST,
@@ -434,7 +434,7 @@ export class DeploymentCommand extends BaseCommand {
   public async close(): Promise<void> {} // no-op
 
   /**
-   * Initializes and populates the config and context for 'deployment add-cluster'
+   * Initializes and populates the config and context for 'deployment config attach'
    */
   public initializeClusterAddConfig(argv: ArgvStruct): SoloListrTask<DeploymentAddClusterContext> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment

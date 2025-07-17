@@ -119,12 +119,12 @@ describe('NetworkCommand', function networkCommand() {
     configManager.update(argv.build());
   });
 
-  it('cluster-ref add-cluster should succeed', async () => {
+  it('cluster-ref config attach should succeed', async () => {
     await commandInvoker.invoke({
       argv: argv,
       command: DeploymentCommand.COMMAND_NAME,
       subcommand: DeploymentCommand.SUBCOMMAND_NAME,
-      action: 'add-cluster',
+      action: 'attach',
       callback: async (argv): Promise<boolean> => deploymentCmd.addCluster(argv),
     });
 

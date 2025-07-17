@@ -249,8 +249,8 @@ $SOLO_DEPLOYMENT_CREATE_OUTPUT
 
 ```bash
 # Add a cluster to the deployment you created
-solo deployment config add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
-# If the command line command is unresponsive there's also a handy cluster add configurator you can run `solo deployment config add-cluster` without any arguments to get a guided setup.
+solo deployment config attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
+# If the command line command is unresponsive there's also a handy cluster add configurator you can run `solo deployment config attach` without any arguments to get a guided setup.
 ```
 
 Example output:

@@ -393,12 +393,12 @@ export function endToEndTestSuite(
         });
       });
 
-      it("should succeed with 'deployment add-cluster'", async (): Promise<void> => {
+      it("should succeed with 'deployment config attach'", async (): Promise<void> => {
         await commandInvoker.invoke({
           argv: argv,
           command: DeploymentCommand.COMMAND_NAME,
           subcommand: DeploymentCommand.SUBCOMMAND_NAME,
-          action: 'add-cluster',
+          action: 'attach',
           callback: async (argv): Promise<boolean> => deploymentCmd.addCluster(argv),
         });
       });

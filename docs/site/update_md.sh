@@ -45,8 +45,8 @@ export SOLO_CLUSTER_REF_CONNECT_OUTPUT=$( cat ${BUILD_DIR}/cluster-ref-connect.l
 solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/deployment-create.log
 export SOLO_DEPLOYMENT_CREATE_OUTPUT=$( cat ${BUILD_DIR}/deployment-create.log | tee ${BUILD_DIR}/test.log )
 
-solo deployment config add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1 | tee ${BUILD_DIR}/deployment-add-cluster.log
-export SOLO_DEPLOYMENT_ADD_CLUSTER_OUTPUT=$( cat ${BUILD_DIR}/deployment-add-cluster.log | tee ${BUILD_DIR}/test.log )
+solo deployment config attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1 | tee ${BUILD_DIR}/deployment-attach.log
+export SOLO_DEPLOYMENT_ADD_CLUSTER_OUTPUT=$( cat ${BUILD_DIR}/deployment-attach.log | tee ${BUILD_DIR}/test.log )
 
 solo consensus node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/keys.log
 export SOLO_NODE_KEY_PEM_OUTPUT=$( cat ${BUILD_DIR}/keys.log | tee ${BUILD_DIR}/test.log )

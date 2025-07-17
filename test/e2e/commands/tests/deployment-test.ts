@@ -65,7 +65,7 @@ export class DeploymentTest extends BaseCommandTest {
     argv.push(
       DeploymentCommand.COMMAND_NAME,
       DeploymentCommand.SUBCOMMAND_NAME,
-      'add-cluster',
+      'attach',
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.clusterRef),
@@ -81,8 +81,8 @@ export class DeploymentTest extends BaseCommandTest {
     const {testName, testLogger, deployment, clusterReferenceNameArray, consensusNodesCount} = options;
     const {soloDeploymentAddClusterArgv} = DeploymentTest;
 
-    it(`${testName}: solo deployment config add-cluster`, async (): Promise<void> => {
-      testLogger.info(`${testName}: beginning solo deployment config add-cluster`);
+    it(`${testName}: solo deployment config attach`, async (): Promise<void> => {
+      testLogger.info(`${testName}: beginning solo deployment config attach`);
       for (const element of clusterReferenceNameArray) {
         await main(soloDeploymentAddClusterArgv(testName, deployment, element, 1));
       }
@@ -96,7 +96,7 @@ export class DeploymentTest extends BaseCommandTest {
       for (const [index, element] of clusterReferenceNameArray.entries()) {
         expect(consensusNodes[index].metadata.cluster).to.equal(element);
       }
-      testLogger.info(`${testName}: finished solo deployment config add-cluster`);
+      testLogger.info(`${testName}: finished solo deployment config attach`);
     });
   }
 }

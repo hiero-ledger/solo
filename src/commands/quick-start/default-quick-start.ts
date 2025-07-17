@@ -177,12 +177,12 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             );
             return this.argvPushGlobalFlags(argv);
           }),
-          this.invokeSoloCommand('solo deployment config add-cluster', DeploymentCommand.ADD_COMMAND, (): string[] => {
+          this.invokeSoloCommand('solo deployment config attach', DeploymentCommand.ADD_COMMAND, (): string[] => {
             const argv: string[] = this.newArgv();
             argv.push(
               DeploymentCommand.COMMAND_NAME,
               DeploymentCommand.SUBCOMMAND_NAME,
-              'add-cluster',
+              'attach',
               this.optionFromFlag(Flags.deployment),
               config.deployment,
               this.optionFromFlag(Flags.clusterRef),
