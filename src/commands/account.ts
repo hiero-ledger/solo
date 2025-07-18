@@ -68,9 +68,6 @@ export class AccountCommand extends BaseCommand {
     this.systemAccounts = patchInject(systemAccounts, InjectTokens.SystemAccounts, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME: 'ledger' = 'ledger' as const;
-  public static readonly SUBCOMMAND_NAME: 'account' = 'account' as const;
-
   public static INIT_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.deployment, flags.nodeAliasesUnparsed, flags.clusterRef],
@@ -755,10 +752,6 @@ export class AccountCommand extends BaseCommand {
     }
 
     return true;
-  }
-
-  public getCommandDefinition(): CommandDefinition {
-    return new CommandBuilder(AccountCommand.COMMAND_NAME, 'List of ledger related commands', this.logger).build();
   }
 
   public close(): Promise<void> {

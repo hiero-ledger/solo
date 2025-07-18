@@ -27,9 +27,6 @@ export class NodeCommand extends BaseCommand {
     this._portForwards = [];
   }
 
-  public static readonly COMMAND_NAME: 'consensus' = 'consensus' as const;
-  public static readonly SUBCOMMAND_NAME: 'node' = 'node' as const;
-
   /**
    * stops and closes the port forwards
    * - calls the accountManager.close()

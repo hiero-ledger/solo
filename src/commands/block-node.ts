@@ -101,9 +101,6 @@ export class BlockNodeCommand extends BaseCommand {
     super();
   }
 
-  public static readonly COMMAND_NAME: 'block' = 'block' as const;
-  public static readonly SUBCOMMAND_NAME: 'node' = 'node' as const;
-
   private static readonly ADD_CONFIGS_NAME: string = 'addConfigs';
 
   private static readonly DESTROY_CONFIGS_NAME: string = 'destroyConfigs';
@@ -674,25 +671,6 @@ export class BlockNodeCommand extends BaseCommand {
         displayHealthcheckCallback(attempt, maxAttempts, 'green', 'success');
       },
     };
-  }
-
-  public getCommandDefinition(): CommandDefinition {
-    return new CommandBuilder(
-      BlockNodeCommand.COMMAND_NAME,
-      'Manage block related components in solo network',
-      this.logger,
-    )
-      .addCommandGroup(
-        new CommandGroup(BlockNodeCommand.SUBCOMMAND_NAME, 'Manage block nodes in solo network')
-          .addSubcommand(new Subcommand('add', 'Add block node', this, this.add, BlockNodeCommand.ADD_FLAGS_LIST))
-          .addSubcommand(
-            new Subcommand('destroy', 'destroy block node', this, this.destroy, BlockNodeCommand.DESTROY_FLAGS_LIST),
-          )
-          .addSubcommand(
-            new Subcommand('upgrade', 'upgrade block node', this, this.upgrade, BlockNodeCommand.UPGRADE_FLAGS_LIST),
-          ),
-      )
-      .build();
   }
 
   public async close(): Promise<void> {} // no-op

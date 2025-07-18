@@ -35,8 +35,6 @@ import {NodeCommand} from '../node/index.js';
 
 @injectable()
 export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
-  public static readonly COMMAND_NAME: string = 'quick-start';
-
   private static readonly SINGLE_ADD_CONFIGS_NAME: string = 'singleAddConfigs';
 
   private static readonly SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';

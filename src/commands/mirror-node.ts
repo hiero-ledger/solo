@@ -52,7 +52,6 @@ import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import * as semver from 'semver';
 import {Base64} from 'js-base64';
 import {Lock} from '../core/lock/lock.js';
-import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 
 interface MirrorNodeDeployConfigClass {
   isChartInstalled: boolean;
@@ -118,9 +117,6 @@ export class MirrorNodeCommand extends BaseCommand {
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
   }
-
-  public static readonly COMMAND_NAME: 'mirror' = 'mirror' as const;
-  public static readonly SUBCOMMAND_NAME: 'node' = 'node' as const;
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
@@ -980,10 +976,6 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     return true;
-  }
-
-  public getCommandDefinition(): CommandDefinition {
-    return new CommandBuilder(MirrorNodeCommand.COMMAND_NAME, '', this.logger).build();
   }
 
   /** Removes the mirror node components from remote config. */

@@ -94,9 +94,6 @@ export class RelayCommand extends BaseCommand {
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME: 'relay' = 'relay' as const;
-  public static readonly SUBCOMMAND_NAME: 'node' = 'node' as const;
-
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
   private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
@@ -559,20 +556,6 @@ export class RelayCommand extends BaseCommand {
     }
 
     return true;
-  }
-
-  public getCommandDefinition(): CommandDefinition {
-    return new CommandBuilder(RelayCommand.COMMAND_NAME, 'Manage JSON RPC relays in solo network', this.logger)
-      .addCommandGroup(
-        new CommandGroup(RelayCommand.SUBCOMMAND_NAME, '')
-          .addSubcommand(
-            new Subcommand('add', 'Deploy a JSON RPC relay', this, this.add, RelayCommand.DEPLOY_FLAGS_LIST),
-          )
-          .addSubcommand(
-            new Subcommand('destroy', 'Destroy JSON RPC relay', this, this.destroy, RelayCommand.DESTROY_FLAGS_LIST),
-          ),
-      )
-      .build();
   }
 
   /** Adds the relay component to remote config. */

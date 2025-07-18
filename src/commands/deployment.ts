@@ -59,9 +59,6 @@ export interface DeploymentAddClusterContext {
 
 @injectable()
 export class DeploymentCommand extends BaseCommand {
-  public static readonly COMMAND_NAME: 'deployment' = 'deployment' as const;
-  public static readonly SUBCOMMAND_NAME: 'config' = 'config' as const;
-
   public static readonly CREATE_COMMAND: string = 'deployment config create';
   public static readonly ADD_COMMAND: string = 'deployment config attach';
 
@@ -385,10 +382,6 @@ export class DeploymentCommand extends BaseCommand {
     }
 
     return true;
-  }
-
-  public getCommandDefinition(): CommandDefinition {
-    return new CommandBuilder(DeploymentCommand.COMMAND_NAME, 'Manage Solo Network Deployment', this.logger).build();
   }
 
   public async close(): Promise<void> {} // no-op

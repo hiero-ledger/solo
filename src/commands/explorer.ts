@@ -84,10 +84,7 @@ interface ExplorerDestroyContext {
 
 @injectable()
 export class ExplorerCommand extends BaseCommand {
-  public static readonly DEPLOY_COMMAND: string = 'explorer add';
-
-  public static readonly COMMAND_NAME: 'explorer' = 'explorer' as const;
-  public static readonly SUBCOMMAND_NAME: 'node' = 'node' as const;
+  public static readonly DEPLOY_COMMAND: string = 'explorer node add';
 
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
@@ -606,18 +603,6 @@ export class ExplorerCommand extends BaseCommand {
     }
 
     return true;
-  }
-
-  public getCommandDefinition(): CommandDefinition {
-    return new CommandBuilder(ExplorerCommand.COMMAND_NAME, 'Manage Explorer in solo network', this.logger)
-      .addCommandGroup(
-        new CommandGroup(ExplorerCommand.SUBCOMMAND_NAME, '')
-          .addSubcommand(new Subcommand('add', 'Deploy explorer', this, this.add, ExplorerCommand.DEPLOY_FLAGS_LIST))
-          .addSubcommand(
-            new Subcommand('destroy', 'Destroy explorer', this, this.destroy, ExplorerCommand.DESTROY_FLAGS_LIST),
-          ),
-      )
-      .build();
   }
 
   private loadRemoteConfigTask(argv: ArgvStruct): SoloListrTask<AnyListrContext> {
