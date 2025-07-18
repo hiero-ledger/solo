@@ -18,7 +18,7 @@ function clone_smart_contract_repo ()
     echo "Directory hedera-smart-contracts exists."
   else
     echo "Directory hedera-smart-contracts does not exist."
-    git clone https://github.com/hashgraph/hedera-smart-contracts --branch only-erc20-tests-v2
+    git clone https://github.com/hashgraph/hedera-smart-contracts --branch only-erc20-tests-v3
   fi
 }
 
