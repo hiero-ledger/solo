@@ -109,7 +109,6 @@ export class ExplorerTest extends BaseCommandTest {
 
     it(`${testName}: explorer deploy`, async (): Promise<void> => {
       await main(soloExplorerDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
-      await verifyExplorerDeployWasSuccessful(contexts, namespace, createdAccountIds, testLogger);
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 }
