@@ -96,7 +96,6 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
           command: BlockNodeCommand.COMMAND_NAME,
           subcommand: BlockNodeCommand.SUBCOMMAND_NAME,
           action: 'add',
-          // @ts-expect-error to access private property
           callback: async (argv: ArgvStruct): Promise<boolean> => blockNodeCommand.add(argv),
         });
 
@@ -114,7 +113,6 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
         command: BlockNodeCommand.COMMAND_NAME,
         subcommand: BlockNodeCommand.SUBCOMMAND_NAME,
         action: 'add',
-        // @ts-expect-error to access private property
         callback: async (argv: {_: string[]} & Record<string, any>): Promise<boolean> => blockNodeCommand.add(argv),
       });
 
@@ -157,7 +155,6 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
         command: BlockNodeCommand.COMMAND_NAME,
         subcommand: BlockNodeCommand.SUBCOMMAND_NAME,
         action: 'destroy',
-        // @ts-expect-error to access private property
         callback: async (argv: {_: string[]} & Record<string, any>): Promise<boolean> => blockNodeCommand.destroy(argv),
       });
 

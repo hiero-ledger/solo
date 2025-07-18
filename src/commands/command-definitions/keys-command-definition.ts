@@ -8,6 +8,7 @@ import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-
 import {NodeCommand} from '../node/index.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
+import * as NodeFlags from '../node/flags.js';
 
 export class KeysCommandDefinition extends BaseCommandDefinition {
   public constructor(
@@ -27,12 +28,19 @@ export class KeysCommandDefinition extends BaseCommandDefinition {
     'Generate unique cryptographic keys (gossip or grpc TLS keys) for the Consensus Node instances.';
 
   public getCommandDefinition(): CommandDefinition {
-    /// Generates TLS keys required for consensus node communication.
     return new CommandBuilder(KeysCommandDefinition.COMMAND_NAME, KeysCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(
         new CommandGroup(
           KeysCommandDefinition.CONSENSUS_SUBCOMMAND_NAME,
           KeysCommandDefinition.CONSENSUS_SUBCOMMAND_DESCRIPTION,
+        ).addSubcommand(
+          new Subcommand(
+            'generate',
+            'Generates TLS keys required for consensus node communication.',
+            this.nodeCommand.handlers,
+            this.nodeCommand.handlers.keys,
+            NodeFlags.KEYS_FLAGS,
+          ),
         ),
       )
       .build();

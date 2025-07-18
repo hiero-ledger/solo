@@ -229,13 +229,4 @@ export abstract class BaseCommand extends ShellRunner {
 
     return directories;
   }
-
-  public setupHomeDirectoryTask() {
-    return {
-      tile: 'Setup home directory',
-      task: async () => {
-        this.setupHomeDirectory();
-      },
-    };
-  }
 }

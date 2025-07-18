@@ -38,7 +38,6 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
     'Transfer native crypto tokens or query native token account balances.';
 
   public getCommandDefinition(): CommandDefinition {
-    /// Generates TLS keys required for consensus node communication.
     return new CommandBuilder(LedgerCommandDefinition.COMMAND_NAME, LedgerCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(
         new CommandGroup(

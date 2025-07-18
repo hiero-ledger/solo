@@ -184,15 +184,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'keys',
-              'Generate node keys',
-              this.nodeCommand.handlers,
-              this.nodeCommand.handlers.keys,
-              NodeFlags.KEYS_FLAGS,
-            ),
-          )
-          .addSubcommand(
-            new Subcommand(
               'refresh',
               'Reset and restart a node',
               this.nodeCommand.handlers,

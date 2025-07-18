@@ -92,15 +92,6 @@ export class CommandHandler {
     return directories;
   }
 
-  public setupHomeDirectoryTask() {
-    return {
-      title: 'Setup home directory',
-      task: async () => {
-        this.setupHomeDirectory();
-      },
-    };
-  }
-
   public getUnusedConfigs(configName: string): string[] {
     return this._configMaps.get(configName).getUnusedConfigs();
   }
