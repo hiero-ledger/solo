@@ -35,7 +35,7 @@ solo cluster setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 solo node keys --gossip-keys --tls-keys -i node1,node2
 solo deployment create -i node1,node2 -n "${SOLO_NAMESPACE}" --context kind-"${SOLO_CLUSTER_NAME}" --email john@doe.com --deployment-clusters kind-"${SOLO_CLUSTER_NAME}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --deployment "${SOLO_DEPLOYMENT}"
 
-export CONSENSUS_NODE_VERSION=v0.58.10
+export CONSENSUS_NODE_VERSION=v0.61.7
 # Use custom settings file for the deployment to avoid too many state saved in disk causing the no space left on device error
 solo network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --settings-txt .github/workflows/support/v58-test/settings.txt
 solo node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
@@ -132,21 +132,7 @@ npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amo
 echo "::endgroup::"
 
 echo "::group::Upgrade Consensus Node"
-# Upgrade to v0.59.5
-npm run solo-test -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version v0.59.5 -q
-npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
-
-
-# Upgrade to v0.61.7
-npm run solo-test -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version v0.61.7 -q
-npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
-
 # Upgrade to latest version	# Upgrade to latest version
-export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
-npm run solo-test -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q
-npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
-
-# Upgrade to latest version
 export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
 npm run solo-test -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
