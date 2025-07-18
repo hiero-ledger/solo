@@ -102,7 +102,7 @@ export class ExplorerCommand extends BaseCommand {
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
-  private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
+  public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.cacheDir,
@@ -129,7 +129,7 @@ export class ExplorerCommand extends BaseCommand {
     ],
   };
 
-  private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.deployment],
   };
@@ -220,7 +220,7 @@ export class ExplorerCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private async add(argv: ArgvStruct): Promise<boolean> {
+  public async add(argv: ArgvStruct): Promise<boolean> {
     const self = this;
     let lease: Lock;
 
@@ -501,7 +501,7 @@ export class ExplorerCommand extends BaseCommand {
     return true;
   }
 
-  private async destroy(argv: ArgvStruct): Promise<boolean> {
+  public async destroy(argv: ArgvStruct): Promise<boolean> {
     const self = this;
     let lease: Lock;
 

@@ -110,7 +110,7 @@ export class BlockNodeCommand extends BaseCommand {
 
   private static readonly UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
 
-  private static readonly ADD_FLAGS_LIST: CommandFlags = {
+  public static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.blockNodeChartVersion,
@@ -127,12 +127,12 @@ export class BlockNodeCommand extends BaseCommand {
     ],
   };
 
-  private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.chartDirectory, flags.clusterRef, flags.deployment, flags.devMode, flags.force, flags.quiet],
   };
 
-  private static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
+  public static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
     required: [flags.upgradeVersion],
     optional: [flags.chartDirectory, flags.clusterRef, flags.deployment, flags.devMode, flags.force, flags.quiet],
   };
@@ -180,7 +180,7 @@ export class BlockNodeCommand extends BaseCommand {
     );
   }
 
-  private async add(argv: ArgvStruct): Promise<boolean> {
+  public async add(argv: ArgvStruct): Promise<boolean> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
     let lease: Lock;
@@ -356,7 +356,7 @@ export class BlockNodeCommand extends BaseCommand {
     return true;
   }
 
-  private async destroy(argv: ArgvStruct): Promise<boolean> {
+  public async destroy(argv: ArgvStruct): Promise<boolean> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
     let lease: Lock;
@@ -467,7 +467,7 @@ export class BlockNodeCommand extends BaseCommand {
     return true;
   }
 
-  private async upgrade(argv: ArgvStruct): Promise<boolean> {
+  public async upgrade(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
     const tasks: Listr<BlockNodeUpgradeContext> = new Listr<BlockNodeUpgradeContext>(
