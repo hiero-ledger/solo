@@ -37,7 +37,7 @@ solo deployment create -i node1,node2 -n "${SOLO_NAMESPACE}" --context kind-"${S
 
 export CONSENSUS_NODE_VERSION=v0.61.7
 # Use custom settings file for the deployment to avoid too many state saved in disk causing the no space left on device error
-solo network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q
+solo network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --settings-txt .github/workflows/support/v58-test/settings.txt
 solo node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
 solo node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
