@@ -37,6 +37,11 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
   public static readonly CRYPTO_SUBCOMMAND_DESCRIPTION: string =
     'Transfer native crypto tokens or query native token account balances.';
 
+  public static readonly LEDGER_ACCOUNT_INIT: string = 'init';
+  public static readonly LEDGER_ACCOUNT_UPDATE: string = 'update';
+  public static readonly LEDGER_ACCOUNT_CREATE: string = 'create';
+  public static readonly LEDGER_ACCOUNT_INFO: string = 'info';
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(LedgerCommandDefinition.COMMAND_NAME, LedgerCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(
@@ -46,7 +51,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
         )
           .addSubcommand(
             new Subcommand(
-              'init',
+              LedgerCommandDefinition.LEDGER_ACCOUNT_INIT,
               'Lists all ledger accounts.',
               this,
               this.accountCommand.init,
@@ -55,7 +60,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'update',
+              LedgerCommandDefinition.LEDGER_ACCOUNT_UPDATE,
               'Updates an existing ledger account.',
               this,
               this.accountCommand.update,
@@ -64,7 +69,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'create',
+              LedgerCommandDefinition.LEDGER_ACCOUNT_CREATE,
               'Creates a new ledger account.',
               this,
               this.accountCommand.create,
@@ -73,7 +78,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'get',
+              LedgerCommandDefinition.LEDGER_ACCOUNT_INFO,
               'Gets the account info including the current amount of HBAR',
               this,
               this.accountCommand.get,

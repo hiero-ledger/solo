@@ -28,6 +28,10 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
   public static readonly BLOCK_NODE_SUBCOMMAND_DESCRIPTION: string =
     'Create, manage, or destroy block node instances. Operates on a single block node instance at a time.';
 
+  public static readonly BLOCK_NODE_ADD: string = 'add';
+  public static readonly BLOCK_NODE_DESTROY: string = 'destroy';
+  public static readonly BLOCK_NODE_UPGRADE: string = 'upgrade';
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(BlockCommandDefinition.COMMAND_NAME, BlockCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(
@@ -37,7 +41,7 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
         )
           .addSubcommand(
             new Subcommand(
-              'add',
+              BlockCommandDefinition.BLOCK_NODE_ADD,
               'Creates and configures a new block node instance for the specified ' +
                 'deployment using the specified Kubernetes cluster. ' +
                 'The cluster must be accessible and attached to the specified deployment.',
@@ -48,7 +52,7 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'destroy',
+              BlockCommandDefinition.BLOCK_NODE_DESTROY,
               'Destroys a single block node instance in the specified deployment. ' +
                 'Requires access to all Kubernetes clusters attached to the deployment.',
               this.blockNodeCommand,
@@ -58,7 +62,7 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'upgrade',
+              BlockCommandDefinition.BLOCK_NODE_UPGRADE,
               'Upgrades a single block node instance in the specified deployment. ' +
                 'Requires access to all Kubernetes clusters attached to the deployment.',
               this.blockNodeCommand,

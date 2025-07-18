@@ -29,6 +29,9 @@ export class ExplorerCommandDefinition extends BaseCommandDefinition {
     'List, create, manage, or destroy explorer node instances. ' +
     'Operates on a single explorer node instance at a time.';
 
+  public static readonly EXPLORER_NODE_ADD: string = 'add';
+  public static readonly EXPLORER_NODE_DESTROY: string = 'destroy';
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
       ExplorerCommandDefinition.COMMAND_NAME,
@@ -42,7 +45,7 @@ export class ExplorerCommandDefinition extends BaseCommandDefinition {
         )
           .addSubcommand(
             new Subcommand(
-              'add',
+              ExplorerCommandDefinition.EXPLORER_NODE_ADD,
               'Adds and configures a new node instance.',
               this.explorerCommand,
               this.explorerCommand.add,
@@ -51,7 +54,7 @@ export class ExplorerCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'destroy',
+              ExplorerCommandDefinition.EXPLORER_NODE_DESTROY,
               'Deletes the specified node from the deployment.',
               this.explorerCommand,
               this.explorerCommand.destroy,

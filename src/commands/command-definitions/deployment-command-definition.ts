@@ -37,6 +37,12 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
     'View the actual state of the deployment on the Kubernetes clusters or ' +
     'teardown/destroy all remote and local configuration for a given deployment.';
 
+  public static readonly DEPLOYMENT_CLUSTER_ATTACH: string = 'attach';
+
+  public static readonly DEPLOYMENT_CONFIGS_LIST: string = 'list';
+  public static readonly DEPLOYMENT_CONFIGS_CREATE: string = 'create';
+  public static readonly DEPLOYMENT_CONFIGS_DELETE: string = 'delete';
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
       DeploymentCommandDefinition.COMMAND_NAME,
@@ -49,7 +55,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
           DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_DESCRIPTION,
         ).addSubcommand(
           new Subcommand(
-            'attach',
+            DeploymentCommandDefinition.DEPLOYMENT_CLUSTER_ATTACH,
             'Attaches a cluster reference to a deployment.',
             this,
             this.deploymentCommand.addCluster,
@@ -64,7 +70,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
         )
           .addSubcommand(
             new Subcommand(
-              'list',
+              DeploymentCommandDefinition.DEPLOYMENT_CONFIGS_LIST,
               'Lists all local deployment configurations.',
               this.deploymentCommand,
               this.deploymentCommand.list,
@@ -73,7 +79,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'create',
+              DeploymentCommandDefinition.DEPLOYMENT_CONFIGS_CREATE,
               'Creates a new local deployment configuration.',
               this.deploymentCommand,
               this.deploymentCommand.create,
@@ -82,7 +88,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'delete',
+              DeploymentCommandDefinition.DEPLOYMENT_CONFIGS_DELETE,
               'Removes a local deployment configuration.',
               this.deploymentCommand,
               this.deploymentCommand.delete,

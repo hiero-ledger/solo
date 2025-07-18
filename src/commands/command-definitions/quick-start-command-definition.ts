@@ -34,6 +34,9 @@ export class QuickStartCommandDefinition extends BaseCommandDefinition {
     'Creates a uniquely named deployment with a four consensus nodes, ' +
     'a single mirror node, a single block node, a single relay node, and a single explorer node.';
 
+  public static readonly QUICK_START_SINGLE_DEPLOY: string = 'deploy';
+  public static readonly QUICK_START_SINGLE_DESTROY: string = 'destroy';
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
       QuickStartCommandDefinition.COMMAND_NAME,
@@ -47,7 +50,7 @@ export class QuickStartCommandDefinition extends BaseCommandDefinition {
         )
           .addSubcommand(
             new Subcommand(
-              'deploy',
+              QuickStartCommandDefinition.QUICK_START_SINGLE_DEPLOY,
               'Deploys all required components for the selected quick start configuration.',
               this,
               this.quickStartCommand.deploy,
@@ -56,7 +59,7 @@ export class QuickStartCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'destroy',
+              QuickStartCommandDefinition.QUICK_START_SINGLE_DESTROY,
               'Removes the deployed resources for the selected quick start configuration.',
               this,
               this.quickStartCommand.destroy,

@@ -24,20 +24,23 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
     'Mirror Node operations for creating, modifying, and destroying resources. ' +
     'These commands require the presence of an existing deployment.';
 
-  public static readonly CONSENSUS_SUBCOMMAND_NAME: string = 'node';
-  public static readonly CONSENSUS_SUBCOMMAND_DESCRIPTION: string =
+  public static readonly NODE_SUBCOMMAND_NAME: string = 'node';
+  public static readonly NODE_SUBCOMMAND_DESCRIPTION: string =
     'List, create, manage, or destroy mirror node instances. Operates on a single mirror node instance at a time.';
+
+  public static readonly MIRROR_NODE_ADD: string = 'deploy';
+  public static readonly MIRROR_NODE_DESTROY: string = 'destroy';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(MirrorCommandDefinition.COMMAND_NAME, MirrorCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(
         new CommandGroup(
-          MirrorCommandDefinition.CONSENSUS_SUBCOMMAND_NAME,
-          MirrorCommandDefinition.CONSENSUS_SUBCOMMAND_DESCRIPTION,
+          MirrorCommandDefinition.NODE_SUBCOMMAND_NAME,
+          MirrorCommandDefinition.NODE_SUBCOMMAND_DESCRIPTION,
         )
           .addSubcommand(
             new Subcommand(
-              'add',
+              MirrorCommandDefinition.MIRROR_NODE_ADD,
               'Adds and configures a new node instance.',
               this,
               this.mirrorNodeCommand.add,
@@ -46,7 +49,7 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'destroy',
+              MirrorCommandDefinition.MIRROR_NODE_DESTROY,
               'Deletes the specified node from the deployment.',
               this,
               this.mirrorNodeCommand.destroy,

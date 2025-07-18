@@ -27,6 +27,8 @@ export class KeysCommandDefinition extends BaseCommandDefinition {
   public static readonly CONSENSUS_SUBCOMMAND_DESCRIPTION: string =
     'Generate unique cryptographic keys (gossip or grpc TLS keys) for the Consensus Node instances.';
 
+  public static readonly KEYS_CONSENSUS_GENERATE: string = 'generate';
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(KeysCommandDefinition.COMMAND_NAME, KeysCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(
@@ -35,7 +37,7 @@ export class KeysCommandDefinition extends BaseCommandDefinition {
           KeysCommandDefinition.CONSENSUS_SUBCOMMAND_DESCRIPTION,
         ).addSubcommand(
           new Subcommand(
-            'generate',
+            KeysCommandDefinition.KEYS_CONSENSUS_GENERATE,
             'Generates TLS keys required for consensus node communication.',
             this.nodeCommand.handlers,
             this.nodeCommand.handlers.keys,

@@ -29,6 +29,13 @@ export class ClusterRefCommandDefinition extends BaseCommandDefinition {
   public static readonly CLUSTER_REF_CONFIG_SUBCOMMAND_DESCRIPTION: string =
     'List, create, manage, and remove associations between Kubernetes contexts and Solo cluster references.';
 
+  public static readonly CLUSTER_REF_CONFIG_CONNECT: string = 'connect';
+  public static readonly CLUSTER_REF_CONFIG_DISCONNECT: string = 'disconnect';
+  public static readonly CLUSTER_REF_CONFIG_LIST: string = 'list';
+  public static readonly CLUSTER_REF_CONFIG_INFO: string = 'info';
+  public static readonly CLUSTER_REF_CONFIG_SETUP: string = 'setup';
+  public static readonly CLUSTER_REF_CONFIG_RESET: string = 'reset';
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
       ClusterRefCommandDefinition.COMMAND_NAME,
@@ -42,7 +49,7 @@ export class ClusterRefCommandDefinition extends BaseCommandDefinition {
         )
           .addSubcommand(
             new Subcommand(
-              'connect',
+              ClusterRefCommandDefinition.CLUSTER_REF_CONFIG_CONNECT,
               'Creates a new internal Solo cluster name to a Kubernetes context or maps a Kubernetes context to an existing internal Solo cluster reference',
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.connect,
@@ -51,7 +58,7 @@ export class ClusterRefCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'disconnect',
+              ClusterRefCommandDefinition.CLUSTER_REF_CONFIG_DISCONNECT,
               'Removes the Kubernetes context associated with an internal Solo cluster reference.',
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.disconnect,
@@ -60,7 +67,7 @@ export class ClusterRefCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'list',
+              ClusterRefCommandDefinition.CLUSTER_REF_CONFIG_LIST,
               'Lists the configured Kubernetes context to Solo cluster reference mappings.',
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.list,
@@ -69,7 +76,7 @@ export class ClusterRefCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'info',
+              ClusterRefCommandDefinition.CLUSTER_REF_CONFIG_INFO,
               'Displays the status information and attached deployments for a given Solo cluster reference mapping.',
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.info,
@@ -80,7 +87,7 @@ export class ClusterRefCommandDefinition extends BaseCommandDefinition {
           // TODO: Those might need to be moved
           .addSubcommand(
             new Subcommand(
-              'setup',
+              ClusterRefCommandDefinition.CLUSTER_REF_CONFIG_SETUP,
               'Setup cluster with shared components',
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.setup,
@@ -89,7 +96,7 @@ export class ClusterRefCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'reset',
+              ClusterRefCommandDefinition.CLUSTER_REF_CONFIG_RESET,
               'Uninstall shared components from cluster',
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.reset,
