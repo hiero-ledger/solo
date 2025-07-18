@@ -33,10 +33,12 @@ const HELM_ARTIFACT_EXT: Map<string, string> = new Map()
 export class HelmDependencyManager extends ShellRunner {
   private readonly osPlatform: string;
   private readonly osArch: string;
-  private helmPath: string;
+  private localHelmPath: string;
+  private globalHelmPath: string;
   private readonly artifactName: string;
   private readonly helmURL: string;
   private readonly checksumURL: string;
+  private cachedGlobalExecutablePath: string;
 
   constructor(
     @inject(InjectTokens.PackageDownloader) private readonly downloader?: PackageDownloader,
@@ -66,7 +68,7 @@ export class HelmDependencyManager extends ShellRunner {
     // Node.js uses 'win32' for windows in package.json os field, but helm uses 'windows'
     this.osPlatform = osPlatform === OS_WIN32 ? OS_WINDOWS : osPlatform;
     this.osArch = ['x64', 'x86-64'].includes(osArch) ? 'amd64' : osArch;
-    this.helmPath = Templates.installationPath(constants.HELM, this.osPlatform, this.installationDirectory);
+    this.localHelmPath = Templates.installationPath(constants.HELM, this.osPlatform, this.installationDirectory);
 
     const fileExtension = HELM_ARTIFACT_EXT.get(this.osPlatform);
     this.artifactName = util.format(
@@ -81,11 +83,11 @@ export class HelmDependencyManager extends ShellRunner {
   }
 
   getHelmPath() {
-    return this.helmPath;
+    return this.globalHelmPath || this.localHelmPath;
   }
 
   isInstalled() {
-    return fs.existsSync(this.helmPath);
+    return fs.existsSync(this.localHelmPath);
   }
 
   /**
@@ -93,11 +95,41 @@ export class HelmDependencyManager extends ShellRunner {
    */
   uninstall() {
     if (this.isInstalled()) {
-      fs.rmSync(this.helmPath);
+      fs.rmSync(this.localHelmPath);
     }
   }
 
-  async install(temporaryDirectory: string = helpers.getTemporaryDirectory()) {
+  async isInstalledGloballyAndMeetsRequirements(): Promise<boolean> {
+    const path: false | string = await this.getGlobalExecutablePath();
+    if (path && (await this.installationMeetsRequirements(path))) {
+      this.globalHelmPath = path;
+      return true;
+    }
+    return false;
+  }
+
+  async getGlobalExecutablePath(): Promise<false | string> {
+    try {
+      if (this.cachedGlobalExecutablePath) {
+        return this.cachedGlobalExecutablePath;
+      }
+      const cmd: string = this.osPlatform === constants.OS_WINDOWS ? 'where' : 'which';
+      const path: string[] = await this.run(`${cmd} ${constants.HELM}`);
+      if (path.length === 0) {
+        return false;
+      }
+      this.cachedGlobalExecutablePath = path[0];
+      return path[0];
+    } catch {
+      return false;
+    }
+  }
+
+  public async install(temporaryDirectory: string = helpers.getTemporaryDirectory()): Promise<boolean> {
+    if (await this.isInstalledGloballyAndMeetsRequirements()) {
+      return true;
+    }
+
     const extractedDirectory = PathEx.join(temporaryDirectory, 'extracted-helm');
     let helmSource = PathEx.join(extractedDirectory, `${this.osPlatform}-${this.osArch}`, constants.HELM);
 
@@ -116,8 +148,8 @@ export class HelmDependencyManager extends ShellRunner {
 
     // install new helm
     this.uninstall();
-    this.helmPath = Templates.installationPath(constants.HELM, this.osPlatform, this.installationDirectory);
-    fs.cpSync(helmSource, this.helmPath);
+    this.localHelmPath = Templates.installationPath(constants.HELM, this.osPlatform, this.installationDirectory);
+    fs.cpSync(helmSource, this.localHelmPath);
 
     if (fs.existsSync(extractedDirectory)) {
       fs.rmSync(extractedDirectory, {recursive: true});
@@ -126,7 +158,23 @@ export class HelmDependencyManager extends ShellRunner {
     return this.isInstalled();
   }
 
+  async installationMeetsRequirements(path: string): Promise<boolean> {
+    try {
+      const output: string[] = await this.run(`${path} version --short`);
+      const parts: string[] = output[0].split('+');
+      this.logger.debug(`Found ${constants.HELM}:${parts[0]}`);
+      return semver.gte(parts[0], version.HELM_VERSION);
+    } catch (error: Error | any) {
+      this.logger.error(`Failed to check global helm version: ${error.message}`);
+    }
+    return false;
+  }
+
   async checkVersion(shouldInstall = true) {
+    if (await this.isInstalledGloballyAndMeetsRequirements()) {
+      return true;
+    }
+
     if (!this.isInstalled()) {
       if (shouldInstall) {
         await this.install();
@@ -135,10 +183,7 @@ export class HelmDependencyManager extends ShellRunner {
       }
     }
 
-    const output = await this.run(`${this.helmPath} version --short`);
-    const parts = output[0].split('+');
-    this.logger.debug(`Found ${constants.HELM}:${parts[0]}`);
-    return semver.gte(parts[0], version.HELM_VERSION);
+    return this.installationMeetsRequirements(this.localHelmPath);
   }
 
   getHelmVersion() {
