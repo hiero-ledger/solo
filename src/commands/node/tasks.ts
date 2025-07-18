@@ -1337,6 +1337,15 @@ export class NodeCommandTasks {
     };
   }
 
+  public showUserMessages(): SoloListrTask<NodeStartContext> {
+    return {
+      title: 'Show user messages',
+      task: (): void => {
+        this.logger.showAllMessageGroups();
+      },
+    };
+  }
+
   public setGrpcWebEndpoint(): SoloListrTask<NodeStartContext> {
     return {
       title: 'set gRPC Web endpoint',
@@ -1557,26 +1566,48 @@ export class NodeCommandTasks {
     };
   }
 
-  public enablePortForwarding() {
+  public enablePortForwarding(enablePortForwardHaProxy: boolean = false) {
     return {
-      title: 'Enable port forwarding for JVM debugger',
+      title: 'Enable port forwarding',
       task: async context_ => {
-        const context = helpers.extractContextFromConsensusNodes(
-          context_.config.debugNodeAlias,
-          context_.config.consensusNodes,
-        );
-        const podReference = PodReference.of(
-          context_.config.namespace,
-          PodName.of(`network-${context_.config.debugNodeAlias}-0`),
-        );
-        this.logger.debug(`Enable port forwarding for JVM debugger on pod ${podReference.name}`);
-        await this.k8Factory
-          .getK8(context)
-          .pods()
-          .readByReference(podReference)
-          .portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT);
+        const nodeAlias: NodeAlias = context_.config.debugNodeAlias || 'node1';
+        const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+
+        if (context_.config.debugNodeAlias) {
+          const podReference: PodReference = PodReference.of(
+            context_.config.namespace,
+            PodName.of(`network-${nodeAlias}-0`),
+          );
+          this.logger.showUser('Enable port forwarding for JVM debugger');
+          this.logger.debug(`Enable port forwarding for JVM debugger on pod ${podReference.name}`);
+          await this.k8Factory
+            .getK8(context)
+            .pods()
+            .readByReference(podReference)
+            .portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT);
+        }
+        if (context_.config.forcePortForward && enablePortForwardHaProxy) {
+          const pods: Pod[] = await this.k8Factory
+            .getK8(context)
+            .pods()
+            .list(context_.config.namespace, ['solo.hedera.com/node-id=0', 'solo.hedera.com/type=haproxy']);
+          if (pods.length === 0) {
+            throw new SoloError(`No HAProxy pod found for node alias: ${nodeAlias}`);
+          }
+          const podReference: PodReference = pods[0].podReference;
+          await this.k8Factory
+            .getK8(context)
+            .pods()
+            .readByReference(podReference)
+            .portForward(constants.GRPC_PORT, constants.GRPC_PORT, true);
+          this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+          this.logger.addMessageGroupMessage(
+            constants.PORT_FORWARDING_MESSAGE_GROUP,
+            `Consensus Node gRPC port forward enabled on localhost:${constants.GRPC_PORT}`,
+          );
+        }
       },
-      skip: context_ => !context_.config.debugNodeAlias,
+      skip: context_ => !context_.config.debugNodeAlias && !context_.config.forcePortForward,
     };
   }
 

@@ -20,7 +20,7 @@ import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {type AnyYargs, type ArgvStruct} from '../types/aliases.js';
-import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
+import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as fs from 'node:fs';
 import {
@@ -86,6 +86,7 @@ interface MirrorNodeDeployConfigClass {
   externalDatabaseReadonlyUsername: Optional<string>;
   externalDatabaseReadonlyPassword: Optional<string>;
   domainName: Optional<string>;
+  forcePortForward: Optional<boolean>;
 }
 
 interface MirrorNodeDeployContext {
@@ -153,6 +154,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.externalDatabaseReadonlyUsername,
       flags.externalDatabaseReadonlyPassword,
       flags.domainName,
+      flags.forcePortForward,
     ],
   };
 
@@ -370,6 +372,7 @@ export class MirrorNodeCommand extends BaseCommand {
               flags.profileFile,
               flags.profileName,
               flags.domainName,
+              flags.forcePortForward,
             ]);
 
             const allFlags = [
@@ -748,6 +751,44 @@ export class MirrorNodeCommand extends BaseCommand {
           },
         },
         this.addMirrorNodeComponents(),
+        {
+          title: 'Enable port forwarding',
+          skip: context_ => !context_.config.forcePortForward || !context_.config.enableIngress,
+          task: async context_ => {
+            const pods: Pod[] = await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .pods()
+              .list(context_.config.namespace, ['app.kubernetes.io/instance=haproxy-ingress']);
+            if (pods.length === 0) {
+              throw new SoloError('No Hiero Explorer pod found');
+            }
+            let podReference: PodReference;
+            for (const pod of pods) {
+              if (pod.podReference.name.name.startsWith('mirror-ingress-controller')) {
+                podReference = pod.podReference;
+                break;
+              }
+            }
+
+            await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .pods()
+              .readByReference(podReference)
+              .portForward(constants.MIRROR_NODE_PORT, 80, true);
+            this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+            this.logger.addMessageGroupMessage(
+              constants.PORT_FORWARDING_MESSAGE_GROUP,
+              `Mirror Node port forward enabled on localhost:${constants.MIRROR_NODE_PORT}`,
+            );
+          },
+        },
+        // TODO only show this if we are not running in quick-start mode
+        // {
+        //   title: 'Show user messages',
+        //   task: (): void => {
+        //     this.logger.showAllMessageGroups();
+        //   },
+        // },
       ],
       {
         concurrent: false,

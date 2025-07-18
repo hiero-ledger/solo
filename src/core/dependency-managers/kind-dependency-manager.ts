@@ -133,8 +133,7 @@ export class KindDependencyManager extends ShellRunner {
     this.localKindPath = Templates.installationPath(constants.KIND, this.osPlatform, this.installationDirectory!);
     fs.cpSync(packageFile, this.localKindPath);
 
-    let destinationPath: string;
-    destinationPath =
+    const destinationPath: string =
       this.osPlatform === constants.OS_WINDOWS
         ? PathEx.join(temporaryDirectory, `${constants.KIND}.exe`)
         : PathEx.join(temporaryDirectory, constants.KIND);

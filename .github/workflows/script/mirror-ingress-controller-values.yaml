@@ -5,14 +5,14 @@ controller:
   service:
     type: NodePort
     httpPorts:
-      - port: 9090
-        targetPort: 9090
+      - port: 80
+        targetPort: 80
         nodePort: 30003
     httpsPorts:
-      - port: 9443
-        targetPort: 9443
+      - port: 443
+        targetPort: 443
         nodePort: 30004
   config:
-    http-port: "9090"
-    https-port: "9443"
+    http-port: "80"
+    https-port: "443"
     ssl-redirect: "false"

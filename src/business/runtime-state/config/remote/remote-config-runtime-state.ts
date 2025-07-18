@@ -21,6 +21,7 @@ import {
   type Context,
   type DeploymentName,
   type NamespaceNameAsString,
+  Optional,
 } from '../../../../types/index.js';
 import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases} from '../../../../types/aliases.js';
 import {NamespaceName} from '../../../../types/namespace/namespace-name.js';
@@ -49,6 +50,7 @@ import {ConsensusNodeStateSchema} from '../../../../data/schema/model/remote/sta
 import {UserIdentitySchema} from '../../../../data/schema/model/common/user-identity-schema.js';
 import {Deployment} from '../local/deployment.js';
 import {RemoteConfig} from './remote-config.js';
+import * as helpers from '../../../../core/helpers.js';
 
 enum RuntimeStatePhase {
   Loaded = 'loaded',
@@ -562,5 +564,9 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
   public getNamespace(): NamespaceName {
     return NamespaceName.of(this.configuration.clusters?.at(0)?.namespace);
+  }
+
+  public extractContextFromConsensusNodes(nodeAlias: NodeAlias): Optional<string> {
+    return helpers.extractContextFromConsensusNodes(nodeAlias, this.getConsensusNodes());
   }
 }

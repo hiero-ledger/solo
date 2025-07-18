@@ -55,7 +55,11 @@ cat remote-config-before.yaml
 
 # must uninstall explorer before migration, because the change of explorer chart name and labels
 # make it harder to uninstall or upgrade after migration
- solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
+solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
+
+# must uninstall relay before migration, because the change to relay umbrella chart lead to different name and labels
+# and make it hard to uninstall or upgrade after migration
+solo relay destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 
 # trigger migration
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}"
@@ -97,10 +101,6 @@ npm run solo-test -- explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster
 
 # wait a few seconds for the pods to be ready before enabling port-forwarding
 sleep 10
-kubectl port-forward -n "${SOLO_NAMESPACE}" svc/haproxy-node1-svc 50211:50211 > /dev/null 2>&1 &
-kubectl port-forward -n "${SOLO_NAMESPACE}" svc/relay-node1-node2-hedera-json-rpc-relay 7546:7546 > /dev/null 2>&1 &
-kubectl port-forward -n "${SOLO_NAMESPACE}" svc/mirror-ingress-controller 8081:80 > /dev/null 2>&1 &
-kubectl port-forward -n "${SOLO_NAMESPACE}" svc/hiero-explorer 8080:80 > /dev/null 2>&1 &
 
 # Test transaction can still be sent and processed
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
@@ -119,7 +119,7 @@ SKIP_IMPORTER_CHECK=true
 
 # uninstall components using current Solo version
 npm run solo-test -- explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
-npm run solo-test -- relay destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+npm run solo-test -- relay destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 npm run solo-test -- mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --force
 npm run solo-test -- node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 npm run solo-test -- network destroy --deployment "${SOLO_DEPLOYMENT}" --force
