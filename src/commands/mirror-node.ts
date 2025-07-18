@@ -124,7 +124,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
-  private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
+  public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.cacheDir,
@@ -160,7 +160,7 @@ export class MirrorNodeCommand extends BaseCommand {
     ],
   };
 
-  private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [
       flags.chartDirectory,
@@ -354,7 +354,7 @@ export class MirrorNodeCommand extends BaseCommand {
     }
   }
 
-  private async add(argv: ArgvStruct): Promise<boolean> {
+  public async add(argv: ArgvStruct): Promise<boolean> {
     const self = this;
     let lease: Lock;
 
@@ -840,7 +840,7 @@ export class MirrorNodeCommand extends BaseCommand {
     return semver.lt(version, '0.130.0') ? 'hedera' : 'hiero';
   }
 
-  private async destroy(argv: ArgvStruct): Promise<boolean> {
+  public async destroy(argv: ArgvStruct): Promise<boolean> {
     const self = this;
     let lease: Lock;
 
@@ -983,33 +983,7 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   public getCommandDefinition(): CommandDefinition {
-    return new CommandBuilder(
-      MirrorNodeCommand.COMMAND_NAME,
-      'List of commands related to the mirror node',
-      this.logger,
-    )
-      .addCommandGroup(
-        new CommandGroup(MirrorNodeCommand.SUBCOMMAND_NAME, 'Manage Hedera Mirror Node in solo network')
-          .addSubcommand(
-            new Subcommand(
-              'add',
-              'Deploy mirror node and its components',
-              this,
-              this.add,
-              MirrorNodeCommand.DEPLOY_FLAGS_LIST,
-            ),
-          )
-          .addSubcommand(
-            new Subcommand(
-              'destroy',
-              'Destroy mirror node components and database',
-              this,
-              this.destroy,
-              MirrorNodeCommand.DESTROY_FLAGS_LIST,
-            ),
-          ),
-      )
-      .build();
+    return new CommandBuilder(MirrorNodeCommand.COMMAND_NAME, '', this.logger).build();
   }
 
   /** Removes the mirror node components from remote config. */

@@ -5,17 +5,17 @@ import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {BaseCommandDefinition} from './base-command-definition.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';
-import {NodeCommand} from '../node/index.js';
+import {MirrorNodeCommand} from '../mirror-node.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 
 export class MirrorCommandDefinition extends BaseCommandDefinition {
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
-    @inject(InjectTokens.NodeCommand) public readonly nodeCommand?: NodeCommand,
+    @inject(InjectTokens.MirrorNodeCommand) public readonly mirrorNodeCommand?: MirrorNodeCommand,
   ) {
     super();
-    this.nodeCommand = patchInject(nodeCommand, InjectTokens.NodeCommand, this.constructor.name);
+    this.mirrorNodeCommand = patchInject(mirrorNodeCommand, InjectTokens.MirrorNodeCommand, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
@@ -34,7 +34,25 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
         new CommandGroup(
           MirrorCommandDefinition.CONSENSUS_SUBCOMMAND_NAME,
           MirrorCommandDefinition.CONSENSUS_SUBCOMMAND_DESCRIPTION,
-        ),
+        )
+          .addSubcommand(
+            new Subcommand(
+              'add',
+              'Adds and configures a new node instance.',
+              this,
+              this.mirrorNodeCommand.add,
+              MirrorNodeCommand.DEPLOY_FLAGS_LIST,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              'destroy',
+              'Deletes the specified node from the deployment.',
+              this,
+              this.mirrorNodeCommand.destroy,
+              MirrorNodeCommand.DESTROY_FLAGS_LIST,
+            ),
+          ),
       )
       .build();
   }

@@ -71,12 +71,12 @@ export class AccountCommand extends BaseCommand {
   public static readonly COMMAND_NAME: 'ledger' = 'ledger' as const;
   public static readonly SUBCOMMAND_NAME: 'account' = 'account' as const;
 
-  private static INIT_FLAGS_LIST: CommandFlags = {
+  public static INIT_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.deployment, flags.nodeAliasesUnparsed, flags.clusterRef],
   };
 
-  private static CREATE_FLAGS_LIST: CommandFlags = {
+  public static CREATE_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.amount,
@@ -90,7 +90,7 @@ export class AccountCommand extends BaseCommand {
     ],
   };
 
-  private static UPDATE_FLAGS_LIST: CommandFlags = {
+  public static UPDATE_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.accountId,
@@ -102,7 +102,7 @@ export class AccountCommand extends BaseCommand {
     ],
   };
 
-  private static GET_FLAGS_LIST: CommandFlags = {
+  public static GET_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.accountId, flags.privateKey, flags.deployment, flags.clusterRef],
   };
@@ -758,50 +758,7 @@ export class AccountCommand extends BaseCommand {
   }
 
   public getCommandDefinition(): CommandDefinition {
-    return new CommandBuilder(AccountCommand.COMMAND_NAME, 'List of ledger related commands', this.logger)
-      .addCommandGroup(
-        new CommandGroup(AccountCommand.SUBCOMMAND_NAME, 'Manage Hedera accounts in solo network')
-          .addSubcommand(
-            new Subcommand(
-              'init',
-              'Initialize system accounts with new keys',
-              this,
-              this.init,
-              AccountCommand.INIT_FLAGS_LIST,
-            ),
-          )
-          .addSubcommand(
-            new Subcommand(
-              'update',
-              'Updates an existing account with the provided info, ' +
-                'if you want to update the private key, you can supply either ECDSA or ED25519 but not both\n',
-              this,
-              this.update,
-              AccountCommand.UPDATE_FLAGS_LIST,
-            ),
-          )
-          .addSubcommand(
-            new Subcommand(
-              'create',
-              'Creates a new account with a new key and stores the key in the Kubernetes secrets, ' +
-                'if you supply no key one will be generated for you, ' +
-                'otherwise you may supply either a ECDSA or ED25519 private key',
-              this,
-              this.create,
-              AccountCommand.CREATE_FLAGS_LIST,
-            ),
-          )
-          .addSubcommand(
-            new Subcommand(
-              'get',
-              'Gets the account info including the current amount of HBAR',
-              this,
-              this.get,
-              AccountCommand.GET_FLAGS_LIST,
-            ),
-          ),
-      )
-      .build();
+    return new CommandBuilder(AccountCommand.COMMAND_NAME, 'List of ledger related commands', this.logger).build();
   }
 
   public close(): Promise<void> {

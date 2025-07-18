@@ -5,17 +5,17 @@ import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {BaseCommandDefinition} from './base-command-definition.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';
-import {NodeCommand} from '../node/index.js';
+import {DefaultQuickStartCommand} from '../quick-start/default-quick-start.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 
 export class QuickStartCommandDefinition extends BaseCommandDefinition {
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
-    @inject(InjectTokens.NodeCommand) public readonly nodeCommand?: NodeCommand,
+    @inject(InjectTokens.QuickStartCommand) public readonly quickStartCommand?: DefaultQuickStartCommand,
   ) {
     super();
-    this.nodeCommand = patchInject(nodeCommand, InjectTokens.NodeCommand, this.constructor.name);
+    this.quickStartCommand = patchInject(quickStartCommand, InjectTokens.QuickStartCommand, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
@@ -44,13 +44,25 @@ export class QuickStartCommandDefinition extends BaseCommandDefinition {
         new CommandGroup(
           QuickStartCommandDefinition.SINGLE_SUBCOMMAND_NAME,
           QuickStartCommandDefinition.SINGLE_SUBCOMMAND_DESCRIPTION,
-        ),
-      )
-      .addCommandGroup(
-        new CommandGroup(
-          QuickStartCommandDefinition.MULTI_SUBCOMMAND_NAME,
-          QuickStartCommandDefinition.MULTI_SUBCOMMAND_DESCRIPTION,
-        ),
+        )
+          .addSubcommand(
+            new Subcommand(
+              'deploy',
+              'Deploys all required components for the selected quick start configuration.',
+              this,
+              this.quickStartCommand.deploy,
+              DefaultQuickStartCommand.SINGLE_ADD_FLAGS_LIST,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              'destroy',
+              'Removes the deployed resources for the selected quick start configuration.',
+              this,
+              this.quickStartCommand.destroy,
+              DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST,
+            ),
+          ),
       )
       .build();
   }

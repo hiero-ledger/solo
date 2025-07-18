@@ -5,17 +5,17 @@ import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {BaseCommandDefinition} from './base-command-definition.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';
-import {NodeCommand} from '../node/index.js';
+import {DeploymentCommand} from '../deployment.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 
-export class ConsensusCommandDefinition extends BaseCommandDefinition {
+export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
-    @inject(InjectTokens.NodeCommand) public readonly nodeCommand?: NodeCommand,
+    @inject(InjectTokens.DeploymentCommand) public readonly deploymentCommand?: DeploymentCommand,
   ) {
     super();
-    this.nodeCommand = patchInject(nodeCommand, InjectTokens.NodeCommand, this.constructor.name);
+    this.deploymentCommand = patchInject(deploymentCommand, InjectTokens.DeploymentCommand, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
@@ -39,30 +39,56 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
-      ConsensusCommandDefinition.COMMAND_NAME,
-      ConsensusCommandDefinition.DESCRIPTION,
+      DeploymentCommandDefinition.COMMAND_NAME,
+      DeploymentCommandDefinition.DESCRIPTION,
       this.logger,
     )
       .addCommandGroup(
         new CommandGroup(
-          ConsensusCommandDefinition.CLUSTER_SUBCOMMAND_NAME,
-          ConsensusCommandDefinition.CLUSTER_SUBCOMMAND_DESCRIPTION,
-        )
-
+          DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_NAME,
+          DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_DESCRIPTION,
+        ).addSubcommand(
+          new Subcommand(
+            'attach',
+            'Attaches a cluster reference to a deployment.',
+            this,
+            this.deploymentCommand.addCluster,
+            DeploymentCommand.ADD_CLUSTER_FLAGS_LIST,
+          ),
+        ),
       )
       .addCommandGroup(
         new CommandGroup(
-          ConsensusCommandDefinition.CONFIG_SUBCOMMAND_NAME,
-          ConsensusCommandDefinition.CONFIG_SUBCOMMAND_DESCRIPTION,
+          DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+          DeploymentCommandDefinition.CONFIG_SUBCOMMAND_DESCRIPTION,
         )
-
-      )
-      .addCommandGroup(
-        new CommandGroup(
-          ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
-          ConsensusCommandDefinition.STATE_SUBCOMMAND_DESCRIPTION,
-        )
-
+          .addSubcommand(
+            new Subcommand(
+              'list',
+              'Lists all local deployment configurations.',
+              this.deploymentCommand,
+              this.deploymentCommand.list,
+              DeploymentCommand.LIST_DEPLOYMENTS_FLAGS_LIST,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              'create',
+              'Creates a new local deployment configuration.',
+              this.deploymentCommand,
+              this.deploymentCommand.create,
+              DeploymentCommand.CREATE_FLAGS_LIST,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              'delete',
+              'Removes a local deployment configuration.',
+              this.deploymentCommand,
+              this.deploymentCommand.delete,
+              DeploymentCommand.DESTROY_FLAGS_LIST,
+            ),
+          ),
       )
       .build();
   }

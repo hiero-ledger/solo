@@ -41,7 +41,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
 
   private static readonly SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';
 
-  private static readonly SINGLE_ADD_FLAGS_LIST: CommandFlags = {
+  public static readonly SINGLE_ADD_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.cacheDir,
@@ -57,7 +57,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     ],
   };
 
-  private static readonly SINGLE_DESTROY_FLAGS_LIST: CommandFlags = {
+  public static readonly SINGLE_DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [],
   };
@@ -103,7 +103,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     return this.taskList.parentTaskListMap.get(commandName).children;
   }
 
-  private async deploy(argv: ArgvStruct): Promise<boolean> {
+  public async deploy(argv: ArgvStruct): Promise<boolean> {
     let config: QuickStartSingleDeployConfigClass | null = null;
 
     const tasks: Listr<QuickStartSingleDeployContext, ListrRendererValue, ListrRendererValue> =
@@ -368,7 +368,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     this.logger.showMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP);
   }
 
-  private async destroy(argv: ArgvStruct): Promise<boolean> {
+  public async destroy(argv: ArgvStruct): Promise<boolean> {
     const tasks: Listr<QuickStartSingleDestroyContext> = new Listr<QuickStartSingleDestroyContext>([
       {
         title: 'Initialize',
@@ -405,29 +405,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
   }
 
   public getCommandDefinition(): CommandDefinition {
-    return new CommandBuilder(DefaultQuickStartCommand.COMMAND_NAME, 'Manage quick start for solo network', this.logger)
-      .addCommandGroup(
-        new CommandGroup('single', 'A single consensus node quick start configuration')
-          .addSubcommand(
-            new Subcommand(
-              'deploy',
-              'Deploys all required components for the selected quick start configuration',
-              this,
-              this.deploy,
-              DefaultQuickStartCommand.SINGLE_ADD_FLAGS_LIST,
-            ),
-          )
-          .addSubcommand(
-            new Subcommand(
-              'destroy',
-              'Removes the deployed resources for the selected quick start configuration',
-              this,
-              this.destroy,
-              DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST,
-            ),
-          ),
-      )
-      .build();
+    return new CommandBuilder(DefaultQuickStartCommand.COMMAND_NAME, '', this.logger).build();
   }
 
   public async close(): Promise<void> {} // no-op

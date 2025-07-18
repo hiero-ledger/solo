@@ -74,17 +74,17 @@ export class DeploymentCommand extends BaseCommand {
     this.tasks = patchInject(tasks, InjectTokens.ClusterCommandTasks, this.constructor.name);
   }
 
-  private static CREATE_FLAGS_LIST: CommandFlags = {
+  public static CREATE_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.quiet, flags.namespace, flags.deployment, flags.realm, flags.shard],
   };
 
-  private static DESTROY_FLAGS_LIST: CommandFlags = {
+  public static DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.quiet, flags.deployment],
   };
 
-  private static ADD_CLUSTER_FLAGS_LIST: CommandFlags = {
+  public static ADD_CLUSTER_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.quiet,
@@ -97,7 +97,7 @@ export class DeploymentCommand extends BaseCommand {
     ],
   };
 
-  private static LIST_DEPLOYMENTS_FLAGS_LIST: CommandFlags = {
+  public static LIST_DEPLOYMENTS_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.quiet, flags.clusterRef],
   };
@@ -319,7 +319,7 @@ export class DeploymentCommand extends BaseCommand {
     return true;
   }
 
-  private async list(argv: ArgvStruct): Promise<boolean> {
+  public async list(argv: ArgvStruct): Promise<boolean> {
     const self = this;
 
     interface Config {
@@ -388,47 +388,7 @@ export class DeploymentCommand extends BaseCommand {
   }
 
   public getCommandDefinition(): CommandDefinition {
-    return new CommandBuilder(DeploymentCommand.COMMAND_NAME, 'Manage Solo Network Deployment', this.logger)
-      .addCommandGroup(
-        new CommandGroup(DeploymentCommand.SUBCOMMAND_NAME, '')
-          .addSubcommand(
-            new Subcommand(
-              'create',
-              'Creates a solo deployment',
-              this,
-              this.create,
-              DeploymentCommand.CREATE_FLAGS_LIST,
-            ),
-          )
-          .addSubcommand(
-            new Subcommand(
-              'delete',
-              'Deletes a solo deployment',
-              this,
-              this.delete,
-              DeploymentCommand.DESTROY_FLAGS_LIST,
-            ),
-          )
-          .addSubcommand(
-            new Subcommand(
-              'list',
-              'List solo deployments inside a cluster',
-              this,
-              this.list,
-              DeploymentCommand.LIST_DEPLOYMENTS_FLAGS_LIST,
-            ),
-          )
-          .addSubcommand(
-            new Subcommand(
-              'attach',
-              'Attach cluster to solo deployments',
-              this,
-              this.addCluster,
-              DeploymentCommand.ADD_CLUSTER_FLAGS_LIST,
-            ),
-          ),
-      )
-      .build();
+    return new CommandBuilder(DeploymentCommand.COMMAND_NAME, 'Manage Solo Network Deployment', this.logger).build();
   }
 
   public async close(): Promise<void> {} // no-op

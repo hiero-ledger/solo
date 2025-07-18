@@ -5,17 +5,17 @@ import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {BaseCommandDefinition} from './base-command-definition.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';
-import {NodeCommand} from '../node/index.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
+import {AccountCommand} from '../account.js';
 
 export class LedgerCommandDefinition extends BaseCommandDefinition {
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
-    @inject(InjectTokens.NodeCommand) public readonly nodeCommand?: NodeCommand,
+    @inject(InjectTokens.AccountCommand) public readonly accountCommand?: AccountCommand,
   ) {
     super();
-    this.nodeCommand = patchInject(nodeCommand, InjectTokens.NodeCommand, this.constructor.name);
+    this.accountCommand = patchInject(accountCommand, InjectTokens.AccountCommand, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
@@ -42,21 +42,45 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
     return new CommandBuilder(LedgerCommandDefinition.COMMAND_NAME, LedgerCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(
         new CommandGroup(
-          LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
-          LedgerCommandDefinition.SYSTEM_SUBCOMMAND_DESCRIPTION,
-        ),
-      )
-      .addCommandGroup(
-        new CommandGroup(
           LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
           LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_DESCRIPTION,
-        ),
-      )
-      .addCommandGroup(
-        new CommandGroup(
-          LedgerCommandDefinition.CRYPTO_SUBCOMMAND_NAME,
-          LedgerCommandDefinition.CRYPTO_SUBCOMMAND_DESCRIPTION,
-        ),
+        )
+          .addSubcommand(
+            new Subcommand(
+              'init',
+              'Lists all ledger accounts.',
+              this,
+              this.accountCommand.init,
+              AccountCommand.INIT_FLAGS_LIST,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              'update',
+              'Updates an existing ledger account.',
+              this,
+              this.accountCommand.update,
+              AccountCommand.UPDATE_FLAGS_LIST,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              'create',
+              'Creates a new ledger account.',
+              this,
+              this.accountCommand.create,
+              AccountCommand.CREATE_FLAGS_LIST,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              'get',
+              'Gets the account info including the current amount of HBAR',
+              this,
+              this.accountCommand.get,
+              AccountCommand.GET_FLAGS_LIST,
+            ),
+          ),
       )
       .build();
   }
