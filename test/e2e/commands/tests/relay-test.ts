@@ -38,14 +38,12 @@ export class RelayTest extends BaseCommandTest {
   private static async verifyRelayDeployWasSuccessful(contexts: string[], namespace: NamespaceName): Promise<void> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
     const k8: K8 = k8Factory.getK8(contexts[1]);
-    const relayPods: Pod[] = await k8
-      .pods()
-      .list(namespace, ['app=hedera-json-rpc-relay', 'app.kubernetes.io/name=hedera-json-rpc-relay']);
+    const relayPods: Pod[] = await k8.pods().list(namespace, ['app.kubernetes.io/name=relay']);
     expect(relayPods).to.have.lengthOf(1);
   }
 
   public static deploy(options: BaseTestOptions): void {
-    const {testName, deployment, namespace, contexts, clusterReferenceNameArray, testLogger} = options;
+    const {testName, deployment, namespace, contexts, clusterReferenceNameArray} = options;
     const {soloRelayDeployArgv, verifyRelayDeployWasSuccessful} = RelayTest;
 
     it(`${testName}: JSON-RPC relay deploy`, async (): Promise<void> => {
