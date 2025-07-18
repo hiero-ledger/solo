@@ -82,15 +82,25 @@ describe('HelmDependencyManager', () => {
     });
 
     it('should prefer the global installation if it meets the requirements', async () => {
-      runStub.withArgs('which helm').resolves(['/usr/local/bin/helm']);
-      runStub.withArgs('/usr/local/bin/helm version --short').resolves([`${version.HELM_VERSION}+gabcdef`]);
+      // Use a temporary directory for the dummy global helm binary
+      const globalBinDirectory: string = PathEx.join(temporaryDirectory, 'global-bin');
+      const globalHelmPath: string = PathEx.join(globalBinDirectory, 'helm');
+      fs.mkdirSync(globalBinDirectory, {recursive: true});
+      fs.writeFileSync(globalHelmPath, '');
+
+      runStub.withArgs('which helm').resolves([globalHelmPath]);
+      runStub.withArgs(`${globalHelmPath} version --short`).resolves([`${version.HELM_VERSION}+gabcdef`]);
 
       const result = await helmDependencyManager.isInstalledGloballyAndMeetsRequirements();
       expect(result).to.be.true;
 
       expect(await helmDependencyManager.install(getTestCacheDirectory())).to.be.true;
-      expect(fs.existsSync(PathEx.join(temporaryDirectory, 'helm'))).not.to.be.ok;
-      expect(helmDependencyManager.getHelmPath()).to.equal('/usr/local/bin/helm');
+      expect(fs.existsSync(PathEx.join(temporaryDirectory, 'helm'))).to.be.ok;
+      expect(helmDependencyManager.getHelmPath()).to.equal(PathEx.join(temporaryDirectory, 'helm'));
+
+      // Clean up dummy global helm binary
+      fs.rmSync(globalHelmPath);
+      fs.rmdirSync(globalBinDirectory);
     });
 
     it('should install helm locally if the global installation does not meet the requirements', async () => {
