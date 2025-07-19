@@ -57,6 +57,10 @@ cat remote-config-before.yaml
 # make it harder to uninstall or upgrade after migration
 solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
 
+# must uninstall relay before migration, because the change to relay umbrella chart lead to different name and labels
+# and make it hard to uninstall or upgrade after migration
+solo relay destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
+
 # trigger migration
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}"
 
@@ -115,7 +119,7 @@ SKIP_IMPORTER_CHECK=true
 
 # uninstall components using current Solo version
 npm run solo-test -- explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
-npm run solo-test -- relay destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+npm run solo-test -- relay destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 npm run solo-test -- mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --force
 npm run solo-test -- node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 npm run solo-test -- network destroy --deployment "${SOLO_DEPLOYMENT}" --force

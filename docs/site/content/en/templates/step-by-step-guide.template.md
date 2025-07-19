@@ -174,7 +174,6 @@ kubectl config use-context <context-name>
 
 {{< /details >}}<br/>
 
-
 ## Quick Start Deployment
 
 For a simple setup with a single node with a mirror node, explorer, and JSON RPC relay, you can follow these quick steps. This is ideal for testing and development purposes.
@@ -463,7 +462,7 @@ kubectl get pods -n solo
 
 At this time Solo doesn't automatically set up port forwarding for you, so you'll need to do that manually.
 
-The port forwarding is now automatic for many endpoints.  However, you can set up your own using `kubectl port-forward` command: 
+The port forwarding is now automatic for many endpoints.  However, you can set up your own using `kubectl port-forward` command:
 
 ```bash
 # Consensus Service for node1 (node ID = 0): localhost:50211
@@ -482,7 +481,6 @@ kubectl port-forward service/mirror-restjava -n "${SOLO_NAMESPACE}" 8084:80 > /d
 ```
 
 {{< /details >}}<br/>
-
 
 ## Managing Your Network
 
@@ -518,7 +516,7 @@ Access Solo and Consensus Node logs for troubleshooting:
 # Download logs from all nodes
 
 # Logs are saved to ~/.solo/logs/<namespace>/<pod-name>/# You can also use kubectl directly:
-solo node logs --node-aliases node1 --deployment solo-deployment
+solo node logs --deployment solo-deployment
 ```
 
 {{< /details >}}<br/>
@@ -653,7 +651,7 @@ solo node refresh --node-aliases node1 --deployment solo-deployment
 
 When you need assistance:
 
-1. **Check the logs**: Use `solo node logs --deployment solo-deployment --node-aliases node1` and examine `~/.solo/logs/`
+1. **Check the logs**: Use `solo node logs --deployment solo-deployment` and examine `~/.solo/logs/`
 2. **Documentation**: Visit https://solo.hiero.org/latest/docs/
 3. **GitHub Issues**: Report bugs at https://github.com/hiero-ledger/solo/issues
 4. **Community Support**: Join the Hedera Discord community: https://discord.gg/Ysruf53q
