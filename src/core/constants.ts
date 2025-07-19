@@ -12,7 +12,7 @@ export const ROOT_DIR = PathEx.joinWithRealPath(dirname(fileURLToPath(import.met
 // -------------------- solo related constants ---------------------------------------------------------------------
 export const SOLO_HOME_DIR = process.env.SOLO_HOME || PathEx.join(process.env.HOME as string, '.solo');
 export const SOLO_LOGS_DIR = PathEx.join(SOLO_HOME_DIR, 'logs');
-export const SOLO_CACHE_DIR = PathEx.join(SOLO_HOME_DIR, 'cache');
+export const SOLO_CACHE_DIR = process.env.SOLO_CACHE_DIR || PathEx.join(SOLO_HOME_DIR, 'cache');
 export const SOLO_VALUES_DIR = PathEx.join(SOLO_CACHE_DIR, 'values-files');
 export const DEFAULT_NAMESPACE = NamespaceName.of('default');
 export const DEFAULT_CERT_MANAGER_NAMESPACE = NamespaceName.of('cert-manager');
