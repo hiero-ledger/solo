@@ -22,7 +22,7 @@ function create_test_account ()
   echo "CONTRACT_TEST_KEY_ONE=${CONTRACT_TEST_KEY_ONE}"
   rm test.log
 
-  npm run solo-test -- account create --deployment "${DEPLOYMENT_NAME}" --hbar-amount 100 --generate-ecdsa-key --set-alias > test.log
+  npm run solo-test -- account create --deployment "${DEPLOYMENT_NAME}" --hbar-amount 10000 --generate-ecdsa-key --set-alias > test.log
   export SECOND_KEY=$(grep "accountId" test.log | awk '{print $2}' | sed 's/"//g'| sed 's/,//g')
   npm run solo-test -- account get --deployment "${DEPLOYMENT_NAME}" --account-id ${SECOND_KEY} --private-key > test.log
   export CONTRACT_TEST_KEY_TWO=0x$(grep "privateKeyRaw" test.log | awk '{print $2}' | sed 's/"//g'| sed 's/,//g')
