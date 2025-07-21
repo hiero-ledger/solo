@@ -260,7 +260,7 @@ export class NodeCommandConfigs {
     }
 
     // check releaseTag to make sure it is a valid semantic version string
-    if (!semver.valid(context_.config.releaseTag)) {
+    if (!valid(context_.config.releaseTag)) {
       throw new SoloError(`Invalid release tag: ${context_.config.releaseTag}`);
     }
 

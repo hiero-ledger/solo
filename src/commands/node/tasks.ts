@@ -1195,7 +1195,7 @@ export class NodeCommandTasks {
         if (!releaseTag.startsWith('v')) {
           releaseTag = `v${releaseTag}`;
         }
-        if (!semver.valid(releaseTag)) {
+        if (!valid(releaseTag)) {
           throw new IllegalArgumentError('releaseTag is not a valid version', releaseTag);
         }
 
