@@ -110,7 +110,7 @@ export class ClusterCommandTasks {
         task.title = clusterRef;
 
         if (self.localConfig.configuration.clusterRefs.get(clusterRef)) {
-          throw new SoloError(`Cluster ref ${clusterRef} already exists inside local config`);
+          this.logger.showUser(chalk.yellow(`Cluster ref ${clusterRef} already exists inside local config`));
         }
       },
     };
