@@ -1192,11 +1192,13 @@ export class NodeCommandTasks {
         const {podRefs, localBuildPath} = context_.config;
         let {releaseTag} = context_.config;
 
-        if (!releaseTag.startsWith('v')) {
-          releaseTag = `v${releaseTag}`;
-        }
-        if (!valid(releaseTag)) {
-          throw new IllegalArgumentError('releaseTag is not a valid version', releaseTag);
+        if (releaseTag) {
+          if (!releaseTag.startsWith('v')) {
+            releaseTag = `v${releaseTag}`;
+          }
+          if (!valid(releaseTag)) {
+            throw new IllegalArgumentError('releaseTag is not a valid version', releaseTag);
+          }
         }
 
         if ('upgradeVersion' in context_.config) {
