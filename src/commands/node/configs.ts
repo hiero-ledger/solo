@@ -52,8 +52,7 @@ import {type NodePrepareUpgradeContext} from './config-interfaces/node-prepare-u
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {SOLO_USER_AGENT_HEADER} from '../../core/constants.js';
-import {SemVer} from 'semver';
-import * as semver from 'semver';
+import {SemVer, valid} from 'semver';
 
 const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
 const DOWNLOAD_GENERATED_FILES_CONFIGS_NAME = 'downloadGeneratedFilesConfig';
