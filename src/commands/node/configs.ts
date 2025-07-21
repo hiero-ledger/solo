@@ -53,6 +53,7 @@ import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {SOLO_USER_AGENT_HEADER} from '../../core/constants.js';
 import {SemVer} from 'semver';
+import * as semver from 'semver';
 
 const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
 const DOWNLOAD_GENERATED_FILES_CONFIGS_NAME = 'downloadGeneratedFilesConfig';
@@ -257,6 +258,11 @@ export class NodeCommandConfigs {
         this.remoteConfig.getClusterRefs(),
         context_.config.deployment,
       );
+    }
+
+    // check releaseTag to make sure it is a valid semantic version string
+    if (!semver.valid(context_.config.releaseTag)) {
+      throw new SoloError(`Invalid release tag: ${context_.config.releaseTag}`);
     }
 
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);

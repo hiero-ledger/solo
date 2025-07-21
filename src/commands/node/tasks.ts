@@ -126,8 +126,10 @@ import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 import {LockManager} from '../../core/lock/lock-manager.js';
 import {NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
 import {SemVer, lt} from 'semver';
+import * as semver from 'semver';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
+import {IllegalArgumentError} from '../../core/errors/illegal-argument-error.js';
 
 export type LeaseWrapper = {lease: Lock};
 
@@ -1190,6 +1192,13 @@ export class NodeCommandTasks {
       task: (context_, task) => {
         const {podRefs, localBuildPath} = context_.config;
         let {releaseTag} = context_.config;
+
+        if (!semver.valid(releaseTag)) {
+          throw new IllegalArgumentError('releaseTag is not a valid version', releaseTag);
+        }
+        if (!releaseTag.startsWith('v')) {
+          releaseTag = `v${releaseTag}`;
+        }
 
         if ('upgradeVersion' in context_.config) {
           if (!context_.config.upgradeVersion) {
