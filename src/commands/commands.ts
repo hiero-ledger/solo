@@ -14,6 +14,7 @@ import {LedgerCommandDefinition} from './command-definitions/ledger-command-defi
 import {KeysCommandDefinition} from './command-definitions/keys-command-definition.js';
 import {ExplorerCommandDefinition} from './command-definitions/explorer-command-definition.js';
 import {DeploymentCommandDefinition} from './command-definitions/deployment-command-definition.js';
+import {RelayCommandDefinition} from './command-definitions/relay-command-definition.js';
 
 /**
  * Return a list of Yargs command builder to be exposed through CLI
@@ -32,6 +33,7 @@ export class Commands {
     @inject(InjectTokens.KeysCommandDefinition) private readonly keys?: KeysCommandDefinition,
     @inject(InjectTokens.LedgerCommandDefinition) private readonly ledger?: LedgerCommandDefinition,
     @inject(InjectTokens.MirrorCommandDefinition) private readonly mirror?: MirrorCommandDefinition,
+    @inject(InjectTokens.RelayCommandDefinition) private readonly relay?: RelayCommandDefinition,
     @inject(InjectTokens.QuickStartCommandDefinition) private readonly quickStart?: QuickStartCommandDefinition,
   ) {
     this.init = patchInject(init, InjectTokens.InitCommand, this.constructor.name);
@@ -57,6 +59,7 @@ export class Commands {
       this.keys.getCommandDefinition(),
       this.ledger.getCommandDefinition(),
       this.mirror.getCommandDefinition(),
+      this.relay.getCommandDefinition(),
       this.quickStart.getCommandDefinition(),
     ];
   }

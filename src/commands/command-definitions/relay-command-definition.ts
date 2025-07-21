@@ -8,52 +8,53 @@ import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-
 import {MirrorNodeCommand} from '../mirror-node.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
+import {RelayCommand} from '../relay.js';
 
 @injectable()
-export class MirrorCommandDefinition extends BaseCommandDefinition {
+export class RelayCommandDefinition extends BaseCommandDefinition {
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
-    @inject(InjectTokens.MirrorNodeCommand) public readonly mirrorNodeCommand?: MirrorNodeCommand,
+    @inject(InjectTokens.RelayCommand) public readonly relayCommand?: RelayCommand,
   ) {
     super();
-    this.mirrorNodeCommand = patchInject(mirrorNodeCommand, InjectTokens.MirrorNodeCommand, this.constructor.name);
+    this.relayCommand = patchInject(relayCommand, InjectTokens.RelayCommand, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME: string = 'mirror';
+  public static override readonly COMMAND_NAME: string = 'relay';
   protected static override readonly DESCRIPTION: string =
-    'Mirror Node operations for creating, modifying, and destroying resources. ' +
+    'RPC Relay Node operations for creating, modifying, and destroying resources. ' +
     'These commands require the presence of an existing deployment.';
 
   public static readonly NODE_SUBCOMMAND_NAME: string = 'node';
   private static readonly NODE_SUBCOMMAND_DESCRIPTION: string =
-    'List, create, manage, or destroy mirror node instances. Operates on a single mirror node instance at a time.';
+    'List, create, manage, or destroy relay node instances. Operates on a single relay node instance at a time.';
 
   public static readonly NODE_ADD: string = 'add';
   public static readonly NODE_DESTROY: string = 'destroy';
 
   public getCommandDefinition(): CommandDefinition {
-    return new CommandBuilder(MirrorCommandDefinition.COMMAND_NAME, MirrorCommandDefinition.DESCRIPTION, this.logger)
+    return new CommandBuilder(RelayCommandDefinition.COMMAND_NAME, RelayCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(
         new CommandGroup(
-          MirrorCommandDefinition.NODE_SUBCOMMAND_NAME,
-          MirrorCommandDefinition.NODE_SUBCOMMAND_DESCRIPTION,
+          RelayCommandDefinition.NODE_SUBCOMMAND_NAME,
+          RelayCommandDefinition.NODE_SUBCOMMAND_DESCRIPTION,
         )
           .addSubcommand(
             new Subcommand(
-              MirrorCommandDefinition.NODE_ADD,
+              RelayCommandDefinition.NODE_ADD,
               'Adds and configures a new node instance.',
               this,
-              this.mirrorNodeCommand.add,
+              this.relayCommand.add,
               MirrorNodeCommand.DEPLOY_FLAGS_LIST,
             ),
           )
           .addSubcommand(
             new Subcommand(
-              MirrorCommandDefinition.NODE_DESTROY,
+              RelayCommandDefinition.NODE_DESTROY,
               'Deletes the specified node from the deployment.',
               this,
-              this.mirrorNodeCommand.destroy,
+              this.relayCommand.destroy,
               MirrorNodeCommand.DESTROY_FLAGS_LIST,
             ),
           ),

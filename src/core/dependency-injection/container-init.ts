@@ -72,6 +72,7 @@ import {KeysCommandDefinition} from '../../commands/command-definitions/keys-com
 import {LedgerCommandDefinition} from '../../commands/command-definitions/ledger-command-definition.js';
 import {MirrorCommandDefinition} from '../../commands/command-definitions/mirror-command-definition.js';
 import {QuickStartCommandDefinition} from '../../commands/command-definitions/quick-start-command-definition.js';
+import {RelayCommandDefinition} from '../../commands/command-definitions/relay-command-definition.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -156,6 +157,7 @@ export class Container {
       new SingletonContainer(InjectTokens.KeysCommandDefinition, KeysCommandDefinition),
       new SingletonContainer(InjectTokens.LedgerCommandDefinition, LedgerCommandDefinition),
       new SingletonContainer(InjectTokens.MirrorCommandDefinition, MirrorCommandDefinition),
+      new SingletonContainer(InjectTokens.RelayCommandDefinition, RelayCommandDefinition),
       new SingletonContainer(InjectTokens.QuickStartCommandDefinition, QuickStartCommandDefinition),
     ];
   }

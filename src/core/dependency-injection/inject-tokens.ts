@@ -77,5 +77,6 @@ export class InjectTokens {
   public static KeysCommandDefinition: symbol = Symbol.for('KeysCommandDefinition');
   public static LedgerCommandDefinition: symbol = Symbol.for('LedgerCommandDefinition');
   public static MirrorCommandDefinition: symbol = Symbol.for('MirrorCommandDefinition');
+  public static RelayCommandDefinition: symbol = Symbol.for('RelayCommandDefinition');
   public static QuickStartCommandDefinition: symbol = Symbol.for('QuickStartCommandDefinition');
 }

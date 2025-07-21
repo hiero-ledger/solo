@@ -252,7 +252,7 @@ export class RelayCommand extends BaseCommand {
     return releaseName;
   }
 
-  private async add(argv: ArgvStruct) {
+  public async add(argv: ArgvStruct) {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
     let lease: Lock;
@@ -471,7 +471,7 @@ export class RelayCommand extends BaseCommand {
     return true;
   }
 
-  private async destroy(argv: ArgvStruct) {
+  public async destroy(argv: ArgvStruct) {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
     let lease: Lock;

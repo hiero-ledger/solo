@@ -40,9 +40,9 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
 
   public static readonly CLUSTER_ATTACH: string = 'attach';
 
-  public static readonly CONFIGS_LIST: string = 'list';
-  public static readonly CONFIGS_CREATE: string = 'create';
-  public static readonly CONFIGS_DELETE: string = 'delete';
+  public static readonly CONFIG_LIST: string = 'list';
+  public static readonly CONFIG_CREATE: string = 'create';
+  public static readonly CONFIG_DELETE: string = 'delete';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -71,7 +71,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
         )
           .addSubcommand(
             new Subcommand(
-              DeploymentCommandDefinition.CONFIGS_LIST,
+              DeploymentCommandDefinition.CONFIG_LIST,
               'Lists all local deployment configurations.',
               this.deploymentCommand,
               this.deploymentCommand.list,
@@ -80,7 +80,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              DeploymentCommandDefinition.CONFIGS_CREATE,
+              DeploymentCommandDefinition.CONFIG_CREATE,
               'Creates a new local deployment configuration.',
               this.deploymentCommand,
               this.deploymentCommand.create,
@@ -89,7 +89,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              DeploymentCommandDefinition.CONFIGS_DELETE,
+              DeploymentCommandDefinition.CONFIG_DELETE,
               'Removes a local deployment configuration.',
               this.deploymentCommand,
               this.deploymentCommand.delete,
