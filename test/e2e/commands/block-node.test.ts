@@ -26,6 +26,7 @@ import {type ArgvStruct} from '../../../src/types/aliases.js';
 import {type BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
 import {HEDERA_PLATFORM_VERSION, MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} from '../../../version.js';
 import {TEST_LOCAL_BLOCK_NODE_VERSION} from '../../../version-test.js';
+import {BlockCommandDefinition} from '../../../src/commands/command-definitions/block-command-definition.js';
 
 // eslint-disable-next-line @typescript-eslint/typedef
 const execAsync = promisify(exec);
@@ -93,9 +94,9 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
       try {
         await commandInvoker.invoke({
           argv: argvClone,
-          command: BlockNodeCommand.COMMAND_NAME,
-          subcommand: BlockNodeCommand.SUBCOMMAND_NAME,
-          action: 'add',
+          command: BlockCommandDefinition.COMMAND_NAME,
+          subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
+          action: BlockCommandDefinition.NODE_ADD,
           callback: async (argv: ArgvStruct): Promise<boolean> => blockNodeCommand.add(argv),
         });
 
@@ -110,9 +111,9 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
 
       await commandInvoker.invoke({
         argv: argv,
-        command: BlockNodeCommand.COMMAND_NAME,
-        subcommand: BlockNodeCommand.SUBCOMMAND_NAME,
-        action: 'add',
+        command: BlockCommandDefinition.COMMAND_NAME,
+        subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: BlockCommandDefinition.NODE_ADD,
         callback: async (argv: {_: string[]} & Record<string, any>): Promise<boolean> => blockNodeCommand.add(argv),
       });
 
@@ -152,9 +153,9 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
 
       await commandInvoker.invoke({
         argv: argv,
-        command: BlockNodeCommand.COMMAND_NAME,
-        subcommand: BlockNodeCommand.SUBCOMMAND_NAME,
-        action: 'destroy',
+        command: BlockCommandDefinition.COMMAND_NAME,
+        subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: BlockCommandDefinition.NODE_DESTROY,
         callback: async (argv: {_: string[]} & Record<string, any>): Promise<boolean> => blockNodeCommand.destroy(argv),
       });
 

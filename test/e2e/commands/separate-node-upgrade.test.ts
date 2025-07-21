@@ -19,6 +19,8 @@ import {Argv} from '../../helpers/argv-wrapper.js';
 import {AccountCommand} from '../../../src/commands/account.js';
 import {NodeCommand} from '../../../src/commands/node/index.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
+import {LedgerCommandDefinition} from '../../../src/commands/command-definitions/ledger-command-definition.js';
+import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 
 const namespace = NamespaceName.of('node-upgrade');
 const argv = Argv.getDefaultArgv(namespace);
@@ -50,9 +52,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     it('should succeed with init command', async () => {
       await commandInvoker.invoke({
         argv: argv,
-        command: AccountCommand.COMMAND_NAME,
-        subcommand: AccountCommand.SUBCOMMAND_NAME,
-        action: 'init',
+        command: LedgerCommandDefinition.COMMAND_NAME,
+        subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+        action: LedgerCommandDefinition.ACCOUNT_INIT,
         callback: async (argv): Promise<boolean> => accountCmd.init(argv),
       });
     }).timeout(Duration.ofMinutes(8).toMillis());
@@ -77,25 +79,25 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
 
       await commandInvoker.invoke({
         argv: argvPrepare,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: NodeCommand.SUBCOMMAND_NAME,
-        action: 'upgrade-prepare',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NETWORK_UPGRADE_PREPARE,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgradePrepare(argv),
       });
 
       await commandInvoker.invoke({
         argv: argvExecute,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: NodeCommand.SUBCOMMAND_NAME,
-        action: 'upgrade-submit-transactions',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NETWORK_UPGRADE_SUBMIT_TRANSACTION,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgradeSubmitTransactions(argv),
       });
 
       await commandInvoker.invoke({
         argv: argvExecute,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: NodeCommand.SUBCOMMAND_NAME,
-        action: 'upgrade-execute',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NETWORK_UPGRADE_EXECUTE,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgradeExecute(argv),
       });
     }).timeout(Duration.ofMinutes(5).toMillis());

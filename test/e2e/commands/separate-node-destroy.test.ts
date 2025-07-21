@@ -23,6 +23,8 @@ import {Argv} from '../../helpers/argv-wrapper.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {AccountCommand} from '../../../src/commands/account.js';
 import {NodeCommand} from '../../../src/commands/node/index.js';
+import {LedgerCommandDefinition} from '../../../src/commands/command-definitions/ledger-command-definition.js';
+import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 
 const namespace = NamespaceName.of('node-delete-separate');
 const nodeAlias = 'node1' as NodeAlias;
@@ -60,9 +62,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     it('should succeed with init command', async () => {
       await commandInvoker.invoke({
         argv: argv,
-        command: AccountCommand.COMMAND_NAME,
-        subcommand: AccountCommand.SUBCOMMAND_NAME,
-        action: 'init',
+        command: LedgerCommandDefinition.COMMAND_NAME,
+        subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+        action: LedgerCommandDefinition.ACCOUNT_INIT,
         callback: async (argv): Promise<boolean> => accountCmd.init(argv),
       });
     }).timeout(Duration.ofMinutes(8).toMillis());
@@ -70,25 +72,25 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     it('should delete a node from the network successfully', async () => {
       await commandInvoker.invoke({
         argv: argvPrepare,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: NodeCommand.SUBCOMMAND_NAME,
-        action: 'delete-prepare',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_DESTROY_PREPARE,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.destroyPrepare(argv),
       });
 
       await commandInvoker.invoke({
         argv: argvExecute,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: NodeCommand.SUBCOMMAND_NAME,
-        action: 'delete-submit-transactions',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_DESTROY_SUBMIT_TRANSACTIONS,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.destroySubmitTransactions(argv),
       });
 
       await commandInvoker.invoke({
         argv: argvExecute,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: NodeCommand.SUBCOMMAND_NAME,
-        action: 'delete-execute',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_DESTROY_EXECUTE,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.destroyExecute(argv),
       });
 

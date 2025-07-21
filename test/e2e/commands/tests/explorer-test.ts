@@ -18,6 +18,7 @@ import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
 import {ExplorerCommand} from '../../../../src/commands/explorer.js';
+import {ExplorerCommandDefinition} from '../../../../src/commands/command-definitions/explorer-command-definition.js';
 
 export class ExplorerTest extends BaseCommandTest {
   private static soloExplorerDeployArgv(
@@ -29,9 +30,9 @@ export class ExplorerTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      ExplorerCommand.COMMAND_NAME,
-      ExplorerCommand.SUBCOMMAND_NAME,
-      'add',
+      ExplorerCommandDefinition.COMMAND_NAME,
+      ExplorerCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ExplorerCommandDefinition.NODE_ADD,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.clusterRef),

@@ -24,6 +24,8 @@ import {AccountCommand} from '../../../src/commands/account.js';
 import {NodeCommand} from '../../../src/commands/node/index.js';
 import {NetworkCommand} from '../../../src/commands/network.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
+import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
+import {LedgerCommandDefinition} from '../../../src/commands/command-definitions/ledger-command-definition.js';
 
 const defaultTimeout = Duration.ofMinutes(2).toMillis();
 const namespace = NamespaceName.of('node-add-separated');
@@ -65,17 +67,17 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
 
       await commandInvoker.invoke({
         argv: argv,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: NodeCommand.SUBCOMMAND_NAME,
-        action: 'stop',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_STOP,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.stop(argv),
       });
 
       await commandInvoker.invoke({
         argv: argv,
-        command: NetworkCommand.COMMAND_NAME,
-        subcommand: NetworkCommand.SUBCOMMAND_NAME,
-        action: 'destroy',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NETWORK_DESTROY,
         callback: async (argv): Promise<boolean> => networkCmd.destroy(argv),
       });
 
@@ -98,9 +100,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     it('should succeed with init command', async () => {
       await commandInvoker.invoke({
         argv: argv,
-        command: AccountCommand.COMMAND_NAME,
-        subcommand: AccountCommand.SUBCOMMAND_NAME,
-        action: 'init',
+        command: LedgerCommandDefinition.COMMAND_NAME,
+        subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+        action: LedgerCommandDefinition.ACCOUNT_INIT,
         callback: async (argv): Promise<boolean> => accountCmd.init(argv),
       });
     }).timeout(Duration.ofMinutes(8).toMillis());
@@ -108,25 +110,25 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     it('should add a new node to the network via the segregated commands successfully', async () => {
       await commandInvoker.invoke({
         argv: argvPrepare,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: NodeCommand.SUBCOMMAND_NAME,
-        action: 'add-prepare',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_ADD_PREPARE,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.addPrepare(argv),
       });
 
       await commandInvoker.invoke({
         argv: argvExecute,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: NodeCommand.SUBCOMMAND_NAME,
-        action: 'add-submit-transactions',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_ADD_SUBMIT_TRANSACTIONS,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.addSubmitTransactions(argv),
       });
 
       await commandInvoker.invoke({
         argv: argvExecute,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: NodeCommand.SUBCOMMAND_NAME,
-        action: 'add-execute',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_ADD_EXECUTE,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.addExecute(argv),
       });
 

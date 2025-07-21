@@ -28,6 +28,7 @@ import {InjectTokens} from '../../src/core/dependency-injection/inject-tokens.js
 import {Argv} from '../helpers/argv-wrapper.js';
 import {type SoloListrTaskWrapper} from '../../src/types/index.js';
 import {type Pod} from '../../src/integration/kube/resources/pod/pod.js';
+import {ConsensusCommandDefinition} from '../../src/commands/command-definitions/consensus-command-definition.js';
 
 export function endToEndNodeKeyRefreshTest(testName: string, mode: string, releaseTag = HEDERA_PLATFORM_VERSION_TAG) {
   const namespace = NamespaceName.of(testName);
@@ -98,9 +99,9 @@ export function endToEndNodeKeyRefreshTest(testName: string, mode: string, relea
           } else if (mode === 'stop') {
             await commandInvoker.invoke({
               argv: argv,
-              command: NodeCommand.COMMAND_NAME,
-              subcommand: NodeCommand.SUBCOMMAND_NAME,
-              action: 'stop',
+              command: ConsensusCommandDefinition.COMMAND_NAME,
+              subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+              action: ConsensusCommandDefinition.NODE_STOP,
               callback: async (argv): Promise<boolean> => nodeCmd.handlers.stop(argv),
             });
 
@@ -143,9 +144,9 @@ export function endToEndNodeKeyRefreshTest(testName: string, mode: string, relea
           try {
             await commandInvoker.invoke({
               argv: argv,
-              command: NodeCommand.COMMAND_NAME,
-              subcommand: NodeCommand.SUBCOMMAND_NAME,
-              action: 'refresh',
+              command: ConsensusCommandDefinition.COMMAND_NAME,
+              subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+              action: ConsensusCommandDefinition.NODE_REFRESH,
               callback: async (argv): Promise<boolean> => nodeCmd.handlers.refresh(argv),
             });
           } catch (error) {

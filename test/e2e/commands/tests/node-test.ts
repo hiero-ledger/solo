@@ -30,6 +30,8 @@ import {
 } from '@hashgraph/sdk';
 import {type BaseTestOptions} from './base-test-options.js';
 import {NodeCommand} from '../../../../src/commands/node/index.js';
+import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
+import {KeysCommandDefinition} from '../../../../src/commands/command-definitions/keys-command-definition.js';
 
 export class NodeTest extends BaseCommandTest {
   private static soloNodeKeysArgv(testName: string, deployment: DeploymentName): string[] {
@@ -37,9 +39,9 @@ export class NodeTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      NodeCommand.COMMAND_NAME,
-      NodeCommand.SUBCOMMAND_NAME,
-      'keys',
+      KeysCommandDefinition.COMMAND_NAME,
+      KeysCommandDefinition.CONSENSUS_SUBCOMMAND_NAME,
+      KeysCommandDefinition.CONSENSUS_GENERATE,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.generateGossipKeys),
@@ -76,9 +78,9 @@ export class NodeTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      NodeCommand.COMMAND_NAME,
-      NodeCommand.SUBCOMMAND_NAME,
-      'setup',
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SETUP,
       optionFromFlag(Flags.deployment),
       deployment,
     );
@@ -148,9 +150,9 @@ export class NodeTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      NodeCommand.COMMAND_NAME,
-      NodeCommand.SUBCOMMAND_NAME,
-      'start',
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_START,
       optionFromFlag(Flags.deployment),
       deployment,
     );

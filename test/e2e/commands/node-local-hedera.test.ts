@@ -19,6 +19,8 @@ import {type DeploymentName} from '../../../src/types/index.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {NodeCommand} from '../../../src/commands/node/index.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
+import {LedgerCommandDefinition} from '../../../src/commands/command-definitions/ledger-command-definition.js';
+import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 
 const namespace = NamespaceName.of('local-hedera-app');
 const argv = Argv.getDefaultArgv(namespace);
@@ -73,9 +75,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       // create more transactions to save more round of states
       await commandInvoker.invoke({
         argv: argv,
-        command: AccountCommand.COMMAND_NAME,
-        subcommand: AccountCommand.SUBCOMMAND_NAME,
-        action: 'create',
+        command: LedgerCommandDefinition.COMMAND_NAME,
+        subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+        action: LedgerCommandDefinition.ACCOUNT_CREATE,
         callback: async (argv): Promise<boolean> => accountCmd.create(argv),
       });
 
@@ -83,9 +85,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
 
       await commandInvoker.invoke({
         argv: argv,
-        command: AccountCommand.COMMAND_NAME,
-        subcommand: AccountCommand.SUBCOMMAND_NAME,
-        action: 'create',
+        command: LedgerCommandDefinition.COMMAND_NAME,
+        subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+        action: LedgerCommandDefinition.ACCOUNT_CREATE,
         callback: async (argv): Promise<boolean> => accountCmd.create(argv),
       });
 
@@ -94,17 +96,17 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       // stop network and save the state
       await commandInvoker.invoke({
         argv: argv,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: NodeCommand.SUBCOMMAND_NAME,
-        action: 'stop',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_STOP,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.stop(argv),
       });
 
       await commandInvoker.invoke({
         argv: argv,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: NodeCommand.SUBCOMMAND_NAME,
-        action: 'states',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_STATES,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.states(argv),
       });
 
@@ -112,9 +114,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
 
       await commandInvoker.invoke({
         argv: argv,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: NodeCommand.SUBCOMMAND_NAME,
-        action: 'start',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_START,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.start(argv),
       });
 

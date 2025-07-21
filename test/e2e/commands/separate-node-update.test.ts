@@ -25,6 +25,8 @@ import {NodeCommand} from '../../../src/commands/node/index.js';
 import {AccountCommand} from '../../../src/commands/account.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
+import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
+import {LedgerCommandDefinition} from '../../../src/commands/command-definitions/ledger-command-definition.js';
 
 const defaultTimeout = Duration.ofMinutes(2).toMillis();
 const namespace = NamespaceName.of('node-update-separate');
@@ -61,9 +63,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
 
       await commandInvoker.invoke({
         argv: argv,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: NodeCommand.SUBCOMMAND_NAME,
-        action: 'stop',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_STOP,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.stop(argv),
       });
 
@@ -86,9 +88,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     it('should succeed with init command', async () => {
       await commandInvoker.invoke({
         argv: argv,
-        command: AccountCommand.COMMAND_NAME,
-        subcommand: AccountCommand.SUBCOMMAND_NAME,
-        action: 'init',
+        command: LedgerCommandDefinition.COMMAND_NAME,
+        subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+        action: LedgerCommandDefinition.ACCOUNT_INIT,
         callback: async (argv): Promise<boolean> => accountCmd.init(argv),
       });
     }).timeout(Duration.ofMinutes(8).toMillis());
@@ -118,25 +120,25 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
 
       await commandInvoker.invoke({
         argv: argvPrepare,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: NodeCommand.SUBCOMMAND_NAME,
-        action: 'update-prepare',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_UPDATE_PREPARE,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.updatePrepare(argv),
       });
 
       await commandInvoker.invoke({
         argv: argvExecute,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: NodeCommand.SUBCOMMAND_NAME,
-        action: 'update-submit-transactions',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_UPDATE_SUBMIT_TRANSACTIONS,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.updateSubmitTransactions(argv),
       });
 
       await commandInvoker.invoke({
         argv: argvExecute,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: NodeCommand.SUBCOMMAND_NAME,
-        action: 'update-execute',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_UPDATE_EXECUTE,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.updateExecute(argv),
       });
 

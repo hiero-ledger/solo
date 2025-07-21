@@ -23,6 +23,7 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type ArgvStruct} from '../../../src/types/aliases.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
+import {RelayCommandDefinition} from '../../../src/commands/command-definitions/relay-command-definition.js';
 
 const testName: string = 'relay-cmd-e2e';
 const namespace: NamespaceName = NamespaceName.of(testName);
@@ -76,10 +77,9 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
           try {
             await commandInvoker.invoke({
               argv: argv,
-              command: RelayCommand.COMMAND_NAME,
-              subcommand: RelayCommand.SUBCOMMAND_NAME,
-              action: 'add',
-              // @ts-expect-error to access private property
+              command: RelayCommandDefinition.COMMAND_NAME,
+              subcommand: RelayCommandDefinition.NODE_SUBCOMMAND_NAME,
+              action: RelayCommandDefinition.NODE_ADD,
               callback: async (argv: ArgvStruct): Promise<boolean> => relayCommand.add(argv),
             });
           } catch (error) {
@@ -92,10 +92,9 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
           try {
             await commandInvoker.invoke({
               argv: argv,
-              command: RelayCommand.COMMAND_NAME,
-              subcommand: RelayCommand.SUBCOMMAND_NAME,
-              action: 'destroy',
-              // @ts-expect-error to access private modifier
+              command: RelayCommandDefinition.COMMAND_NAME,
+              subcommand: RelayCommandDefinition.NODE_SUBCOMMAND_NAME,
+              action: RelayCommandDefinition.NODE_DESTROY,
               callback: async (argv: ArgvStruct): Promise<boolean> => relayCommand.destroy(argv),
             });
           } catch (error) {

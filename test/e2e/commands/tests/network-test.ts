@@ -15,6 +15,7 @@ import {type DeploymentName} from '../../../../src/types/index.js';
 import {Flags} from '../../../../src/commands/flags.js';
 import {type BaseTestOptions} from './base-test-options.js';
 import {NetworkCommand} from '../../../../src/commands/network.js';
+import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
 
 export class NetworkTest extends BaseCommandTest {
   private static soloNetworkDeployArgv(
@@ -28,9 +29,9 @@ export class NetworkTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      NetworkCommand.COMMAND_NAME,
-      NetworkCommand.SUBCOMMAND_NAME,
-      'deploy',
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_DEPLOY,
       optionFromFlag(Flags.deployment),
       deployment,
     );
@@ -86,9 +87,9 @@ export class NetworkTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      NetworkCommand.COMMAND_NAME,
-      NetworkCommand.SUBCOMMAND_NAME,
-      'destroy',
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_DESTROY,
       optionFromFlag(Flags.deployment),
       deployment,
     );

@@ -31,6 +31,7 @@ import {type Container} from '../../../src/integration/kube/resources/container/
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {Templates} from '../../../src/core/templates.js';
 import {NodeStatusCodes} from '../../../src/core/enumerations.js';
+import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 
 const namespace = NamespaceName.of('node-upgrade');
 const realm = 0;
@@ -74,9 +75,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       upgradeWithVersionArgv.setArg(flags.upgradeVersion, TEST_UPGRADE_VERSION);
       await commandInvoker.invoke({
         argv: upgradeWithVersionArgv,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: NodeCommand.SUBCOMMAND_NAME,
-        action: 'upgrade',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NETWORK_UPGRADE,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgrade(argv),
       });
     }).timeout(Duration.ofMinutes(5).toMillis());
@@ -127,9 +128,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
 
       await commandInvoker.invoke({
         argv: upgradeWithZipArgv,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: NodeCommand.SUBCOMMAND_NAME,
-        action: 'upgrade',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NETWORK_UPGRADE,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgrade(argv),
       });
 

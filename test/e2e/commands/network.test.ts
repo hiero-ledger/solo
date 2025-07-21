@@ -24,6 +24,12 @@ import os from 'node:os';
 import {container} from 'tsyringe-neo';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
+import {
+  ClusterReferenceCommandDefinition
+} from '../../../src/commands/command-definitions/cluster-reference-command-definition.js';
+import {DeploymentCommandDefinition} from '../../../src/commands/command-definitions/deployment-command-definition.js';
+import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
+import {KeysCommandDefinition} from '../../../src/commands/command-definitions/keys-command-definition.js';
 
 describe('NetworkCommand', function networkCommand() {
   this.bail(true);
@@ -87,17 +93,17 @@ describe('NetworkCommand', function networkCommand() {
 
     await commandInvoker.invoke({
       argv: argv,
-      command: ClusterCommand.COMMAND_NAME,
-      subcommand: ClusterCommand.SUBCOMMAND_NAME,
-      action: 'setup',
+      command: ClusterReferenceCommandDefinition.COMMAND_NAME,
+      subcommand: ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+      action: ClusterReferenceCommandDefinition.CONFIG_SETUP,
       callback: async (argv): Promise<boolean> => clusterCmd.handlers.setup(argv),
     });
 
     await commandInvoker.invoke({
       argv: argv,
-      command: ClusterCommand.COMMAND_NAME,
-      subcommand: ClusterCommand.SUBCOMMAND_NAME,
-      action: 'connect',
+      command: ClusterReferenceCommandDefinition.COMMAND_NAME,
+      subcommand: ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+      action: ClusterReferenceCommandDefinition.CONFIG_CONNECT,
       callback: async (argv): Promise<boolean> => clusterCmd.handlers.connect(argv),
     });
 
@@ -108,9 +114,9 @@ describe('NetworkCommand', function networkCommand() {
   it('deployment create should succeed', async () => {
     await commandInvoker.invoke({
       argv: argv,
-      command: DeploymentCommand.COMMAND_NAME,
-      subcommand: DeploymentCommand.SUBCOMMAND_NAME,
-      action: 'create',
+      command: DeploymentCommandDefinition.COMMAND_NAME,
+      subcommand: DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+      action: DeploymentCommandDefinition.CONFIG_CREATE,
       callback: async (argv): Promise<boolean> => deploymentCmd.create(argv),
     });
 
@@ -122,9 +128,9 @@ describe('NetworkCommand', function networkCommand() {
   it('cluster-ref config attach should succeed', async () => {
     await commandInvoker.invoke({
       argv: argv,
-      command: DeploymentCommand.COMMAND_NAME,
-      subcommand: DeploymentCommand.SUBCOMMAND_NAME,
-      action: 'attach',
+      command: DeploymentCommandDefinition.COMMAND_NAME,
+      subcommand: DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_NAME,
+      action: DeploymentCommandDefinition.CLUSTER_ATTACH,
       callback: async (argv): Promise<boolean> => deploymentCmd.addCluster(argv),
     });
 
@@ -136,9 +142,9 @@ describe('NetworkCommand', function networkCommand() {
   it('keys should be generated', async () => {
     await commandInvoker.invoke({
       argv: argv,
-      command: NodeCommand.COMMAND_NAME,
-      subcommand: NodeCommand.SUBCOMMAND_NAME,
-      action: 'keys',
+      command: KeysCommandDefinition.COMMAND_NAME,
+      subcommand: KeysCommandDefinition.CONSENSUS_SUBCOMMAND_NAME,
+      action: KeysCommandDefinition.CONSENSUS_GENERATE,
       callback: async (argv): Promise<boolean> => nodeCmd.handlers.keys(argv),
     });
   });
@@ -146,9 +152,9 @@ describe('NetworkCommand', function networkCommand() {
   it('network deploy command should succeed', async () => {
     await commandInvoker.invoke({
       argv: argv,
-      command: NetworkCommand.COMMAND_NAME,
-      subcommand: NetworkCommand.SUBCOMMAND_NAME,
-      action: 'deploy',
+      command: ConsensusCommandDefinition.COMMAND_NAME,
+      subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+      action: ConsensusCommandDefinition.NETWORK_DEPLOY,
       callback: async (argv): Promise<boolean> => networkCmd.deploy(argv),
     });
 
@@ -182,9 +188,9 @@ describe('NetworkCommand', function networkCommand() {
     try {
       await commandInvoker.invoke({
         argv: argv,
-        command: NetworkCommand.COMMAND_NAME,
-        subcommand: NetworkCommand.SUBCOMMAND_NAME,
-        action: 'destroy',
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NETWORK_DESTROY,
         callback: async (argv): Promise<boolean> => networkCmd.destroy(argv),
       });
 

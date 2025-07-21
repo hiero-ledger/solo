@@ -37,6 +37,8 @@ import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
+import {LedgerCommandDefinition} from '../../../src/commands/command-definitions/ledger-command-definition.js';
+import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 
 const defaultTimeout = Duration.ofSeconds(20).toMillis();
 
@@ -109,9 +111,9 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
       it('should succeed with init command', async () => {
         await commandInvoker.invoke({
           argv: argv,
-          command: AccountCommand.COMMAND_NAME,
-          subcommand: AccountCommand.SUBCOMMAND_NAME,
-          action: 'init',
+          command: LedgerCommandDefinition.COMMAND_NAME,
+          subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+          action: LedgerCommandDefinition.ACCOUNT_INIT,
           callback: async (argv): Promise<boolean> => accountCmd.init(argv),
         });
       }).timeout(Duration.ofMinutes(8).toMillis());
@@ -181,9 +183,9 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
           await commandInvoker.invoke({
             argv: argv,
-            command: AccountCommand.COMMAND_NAME,
-            subcommand: AccountCommand.SUBCOMMAND_NAME,
-            action: 'create',
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_CREATE,
             callback: async (argv): Promise<boolean> => accountCmd.create(argv),
           });
 
@@ -211,9 +213,9 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
           await commandInvoker.invoke({
             argv: argv,
-            command: AccountCommand.COMMAND_NAME,
-            subcommand: AccountCommand.SUBCOMMAND_NAME,
-            action: 'create',
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_CREATE,
             callback: async (argv): Promise<boolean> => accountCmd.create(argv),
           });
 
@@ -238,9 +240,9 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
           await commandInvoker.invoke({
             argv: argv,
-            command: AccountCommand.COMMAND_NAME,
-            subcommand: AccountCommand.SUBCOMMAND_NAME,
-            action: 'update',
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_UPDATE,
             callback: async (argv): Promise<boolean> => accountCmd.update(argv),
           });
 
@@ -265,9 +267,9 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
           await commandInvoker.invoke({
             argv: argv,
-            command: AccountCommand.COMMAND_NAME,
-            subcommand: AccountCommand.SUBCOMMAND_NAME,
-            action: 'update',
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_UPDATE,
             callback: async (argv): Promise<boolean> => accountCmd.update(argv),
           });
 
@@ -290,9 +292,9 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
           await commandInvoker.invoke({
             argv: argv,
-            command: AccountCommand.COMMAND_NAME,
-            subcommand: AccountCommand.SUBCOMMAND_NAME,
-            action: 'get',
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_INFO,
             callback: async (argv): Promise<boolean> => accountCmd.get(argv),
           });
 
@@ -315,9 +317,9 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
           await commandInvoker.invoke({
             argv: argv,
-            command: AccountCommand.COMMAND_NAME,
-            subcommand: AccountCommand.SUBCOMMAND_NAME,
-            action: 'get',
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_INFO,
             callback: async (argv): Promise<boolean> => accountCmd.get(argv),
           });
 
@@ -343,9 +345,9 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
           await commandInvoker.invoke({
             argv: argv,
-            command: AccountCommand.COMMAND_NAME,
-            subcommand: AccountCommand.SUBCOMMAND_NAME,
-            action: 'create',
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_CREATE,
             callback: async (argv): Promise<boolean> => accountCmd.create(argv),
           });
 
@@ -458,17 +460,17 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
         try {
           await commandInvoker.invoke({
             argv: argv,
-            command: NodeCommand.COMMAND_NAME,
-            subcommand: NodeCommand.SUBCOMMAND_NAME,
-            action: 'freeze',
+            command: ConsensusCommandDefinition.COMMAND_NAME,
+            subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+            action: ConsensusCommandDefinition.NETWORK_FREEZE,
             callback: async (argv): Promise<boolean> => nodeCmd.handlers.freeze(argv),
           });
 
           await commandInvoker.invoke({
             argv: argv,
-            command: NodeCommand.COMMAND_NAME,
-            subcommand: NodeCommand.SUBCOMMAND_NAME,
-            action: 'restart',
+            command: ConsensusCommandDefinition.COMMAND_NAME,
+            subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+            action: ConsensusCommandDefinition.NODE_RESTART,
             callback: async (argv): Promise<boolean> => nodeCmd.handlers.restart(argv),
           });
         } catch (error) {

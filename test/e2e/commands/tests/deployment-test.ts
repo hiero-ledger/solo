@@ -12,6 +12,9 @@ import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
 import {DeploymentCommand} from '../../../../src/commands/deployment.js';
+import {
+  DeploymentCommandDefinition
+} from '../../../../src/commands/command-definitions/deployment-command-definition.js';
 
 export class DeploymentTest extends BaseCommandTest {
   private static soloDeploymentCreateArgv(
@@ -25,9 +28,9 @@ export class DeploymentTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      DeploymentCommand.COMMAND_NAME,
-      DeploymentCommand.SUBCOMMAND_NAME,
-      'create',
+      DeploymentCommandDefinition.COMMAND_NAME,
+      DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+      DeploymentCommandDefinition.CONFIG_CREATE,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.namespace),
@@ -63,9 +66,9 @@ export class DeploymentTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      DeploymentCommand.COMMAND_NAME,
-      DeploymentCommand.SUBCOMMAND_NAME,
-      'attach',
+      DeploymentCommandDefinition.COMMAND_NAME,
+      DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_NAME,
+      DeploymentCommandDefinition.CLUSTER_ATTACH,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.clusterRef),

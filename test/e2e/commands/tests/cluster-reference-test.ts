@@ -12,6 +12,9 @@ import {container} from 'tsyringe-neo';
 import {expect} from 'chai';
 import {type BaseTestOptions} from './base-test-options.js';
 import {ClusterCommand} from '../../../../src/commands/cluster/index.js';
+import {
+  ClusterReferenceCommandDefinition
+} from '../../../../src/commands/command-definitions/cluster-reference-command-definition.js';
 
 export class ClusterReferenceTest extends BaseCommandTest {
   private static soloClusterReferenceConnectArgv(
@@ -23,9 +26,9 @@ export class ClusterReferenceTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      ClusterCommand.COMMAND_NAME,
-      ClusterCommand.SUBCOMMAND_NAME,
-      'connect',
+      ClusterReferenceCommandDefinition.COMMAND_NAME,
+      ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+      ClusterReferenceCommandDefinition.CONFIG_CONNECT,
       optionFromFlag(Flags.clusterRef),
       clusterReference,
       optionFromFlag(Flags.context),
@@ -59,9 +62,9 @@ export class ClusterReferenceTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      ClusterCommand.COMMAND_NAME,
-      ClusterCommand.SUBCOMMAND_NAME,
-      'setup',
+      ClusterReferenceCommandDefinition.COMMAND_NAME,
+      ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+      ClusterReferenceCommandDefinition.CONFIG_SETUP,
       optionFromFlag(Flags.clusterRef),
       clusterReference,
     );

@@ -17,6 +17,7 @@ import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
 import {MirrorNodeCommand} from '../../../../src/commands/mirror-node.js';
+import {MirrorCommandDefinition} from '../../../../src/commands/command-definitions/mirror-command-definition.js';
 
 export class MirrorNodeTest extends BaseCommandTest {
   private static soloMirrorNodeDeployArgv(
@@ -29,9 +30,9 @@ export class MirrorNodeTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      MirrorNodeCommand.COMMAND_NAME,
-      MirrorNodeCommand.SUBCOMMAND_NAME,
-      'add',
+      MirrorCommandDefinition.COMMAND_NAME,
+      MirrorCommandDefinition.NODE_SUBCOMMAND_NAME,
+      MirrorCommandDefinition.NODE_ADD,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.clusterRef),
