@@ -152,11 +152,11 @@ function check_importer_log()
 
 function log_and_exit()
 {
-  echo "load_log_and_exit begin wit rc=$1"
+  echo "load_log_and_exit begin with rc=$1"
 
   echo "------- BEGIN RELAY DUMP -------"
-  kubectl get services -n solo-e2e --output=name | grep relay-node | grep -v '\-ws' | xargs -IRELAY kubectl logs -n solo-e2e RELAY > relay.log
-  cat relay.log
+  kubectl get services -n "${namespace}" --output=name | grep relay-node | grep -v '\-ws' | xargs -IRELAY kubectl logs -n "${namespace}" RELAY > relay.log || true
+  cat relay.log || true
   echo "------- END RELAY DUMP -------"
 
   echo "------- Last port-forward check -------" >> port-forward.log
