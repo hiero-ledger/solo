@@ -63,6 +63,15 @@ import {DefaultQuickStartCommand} from '../../commands/quick-start/default-quick
 import {DefaultTaskList} from '../task-list/default-task-list.js';
 import {Commands} from '../../commands/commands.js';
 import {KindDependencyManager} from '../dependency-managers/kind-dependency-manager.js';
+import {BlockCommandDefinition} from '../../commands/command-definitions/block-command-definition.js';
+import {ClusterReferenceCommandDefinition} from '../../commands/command-definitions/cluster-reference-command-definition.js';
+import {ConsensusCommandDefinition} from '../../commands/command-definitions/consensus-command-definition.js';
+import {DeploymentCommandDefinition} from '../../commands/command-definitions/deployment-command-definition.js';
+import {ExplorerCommandDefinition} from '../../commands/command-definitions/explorer-command-definition.js';
+import {KeysCommandDefinition} from '../../commands/command-definitions/keys-command-definition.js';
+import {LedgerCommandDefinition} from '../../commands/command-definitions/ledger-command-definition.js';
+import {MirrorCommandDefinition} from '../../commands/command-definitions/mirror-command-definition.js';
+import {QuickStartCommandDefinition} from '../../commands/command-definitions/quick-start-command-definition.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -137,6 +146,17 @@ export class Container {
       new SingletonContainer(InjectTokens.QuickStartCommand, DefaultQuickStartCommand),
       new SingletonContainer(InjectTokens.TaskList, DefaultTaskList),
       new SingletonContainer(InjectTokens.Commands, Commands),
+
+      // Command Definitions
+      new SingletonContainer(InjectTokens.BlockCommandDefinition, BlockCommandDefinition),
+      new SingletonContainer(InjectTokens.ClusterReferenceCommandDefinition, ClusterReferenceCommandDefinition),
+      new SingletonContainer(InjectTokens.ConsensusCommandDefinition, ConsensusCommandDefinition),
+      new SingletonContainer(InjectTokens.DeploymentCommandDefinition, DeploymentCommandDefinition),
+      new SingletonContainer(InjectTokens.ExplorerCommandDefinition, ExplorerCommandDefinition),
+      new SingletonContainer(InjectTokens.KeysCommandDefinition, KeysCommandDefinition),
+      new SingletonContainer(InjectTokens.LedgerCommandDefinition, LedgerCommandDefinition),
+      new SingletonContainer(InjectTokens.MirrorCommandDefinition, MirrorCommandDefinition),
+      new SingletonContainer(InjectTokens.QuickStartCommandDefinition, QuickStartCommandDefinition),
     ];
   }
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {inject} from 'tsyringe-neo';
+import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {BaseCommandDefinition} from './base-command-definition.js';
@@ -10,6 +10,7 @@ import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import * as NodeFlags from '../node/flags.js';
 
+@injectable()
 export class KeysCommandDefinition extends BaseCommandDefinition {
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
@@ -20,14 +21,14 @@ export class KeysCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME: string = 'deployment';
-  public static override readonly DESCRIPTION: string = 'TODO'; // TODO
+  public static override readonly COMMAND_NAME: string = 'keys';
+  protected static override readonly DESCRIPTION: string = 'TODO'; // TODO
 
   public static readonly CONSENSUS_SUBCOMMAND_NAME: string = 'consensus';
-  public static readonly CONSENSUS_SUBCOMMAND_DESCRIPTION: string =
+  private static readonly CONSENSUS_SUBCOMMAND_DESCRIPTION: string =
     'Generate unique cryptographic keys (gossip or grpc TLS keys) for the Consensus Node instances.';
 
-  public static readonly KEYS_CONSENSUS_GENERATE: string = 'generate';
+  public static readonly CONSENSUS_GENERATE: string = 'generate';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(KeysCommandDefinition.COMMAND_NAME, KeysCommandDefinition.DESCRIPTION, this.logger)
@@ -37,7 +38,7 @@ export class KeysCommandDefinition extends BaseCommandDefinition {
           KeysCommandDefinition.CONSENSUS_SUBCOMMAND_DESCRIPTION,
         ).addSubcommand(
           new Subcommand(
-            KeysCommandDefinition.KEYS_CONSENSUS_GENERATE,
+            KeysCommandDefinition.CONSENSUS_GENERATE,
             'Generates TLS keys required for consensus node communication.',
             this.nodeCommand.handlers,
             this.nodeCommand.handlers.keys,

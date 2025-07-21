@@ -48,10 +48,4 @@ export class NodeCommand extends BaseCommand {
     return this.handlers.getUnusedConfigs(configName);
   }
 
-  /**
-   * @deprecated because of common group use `CommandDefinitionBuilder.getConsensusCommandDefinition()`
-   */
-  public getCommandDefinition(): CommandDefinition {
-    return new CommandBuilder('', '', this.logger).build();
-  }
 }

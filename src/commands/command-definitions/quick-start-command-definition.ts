@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {inject} from 'tsyringe-neo';
+import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {BaseCommandDefinition} from './base-command-definition.js';
@@ -9,6 +9,7 @@ import {DefaultQuickStartCommand} from '../quick-start/default-quick-start.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 
+@injectable()
 export class QuickStartCommandDefinition extends BaseCommandDefinition {
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
@@ -20,22 +21,22 @@ export class QuickStartCommandDefinition extends BaseCommandDefinition {
   }
 
   public static override readonly COMMAND_NAME: string = 'deployment';
-  public static override readonly DESCRIPTION: string =
+  protected static override readonly DESCRIPTION: string =
     'Quick start commands for new and returning users who need a preset environment type. ' +
     'These commands use reasonable defaults to provide a single command out of box experience.';
 
   public static readonly SINGLE_SUBCOMMAND_NAME: string = 'single';
-  public static readonly SINGLE_SUBCOMMAND_DESCRIPTION: string =
+  private static readonly SINGLE_SUBCOMMAND_DESCRIPTION: string =
     'Creates a uniquely named deployment with a single consensus node, ' +
     'mirror node, block node, relay node, and explorer node.';
 
   public static readonly MULTI_SUBCOMMAND_NAME: string = 'multi';
-  public static readonly MULTI_SUBCOMMAND_DESCRIPTION: string =
+  private static readonly MULTI_SUBCOMMAND_DESCRIPTION: string =
     'Creates a uniquely named deployment with a four consensus nodes, ' +
     'a single mirror node, a single block node, a single relay node, and a single explorer node.';
 
-  public static readonly QUICK_START_SINGLE_DEPLOY: string = 'deploy';
-  public static readonly QUICK_START_SINGLE_DESTROY: string = 'destroy';
+  public static readonly SINGLE_DEPLOY: string = 'deploy';
+  public static readonly SINGLE_DESTROY: string = 'destroy';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -50,7 +51,7 @@ export class QuickStartCommandDefinition extends BaseCommandDefinition {
         )
           .addSubcommand(
             new Subcommand(
-              QuickStartCommandDefinition.QUICK_START_SINGLE_DEPLOY,
+              QuickStartCommandDefinition.SINGLE_DEPLOY,
               'Deploys all required components for the selected quick start configuration.',
               this,
               this.quickStartCommand.deploy,
@@ -59,7 +60,7 @@ export class QuickStartCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              QuickStartCommandDefinition.QUICK_START_SINGLE_DESTROY,
+              QuickStartCommandDefinition.SINGLE_DESTROY,
               'Removes the deployed resources for the selected quick start configuration.',
               this,
               this.quickStartCommand.destroy,

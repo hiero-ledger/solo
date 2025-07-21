@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {inject} from 'tsyringe-neo';
+import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {BaseCommandDefinition} from './base-command-definition.js';
@@ -9,6 +9,7 @@ import {DeploymentCommand} from '../deployment.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 
+@injectable()
 export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
@@ -20,28 +21,28 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   }
 
   public static override readonly COMMAND_NAME: string = 'deployment';
-  public static override readonly DESCRIPTION: string =
+  protected static override readonly DESCRIPTION: string =
     'Create, modify, and delete deployment configurations. ' +
     'Deployments are required for most of the other commands.';
 
   public static readonly CLUSTER_SUBCOMMAND_NAME: string = 'cluster';
-  public static readonly CLUSTER_SUBCOMMAND_DESCRIPTION: string =
+  private static readonly CLUSTER_SUBCOMMAND_DESCRIPTION: string =
     'View and manage Solo cluster references used by a deployment.';
 
   public static readonly CONFIG_SUBCOMMAND_NAME: string = 'config';
-  public static readonly CONFIG_SUBCOMMAND_DESCRIPTION: string =
+  private static readonly CONFIG_SUBCOMMAND_DESCRIPTION: string =
     'List, view, create, delete, and import deployments. These commands affect the local configuration only.';
 
   public static readonly STATE_SUBCOMMAND_NAME: string = 'state';
-  public static readonly STATE_SUBCOMMAND_DESCRIPTION: string =
+  private static readonly STATE_SUBCOMMAND_DESCRIPTION: string =
     'View the actual state of the deployment on the Kubernetes clusters or ' +
     'teardown/destroy all remote and local configuration for a given deployment.';
 
-  public static readonly DEPLOYMENT_CLUSTER_ATTACH: string = 'attach';
+  public static readonly CLUSTER_ATTACH: string = 'attach';
 
-  public static readonly DEPLOYMENT_CONFIGS_LIST: string = 'list';
-  public static readonly DEPLOYMENT_CONFIGS_CREATE: string = 'create';
-  public static readonly DEPLOYMENT_CONFIGS_DELETE: string = 'delete';
+  public static readonly CONFIGS_LIST: string = 'list';
+  public static readonly CONFIGS_CREATE: string = 'create';
+  public static readonly CONFIGS_DELETE: string = 'delete';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -55,7 +56,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
           DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_DESCRIPTION,
         ).addSubcommand(
           new Subcommand(
-            DeploymentCommandDefinition.DEPLOYMENT_CLUSTER_ATTACH,
+            DeploymentCommandDefinition.CLUSTER_ATTACH,
             'Attaches a cluster reference to a deployment.',
             this,
             this.deploymentCommand.addCluster,
@@ -70,7 +71,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
         )
           .addSubcommand(
             new Subcommand(
-              DeploymentCommandDefinition.DEPLOYMENT_CONFIGS_LIST,
+              DeploymentCommandDefinition.CONFIGS_LIST,
               'Lists all local deployment configurations.',
               this.deploymentCommand,
               this.deploymentCommand.list,
@@ -79,7 +80,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              DeploymentCommandDefinition.DEPLOYMENT_CONFIGS_CREATE,
+              DeploymentCommandDefinition.CONFIGS_CREATE,
               'Creates a new local deployment configuration.',
               this.deploymentCommand,
               this.deploymentCommand.create,
@@ -88,7 +89,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              DeploymentCommandDefinition.DEPLOYMENT_CONFIGS_DELETE,
+              DeploymentCommandDefinition.CONFIGS_DELETE,
               'Removes a local deployment configuration.',
               this.deploymentCommand,
               this.deploymentCommand.delete,

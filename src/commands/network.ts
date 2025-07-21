@@ -1354,13 +1354,6 @@ export class NetworkCommand extends BaseCommand {
     return networkDestroySuccess;
   }
 
-  /**
-   * @deprecated because of common group use `CommandDefinitionBuilder.getConsensusCommandDefinition()`
-   */
-  public getCommandDefinition(): CommandDefinition {
-    return new CommandBuilder('', '', this.logger).build();
-  }
-
   /** Adds the consensus node, envoy and haproxy components to remote config.  */
   public addNodesAndProxies(): SoloListrTask<NetworkDeployContext> {
     return {

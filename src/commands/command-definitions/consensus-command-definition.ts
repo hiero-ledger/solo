@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {inject} from 'tsyringe-neo';
+import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {BaseCommandDefinition} from './base-command-definition.js';
@@ -11,6 +11,7 @@ import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import * as NodeFlags from '../node/flags.js';
 
+@injectable()
 export class ConsensusCommandDefinition extends BaseCommandDefinition {
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
@@ -24,48 +25,57 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
   }
 
   public static override readonly COMMAND_NAME: string = 'consensus';
-  public static override readonly DESCRIPTION: string =
+  protected static override readonly DESCRIPTION: string =
     'Consensus Node operations for creating, modifying, and destroying resources. ' +
     'These commands require the presence of an existing deployment.';
 
   public static readonly NETWORK_SUBCOMMAND_NAME: string = 'network';
-  public static readonly NETWORK_SUBCOMMAND_DESCRIPTION: string =
+  private static readonly NETWORK_SUBCOMMAND_DESCRIPTION: string =
     'Ledger/network wide consensus operations such as freeze, upgrade, ' +
     'and deploy. Operates on the entire ledger and all consensus node instances.';
 
   public static readonly NODE_SUBCOMMAND_NAME: string = 'node';
-  public static readonly NODE_SUBCOMMAND_DESCRIPTION: string =
+  private static readonly NODE_SUBCOMMAND_DESCRIPTION: string =
     'List, create, manage, or destroy consensus node instances. Operates on a single consensus node instance at a time.';
 
   public static readonly STATE_SUBCOMMAND_NAME: string = 'state';
-  public static readonly STATE_SUBCOMMAND_DESCRIPTION: string =
+  private static readonly STATE_SUBCOMMAND_DESCRIPTION: string =
     'List, download, and upload consensus node state backups to/from individual consensus node instances.';
 
   public static readonly DIAGNOSTIC_SUBCOMMAND_NAME: string = 'diagnostic';
-  public static readonly DIAGNOSTIC_SUBCOMMAND_DESCRIPTION: string =
+  private static readonly DIAGNOSTIC_SUBCOMMAND_DESCRIPTION: string =
     'Capture diagnostic information such as logs, signed states, and ledger/network/node configurations.';
 
-  public static readonly CONSENSUS_NODE_SETUP: string = 'setup';
-  public static readonly CONSENSUS_NODE_START: string = 'start';
-  public static readonly CONSENSUS_NODE_STOP: string = 'stop';
-  public static readonly CONSENSUS_NODE_RESTART: string = 'restart';
-  public static readonly CONSENSUS_NODE_REFRESH: string = 'refresh';
-  public static readonly CONSENSUS_NODE_LOGS: string = 'logs';
-  public static readonly CONSENSUS_NODE_STATES: string = 'states';
-  public static readonly CONSENSUS_NODE_ADD: string = 'add';
-  public static readonly CONSENSUS_NODE_ADD_PREPARE: string = 'add-prepare';
-  public static readonly CONSENSUS_NODE_ADD_SUBMIT_TRANSACTIONS: string = 'add-submit-transactions';
-  public static readonly CONSENSUS_NODE_ADD_EXECUTE: string = 'add-execute';
-  public static readonly CONSENSUS_NODE_UPDATE: string = 'update';
-  public static readonly CONSENSUS_NODE_UPDATE_PREPARE: string = 'update-prepare';
-  public static readonly CONSENSUS_NODE_UPDATE_SUBMIT_TRANSACTIONS: string = 'update-submit-transactions';
-  public static readonly CONSENSUS_NODE_UPDATE_EXECUTE: string = 'update-execute';
-  public static readonly CONSENSUS_NODE_DELETE: string = 'delete';
-  public static readonly CONSENSUS_NODE_DELETE_PREPARE: string = 'delete-prepare';
-  public static readonly CONSENSUS_NODE_DELETE_EXECUTE: string = 'delete-execute';
-  public static readonly CONSENSUS_NODE_DELETE_SUBMIT_TRANSACTIONS: string = 'delete-submit-transactions';
-  public static readonly CONSENSUS_NODE_DELETE_EXECUTE_DOWNLOAD_GENERATED_FILES: string =
-    'delete-execute-download-generated-files';
+  public static readonly NODE_SETUP: string = 'setup';
+  public static readonly NODE_START: string = 'start';
+  public static readonly NODE_STOP: string = 'stop';
+  public static readonly NODE_RESTART: string = 'restart';
+  public static readonly NODE_REFRESH: string = 'refresh';
+  public static readonly NODE_LOGS: string = 'logs';
+  public static readonly NODE_STATES: string = 'states';
+  public static readonly NODE_ADD: string = 'add';
+  public static readonly NODE_ADD_PREPARE: string = 'add-prepare';
+  public static readonly NODE_ADD_SUBMIT_TRANSACTIONS: string = 'add-submit-transactions';
+  public static readonly NODE_ADD_EXECUTE: string = 'add-execute';
+  public static readonly NODE_UPDATE: string = 'update';
+  public static readonly NODE_UPDATE_PREPARE: string = 'update-prepare';
+  public static readonly NODE_UPDATE_SUBMIT_TRANSACTIONS: string = 'update-submit-transactions';
+  public static readonly NODE_UPDATE_EXECUTE: string = 'update-execute';
+  public static readonly NODE_DESTROY: string = 'destroy';
+  public static readonly NODE_DESTROY_PREPARE: string = 'destroy-prepare';
+  public static readonly NODE_DESTROY_EXECUTE: string = 'destroy-execute';
+  public static readonly NODE_DESTROY_SUBMIT_TRANSACTIONS: string = 'destroy-submit-transactions';
+  public static readonly NODE_DESTROY_EXECUTE_DOWNLOAD_GENERATED_FILES: string =
+    'destroy-execute-download-generated-files';
+
+  public static readonly NETWORK_DEPLOY: string = 'deploy';
+  public static readonly NETWORK_DESTROY: string = 'destroy';
+  public static readonly NETWORK_UPGRADE: string = 'upgrade';
+  public static readonly NETWORK_FREEZE: string = 'freeze';
+  public static readonly NETWORK_FREEZE_UPGRADE: string = 'freeze-upgrade';
+  public static readonly NETWORK_UPGRADE_PREPARE: string = 'upgrade-prepare';
+  public static readonly NETWORK_UPGRADE_EXECUTE: string = 'upgrade-execute';
+  public static readonly NETWORK_UPGRADE_SUBMIT_TRANSACTION: string = 'upgrade-submit-transactions';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -80,7 +90,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
         )
           .addSubcommand(
             new Subcommand(
-              'deploy',
+              ConsensusCommandDefinition.NETWORK_DEPLOY,
               'Installs and configures all consensus nodes for the deployment.',
               this.networkCommand,
               this.networkCommand.deploy,
@@ -89,7 +99,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'destroy',
+              ConsensusCommandDefinition.NETWORK_DESTROY,
               'Removes all consensus network components from the deployment.',
               this.networkCommand,
               this.networkCommand.destroy,
@@ -99,7 +109,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           // TODO: Moved from consensus node
           .addSubcommand(
             new Subcommand(
-              'upgrade',
+              ConsensusCommandDefinition.NETWORK_UPGRADE,
               'upgrades all nodes on the network',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.upgrade,
@@ -109,7 +119,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           // TODO: Moved from consensus node
           .addSubcommand(
             new Subcommand(
-              'freeze',
+              ConsensusCommandDefinition.NETWORK_FREEZE,
               'Initiates a network freeze for scheduled maintenance or upgrades.',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.freeze,
@@ -119,7 +129,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           // TODO: MOVED
           .addSubcommand(
             new Subcommand(
-              'prepare-upgrade',
+              ConsensusCommandDefinition.NETWORK_UPGRADE_PREPARE,
               'Prepare the network for a Freeze Upgrade operation',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.prepareUpgrade,
@@ -128,7 +138,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'freeze-upgrade',
+              ConsensusCommandDefinition.NETWORK_FREEZE_UPGRADE,
               'Performs a Freeze Upgrade operation with on the network after it has been prepared with prepare-upgrade',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.freezeUpgrade,
@@ -137,7 +147,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'upgrade-prepare',
+              ConsensusCommandDefinition.NETWORK_UPGRADE_PREPARE,
               'Prepare the deployment to upgrade network',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.upgradePrepare,
@@ -146,7 +156,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'upgrade-submit-transactions',
+              ConsensusCommandDefinition.NETWORK_UPGRADE_SUBMIT_TRANSACTION,
               'Submit transactions for upgrading network',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.upgradeSubmitTransactions,
@@ -155,7 +165,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              'upgrade-execute',
+              ConsensusCommandDefinition.NETWORK_UPGRADE_EXECUTE,
               'Executes the upgrading the network',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.upgradeExecute,
@@ -170,7 +180,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
         )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_SETUP,
+              ConsensusCommandDefinition.NODE_SETUP,
               'Setup node with a specific version of Hedera platform',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.setup,
@@ -179,7 +189,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_START,
+              ConsensusCommandDefinition.NODE_START,
               'Start a node',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.start,
@@ -188,7 +198,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_STOP,
+              ConsensusCommandDefinition.NODE_STOP,
               'Stop a node',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.stop,
@@ -197,7 +207,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_RESTART,
+              ConsensusCommandDefinition.NODE_RESTART,
               'Restart all nodes of the network',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.restart,
@@ -206,7 +216,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_REFRESH,
+              ConsensusCommandDefinition.NODE_REFRESH,
               'Reset and restart a node',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.refresh,
@@ -215,7 +225,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_LOGS,
+              ConsensusCommandDefinition.NODE_LOGS,
               'Download application logs from the network nodes and stores them in <SOLO_LOGS_DIR>/<namespace>/<podName>/ directory',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.logs,
@@ -224,7 +234,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_STATES,
+              ConsensusCommandDefinition.NODE_STATES,
               'Download hedera states from the network nodes and stores them in <SOLO_LOGS_DIR>/<namespace>/<podName>/ directory',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.states,
@@ -233,7 +243,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_ADD,
+              ConsensusCommandDefinition.NODE_ADD,
               'Adds a node with a specific version of Hedera platform',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.add,
@@ -242,7 +252,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_ADD_PREPARE,
+              ConsensusCommandDefinition.NODE_ADD_PREPARE,
               'Prepares the addition of a node with a specific version of Hedera platform',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.addPrepare,
@@ -251,7 +261,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_ADD_SUBMIT_TRANSACTIONS,
+              ConsensusCommandDefinition.NODE_ADD_SUBMIT_TRANSACTIONS,
               'Submits NodeCreateTransaction and Upgrade transactions to the network nodes',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.addSubmitTransactions,
@@ -260,7 +270,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_ADD_EXECUTE,
+              ConsensusCommandDefinition.NODE_ADD_EXECUTE,
               'Executes the addition of a previously prepared node',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.addExecute,
@@ -269,7 +279,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_UPDATE,
+              ConsensusCommandDefinition.NODE_UPDATE,
               'Update a node with a specific version of Hedera platform',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.update,
@@ -278,7 +288,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_UPDATE_PREPARE,
+              ConsensusCommandDefinition.NODE_UPDATE_PREPARE,
               'Prepare the deployment to update a node with a specific version of Hedera platform',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.updatePrepare,
@@ -287,7 +297,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_UPDATE_SUBMIT_TRANSACTIONS,
+              ConsensusCommandDefinition.NODE_UPDATE_SUBMIT_TRANSACTIONS,
               'Submit transactions for updating a node with a specific version of Hedera platform',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.updateSubmitTransactions,
@@ -296,7 +306,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_UPDATE_EXECUTE,
+              ConsensusCommandDefinition.NODE_UPDATE_EXECUTE,
               'Executes the updating of a node with a specific version of Hedera platform',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.updateExecute,
@@ -305,17 +315,16 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_DELETE,
+              ConsensusCommandDefinition.NODE_DESTROY,
               'Delete a node with a specific version of Hedera platform',
               this.nodeCommand.handlers,
-              // @ts-expect-error not all contexts have field
-              this.nodeCommand.handlers.delete,
+              this.nodeCommand.handlers.destroy,
               NodeFlags.DESTROY_FLAGS,
             ),
           )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_DELETE_PREPARE,
+              ConsensusCommandDefinition.NODE_DESTROY_PREPARE,
               'Prepares the deletion of a node with a specific version of Hedera platform',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.destroyPrepare,
@@ -324,7 +333,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_DELETE_SUBMIT_TRANSACTIONS,
+              ConsensusCommandDefinition.NODE_DESTROY_SUBMIT_TRANSACTIONS,
               'Submits transactions to the network nodes for deleting a node',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.destroySubmitTransactions,
@@ -333,7 +342,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_DELETE_EXECUTE_DOWNLOAD_GENERATED_FILES,
+              ConsensusCommandDefinition.NODE_DESTROY_EXECUTE,
               'Executes the deletion of a previously prepared node',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.destroyExecute,
@@ -342,7 +351,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.CONSENSUS_NODE_DELETE_EXECUTE_DOWNLOAD_GENERATED_FILES,
+              ConsensusCommandDefinition.NODE_DESTROY_EXECUTE_DOWNLOAD_GENERATED_FILES,
               'Downloads the generated files from an existing node',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.downloadGeneratedFiles,

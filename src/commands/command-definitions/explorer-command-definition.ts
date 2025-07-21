@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {inject} from 'tsyringe-neo';
+import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {BaseCommandDefinition} from './base-command-definition.js';
@@ -9,6 +9,7 @@ import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {ExplorerCommand} from '../explorer.js';
 
+@injectable()
 export class ExplorerCommandDefinition extends BaseCommandDefinition {
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
@@ -20,17 +21,17 @@ export class ExplorerCommandDefinition extends BaseCommandDefinition {
   }
 
   public static override readonly COMMAND_NAME: string = 'explorer';
-  public static override readonly DESCRIPTION: string =
+  protected static override readonly DESCRIPTION: string =
     'Explorer Node operations for creating, modifying, and destroying resources.' +
     'These commands require the presence of an existing deployment.';
 
   public static readonly NODE_SUBCOMMAND_NAME: string = 'node';
-  public static readonly NODE_SUBCOMMAND_DESCRIPTION: string =
+  private static readonly NODE_SUBCOMMAND_DESCRIPTION: string =
     'List, create, manage, or destroy explorer node instances. ' +
     'Operates on a single explorer node instance at a time.';
 
-  public static readonly EXPLORER_NODE_ADD: string = 'add';
-  public static readonly EXPLORER_NODE_DESTROY: string = 'destroy';
+  public static readonly NODE_ADD: string = 'add';
+  public static readonly NODE_DESTROY: string = 'destroy';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -45,7 +46,7 @@ export class ExplorerCommandDefinition extends BaseCommandDefinition {
         )
           .addSubcommand(
             new Subcommand(
-              ExplorerCommandDefinition.EXPLORER_NODE_ADD,
+              ExplorerCommandDefinition.NODE_ADD,
               'Adds and configures a new node instance.',
               this.explorerCommand,
               this.explorerCommand.add,
@@ -54,7 +55,7 @@ export class ExplorerCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              ExplorerCommandDefinition.EXPLORER_NODE_DESTROY,
+              ExplorerCommandDefinition.NODE_DESTROY,
               'Deletes the specified node from the deployment.',
               this.explorerCommand,
               this.explorerCommand.destroy,

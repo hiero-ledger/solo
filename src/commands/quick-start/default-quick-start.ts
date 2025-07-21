@@ -32,6 +32,8 @@ import {TaskListWrapper} from '../../core/task-list/task-list-wrapper.js';
 import * as version from '../../../version.js';
 import {ClusterCommand} from '../cluster/index.js';
 import {NodeCommand} from '../node/index.js';
+import {ClusterReferenceCommandDefinition} from '../command-definitions/cluster-reference-command-definition.js';
+import {DeploymentCommandDefinition} from '../command-definitions/deployment-command-definition.js';
 
 @injectable()
 export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
@@ -151,9 +153,9 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             (): string[] => {
               const argv: string[] = this.newArgv();
               argv.push(
-                ClusterCommand.COMMAND_NAME,
-                ClusterCommand.SUBCOMMAND_NAME,
-                'connect',
+                ClusterReferenceCommandDefinition.COMMAND_NAME,
+                ClusterReferenceCommandDefinition.CLUSTER_REF_CONFIG_SUBCOMMAND_NAME,
+                ClusterReferenceCommandDefinition.CLUSTER_REF_CONFIG_CONNECT,
                 this.optionFromFlag(Flags.clusterRef),
                 config.clusterRef,
                 this.optionFromFlag(Flags.context),
@@ -165,9 +167,9 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           this.invokeSoloCommand('solo deployment config create', DeploymentCommand.CREATE_COMMAND, (): string[] => {
             const argv: string[] = this.newArgv();
             argv.push(
-              DeploymentCommand.COMMAND_NAME,
-              DeploymentCommand.SUBCOMMAND_NAME,
-              'create',
+              DeploymentCommandDefinition.COMMAND_NAME,
+              DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+              DeploymentCommandDefinition.DEPLOYMENT_CONFIGS_CREATE,
               this.optionFromFlag(Flags.deployment),
               config.deployment,
               this.optionFromFlag(Flags.namespace),
