@@ -113,13 +113,13 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
           // Handle process completion
           process.on('close', code => {
-            if (code === 0) {
-              console.log('Smoke test execution succeeded');
-              resolve();
-            } else {
+            if (code) {
               const error = new Error(`Smoke test failed with exit code ${code}`);
               console.error(error.message);
               reject(error);
+            } else {
+              console.log('Smoke test execution succeeded');
+              resolve();
             }
           });
 

@@ -133,22 +133,31 @@ function check_importer_log()
 {
   namespace="${1}"
 
-  kubectl get pods -n "${namespace}" | grep mirror-importer | awk '{print $1}' | xargs -IPOD kubectl logs -n "${namespace}" POD > mirror-importer.log
+  kubectl get pods -n "${namespace}" | grep mirror-importer | awk '{print $1}' | xargs -IPOD kubectl logs -n "${namespace}" POD > mirror-importer.log || result=$?
+  if [[ $result -ne 0 ]]; then
+    echo "Failed to get the mirror node importer logs with exit code $result"
+    log_and_exit $result
+  fi
+
   if grep -q "ERROR" mirror-importer.log; then
     echo "mirror-importer.log contains ERROR"
-
     echo "------- BEGIN LOG DUMP -------"
     echo
     cat mirror-importer.log
     echo
     echo "------- END LOG DUMP -------"
-
     log_and_exit 1
   fi
 }
 
 function log_and_exit()
 {
+  if [[ "$1" == "0" ]]; then
+    echo "Script completed successfully."
+  else
+    echo "An error occurred while running the script: $1"
+  fi
+
   echo "------- BEGIN RELAY DUMP -------"
   kubectl get services -n solo-e2e --output=name | grep relay-node | grep -v '\-ws' | xargs -IRELAY kubectl logs -n solo-e2e RELAY > relay.log
   cat relay.log
@@ -156,19 +165,14 @@ function log_and_exit()
 
   echo "------- Last port-forward check -------" >> port-forward.log
   ps -ef |grep port-forward >> port-forward.log
-  if [[ "$1" == "0" ]]; then
-    echo "Script completed successfully."
-    echo "------- BEGIN PORT-FORWARD DUMP -------"
-    cat port-forward.log
-    echo "------- END PORT-FORWARD DUMP -------"
-    exit 0
-  else
-    echo "An error occurred while running the script: $1"
-    echo "------- BEGIN PORT-FORWARD DUMP -------"
-    cat port-forward.log
-    echo "------- END PORT-FORWARD DUMP -------"
-    exit 1
-  fi
+
+  echo "------- BEGIN PORT-FORWARD DUMP -------"
+  cat port-forward.log
+  echo "------- END PORT-FORWARD DUMP -------"
+
+  # sleep for a few seconds to give time for stdout to stream back in case it was called using nodejs
+  sleep 5
+  exit $1
 }
 
 echo "Change to parent directory"
@@ -195,12 +199,12 @@ echo "Sleep a while to wait background transactions to finish"
 sleep 30
 
 echo "Run mirror node acceptance test"
-helm test mirror -n "${SOLO_NAMESPACE}" --timeout 10m
-result=$?
+helm test mirror -n "${SOLO_NAMESPACE}" --timeout 10m || result=$?
 if [[ $result -ne 0 ]]; then
   echo "Mirror node acceptance test failed with exit code $result"
   log_and_exit $result
 fi
+result=0
 
 check_monitor_log "${SOLO_NAMESPACE}"
 
