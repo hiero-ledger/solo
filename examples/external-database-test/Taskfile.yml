@@ -45,7 +45,7 @@ env:
   EXPLORER_CLUSTER_CONTEXT: "kind-solo-cluster"
 tasks:
   install:external-database:
-    desc: create the cluster, solo init, solo cluster-ref config create, solo consensus node keys, solo consensus network deploy
+    desc: create the cluster, solo init, solo cluster-ref config create, solo keys consensus generate, solo consensus network deploy
     deps:
       - task: "init"
     cmds:

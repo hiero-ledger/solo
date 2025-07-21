@@ -37,7 +37,7 @@ tasks:
       - task: "start"
 
   install:
-    desc: solo init, solo cluster-ref config create, solo consensus node keys, solo consensus network deploy
+    desc: solo init, solo cluster-ref config create, solo keys consensus generate, solo consensus network deploy
     deps:
       - task: "init"
     cmds:
@@ -263,7 +263,7 @@ tasks:
     deps:
       - task: "init"
     cmds:
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- consensus node keys --gossip-keys --tls-keys --node-aliases {{.node_identifiers}} --deployment "${SOLO_DEPLOYMENT}" -q --dev
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- keys consensus generate --gossip-keys --tls-keys --node-aliases {{.node_identifiers}} --deployment "${SOLO_DEPLOYMENT}" -q --dev
 
   solo:network:deploy:
     silent: true
@@ -372,7 +372,7 @@ tasks:
   solo:freeze:restart:
     cmds:
       - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- consensus node prepare-upgrade --deployment "${SOLO_DEPLOYMENT}" -q --dev
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- consensus node freeze-upgrade --deployment "${SOLO_DEPLOYMENT}" -q --dev
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- consensus network freeze-upgrade --deployment "${SOLO_DEPLOYMENT}" -q --dev
       - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- consensus node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} -q --dev
       - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- consensus node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} -q --dev
 

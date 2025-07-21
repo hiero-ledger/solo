@@ -268,7 +268,7 @@ $SOLO_DEPLOYMENT_ADD_CLUSTER_OUTPUT
 You need to generate keys for your nodes, or in this case single node.
 
 ```bash
-solo consensus node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
+solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 Example output:
@@ -530,7 +530,7 @@ solo consensus node logs --node-aliases node1 --deployment solo-deployment
 To update nodes to a new Hedera version, you need to upgrade by one minor version higher at a time:
 
 ```bash
-solo consensus node upgrade --deployment solo-deployment --upgrade-version v0.62.6
+solo consensus network upgrade --deployment solo-deployment --upgrade-version v0.62.6
 ```
 
 {{< /details >}}<br/>

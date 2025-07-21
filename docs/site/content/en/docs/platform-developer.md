@@ -30,7 +30,7 @@ solo cluster-ref config connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kin
 solo deployment config create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 solo deployment config attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
 
-solo consensus node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3 
+solo keys consensus generate --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3 
 solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 
 
 # option 1) if all nodes are running the same version of Hiero app

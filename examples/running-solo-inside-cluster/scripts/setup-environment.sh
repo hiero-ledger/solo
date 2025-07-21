@@ -68,7 +68,7 @@ npm run solo-test -- cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTE
 npm run solo-test -- deployment config create --deployment ${SOLO_DEPLOYMENT} --namespace ${SOLO_NAMESPACE}
 npm run solo-test -- deployment config attach --deployment ${SOLO_DEPLOYMENT} --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
 npm run solo-test -- cluster-ref config setup --cluster-ref kind-${SOLO_CLUSTER_NAME}
-npm run solo-test -- consensus node keys --gossip-keys --tls-keys --deployment ${SOLO_DEPLOYMENT}
+npm run solo-test -- keys consensus generate --gossip-keys --tls-keys --deployment ${SOLO_DEPLOYMENT}
 npm run solo-test -- consensus network deploy --deployment ${SOLO_DEPLOYMENT}
 npm run solo-test -- consensus node setup --deployment ${SOLO_DEPLOYMENT} -i node1
 npm run solo-test -- consensus node start --deployment ${SOLO_DEPLOYMENT} -i node1

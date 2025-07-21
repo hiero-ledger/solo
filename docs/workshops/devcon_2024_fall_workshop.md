@@ -151,7 +151,7 @@ solo init -n $SOLO_NAMESPACE -i node1,node2,node3 -s "${SOLO_CLUSTER_SETUP_NAMES
 You need to create the gossip and TLS keys for your network nodes.
 
 ```bash
-solo consensus node keys --gossip-keys --tls-keys
+solo keys consensus generate --gossip-keys --tls-keys
 ```
 
 #### Checkpoint
