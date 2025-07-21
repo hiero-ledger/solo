@@ -675,9 +675,10 @@ export class MirrorNodeCommand extends BaseCommand {
                     // but exported to the specified path inside the cache directory,
                     // and the user has the responsibility to execute it manually on his own
                     if (context_.config.useExternalDatabase) {
+                      const cacheDirectory: string = context_.config.cacheDir;
                       // Build the path
-                      const databaseSeedingQueryPath = PathEx.join(
-                        constants.SOLO_CACHE_DIR,
+                      const databaseSeedingQueryPath: string = PathEx.join(
+                        cacheDirectory,
                         'database-seeding-query.sql',
                       );
 
