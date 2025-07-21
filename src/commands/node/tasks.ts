@@ -125,8 +125,7 @@ import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/
 import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 import {LockManager} from '../../core/lock/lock-manager.js';
 import {NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
-import {SemVer, lt} from 'semver';
-import * as semver from 'semver';
+import {SemVer, lt, valid} from 'semver';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
 import {IllegalArgumentError} from '../../core/errors/illegal-argument-error.js';
