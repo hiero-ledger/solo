@@ -152,11 +152,7 @@ function check_importer_log()
 
 function log_and_exit()
 {
-  if [[ "$1" == "0" ]]; then
-    echo "Script completed successfully."
-  else
-    echo "An error occurred while running the script: $1"
-  fi
+  echo "load_log_and_exit begin wit rc=$1"
 
   echo "------- BEGIN RELAY DUMP -------"
   kubectl get services -n solo-e2e --output=name | grep relay-node | grep -v '\-ws' | xargs -IRELAY kubectl logs -n solo-e2e RELAY > relay.log
@@ -172,7 +168,13 @@ function log_and_exit()
 
   # sleep for a few seconds to give time for stdout to stream back in case it was called using nodejs
   sleep 5
-  exit $1
+  if [[ "$1" == "0" ]]; then
+    echo "Script completed successfully."
+    return 0
+  else
+    echo "An error occurred while running the script: $1"
+    return 1
+  fi
 }
 
 echo "Change to parent directory"
