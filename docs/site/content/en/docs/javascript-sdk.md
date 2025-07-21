@@ -41,7 +41,7 @@ The output would be similar to the following:
 Then use the following command to get private key of the account `0.0.1007`:
 
 ```bash
- npm run solo-test -- ledger account get --account-id 0.0.1007 --deployment solo-deployment --private-key
+ npm run solo-test -- ledger account info --account-id 0.0.1007 --deployment solo-deployment --private-key
 ```
 
 The output would be similar to the following:

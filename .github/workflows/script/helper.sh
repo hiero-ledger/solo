@@ -14,7 +14,7 @@ function create_test_account ()
   rm test.log
 
   # get private key of the account
-  npm run solo-test -- ledger account get --deployment "${DEPLOYMENT_NAME}" --account-id "${OPERATOR_ID}" --private-key > test.log
+  npm run solo-test -- ledger account info --deployment "${DEPLOYMENT_NAME}" --account-id "${OPERATOR_ID}" --private-key > test.log
 
   # retrieve the field privateKey but not privateKeyRaw
   export OPERATOR_KEY=$(grep "privateKey" test.log | grep -v "privateKeyRaw" | awk '{print $2}' | sed 's/"//g'| sed 's/,//g')
@@ -24,7 +24,7 @@ function create_test_account ()
 
   npm run solo-test -- ledger account create --deployment "${DEPLOYMENT_NAME}" --hbar-amount 100 --generate-ecdsa-key --set-alias > test.log
   export SECOND_KEY=$(grep "accountId" test.log | awk '{print $2}' | sed 's/"//g'| sed 's/,//g')
-  npm run solo-test -- ledger account get --deployment "${DEPLOYMENT_NAME}" --account-id ${SECOND_KEY} --private-key > test.log
+  npm run solo-test -- ledger account info --deployment "${DEPLOYMENT_NAME}" --account-id ${SECOND_KEY} --private-key > test.log
   export CONTRACT_TEST_KEY_TWO=0x$(grep "privateKeyRaw" test.log | awk '{print $2}' | sed 's/"//g'| sed 's/,//g')
   echo "CONTRACT_TEST_KEY_TWO=${CONTRACT_TEST_KEY_TWO}"
   rm test.log
