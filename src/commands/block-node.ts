@@ -12,7 +12,6 @@ import {type AnyListrContext, type ArgvStruct, type NodeAlias, type NodeAliases}
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {
   type ClusterReferenceName,
-  type CommandDefinition,
   ComponentId,
   type DeploymentName,
   type Optional,
@@ -27,7 +26,6 @@ import {ContainerReference} from '../integration/kube/resources/container/contai
 import {Duration} from '../core/time/duration.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import chalk from 'chalk';
-import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';

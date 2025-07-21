@@ -9,7 +9,6 @@ import chalk from 'chalk';
 import {type ClusterCommandTasks} from './cluster/tasks.js';
 import {
   type ClusterReferenceName,
-  type CommandDefinition,
   type Context,
   type DeploymentName,
   type NamespaceNameAsString,
@@ -31,7 +30,6 @@ import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {StringFacade} from '../business/runtime-state/facade/string-facade.js';
 import {Deployment} from '../business/runtime-state/config/local/deployment.js';
-import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 import {CommandFlags} from '../types/flag-types.js';
 
 interface DeploymentAddClusterConfig {

@@ -11,10 +11,7 @@ import {Flags} from '../../../../src/commands/flags.js';
 import {container} from 'tsyringe-neo';
 import {expect} from 'chai';
 import {type BaseTestOptions} from './base-test-options.js';
-import {ClusterCommand} from '../../../../src/commands/cluster/index.js';
-import {
-  ClusterReferenceCommandDefinition
-} from '../../../../src/commands/command-definitions/cluster-reference-command-definition.js';
+import {ClusterReferenceCommandDefinition} from '../../../../src/commands/command-definitions/cluster-reference-command-definition.js';
 
 export class ClusterReferenceTest extends BaseCommandTest {
   private static soloClusterReferenceConnectArgv(

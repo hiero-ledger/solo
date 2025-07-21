@@ -11,10 +11,7 @@ import {type ConsensusNodeStateSchema} from '../../../../src/data/schema/model/r
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
-import {DeploymentCommand} from '../../../../src/commands/deployment.js';
-import {
-  DeploymentCommandDefinition
-} from '../../../../src/commands/command-definitions/deployment-command-definition.js';
+import {DeploymentCommandDefinition} from '../../../../src/commands/command-definitions/deployment-command-definition.js';
 
 export class DeploymentTest extends BaseCommandTest {
   private static soloDeploymentCreateArgv(

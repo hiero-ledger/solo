@@ -14,19 +14,13 @@ import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {PodName} from '../../../src/integration/kube/resources/pod/pod-name.js';
 import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
-import {NodeCommand} from '../../../src/commands/node/index.js';
 import {InitCommand} from '../../../src/commands/init/init.js';
-import {ClusterCommand} from '../../../src/commands/cluster/index.js';
-import {DeploymentCommand} from '../../../src/commands/deployment.js';
-import {NetworkCommand} from '../../../src/commands/network.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import os from 'node:os';
 import {container} from 'tsyringe-neo';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
-import {
-  ClusterReferenceCommandDefinition
-} from '../../../src/commands/command-definitions/cluster-reference-command-definition.js';
+import {ClusterReferenceCommandDefinition} from '../../../src/commands/command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../../../src/commands/command-definitions/deployment-command-definition.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 import {KeysCommandDefinition} from '../../../src/commands/command-definitions/keys-command-definition.js';

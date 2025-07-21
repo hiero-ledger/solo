@@ -16,7 +16,6 @@ import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
-import {MirrorNodeCommand} from '../../../../src/commands/mirror-node.js';
 import {MirrorCommandDefinition} from '../../../../src/commands/command-definitions/mirror-command-definition.js';
 
 export class MirrorNodeTest extends BaseCommandTest {

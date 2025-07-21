@@ -17,7 +17,6 @@ import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
-import {ExplorerCommand} from '../../../../src/commands/explorer.js';
 import {ExplorerCommandDefinition} from '../../../../src/commands/command-definitions/explorer-command-definition.js';
 
 export class ExplorerTest extends BaseCommandTest {

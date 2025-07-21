@@ -16,7 +16,7 @@ import {sleep} from '../../src/core/helpers.js';
 import {type NodeAlias} from '../../src/types/aliases.js';
 import {type ConfigManager} from '../../src/core/config-manager.js';
 import {type K8Factory} from '../../src/integration/kube/k8-factory.js';
-import {NodeCommand} from '../../src/commands/node/index.js';
+import {type NodeCommand} from '../../src/commands/node/index.js';
 import {NodeCommandTasks} from '../../src/commands/node/tasks.js';
 import {Duration} from '../../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';

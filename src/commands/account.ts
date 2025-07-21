@@ -16,7 +16,6 @@ import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {
   type ClusterReferenceName,
-  type CommandDefinition,
   type DeploymentName,
   type Realm,
   type Shard,
@@ -28,7 +27,6 @@ import {Base64} from 'js-base64';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 import {CommandFlags} from '../types/flag-types.js';
 
 interface UpdateAccountConfig {

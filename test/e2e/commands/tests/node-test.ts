@@ -29,7 +29,6 @@ import {
   type TransactionResponse,
 } from '@hashgraph/sdk';
 import {type BaseTestOptions} from './base-test-options.js';
-import {NodeCommand} from '../../../../src/commands/node/index.js';
 import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
 import {KeysCommandDefinition} from '../../../../src/commands/command-definitions/keys-command-definition.js';
 

@@ -9,10 +9,10 @@ import 'dotenv/config';
 import fs from 'node:fs';
 import os from 'node:os';
 import {Flags as flags} from '../src/commands/flags.js';
-import {ClusterCommand} from '../src/commands/cluster/index.js';
+import {type ClusterCommand} from '../src/commands/cluster/index.js';
 import {InitCommand} from '../src/commands/init/init.js';
-import {NetworkCommand} from '../src/commands/network.js';
-import {NodeCommand} from '../src/commands/node/index.js';
+import {type NetworkCommand} from '../src/commands/network.js';
+import {type NodeCommand} from '../src/commands/node/index.js';
 import {type DependencyManager} from '../src/core/dependency-managers/index.js';
 import {sleep} from '../src/core/helpers.js';
 import {
@@ -52,7 +52,7 @@ import {PodReference} from '../src/integration/kube/resources/pod/pod-reference.
 import {ContainerReference} from '../src/integration/kube/resources/container/container-reference.js';
 import {type NetworkNodes} from '../src/core/network-nodes.js';
 import {InjectTokens} from '../src/core/dependency-injection/inject-tokens.js';
-import {DeploymentCommand} from '../src/commands/deployment.js';
+import {type DeploymentCommand} from '../src/commands/deployment.js';
 import {Argv} from './helpers/argv-wrapper.js';
 import {type ClusterReferenceName, type DeploymentName, type NamespaceNameAsString} from '../src/types/index.js';
 import {type CommandInvoker} from './helpers/command-invoker.js';
@@ -66,9 +66,7 @@ import {type LocalConfigRuntimeState} from '../src/business/runtime-state/config
 import {type InstanceOverrides} from '../src/core/dependency-injection/container-init.js';
 import {type RemoteConfigRuntimeStateApi} from '../src/business/runtime-state/api/remote-config-runtime-state-api.js';
 import {ConsensusCommandDefinition} from '../src/commands/command-definitions/consensus-command-definition.js';
-import {
-  ClusterReferenceCommandDefinition
-} from '../src/commands/command-definitions/cluster-reference-command-definition.js';
+import {ClusterReferenceCommandDefinition} from '../src/commands/command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../src/commands/command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../src/commands/command-definitions/keys-command-definition.js';
 

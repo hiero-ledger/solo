@@ -22,7 +22,6 @@ import {endToEndTestSuite, getTestCluster, getTestLogger, HEDERA_PLATFORM_VERSIO
 import {AccountCommand} from '../../../src/commands/account.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import {Duration} from '../../../src/core/time/duration.js';
-import {NodeCommand} from '../../../src/commands/node/index.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';

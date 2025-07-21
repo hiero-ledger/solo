@@ -6,8 +6,6 @@ import {type NodeCommandHandlers} from './handlers.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {inject, injectable} from 'tsyringe-neo';
-import {type CommandDefinition} from '../../types/index.js';
-import {CommandBuilder} from '../../core/command-path-builders/command-builder.js';
 
 /**
  * Defines the core functionalities of 'node' command
@@ -47,5 +45,4 @@ export class NodeCommand extends BaseCommand {
   public getUnusedConfigs(configName: string): string[] {
     return this.handlers.getUnusedConfigs(configName);
   }
-
 }
