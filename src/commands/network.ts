@@ -1372,7 +1372,6 @@ export class NetworkCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct): Promise<void> => {
               self.logger.info("==== Running 'network deploy' ===");
-              self.logger.info(argv);
 
               await self
                 .deploy(argv)
@@ -1397,7 +1396,6 @@ export class NetworkCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct): Promise<void> => {
               self.logger.info("==== Running 'network destroy' ===");
-              self.logger.info(argv);
 
               await self
                 .destroy(argv)
