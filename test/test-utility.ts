@@ -65,6 +65,12 @@ import {gte as semVersionGte} from 'semver';
 import {type LocalConfigRuntimeState} from '../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type InstanceOverrides} from '../src/core/dependency-injection/container-init.js';
 import {type RemoteConfigRuntimeStateApi} from '../src/business/runtime-state/api/remote-config-runtime-state-api.js';
+import {ConsensusCommandDefinition} from '../src/commands/command-definitions/consensus-command-definition.js';
+import {
+  ClusterReferenceCommandDefinition
+} from '../src/commands/command-definitions/cluster-reference-command-definition.js';
+import {DeploymentCommandDefinition} from '../src/commands/command-definitions/deployment-command-definition.js';
+import {KeysCommandDefinition} from '../src/commands/command-definitions/keys-command-definition.js';
 
 export const BASE_TEST_DIR: string = PathEx.join('test', 'data', 'tmp');
 
@@ -98,9 +104,9 @@ export function deployNetworkTest(argv: Argv, commandInvoker: CommandInvoker, ne
   it('should succeed with network deploy', async (): Promise<void> => {
     await commandInvoker.invoke({
       argv: argv,
-      command: NetworkCommand.COMMAND_NAME,
-      subcommand: NetworkCommand.SUBCOMMAND_NAME,
-      action: 'deploy',
+      command: ConsensusCommandDefinition.COMMAND_NAME,
+      subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+      action: ConsensusCommandDefinition.NETWORK_DEPLOY,
       callback: async (argv): Promise<boolean> => networkCmd.deploy(argv),
     });
   }).timeout(Duration.ofMinutes(5).toMillis());
@@ -111,9 +117,9 @@ export function startNodesTest(argv: Argv, commandInvoker: CommandInvoker, nodeC
     // cache this, because `solo node setup.finalize()` will reset it to false
     await commandInvoker.invoke({
       argv: argv,
-      command: NodeCommand.COMMAND_NAME,
-      subcommand: NodeCommand.SUBCOMMAND_NAME,
-      action: 'setup',
+      command: ConsensusCommandDefinition.COMMAND_NAME,
+      subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      action: ConsensusCommandDefinition.NODE_SETUP,
       callback: async (argv): Promise<boolean> => nodeCmd.handlers.setup(argv),
     });
   }).timeout(Duration.ofMinutes(4).toMillis());
@@ -121,9 +127,9 @@ export function startNodesTest(argv: Argv, commandInvoker: CommandInvoker, nodeC
   it('should succeed with node start command', async (): Promise<void> => {
     await commandInvoker.invoke({
       argv: argv,
-      command: NodeCommand.COMMAND_NAME,
-      subcommand: NodeCommand.SUBCOMMAND_NAME,
-      action: 'start',
+      command: ConsensusCommandDefinition.COMMAND_NAME,
+      subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      action: ConsensusCommandDefinition.NODE_START,
       callback: async (argv): Promise<boolean> => nodeCmd.handlers.start(argv),
     });
   }).timeout(Duration.ofMinutes(30).toMillis());
@@ -131,9 +137,9 @@ export function startNodesTest(argv: Argv, commandInvoker: CommandInvoker, nodeC
   it('node log command should work', async (): Promise<void> => {
     await commandInvoker.invoke({
       argv: argv,
-      command: NodeCommand.COMMAND_NAME,
-      subcommand: NodeCommand.SUBCOMMAND_NAME,
-      action: 'logs',
+      command: ConsensusCommandDefinition.COMMAND_NAME,
+      subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      action: ConsensusCommandDefinition.NODE_LOGS,
       callback: async (argv): Promise<boolean> => nodeCmd.handlers.logs(argv),
     });
 
@@ -361,9 +367,9 @@ export function endToEndTestSuite(
         ) {
           await commandInvoker.invoke({
             argv: argv,
-            command: ClusterCommand.COMMAND_NAME,
-            subcommand: ClusterCommand.SUBCOMMAND_NAME,
-            action: 'setup',
+            command: ClusterReferenceCommandDefinition.COMMAND_NAME,
+            subcommand: ClusterReferenceCommandDefinition.CONFIG_SETUP,
+            action: ClusterReferenceCommandDefinition.CONFIG_SETUP,
             callback: async (argv): Promise<boolean> => clusterCmd.handlers.setup(argv),
           });
         }
@@ -376,9 +382,9 @@ export function endToEndTestSuite(
         await localConfig.load();
         await commandInvoker.invoke({
           argv: argv,
-          command: ClusterCommand.COMMAND_NAME,
-          subcommand: ClusterCommand.SUBCOMMAND_NAME,
-          action: 'connect',
+          command: ClusterReferenceCommandDefinition.COMMAND_NAME,
+          subcommand: ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+          action: ClusterReferenceCommandDefinition.CONFIG_CONNECT,
           callback: async (argv): Promise<boolean> => clusterCmd.handlers.connect(argv),
         });
       });
@@ -386,9 +392,9 @@ export function endToEndTestSuite(
       it('should succeed with deployment config create', async (): Promise<void> => {
         await commandInvoker.invoke({
           argv: argv,
-          command: DeploymentCommand.COMMAND_NAME,
-          subcommand: DeploymentCommand.SUBCOMMAND_NAME,
-          action: 'create',
+          command: DeploymentCommandDefinition.COMMAND_NAME,
+          subcommand: DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+          action: DeploymentCommandDefinition.CONFIG_CREATE,
           callback: async (argv): Promise<boolean> => deploymentCmd.create(argv),
         });
       });
@@ -396,9 +402,9 @@ export function endToEndTestSuite(
       it("should succeed with 'deployment config attach'", async (): Promise<void> => {
         await commandInvoker.invoke({
           argv: argv,
-          command: DeploymentCommand.COMMAND_NAME,
-          subcommand: DeploymentCommand.SUBCOMMAND_NAME,
-          action: 'attach',
+          command: DeploymentCommandDefinition.COMMAND_NAME,
+          subcommand: DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_NAME,
+          action: DeploymentCommandDefinition.CLUSTER_ATTACH,
           callback: async (argv): Promise<boolean> => deploymentCmd.addCluster(argv),
         });
       });
@@ -406,9 +412,9 @@ export function endToEndTestSuite(
       it('generate key files', async (): Promise<void> => {
         await commandInvoker.invoke({
           argv: argv,
-          command: NodeCommand.COMMAND_NAME,
-          subcommand: NodeCommand.SUBCOMMAND_NAME,
-          action: 'keys',
+          command: KeysCommandDefinition.COMMAND_NAME,
+          subcommand: KeysCommandDefinition.CONSENSUS_SUBCOMMAND_NAME,
+          action: KeysCommandDefinition.CONSENSUS_GENERATE,
           callback: async (argv): Promise<boolean> => nodeCmd.handlers.keys(argv),
         });
       }).timeout(Duration.ofMinutes(2).toMillis());

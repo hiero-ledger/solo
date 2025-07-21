@@ -27,6 +27,8 @@ import {AccountCommand} from '../src/commands/account.js';
 import {type NodeServiceMapping} from '../src/types/mappings/node-service-mapping.js';
 import {Templates} from '../src/core/templates.js';
 import fs from 'node:fs';
+import {ConsensusCommandDefinition} from '../src/commands/command-definitions/consensus-command-definition.js';
+import {LedgerCommandDefinition} from '../src/commands/command-definitions/ledger-command-definition.js';
 
 const defaultTimeout: number = Duration.ofMinutes(2).toMillis();
 
@@ -72,17 +74,17 @@ export function testNodeAdd(
 
         await commandInvoker.invoke({
           argv: argv,
-          command: NodeCommand.COMMAND_NAME,
-          subcommand: NodeCommand.SUBCOMMAND_NAME,
-          action: 'stop',
+          command: ConsensusCommandDefinition.COMMAND_NAME,
+          subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+          action: ConsensusCommandDefinition.NODE_STOP,
           callback: async (argv): Promise<boolean> => nodeCmd.handlers.stop(argv),
         });
 
         await commandInvoker.invoke({
           argv: argv,
-          command: NetworkCommand.COMMAND_NAME,
-          subcommand: NetworkCommand.SUBCOMMAND_NAME,
-          action: 'destroy',
+          command: ConsensusCommandDefinition.COMMAND_NAME,
+          subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+          action: ConsensusCommandDefinition.NETWORK_DESTROY,
           callback: async (argv): Promise<boolean> => networkCmd.destroy(argv),
         });
         await k8Factory.default().namespaces().delete(namespace);
@@ -104,9 +106,9 @@ export function testNodeAdd(
       it('should succeed with init command', async () => {
         await commandInvoker.invoke({
           argv: argv,
-          command: AccountCommand.COMMAND_NAME,
-          subcommand: AccountCommand.SUBCOMMAND_NAME,
-          action: 'init',
+          command: LedgerCommandDefinition.COMMAND_NAME,
+          subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+          action: LedgerCommandDefinition.ACCOUNT_INIT,
           callback: async (argv): Promise<boolean> => accountCmd.init(argv),
         });
       }).timeout(Duration.ofMinutes(8).toMillis());
@@ -118,9 +120,9 @@ export function testNodeAdd(
 
         await commandInvoker.invoke({
           argv: argv,
-          command: NodeCommand.COMMAND_NAME,
-          subcommand: NodeCommand.SUBCOMMAND_NAME,
-          action: 'add',
+          command: ConsensusCommandDefinition.COMMAND_NAME,
+          subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+          action: ConsensusCommandDefinition.NODE_ADD,
           callback: async (argv): Promise<boolean> => nodeCmd.handlers.add(argv),
         });
 
@@ -131,9 +133,9 @@ export function testNodeAdd(
       it('should be able to create account after a node add', async () => {
         await commandInvoker.invoke({
           argv: argv,
-          command: AccountCommand.COMMAND_NAME,
-          subcommand: AccountCommand.SUBCOMMAND_NAME,
-          action: 'create',
+          command: LedgerCommandDefinition.COMMAND_NAME,
+          subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+          action: LedgerCommandDefinition.ACCOUNT_CREATE,
           callback: async (argv): Promise<boolean> => accountCmd.create(argv),
         });
       });
