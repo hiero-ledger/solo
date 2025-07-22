@@ -79,7 +79,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       // Mirror node, explorer and relay node are deployed to the second cluster
       MirrorNodeTest.installPostgres(options);
       MirrorNodeTest.deployWithExternalDatabase(options);
-      ExplorerTest.deploy(options);
+      ExplorerTest.add(options);
       MirrorNodeTest.runSql(options);
       RelayTest.deploy(options);
 
