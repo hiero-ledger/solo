@@ -985,7 +985,6 @@ export class MirrorNodeCommand extends BaseCommand {
             },
             handler: async argv => {
               self.logger.info("==== Running 'mirror-node deploy' ===");
-              self.logger.info(argv);
 
               await self
                 .deploy(argv)
@@ -1014,7 +1013,6 @@ export class MirrorNodeCommand extends BaseCommand {
               ),
             handler: async argv => {
               self.logger.info("==== Running 'mirror-node destroy' ===");
-              self.logger.info(argv);
 
               await self
                 .destroy(argv)

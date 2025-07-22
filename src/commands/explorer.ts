@@ -627,7 +627,6 @@ export class ExplorerCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct) => {
               self.logger.info("==== Running explorer deploy' ===");
-              self.logger.info(argv);
 
               await self
                 .deploy(argv)
@@ -651,7 +650,6 @@ export class ExplorerCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct) => {
               self.logger.info('==== Running explorer destroy ===');
-              self.logger.info(argv);
 
               await self
                 .destroy(argv)
