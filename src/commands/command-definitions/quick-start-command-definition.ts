@@ -20,7 +20,7 @@ export class QuickStartCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME: string = 'deployment';
+  public static override readonly COMMAND_NAME: string = 'quick-start';
   protected static override readonly DESCRIPTION: string =
     'Quick start commands for new and returning users who need a preset environment type. ' +
     'These commands use reasonable defaults to provide a single command out of box experience.';
