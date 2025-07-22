@@ -418,7 +418,7 @@ export class RelayCommand extends BaseCommand {
             const pods: Pod[] = await this.k8Factory
               .getK8(context_.config.clusterContext)
               .pods()
-              .list(context_.config.namespace, [`app.kubernetes.io/name=relay`]);
+              .list(context_.config.namespace, ['app.kubernetes.io/name=relay']);
             if (pods.length === 0) {
               throw new SoloError('No Relay pod found');
             }
