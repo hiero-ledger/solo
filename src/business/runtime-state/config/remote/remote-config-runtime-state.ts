@@ -375,16 +375,17 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   private populateVersionsInMetadata(argv: AnyObject, remoteConfig: RemoteConfigSchema): void {
     const command: string = argv._[0];
     const subcommand: string = argv._[1];
+    const action: string = argv._[2];
 
     const isCommandUsingSoloChartVersionFlag: boolean =
-      (command === 'network' && subcommand === 'deploy') ||
-      (command === 'network' && subcommand === 'refresh') ||
-      (command === 'node' && subcommand === 'update') ||
-      (command === 'node' && subcommand === 'update-execute') ||
-      (command === 'node' && subcommand === 'add') ||
-      (command === 'node' && subcommand === 'add-execute') ||
-      (command === 'node' && subcommand === 'destroy') ||
-      (command === 'node' && subcommand === 'destroy-execute');
+      (command === 'consensus' && subcommand === 'network' && action === 'deploy') ||
+      (command === 'consensus' && subcommand === 'network' && action === 'refresh') ||
+      (command === 'consensus' && subcommand === 'node' && action === 'update') ||
+      (command === 'consensus' && subcommand === 'node' && action === 'update-execute') ||
+      (command === 'consensus' && subcommand === 'node' && action === 'add') ||
+      (command === 'consensus' && subcommand === 'node' && action === 'add-execute') ||
+      (command === 'consensus' && subcommand === 'node' && action === 'destroy') ||
+      (command === 'consensus' && subcommand === 'node' && action === 'destroy-execute');
 
     // TBD how to update remoteConfig.versions.cli
 
@@ -395,8 +396,9 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     }
 
     const isCommandUsingReleaseTagVersionFlag: boolean =
-      (command === 'node' && subcommand !== 'keys' && subcommand !== 'logs' && subcommand !== 'states') ||
-      (command === 'network' && subcommand === 'deploy');
+      (subcommand === 'node' && action !== 'logs' && action !== 'states') ||
+      (subcommand === 'network' && action === 'deploy') ||
+      command !== 'keys';
 
     if (argv[flags.releaseTag.name]) {
       remoteConfig.versions.consensusNode = new SemVer(argv[flags.releaseTag.name]);
@@ -406,19 +408,19 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
     if (argv[flags.mirrorNodeVersion.name]) {
       remoteConfig.versions.mirrorNodeChart = new SemVer(argv[flags.mirrorNodeVersion.name]);
-    } else if (command === 'mirror-node' && subcommand === 'add') {
+    } else if (command === 'mirror' && subcommand === 'node' && action === 'add') {
       remoteConfig.versions.mirrorNodeChart = new SemVer(flags.mirrorNodeVersion.definition.defaultValue as string);
     }
 
     if (argv[flags.explorerVersion.name]) {
       remoteConfig.versions.explorerChart = new SemVer(argv[flags.explorerVersion.name]);
-    } else if (command === 'explorer' && subcommand === 'add') {
+    } else if (command === 'explorer' && subcommand === 'node' && action === 'add') {
       remoteConfig.versions.explorerChart = new SemVer(flags.explorerVersion.definition.defaultValue as string);
     }
 
     if (argv[flags.relayReleaseTag.name]) {
       remoteConfig.versions.jsonRpcRelayChart = new SemVer(argv[flags.relayReleaseTag.name]);
-    } else if (command === 'relay' && subcommand === 'add') {
+    } else if (command === 'relay' && subcommand === 'node' && action === 'add') {
       remoteConfig.versions.jsonRpcRelayChart = new SemVer(flags.relayReleaseTag.definition.defaultValue as string);
     }
   }
