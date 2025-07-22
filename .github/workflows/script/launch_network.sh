@@ -43,9 +43,9 @@ solo node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
 
-solo mirror-node add  --deployment "${SOLO_DEPLOYMENT}" --pinger
-solo explorer add -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
-solo relay add -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
+solo mirror-node deploy  --deployment "${SOLO_DEPLOYMENT}" --pinger
+solo explorer deploy -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 echo "::endgroup::"
 
 echo "::group::Verification"
@@ -55,7 +55,7 @@ cp ~/.solo/cache/local-config.yaml ./local-config-before.yaml
 #solo init
 #solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
 #solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-#solo deployment attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 2
+#solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 2
 #solo node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
 #solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 #

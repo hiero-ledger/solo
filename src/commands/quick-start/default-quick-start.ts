@@ -183,7 +183,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             const argv: string[] = this.newArgv();
             argv.push(
               DeploymentCommandDefinition.COMMAND_NAME,
-              DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+              DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_NAME,
               DeploymentCommandDefinition.CLUSTER_ATTACH,
               this.optionFromFlag(Flags.deployment),
               config.deployment,
