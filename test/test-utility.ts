@@ -397,7 +397,7 @@ export function endToEndTestSuite(
         });
       });
 
-      it("should succeed with 'deployment config attach'", async (): Promise<void> => {
+      it("should succeed with 'deployment cluster attach'", async (): Promise<void> => {
         await commandInvoker.invoke({
           argv: argv,
           command: DeploymentCommandDefinition.COMMAND_NAME,

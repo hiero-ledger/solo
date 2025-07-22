@@ -58,7 +58,7 @@ export interface DeploymentAddClusterContext {
 @injectable()
 export class DeploymentCommand extends BaseCommand {
   public static readonly CREATE_COMMAND: string = 'deployment config create';
-  public static readonly ADD_COMMAND: string = 'deployment config attach';
+  public static readonly ADD_COMMAND: string = 'deployment cluster attach';
 
   public constructor(
     @inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks,
@@ -385,7 +385,7 @@ export class DeploymentCommand extends BaseCommand {
   public async close(): Promise<void> {} // no-op
 
   /**
-   * Initializes and populates the config and context for 'deployment config attach'
+   * Initializes and populates the config and context for 'deployment cluster attach'
    */
   public initializeClusterAddConfig(argv: ArgvStruct): SoloListrTask<DeploymentAddClusterContext> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
