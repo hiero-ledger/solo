@@ -52,7 +52,8 @@ import {type NodePrepareUpgradeContext} from './config-interfaces/node-prepare-u
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {SOLO_USER_AGENT_HEADER} from '../../core/constants.js';
-import {SemVer, valid} from 'semver';
+import {SemVer} from 'semver';
+import {validateSemVer as validateSemVersion} from '../../business/utils/version.js';
 
 const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
 const DOWNLOAD_GENERATED_FILES_CONFIGS_NAME = 'downloadGeneratedFilesConfig';
@@ -259,10 +260,8 @@ export class NodeCommandConfigs {
       );
     }
 
-    // check releaseTag to make sure it is a valid semantic version string
-    if (!valid(context_.config.releaseTag)) {
-      throw new SoloError(`Invalid release tag: ${context_.config.releaseTag}`);
-    }
+    // check consensus releaseTag to make sure it is a valid semantic version string starting with 'v'
+    context_.config.releaseTag = validateSemVersion(context_.config.releaseTag, true, 'Consensus release tag');
 
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
     const accountKeys = await this.accountManager.getAccountKeysFromSecret(

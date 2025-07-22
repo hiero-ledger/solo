@@ -40,6 +40,7 @@ import {type ComponentFactoryApi} from '../core/config/remote/api/component-fact
 import {Lock} from '../core/lock/lock.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
+import {validateSemVer as validateSemVersion} from '../business/utils/version.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -348,6 +349,8 @@ export class ExplorerCommand extends BaseCommand {
 
             let exploreValuesArgument = prepareValuesFiles(constants.EXPLORER_VALUES_FILE);
             exploreValuesArgument += await self.prepareHederaExplorerValuesArg(config);
+
+            config.explorerVersion = validateSemVersion(config.explorerVersion, false, 'Explorer version');
 
             await self.chartManager.install(
               config.namespace,

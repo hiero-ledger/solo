@@ -52,6 +52,7 @@ import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import * as semver from 'semver';
 import {Base64} from 'js-base64';
 import {Lock} from '../core/lock/lock.js';
+import {validateSemVer as validateSemVersion} from '../business/utils/version.js';
 
 interface MirrorNodeDeployConfigClass {
   isChartInstalled: boolean;
@@ -171,6 +172,9 @@ export class MirrorNodeCommand extends BaseCommand {
     if (config.valuesFile) {
       valuesArgument += helpers.prepareValuesFiles(config.valuesFile);
     }
+
+    config.mirrorNodeVersion = validateSemVersion(config.mirrorNodeVersion, true, 'Mirror node version');
+
     const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
     const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
 

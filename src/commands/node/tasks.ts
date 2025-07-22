@@ -125,10 +125,10 @@ import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/
 import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 import {LockManager} from '../../core/lock/lock-manager.js';
 import {NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
-import {SemVer, lt, valid} from 'semver';
+import {SemVer, lt} from 'semver';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
-import {IllegalArgumentError} from '../../core/errors/illegal-argument-error.js';
+import {validateSemVer as validateSemVersion} from '../../business/utils/version.js';
 
 export type LeaseWrapper = {lease: Lock};
 
@@ -1193,12 +1193,7 @@ export class NodeCommandTasks {
         let {releaseTag} = context_.config;
 
         if (releaseTag) {
-          if (!releaseTag.startsWith('v')) {
-            releaseTag = `v${releaseTag}`;
-          }
-          if (!valid(releaseTag)) {
-            throw new IllegalArgumentError('releaseTag is not a valid version', releaseTag);
-          }
+          releaseTag = validateSemVersion(releaseTag, true, 'Consensus release tag');
         }
 
         if ('upgradeVersion' in context_.config) {
