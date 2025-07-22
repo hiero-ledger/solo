@@ -47,7 +47,7 @@ swirlds.log for further analysis.
 
 ```bash
 # download logs as zip file from node1 and save in default ~/.solo/logs/solo-e2e/<timestamp/
-solo consensus node logs -i node1 -n solo-e2e
+solo consensus node logs --deployment solo-deployment
 ```
 
 ### 2. Using IntelliJ remote debug with Solo

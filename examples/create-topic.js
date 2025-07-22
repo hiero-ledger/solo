@@ -10,6 +10,7 @@ import {
   Hbar,
   TopicMessageQuery,
   Client,
+  AccountId,
 } from '@hashgraph/sdk';
 
 import dotenv from 'dotenv';
@@ -48,6 +49,13 @@ async function main() {
 
   const TEST_MESSAGE = 'Hello World';
   try {
+    if (process.env.NEW_NODE_ACCOUNT_ID) {
+      console.log(`NEW_NODE_ACCOUNT_ID = ${process.env.NEW_NODE_ACCOUNT_ID}`);
+      provider._client.setNetwork({
+        "127.0.0.1:50211": AccountId.fromString(process.env.NEW_NODE_ACCOUNT_ID),
+    })
+    }
+
     // if process.env.OPERATOR_KEY string size is 100, it is ECDSA key, if 96, it is ED25519 key
     const operatorKeySize = process.env.OPERATOR_KEY.length;
     // create topic
@@ -164,9 +172,9 @@ async function main() {
     }
 
     if (receivedMessage === TEST_MESSAGE) {
-      console.log('Message received successfully');
+      console.log('Message received through query successfully');
     } else {
-      console.error('ERROR: Message received but not match: ' + receivedMessage);
+      console.error('ERROR: Message received through query but not match: ' + receivedMessage);
       process.exit(1);
     }
   } catch (error) {

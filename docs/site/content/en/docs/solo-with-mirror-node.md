@@ -28,12 +28,9 @@ solo keys consensus generate --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --t
 solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
 solo consensus node setup     --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
 solo consensus node start     --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
-solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} 
+solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --enable-ingress
 solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME}
 
-# check to see if it is already enabled, port forwarding for explorer and consensus node grpc should be handled by solo automatically
-# kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &
-# kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:8080 > /dev/null 2>&1 &
 ```
 
 Then you can access the Explorer at <http://localhost:8080>
@@ -43,8 +40,8 @@ Or you can use Task tool to deploy Solo network with Mirror Node with a single c
 Next, you can try to create a few accounts with Solo and see the transactions in the Explorer.
 
 ```bash
-solo ledger account create -n solo-e2e --hbar-amount 100
-solo ledger account create -n solo-e2e --hbar-amount 100
+solo ledger account create --deployment solo-deployment --hbar-amount 100
+solo ledger account create --deployment solo-deployment --hbar-amount 100
 ```
 
 Or you can use Hedera JavaScript SDK examples to create topic, submit message and subscribe to the topic.

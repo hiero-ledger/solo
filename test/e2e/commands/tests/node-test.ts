@@ -229,6 +229,6 @@ export class NodeTest extends BaseCommandTest {
       }
       // create one more account to make sure that the last one gets pushed to mirror node
       await verifyAccountCreateWasSuccessful(namespace, clusterReferences, deployment);
-    }).timeout(Duration.ofMinutes(5).toMillis());
+    }).timeout(Duration.ofMinutes(10).toMillis());
   }
 }

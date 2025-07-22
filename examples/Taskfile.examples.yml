@@ -96,6 +96,7 @@ tasks:
       - echo "Checking variables..."
       - echo "solo_user_dir={{ .solo_user_dir }}"
       - echo "SOLO_HOME=${SOLO_HOME}"
+      - echo "SOLO_CLUSTER_NAME=${SOLO_CLUSTER_NAME}"
       - echo "SOLO_NETWORK_SIZE=${SOLO_NETWORK_SIZE}"
       - echo "SOLO_CHART_VERSION=${SOLO_CHART_VERSION}"
       - echo "CONSENSUS_NODE_VERSION=${CONSENSUS_NODE_VERSION}"
@@ -122,7 +123,6 @@ tasks:
       - echo "CLUSTER_TLS_FLAGS=${CLUSTER_TLS_FLAGS}"
       - echo "EXPLORER_DEPLOYMENT=${EXPLORER_DEPLOYMENT}"
       - echo "EXPLORER_NAME_SPACE=${EXPLORER_NAME_SPACE}"
-      - echo "EXPLORER_CLUSTER_CONTEXT=${EXPLORER_CLUSTER_CONTEXT}"
       - echo "NETWORK_DEPLOY_EXTRA_FLAGS=${NETWORK_DEPLOY_EXTRA_FLAGS}"
       - echo "MIRROR_NODE_DEPLOY_EXTRA_FLAGS=${MIRROR_NODE_DEPLOY_EXTRA_FLAGS}"
       - echo "EXPLORER_DEPLOY_EXTRA_FLAGS=${EXPLORER_DEPLOY_EXTRA_FLAGS}"
@@ -522,6 +522,12 @@ tasks:
     cmds:
       - |
         if [[ "${EXPLORER_DEPLOYMENT}" != "" ]]; then
+          if [ -n "${SOLO_CLUSTER_NAME}" ]; then
+            export EXPLORER_CLUSTER_CONTEXT=kind-${SOLO_CLUSTER_NAME}
+          else
+            export EXPLORER_CLUSTER_CONTEXT=kind-{{ .SOLO_CLUSTER_NAME }}
+          fi
+          echo "EXPLORER_CLUSTER_CONTEXT=${EXPLORER_CLUSTER_CONTEXT}"
           # create deployment on different namespace
           SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo-test -- deployment config create --deployment ${EXPLORER_DEPLOYMENT} --namespace ${EXPLORER_NAME_SPACE}  
           SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo-test -- deployment config attach --deployment ${EXPLORER_DEPLOYMENT} --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --num-consensus-nodes ${SOLO_NETWORK_SIZE}

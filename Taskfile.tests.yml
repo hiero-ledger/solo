@@ -79,6 +79,7 @@ tasks:
           --ignore 'test/e2e/commands/relay*.ts' 
           --ignore 'test/e2e/commands/block-node.test.ts' 
           --ignore 'test/e2e/commands/dual-*.ts'
+          --ignore 'test/e2e/commands/external-*.ts'
           --ignore 'test/e2e/commands/quick-start-single.test.ts'
           --ignore 'test/e2e/commands/separate-node-add.test.ts' 
           --ignore 'test/e2e/commands/separate-node-destroy.test.ts' 
@@ -197,6 +198,13 @@ tasks:
         {{ .reporter_prefix }}='coverage/e2e-dual-cluster-full'
         {{ .mocha_bin }} 'test/e2e/commands/dual-cluster-full.test.ts' 
         {{ .reporter_options_prefix }}-e2e-dual-cluster-full.xml"
+
+  test-e2e-external-database:
+    cmds:
+      - "{{ .test_prefix }}=\"Mocha E2E External Database Test\"
+        {{ .reporter_prefix }}='coverage/e2e-external-database'
+        {{ .mocha_bin }} 'test/e2e/commands/external-database.test.ts' 
+        {{ .reporter_options_prefix }}-e2e-external-database.xml"
 
   test-external-database:
     cmd: |

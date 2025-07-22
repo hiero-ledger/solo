@@ -137,31 +137,40 @@ export class RelayCommand extends BaseCommand {
 
     // TODO need to change this so that the json rpc relay does not have to be in the same cluster as the mirror node
     valuesArgument += ' --install';
-    valuesArgument += ` --set config.MIRROR_NODE_URL=http://${constants.MIRROR_NODE_RELEASE_NAME}-rest`;
-    valuesArgument += ` --set config.MIRROR_NODE_URL_WEB3=http://${constants.MIRROR_NODE_RELEASE_NAME}-web3`;
-    valuesArgument += ' --set config.MIRROR_NODE_AGENT_CACHEABLE_DNS=false';
-    valuesArgument += ' --set config.MIRROR_NODE_RETRY_DELAY=2001';
-    valuesArgument += ' --set config.MIRROR_NODE_GET_CONTRACT_RESULTS_DEFAULT_RETRIES=21';
+    valuesArgument += ' --set ws.enabled=true';
+    valuesArgument += ` --set relay.config.MIRROR_NODE_URL=http://${constants.MIRROR_NODE_RELEASE_NAME}-rest`;
+    valuesArgument += ` --set relay.config.MIRROR_NODE_URL_WEB3=http://${constants.MIRROR_NODE_RELEASE_NAME}-web3`;
+    valuesArgument += ' --set relay.config.MIRROR_NODE_AGENT_CACHEABLE_DNS=false';
+    valuesArgument += ' --set relay.config.MIRROR_NODE_RETRY_DELAY=2001';
+    valuesArgument += ' --set relay.config.MIRROR_NODE_GET_CONTRACT_RESULTS_DEFAULT_RETRIES=21';
+
+    valuesArgument += ` --set ws.config.MIRROR_NODE_URL=http://${constants.MIRROR_NODE_RELEASE_NAME}-rest`;
+    valuesArgument += ' --set ws.config.SUBSCRIPTIONS_ENABLED=true';
 
     if (chainID) {
-      valuesArgument += ` --set config.CHAIN_ID=${chainID}`;
+      valuesArgument += ` --set relay.config.CHAIN_ID=${chainID}`;
+      valuesArgument += ` --set ws.config.CHAIN_ID=${chainID}`;
     }
 
     if (relayRelease) {
-      valuesArgument += ` --set image.tag=${relayRelease.replace(/^v/, '')}`;
+      valuesArgument += ` --set relay.image.tag=${relayRelease.replace(/^v/, '')}`;
+      valuesArgument += ` --set ws.image.tag=${relayRelease.replace(/^v/, '')}`;
     }
 
     if (replicaCount) {
-      valuesArgument += ` --set replicaCount=${replicaCount}`;
+      valuesArgument += ` --set relay.replicaCount=${replicaCount}`;
+      valuesArgument += ` --set ws.replicaCount=${replicaCount}`;
     }
 
     const deploymentName: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
     const operatorIdUsing: string = operatorID || this.accountManager.getOperatorAccountId(deploymentName).toString();
-    valuesArgument += ` --set config.OPERATOR_ID_MAIN=${operatorIdUsing}`;
+    valuesArgument += ` --set relay.config.OPERATOR_ID_MAIN=${operatorIdUsing}`;
+    valuesArgument += ` --set ws.config.OPERATOR_ID_MAIN=${operatorIdUsing}`;
 
     if (operatorKey) {
       // use user provided operatorKey if available
-      valuesArgument += ` --set config.OPERATOR_KEY_MAIN=${operatorKey}`;
+      valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${operatorKey}`;
+      valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${operatorKey}`;
     } else {
       try {
         const namespace = NamespaceName.of(this.localConfig.configuration.deploymentByName(deploymentName).namespace);
@@ -170,11 +179,13 @@ export class RelayCommand extends BaseCommand {
         const secrets = await k8.secrets().list(namespace, [`solo.hedera.com/account-id=${operatorIdUsing}`]);
         if (secrets.length === 0) {
           this.logger.info(`No k8s secret found for operator account id ${operatorIdUsing}, use default one`);
-          valuesArgument += ` --set config.OPERATOR_KEY_MAIN=${constants.OPERATOR_KEY}`;
+          valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${constants.OPERATOR_KEY}`;
+          valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${constants.OPERATOR_KEY}`;
         } else {
           this.logger.info('Using operator key from k8s secret');
           const operatorKeyFromK8 = Base64.decode(secrets[0].data.privateKey);
-          valuesArgument += ` --set config.OPERATOR_KEY_MAIN=${operatorKeyFromK8}`;
+          valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${operatorKeyFromK8}`;
+          valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${operatorKeyFromK8}`;
         }
       } catch (error) {
         throw new SoloError(`Error getting operator key: ${error.message}`, error);
@@ -185,15 +196,16 @@ export class RelayCommand extends BaseCommand {
       throw new MissingArgumentError('Node IDs must be specified');
     }
 
-    const networkJsonString = await this.prepareNetworkJsonString(nodeAliases, namespace);
-    valuesArgument += ` --set config.HEDERA_NETWORK='${networkJsonString}'`;
+    const networkJsonString: string = await this.prepareNetworkJsonString(nodeAliases, namespace);
+    valuesArgument += ` --set-literal relay.config.HEDERA_NETWORK='${networkJsonString}'`;
+    valuesArgument += ` --set-literal ws.config.HEDERA_NETWORK='${networkJsonString}'`;
 
     if (domainName) {
       valuesArgument += helpers.populateHelmArguments({
-        'ingress.enabled': true,
-        'ingress.hosts[0].host': domainName,
-        'ingress.hosts[0].paths[0].path': '/',
-        'ingress.hosts[0].paths[0].pathType': 'ImplementationSpecific',
+        'relay.ingress.enabled': true,
+        'relay.ingress.hosts[0].host': domainName,
+        'relay.ingress.hosts[0].paths[0].path': '/',
+        'relay.ingress.hosts[0].paths[0].pathType': 'ImplementationSpecific',
       });
     }
 
@@ -371,7 +383,7 @@ export class RelayCommand extends BaseCommand {
               .pods()
               .waitForRunningPhase(
                 config.namespace,
-                ['app=hedera-json-rpc-relay', `app.kubernetes.io/instance=${config.releaseName}`],
+                [`app.kubernetes.io/instance=${config.releaseName}`],
                 constants.RELAY_PODS_RUNNING_MAX_ATTEMPTS,
                 constants.RELAY_PODS_RUNNING_DELAY,
               );
@@ -390,7 +402,7 @@ export class RelayCommand extends BaseCommand {
                 .pods()
                 .waitForReadyStatus(
                   config.namespace,
-                  ['app=hedera-json-rpc-relay', `app.kubernetes.io/instance=${config.releaseName}`],
+                  [`app.kubernetes.io/instance=${config.releaseName}`],
                   constants.RELAY_PODS_READY_MAX_ATTEMPTS,
                   constants.RELAY_PODS_READY_DELAY,
                 );
@@ -406,10 +418,7 @@ export class RelayCommand extends BaseCommand {
             const pods: Pod[] = await this.k8Factory
               .getK8(context_.config.clusterContext)
               .pods()
-              .list(context_.config.namespace, [
-                'app=hedera-json-rpc-relay',
-                `app.kubernetes.io/instance=${context_.config.releaseName}`,
-              ]);
+              .list(context_.config.namespace, [`app.kubernetes.io/name=relay`]);
             if (pods.length === 0) {
               throw new SoloError('No Relay pod found');
             }
