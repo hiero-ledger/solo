@@ -164,7 +164,7 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     if (config.imageTag) {
-      config.imageTag = validateSemVersion(config.imageTag, true, 'Block node image tag');
+      config.imageTag = validateSemVersion(config.imageTag, false, 'Block node image tag');
       if (!checkDockerImageExists(BLOCK_NODE_IMAGE_NAME, config.imageTag)) {
         throw new SoloError(`Local block node image with tag "${config.imageTag}" does not exist.`);
       }
