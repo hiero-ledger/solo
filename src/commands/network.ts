@@ -1234,12 +1234,12 @@ export class NetworkCommand extends BaseCommand {
         throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
       } finally {
         if (lease) {
-          await lease.release();
+          await lease?.release();
         }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease.release();
+        await lease?.release();
       });
     }
 
@@ -1346,7 +1346,7 @@ export class NetworkCommand extends BaseCommand {
       throw new SoloError('Error destroying network', error);
     } finally {
       // If the namespace is deleted, the lease can't be released
-      await lease.release().catch();
+      await lease?.release().catch();
     }
 
     return networkDestroySuccess;

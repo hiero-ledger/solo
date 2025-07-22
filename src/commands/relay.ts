@@ -459,13 +459,13 @@ export class RelayCommand extends BaseCommand {
         throw new SoloError(`Error deploying relay: ${error.message}`, error);
       } finally {
         if (lease) {
-          await lease.release();
+          await lease?.release();
         }
         await self.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease.release();
+        await lease?.release();
         await self.accountManager.close();
       });
     }
@@ -553,7 +553,7 @@ export class RelayCommand extends BaseCommand {
       throw new SoloError('Error uninstalling relays', error);
     } finally {
       if (lease) {
-        await lease.release();
+        await lease?.release();
       }
     }
 

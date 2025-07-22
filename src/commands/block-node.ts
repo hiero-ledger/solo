@@ -345,7 +345,7 @@ export class BlockNodeCommand extends BaseCommand {
     } catch (error) {
       throw new SoloError(`Error deploying block node: ${error.message}`, error);
     } finally {
-      await lease.release();
+      await lease?.release();
     }
 
     return true;
@@ -456,7 +456,7 @@ export class BlockNodeCommand extends BaseCommand {
     } catch (error) {
       throw new SoloError(`Error destroying block node: ${error.message}`, error);
     } finally {
-      await lease.release();
+      await lease?.release();
     }
 
     return true;
@@ -552,7 +552,7 @@ export class BlockNodeCommand extends BaseCommand {
     } catch (error) {
       throw new SoloError(`Error upgrading block node: ${error.message}`, error);
     } finally {
-      await lease.release();
+      await lease?.release();
     }
 
     return true;
