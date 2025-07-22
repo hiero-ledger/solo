@@ -54,7 +54,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
             new Subcommand(
               LedgerCommandDefinition.ACCOUNT_INIT,
               'Lists all ledger accounts.',
-              this,
+              this.accountCommand,
               this.accountCommand.init,
               AccountCommand.INIT_FLAGS_LIST,
             ),
@@ -63,7 +63,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
             new Subcommand(
               LedgerCommandDefinition.ACCOUNT_UPDATE,
               'Updates an existing ledger account.',
-              this,
+              this.accountCommand,
               this.accountCommand.update,
               AccountCommand.UPDATE_FLAGS_LIST,
             ),
@@ -72,7 +72,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
             new Subcommand(
               LedgerCommandDefinition.ACCOUNT_CREATE,
               'Creates a new ledger account.',
-              this,
+              this.accountCommand,
               this.accountCommand.create,
               AccountCommand.CREATE_FLAGS_LIST,
             ),
@@ -81,7 +81,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
             new Subcommand(
               LedgerCommandDefinition.ACCOUNT_INFO,
               'Gets the account info including the current amount of HBAR',
-              this,
+              this.accountCommand,
               this.accountCommand.get,
               AccountCommand.GET_FLAGS_LIST,
             ),

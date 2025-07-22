@@ -58,7 +58,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
           new Subcommand(
             DeploymentCommandDefinition.CLUSTER_ATTACH,
             'Attaches a cluster reference to a deployment.',
-            this,
+            this.deploymentCommand,
             this.deploymentCommand.addCluster,
             DeploymentCommand.ADD_CLUSTER_FLAGS_LIST,
           ),

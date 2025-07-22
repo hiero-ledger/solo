@@ -53,7 +53,7 @@ export class QuickStartCommandDefinition extends BaseCommandDefinition {
             new Subcommand(
               QuickStartCommandDefinition.SINGLE_DEPLOY,
               'Deploys all required components for the selected quick start configuration.',
-              this,
+              this.quickStartCommand,
               this.quickStartCommand.deploy,
               DefaultQuickStartCommand.SINGLE_ADD_FLAGS_LIST,
             ),
@@ -62,7 +62,7 @@ export class QuickStartCommandDefinition extends BaseCommandDefinition {
             new Subcommand(
               QuickStartCommandDefinition.SINGLE_DESTROY,
               'Removes the deployed resources for the selected quick start configuration.',
-              this,
+              this.quickStartCommand,
               this.quickStartCommand.destroy,
               DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST,
             ),

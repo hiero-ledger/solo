@@ -44,7 +44,7 @@ export class RelayCommandDefinition extends BaseCommandDefinition {
             new Subcommand(
               RelayCommandDefinition.NODE_ADD,
               'Adds and configures a new node instance.',
-              this,
+              this.relayCommand,
               this.relayCommand.add,
               MirrorNodeCommand.DEPLOY_FLAGS_LIST,
             ),
@@ -53,7 +53,7 @@ export class RelayCommandDefinition extends BaseCommandDefinition {
             new Subcommand(
               RelayCommandDefinition.NODE_DESTROY,
               'Deletes the specified node from the deployment.',
-              this,
+              this.relayCommand,
               this.relayCommand.destroy,
               MirrorNodeCommand.DESTROY_FLAGS_LIST,
             ),

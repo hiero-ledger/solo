@@ -43,7 +43,7 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
             new Subcommand(
               MirrorCommandDefinition.NODE_ADD,
               'Adds and configures a new node instance.',
-              this,
+              this.mirrorNodeCommand,
               this.mirrorNodeCommand.add,
               MirrorNodeCommand.DEPLOY_FLAGS_LIST,
             ),
@@ -52,7 +52,7 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
             new Subcommand(
               MirrorCommandDefinition.NODE_DESTROY,
               'Deletes the specified node from the deployment.',
-              this,
+              this.mirrorNodeCommand,
               this.mirrorNodeCommand.destroy,
               MirrorNodeCommand.DESTROY_FLAGS_LIST,
             ),
