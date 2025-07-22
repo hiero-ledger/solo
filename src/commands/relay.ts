@@ -89,7 +89,7 @@ export class RelayCommand extends BaseCommand {
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
-  private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
+  public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.chainId,
@@ -110,7 +110,7 @@ export class RelayCommand extends BaseCommand {
     ],
   };
 
-  private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.chartDirectory, flags.deployment, flags.nodeAliasesUnparsed, flags.clusterRef, flags.quiet],
   };
