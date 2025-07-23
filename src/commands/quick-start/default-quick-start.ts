@@ -350,7 +350,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
               this.showVersions();
               this.showPortForwards();
 
-              if (context_.config.predefinedAccounts) {
+              if (context_.createdAccounts) {
                 this.showCreatedAccounts(context_.createdAccounts);
               }
 
