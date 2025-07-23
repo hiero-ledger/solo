@@ -238,7 +238,7 @@ export function bootstrapTestVariables(
   const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
   const remoteConfig: RemoteConfigRuntimeStateApi = container.resolve(InjectTokens.RemoteConfigRuntimeState);
   const testLogger: SoloLogger = getTestLogger();
-  const commandInvoker: CommandInvoker = container.resolve(InjectTokens.CommandInvoker) as CommandInvoker;
+  const commandInvoker: CommandInvoker = container.resolve(InjectTokens.CommandInvoker);
 
   const options: TestOptions = {
     logger: testLogger,
@@ -322,15 +322,13 @@ export function endToEndTestSuite(
 
   describe(`E2E Test Suite for '${testName}'`, function (): void {
     before(async (): Promise<void> => {
-      const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
-        InjectTokens.LocalConfigRuntimeState,
-      );
+      const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
       await localConfig.load();
     });
 
     this.bail(true); // stop on first failure, nothing else will matter if network doesn't come up correctly
 
-    describe(`Bootstrap network for test [release ${argv.getArg<string>(flags.releaseTag)}]`, (): void => {
+    describe(`Bootstrap network for test [release ${argv.getArg(flags.releaseTag)}]`, (): void => {
       before((): void => {
         testLogger.showUser(`------------------------- START: bootstrap (${testName}) ----------------------------`);
       });
@@ -374,9 +372,7 @@ export function endToEndTestSuite(
       }).timeout(Duration.ofMinutes(2).toMillis());
 
       it("should success with 'cluster-ref connect'", async (): Promise<void> => {
-        const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
-          InjectTokens.LocalConfigRuntimeState,
-        );
+        const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
         await localConfig.load();
         await commandInvoker.invoke({
           argv: argv,

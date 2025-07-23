@@ -1755,7 +1755,7 @@ export class Flags {
     constName: 'deploymentClusters',
     name: 'deployment-clusters',
     definition: {
-      describe: 'Solo deployment config list (comma separated)',
+      describe: 'Solo deployment cluster list (comma separated)',
       type: 'string',
     },
     prompt: async function promptDeploymentClusters(

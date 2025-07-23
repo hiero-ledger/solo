@@ -46,7 +46,7 @@ Alternatively, you can use the following command to download hgcaa.log and
 swirlds.log for further analysis.
 
 ```bash
-# download logs as zip file from node1 and save in default ~/.solo/logs/solo-e2e/<timestamp/
+# download logs as zip file from node1 and save in default ~/.solo/logs/<namespace>/<timestamp/
 solo consensus node logs --deployment solo-deployment
 ```
 

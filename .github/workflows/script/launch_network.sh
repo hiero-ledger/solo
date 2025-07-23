@@ -160,7 +160,7 @@ echo "::endgroup::"
 echo "::group::Cleanup"
 # uninstall components using current Solo version
 npm run solo-test -- explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --force
-npm run solo-test -- relay node destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+npm run solo-test -- relay node destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 npm run solo-test -- mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force
 npm run solo-test -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 npm run solo-test -- consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force
