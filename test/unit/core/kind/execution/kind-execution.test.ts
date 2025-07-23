@@ -14,13 +14,10 @@ class MockKindExecution {
   private mockProcess: EventEmitter;
 
   constructor(command: string[], workingDirectory: string, environmentVariables: Record<string, string>) {
-    // eslint-disable-next-line unicorn/prefer-event-target
     this.mockProcess = new EventEmitter();
     // @ts-expect-error TS2339: Property stdout does not exist on type EventEmitter<DefaultEventMap>
-    // eslint-disable-next-line unicorn/prefer-event-target
     this.mockProcess.stdout = new EventEmitter();
     // @ts-expect-error TS2339: Property stderr does not exist on type EventEmitter<DefaultEventMap>
-    // eslint-disable-next-line unicorn/prefer-event-target
     this.mockProcess.stderr = new EventEmitter();
     // @ts-expect-error TS2339: Property stdin does not exist on type EventEmitter<DefaultEventMap>
     this.mockProcess.stdin = {
@@ -208,7 +205,7 @@ describe('KindExecution', () => {
 
     it('should parse successful response into the specified class', async () => {
       const allPassing = await Promise.all([
-        async (resolve, reject) => {
+        new Promise<boolean>(async (resolve, reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestResponse is not assignable to parameter of type
             const result = await execution.responseAs(TestResponse);
@@ -218,12 +215,12 @@ describe('KindExecution', () => {
           } catch {
             resolve(false);
           }
-        },
-        async resolve => {
+        }),
+        new Promise<boolean>(async resolve => {
           execution.emitStdout('test response');
           execution.emitExit(0);
           resolve(true);
-        },
+        }),
       ]);
 
       expect(allPassing).to.deep.equal([true, true]);
@@ -231,7 +228,7 @@ describe('KindExecution', () => {
 
     it('should reject if the process exits with error', async () => {
       const allPassing = await Promise.all([
-        async (resolve, reject) => {
+        new Promise<boolean>(async (resolve, reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestResponse is not assignable to parameter of type
             await execution.responseAs(TestResponse);
@@ -240,12 +237,12 @@ describe('KindExecution', () => {
             expect(error.name).to.be.equal(KindExecutionException.name);
             resolve(false);
           }
-        },
-        async resolve => {
+        }),
+        new Promise<boolean>(async resolve => {
           execution.emitStderr('error output');
           execution.emitExit(1);
           resolve(true);
-        },
+        }),
       ]);
 
       expect(allPassing).to.deep.equal([false, true]);
@@ -260,7 +257,7 @@ describe('KindExecution', () => {
       }
 
       const allPassing = await Promise.all([
-        async (resolve, reject) => {
+        new Promise<boolean>(async (resolve, reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof FailingClass is not assignable to parameter of type
             await execution.responseAs(FailingClass);
@@ -269,12 +266,12 @@ describe('KindExecution', () => {
             expect(error.name).to.be.equal(KindParserException.name);
             resolve(false);
           }
-        },
-        async resolve => {
+        }),
+        new Promise<boolean>(async resolve => {
           execution.emitStdout('some output');
           execution.emitExit(0);
           resolve(true);
-        },
+        }),
       ]);
 
       expect(allPassing).to.deep.equal([false, true]);
@@ -294,7 +291,7 @@ describe('KindExecution', () => {
 
     it('should parse successful response into a list of the specified class', async () => {
       const allPassing = await Promise.all([
-        async (resolve, reject) => {
+        new Promise<boolean>(async (resolve, reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestItem is not assignable to parameter of type
             const result = await execution.responseAsList(TestItem);
@@ -307,12 +304,12 @@ describe('KindExecution', () => {
           } catch {
             resolve(false);
           }
-        },
-        async resolve => {
+        }),
+        new Promise<boolean>(async resolve => {
           execution.emitStdout('item1\nitem2\nitem3');
           execution.emitExit(0);
           resolve(true);
-        },
+        }),
       ]);
 
       expect(allPassing).to.deep.equal([true, true]);
@@ -320,7 +317,7 @@ describe('KindExecution', () => {
 
     it('should handle empty output', async () => {
       const allPassing = await Promise.all([
-        async (resolve, reject) => {
+        new Promise<boolean>(async (resolve, reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestItem is not assignable to parameter of type
             const result = await execution.responseAsList(TestItem);
@@ -329,12 +326,12 @@ describe('KindExecution', () => {
           } catch {
             resolve(false);
           }
-        },
-        async resolve => {
+        }),
+        new Promise<boolean>(async resolve => {
           execution.emitStdout('');
           execution.emitExit(0);
           resolve(true);
-        },
+        }),
       ]);
 
       expect(allPassing).to.deep.equal([true, true]);
@@ -348,7 +345,7 @@ describe('KindExecution', () => {
       }
 
       const allPassing = await Promise.all([
-        async (resolve, reject) => {
+        new Promise<boolean>(async (resolve, reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof FailingItem is not assignable to parameter of type
             const result = await execution.responseAsList(FailingItem);
@@ -358,12 +355,12 @@ describe('KindExecution', () => {
             expect(error.name).to.be.equal(KindParserException.name);
             resolve(false);
           }
-        },
-        async resolve => {
+        }),
+        new Promise<boolean>(async resolve => {
           execution.emitStdout('item1\nitem2');
           execution.emitExit(0);
           resolve(true);
-        },
+        }),
       ]);
 
       expect(allPassing).to.deep.equal([false, true]);
