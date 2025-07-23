@@ -24,40 +24,6 @@ export class HelmExecutionException extends Error {
    */
   private readonly stdErr: string;
 
-  /**
-   * Constructs a new exception instance with the specified exit code and a default message.
-   * @param exitCode The exit code returned by the Helm executable or the operating system
-   */
-  constructor(exitCode: number);
-  /**
-   * Constructs a new exception instance with the specified exit code, standard output and standard error.
-   * @param exitCode The exit code returned by the Helm executable or the operating system
-   * @param stdOut The standard output of the Helm executable
-   * @param stdErr The standard error of the Helm executable
-   */
-  constructor(exitCode: number, stdOut: string, stdError: string);
-  /**
-   * Constructs a new exception instance with the specified exit code, message, stdOut, and stdErr.
-   * @param exitCode The exit code returned by the Helm executable or the operating system
-   * @param message The detail message
-   * @param stdOut The standard output of the Helm executable
-   * @param stdErr The standard error of the Helm executable
-   */
-  constructor(exitCode: number, message: string, stdOut: string, stdError: string);
-  /**
-   * Constructs a new exception instance with the specified exit code and cause using the default message.
-   * @param exitCode The exit code returned by the Helm executable or the operating system
-   * @param cause The cause
-   */
-  constructor(exitCode: number, cause: Error);
-  /**
-   * Constructs a new exception instance with the specified exit code, message and cause.
-   * @param exitCode The exit code returned by the Helm executable or the operating system
-   * @param message The detail message
-   * @param cause The cause
-   */
-  constructor(exitCode: number, message: string, cause: Error);
-
   constructor(
     exitCode: number,
     messageOrStdOutOrCause?: string | Error,
