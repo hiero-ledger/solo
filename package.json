@@ -42,7 +42,7 @@
     "ip": "^2.0.1",
     "js-base64": "^3.7.7",
     "listr2": "^9.0.0",
-    "selfsigned": "^3.0.0",
+    "selfsigned": "^3.0.1",
     "semver": "^7.7.2",
     "shell-quote": "^1.8.3",
     "source-map-support": "^0.5.21",
