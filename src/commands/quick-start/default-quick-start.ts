@@ -351,6 +351,9 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
               this.showPortForwards();
 
               if (context_.createdAccounts) {
+                context_.createdAccounts.sort((a: CreatedPredefinedAccount, b: CreatedPredefinedAccount): number =>
+                  a.accountId.compare(b.accountId),
+                );
                 this.showCreatedAccounts(context_.createdAccounts);
               }
 
