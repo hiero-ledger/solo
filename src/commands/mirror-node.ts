@@ -798,7 +798,7 @@ export class MirrorNodeCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      MirrorNodeCommand.DEPLOY_COMMAND,
+      'mirror node add',
     );
 
     if (tasks.isRoot()) {

@@ -447,7 +447,7 @@ export class RelayCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      RelayCommand.DEPLOY_COMMAND,
+      'relay node add',
     );
 
     if (tasks.isRoot()) {

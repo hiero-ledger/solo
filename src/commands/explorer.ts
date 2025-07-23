@@ -468,7 +468,7 @@ export class ExplorerCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      ExplorerCommand.DEPLOY_COMMAND,
+      'explorer node add',
     );
 
     if (tasks.isRoot()) {

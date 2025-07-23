@@ -168,7 +168,7 @@ export class DeploymentCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      DeploymentCommand.CREATE_COMMAND,
+      'deployment config create',
     );
 
     if (tasks.isRoot()) {
@@ -297,7 +297,7 @@ export class DeploymentCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      DeploymentCommand.ADD_COMMAND,
+      'deployment cluster attach',
     );
 
     if (tasks.isRoot()) {

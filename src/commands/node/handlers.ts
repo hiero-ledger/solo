@@ -773,7 +773,7 @@ export class NodeCommandHandlers extends CommandHandler {
       },
       'Error generating keys',
       null,
-      NodeCommandHandlers.KEYS_COMMAND,
+      'keys consensus generate',
     );
 
     return true;
@@ -834,7 +834,7 @@ export class NodeCommandHandlers extends CommandHandler {
       },
       'Error starting node',
       leaseWrapper.lease,
-      NodeCommandHandlers.START_COMMAND,
+      'consensus node start',
     );
 
     return true;
@@ -864,7 +864,7 @@ export class NodeCommandHandlers extends CommandHandler {
       },
       'Error in setting up nodes',
       leaseWrapper.lease,
-      NodeCommandHandlers.SETUP_COMMAND,
+      'consensus node setup',
     );
 
     return true;

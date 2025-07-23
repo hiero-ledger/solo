@@ -1223,7 +1223,7 @@ export class NetworkCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      NetworkCommand.DEPLOY_COMMAND,
+      'consensus network deploy',
     );
 
     if (tasks.isRoot()) {

@@ -49,7 +49,7 @@ export class ClusterCommandHandlers extends CommandHandler {
       },
       'cluster-ref connect',
       null,
-      ClusterCommandHandlers.CONNECT_COMMAND,
+      'cluster-ref config connect',
     );
 
     return true;
@@ -126,7 +126,7 @@ export class ClusterCommandHandlers extends CommandHandler {
         },
         'cluster setup',
         null,
-        ClusterCommandHandlers.SETUP_COMMAND,
+        'cluster-ref config setup',
       );
     } catch (error) {
       throw new SoloError('Error on cluster setup', error);
