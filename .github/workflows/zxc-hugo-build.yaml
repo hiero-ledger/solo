@@ -93,10 +93,17 @@ jobs:
         with:
           go-version-file: 'docs/site/go.mod'
 
-      - name: Install wget
+      - name: Install Posix Commands
         run: |
-          sudo apt-get update
-          sudo apt-get install -y wget
+          if ! command -v wget >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y wget
+          fi
+          if ! command -v kubectl >/dev/null 2>&1; then
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/{{ ARCH }}/kubectl"
+            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+            rm -rf kubectl 
+          fi
 
       - name: Setup Helm
         uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0

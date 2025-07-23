@@ -78,7 +78,12 @@ jobs:
           sudo add-apt-repository ppa:rmescandon/yq -y
           sudo apt update
           sudo apt install yq -y
-  
+          if ! command -v kubectl >/dev/null 2>&1; then
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/{{ ARCH }}/kubectl"
+            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+            rm -rf kubectl 
+          fi
+       
           npm install
           task build
           timeout --kill-after=1s --preserve-status 55m bash -c '.github/workflows/script/launch_network.sh ${{ matrix.release-tag }}' || RC=$? || true

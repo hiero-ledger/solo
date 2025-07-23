@@ -177,11 +177,16 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
 
-      - name: Install wget
+      - name: Install Posix Commands
         run: |
           if ! command -v wget >/dev/null 2>&1; then
             sudo apt-get update
             sudo apt-get install -y wget
+          fi
+          if ! command -v kubectl >/dev/null 2>&1; then
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/{{ ARCH }}/kubectl"
+            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+            rm -rf kubectl 
           fi
 
       - name: Setup Kind
