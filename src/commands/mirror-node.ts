@@ -46,6 +46,7 @@ import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import * as semver from 'semver';
 import {Base64} from 'js-base64';
 import {Lock} from '../core/lock/lock.js';
+import {MirrorCommandDefinition} from './command-definitions/mirror-command-definition.js';
 
 interface MirrorNodeDeployConfigClass {
   isChartInstalled: boolean;
@@ -99,7 +100,7 @@ interface MirrorNodeDestroyContext {
 
 @injectable()
 export class MirrorNodeCommand extends BaseCommand {
-  public static readonly DEPLOY_COMMAND: string = 'mirror node add';
+  public static readonly DEPLOY_COMMAND: string = `${MirrorCommandDefinition.COMMAND_NAME} ${MirrorCommandDefinition.NODE_SUBCOMMAND_NAME} ${MirrorCommandDefinition.NODE_ADD}`;
 
   public constructor(
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,

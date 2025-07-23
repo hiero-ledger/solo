@@ -29,6 +29,7 @@ import {CommandFlags} from '../types/flag-types.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Duration} from '../core/time/duration.js';
+import {RelayCommandDefinition} from './command-definitions/relay-command-definition.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -74,7 +75,7 @@ interface RelayDeployContext {
 
 @injectable()
 export class RelayCommand extends BaseCommand {
-  public static readonly DEPLOY_COMMAND = 'relay node add';
+  public static readonly DEPLOY_COMMAND: string = `${RelayCommandDefinition.COMMAND_NAME} ${RelayCommandDefinition.NODE_SUBCOMMAND_NAME} ${RelayCommandDefinition.NODE_ADD}`;
 
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
