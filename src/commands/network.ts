@@ -73,7 +73,6 @@ import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
-import {ConsensusCommandDefinition} from './command-definitions/consensus-command-definition.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -154,7 +153,6 @@ export interface NetworkDestroyContext {
 @injectable()
 export class NetworkCommand extends BaseCommand {
   private profileValuesFile?: Record<ClusterReferenceName, string>;
-  public static DEPLOY_COMMAND: string = `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NETWORK_DEPLOY}`;
 
   public constructor(
     @inject(InjectTokens.CertificateManager) private readonly certificateManager: CertificateManager,

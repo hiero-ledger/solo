@@ -33,6 +33,8 @@ export class ExplorerCommandDefinition extends BaseCommandDefinition {
   public static readonly NODE_ADD: string = 'add';
   public static readonly NODE_DESTROY: string = 'destroy';
 
+  public static readonly DEPLOY_COMMAND: string = `${ExplorerCommandDefinition.COMMAND_NAME} ${ExplorerCommandDefinition.NODE_SUBCOMMAND_NAME} ${ExplorerCommandDefinition.NODE_ADD}`;
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
       ExplorerCommandDefinition.COMMAND_NAME,

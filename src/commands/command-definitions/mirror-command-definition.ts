@@ -32,6 +32,8 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
   public static readonly NODE_ADD: string = 'add';
   public static readonly NODE_DESTROY: string = 'destroy';
 
+  public static readonly DEPLOY_COMMAND: string = `${MirrorCommandDefinition.COMMAND_NAME} ${MirrorCommandDefinition.NODE_SUBCOMMAND_NAME} ${MirrorCommandDefinition.NODE_ADD}`;
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(MirrorCommandDefinition.COMMAND_NAME, MirrorCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(

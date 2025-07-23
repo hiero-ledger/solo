@@ -35,7 +35,6 @@ import {Lock} from '../core/lock/lock.js';
 import {CommandFlags} from '../types/flag-types.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
-import {ExplorerCommandDefinition} from './command-definitions/explorer-command-definition.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -78,8 +77,6 @@ interface ExplorerDestroyContext {
 
 @injectable()
 export class ExplorerCommand extends BaseCommand {
-  public static readonly DEPLOY_COMMAND: string = `${ExplorerCommandDefinition.COMMAND_NAME} ${ExplorerCommandDefinition.NODE_SUBCOMMAND_NAME} ${ExplorerCommandDefinition.NODE_ADD}`;
-
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,

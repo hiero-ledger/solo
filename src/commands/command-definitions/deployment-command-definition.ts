@@ -44,6 +44,9 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly CONFIG_CREATE: string = 'create';
   public static readonly CONFIG_DELETE: string = 'delete';
 
+  public static readonly CREATE_COMMAND: string = `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_CREATE}`;
+  public static readonly ADD_COMMAND: string = `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CLUSTER_ATTACH}`;
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
       DeploymentCommandDefinition.COMMAND_NAME,

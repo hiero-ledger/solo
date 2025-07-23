@@ -31,15 +31,9 @@ import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api
 import {ComponentsDataWrapperApi} from '../../core/config/remote/api/components-data-wrapper-api.js';
 import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
-import {KeysCommandDefinition} from '../command-definitions/keys-command-definition.js';
-import {ConsensusCommandDefinition} from '../command-definitions/consensus-command-definition.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
-  public static readonly SETUP_COMMAND: string = `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NODE_SETUP}`;
-  public static readonly START_COMMAND: string = `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NODE_START}`;
-  public static readonly KEYS_COMMAND: string = `${KeysCommandDefinition.COMMAND_NAME} ${KeysCommandDefinition.CONSENSUS_SUBCOMMAND_NAME} ${KeysCommandDefinition.CONSENSUS_GENERATE}`;
-
   public constructor(
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,

@@ -30,6 +30,8 @@ export class KeysCommandDefinition extends BaseCommandDefinition {
 
   public static readonly CONSENSUS_GENERATE: string = 'generate';
 
+  public static readonly KEYS_COMMAND: string = `${KeysCommandDefinition.COMMAND_NAME} ${KeysCommandDefinition.CONSENSUS_SUBCOMMAND_NAME} ${KeysCommandDefinition.CONSENSUS_GENERATE}`;
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(KeysCommandDefinition.COMMAND_NAME, KeysCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(

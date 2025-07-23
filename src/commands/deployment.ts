@@ -31,7 +31,6 @@ import {type ComponentFactoryApi} from '../core/config/remote/api/component-fact
 import {StringFacade} from '../business/runtime-state/facade/string-facade.js';
 import {Deployment} from '../business/runtime-state/config/local/deployment.js';
 import {CommandFlags} from '../types/flag-types.js';
-import {DeploymentCommandDefinition} from './command-definitions/deployment-command-definition.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -58,9 +57,6 @@ export interface DeploymentAddClusterContext {
 
 @injectable()
 export class DeploymentCommand extends BaseCommand {
-  public static readonly CREATE_COMMAND: string = `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_CREATE}`;
-  public static readonly ADD_COMMAND: string = `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CLUSTER_ATTACH}`;
-
   public constructor(
     @inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks,
     @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,

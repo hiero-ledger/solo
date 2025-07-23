@@ -32,6 +32,8 @@ export class RelayCommandDefinition extends BaseCommandDefinition {
   public static readonly NODE_ADD: string = 'add';
   public static readonly NODE_DESTROY: string = 'destroy';
 
+  public static readonly DEPLOY_COMMAND: string = `${RelayCommandDefinition.COMMAND_NAME} ${RelayCommandDefinition.NODE_SUBCOMMAND_NAME} ${RelayCommandDefinition.NODE_ADD}`;
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(RelayCommandDefinition.COMMAND_NAME, RelayCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(

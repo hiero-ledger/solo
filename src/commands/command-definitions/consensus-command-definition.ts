@@ -77,6 +77,10 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
   public static readonly NETWORK_UPGRADE_EXECUTE: string = 'upgrade-execute';
   public static readonly NETWORK_UPGRADE_SUBMIT_TRANSACTION: string = 'upgrade-submit-transactions';
 
+  public static readonly SETUP_COMMAND: string = `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NODE_SETUP}`;
+  public static readonly START_COMMAND: string = `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NODE_START}`;
+  public static DEPLOY_COMMAND: string = `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NETWORK_DEPLOY}`;
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
       ConsensusCommandDefinition.COMMAND_NAME,
