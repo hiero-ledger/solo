@@ -56,7 +56,7 @@ const ed25519Keys: string[] = [
   '0xd26a61159018a3c9824388368cb4ecae278f9244724fd93ecb965fc7e2d9808e',
 ];
 
-export const predefinedECDSAAccounts: PredefinedAccount[] = ecdsaKeys.map((key: string): PredefinedAccount => {
+export const predefinedEcdsaAccounts: PredefinedAccount[] = ecdsaKeys.map((key: string): PredefinedAccount => {
   return {
     group: 'ecdsa',
     balance: defaultBalance,
@@ -65,7 +65,7 @@ export const predefinedECDSAAccounts: PredefinedAccount[] = ecdsaKeys.map((key: 
   };
 });
 
-export const predefinedECDSAAccountsWithAlias: PredefinedAccount[] = ecdsaAliasKeys.map(
+export const predefinedEcdsaAccountsWithAlias: PredefinedAccount[] = ecdsaAliasKeys.map(
   (key: string): PredefinedAccount => {
     return {
       group: 'ecdsa-alias',
@@ -76,7 +76,7 @@ export const predefinedECDSAAccountsWithAlias: PredefinedAccount[] = ecdsaAliasK
   },
 );
 
-export const predefinedED25519Accounts: PredefinedAccount[] = ed25519Keys.map((key: string): PredefinedAccount => {
+export const predefinedEd25519Accounts: PredefinedAccount[] = ed25519Keys.map((key: string): PredefinedAccount => {
   return {
     group: 'ed25519',
     balance: defaultBalance,

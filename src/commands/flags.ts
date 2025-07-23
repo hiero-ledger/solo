@@ -151,7 +151,7 @@ export class Flags {
 
   public static readonly predefinedAccounts: CommandFlag = {
     constName: 'predefinedAccounts',
-    name: 'accounts',
+    name: 'predefined-accounts',
     definition: {
       describe: 'Create predefined accounts on network creation',
       defaultValue: true,

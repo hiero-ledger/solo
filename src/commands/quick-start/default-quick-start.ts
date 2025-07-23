@@ -36,9 +36,9 @@ import {type AccountManager} from '../../core/account-manager.js';
 import {
   CreatedPredefinedAccount,
   PredefinedAccount,
-  predefinedECDSAAccounts,
-  predefinedECDSAAccountsWithAlias,
-  predefinedED25519Accounts,
+  predefinedEcdsaAccounts,
+  predefinedEcdsaAccountsWithAlias,
+  predefinedEd25519Accounts,
 } from './predefined-accounts.js';
 import {AccountId, HbarUnit} from '@hashgraph/sdk';
 import * as helpers from '../../core/helpers.js';
@@ -292,15 +292,15 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
               const subTasks: SoloListrTask<QuickStartSingleDeployContext>[] = [];
 
               const accountsToCreate = [
-                ...predefinedECDSAAccounts,
-                ...predefinedECDSAAccountsWithAlias,
-                ...predefinedED25519Accounts,
+                ...predefinedEcdsaAccounts,
+                ...predefinedEcdsaAccountsWithAlias,
+                ...predefinedEd25519Accounts,
               ];
 
               await self.accountManager.loadNodeClient(
                 config.namespace,
                 self.remoteConfig.getClusterRefs(),
-                'solo-deployment-1b8678e9', // context_.config.deployment,
+                context_.config.deployment,
               );
 
               for (const [index, account] of accountsToCreate.entries()) {
@@ -411,14 +411,14 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
 
   private showCreatedAccounts(createdAccounts: CreatedPredefinedAccount[] = []): void {
     if (createdAccounts.length > 0) {
-      const ecdsaAccounts = createdAccounts.filter(
-        (account: CreatedPredefinedAccount) => (account.data.group === 'ecdsa'),
+      const ecdsaAccounts: CreatedPredefinedAccount[] = createdAccounts.filter(
+        (account: CreatedPredefinedAccount): boolean => account.data.group === 'ecdsa',
       );
-      const aliasAccounts = createdAccounts.filter(
-        (account: CreatedPredefinedAccount) => (account.data.group === 'ecdsa-alias'),
+      const aliasAccounts: CreatedPredefinedAccount[] = createdAccounts.filter(
+        (account: CreatedPredefinedAccount): boolean => account.data.group === 'ecdsa-alias',
       );
-      const ed25519Accounts = createdAccounts.filter(
-        (account: CreatedPredefinedAccount) => (account.data.group === 'ed25519'),
+      const ed25519Accounts: CreatedPredefinedAccount[] = createdAccounts.filter(
+        (account: CreatedPredefinedAccount): boolean => account.data.group === 'ed25519',
       );
 
       const messageGroupKey: string = 'accounts-created';
