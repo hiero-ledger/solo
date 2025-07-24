@@ -71,6 +71,12 @@ jobs:
           verbosity: 3
           wait: 120s
 
+      - name: Install Kubectl
+        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # pinned to v4.0.0
+        with:
+          version: 'v1.27.3'
+        id: install
+
       - name: Launch Network with Release version ${{ matrix.release-tag }}
         timeout-minutes: 60
         run: |

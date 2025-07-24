@@ -184,6 +184,12 @@ jobs:
             sudo apt-get install -y wget
           fi
 
+      - name: Install Kubectl
+        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # pinned to v4.0.0
+        with:
+          version: 'v1.27.3'
+        id: install
+
       - name: Setup Kind
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
         with:
