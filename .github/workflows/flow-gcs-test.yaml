@@ -131,7 +131,7 @@ jobs:
           npm ci
           npm install -g @hashgraph/solo
 
-      - uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # pinned to v4.0.0
+      - uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # pinned to v4.0.1
         if: steps.check.outputs.run == 'true'
         with:
           version: 1.31.4
