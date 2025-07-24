@@ -56,31 +56,37 @@ const ed25519Keys: string[] = [
   '0xd26a61159018a3c9824388368cb4ecae278f9244724fd93ecb965fc7e2d9808e',
 ];
 
+export const PREDEFINED_ACCOUNT_GROUPS: Record<string, string> = {
+  ECDSA: 'ecdsa',
+  ECDSA_ALIAS: 'ecdsa-alias',
+  ED25519: 'ed25519',
+};
+
 export const predefinedEcdsaAccounts: PredefinedAccount[] = ecdsaKeys.map((key: string): PredefinedAccount => {
   return {
-    group: 'ecdsa',
+    group: PREDEFINED_ACCOUNT_GROUPS.ECDSA,
     balance: defaultBalance,
     privateKey: PrivateKey.fromStringECDSA(key),
     alias: false,
-  };
+  } as PredefinedAccount;
 });
 
 export const predefinedEcdsaAccountsWithAlias: PredefinedAccount[] = ecdsaAliasKeys.map(
   (key: string): PredefinedAccount => {
     return {
-      group: 'ecdsa-alias',
+      group: PREDEFINED_ACCOUNT_GROUPS.ECDSA_ALIAS,
       balance: defaultBalance,
       privateKey: PrivateKey.fromStringECDSA(key),
       alias: true,
-    };
+    } as PredefinedAccount;
   },
 );
 
 export const predefinedEd25519Accounts: PredefinedAccount[] = ed25519Keys.map((key: string): PredefinedAccount => {
   return {
-    group: 'ed25519',
+    group: PREDEFINED_ACCOUNT_GROUPS.ED25519,
     balance: defaultBalance,
     privateKey: PrivateKey.fromStringED25519(key),
     alias: false,
-  };
+  } as PredefinedAccount;
 });

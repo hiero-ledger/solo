@@ -34,7 +34,7 @@ import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {type AccountManager} from '../../core/account-manager.js';
 import {
-  CreatedPredefinedAccount,
+  CreatedPredefinedAccount, PREDEFINED_ACCOUNT_GROUPS,
   PredefinedAccount,
   predefinedEcdsaAccounts,
   predefinedEcdsaAccountsWithAlias,
@@ -415,13 +415,13 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
   private showCreatedAccounts(createdAccounts: CreatedPredefinedAccount[] = []): void {
     if (createdAccounts.length > 0) {
       const ecdsaAccounts: CreatedPredefinedAccount[] = createdAccounts.filter(
-        (account: CreatedPredefinedAccount): boolean => account.data.group === 'ecdsa',
+        (account: CreatedPredefinedAccount): boolean => account.data.group === PREDEFINED_ACCOUNT_GROUPS.ECDSA,
       );
       const aliasAccounts: CreatedPredefinedAccount[] = createdAccounts.filter(
-        (account: CreatedPredefinedAccount): boolean => account.data.group === 'ecdsa-alias',
+        (account: CreatedPredefinedAccount): boolean => account.data.group === PREDEFINED_ACCOUNT_GROUPS.ECDSA_ALIAS,
       );
       const ed25519Accounts: CreatedPredefinedAccount[] = createdAccounts.filter(
-        (account: CreatedPredefinedAccount): boolean => account.data.group === 'ed25519',
+        (account: CreatedPredefinedAccount): boolean => account.data.group === PREDEFINED_ACCOUNT_GROUPS.ED25519,
       );
 
       const messageGroupKey: string = 'accounts-created';
