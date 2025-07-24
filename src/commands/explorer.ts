@@ -38,6 +38,7 @@ import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-st
 import {Templates} from '../core/templates.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
+import {MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -67,6 +68,7 @@ interface ExplorerDeployConfigClass {
   useLegacyReleaseName: boolean;
   newExplorerComponent: ExplorerStateSchema;
   forcePortForward: Optional<boolean>;
+  redeploy: boolean;
 }
 
 interface ExplorerDeployContext {
@@ -130,6 +132,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.domainName,
       flags.id,
       flags.forcePortForward,
+      flags.redeploy,
     ],
   };
 
@@ -297,10 +300,35 @@ export class ExplorerCommand extends BaseCommand {
             context_.config.releaseName = this.getReleaseName();
             context_.config.ingressReleaseName = this.getIngressReleaseName();
 
-            if (typeof context_.config.id !== 'number') {
-              context_.config.id = context_.config.mirrorNamespace
-                ? 1
-                : this.remoteConfig.configuration.components.state.mirrorNodes[0].metadata.id;
+            if (context_.config.redeploy) {
+              const existingExplorer: ExplorerStateSchema =
+                this.remoteConfig.configuration.components.state.explorers[0];
+
+              if (!existingExplorer) {
+                throw new SoloError('Explorer node not found in remote config to be redeployed');
+              }
+
+              if (!context_.config.id) {
+                context_.config.id = existingExplorer.metadata.id;
+              }
+
+              context_.config.releaseName = this.getReleaseName(context_.config.id);
+              context_.config.ingressReleaseName = this.getIngressReleaseName(context_.config.id);
+            }
+
+            // On redeploy
+            if (context_.config.id === 1) {
+              const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
+                context_.config.namespace,
+                constants.EXPLORER_RELEASE_NAME,
+                context_.config.clusterContext,
+              );
+
+              if (isLegacyChartInstalled) {
+                context_.config.useLegacyReleaseName = true;
+                context_.config.releaseName = constants.EXPLORER_RELEASE_NAME;
+                context_.config.ingressReleaseName = constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME;
+              }
             }
 
             context_.config.newExplorerComponent = this.componentFactory.createNewExplorerComponent(
@@ -766,7 +794,7 @@ export class ExplorerCommand extends BaseCommand {
   private addMirrorNodeExplorerComponents(): SoloListrTask<ExplorerDeployContext> {
     return {
       title: 'Add explorer to remote config',
-      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      skip: (context_): boolean => !this.remoteConfig.isLoaded() || context_.config.redeploy,
       task: async (context_): Promise<void> => {
         this.remoteConfig.configuration.components.addNewComponent(
           context_.config.newExplorerComponent,

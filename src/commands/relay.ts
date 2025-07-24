@@ -45,6 +45,7 @@ import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Duration} from '../core/time/duration.js';
+import {MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -85,6 +86,7 @@ interface RelayDeployConfigClass {
   context: Optional<string>;
   newRelayComponent: RelayNodeStateSchema;
   forcePortForward: Optional<boolean>;
+  redeploy: boolean;
 }
 
 interface RelayDeployContext {
@@ -127,6 +129,7 @@ export class RelayCommand extends BaseCommand {
       flags.valuesFile,
       flags.domainName,
       flags.forcePortForward,
+      flags.redeploy,
     ],
   };
 
@@ -278,7 +281,7 @@ export class RelayCommand extends BaseCommand {
     return JSON.stringify(networkIds);
   }
 
-  private prepareReleaseName(id?: number): string {
+  private getReleaseName(id?: number): string {
     if (!id) {
       id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.RelayNodes);
     }
@@ -341,8 +344,6 @@ export class RelayCommand extends BaseCommand {
               this.configManager,
             );
 
-            context_.config.releaseName = this.prepareReleaseName();
-
             if (!context_.config.clusterRef) {
               context_.config.clusterRef = this.k8Factory.default().clusters().readCurrent();
             }
@@ -350,6 +351,37 @@ export class RelayCommand extends BaseCommand {
             const context: Context = this.remoteConfig.getClusterRefs()[context_.config.clusterRef];
             if (context) {
               context_.config.context = context;
+            }
+
+            context_.config.releaseName = this.getReleaseName();
+
+            if (context_.config.redeploy) {
+              const existingRelay: RelayNodeStateSchema =
+                this.remoteConfig.configuration.components.state.relayNodes[0];
+
+              if (!existingRelay) {
+                throw new SoloError('Relay node not found in remote config to be redeployed');
+              }
+
+              if (!context_.config.id) {
+                context_.config.id = existingRelay.metadata.id;
+              }
+
+              context_.config.releaseName = this.getReleaseName(context_.config.id);
+            }
+
+            // On redeploy
+            if (context_.config.id === 1) {
+              const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
+                context_.config.namespace,
+                constants.JSON_RPC_RELAY_RELEASE_NAME,
+                context_.config.clusterContext,
+              );
+
+              if (isLegacyChartInstalled) {
+                context_.config.useLegacyReleaseName = true;
+                context_.config.releaseName = constants.JSON_RPC_RELAY_RELEASE_NAME;
+              }
             }
 
             const nodeIds: NodeId[] = context_.config.nodeAliases.map((nodeAlias: NodeAlias): number =>
@@ -583,7 +615,7 @@ export class RelayCommand extends BaseCommand {
                 );
             }
 
-            context_.config.releaseName = this.prepareReleaseName(context_.config.id);
+            context_.config.releaseName = this.getReleaseName(context_.config.id);
 
             if (context_.config.id === 1) {
               context_.config.nodeAliases = this.remoteConfig.configuration.components
@@ -712,7 +744,8 @@ export class RelayCommand extends BaseCommand {
   public addRelayComponent(): SoloListrTask<RelayDeployContext> {
     return {
       title: 'Add relay component in remote config',
-      skip: context_ => !this.remoteConfig.isLoaded() || context_.config.isChartInstalled,
+      skip: (context_): boolean =>
+        !this.remoteConfig.isLoaded() || context_.config.isChartInstalled || context_.config.redeploy,
       task: async (context_): Promise<void> => {
         const {namespace, nodeAliases, clusterRef} = context_.config;
 

@@ -118,11 +118,11 @@ npm run solo-test -- node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 npm run solo-test -- node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 
 # redeploy mirror-node to upgrade to a newer version
-npm run solo-test -- mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --dev
+npm run solo-test -- mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --dev --redeploy
 
 # redeploy explorer and relay node to upgrade to a newer version
-npm run solo-test -- relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
-npm run solo-test -- explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace solo-e2e -q --dev
+npm run solo-test -- relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev --redeploy
+npm run solo-test -- explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace solo-e2e -q --dev --redeploy
 
 # wait a few seconds for the pods to be ready before enabling port-forwarding
 sleep 10
