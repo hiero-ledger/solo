@@ -131,17 +131,11 @@ jobs:
           npm ci
           npm install -g @hashgraph/solo
 
-      - name: Install Posix Commands
-        run: |
-          if ! command -v wget >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y wget
-          fi
-          if ! command -v kubectl >/dev/null 2>&1; then
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-            rm -rf kubectl 
-          fi
+      - uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # pinned to v4.0.0
+        if: steps.check.outputs.run == 'true'
+        with:
+          version: 1.31.4
+        id: install
 
       - name: Compile Project
         if: steps.check.outputs.run == 'true'

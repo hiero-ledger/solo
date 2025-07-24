@@ -71,6 +71,11 @@ jobs:
           verbosity: 3
           wait: 120s
 
+      - uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # pinned to v4.0.0
+        with:
+          version: 1.31.4
+        id: install
+
       - name: Launch Network with Release version ${{ matrix.release-tag }}
         timeout-minutes: 60
         run: |
@@ -78,12 +83,7 @@ jobs:
           sudo add-apt-repository ppa:rmescandon/yq -y
           sudo apt update
           sudo apt install yq -y
-          if ! command -v kubectl >/dev/null 2>&1; then
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-            rm -rf kubectl 
-          fi
-       
+      
           npm install
           task build
           timeout --kill-after=1s --preserve-status 55m bash -c '.github/workflows/script/launch_network.sh ${{ matrix.release-tag }}' || RC=$? || true
