@@ -19,9 +19,6 @@ import {type K8Factory} from '../../../integration/kube/k8-factory.js';
 import * as constants from '../../constants.js';
 import {NodeAlias, NodeAliases} from '../../../types/aliases.js';
 import {RelayNodeStateSchema} from '../../../data/schema/model/remote/state/relay-node-state-schema.js';
-import {ExplorerStateSchema} from '../../../data/schema/model/remote/state/explorer-state-schema.js';
-import {SemVer} from 'semver';
-import {EXPLORER_OLD_VERSION_BEFORE_LABEL_CHANGE} from '../../../../version.js';
 
 /**
  * Static class is used to validate that components in the remote config

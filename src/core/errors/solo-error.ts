@@ -19,7 +19,7 @@ export class SoloError extends Error {
     super(message);
     this.name = this.constructor.name;
     this.statusCode = cause?.statusCode;
-    Error.captureStackTrace(this, this.constructor);
+
     if (cause) {
       this.cause = cause;
       if (cause instanceof Error) {
