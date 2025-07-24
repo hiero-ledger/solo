@@ -161,7 +161,7 @@ export class RelayCommand extends BaseCommand {
     }
 
     if (relayRelease) {
-      relayRelease = Version.getValidSemanticVersion(relayRelease, true, 'Relay release');
+      relayRelease = Version.getValidSemanticVersion(relayRelease, false, 'Relay release');
       valuesArgument += ` --set relay.image.tag=${relayRelease}`;
       valuesArgument += ` --set ws.image.tag=${relayRelease}`;
     }
