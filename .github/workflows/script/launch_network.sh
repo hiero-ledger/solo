@@ -30,59 +30,31 @@ rm -rf ~/.solo/*
 echo "::endgroup::"
 
 echo "::group::Launch solo using released Solo version ${releaseTag}"
-solo init
-solo cluster setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
-solo node keys --gossip-keys --tls-keys -i node1,node2
-solo deployment create -i node1,node2 -n "${SOLO_NAMESPACE}" --context kind-"${SOLO_CLUSTER_NAME}" --email john@doe.com --deployment-clusters kind-"${SOLO_CLUSTER_NAME}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --deployment "${SOLO_DEPLOYMENT}"
 
-export CONSENSUS_NODE_VERSION=v0.61.7
-# Use custom settings file for the deployment to avoid too many state saved in disk causing the no space left on device error
-solo network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --settings-txt .github/workflows/support/v58-test/settings.txt
-solo node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
-solo node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
+export CONSENSUS_NODE_VERSION=v0.62.10
+solo init
+solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 2
+solo node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
+solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+
+solo network deploy --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q
+solo node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
+solo node start --deployment "${SOLO_DEPLOYMENT}" -q
 solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
-
-solo mirror-node deploy  --deployment "${SOLO_DEPLOYMENT}" --pinger
-solo explorer deploy -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q
+solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q
+solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 echo "::endgroup::"
 
 echo "::group::Verification"
-cp ~/.solo/cache/local-config.yaml ./local-config-before.yaml
-
-#export CONSENSUS_NODE_VERSION=v0.58.10
-#solo init
-#solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
-#solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-#solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 2
-#solo node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
-#solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
-#
-## Use custom settings file for the deployment to avoid too many state saved in disk causing the no space left on device error
-#solo network deploy --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --settings-txt .github/workflows/support/v58-test/settings.txt
-#solo node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
-#solo node start --deployment "${SOLO_DEPLOYMENT}" -q
-#solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
-#
-#solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --pinger -q
-#solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q
-#solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
-#solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
-#
-#cp ~/.solo/local-config.yaml ./local-config-before.yaml
+cp ~/.solo/local-config.yaml ./local-config-before.yaml
 cat ./local-config-before.yaml
 kubectl get ConfigMap solo-remote-config -n ${SOLO_NAMESPACE} -o yaml | yq '.data' > remote-config-before.yaml
 cat remote-config-before.yaml
-
-# must uninstall explorer before migration, because the change of explorer chart name and labels
-# make it harder to uninstall or upgrade after migration
-#solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
-solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
-
-# must uninstall relay before migration, because the change to relay umbrella chart lead to different name and labels
-# and make it hard to uninstall or upgrade after migration
-solo relay destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 
 # trigger migration
 npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}"
@@ -111,9 +83,7 @@ npm run solo-test -- init
 
 # using new solo to redeploy solo deployment chart to new version
 npm run solo-test -- node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
-
-npm run solo-test -- network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --settings-txt .github/workflows/support/v58-test/settings.txt
-
+npm run solo-test -- network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q
 npm run solo-test -- node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
 npm run solo-test -- node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 
@@ -124,7 +94,7 @@ npm run solo-test -- mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --clus
 npm run solo-test -- relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 npm run solo-test -- explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace solo-e2e -q --dev
 
-# wait a few seconds for the pods to be ready before enabling port-forwarding
+# wait a few seconds for the pods to be ready before running transactions against them
 sleep 10
 
 # Test transaction can still be sent and processed
@@ -132,12 +102,6 @@ npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amo
 echo "::endgroup::"
 
 echo "::group::Upgrade Consensus Node"
-
-# Upgrade to latest version	# Upgrade to latest version
-export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
-npm run solo-test -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q
-npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
-
 # Upgrade to latest version
 export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
 npm run solo-test -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q
