@@ -83,7 +83,6 @@ jobs:
           sudo add-apt-repository ppa:rmescandon/yq -y
           sudo apt update
           sudo apt install yq -y
-
           npm install
           task build
           timeout --kill-after=1s --preserve-status 55m bash -c '.github/workflows/script/launch_network.sh ${{ matrix.release-tag }}' || RC=$? || true
