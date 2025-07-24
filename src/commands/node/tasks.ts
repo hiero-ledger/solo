@@ -128,7 +128,7 @@ import {NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
 import {SemVer, lt} from 'semver';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
-import {validateSemVer as validateSemVersion} from '../../business/utils/version.js';
+import {Version} from '../../business/utils/version.js';
 
 export type LeaseWrapper = {lease: Lock};
 
@@ -1193,7 +1193,7 @@ export class NodeCommandTasks {
         let {releaseTag} = context_.config;
 
         if (releaseTag) {
-          releaseTag = validateSemVersion(releaseTag, true, 'Consensus release tag');
+          releaseTag = Version.getValidSemanticVersion(releaseTag, true, 'Consensus release tag');
         }
 
         if ('upgradeVersion' in context_.config) {
@@ -2294,6 +2294,11 @@ export class NodeCommandTasks {
             const valuesArguments = valuesArgumentMap[clusterReference];
             const context = this.localConfig.configuration.clusterRefs.get(clusterReference);
 
+            config.soloChartVersion = Version.getValidSemanticVersion(
+              config.soloChartVersion,
+              false,
+              'Solo chart version',
+            );
             await self.chartManager.upgrade(
               config.namespace,
               constants.SOLO_DEPLOYMENT_CHART,
