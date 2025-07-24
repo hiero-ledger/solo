@@ -341,7 +341,7 @@ export class Templates {
       ? constants.JSON_RPC_RELAY_CHART
       : `${constants.JSON_RPC_RELAY_RELEASE_NAME}-${id}`;
 
-    return [`app.kubernetes.io/name=${releaseName}`];
+    return [`app.kubernetes.io/instance=${releaseName}`];
   }
 
   public static renderHaProxyLabels(id: ComponentId): string[] {

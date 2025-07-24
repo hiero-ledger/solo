@@ -54,7 +54,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     contexts: string[],
     namespace: NamespaceName,
   ): Promise<ExtendedNetServer> {
-    const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+    const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
     const lastContext: string = contexts?.length ? contexts[contexts?.length - 1] : undefined;
     const k8: K8 = k8Factory.getK8(lastContext);
     const mirrorNodeRestPods: Pod[] = await k8.pods().list(namespace, Templates.renderMirrorNodeLabels(1));
