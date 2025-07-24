@@ -131,6 +131,13 @@ jobs:
           npm ci
           npm install -g @hashgraph/solo
 
+      - name: Install Kubectl
+        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # pinned to v4.0.0
+        if: steps.check.outputs.run == 'true'
+        with:
+          version: 'v1.27.3'
+        id: install
+
       - name: Compile Project
         if: steps.check.outputs.run == 'true'
         run: task build
