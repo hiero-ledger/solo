@@ -770,7 +770,6 @@ export class AccountCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct) => {
               self.logger.info("==== Running 'account init' ===");
-              self.logger.info(argv);
 
               await self
                 .init(argv)
@@ -794,7 +793,6 @@ export class AccountCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct) => {
               self.logger.info("==== Running 'account create' ===");
-              self.logger.info(argv);
 
               await self
                 .create(argv)
@@ -818,7 +816,6 @@ export class AccountCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct) => {
               self.logger.info("==== Running 'account update' ===");
-              self.logger.info(argv);
 
               await self
                 .update(argv)
@@ -842,7 +839,6 @@ export class AccountCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct) => {
               self.logger.info("==== Running 'account get' ===");
-              self.logger.info(argv);
 
               await self
                 .get(argv)

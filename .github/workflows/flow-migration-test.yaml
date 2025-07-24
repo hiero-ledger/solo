@@ -40,9 +40,10 @@ jobs:
       fail-fast: false
       matrix:
         release-tag: ["0.35.2"]
+        # release-tag: ["0.39.0"]
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -71,6 +72,7 @@ jobs:
           wait: 120s
 
       - name: Launch Network with Release version ${{ matrix.release-tag }}
+        timeout-minutes: 60
         run: |
           echo "Install yq..."
           sudo add-apt-repository ppa:rmescandon/yq -y
@@ -79,7 +81,7 @@ jobs:
   
           npm install
           task build
-          timeout --kill-after=1s --preserve-status 25m bash -c '.github/workflows/script/launch_network.sh ${{ matrix.release-tag }}' || RC=$? || true
+          timeout --kill-after=1s --preserve-status 55m bash -c '.github/workflows/script/launch_network.sh ${{ matrix.release-tag }}' || RC=$? || true
           if [[ "$RC" != "0" ]]; then
             npm run solo-test -- node logs --deployment solo-e2e -q --dev || true
             echo "Failed to launch network with release version ${{ matrix.release-tag }}"

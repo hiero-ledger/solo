@@ -12,7 +12,7 @@ export const ROOT_DIR = PathEx.joinWithRealPath(dirname(fileURLToPath(import.met
 // -------------------- solo related constants ---------------------------------------------------------------------
 export const SOLO_HOME_DIR = process.env.SOLO_HOME || PathEx.join(process.env.HOME as string, '.solo');
 export const SOLO_LOGS_DIR = PathEx.join(SOLO_HOME_DIR, 'logs');
-export const SOLO_CACHE_DIR = PathEx.join(SOLO_HOME_DIR, 'cache');
+export const SOLO_CACHE_DIR = process.env.SOLO_CACHE_DIR || PathEx.join(SOLO_HOME_DIR, 'cache');
 export const SOLO_VALUES_DIR = PathEx.join(SOLO_CACHE_DIR, 'values-files');
 export const DEFAULT_NAMESPACE = NamespaceName.of('default');
 export const DEFAULT_CERT_MANAGER_NAMESPACE = NamespaceName.of('cert-manager');
@@ -68,7 +68,7 @@ export const SOLO_CERT_MANAGER_CHART = 'solo-cert-manager';
 
 export const JSON_RPC_RELAY_CHART_URL =
   process.env.JSON_RPC_RELAY_CHART_URL ?? 'https://hiero-ledger.github.io/hiero-json-rpc-relay/charts';
-export const JSON_RPC_RELAY_CHART = 'hedera-json-rpc-relay';
+export const JSON_RPC_RELAY_CHART = 'hedera-json-rpc';
 export const JSON_RPC_RELAY_RELEASE_NAME: string = 'relay';
 
 export const MIRROR_NODE_CHART_URL =
@@ -79,7 +79,7 @@ export const MIRROR_NODE_RELEASE_NAME = 'mirror';
 export const EXPLORER_CHART_URL =
   process.env.EXPLORER_CHART_URL ?? 'oci://ghcr.io/hiero-ledger/hiero-mirror-node-explorer/hiero-explorer-chart';
 export const EXPLORER_RELEASE_NAME = 'hiero-explorer';
-export const SOLO_RELAY_LABEL = 'app=hedera-json-rpc-relay';
+export const SOLO_RELAY_LABEL = 'app=hedera-json-rpc';
 export const SOLO_EXPLORER_LABEL = 'app.kubernetes.io/component=hiero-explorer';
 export const OLD_SOLO_EXPLORER_LABEL = 'app.kubernetes.io/component=hedera-explorer';
 

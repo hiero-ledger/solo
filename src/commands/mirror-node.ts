@@ -756,9 +756,10 @@ export class MirrorNodeCommand extends BaseCommand {
                     // but exported to the specified path inside the cache directory,
                     // and the user has the responsibility to execute it manually on his own
                     if (context_.config.useExternalDatabase) {
+                      const cacheDirectory: string = context_.config.cacheDir;
                       // Build the path
                       const databaseSeedingQueryPath: string = PathEx.join(
-                        constants.SOLO_CACHE_DIR,
+                        cacheDirectory,
                         'database-seeding-query.sql',
                       );
 
@@ -1106,7 +1107,6 @@ export class MirrorNodeCommand extends BaseCommand {
             },
             handler: async argv => {
               self.logger.info("==== Running 'mirror-node deploy' ===");
-              self.logger.info(argv);
 
               await self
                 .deploy(argv)
@@ -1136,7 +1136,6 @@ export class MirrorNodeCommand extends BaseCommand {
               ),
             handler: async argv => {
               self.logger.info("==== Running 'mirror-node destroy' ===");
-              self.logger.info(argv);
 
               await self
                 .destroy(argv)

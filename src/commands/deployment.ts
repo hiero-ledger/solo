@@ -396,7 +396,6 @@ export class DeploymentCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct) => {
               self.logger.info("==== Running 'deployment create' ===");
-              self.logger.info(argv);
 
               await self
                 .create(argv)
@@ -421,7 +420,6 @@ export class DeploymentCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct) => {
               self.logger.info("==== Running 'deployment delete' ===");
-              self.logger.info(argv);
 
               await self
                 .delete(argv)
@@ -446,7 +444,6 @@ export class DeploymentCommand extends BaseCommand {
             },
             handler: async argv => {
               self.logger.info("==== Running 'deployment list' ===");
-              self.logger.info(argv);
 
               await self
                 .list(argv)
@@ -471,7 +468,6 @@ export class DeploymentCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct) => {
               self.logger.info("==== Running 'deployment add-cluster' ===");
-              self.logger.info(argv);
 
               await self
                 .addCluster(argv)
