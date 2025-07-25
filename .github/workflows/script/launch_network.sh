@@ -57,7 +57,7 @@ kubectl get ConfigMap solo-remote-config -n ${SOLO_NAMESPACE} -o yaml | yq '.dat
 cat remote-config-before.yaml
 
 # trigger migration
-npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}"
+npm run solo -- account create --deployment "${SOLO_DEPLOYMENT}"
 
 cp ~/.solo/local-config.yaml ./local-config-after.yaml
 cat ./local-config-after.yaml
@@ -79,33 +79,33 @@ echo "::endgroup::"
 
 echo "::group::Upgrade Solo"
 # need to add ingress controller helm repo
-npm run solo-test -- init
+npm run solo -- init
 
 # using new solo to redeploy solo deployment chart to new version
-npm run solo-test -- node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
-npm run solo-test -- network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q
-npm run solo-test -- node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
-npm run solo-test -- node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
+npm run solo -- node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
+npm run solo -- network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q
+npm run solo -- node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
+npm run solo -- node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 
 # redeploy mirror-node to upgrade to a newer version
-npm run solo-test -- mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --dev
+npm run solo -- mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --dev
 
 # redeploy explorer and relay node to upgrade to a newer version
-npm run solo-test -- relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
-npm run solo-test -- explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
+npm run solo -- relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+npm run solo -- explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
 # wait a few seconds for the pods to be ready before running transactions against them
 sleep 10
 
 # Test transaction can still be sent and processed
-npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
+npm run solo -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 echo "::endgroup::"
 
 echo "::group::Upgrade Consensus Node"
 # Upgrade to latest version
 export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
-npm run solo-test -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q
-npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
+npm run solo -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q
+npm run solo -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 echo "::endgroup::"
 
 echo "::group::Final Verification"
@@ -115,9 +115,9 @@ echo "::endgroup::"
 
 echo "::group::Cleanup"
 # uninstall components using current Solo version
-npm run solo-test -- explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
-npm run solo-test -- relay destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
-npm run solo-test -- mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --force
-npm run solo-test -- node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
-npm run solo-test -- network destroy --deployment "${SOLO_DEPLOYMENT}" --force
+npm run solo -- explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
+npm run solo -- relay destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
+npm run solo -- mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --force
+npm run solo -- node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
+npm run solo -- network destroy --deployment "${SOLO_DEPLOYMENT}" --force
 echo "::endgroup::"
