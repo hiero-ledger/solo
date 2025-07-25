@@ -314,6 +314,17 @@ export class MirrorNodeCommand extends BaseCommand {
     showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, context_.config.mirrorNodeVersion);
 
     if (context_.config.enableIngress) {
+      const existingIngressClasses: IngressClass[] = await this.k8Factory
+        .getK8(context_.config.clusterContext)
+        .ingressClasses()
+        .list();
+      for (const ingressClass of existingIngressClasses) {
+        if (ingressClass.name === 'mirror-ingress-class') {
+          this.logger.showUser('mirror-ingress-class already found, skipping');
+          return;
+        }
+      }
+
       await KeyManager.createTlsSecret(
         this.k8Factory,
         context_.config.namespace,
@@ -539,18 +550,6 @@ export class MirrorNodeCommand extends BaseCommand {
                     const config = context_.config;
 
                     let mirrorIngressControllerValuesArgument = '';
-
-                    const existingIngressClasses: IngressClass[] = await this.k8Factory
-                      .getK8(config.clusterContext)
-                      .ingressClasses()
-                      .list();
-
-                    for (const ingressClass of existingIngressClasses) {
-                      if (ingressClass.name === 'mirror-ingress-class') {
-                        this.logger.showUser('mirror-ingress-class already found, skipping');
-                        return;
-                      }
-                    }
 
                     if (config.mirrorStaticIp !== '') {
                       mirrorIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${context_.config.mirrorStaticIp}`;
