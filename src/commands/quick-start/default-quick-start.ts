@@ -349,13 +349,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
               this.showQuickStartUserNotes(context_);
               this.showVersions();
               this.showPortForwards();
-
-              if (context_.createdAccounts) {
-                context_.createdAccounts.sort((a: CreatedPredefinedAccount, b: CreatedPredefinedAccount): number =>
-                  a.accountId.compare(b.accountId),
-                );
-                this.showCreatedAccounts(context_.createdAccounts);
-              }
+              this.showCreatedAccounts(context_.createdAccounts);
 
               return;
             },
@@ -416,6 +410,10 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
 
   private showCreatedAccounts(createdAccounts: CreatedPredefinedAccount[] = []): void {
     if (createdAccounts.length > 0) {
+      createdAccounts.sort((a: CreatedPredefinedAccount, b: CreatedPredefinedAccount): number =>
+        a.accountId.compare(b.accountId),
+      );
+
       const ecdsaAccounts: CreatedPredefinedAccount[] = createdAccounts.filter(
         (account: CreatedPredefinedAccount): boolean => account.data.group === PREDEFINED_ACCOUNT_GROUPS.ECDSA,
       );
