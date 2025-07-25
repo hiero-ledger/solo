@@ -34,6 +34,7 @@ import {Lock} from '../core/lock/lock.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Duration} from '../core/time/duration.js';
+import {Version} from '../business/utils/version.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -160,8 +161,9 @@ export class RelayCommand extends BaseCommand {
     }
 
     if (relayRelease) {
-      valuesArgument += ` --set relay.image.tag=${relayRelease.replace(/^v/, '')}`;
-      valuesArgument += ` --set ws.image.tag=${relayRelease.replace(/^v/, '')}`;
+      relayRelease = Version.getValidSemanticVersion(relayRelease, false, 'Relay release');
+      valuesArgument += ` --set relay.image.tag=${relayRelease}`;
+      valuesArgument += ` --set ws.image.tag=${relayRelease}`;
     }
 
     if (replicaCount) {

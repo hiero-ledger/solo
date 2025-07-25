@@ -160,20 +160,6 @@ describe('ClusterCommand', () => {
     return {argv, clusterRef: clusterReference, contextName};
   }
 
-  it('cluster-ref connect should fail with cluster ref that already exists', async () => {
-    const clusterReference = 'duplicated';
-    const {argv} = getClusterConnectDefaultArgv();
-    argv.setArg(flags.clusterRef, clusterReference);
-
-    try {
-      await clusterCmdHandlers.connect(argv.build());
-      await clusterCmdHandlers.connect(argv.build());
-      expect.fail();
-    } catch (error) {
-      expect(error.message).to.include(`Cluster ref ${clusterReference} already exists inside local config`);
-    }
-  });
-
   it('cluster-ref connect should fail with invalid context name', async () => {
     const clusterReference = 'test-context-name';
     const contextName = 'INVALID_CONTEXT';

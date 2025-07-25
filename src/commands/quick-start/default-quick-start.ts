@@ -394,6 +394,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
       'To quickly delete the deployed resources, run the following command:\n' +
         `kubectl delete ns ${context_.config.namespace.name}`,
     );
+
+    this.logger.showMessageGroup(messageGroupKey);
   }
 
   private showVersions(): void {
