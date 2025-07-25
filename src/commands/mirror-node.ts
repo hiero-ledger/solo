@@ -359,6 +359,7 @@ export class MirrorNodeCommand extends BaseCommand {
           ],
         },
       };
+
       await this.k8Factory
         .getK8(context_.config.clusterContext)
         .ingresses()
@@ -387,24 +388,7 @@ export class MirrorNodeCommand extends BaseCommand {
             self.configManager.update(argv);
 
             // disable the prompts that we don't want to prompt the user for
-            flags.disablePrompts([
-              flags.clusterRef,
-              flags.valuesFile,
-              flags.mirrorNodeVersion,
-              flags.pinger,
-              flags.operatorId,
-              flags.operatorKey,
-              flags.useExternalDatabase,
-              flags.externalDatabaseHost,
-              flags.externalDatabaseOwnerUsername,
-              flags.externalDatabaseOwnerPassword,
-              flags.externalDatabaseReadonlyUsername,
-              flags.externalDatabaseReadonlyPassword,
-              flags.profileFile,
-              flags.profileName,
-              flags.domainName,
-              flags.forcePortForward,
-            ]);
+            flags.disablePrompts(MirrorNodeCommand.DEPLOY_FLAGS_LIST.optional);
 
             const allFlags = [
               ...MirrorNodeCommand.DEPLOY_FLAGS_LIST.required,
