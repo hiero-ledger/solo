@@ -34,6 +34,7 @@ permissions:
 
 jobs:
   test-migration-process:
+    name: Migrate Solo from Prior to Current Version
     timeout-minutes: 30
     runs-on: hiero-solo-linux-large
     strategy:
@@ -76,7 +77,7 @@ jobs:
           version: 'v1.27.3'
         id: install
 
-      - name: Launch Network with Prior Release
+      - name: Launch Network with Prior Release ${{ matrix.release-tag }}
         timeout-minutes: 60
         run: |
           echo "Install yq..."
