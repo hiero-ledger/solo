@@ -53,6 +53,7 @@ import * as semver from 'semver';
 import {Base64} from 'js-base64';
 import {Lock} from '../core/lock/lock.js';
 import {Version} from '../business/utils/version.js';
+import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 
 interface MirrorNodeDeployConfigClass {
   isChartInstalled: boolean;
@@ -538,6 +539,18 @@ export class MirrorNodeCommand extends BaseCommand {
                     const config = context_.config;
 
                     let mirrorIngressControllerValuesArgument = '';
+
+                    const existingIngressClasses: IngressClass[] = await this.k8Factory
+                      .getK8(config.clusterContext)
+                      .ingressClasses()
+                      .list();
+
+                    for (const ingressClass of existingIngressClasses) {
+                      if (ingressClass.name === 'mirror-ingress-class') {
+                        this.logger.showUser('mirror-ingress-class already found, skipping');
+                        return;
+                      }
+                    }
 
                     if (config.mirrorStaticIp !== '') {
                       mirrorIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${context_.config.mirrorStaticIp}`;
