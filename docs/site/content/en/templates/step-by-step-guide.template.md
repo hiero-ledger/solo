@@ -222,10 +222,10 @@ The deployment will:
 
 ```bash
 # connect to the cluster you created in a previous command
-solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
 
 #create the deployment
-solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 Example output:
@@ -248,8 +248,8 @@ $SOLO_DEPLOYMENT_CREATE_OUTPUT
 
 ```bash
 # Add a cluster to the deployment you created
-solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
-# If the command line command is unresponsive there's also a handy cluster add configurator you can run `solo deployment add-cluster` without any arguments to get a guided setup.
+solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
+# If the command line command is unresponsive there's also a handy cluster add configurator you can run `solo deployment cluster attach` without any arguments to get a guided setup.
 ```
 
 Example output:
@@ -267,7 +267,7 @@ $SOLO_DEPLOYMENT_ADD_CLUSTER_OUTPUT
 You need to generate keys for your nodes, or in this case single node.
 
 ```bash
-solo node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
+solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 Example output:
@@ -292,7 +292,7 @@ hedera-node2.key    hedera-node4.key    s-private-node4.pem s-public-node4.pem
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
 ```bash
-solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 ```
 
 Example output:
@@ -313,7 +313,7 @@ Now comes the exciting part – deploying your Hedera test network!
 
 > ⚠️ Block Node is experimental in Solo.  It requires a minimum of 16 GB of memory allocated to Docker. If you have less than 16 GB of memory, skip this step.
 
-As mentioned in the warning, Block Node uses a lot of memory.  In addition, it requires a version of Consensus Node to be at least v0.62.3.  You will need to augment the `solo network deploy` & `solo node setup` command with the `--release-tag v0.62.6` option to ensure that the Consensus Node is at the correct version. \*note: v0.62.6 is the latest patch for v0.62
+As mentioned in the warning, Block Node uses a lot of memory.  In addition, it requires a version of Consensus Node to be at least v0.62.3.  You will need to augment the `solo consensus network deploy` & `solo consensus node setup` command with the `--release-tag v0.62.6` option to ensure that the Consensus Node is at the correct version. \*note: v0.62.6 is the latest patch for v0.62
 
 ```
 solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-"${SOLO_CLUSTER_NAME}" --release-tag v0.62.6
@@ -334,7 +334,7 @@ $SOLO_BLOCK_NODE_ADD_OUTPUT
 Deploying the network runs risks of timeouts as images are downloaded, and pods are starting. If you experience a failure double check the resources you've allocated in docker engine and give it another try.
 
 ```bash
-solo network deploy --deployment "${SOLO_DEPLOYMENT}"
+solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 Example output:
@@ -354,7 +354,7 @@ This step downloads the hedera platform code and sets up your node/nodes.
 ```bash
 # node setup
 export CONSENSUS_NODE_VERSION=v0.63.9 # or whatever version you are trying to deploy starting with a `v`
-solo node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}"
+solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}"
 ```
 
 Example output:
@@ -373,7 +373,7 @@ Now that everything is set up you need to start them.
 
 ```bash
 # start your node/nodes
-solo node start --deployment "${SOLO_DEPLOYMENT}"
+solo consensus node start --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 Example output:
@@ -392,7 +392,7 @@ This is the most memory intensive step from a resource perspective. If you have 
 
 ```bash
 # Deploy with explicit configuration
-solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress
+solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress
 ```
 
 Example output:
@@ -411,7 +411,7 @@ Watch the deployment progress:
 
 ```bash
 # deploy explorer
-solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 ```
 
 Example output:
@@ -430,7 +430,7 @@ The JSON RPC relay allows you to interact with your Hedera network using standar
 
 ```bash
 #deploy a solo JSON RPC relay
-solo relay deploy -i node1 --deployment "${SOLO_DEPLOYMENT}"
+solo relay node add -i node1 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 Example output:
@@ -492,16 +492,16 @@ You can control individual nodes or the entire network:
 
 ```bash
 # Stop all nodes
-solo node stop --deployment solo-deployment
+solo consensus node stop --deployment solo-deployment
 
 # Stop a specific node
-solo node stop --node-id node-0 --deployment solo-deployment
+solo consensus node stop --node-id node-0 --deployment solo-deployment
 
 # Restart nodes
-solo node restart --deployment solo-deployment
+solo consensus node restart --deployment solo-deployment
 
 # Start nodes again
-solo node start --deployment solo-deployment
+solo consensus node start --deployment solo-deployment
 ```
 
 {{< /details >}}<br/>
@@ -516,7 +516,7 @@ Access Solo and Consensus Node logs for troubleshooting:
 # Download logs from all nodes
 
 # Logs are saved to ~/.solo/logs/<namespace>/<pod-name>/# You can also use kubectl directly:
-solo node logs --deployment solo-deployment
+solo consensus node logs --deployment solo-deployment
 ```
 
 {{< /details >}}<br/>
@@ -528,7 +528,7 @@ solo node logs --deployment solo-deployment
 To update nodes to a new Hedera version, you need to upgrade by one minor version higher at a time:
 
 ```bash
-solo node upgrade --deployment solo-deployment --upgrade-version v0.62.6
+solo consensus network upgrade --deployment solo-deployment --upgrade-version v0.62.6
 ```
 
 {{< /details >}}<br/>
@@ -540,15 +540,15 @@ solo node upgrade --deployment solo-deployment --upgrade-version v0.62.6
 To update a single node to a new Hedera version, you need to update by one minor version higher at a time:
 
 ```bash
-solo node update --deployment solo-deployment --node-alias node1 --release-tag v0.62.6
+solo consensus node update --deployment solo-deployment --node-alias node1 --release-tag v0.62.6
 ```
 
 It is possible to update a single node to a new Hedera version through a process with separated steps. This is only useful in very specific cases, such as when testing the updating process.
 
 ```bash
-solo node update-prepare --deployment solo-deployment --node-alias node1 --release-tag v0.62.6 --output-dir context
-solo node update-submit-transactions --deployment solo-deployment --input-dir context
-solo node update-execute --deployment solo-deployment --input-dir context
+solo consensus node update-prepare --deployment solo-deployment --node-alias node1 --release-tag v0.62.6 --output-dir context
+solo consensus node update-submit-transactions --deployment solo-deployment --input-dir context
+solo consensus node update-execute --deployment solo-deployment --input-dir context
 ```
 
 {{< /details >}}<br/>
@@ -560,15 +560,15 @@ solo node update-execute --deployment solo-deployment --input-dir context
 Adding a new node to an existing Solo network:
 
 ```bash
-TODO solo node add
+TODO solo consensus node add
 ```
 
 It is possible to add a new node through a process with separated steps. This is only useful in very specific cases, such as when testing the node adding process.
 
 ```bash
-solo node add-prepare --gossip-keys true --tls-keys true --deployment solo-deployment --pvcs true --admin-key ***** --node-alias node1 --output-dir context
-solo node add-submit-transactions --deployment solo-deployment --input-dir context
-solo node add-execute --deployment solo-deployment --input-dir context
+solo consensus node add-prepare --gossip-keys true --tls-keys true --deployment solo-deployment --pvcs true --admin-key ***** --node-alias node1 --output-dir context
+solo consensus node add-submit-transactions --deployment solo-deployment --input-dir context
+solo consensus node add-execute --deployment solo-deployment --input-dir context
 ```
 
 {{< /details >}}<br/>
@@ -580,15 +580,15 @@ solo node add-execute --deployment solo-deployment --input-dir context
 This command is used to delete a node from an existing Solo network:
 
 ```bash
-TODO solo node delete
+TODO solo consensus node destroy
 ```
 
 It is possible to delete a node through a process with separated steps. This is only useful in very specific cases, such as when testing the delete process.
 
 ```bash
-solo node delete-prepare --deployment solo-deployment --node-alias node1 --output-dir context
-solo node delete-submit-transactions --deployment solo-deployment --input-dir context
-solo node delete-execute --deployment solo-deployment --input-dir context
+solo consensus node destroy-prepare --deployment solo-deployment --node-alias node1 --output-dir context
+solo consensus node destroy-submit-transactions --deployment solo-deployment --input-dir context
+solo consensus node destroy-execute --deployment solo-deployment --input-dir context
 ```
 
 {{< /details >}}<br/>
@@ -634,13 +634,13 @@ If nodes aren't forming consensus:
 
 ```bash
 # Check node status
-solo node states --deployment solo-deployment --node-aliases node1
+solo consensus node states --deployment solo-deployment --node-aliases node1
 
 # Look for gossip connectivity issues
 kubectl logs -n solo network-node-0 | grep -i gossip
 
 # Restart problematic nodes
-solo node refresh --node-aliases node1 --deployment solo-deployment
+solo consensus node refresh --node-aliases node1 --deployment solo-deployment
 ```
 
 {{< /details >}}<br/>
@@ -651,7 +651,7 @@ solo node refresh --node-aliases node1 --deployment solo-deployment
 
 When you need assistance:
 
-1. **Check the logs**: Use `solo node logs --deployment solo-deployment` and examine `~/.solo/logs/`
+1. **Check the logs**: Use `solo consensus node logs --deployment solo-deployment` and examine `~/.solo/logs/`
 2. **Documentation**: Visit https://solo.hiero.org/latest/docs/
 3. **GitHub Issues**: Report bugs at https://github.com/hiero-ledger/solo/issues
 4. **Community Support**: Join the Hedera Discord community: https://discord.gg/Ysruf53q
@@ -682,7 +682,7 @@ rm -Rf ~/.solo
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
 ```
-solo relay destroy -i node1 --deployment "${SOLO_DEPLOYMENT}"
+solo relay node destroy -i node1 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 Example output:
@@ -698,7 +698,7 @@ $SOLO_RELAY_DESTROY_OUTPUT
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
 ```
-solo mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --force
+solo mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force
 ```
 
 Example output:
@@ -714,7 +714,7 @@ $SOLO_MIRROR_NODE_DESTROY_OUTPUT
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
 ```
-solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
+solo explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --force
 ```
 
 Example output:
@@ -748,7 +748,7 @@ $SOLO_BLOCK_NODE_DESTROY_OUTPUT
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
 ```
-solo network destroy --deployment "${SOLO_DEPLOYMENT}" --force
+solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force
 ```
 
 Example output:

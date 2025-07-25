@@ -19,24 +19,18 @@ import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
-import {type AnyYargs, type ArgvStruct} from '../types/aliases.js';
-import {PodName} from '../integration/kube/resources/pod/pod-name.js';
+import {type ArgvStruct} from '../types/aliases.js';
+import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as fs from 'node:fs';
-import {
-  type ClusterReferenceName,
-  type CommandDefinition,
-  type DeploymentName,
-  type Optional,
-  type SoloListrTask,
-} from '../types/index.js';
+import {type ClusterReferenceName, type DeploymentName, type Optional, type SoloListrTask} from '../types/index.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import chalk from 'chalk';
-import {type CommandFlag} from '../types/flag-types.js';
+import {type CommandFlag, CommandFlags} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {KeyManager} from '../core/key-manager.js';
@@ -106,8 +100,6 @@ interface MirrorNodeDestroyContext {
 
 @injectable()
 export class MirrorNodeCommand extends BaseCommand {
-  public static readonly DEPLOY_COMMAND: string = 'mirror-node deploy';
-
   public constructor(
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
     @inject(InjectTokens.ProfileManager) private readonly profileManager?: ProfileManager,
@@ -119,11 +111,9 @@ export class MirrorNodeCommand extends BaseCommand {
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME = 'mirror-node';
+  private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
-  private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
-
-  private static readonly DEPLOY_FLAGS_LIST = {
+  public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.cacheDir,
@@ -156,6 +146,18 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.externalDatabaseReadonlyPassword,
       flags.domainName,
       flags.forcePortForward,
+    ],
+  };
+
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment],
+    optional: [
+      flags.chartDirectory,
+      flags.clusterRef,
+      flags.force,
+      flags.quiet,
+      flags.forcePortForward,
+      flags.clusterRef,
     ],
   };
 
@@ -344,7 +346,7 @@ export class MirrorNodeCommand extends BaseCommand {
     }
   }
 
-  private async deploy(argv: ArgvStruct): Promise<boolean> {
+  public async add(argv: ArgvStruct): Promise<boolean> {
     const self = this;
     let lease: Lock;
 
@@ -800,7 +802,7 @@ export class MirrorNodeCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      MirrorNodeCommand.DEPLOY_COMMAND,
+      'mirror node add',
     );
 
     if (tasks.isRoot()) {
@@ -810,12 +812,12 @@ export class MirrorNodeCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error deploying mirror node: ${error.message}`, error);
       } finally {
-        await lease.release();
+        await lease?.release();
         await self.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease.release();
+        await lease?.release();
         await self.accountManager.close();
       });
     }
@@ -831,7 +833,7 @@ export class MirrorNodeCommand extends BaseCommand {
     return semver.lt(version, '0.130.0') ? 'hedera' : 'hiero';
   }
 
-  private async destroy(argv: ArgvStruct): Promise<boolean> {
+  public async destroy(argv: ArgvStruct): Promise<boolean> {
     const self = this;
     let lease: Lock;
 
@@ -847,7 +849,7 @@ export class MirrorNodeCommand extends BaseCommand {
             if (!argv.force) {
               const confirmResult = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
                 default: false,
-                message: 'Are you sure you would like to destroy the mirror-node components?',
+                message: 'Are you sure you would like to destroy the mirror node components?',
               });
 
               if (!confirmResult) {
@@ -959,7 +961,7 @@ export class MirrorNodeCommand extends BaseCommand {
       throw new SoloError(`Error destroying mirror node: ${error.message}`, error);
     } finally {
       try {
-        await lease.release();
+        await lease?.release();
       } catch (error) {
         self.logger.error(`Error releasing lease: ${error.message}`, error);
       }
@@ -971,69 +973,6 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     return true;
-  }
-
-  public getCommandDefinition(): CommandDefinition {
-    const self: this = this;
-    return {
-      command: MirrorNodeCommand.COMMAND_NAME,
-      desc: 'Manage Hedera Mirror Node in solo network',
-      builder: yargs => {
-        return yargs
-          .command({
-            command: 'deploy',
-            desc: 'Deploy mirror-node and its components',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...MirrorNodeCommand.DEPLOY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...MirrorNodeCommand.DEPLOY_FLAGS_LIST.optional);
-            },
-            handler: async argv => {
-              self.logger.info("==== Running 'mirror-node deploy' ===");
-
-              await self
-                .deploy(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running `mirror-node deploy`====');
-                  if (!r) {
-                    throw new SoloError('Error deploying mirror node, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error deploying mirror node: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'destroy',
-            desc: 'Destroy mirror-node components and database',
-            builder: y =>
-              flags.setOptionalCommandFlags(
-                y,
-                flags.chartDirectory,
-                flags.clusterRef,
-                flags.force,
-                flags.quiet,
-                flags.deployment,
-              ),
-            handler: async argv => {
-              self.logger.info("==== Running 'mirror-node destroy' ===");
-
-              await self
-                .destroy(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running `mirror-node destroy`====');
-                  if (!r) {
-                    throw new SoloError('Error destroying mirror node, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error destroying mirror node: ${error.message}`, error);
-                });
-            },
-          })
-          .demandCommand(1, 'Select a mirror-node command');
-      },
-    };
   }
 
   /** Removes the mirror node components from remote config. */

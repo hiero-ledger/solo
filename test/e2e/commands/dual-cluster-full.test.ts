@@ -75,12 +75,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       NetworkTest.deploy(options);
       NodeTest.setup(options);
       NodeTest.start(options);
-      MirrorNodeTest.deploy(options);
-      ExplorerTest.deploy(options);
+      MirrorNodeTest.add(options);
+      ExplorerTest.add(options);
 
-      // TODO json rpc relay deploy
-      // TODO json rpc relay destroy
-      // TODO explorer destroy
+      // TODO json rpc relay node add
+      // TODO json rpc relay node destroy
+      // TODO explorer node destroy
       // TODO mirror node destroy
       // TODO network destroy
     }).timeout(Duration.ofMinutes(10).toMillis());
