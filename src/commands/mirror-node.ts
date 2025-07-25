@@ -892,12 +892,6 @@ export class MirrorNodeCommand extends BaseCommand {
               clusterReference,
             };
 
-            await self.accountManager.loadNodeClient(
-              context_.config.namespace,
-              self.remoteConfig.getClusterRefs(),
-              self.configManager.getFlag<DeploymentName>(flags.deployment),
-              self.configManager.getFlag<boolean>(flags.forcePortForward),
-            );
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
