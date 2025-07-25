@@ -36,6 +36,7 @@ import {type ComponentFactoryApi} from '../core/config/remote/api/component-fact
 import {MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} from '../../version.js';
 import {K8} from '../integration/kube/k8.js';
 import {BLOCK_NODE_IMAGE_NAME} from '../core/constants.js';
+import {Version} from '../business/utils/version.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -153,6 +154,7 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     if (config.imageTag) {
+      config.imageTag = Version.getValidSemanticVersion(config.imageTag, false, 'Block node image tag');
       if (!checkDockerImageExists(BLOCK_NODE_IMAGE_NAME, config.imageTag)) {
         throw new SoloError(`Local block node image with tag "${config.imageTag}" does not exist.`);
       }
@@ -251,6 +253,12 @@ export class BlockNodeCommand extends BaseCommand {
           title: 'Deploy block node',
           task: async (context_, task): Promise<void> => {
             const config: BlockNodeDeployConfigClass = context_.config;
+
+            config.chartVersion = Version.getValidSemanticVersion(
+              config.chartVersion,
+              false,
+              'Block node chart version',
+            );
 
             await this.chartManager.install(
               config.namespace,
@@ -529,12 +537,18 @@ export class BlockNodeCommand extends BaseCommand {
           task: async (context_): Promise<void> => {
             const {namespace, releaseName, context, upgradeVersion} = context_.config;
 
+            const validatedUpgradeVersion = Version.getValidSemanticVersion(
+              upgradeVersion,
+              false,
+              'Block node chart version',
+            );
+
             await this.chartManager.upgrade(
               namespace,
               releaseName,
               constants.BLOCK_NODE_CHART,
               constants.BLOCK_NODE_CHART_URL,
-              upgradeVersion,
+              validatedUpgradeVersion,
               '',
               context,
             );

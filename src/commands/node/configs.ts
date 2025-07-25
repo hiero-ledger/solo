@@ -53,6 +53,7 @@ import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {SOLO_USER_AGENT_HEADER} from '../../core/constants.js';
 import {SemVer} from 'semver';
+import {Version} from '../../business/utils/version.js';
 
 const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
 const DOWNLOAD_GENERATED_FILES_CONFIGS_NAME = 'downloadGeneratedFilesConfig';
@@ -258,6 +259,13 @@ export class NodeCommandConfigs {
         context_.config.deployment,
       );
     }
+
+    // check consensus releaseTag to make sure it is a valid semantic version string starting with 'v'
+    context_.config.releaseTag = Version.getValidSemanticVersion(
+      context_.config.releaseTag,
+      true,
+      'Consensus release tag',
+    );
 
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
     const accountKeys = await this.accountManager.getAccountKeysFromSecret(
