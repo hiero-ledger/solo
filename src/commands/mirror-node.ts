@@ -19,7 +19,7 @@ import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
-import {type AnyYargs, type ArgvStruct} from '../types/aliases.js';
+import {AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
 import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as fs from 'node:fs';
@@ -28,6 +28,7 @@ import {
   type CommandDefinition,
   type DeploymentName,
   type Optional,
+  type SoloListr,
   type SoloListrTask,
 } from '../types/index.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
@@ -36,7 +37,7 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import chalk from 'chalk';
-import {type CommandFlag} from '../types/flag-types.js';
+import {type CommandFlag, CommandFlags} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {KeyManager} from '../core/key-manager.js';
@@ -104,6 +105,25 @@ interface MirrorNodeDestroyContext {
   };
 }
 
+interface MirrorNodeUpgradeConfigClass {
+  isChartInstalled: boolean;
+  clusterContext: string;
+  clusterReference: ClusterReferenceName;
+  namespace: NamespaceName;
+  valuesArg: string;
+  valuesFile: string;
+  mirrorNodeVersion: string;
+  deployment: DeploymentName;
+
+  devMode: boolean;
+  quiet: boolean;
+  force: boolean;
+}
+
+interface MirrorNodeUpgradeContext {
+  config: MirrorNodeUpgradeConfigClass;
+}
+
 @injectable()
 export class MirrorNodeCommand extends BaseCommand {
   public static readonly DEPLOY_COMMAND: string = 'mirror-node deploy';
@@ -122,6 +142,8 @@ export class MirrorNodeCommand extends BaseCommand {
   public static readonly COMMAND_NAME = 'mirror-node';
 
   private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
+
+  private static readonly UPGRADE_CONFIGS_NAME = 'upgradeConfigs';
 
   private static readonly DEPLOY_FLAGS_LIST = {
     required: [],
@@ -157,6 +179,11 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.domainName,
       flags.forcePortForward,
     ],
+  };
+
+  public static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [flags.deployment, flags.devMode, flags.quiet, flags.force, flags.valuesFile, flags.mirrorNodeVersion],
   };
 
   private async prepareValuesArg(config: MirrorNodeDeployConfigClass): Promise<string> {
@@ -973,6 +1000,188 @@ export class MirrorNodeCommand extends BaseCommand {
     return true;
   }
 
+  public async upgrade(argv: ArgvStruct): Promise<boolean> {
+    let lease: Lock;
+
+    const tasks: SoloListr<MirrorNodeUpgradeContext> = this.taskList.newTaskList(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_: MirrorNodeUpgradeContext, task): Promise<SoloListr<AnyListrContext>> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            lease = await this.leaseManager.create();
+
+            this.configManager.update(argv);
+
+            flags.disablePrompts(MirrorNodeCommand.UPGRADE_FLAGS_LIST.optional);
+
+            const allFlags: CommandFlag[] = [
+              ...MirrorNodeCommand.UPGRADE_FLAGS_LIST.required,
+              ...MirrorNodeCommand.UPGRADE_FLAGS_LIST.optional,
+            ];
+            await this.configManager.executePrompt(task, allFlags);
+
+            const namespace: NamespaceName = await resolveNamespaceFromDeployment(
+              this.localConfig,
+              this.configManager,
+              task,
+            );
+
+            context_.config = this.configManager.getConfig(
+              MirrorNodeCommand.UPGRADE_CONFIGS_NAME,
+              allFlags,
+              [],
+            ) as MirrorNodeUpgradeConfigClass;
+
+            context_.config.namespace = namespace;
+
+            context_.config.clusterReference =
+              this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
+
+            context_.config.valuesArg += '';
+
+            context_.config.valuesArg += ' --install';
+            if (context_.config.valuesFile) {
+              context_.config.valuesArg += helpers.prepareValuesFiles(context_.config.valuesFile);
+            }
+
+            context_.config.mirrorNodeVersion = Version.getValidSemanticVersion(
+              context_.config.mirrorNodeVersion,
+              true,
+              'Mirror node version',
+            );
+
+            context_.config.clusterContext = context_.config.clusterReference
+              ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterReference)?.toString()
+              : this.k8Factory.default().contexts().readCurrent();
+
+            await this.accountManager.loadNodeClient(
+              context_.config.namespace,
+              this.remoteConfig.getClusterRefs(),
+              context_.config.deployment,
+              this.configManager.getFlag<boolean>(flags.forcePortForward),
+            );
+
+            return ListrLock.newAcquireLockTask(lease, task);
+          },
+        },
+        {
+          title: 'Enable mirror-node',
+          task: (_, parentTask): SoloListr<MirrorNodeUpgradeContext> => {
+            return parentTask.newListr<MirrorNodeUpgradeContext>(
+              [
+                {
+                  title: 'Deploy mirror-node',
+                  task: async (context_): Promise<void> => {
+                    context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
+                      context_.config.namespace,
+                      constants.MIRROR_NODE_RELEASE_NAME,
+                      context_.config.clusterContext,
+                    );
+
+                    await this.chartManager.upgrade(
+                      context_.config.namespace,
+                      constants.MIRROR_NODE_RELEASE_NAME,
+                      constants.MIRROR_NODE_CHART,
+                      constants.MIRROR_NODE_RELEASE_NAME,
+                      context_.config.mirrorNodeVersion,
+                      context_.config.valuesArg,
+                      context_.config.clusterContext,
+                    );
+
+                    showVersionBanner(
+                      this.logger,
+                      constants.MIRROR_NODE_RELEASE_NAME,
+                      context_.config.mirrorNodeVersion,
+                    );
+                  },
+                },
+              ],
+              {
+                concurrent: false,
+                rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+              },
+            );
+          },
+        },
+        {
+          title: 'Check pods are ready',
+          task: (context_: MirrorNodeUpgradeContext, task): SoloListr<MirrorNodeUpgradeContext> => {
+            const subTasks: SoloListrTask<MirrorNodeUpgradeContext>[] = [
+              {
+                title: 'Check REST API',
+                labels: ['app.kubernetes.io/component=rest', 'app.kubernetes.io/name=rest'],
+              },
+              {
+                title: 'Check GRPC',
+                labels: ['app.kubernetes.io/component=grpc', 'app.kubernetes.io/name=grpc'],
+              },
+              {
+                title: 'Check Monitor',
+                labels: ['app.kubernetes.io/component=monitor', 'app.kubernetes.io/name=monitor'],
+              },
+              {
+                title: 'Check Importer',
+                labels: ['app.kubernetes.io/component=importer', 'app.kubernetes.io/name=importer'],
+              },
+            ].map(({title, labels, skip}: {title: string; labels: string[]; skip?: () => boolean}) => {
+              const task: SoloListrTask<MirrorNodeUpgradeContext> = {
+                title: title,
+                task: async (): Promise<Pod[]> =>
+                  await this.k8Factory
+                    .getK8(context_.config.clusterContext)
+                    .pods()
+                    .waitForReadyStatus(
+                      context_.config.namespace,
+                      labels,
+                      constants.PODS_READY_MAX_ATTEMPTS,
+                      constants.PODS_READY_DELAY,
+                    ),
+              };
+
+              if (skip) {
+                task.skip = skip;
+              }
+
+              return task;
+            });
+
+            return task.newListr(subTasks, {
+              concurrent: true,
+              rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+            });
+          },
+        },
+      ],
+      {
+        concurrent: false,
+        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+      },
+      undefined,
+      'mirror-node upgrade',
+    );
+
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+        this.logger.debug('mirror node upgrade has completed');
+      } catch (error) {
+        throw new SoloError(`Error upgrading mirror node: ${error.message}`, error);
+      } finally {
+        await lease.release();
+        await this.accountManager.close();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease.release();
+        await this.accountManager.close();
+      });
+    }
+
+    return true;
+  }
+
   public getCommandDefinition(): CommandDefinition {
     const self: this = this;
     return {
@@ -1028,6 +1237,29 @@ export class MirrorNodeCommand extends BaseCommand {
                 })
                 .catch(error => {
                   throw new SoloError(`Error destroying mirror node: ${error.message}`, error);
+                });
+            },
+          })
+          .command({
+            command: 'upgrade',
+            desc: 'Upgrade mirror-node and its components',
+            builder: (y: AnyYargs) => {
+              flags.setRequiredCommandFlags(y, ...MirrorNodeCommand.UPGRADE_FLAGS_LIST.required);
+              flags.setOptionalCommandFlags(y, ...MirrorNodeCommand.UPGRADE_FLAGS_LIST.optional);
+            },
+            handler: async argv => {
+              self.logger.info("==== Running 'mirror-node upgrade' ===");
+
+              await self
+                .upgrade(argv)
+                .then(r => {
+                  self.logger.info('==== Finished running `mirror-node upgrade`====');
+                  if (!r) {
+                    throw new SoloError('Error upgrading mirror node, expected return value to be true');
+                  }
+                })
+                .catch(error => {
+                  throw new SoloError(`Error upgrading mirror node: ${error.message}`, error);
                 });
             },
           })
