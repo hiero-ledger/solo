@@ -76,7 +76,7 @@ jobs:
           version: 'v1.27.3'
         id: install
 
-      - name: Launch Network with Release version ${{ matrix.release-tag }}
+      - name: Launch Network with Prior Release
         timeout-minutes: 60
         run: |
           echo "Install yq..."
