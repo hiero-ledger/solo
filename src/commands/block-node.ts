@@ -520,7 +520,7 @@ export class BlockNodeCommand extends BaseCommand {
                 .getK8(config.context)
                 .containers()
                 .readByRef(containerReference)
-                .execContainer(['bash', '-c', 'curl -s http://localhost:8080/healthz/readyz']),
+                .execContainer(['bash', '-c', 'curl -s http://localhost:40840/healthz/readyz']),
               Duration.ofMillis(constants.BLOCK_NODE_ACTIVE_TIMEOUT),
               'Healthcheck timed out',
             );
