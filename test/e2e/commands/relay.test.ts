@@ -87,6 +87,21 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
           }
           await sleep(Duration.ofMillis(500));
 
+          testLogger.info(`#### Running relay upgrade for: ${relayNodes} ####`);
+
+          try {
+            await commandInvoker.invoke({
+              argv: argv,
+              command: RelayCommand.COMMAND_NAME,
+              subcommand: 'upgrade',
+              callback: async (argv: ArgvStruct): Promise<boolean> => relayCommand.upgrade(argv),
+            });
+          } catch (error) {
+            logger.showUserError(error);
+            expect.fail();
+          }
+          await sleep(Duration.ofMillis(500));
+
           testLogger.info(`#### Running relay destroy for: ${relayNodes} ####`);
           try {
             await commandInvoker.invoke({

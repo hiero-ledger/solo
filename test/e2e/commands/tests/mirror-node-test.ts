@@ -49,6 +49,28 @@ export class MirrorNodeTest extends BaseCommandTest {
     return argv;
   }
 
+  private static soloMirrorNodeUpgradeArgv(
+    testName: string,
+    deployment: DeploymentName,
+    clusterReference: ClusterReferenceName,
+  ): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = MirrorNodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      'mirror-node',
+      'upgrade',
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.clusterRef),
+      clusterReference,
+    );
+
+    argvPushGlobalFlags(argv, testName, true, true);
+
+    return argv;
+  }
+
   private static async forwardRestServicePort(
     contexts: string[],
     namespace: NamespaceName,
@@ -214,6 +236,33 @@ export class MirrorNodeTest extends BaseCommandTest {
 
     it(`${testName}: mirror node deploy`, async (): Promise<void> => {
       await main(soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger));
+      await verifyMirrorNodeDeployWasSuccessful(
+        contexts,
+        namespace,
+        testLogger,
+        createdAccountIds,
+        consensusNodesCount,
+      );
+      await verifyPingerStatus(contexts, namespace, pinger);
+    }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  public static upgrade(options: BaseTestOptions): void {
+    const {
+      testName,
+      testLogger,
+      deployment,
+      contexts,
+      namespace,
+      clusterReferenceNameArray,
+      createdAccountIds,
+      consensusNodesCount,
+      pinger,
+    } = options;
+    const {soloMirrorNodeUpgradeArgv, verifyMirrorNodeDeployWasSuccessful, verifyPingerStatus} = MirrorNodeTest;
+
+    it(`${testName}: mirror node upgrade`, async (): Promise<void> => {
+      await main(soloMirrorNodeUpgradeArgv(testName, deployment, clusterReferenceNameArray[1]));
       await verifyMirrorNodeDeployWasSuccessful(
         contexts,
         namespace,

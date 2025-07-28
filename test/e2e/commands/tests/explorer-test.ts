@@ -39,6 +39,28 @@ export class ExplorerTest extends BaseCommandTest {
     return argv;
   }
 
+  private static soloExplorerUpgradeArgv(
+    testName: string,
+    deployment: DeploymentName,
+    clusterReference: ClusterReferenceName,
+  ): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = ExplorerTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      'explorer',
+      'upgrade',
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.clusterRef),
+      clusterReference,
+    );
+
+    argvPushGlobalFlags(argv, testName, true, true);
+
+    return argv;
+  }
+
   private static async verifyExplorerDeployWasSuccessful(
     contexts: string[],
     namespace: NamespaceName,
@@ -109,6 +131,15 @@ export class ExplorerTest extends BaseCommandTest {
 
     it(`${testName}: explorer deploy`, async (): Promise<void> => {
       await main(soloExplorerDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
+    }).timeout(Duration.ofMinutes(5).toMillis());
+  }
+
+  public static upgrade(options: BaseTestOptions): void {
+    const {testName, deployment, clusterReferenceNameArray} = options;
+    const {soloExplorerUpgradeArgv} = ExplorerTest;
+
+    it(`${testName}: explorer upgrade`, async (): Promise<void> => {
+      await main(soloExplorerUpgradeArgv(testName, deployment, clusterReferenceNameArray[1]));
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 }

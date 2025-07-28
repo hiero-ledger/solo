@@ -524,7 +524,7 @@ export class RelayCommand extends BaseCommand {
     return true;
   }
 
-  private async upgrade(argv: ArgvStruct): Promise<boolean> {
+  public async upgrade(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
     const tasks: SoloListr<RelayUpgradeContext> = this.taskList.newTaskList(

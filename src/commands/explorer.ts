@@ -23,7 +23,8 @@ import {
   type ClusterReferenceName,
   type CommandDefinition,
   type Context,
-  type Optional, SoloListr,
+  type Optional,
+  SoloListr,
   type SoloListrTask,
 } from '../types/index.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
