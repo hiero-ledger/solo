@@ -10,13 +10,26 @@ import {type SoloLogger} from '../logging/solo-logger.js';
  * @returns Promise that resolves to true if port is available, false otherwise
  */
 export async function isPortAvailable(port: number): Promise<boolean> {
-  return new Promise<boolean>(resolve => {
+  return new Promise<boolean>((resolve, reject) => {
     const server: net.Server = net.createServer();
-    server.once('error', () => {
-      // Port is in use
-      resolve(false);
+    const timeout = setTimeout(() => {
+      server.close();
+      reject(new Error(`Timeout while checking port ${port}`));
+    }, 5000); // 5-second timeout
+
+    server.once('error', (err) => {
+      clearTimeout(timeout);
+      if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+        // Port is in use
+        resolve(false);
+      } else {
+        // Unexpected error
+        reject(err);
+      }
     });
+
     server.once('listening', () => {
+      clearTimeout(timeout);
       // Port is available
       server.close();
       resolve(true);
