@@ -190,7 +190,6 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.force,
       flags.mirrorNodeVersion,
       flags.clusterRef,
-      flags.valuesFile,
     ],
   };
 
@@ -1070,10 +1069,6 @@ export class MirrorNodeCommand extends BaseCommand {
             const config: MirrorNodeUpgradeConfigClass = context_.config;
 
             config.valuesArg = '';
-
-            if (config.valuesFile) {
-              config.valuesArg += helpers.prepareValuesFiles(config.valuesFile);
-            }
 
             config.mirrorNodeVersion = Version.getValidSemanticVersion(
               config.mirrorNodeVersion,
