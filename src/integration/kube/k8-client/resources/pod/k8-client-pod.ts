@@ -100,7 +100,7 @@ export class K8ClientPod implements Pod {
       if (availablePort === localPort) {
         this.logger.showUser(chalk.yellow(`Using requested port ${localPort}`));
       } else {
-        this.logger.showUser(chalk.yellow(`Use available port ${availablePort}`));
+        this.logger.showUser(chalk.yellow(`Using available port ${availablePort}`));
       }
 
       this.logger.debug(
