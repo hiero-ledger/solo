@@ -33,8 +33,9 @@ export async function isPortAvailable(port: number): Promise<boolean> {
     server.once('listening', () => {
       clearTimeout(timeout);
       // Port is available
-      server.close();
-      resolve(true);
+      server.close(() => {
+        resolve(true);
+      });
     });
     server.listen(port, constants.LOCAL_HOST);
   });
