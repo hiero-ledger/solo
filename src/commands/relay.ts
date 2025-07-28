@@ -11,7 +11,14 @@ import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {type AnyYargs, type ArgvStruct, type NodeAlias, type NodeAliases, type NodeId} from '../types/aliases.js';
+import {
+  AnyListrContext,
+  type AnyYargs,
+  type ArgvStruct,
+  type NodeAlias,
+  type NodeAliases,
+  type NodeId,
+} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as Base64 from 'js-base64';
 import {
@@ -19,6 +26,7 @@ import {
   type CommandDefinition,
   type DeploymentName,
   type Optional,
+  type SoloListr,
   type SoloListrTask,
 } from '../types/index.js';
 import {HEDERA_JSON_RPC_RELAY_VERSION} from '../../version.js';
@@ -35,6 +43,7 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Duration} from '../core/time/duration.js';
 import {Version} from '../business/utils/version.js';
+import {CommandFlag, CommandFlags} from '../types/flag-types.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -78,6 +87,24 @@ interface RelayDeployContext {
   config: RelayDeployConfigClass;
 }
 
+interface RelayUpgradeConfigClass {
+  chartDirectory: string;
+  namespace: NamespaceName;
+  deployment: string;
+  nodeAliasesUnparsed: string;
+  relayReleaseTag: string;
+  valuesFile: string;
+  nodeAliases: NodeAliases;
+  releaseName: string;
+  valuesArg: string;
+  clusterRef: Optional<ClusterReferenceName>;
+  context: Optional<string>;
+}
+
+interface RelayUpgradeContext {
+  config: RelayUpgradeConfigClass;
+}
+
 @injectable()
 export class RelayCommand extends BaseCommand {
   public static readonly DEPLOY_COMMAND = 'relay deploy';
@@ -97,6 +124,8 @@ export class RelayCommand extends BaseCommand {
 
   private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
 
+  private static readonly UPGRADE_CONFIGS_NAME = 'upgradeConfigs';
+
   private static readonly DEPLOY_FLAGS_LIST = {
     required: [],
     optional: [
@@ -115,6 +144,19 @@ export class RelayCommand extends BaseCommand {
       flags.valuesFile,
       flags.domainName,
       flags.forcePortForward,
+    ],
+  };
+
+  private static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [
+      flags.chartDirectory,
+      flags.clusterRef,
+      flags.deployment,
+      flags.nodeAliasesUnparsed,
+      flags.quiet,
+      flags.relayReleaseTag,
+      flags.valuesFile,
     ],
   };
 
@@ -482,6 +524,182 @@ export class RelayCommand extends BaseCommand {
     return true;
   }
 
+  private async upgrade(argv: ArgvStruct): Promise<boolean> {
+    let lease: Lock;
+
+    const tasks: SoloListr<RelayUpgradeContext> = this.taskList.newTaskList(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_: RelayUpgradeContext, task): Promise<SoloListr<AnyListrContext>> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            lease = await this.leaseManager.create();
+
+            this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
+
+            this.configManager.update(argv);
+
+            flags.disablePrompts(RelayCommand.UPGRADE_FLAGS_LIST.optional);
+
+            const allFlags: CommandFlag[] = [
+              ...RelayCommand.UPGRADE_FLAGS_LIST.required,
+              ...RelayCommand.UPGRADE_FLAGS_LIST.optional,
+            ];
+
+            await this.configManager.executePrompt(task, allFlags);
+
+            // prompt if inputs are empty and set it in the context
+            context_.config = this.configManager.getConfig(RelayCommand.UPGRADE_CONFIGS_NAME, allFlags, [
+              'nodeAliases',
+            ]) as RelayUpgradeConfigClass;
+
+            context_.config.namespace = await resolveNamespaceFromDeployment(
+              this.localConfig,
+              this.configManager,
+              task,
+            );
+
+            context_.config.nodeAliases = helpers.parseNodeAliases(
+              context_.config.nodeAliasesUnparsed,
+              this.remoteConfig.getConsensusNodes(),
+              this.configManager,
+            );
+
+            context_.config.releaseName = this.prepareReleaseName(context_.config.nodeAliases);
+
+            if (context_.config.clusterRef) {
+              const context: string = this.remoteConfig.getClusterRefs().get(context_.config.clusterRef);
+              if (context) {
+                context_.config.context = context;
+              }
+            }
+
+            this.logger.debug('Initialized config', {config: context_.config});
+
+            return ListrLock.newAcquireLockTask(lease, task);
+          },
+        },
+        {
+          title: 'Check chart is installed',
+          task: async (context_): Promise<void> => {
+            const config: RelayUpgradeConfigClass = context_.config;
+
+            const isChartInstalled: boolean = await this.chartManager.isChartInstalled(
+              config.namespace,
+              config.releaseName,
+              config.context,
+            );
+
+            if (!isChartInstalled) {
+              throw new SoloError('Relay is not deployed');
+            }
+          },
+        },
+        {
+          title: 'Prepare chart values',
+          task: async (context_): Promise<void> => {
+            const config: RelayUpgradeConfigClass = context_.config;
+
+            config.valuesArg = '';
+
+            if (config.valuesFile) {
+              config.valuesArg += helpers.prepareValuesFiles(config.valuesFile);
+            }
+
+            if (config.relayReleaseTag) {
+              config.relayReleaseTag = Version.getValidSemanticVersion(config.relayReleaseTag, false, 'Relay release');
+              config.valuesArg += ` --set relay.image.tag=${config.relayReleaseTag}`;
+              config.valuesArg += ` --set ws.image.tag=${config.relayReleaseTag}`;
+            }
+          },
+        },
+        {
+          title: 'Deploy JSON RPC Relay',
+          task: async (context_): Promise<void> => {
+            const config: RelayUpgradeConfigClass = context_.config;
+
+            await this.chartManager.upgrade(
+              config.namespace,
+              config.releaseName,
+              constants.JSON_RPC_RELAY_CHART,
+              constants.JSON_RPC_RELAY_CHART,
+              '',
+              config.valuesArg,
+              config.context,
+            );
+
+            showVersionBanner(this.logger, config.releaseName, config.relayReleaseTag);
+            await helpers.sleep(Duration.ofSeconds(40)); // wait for the pod to destroy in case it was an upgrade
+          },
+        },
+        {
+          title: 'Check relay is running',
+          task: async (context_): Promise<void> => {
+            const config: RelayUpgradeConfigClass = context_.config;
+
+            await this.k8Factory
+              .getK8(config.context)
+              .pods()
+              .waitForRunningPhase(
+                config.namespace,
+                [`app.kubernetes.io/instance=${config.releaseName}`],
+                constants.RELAY_PODS_RUNNING_MAX_ATTEMPTS,
+                constants.RELAY_PODS_RUNNING_DELAY,
+              );
+
+            // reset nodeAlias
+            this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
+          },
+        },
+        {
+          title: 'Check relay is ready',
+          task: async (context_): Promise<void> => {
+            const config: RelayUpgradeConfigClass = context_.config;
+            try {
+              await this.k8Factory
+                .getK8(config.context)
+                .pods()
+                .waitForReadyStatus(
+                  config.namespace,
+                  [`app.kubernetes.io/instance=${config.releaseName}`],
+                  constants.RELAY_PODS_READY_MAX_ATTEMPTS,
+                  constants.RELAY_PODS_READY_DELAY,
+                );
+            } catch (error) {
+              throw new SoloError(`Relay ${config.releaseName} is not ready: ${error.message}`, error);
+            }
+          },
+        },
+      ],
+      {
+        concurrent: false,
+        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+      },
+      undefined,
+      'relay upgrade',
+    );
+
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError(`Error upgrading relay: ${error.message}`, error);
+      } finally {
+        if (lease) {
+          await lease.release();
+        }
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease.release();
+        await this.accountManager.close();
+      });
+    }
+
+    return true;
+  }
+
   private async destroy(argv: ArgvStruct) {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
@@ -590,6 +808,24 @@ export class RelayCommand extends BaseCommand {
                 self.logger.info('==== Finished running `relay deploy`====');
                 if (!r) {
                   throw new SoloError('Error deploying relay, expected return value to be true');
+                }
+              });
+            },
+          })
+          .command({
+            command: 'upgrade',
+            desc: 'Upgrade a JSON RPC relay',
+            builder: (y: AnyYargs) => {
+              flags.setRequiredCommandFlags(y, ...RelayCommand.UPGRADE_FLAGS_LIST.required);
+              flags.setOptionalCommandFlags(y, ...RelayCommand.UPGRADE_FLAGS_LIST.optional);
+            },
+            handler: async (argv: ArgvStruct) => {
+              self.logger.info("==== Running 'relay upgrade' ===", {argv});
+
+              await self.upgrade(argv).then(r => {
+                self.logger.info('==== Finished running `relay upgrade`====');
+                if (!r) {
+                  throw new SoloError('Error upgrading relay, expected return value to be true');
                 }
               });
             },

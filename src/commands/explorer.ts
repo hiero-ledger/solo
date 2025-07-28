@@ -23,7 +23,7 @@ import {
   type ClusterReferenceName,
   type CommandDefinition,
   type Context,
-  type Optional,
+  type Optional, SoloListr,
   type SoloListrTask,
 } from '../types/index.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
@@ -41,6 +41,7 @@ import {Lock} from '../core/lock/lock.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Version} from '../business/utils/version.js';
+import {CommandFlag, CommandFlags} from '../types/flag-types.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -81,6 +82,21 @@ interface ExplorerDestroyContext {
   };
 }
 
+interface ExplorerUpgradeConfigClass {
+  cacheDir: string;
+  chartDirectory: string;
+  clusterRef: ClusterReferenceName;
+  clusterContext: string;
+  explorerVersion: string;
+  namespace: NamespaceName;
+  valuesFile: string;
+  valuesArg: string;
+}
+
+interface ExplorerUpgradeContext {
+  config: ExplorerUpgradeConfigClass;
+}
+
 @injectable()
 export class ExplorerCommand extends BaseCommand {
   public static readonly DEPLOY_COMMAND = 'explorer deploy';
@@ -99,6 +115,8 @@ export class ExplorerCommand extends BaseCommand {
   public static readonly COMMAND_NAME = 'explorer';
 
   private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
+
+  private static readonly UPGRADE_CONFIGS_NAME = 'upgradeConfigs';
 
   private static readonly DEPLOY_FLAGS_LIST = {
     required: [],
@@ -124,6 +142,20 @@ export class ExplorerCommand extends BaseCommand {
       flags.clusterSetupNamespace,
       flags.domainName,
       flags.forcePortForward,
+    ],
+  };
+
+  private static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [
+      flags.cacheDir,
+      flags.chartDirectory,
+      flags.clusterRef,
+      flags.explorerVersion,
+      flags.namespace,
+      flags.deployment,
+      flags.quiet,
+      flags.valuesFile,
     ],
   };
 
@@ -240,23 +272,13 @@ export class ExplorerCommand extends BaseCommand {
             self.configManager.update(argv);
 
             // disable the prompts that we don't want to prompt the user for
-            flags.disablePrompts([
-              flags.enableExplorerTls,
-              flags.explorerTlsHostName,
-              flags.ingressControllerValueFile,
-              flags.explorerStaticIp,
-              flags.explorerVersion,
-              flags.mirrorNamespace,
-              flags.tlsClusterIssuerType,
-              flags.valuesFile,
-              flags.profileFile,
-              flags.forcePortForward,
-            ]);
+            flags.disablePrompts(ExplorerCommand.DEPLOY_FLAGS_LIST.optional);
 
-            const allFlags = [
+            const allFlags: CommandFlag[] = [
               ...ExplorerCommand.DEPLOY_FLAGS_LIST.optional,
               ...ExplorerCommand.DEPLOY_FLAGS_LIST.required,
             ];
+
             await self.configManager.executePrompt(task, allFlags);
 
             context_.config = this.configManager.getConfig(ExplorerCommand.DEPLOY_CONFIGS_NAME, allFlags, [
@@ -512,6 +534,138 @@ export class ExplorerCommand extends BaseCommand {
     return true;
   }
 
+  public async upgrade(argv: ArgvStruct): Promise<boolean> {
+    let lease: Lock;
+
+    const tasks: SoloListr<ExplorerUpgradeContext> = this.taskList.newTaskList(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_: ExplorerUpgradeContext, task): Promise<SoloListr<AnyListrContext>> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            lease = await this.leaseManager.create();
+
+            this.configManager.update(argv);
+
+            flags.disablePrompts(ExplorerCommand.UPGRADE_FLAGS_LIST.optional);
+
+            const allFlags: CommandFlag[] = [
+              ...ExplorerCommand.UPGRADE_FLAGS_LIST.optional,
+              ...ExplorerCommand.UPGRADE_FLAGS_LIST.required,
+            ];
+
+            await this.configManager.executePrompt(task, allFlags);
+
+            context_.config = this.configManager.getConfig(
+              ExplorerCommand.DEPLOY_CONFIGS_NAME,
+              allFlags,
+              [],
+            ) as ExplorerUpgradeConfigClass;
+
+            context_.config.clusterContext = context_.config.clusterRef
+              ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString()
+              : this.k8Factory.default().contexts().readCurrent();
+
+            if (
+              !(await this.k8Factory.getK8(context_.config.clusterContext).namespaces().has(context_.config.namespace))
+            ) {
+              throw new SoloError(`namespace ${context_.config.namespace} does not exist`);
+            }
+
+            return ListrLock.newAcquireLockTask(lease, task);
+          },
+        },
+        {
+          title: 'Check chart is installed',
+          task: async (context_): Promise<void> => {
+            const config: ExplorerUpgradeConfigClass = context_.config;
+
+            const isChartInstalled: boolean = await this.chartManager.isChartInstalled(
+              config.namespace,
+              constants.EXPLORER_RELEASE_NAME,
+              config.clusterContext,
+            );
+
+            if (!isChartInstalled) {
+              throw new SoloError('Explorer node is not deployed');
+            }
+          },
+        },
+        {
+          title: 'Prepare chart values',
+          task: async (context_: ExplorerUpgradeContext): Promise<void> => {
+            const config: ExplorerUpgradeConfigClass = context_.config;
+
+            config.valuesArg = '';
+
+            if (config.valuesFile) {
+              config.valuesArg += helpers.prepareValuesFiles(config.valuesFile);
+            }
+
+            config.explorerVersion = Version.getValidSemanticVersion(config.explorerVersion, false, 'Explorer version');
+          },
+        },
+        {
+          title: 'Install explorer',
+          task: async (context_): Promise<void> => {
+            const config: ExplorerUpgradeConfigClass = context_.config;
+
+            config.explorerVersion = Version.getValidSemanticVersion(config.explorerVersion, false, 'Explorer version');
+
+            await this.chartManager.upgrade(
+              config.namespace,
+              constants.EXPLORER_RELEASE_NAME,
+              '',
+              constants.EXPLORER_CHART_URL,
+              config.explorerVersion,
+              config.valuesArg,
+              context_.config.clusterContext,
+            );
+            showVersionBanner(this.logger, constants.EXPLORER_RELEASE_NAME, config.explorerVersion);
+          },
+        },
+        {
+          title: 'Check explorer pod is ready',
+          task: async (context_): Promise<void> => {
+            await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .pods()
+              .waitForReadyStatus(
+                context_.config.namespace,
+                [constants.SOLO_EXPLORER_LABEL],
+                constants.PODS_READY_MAX_ATTEMPTS,
+                constants.PODS_READY_DELAY,
+              );
+          },
+        },
+      ],
+      {
+        concurrent: false,
+        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+      },
+      undefined,
+      'explorer upgrade',
+    );
+
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+        this.logger.debug('explorer upgrade has completed');
+      } catch (error) {
+        throw new SoloError(`Error upgrading explorer: ${error.message}`, error);
+      } finally {
+        await lease.release();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease.release();
+      });
+    }
+
+    return true;
+  }
+
   private async destroy(argv: ArgvStruct): Promise<boolean> {
     const self = this;
     let lease: Lock;
@@ -646,6 +800,29 @@ export class ExplorerCommand extends BaseCommand {
                 })
                 .catch(error => {
                   throw new SoloError(`Explorer deployment failed: ${error.message}`, error);
+                });
+            },
+          })
+          .command({
+            command: 'upgrade',
+            desc: 'Upgrade explorer',
+            builder: (y: AnyYargs) => {
+              flags.setRequiredCommandFlags(y, ...ExplorerCommand.UPGRADE_FLAGS_LIST.required);
+              flags.setOptionalCommandFlags(y, ...ExplorerCommand.UPGRADE_FLAGS_LIST.optional);
+            },
+            handler: async (argv: ArgvStruct) => {
+              self.logger.info("==== Running explorer upgrade' ===");
+
+              await self
+                .upgrade(argv)
+                .then(r => {
+                  self.logger.info('==== Finished running explorer upgrade`====');
+                  if (!r) {
+                    throw new Error('Explorer upgrade failed, expected return value to be true');
+                  }
+                })
+                .catch(error => {
+                  throw new SoloError(`Explorer upgrade failed: ${error.message}`, error);
                 });
             },
           })

@@ -113,6 +113,7 @@ interface MirrorNodeUpgradeConfigClass {
   valuesArg: string;
   mirrorNodeVersion: string;
   deployment: DeploymentName;
+  valuesFile: string;
 
   devMode: boolean;
   quiet: boolean;
@@ -188,6 +189,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.force,
       flags.mirrorNodeVersion,
       flags.clusterRef,
+      flags.valuesFile,
     ],
   };
 
@@ -422,8 +424,6 @@ export class MirrorNodeCommand extends BaseCommand {
             context_.config.clusterContext = context_.config.clusterReference
               ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterReference)?.toString()
               : this.k8Factory.default().contexts().readCurrent();
-
-            console.log(context_.config);
 
             const deploymentName: DeploymentName = self.configManager.getFlag<DeploymentName>(flags.deployment);
             await self.accountManager.loadNodeClient(
@@ -1049,6 +1049,40 @@ export class MirrorNodeCommand extends BaseCommand {
           },
         },
         {
+          title: 'Check chart is installed',
+          task: async (context_): Promise<void> => {
+            const config: MirrorNodeUpgradeConfigClass = context_.config;
+
+            const isChartInstalled: boolean = await this.chartManager.isChartInstalled(
+              config.namespace,
+              constants.MIRROR_NODE_RELEASE_NAME,
+              config.clusterContext,
+            );
+
+            if (!isChartInstalled) {
+              throw new SoloError('Mirror node is not deployed');
+            }
+          },
+        },
+        {
+          title: 'Prepare chart values',
+          task: async (context_): Promise<void> => {
+            const config: MirrorNodeUpgradeConfigClass = context_.config;
+
+            config.valuesArg = '';
+
+            if (config.valuesFile) {
+              config.valuesArg += helpers.prepareValuesFiles(config.valuesFile);
+            }
+
+            config.mirrorNodeVersion = Version.getValidSemanticVersion(
+              config.mirrorNodeVersion,
+              true,
+              'Mirror node version',
+            );
+          },
+        },
+        {
           title: 'Enable mirror-node',
           task: (_, parentTask): SoloListr<MirrorNodeUpgradeContext> => {
             return parentTask.newListr<MirrorNodeUpgradeContext>(
@@ -1056,34 +1090,25 @@ export class MirrorNodeCommand extends BaseCommand {
                 {
                   title: 'Upgrade mirror-node',
                   task: async (context_): Promise<void> => {
-                    context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
-                      context_.config.namespace,
+                    const config: MirrorNodeUpgradeConfigClass = context_.config;
+
+                    config.isChartInstalled = await this.chartManager.isChartInstalled(
+                      config.namespace,
                       constants.MIRROR_NODE_RELEASE_NAME,
-                      context_.config.clusterContext,
+                      config.clusterContext,
                     );
 
-                    console.log({
-                      namespace: context_.config.namespace,
-                      mirrorNodeVersion: context_.config.mirrorNodeVersion,
-                      valuesArg: '',
-                      clusterContext: context_.config.clusterContext,
-                    });
-
                     await this.chartManager.upgrade(
-                      context_.config.namespace,
+                      config.namespace,
                       constants.MIRROR_NODE_RELEASE_NAME,
                       constants.MIRROR_NODE_CHART,
                       constants.MIRROR_NODE_RELEASE_NAME,
-                      context_.config.mirrorNodeVersion,
-                      '',
-                      context_.config.clusterContext,
+                      config.mirrorNodeVersion,
+                      config.valuesArg,
+                      config.clusterContext,
                     );
 
-                    showVersionBanner(
-                      this.logger,
-                      constants.MIRROR_NODE_RELEASE_NAME,
-                      context_.config.mirrorNodeVersion,
-                    );
+                    showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, config.mirrorNodeVersion);
                   },
                 },
               ],
