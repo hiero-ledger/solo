@@ -64,7 +64,7 @@ export async function findAvailablePort(
 
     // Check if we've exceeded the timeout duration
     if (Date.now() - startTime > timeoutMs) {
-      const errorMessage: string = `Failed to find an available port after ${timeoutMs}ms timeout, starting from port ${startPort}`;
+      const errorMessage: string = `Failed to find an available port after ${timeoutMs}ms timeout, starting from port ${startPort}, last checked port ${port}`;
       logger.error(errorMessage);
       throw new Error(errorMessage);
     }
