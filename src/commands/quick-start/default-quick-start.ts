@@ -6,10 +6,10 @@ import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
 import {Flags, Flags as flags} from '../flags.js';
 import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../../types/aliases.js';
-import {type CommandDefinition, SoloListrTaskWrapper} from '../../types/index.js';
+import {type CommandDefinition, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';
-import {injectable} from 'tsyringe-neo';
+import {inject, injectable} from 'tsyringe-neo';
 import {v4 as uuid4} from 'uuid';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {StringEx} from '../../business/utils/string-ex.js';
@@ -19,6 +19,9 @@ import {QuickStartSingleDeployConfigClass} from './quick-start-single-deploy-con
 import {QuickStartSingleDeployContext} from './quick-start-single-deploy-context.js';
 import {QuickStartSingleDestroyConfigClass} from './quick-start-single-destroy-config-class.js';
 import {QuickStartSingleDestroyContext} from './quick-start-single-destroy-context.js';
+import {TaskList} from '../../core/task-list/task-list.js';
+import {TaskListWrapper} from '../../core/task-list/task-list-wrapper.js';
+import * as version from '../../../version.js';
 import {ClusterCommandHandlers} from '../cluster/handlers.js';
 import {DeploymentCommand} from '../deployment.js';
 import {NodeCommandHandlers} from '../node/handlers.js';
@@ -27,9 +30,19 @@ import {NetworkCommand} from '../network.js';
 import {MirrorNodeCommand} from '../mirror-node.js';
 import {ExplorerCommand} from '../explorer.js';
 import {RelayCommand} from '../relay.js';
-import {TaskList} from '../../core/task-list/task-list.js';
-import {TaskListWrapper} from '../../core/task-list/task-list-wrapper.js';
-import * as version from '../../../version.js';
+import {patchInject} from '../../core/dependency-injection/container-helper.js';
+import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
+import {type AccountManager} from '../../core/account-manager.js';
+import {
+  CreatedPredefinedAccount, PREDEFINED_ACCOUNT_GROUPS,
+  PredefinedAccount,
+  predefinedEcdsaAccounts,
+  predefinedEcdsaAccountsWithAlias,
+  predefinedEd25519Accounts,
+} from './predefined-accounts.js';
+import {AccountId, HbarUnit} from '@hashgraph/sdk';
+import * as helpers from '../../core/helpers.js';
+import {Duration} from '../../core/time/duration.js';
 
 @injectable()
 export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
@@ -50,6 +63,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
       flags.devMode,
       flags.namespace,
       flags.numberOfConsensusNodes,
+      flags.predefinedAccounts,
       flags.quiet,
       // TODO add flag for consensus node version
     ],
@@ -60,8 +74,9 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     optional: [],
   };
 
-  public constructor() {
+  public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {
     super();
+    this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
   }
 
   private newArgv(): string[] {
@@ -137,6 +152,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
               context_.config.deployment = context_.config.deployment || `solo-deployment-${uniquePostfix}`;
               context_.config.namespace = context_.config.namespace || NamespaceName.of(`solo-${uniquePostfix}`);
               context_.config.numberOfConsensusNodes = context_.config.numberOfConsensusNodes || 1;
+
+              context_.createdAccounts = [];
               return;
             },
           },
@@ -262,11 +279,77 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             return this.argvPushGlobalFlags(argv);
           }),
           {
+            title: 'Create Accounts',
+            skip: () => config.predefinedAccounts === false,
+            task: async (
+              context_: QuickStartSingleDeployContext,
+              task: SoloListrTaskWrapper<QuickStartSingleDeployContext>,
+            ): Promise<Listr<QuickStartSingleDeployContext>> => {
+              await this.localConfig.load();
+              await this.remoteConfig.loadAndValidate(argv);
+
+              const self = this;
+              const subTasks: SoloListrTask<QuickStartSingleDeployContext>[] = [];
+
+              const accountsToCreate = [
+                ...predefinedEcdsaAccounts,
+                ...predefinedEcdsaAccountsWithAlias,
+                ...predefinedEd25519Accounts,
+              ];
+
+              await self.accountManager.loadNodeClient(
+                config.namespace,
+                self.remoteConfig.getClusterRefs(),
+                context_.config.deployment,
+              );
+
+              for (const [index, account] of accountsToCreate.entries()) {
+                // inject index to avoid closure issues
+                ((index: number, account: PredefinedAccount) => {
+                  subTasks.push({
+                    title: `Creating Account ${index}`,
+                    task: async (
+                      context_: QuickStartSingleDeployContext,
+                      subTask: SoloListrTaskWrapper<QuickStartSingleDeployContext>,
+                    ): Promise<void> => {
+                      await helpers.sleep(Duration.ofMillis(100 * index));
+
+                      const createdAccount = await self.accountManager.createNewAccount(
+                        context_.config.namespace,
+                        account.privateKey,
+                        account.balance.to(HbarUnit.Hbar).toNumber(),
+                        account.alias,
+                        context_.config.context,
+                      );
+
+                      context_.createdAccounts.push({
+                        accountId: AccountId.fromString(createdAccount.accountId),
+                        data: account,
+                        alias: createdAccount.accountAlias,
+                      });
+
+                      subTask.title = `Account created: ${createdAccount.accountId.toString()}`;
+                    },
+                  });
+                })(index, account);
+              }
+
+              // set up the sub-tasks
+              return task.newListr(subTasks, {
+                concurrent: true,
+                rendererOptions: {
+                  collapseSubtasks: false,
+                },
+              });
+            },
+          },
+          {
             title: 'Finish',
             task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
               this.showQuickStartUserNotes(context_);
               this.showVersions();
               this.showPortForwards();
+              this.showCreatedAccounts(context_.createdAccounts);
 
               return;
             },
@@ -323,6 +406,68 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     );
 
     this.logger.showMessageGroup(messageGroupKey);
+  }
+
+  private showCreatedAccounts(createdAccounts: CreatedPredefinedAccount[] = []): void {
+    if (createdAccounts.length > 0) {
+      createdAccounts.sort((a: CreatedPredefinedAccount, b: CreatedPredefinedAccount): number =>
+        a.accountId.compare(b.accountId),
+      );
+
+      const ecdsaAccounts: CreatedPredefinedAccount[] = createdAccounts.filter(
+        (account: CreatedPredefinedAccount): boolean => account.data.group === PREDEFINED_ACCOUNT_GROUPS.ECDSA,
+      );
+      const aliasAccounts: CreatedPredefinedAccount[] = createdAccounts.filter(
+        (account: CreatedPredefinedAccount): boolean => account.data.group === PREDEFINED_ACCOUNT_GROUPS.ECDSA_ALIAS,
+      );
+      const ed25519Accounts: CreatedPredefinedAccount[] = createdAccounts.filter(
+        (account: CreatedPredefinedAccount): boolean => account.data.group === PREDEFINED_ACCOUNT_GROUPS.ED25519,
+      );
+
+      const messageGroupKey: string = 'accounts-created';
+      const ecdsaGroupKey: string = 'accounts-created-ecdsa';
+      const ecdsaAliasGroupKey: string = 'accounts-created-ecdsa-alias';
+      const ed25519GroupKey: string = 'accounts-created-ed25519';
+      this.logger.addMessageGroup(messageGroupKey, 'Created Accounts');
+      this.logger.addMessageGroup(ecdsaGroupKey, 'ECDSA Accounts:');
+      this.logger.addMessageGroup(ecdsaAliasGroupKey, 'ECDSA Alias Accounts:');
+      this.logger.addMessageGroup(ed25519GroupKey, 'ED25519 Accounts:');
+
+      this.logger.showMessageGroup(messageGroupKey);
+
+      if (ecdsaAccounts.length > 0) {
+        for (const account of ecdsaAccounts) {
+          this.logger.addMessageGroupMessage(
+            ecdsaGroupKey,
+            `Account ID: ${account.accountId.toString()}, Private Key: 0x${account.data.privateKey.toStringRaw()}, Balance: ${account.data.balance.toString()}`,
+          );
+        }
+
+        this.logger.showMessageGroup(ecdsaGroupKey);
+      }
+
+      if (aliasAccounts.length > 0) {
+        for (const account of aliasAccounts) {
+          this.logger.addMessageGroupMessage(
+            ecdsaAliasGroupKey,
+            `Account ID: ${account.accountId.toString()}, Public address: ${account.alias}, Private Key: 0x${account.data.privateKey.toStringRaw()}, Balance: ${account.data.balance.toString()}`,
+          );
+        }
+
+        this.logger.showMessageGroup(ecdsaAliasGroupKey);
+      }
+
+      if (ed25519Accounts.length > 0) {
+        for (const account of ed25519Accounts) {
+          this.logger.addMessageGroupMessage(
+            ed25519GroupKey,
+            `Account ID: ${account.accountId.toString()}, Private Key: 0x${account.data.privateKey.toStringRaw()}, Balance: ${account.data.balance.toString()}`,
+          );
+        }
+
+        this.logger.showMessageGroup(ed25519GroupKey);
+      }
+    }
   }
 
   private showPortForwards(): void {
