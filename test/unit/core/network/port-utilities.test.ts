@@ -3,7 +3,7 @@
 import {expect} from 'chai';
 import {describe, it} from 'mocha';
 import net from 'node:net';
-import {findAvailablePort, isPortAvailable} from '../../../../src/core/network/port-utils.js';
+import {findAvailablePort, isPortAvailable} from '../../../../src/core/network/port-utilities.js';
 
 // Mock logger for testing
 const mockLogger = {

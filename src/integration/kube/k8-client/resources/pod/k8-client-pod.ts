@@ -2,7 +2,7 @@
 
 import {type Pod} from '../../../resources/pod/pod.js';
 import {type ExtendedNetServer} from '../../../../../types/index.js';
-import {findAvailablePort} from '../../../../../core/network/port-utils.js';
+import {findAvailablePort} from '../../../../../core/network/port-utilities.js';
 import {PodReference} from '../../../resources/pod/pod-reference.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
 import {sleep} from '../../../../../core/helpers.js';
@@ -31,6 +31,7 @@ import {PodName} from '../../../resources/pod/pod-name.js';
 import {K8ClientPodCondition} from './k8-client-pod-condition.js';
 import {type PodCondition} from '../../../resources/pod/pod-condition.js';
 import {ShellRunner} from '../../../../../core/shell-runner.js';
+import chalk from 'chalk';
 
 export class K8ClientPod implements Pod {
   private readonly logger: SoloLogger;
@@ -91,12 +92,16 @@ export class K8ClientPod implements Pod {
   }
 
   public async portForward(localPort: number, podPort: number, detach: boolean = false): Promise<ExtendedNetServer> {
-    // Variable to store the available port, accessible in both try and catch blocks
     let availablePort: number;
 
     try {
       // Find an available port starting from localPort with a 30-second timeout
       availablePort = await findAvailablePort(localPort, 30_000, this.logger);
+      if (availablePort === localPort) {
+        this.logger.showUser(chalk.yellow(`Use default port ${localPort}`));
+      } else {
+        this.logger.showUser(chalk.yellow(`Use available port ${availablePort}`));
+      }
 
       this.logger.debug(
         `Creating port-forwarder for ${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${availablePort}`,

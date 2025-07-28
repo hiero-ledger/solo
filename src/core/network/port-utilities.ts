@@ -29,7 +29,7 @@ export async function isPortAvailable(port: number): Promise<boolean> {
  * Find an available port starting from the given port
  * @param startPort Port number to start checking from
  * @param timeoutMs Timeout in milliseconds before giving up (default: 30000)
- * @param logger Optional logger for debug messages
+ * @param logger logger for debug messages
  * @returns Promise that resolves to the first available port or throws an error if timeout is reached
  * @throws Error if no available port is found within the timeout period
  */
@@ -39,13 +39,11 @@ export async function findAvailablePort(
   logger: SoloLogger,
 ): Promise<number> {
   let port: number = startPort;
-  let attempts: number = 0;
   const startTime: number = Date.now();
 
   while (!(await isPortAvailable(port))) {
     logger.debug(`Port ${port} is not available, trying ${port + 1}`);
     port++;
-    attempts++;
 
     // Check if we've exceeded the timeout duration
     if (Date.now() - startTime > timeoutMs) {
