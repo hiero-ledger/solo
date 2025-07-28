@@ -3,6 +3,8 @@
 import net from 'node:net';
 import * as constants from '../constants.js';
 import {type SoloLogger} from '../logging/solo-logger.js';
+import {sleep} from '../helpers.js';
+import {Duration} from '../time/duration.js';
 
 /**
  * Check if a TCP port is available on the local machine
@@ -43,6 +45,8 @@ export async function findAvailablePort(
 
   while (!(await isPortAvailable(port))) {
     logger.debug(`Port ${port} is not available, trying ${port + 1}`);
+    // add delay between attempts to avoid rapid successive network operations
+    await sleep(Duration.ofMillis(100));
     port++;
 
     // Check if we've exceeded the timeout duration
