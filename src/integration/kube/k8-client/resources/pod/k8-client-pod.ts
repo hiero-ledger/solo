@@ -32,6 +32,7 @@ import {K8ClientPodCondition} from './k8-client-pod-condition.js';
 import {type PodCondition} from '../../../resources/pod/pod-condition.js';
 import {ShellRunner} from '../../../../../core/shell-runner.js';
 import chalk from 'chalk';
+import http from 'node:http';
 
 export class K8ClientPod implements Pod {
   private readonly logger: SoloLogger;
@@ -107,6 +108,26 @@ export class K8ClientPod implements Pod {
         `Creating port-forwarder for ${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${availablePort}`,
       );
 
+      // first use http.request(url[, options][, callback]) GET method against localhost:localPort to kill any pre-existing
+      // port-forward that is no longer active.  It doesn't matter what the response is.
+      const url: string = `http://${constants.LOCAL_HOST}:${localPort}`;
+      await new Promise<void>((resolve): void => {
+        http
+          .request(url, {method: 'GET'}, (response): void => {
+            response.on('data', (): void => {
+              // do nothing
+            });
+            response.on('end', (): void => {
+              resolve();
+            });
+          })
+          .on('error', (): void => {
+            resolve();
+          })
+          .end();
+      });
+
+      // if detach is true, start a port-forwarder in detached mode
       if (detach) {
         this.logger.warn(
           'Port-forwarding in detached mode has to be manually stopped or will stop when the Kubernetes pod it ',
