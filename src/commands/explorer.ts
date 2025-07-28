@@ -24,7 +24,7 @@ import {
   type CommandDefinition,
   type Context,
   type Optional,
-  SoloListr,
+  type SoloListr,
   type SoloListrTask,
 } from '../types/index.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
@@ -42,7 +42,7 @@ import {Lock} from '../core/lock/lock.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Version} from '../business/utils/version.js';
-import {CommandFlag, CommandFlags} from '../types/flag-types.js';
+import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -282,9 +282,11 @@ export class ExplorerCommand extends BaseCommand {
 
             await self.configManager.executePrompt(task, allFlags);
 
-            context_.config = this.configManager.getConfig(ExplorerCommand.DEPLOY_CONFIGS_NAME, allFlags, [
-              'valuesArg',
-            ]) as ExplorerDeployConfigClass;
+            context_.config = this.configManager.getConfig(
+              ExplorerCommand.UPGRADE_CONFIGS_NAME,
+              allFlags,
+              [],
+            ) as ExplorerDeployConfigClass;
 
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
             context_.config.clusterContext = context_.config.clusterRef
