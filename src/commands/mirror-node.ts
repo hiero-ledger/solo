@@ -111,7 +111,6 @@ interface MirrorNodeUpgradeConfigClass {
   clusterReference: ClusterReferenceName;
   namespace: NamespaceName;
   valuesArg: string;
-  valuesFile: string;
   mirrorNodeVersion: string;
   deployment: DeploymentName;
 
@@ -158,7 +157,6 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.profileFile,
       flags.profileName,
       flags.quiet,
-      flags.valuesFile,
       flags.mirrorNodeVersion,
       flags.pinger,
       flags.useExternalDatabase,
@@ -183,13 +181,20 @@ export class MirrorNodeCommand extends BaseCommand {
 
   public static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.deployment, flags.devMode, flags.quiet, flags.force, flags.valuesFile, flags.mirrorNodeVersion],
+    optional: [
+      flags.deployment,
+      flags.devMode,
+      flags.quiet,
+      flags.force,
+      flags.mirrorNodeVersion,
+      flags.clusterRef,
+    ],
   };
 
   private async prepareValuesArg(config: MirrorNodeDeployConfigClass): Promise<string> {
     let valuesArgument = '';
 
-    const profileName = this.configManager.getFlag<string>(flags.profileName) as string;
+    const profileName = this.configManager.getFlag(flags.profileName);
     const profileValuesFile = await this.profileManager.prepareValuesForMirrorNodeChart(profileName);
     if (profileValuesFile) {
       valuesArgument += helpers.prepareValuesFiles(profileValuesFile);
@@ -405,8 +410,7 @@ export class MirrorNodeCommand extends BaseCommand {
             context_.config.namespace = namespace;
 
             context_.config.clusterReference =
-              (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
-              this.k8Factory.default().clusters().readCurrent();
+              this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
 
             // predefined values first
             context_.config.valuesArg += semver.lt(context_.config.mirrorNodeVersion, '0.130.0')
@@ -418,6 +422,8 @@ export class MirrorNodeCommand extends BaseCommand {
             context_.config.clusterContext = context_.config.clusterReference
               ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterReference)?.toString()
               : this.k8Factory.default().contexts().readCurrent();
+
+            console.log(context_.config);
 
             const deploymentName: DeploymentName = self.configManager.getFlag<DeploymentName>(flags.deployment);
             await self.accountManager.loadNodeClient(
@@ -869,8 +875,7 @@ export class MirrorNodeCommand extends BaseCommand {
             self.configManager.update(argv);
             const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
             const clusterReference: ClusterReferenceName =
-              (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
-              this.k8Factory.default().clusters().readCurrent();
+              this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
 
             const clusterContext = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
 
@@ -1023,13 +1028,6 @@ export class MirrorNodeCommand extends BaseCommand {
             context_.config.clusterReference =
               this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
 
-            context_.config.valuesArg += '';
-
-            context_.config.valuesArg += ' --install';
-            if (context_.config.valuesFile) {
-              context_.config.valuesArg += helpers.prepareValuesFiles(context_.config.valuesFile);
-            }
-
             context_.config.mirrorNodeVersion = Version.getValidSemanticVersion(
               context_.config.mirrorNodeVersion,
               true,
@@ -1056,7 +1054,7 @@ export class MirrorNodeCommand extends BaseCommand {
             return parentTask.newListr<MirrorNodeUpgradeContext>(
               [
                 {
-                  title: 'Deploy mirror-node',
+                  title: 'Upgrade mirror-node',
                   task: async (context_): Promise<void> => {
                     context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
                       context_.config.namespace,
@@ -1064,13 +1062,20 @@ export class MirrorNodeCommand extends BaseCommand {
                       context_.config.clusterContext,
                     );
 
+                    console.log({
+                      namespace: context_.config.namespace,
+                      mirrorNodeVersion: context_.config.mirrorNodeVersion,
+                      valuesArg: '',
+                      clusterContext: context_.config.clusterContext,
+                    });
+
                     await this.chartManager.upgrade(
                       context_.config.namespace,
                       constants.MIRROR_NODE_RELEASE_NAME,
                       constants.MIRROR_NODE_CHART,
                       constants.MIRROR_NODE_RELEASE_NAME,
                       context_.config.mirrorNodeVersion,
-                      context_.config.valuesArg,
+                      '',
                       context_.config.clusterContext,
                     );
 
