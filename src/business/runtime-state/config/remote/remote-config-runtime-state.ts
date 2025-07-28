@@ -381,11 +381,11 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       (command === 'consensus' && subcommand === 'network' && action === 'deploy') ||
       (command === 'consensus' && subcommand === 'network' && action === 'refresh') ||
       (command === 'consensus' && subcommand === 'node' && action === 'update') ||
-      (command === 'consensus' && subcommand === 'node' && action === 'update-execute') ||
+      (command === 'consensus' && subcommand === 'dev-node-update' && action === 'execute') ||
       (command === 'consensus' && subcommand === 'node' && action === 'add') ||
-      (command === 'consensus' && subcommand === 'node' && action === 'add-execute') ||
+      (command === 'consensus' && subcommand === 'dev-node-add' && action === 'execute') ||
       (command === 'consensus' && subcommand === 'node' && action === 'destroy') ||
-      (command === 'consensus' && subcommand === 'node' && action === 'destroy-execute');
+      (command === 'consensus' && subcommand === 'dev-node-destroy' && action === 'execute');
 
     // TBD how to update remoteConfig.versions.cli
 

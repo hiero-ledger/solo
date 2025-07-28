@@ -546,9 +546,9 @@ solo consensus node update --deployment solo-deployment --node-alias node1 --rel
 It is possible to update a single node to a new Hedera version through a process with separated steps. This is only useful in very specific cases, such as when testing the updating process.
 
 ```bash
-solo consensus node update-prepare --deployment solo-deployment --node-alias node1 --release-tag v0.62.6 --output-dir context
-solo consensus node update-submit-transactions --deployment solo-deployment --input-dir context
-solo consensus node update-execute --deployment solo-deployment --input-dir context
+solo consensus dev-node-update prepare --deployment solo-deployment --node-alias node1 --release-tag v0.62.6 --output-dir context
+solo consensus dev-node-update submit-transactions --deployment solo-deployment --input-dir context
+solo consensus dev-node-update execute --deployment solo-deployment --input-dir context
 ```
 
 {{< /details >}}<br/>
@@ -566,9 +566,9 @@ TODO solo consensus node add
 It is possible to add a new node through a process with separated steps. This is only useful in very specific cases, such as when testing the node adding process.
 
 ```bash
-solo consensus node add-prepare --gossip-keys true --tls-keys true --deployment solo-deployment --pvcs true --admin-key ***** --node-alias node1 --output-dir context
-solo consensus node add-submit-transactions --deployment solo-deployment --input-dir context
-solo consensus node add-execute --deployment solo-deployment --input-dir context
+solo consensus dev-node-add prepare --gossip-keys true --tls-keys true --deployment solo-deployment --pvcs true --admin-key ***** --node-alias node1 --output-dir context
+solo consensus dev-node-add submit-transactions --deployment solo-deployment --input-dir context
+solo consensus dev-node-add execute --deployment solo-deployment --input-dir context
 ```
 
 {{< /details >}}<br/>

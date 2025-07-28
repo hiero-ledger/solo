@@ -61,11 +61,19 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
   public static readonly DEV_FREEZE_SUBCOMMAND_NAME: string = 'dev-freeze';
   private static readonly DEV_FREEZE_SUBCOMMAND_DESCRIPTION: string = 'TODO: ADD DESCRIPTION';
 
-  // dev-node-add            < prepare | submit-transactions | execute >
-  // dev-node-update         < prepare | submit-transactions | execute >
-  // dev-node-upgrade        < prepare | submit-transactions | execute >
-  // dev-node-delete         < prepare | submit-transactions | execute >
-  // dev-freeze              < prepare-upgrade | freeze-upgrade >
+  // < prepare | submit-transactions | execute >
+  // dev-node-add
+  // dev-node-update
+  // dev-node-upgrade
+  // dev-node-delete
+
+  // < prepare-upgrade | freeze-upgrade >
+  // dev-freeze
+
+  // node freeze | network freeze-upgrade ( prepare )
+
+  // dev-freeze prepare-upgrade
+  // network freeze
 
   // add-prepare     | add-execute     | add-submit-transactions
   // update-prepare  | update-execute  | update-submit-transactions
