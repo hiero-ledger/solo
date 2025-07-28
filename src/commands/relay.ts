@@ -18,6 +18,7 @@ import {
   type ClusterReferenceName,
   type CommandDefinition,
   type DeploymentName,
+  ExtendedNetServer,
   type Optional,
   type SoloListrTask,
 } from '../types/index.js';
@@ -432,7 +433,7 @@ export class RelayCommand extends BaseCommand {
               throw new SoloError('No Relay pod found');
             }
             const podReference: PodReference = pods[0].podReference;
-            await this.k8Factory
+            const portForward: ExtendedNetServer = await this.k8Factory
               .getK8(context_.config.context)
               .pods()
               .readByReference(podReference)
@@ -440,7 +441,7 @@ export class RelayCommand extends BaseCommand {
             this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
             this.logger.addMessageGroupMessage(
               constants.PORT_FORWARDING_MESSAGE_GROUP,
-              `JSON RPC Relay forward enabled on localhost:${constants.JSON_RPC_RELAY_PORT}`,
+              `JSON RPC Relay forward enabled on localhost:${portForward.localPort}`,
             );
           },
           skip: context_ => !context_.config.forcePortForward,

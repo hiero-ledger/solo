@@ -27,6 +27,7 @@ import {
   type ClusterReferenceName,
   type CommandDefinition,
   type DeploymentName,
+  ExtendedNetServer,
   type Optional,
   type SoloListrTask,
 } from '../types/index.js';
@@ -775,7 +776,7 @@ export class MirrorNodeCommand extends BaseCommand {
               }
             }
 
-            await this.k8Factory
+            const portForward: ExtendedNetServer = await this.k8Factory
               .getK8(context_.config.clusterContext)
               .pods()
               .readByReference(podReference)
@@ -783,7 +784,7 @@ export class MirrorNodeCommand extends BaseCommand {
             this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
             this.logger.addMessageGroupMessage(
               constants.PORT_FORWARDING_MESSAGE_GROUP,
-              `Mirror Node port forward enabled on localhost:${constants.MIRROR_NODE_PORT}`,
+              `Mirror Node port forward enabled on localhost:${portForward.localPort}`,
             );
           },
         },

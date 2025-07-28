@@ -19,14 +19,14 @@ export async function isPortAvailable(port: number): Promise<boolean> {
       reject(new Error(`Timeout while checking port ${port}`));
     }, 5000); // 5-second timeout
 
-    server.once('error', (err) => {
+    server.once('error', error => {
       clearTimeout(timeout);
-      if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+      if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') {
         // Port is in use
         resolve(false);
       } else {
         // Unexpected error
-        reject(err);
+        reject(error);
       }
     });
 
