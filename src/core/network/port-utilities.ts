@@ -52,11 +52,5 @@ export async function findAvailablePort(
       throw new Error(errorMessage);
     }
   }
-
-  if (port !== startPort) {
-    const elapsedTime: number = Date.now() - startTime;
-    logger.debug(`Found available port: ${port} after ${attempts + 1} attempts (${elapsedTime}ms)`);
-  }
-
   return port;
 }

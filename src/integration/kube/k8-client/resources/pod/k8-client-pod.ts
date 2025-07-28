@@ -92,7 +92,7 @@ export class K8ClientPod implements Pod {
   }
 
   public async portForward(localPort: number, podPort: number, detach: boolean = false): Promise<ExtendedNetServer> {
-    let availablePort: number;
+    let availablePort: number = localPort;
 
     try {
       // Find an available port starting from localPort with a 30-second timeout
