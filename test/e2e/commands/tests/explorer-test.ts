@@ -56,7 +56,7 @@ export class ExplorerTest extends BaseCommandTest {
       clusterReference,
     );
 
-    argvPushGlobalFlags(argv, testName, true, true);
+    argvPushGlobalFlags(argv, testName, false, false);
 
     return argv;
   }
