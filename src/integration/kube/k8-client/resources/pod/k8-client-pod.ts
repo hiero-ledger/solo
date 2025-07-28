@@ -2,6 +2,7 @@
 
 import {type Pod} from '../../../resources/pod/pod.js';
 import {type ExtendedNetServer} from '../../../../../types/index.js';
+import {findAvailablePort} from '../../../../../core/network/port-utils.js';
 import {PodReference} from '../../../resources/pod/pod-reference.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
 import {sleep} from '../../../../../core/helpers.js';
@@ -90,9 +91,15 @@ export class K8ClientPod implements Pod {
   }
 
   public async portForward(localPort: number, podPort: number, detach: boolean = false): Promise<ExtendedNetServer> {
+    // Variable to store the available port, accessible in both try and catch blocks
+    let availablePort: number;
+
     try {
+      // Find an available port starting from localPort with a 30-second timeout
+      availablePort = await findAvailablePort(localPort, 30_000, this.logger);
+
       this.logger.debug(
-        `Creating port-forwarder for ${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${localPort}`,
+        `Creating port-forwarder for ${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${availablePort}`,
       );
 
       if (detach) {
@@ -101,7 +108,7 @@ export class K8ClientPod implements Pod {
           'is connected to terminates.',
         );
         await new ShellRunner().run(
-          `kubectl port-forward -n ${this.podReference.namespace.name} pods/${this.podReference.name} ${localPort}:${podPort}`,
+          `kubectl port-forward -n ${this.podReference.namespace.name} pods/${this.podReference.name} ${availablePort}:${podPort}`,
           [],
           false,
           true,
@@ -117,12 +124,12 @@ export class K8ClientPod implements Pod {
       })) as ExtendedNetServer;
 
       // add info for logging
-      server.info = `${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${localPort}`;
-      server.localPort = localPort;
+      server.info = `${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${availablePort}`;
+      server.localPort = availablePort;
       this.logger.debug(`Starting port-forwarder [${server.info}]`);
-      return server.listen(localPort, constants.LOCAL_HOST);
+      return server.listen(availablePort, constants.LOCAL_HOST);
     } catch (error) {
-      const message: string = `failed to start port-forwarder [${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${localPort}]: ${error.message}`;
+      const message: string = `failed to start port-forwarder [${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${availablePort}]: ${error.message}`;
       throw new SoloError(message, error);
     }
   }
