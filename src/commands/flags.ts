@@ -149,6 +149,17 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly predefinedAccounts: CommandFlag = {
+    constName: 'predefinedAccounts',
+    name: 'predefined-accounts',
+    definition: {
+      describe: 'Create predefined accounts on network creation',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly forcePortForward: CommandFlag = {
     constName: 'forcePortForward',
     name: 'force-port-forward',
@@ -2568,6 +2579,7 @@ export class Flags {
     Flags.outputDir,
     Flags.persistentVolumeClaims,
     Flags.pinger,
+    Flags.predefinedAccounts,
     Flags.privateKey,
     Flags.profileFile,
     Flags.profileName,
