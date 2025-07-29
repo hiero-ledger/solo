@@ -38,6 +38,7 @@ import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-st
 import {Templates} from '../core/templates.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
+import {Version} from '../business/utils/version.js';
 import {MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 
 interface ExplorerDeployConfigClass {
@@ -352,6 +353,13 @@ export class ExplorerCommand extends BaseCommand {
           title: 'Install cert manager',
           task: async (context_): Promise<void> => {
             const config: ExplorerDeployConfigClass = context_.config;
+
+            config.soloChartVersion = Version.getValidSemanticVersion(
+              config.soloChartVersion,
+              false,
+              'Solo chart version',
+            );
+
             const {soloChartVersion} = config;
 
             const soloCertManagerValuesArgument: string = await this.prepareCertManagerChartValuesArg(config);
@@ -422,6 +430,8 @@ export class ExplorerCommand extends BaseCommand {
 
             let exploreValuesArgument: string = prepareValuesFiles(constants.EXPLORER_VALUES_FILE);
             exploreValuesArgument += await this.prepareHederaExplorerValuesArg(config);
+
+            config.explorerVersion = Version.getValidSemanticVersion(config.explorerVersion, false, 'Explorer version');
 
             await this.chartManager.install(
               config.namespace,

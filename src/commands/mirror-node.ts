@@ -51,6 +51,7 @@ import {Lock} from '../core/lock/lock.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import * as semver from 'semver';
 import {Base64} from 'js-base64';
+import {Version} from '../business/utils/version.js';
 
 interface MirrorNodeDeployConfigClass {
   isChartInstalled: boolean;
@@ -181,6 +182,9 @@ export class MirrorNodeCommand extends BaseCommand {
     if (config.valuesFile) {
       valuesArgument += helpers.prepareValuesFiles(config.valuesFile);
     }
+
+    config.mirrorNodeVersion = Version.getValidSemanticVersion(config.mirrorNodeVersion, true, 'Mirror node version');
+
     const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
     const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
 
@@ -319,6 +323,17 @@ export class MirrorNodeCommand extends BaseCommand {
     showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, context_.config.mirrorNodeVersion);
 
     if (context_.config.enableIngress) {
+      const existingIngressClasses: IngressClass[] = await this.k8Factory
+        .getK8(context_.config.clusterContext)
+        .ingressClasses()
+        .list();
+      for (const ingressClass of existingIngressClasses) {
+        if (ingressClass.name === 'mirror-ingress-class') {
+          this.logger.showUser('mirror-ingress-class already found, skipping');
+          return;
+        }
+      }
+
       await KeyManager.createTlsSecret(
         this.k8Factory,
         context_.config.namespace,
