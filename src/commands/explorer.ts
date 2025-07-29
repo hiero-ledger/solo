@@ -466,7 +466,7 @@ export class ExplorerCommand extends BaseCommand {
             }
             const podReference: PodReference = pods[0].podReference;
 
-            const portForwardPorNumber: number = await this.k8Factory
+            const portForwardPortNumber: number = await this.k8Factory
               .getK8(context_.config.clusterContext)
               .pods()
               .readByReference(podReference)
