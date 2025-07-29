@@ -142,8 +142,14 @@ export class K8ClientPod implements Pod {
           }
           const extractedString: string = lastElement.split(':')[0];
           this.logger.info(`extractedString = ${extractedString}`);
-          availablePort = Number.parseInt(extractedString, 10);
-          this.logger.info(`Reuse already enabled port ${availablePort}`);
+          const parsedPort = Number.parseInt(extractedString, 10);
+          if (Number.isNaN(parsedPort) || parsedPort <= 0 || parsedPort > 65535) {
+            this.logger.warn(`Invalid port extracted: ${extractedString}. Falling back to finding an available port.`);
+            availablePort = await findAvailablePort(localPort, 30_000, this.logger);
+          } else {
+            availablePort = parsedPort;
+            this.logger.info(`Reuse already enabled port ${availablePort}`);
+          }
           // port forward already enabled
           return availablePort;
         }
