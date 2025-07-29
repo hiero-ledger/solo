@@ -41,14 +41,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     //  https://github.com/hashgraph/solo/issues/1823
     //  Add logic for selecting by specific label,
     //  when multiple instances can be deployed at the same time.
-    const relayComponent = component as RelayNodeStateSchema;
-    const ids: number[] = relayComponent.consensusNodeIds;
-    // generate label such as relay-node1 or relay-node1-node2
-    let label: string = 'relay';
-    for (const id of ids) {
-      label += `-${Templates.renderNodeAliasFromNumber(id + 1)}`;
-    }
-    return [`app.kubernetes.io/instance=${label}`];
+    return ['app.kubernetes.io/name=relay'];
   }
 
   private static getHaProxyLabels(component: BaseStateSchema): string[] {

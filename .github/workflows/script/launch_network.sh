@@ -95,7 +95,7 @@ npm run solo -- relay upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -
 npm run solo -- explorer upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q --dev
 
 # wait a few seconds for the pods to be ready before running transactions against them
-sleep 10
+sleep 30
 
 # Test transaction can still be sent and processed
 npm run solo -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
