@@ -122,9 +122,10 @@ export class K8ClientPod implements Pod {
         // to find previous port-forward port number
         // example: ps -ef |grep port-forward |grep pods/haproxy-node1-7bb68675fc-t2q9q
         //   502 34727     1   0 11:43PM ??         0:00.16 kubectl port-forward -n solo-e2e pods/haproxy-node1-7bb68675fc-t2q9q 50211:50211
-        const shellCommand: string = `ps -ef | grep "kubectl port-forward" | grep ${this.podReference.name}`;
+        const shellCommand: string = 'ps -ef';
+        const shellArgs: string[] = ['|', 'grep', 'kubectl port-forward', '|', 'grep', this.podReference.name];
         const shellRunner: ShellRunner = new ShellRunner();
-        const result: string[] = await shellRunner.run(shellCommand, [], true, false);
+        const result: string[] = await shellRunner.run(shellCommand, shellArgs, true, false);
         this.logger.info(`shell command result is ${result}`);
         // if length of result is 1 then could not find previous port forward running, then we can use next available port
         if (result.length === 1) {
