@@ -370,8 +370,8 @@ export class NodeCommandConfigs {
       'contexts',
     ]) as NodeAddConfigClass;
 
-    context_.adminKey = argv[flags.adminKey.name]
-      ? PrivateKey.fromStringED25519(argv[flags.adminKey.name])
+    context_.adminKey = argv[flags.adminKey?.name]
+      ? PrivateKey.fromStringED25519(argv[flags.adminKey?.name])
       : PrivateKey.fromStringED25519(constants.GENESIS_KEY);
 
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
