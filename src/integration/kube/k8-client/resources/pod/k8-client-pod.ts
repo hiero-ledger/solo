@@ -97,27 +97,61 @@ export class K8ClientPod implements Pod {
    * @param localPort The local port to forward from
    * @param podPort The pod port to forward to
    * @param detach Whether to run the port forwarding in detached mode
+   * @param reuse - if true, reuse the port number from previous port forward operation
    * @returns Promise resolving to the port forwarder server when not detached,
    *          or the port number (which may differ from localPort if it was in use) when detached
    */
-  public async portForward(localPort: number, podPort: number, detach: true): Promise<number>;
-  public async portForward(localPort: number, podPort: number, detach?: false): Promise<ExtendedNetServer>;
+  public async portForward(localPort: number, podPort: number, detach: true, reuse?: boolean): Promise<number>;
+  public async portForward(
+    localPort: number,
+    podPort: number,
+    detach?: false,
+    reuse?: boolean,
+  ): Promise<ExtendedNetServer>;
   public async portForward(
     localPort: number,
     podPort: number,
     detach: boolean = false,
+    reuse: boolean = false,
   ): Promise<ExtendedNetServer | number> {
     let availablePort: number = localPort;
 
     try {
-      // Find an available port starting from localPort with a 30-second timeout
-      availablePort = await findAvailablePort(localPort, 30_000, this.logger);
+      if (reuse) {
+        // use `ps -ef | grep "kubectl port-forward"`|grep ${this.podReference.name}
+        // to find previous port-forward port number
+        // example: ps -ef |grep port-forward |grep pods/haproxy-node1-7bb68675fc-t2q9q
+        //   502 34727     1   0 11:43PM ??         0:00.16 kubectl port-forward -n solo-e2e pods/haproxy-node1-7bb68675fc-t2q9q 50211:50211
+        const shellCommand: string = `ps -ef | grep "kubectl port-forward" | grep ${this.podReference.name}`;
+        const shellRunner: ShellRunner = new ShellRunner();
+        const result: string[] = await shellRunner.run(shellCommand, [], true, false);
+        this.logger.info(`shell command result is ${result}`);
+        // if length of result is 1 then could not find previous port forward running, then we can use next available port
+        if (result.length === 1) {
+          availablePort = await findAvailablePort(localPort, 30_000, this.logger);
+        } else {
+          // extract local port number from command output
+          const splitArray = result[0].split(/\s+/).filter(Boolean);
+
+          // The port number should be the last element in the command
+          // It might be in the format localPort:podPort
+          const lastElement = splitArray.at(-1);
+          const extractedString: string = lastElement.split(':')[0];
+          this.logger.info(`extractedString = ${extractedString}`);
+          availablePort = Number.parseInt(extractedString, 10);
+          this.logger.info(`Reuse already enabled port ${availablePort}`);
+          // port forward already enabled
+          return availablePort;
+        }
+      } else {
+        // Find an available port starting from localPort with a 30-second timeout
+        availablePort = await findAvailablePort(localPort, 30_000, this.logger);
+      }
       if (availablePort === localPort) {
         this.logger.showUser(chalk.yellow(`Using requested port ${localPort}`));
       } else {
         this.logger.showUser(chalk.yellow(`Using available port ${availablePort}`));
       }
-
       this.logger.debug(
         `Creating port-forwarder for ${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${availablePort}`,
       );

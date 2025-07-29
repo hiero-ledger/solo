@@ -422,7 +422,7 @@ export class RelayCommand extends BaseCommand {
         },
         this.addRelayComponent(),
         {
-          title: 'Enable port forwarding',
+          title: 'Enable port forwarding for relay node',
           task: async (context_): Promise<void> => {
             const pods: Pod[] = await this.k8Factory
               .getK8(context_.config.clusterContext)
@@ -436,7 +436,12 @@ export class RelayCommand extends BaseCommand {
               .getK8(context_.config.context)
               .pods()
               .readByReference(podReference)
-              .portForward(constants.JSON_RPC_RELAY_PORT, constants.JSON_RPC_RELAY_PORT, true);
+              .portForward(
+                constants.JSON_RPC_RELAY_PORT,
+                constants.JSON_RPC_RELAY_PORT,
+                true,
+                context_.config.isChartInstalled,
+              );
             this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
             this.logger.addMessageGroupMessage(
               constants.PORT_FORWARDING_MESSAGE_GROUP,

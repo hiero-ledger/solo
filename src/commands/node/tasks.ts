@@ -1573,7 +1573,7 @@ export class NodeCommandTasks {
 
   public enablePortForwarding(enablePortForwardHaProxy: boolean = false) {
     return {
-      title: 'Enable port forwarding',
+      title: 'Enable port forwarding for debug port and/or GRPC port',
       task: async context_ => {
         const nodeAlias: NodeAlias = context_.config.debugNodeAlias || 'node1';
         const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
@@ -1604,7 +1604,7 @@ export class NodeCommandTasks {
             .getK8(context)
             .pods()
             .readByReference(podReference)
-            .portForward(constants.GRPC_PORT, constants.GRPC_PORT, true);
+            .portForward(constants.GRPC_PORT, constants.GRPC_PORT, true, context_.config.isChartInstalled);
           this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
           this.logger.addMessageGroupMessage(
             constants.PORT_FORWARDING_MESSAGE_GROUP,

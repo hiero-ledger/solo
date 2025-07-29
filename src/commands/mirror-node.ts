@@ -769,7 +769,7 @@ export class MirrorNodeCommand extends BaseCommand {
         },
         this.addMirrorNodeComponents(),
         {
-          title: 'Enable port forwarding',
+          title: 'Enable port forwarding for mirror ingress controller',
           skip: context_ => !context_.config.forcePortForward || !context_.config.enableIngress,
           task: async context_ => {
             const pods: Pod[] = await this.k8Factory
@@ -791,7 +791,8 @@ export class MirrorNodeCommand extends BaseCommand {
               .getK8(context_.config.clusterContext)
               .pods()
               .readByReference(podReference)
-              .portForward(constants.MIRROR_NODE_PORT, 80, true);
+              // if chart already install, then this is upgrade operation, just reuse the same port
+              .portForward(constants.MIRROR_NODE_PORT, 80, true, context_.config.isChartInstalled);
             this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
             this.logger.addMessageGroupMessage(
               constants.PORT_FORWARDING_MESSAGE_GROUP,

@@ -65,11 +65,12 @@ export interface Pod {
    * @param localPort - the local port to forward to
    * @param podPort - the port on the pod to forward from
    * @param detach - if true, the port forward will run in the background and return the port number
+   * @param reuse - if true, reuse the port number from previous port forward operation
    * @returns Promise resolving to the port forwarder server when not detached,
    *          or the port number (which may differ from localPort if it was in use) when detached
    */
-  portForward(localPort: number, podPort: number, detach: true): Promise<number>;
-  portForward(localPort: number, podPort: number, detach?: false): Promise<ExtendedNetServer>;
+  portForward(localPort: number, podPort: number, detach: true, reuse?: boolean): Promise<number>;
+  portForward(localPort: number, podPort: number, detach?: false, reuse?: boolean): Promise<ExtendedNetServer>;
 
   /**
    * Stop the port forward
