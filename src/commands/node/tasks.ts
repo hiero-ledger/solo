@@ -1612,7 +1612,7 @@ export class NodeCommandTasks {
           this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
           this.logger.addMessageGroupMessage(
             constants.PORT_FORWARDING_MESSAGE_GROUP,
-            `Consensus Node gRPC port forward enabled on localhost:${portForwardPorNumber}`,
+            `Consensus Node gRPC port forward enabled on localhost:${portForwardPortNumber}`,
           );
         }
       },

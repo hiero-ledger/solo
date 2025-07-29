@@ -796,7 +796,7 @@ export class MirrorNodeCommand extends BaseCommand {
             this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
             this.logger.addMessageGroupMessage(
               constants.PORT_FORWARDING_MESSAGE_GROUP,
-              `Mirror Node port forward enabled on localhost:${portForwardPorNumber}`,
+              `Mirror Node port forward enabled on localhost:${portForwardPortNumber}`,
             );
           },
         },

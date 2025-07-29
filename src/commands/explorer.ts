@@ -474,7 +474,7 @@ export class ExplorerCommand extends BaseCommand {
             this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
             this.logger.addMessageGroupMessage(
               constants.PORT_FORWARDING_MESSAGE_GROUP,
-              `Explorer port forward enabled on http://localhost:${portForwardPorNumber}`,
+              `Explorer port forward enabled on http://localhost:${portForwardPortNumber}`,
             );
           },
         },

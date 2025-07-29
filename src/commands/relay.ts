@@ -445,7 +445,7 @@ export class RelayCommand extends BaseCommand {
             this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
             this.logger.addMessageGroupMessage(
               constants.PORT_FORWARDING_MESSAGE_GROUP,
-              `JSON RPC Relay forward enabled on localhost:${portForwardPorNumber}`,
+              `JSON RPC Relay forward enabled on localhost:${portForwardPortNumber}`,
             );
           },
           skip: context_ => !context_.config.forcePortForward,
