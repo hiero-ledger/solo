@@ -92,7 +92,21 @@ export class K8ClientPod implements Pod {
     }
   }
 
-  public async portForward(localPort: number, podPort: number, detach: boolean = false): Promise<ExtendedNetServer> {
+  /**
+   * Forward a local port to a port on the pod
+   * @param localPort The local port to forward from
+   * @param podPort The pod port to forward to
+   * @param detach Whether to run the port forwarding in detached mode
+   * @returns Promise resolving to the port forwarder server when not detached,
+   *          or the port number (which may differ from localPort if it was in use) when detached
+   */
+  public async portForward(localPort: number, podPort: number, detach: true): Promise<number>;
+  public async portForward(localPort: number, podPort: number, detach?: false): Promise<ExtendedNetServer>;
+  public async portForward(
+    localPort: number,
+    podPort: number,
+    detach: boolean = false,
+  ): Promise<ExtendedNetServer | number> {
     let availablePort: number = localPort;
 
     try {
@@ -139,7 +153,7 @@ export class K8ClientPod implements Pod {
           false,
           true,
         );
-        return undefined; // detached mode does not return a server instance
+        return availablePort;
       }
 
       const ns: NamespaceName = this.podReference.namespace;

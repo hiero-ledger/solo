@@ -83,7 +83,6 @@ import {
   type ClusterReferenceName,
   type Context,
   type DeploymentName,
-  ExtendedNetServer,
   type Optional,
   type SoloListr,
   type SoloListrTask,
@@ -1601,7 +1600,7 @@ export class NodeCommandTasks {
             throw new SoloError(`No HAProxy pod found for node alias: ${nodeAlias}`);
           }
           const podReference: PodReference = pods[0].podReference;
-          const portForward: ExtendedNetServer = await this.k8Factory
+          const portForwardPorNumber: number = await this.k8Factory
             .getK8(context)
             .pods()
             .readByReference(podReference)
@@ -1609,7 +1608,7 @@ export class NodeCommandTasks {
           this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
           this.logger.addMessageGroupMessage(
             constants.PORT_FORWARDING_MESSAGE_GROUP,
-            `Consensus Node gRPC port forward enabled on localhost:${portForward.localPort}`,
+            `Consensus Node gRPC port forward enabled on localhost:${portForwardPorNumber}`,
           );
         }
       },
