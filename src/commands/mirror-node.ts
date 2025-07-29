@@ -184,14 +184,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
   public static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [
-      flags.deployment,
-      flags.devMode,
-      flags.quiet,
-      flags.force,
-      flags.mirrorNodeVersion,
-      flags.clusterRef,
-    ],
+    optional: [flags.deployment, flags.devMode, flags.quiet, flags.force, flags.mirrorNodeVersion, flags.clusterRef],
   };
 
   private async prepareValuesArg(config: MirrorNodeDeployConfigClass): Promise<string> {
