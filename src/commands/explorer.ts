@@ -493,11 +493,15 @@ export class ExplorerCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error deploying explorer: ${error.message}`, error);
       } finally {
-        await lease.release();
+        if (lease) {
+          await lease.release();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease.release();
+        if (lease) {
+          await lease.release();
+        }
       });
     }
 
@@ -605,7 +609,9 @@ export class ExplorerCommand extends BaseCommand {
     } catch (error) {
       throw new SoloError(`Error destroy explorer: ${error.message}`, error);
     } finally {
-      await lease.release();
+      if (lease) {
+        await lease.release();
+      }
     }
 
     return true;

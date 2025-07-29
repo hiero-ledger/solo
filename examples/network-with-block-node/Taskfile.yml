@@ -1,53 +1,43 @@
 version: 3
-includes:
-  main:
-    taskfile: ../Taskfile.examples.yml
-    flatten: true
+
+# This Taskfile creates a Hiero deployment with a block node using Kind and kubectl.
+
 vars:
-  use_port_forwards: "true"
-env:
+  NODE_IDENTIFIERS: "node1"
+  BLOCK_NODE_RELEASE_TAG: "v0.62.6"
   SOLO_NETWORK_SIZE: "1"
-  SOLO_DEPLOYMENT: "solo-deployment"
-  SOLO_NAMESPACE: "solo-e2e"
-  SOLO_CLUSTER_NAME: "solo-e2e"
-  MIRROR_RELEASE_NAME: mirror-1
-  SOLO_CLUSTER_RELEASE_NAME: solo-cluster-setup
-  SOLO_CLUSTER_SETUP_NAMESPACE: solo-setup
-
-  BLOCK_NODE_ADD_EXTRA_FLAGS: |
-    --release-tag v0.62.6
-
-  HEDERA_SERVICES_ROOT: "/Users/user/source/hiero-consensus-node"
-  ENABLE_EXPLORER_TLS_FLAG: "--enable-explorer-tls"
-  TLS_CLUSTER_ISSUER_TYPE_FLAG: "--tls-cluster-issuer-type acme-staging"
-  ENABLE_EXPLORER_INGRESS: "--enable-ingress"
-  ENABLE_MIRROR_INGRESS: "--enable-ingress"
-  EXPLORER_NAME_SPACE: "explorer-name-space"
-  EXPLORER_DEPLOYMENT: ""
-  EXPLORER_CLUSTER_CONTEXT: "kind-solo-cluster"
+  DEPLOYMENT: "deployment-network-with-block-node"
+  NAMESPACE: "namespace-network-with-block-node"
+  CLUSTER_NAME: "solo-cluster"
+  CONTEXT: "kind-solo-cluster"
+  CLUSTER_REFERENCE: "kind-solo-cluster"
 tasks:
-  install:network-with-block-node:
-    desc: creates network with block nodes
-    deps:
-      - task: "init"
+  install:
+    desc: Run a full standalone Solo network with block node, mirror node, and relay
     cmds:
-      - task: "cluster:create"
-      - task: "solo:init"
-      - task: "solo:cluster:setup"
-      - task: "solo:cluster-ref:connect"
-      - task: "solo:deployment:create"
-      - task: "solo:deployment:add-cluster"
-      - task: "solo:block:add"
-      - task: "solo:keys"
-      - task: "solo:network:deploy"
-      - task: "solo:node:setup"
-      - task: "solo:node:start"
-      - task: "solo:mirror-node"
-      - task: "solo:explorer"
-
-  destroy:network-with-block-node:
-    desc: destroy network
-    deps:
-      - task: "init"
+      - npm i @hashgraph/solo
+      - kind create cluster -n {{ .CLUSTER_NAME }}
+      - sleep 10 # wait for control plane to come up
+      - kubectl config set-context {{ .CONTEXT }}
+      - solo init
+      - solo cluster-ref connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
+      - solo deployment create --deployment {{ .DEPLOYMENT }} --namespace {{ .NAMESPACE }}
+      - solo deployment add-cluster --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
+      - solo cluster-ref setup --cluster-ref {{ .CLUSTER_REFERENCE }}
+      - solo block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .BLOCK_NODE_RELEASE_TAG }} --cluster-ref {{ .CLUSTER_REFERENCE }}
+      - solo node keys --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }}
+      - solo network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }}
+      - solo node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
+      - solo node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      - solo mirror-node deploy --deployment {{ .DEPLOYMENT }} --pinger
+      - solo relay deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      - solo explorer deploy --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }}
+  destroy:
+    desc: Destroy the Solo network with block node
     cmds:
-      - task: "cluster:destroy"
+      - solo node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      - solo mirror-node destroy --deployment {{ .DEPLOYMENT }} --force
+      - solo relay destroy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      - solo explorer destroy --deployment {{ .DEPLOYMENT }}
+      - solo network destroy --deployment {{ .DEPLOYMENT }} --force
+      - kind delete cluster -n {{ .CLUSTER_NAME }}
