@@ -92,7 +92,7 @@ npm run solo -- mirror-node upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-
 
 # redeploy explorer and relay node to upgrade to a newer version
 npm run solo -- relay upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
-npm run solo -- explorer upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
+npm run solo -- explorer upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q --dev
 
 # wait a few seconds for the pods to be ready before running transactions against them
 sleep 10
