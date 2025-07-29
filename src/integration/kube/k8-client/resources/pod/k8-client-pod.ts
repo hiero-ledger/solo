@@ -122,9 +122,10 @@ export class K8ClientPod implements Pod {
         // to find previous port-forward port number
         // example: ps -ef |grep port-forward |grep pods/haproxy-node1-7bb68675fc-t2q9q
         //   502 34727     1   0 11:43PM ??         0:00.16 kubectl port-forward -n solo-e2e pods/haproxy-node1-7bb68675fc-t2q9q 50211:50211
-        const shellCommand: string = `ps -ef | grep "kubectl port-forward" | grep ${this.podReference.name}`;
+        const shellCommand: string = 'ps -ef';
+        const shellArgs: string[] = ['|', 'grep', 'kubectl port-forward', '|', 'grep', this.podReference.name];
         const shellRunner: ShellRunner = new ShellRunner();
-        const result: string[] = await shellRunner.run(shellCommand, [], true, false);
+        const result: string[] = await shellRunner.run(shellCommand, shellArgs, true, false);
         this.logger.info(`shell command result is ${result}`);
         // if length of result is 1 then could not find previous port forward running, then we can use next available port
         if (result.length === 1) {
@@ -136,10 +137,19 @@ export class K8ClientPod implements Pod {
           // The port number should be the last element in the command
           // It might be in the format localPort:podPort
           const lastElement = splitArray.at(-1);
+          if (lastElement === undefined) {
+            throw new SoloError(`Failed to extract port: lastElement is undefined in command output: ${result[0]}`);
+          }
           const extractedString: string = lastElement.split(':')[0];
           this.logger.info(`extractedString = ${extractedString}`);
-          availablePort = Number.parseInt(extractedString, 10);
-          this.logger.info(`Reuse already enabled port ${availablePort}`);
+          const parsedPort = Number.parseInt(extractedString, 10);
+          if (Number.isNaN(parsedPort) || parsedPort <= 0 || parsedPort > 65535) {
+            this.logger.warn(`Invalid port extracted: ${extractedString}. Falling back to finding an available port.`);
+            availablePort = await findAvailablePort(localPort, 30_000, this.logger);
+          } else {
+            availablePort = parsedPort;
+            this.logger.info(`Reuse already enabled port ${availablePort}`);
+          }
           // port forward already enabled
           return availablePort;
         }
