@@ -45,7 +45,6 @@ import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Duration} from '../core/time/duration.js';
-import {MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {Version} from '../business/utils/version.js';
 
 interface RelayDestroyConfigClass {

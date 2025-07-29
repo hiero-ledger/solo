@@ -39,7 +39,6 @@ import {Templates} from '../core/templates.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Version} from '../business/utils/version.js';
-import {MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
