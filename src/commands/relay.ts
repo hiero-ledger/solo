@@ -432,7 +432,7 @@ export class RelayCommand extends BaseCommand {
               throw new SoloError('No Relay pod found');
             }
             const podReference: PodReference = pods[0].podReference;
-            const portForwardPorNumber: number = await this.k8Factory
+            const portForwardPortNumber: number = await this.k8Factory
               .getK8(context_.config.context)
               .pods()
               .readByReference(podReference)
