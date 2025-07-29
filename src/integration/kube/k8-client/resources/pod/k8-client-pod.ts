@@ -137,6 +137,9 @@ export class K8ClientPod implements Pod {
           // The port number should be the last element in the command
           // It might be in the format localPort:podPort
           const lastElement = splitArray.at(-1);
+          if (lastElement === undefined) {
+            throw new SoloError(`Failed to extract port: lastElement is undefined in command output: ${result[0]}`);
+          }
           const extractedString: string = lastElement.split(':')[0];
           this.logger.info(`extractedString = ${extractedString}`);
           availablePort = Number.parseInt(extractedString, 10);
