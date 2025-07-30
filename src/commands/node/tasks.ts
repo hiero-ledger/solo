@@ -1605,9 +1605,9 @@ export class NodeCommandTasks {
             throw new SoloError(`No HAProxy pod found for node alias: ${nodeAlias}`);
           }
           const podReference: PodReference = pods[0].podReference;
-          const clusterReference: string = this.k8Factory.default().clusters().readCurrent();
+          const nodeId: number = Templates.nodeIdFromNodeAlias(nodeAlias);
           await managePortForward(
-            clusterReference,
+            undefined,
             podReference,
             constants.GRPC_PORT, // Pod port
             constants.GRPC_PORT, // Local port
@@ -1617,6 +1617,7 @@ export class NodeCommandTasks {
             this.remoteConfig.configuration,
             'Consensus Node gRPC',
             context_.config.isChartInstalled, // Reuse existing port if chart is already installed
+            nodeId,
           );
 
           // const portForwardPortNumber: number = await this.k8Factory

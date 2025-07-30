@@ -104,6 +104,7 @@ export async function managePortForward(
   remoteConfig: RemoteConfig,
   lable: string,
   reuse: boolean = false,
+  nodeId?: number,
 ): Promise<number> {
   const installedSoloVersion: SemVer = remoteConfig.versions.cli;
   if (semver.lte(installedSoloVersion, '0.41.0')) {
@@ -111,11 +112,17 @@ export async function managePortForward(
     reuse = true;
     logger.showUser(`Port forward config not found for previous installed ${lable}, reusing existing port forward`);
   }
-  const schemeComponents: BaseStateSchema[] = remoteConfig.components.getComponentsByClusterReference<BaseStateSchema>(
-    componentType,
-    clusterReference,
-  );
-  const component: BaseStateSchema = schemeComponents[0];
+
+  let component: BaseStateSchema;
+  if (clusterReference) {
+    const schemeComponents: BaseStateSchema[] =
+      remoteConfig.components.getComponentsByClusterReference<BaseStateSchema>(componentType, clusterReference);
+    component = schemeComponents[0];
+    console.log(`found by cluster component = ${component}`);
+  } else {
+    component = remoteConfig.components.getComponentById<BaseStateSchema>(componentType, nodeId);
+    console.log(`found by node id component = ${component}`);
+  }
 
   // Check if port forwarding is already enabled for this pod port
   if (component.metadata.portForwardConfigs) {

@@ -27,7 +27,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     }
 
     const addComponentCallback: (components: BaseStateSchema[]) => void = (components): void => {
-      if (this.checkComponentExists(components, component) && isReplace === false) {
+      if (this.checkComponentExists(components, component) && isReplace !== true) {
         throw new SoloError('Component exists', undefined, component);
       }
       console.log(`component = ${JSON.stringify(components)}`);
