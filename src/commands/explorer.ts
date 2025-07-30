@@ -276,28 +276,25 @@ export class ExplorerCommand extends BaseCommand {
               [],
             ) as ExplorerDeployConfigClass;
 
-            context_.config = config
+            context_.config = config;
 
             if (!config.clusterRef) {
               config.clusterRef = this.remoteConfig.currentCluster;
             }
 
-            config.clusterContext = this.localConfig.configuration.clusterRefs
-              .get(config.clusterRef)
-              ?.toString();
+            config.clusterContext = this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString();
 
             config.releaseName = this.getReleaseName();
             config.ingressReleaseName = this.getIngressReleaseName();
 
-            if (config.mirrorNodeId === 1) {
-              config.isMirrorNodeLegacyChartInstalled = await this.chartManager.isChartInstalled(
-                config.namespace,
-                constants.MIRROR_NODE_RELEASE_NAME,
-                config.clusterContext,
-              );
-            } else {
-              config.isMirrorNodeLegacyChartInstalled = false;
-            }
+            config.isMirrorNodeLegacyChartInstalled =
+              config.mirrorNodeId === 1
+                ? await this.chartManager.isChartInstalled(
+                    config.namespace,
+                    constants.MIRROR_NODE_RELEASE_NAME,
+                    config.clusterContext,
+                  )
+                : false;
 
             config.newExplorerComponent = this.componentFactory.createNewExplorerComponent(
               config.clusterRef,
@@ -604,15 +601,14 @@ export class ExplorerCommand extends BaseCommand {
               ingressReleaseName = this.getIngressReleaseName(id);
             }
 
-            if (id === 1) {
-              isLegacyChartInstalled = await this.chartManager.isChartInstalled(
-                namespace,
-                constants.MIRROR_NODE_RELEASE_NAME,
-                clusterContext,
-              );
-            } else {
-              isLegacyChartInstalled = false;
-            }
+            isLegacyChartInstalled =
+              id === 1
+                ? await this.chartManager.isChartInstalled(
+                    namespace,
+                    constants.MIRROR_NODE_RELEASE_NAME,
+                    clusterContext,
+                  )
+                : false;
 
             if (isLegacyChartInstalled) {
               isChartInstalled = true;

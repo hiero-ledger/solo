@@ -429,15 +429,14 @@ export class BlockNodeCommand extends BaseCommand {
               config.id = this.remoteConfig.configuration.components.state.blockNodes[0].metadata.id;
             }
 
-            if (config.id <= 1) {
-              config.isLegacyChartInstalled = await this.chartManager.isChartInstalled(
-                config.namespace,
-                `${constants.BLOCK_NODE_RELEASE_NAME}-0`,
-                config.context,
-              );
-            } else {
-              config.isLegacyChartInstalled = false;
-            }
+            config.isLegacyChartInstalled =
+              config.id <= 1
+                ? await this.chartManager.isChartInstalled(
+                    config.namespace,
+                    `${constants.BLOCK_NODE_RELEASE_NAME}-0`,
+                    config.context,
+                  )
+                : false;
 
             if (config.isLegacyChartInstalled) {
               config.isChartInstalled = true;
@@ -534,11 +533,9 @@ export class BlockNodeCommand extends BaseCommand {
               );
             }
 
-            if (config.isLegacyChartInstalled) {
-              config.releaseName = `${constants.BLOCK_NODE_RELEASE_NAME}-0`;
-            } else {
-              config.releaseName = this.getReleaseName(config.id);
-            }
+            config.releaseName = config.isLegacyChartInstalled
+              ? `${constants.BLOCK_NODE_RELEASE_NAME}-0`
+              : this.getReleaseName(config.id);
 
             config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
 
