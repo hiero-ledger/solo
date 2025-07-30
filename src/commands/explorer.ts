@@ -265,6 +265,9 @@ export class ExplorerCommand extends BaseCommand {
             ]) as ExplorerDeployConfigClass;
 
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
+            context_.config.clusterReference =
+              (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
+              this.k8Factory.default().clusters().readCurrent();
             context_.config.clusterContext = context_.config.clusterRef
               ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString()
               : this.k8Factory.default().contexts().readCurrent();
