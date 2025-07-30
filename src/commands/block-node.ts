@@ -81,7 +81,6 @@ interface BlockNodeDestroyConfigClass {
   valuesArg: string;
   releaseName: string;
   id: number;
-  useLegacyReleaseName: boolean;
   isLegacyChartInstalled: boolean;
 }
 
@@ -99,6 +98,8 @@ interface BlockNodeUpgradeConfigClass {
   context: string;
   releaseName: string;
   upgradeVersion: string;
+  id: number;
+  isLegacyChartInstalled: boolean;
 }
 
 interface BlockNodeUpgradeContext {
@@ -151,7 +152,15 @@ export class BlockNodeCommand extends BaseCommand {
 
   private static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
     required: [flags.upgradeVersion],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.deployment, flags.devMode, flags.force, flags.quiet],
+    optional: [
+      flags.chartDirectory,
+      flags.clusterRef,
+      flags.deployment,
+      flags.devMode,
+      flags.force,
+      flags.quiet,
+      flags.id,
+    ],
   };
 
   private async prepareValuesArgForBlockNode(config: BlockNodeDeployConfigClass): Promise<string> {
@@ -409,66 +418,53 @@ export class BlockNodeCommand extends BaseCommand {
 
             await this.configManager.executePrompt(task, allFlags);
 
-            context_.config = this.configManager.getConfig(
+            const config: BlockNodeDestroyConfigClass = this.configManager.getConfig(
               BlockNodeCommand.DESTROY_CONFIGS_NAME,
               allFlags,
             ) as BlockNodeDestroyConfigClass;
 
-            context_.config.useLegacyReleaseName = false;
+            context_.config = config;
 
-            context_.config.namespace = await resolveNamespaceFromDeployment(
-              this.localConfig,
-              this.configManager,
-              task,
-            );
+            config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
 
-            if (!context_.config.clusterRef) {
-              context_.config.clusterRef = this.k8Factory.default().clusters().readCurrent();
+            if (!config.clusterRef) {
+              config.clusterRef = this.k8Factory.default().clusters().readCurrent();
             }
 
-            context_.config.context = this.remoteConfig.getClusterRefs()[context_.config.clusterRef];
+            config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
 
             // Use fallback if id not provided
-            if (typeof context_.config.id !== 'number') {
-              context_.config.id = this.remoteConfig.configuration.components.state.blockNodes[0]?.metadata?.id;
+            if (typeof config.id !== 'number') {
+              if (this.remoteConfig.configuration.components.state.blockNodes.length === 0) {
+                throw new SoloError('Block node not found in remote config');
+              }
+
+              config.id = this.remoteConfig.configuration.components.state.blockNodes[0].metadata.id;
             }
 
-            context_.config.releaseName = this.getReleaseName(context_.config.id);
-
-            // Lookup block node component in remote config
-            try {
-              this.remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(
-                ComponentTypes.BlockNode,
-                context_.config.id,
-              );
-            } catch (error) {
-              throw new SoloError(`Block node ${context_.config.releaseName} was not found`, error);
-            }
-
-            // Check if release name is legacy
-            if (context_.config.id <= 1) {
-              context_.config.isLegacyChartInstalled = await this.chartManager.isChartInstalled(
-                context_.config.namespace,
+            if (config.id <= 1) {
+              config.isLegacyChartInstalled = await this.chartManager.isChartInstalled(
+                config.namespace,
                 `${constants.BLOCK_NODE_RELEASE_NAME}-0`,
-                context_.config.context,
+                config.context,
               );
             } else {
-              context_.config.isLegacyChartInstalled = false;
+              config.isLegacyChartInstalled = false;
             }
 
-            if (context_.config.isLegacyChartInstalled) {
-              context_.config.isChartInstalled = true;
-              context_.config.useLegacyReleaseName = true;
-              context_.config.releaseName = `${constants.BLOCK_NODE_RELEASE_NAME}-0`;
+            if (config.isLegacyChartInstalled) {
+              config.isChartInstalled = true;
+              config.releaseName = `${constants.BLOCK_NODE_RELEASE_NAME}-0`;
             } else {
-              context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
-                context_.config.namespace,
-                context_.config.releaseName,
-                context_.config.context,
+              config.releaseName = this.getReleaseName(config.id);
+              config.isChartInstalled = await this.chartManager.isChartInstalled(
+                config.namespace,
+                config.releaseName,
+                config.context,
               );
             }
 
-            this.logger.debug('Initialized config', {config: context_.config});
+            this.logger.debug('Initialized config', {config});
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
@@ -524,26 +520,44 @@ export class BlockNodeCommand extends BaseCommand {
 
             await this.configManager.executePrompt(task, allFlags);
 
-            context_.config = this.configManager.getConfig(
+            const config: BlockNodeUpgradeConfigClass = this.configManager.getConfig(
               BlockNodeCommand.UPGRADE_CONFIGS_NAME,
               allFlags,
             ) as BlockNodeUpgradeConfigClass;
 
-            context_.config.namespace = await resolveNamespaceFromDeployment(
-              this.localConfig,
-              this.configManager,
-              task,
-            );
+            context_.config = config;
 
-            if (!context_.config.clusterRef) {
-              context_.config.clusterRef = this.k8Factory.default().clusters().readCurrent();
+            config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+
+            if (!config.clusterRef) {
+              config.clusterRef = this.k8Factory.default().clusters().readCurrent();
             }
 
-            context_.config.releaseName = `${constants.BLOCK_NODE_RELEASE_NAME}-0`;
+            if (typeof config.id !== 'number') {
+              if (this.remoteConfig.configuration.components.state.blockNodes.length === 0) {
+                throw new SoloError('Block node not found in remote config');
+              }
 
-            context_.config.context = this.remoteConfig.getClusterRefs()[context_.config.clusterRef];
+              config.id = this.remoteConfig.configuration.components.state.blockNodes[0].metadata.id;
+            }
 
-            this.logger.debug('Initialized config', {config: context_.config});
+            if (config.id <= 0) {
+              config.isLegacyChartInstalled = await this.chartManager.isChartInstalled(
+                config.namespace,
+                `${constants.BLOCK_NODE_RELEASE_NAME}-0`,
+                config.context,
+              );
+            }
+
+            if (config.isLegacyChartInstalled) {
+              config.releaseName = `${constants.BLOCK_NODE_RELEASE_NAME}-0`;
+            } else {
+              config.releaseName = this.getReleaseName(config.id);
+            }
+
+            config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
+
+            this.logger.debug('Initialized config', {config});
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
@@ -553,10 +567,9 @@ export class BlockNodeCommand extends BaseCommand {
           task: async (context_): Promise<void> => {
             const config: BlockNodeUpgradeConfigClass = context_.config;
             try {
-              // TODO: Add support for multiple block nodes
               this.remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(
                 ComponentTypes.BlockNode,
-                0,
+                config.id,
               );
             } catch (error) {
               throw new SoloError(`Block node ${config.releaseName} was not found`, error);
@@ -568,7 +581,7 @@ export class BlockNodeCommand extends BaseCommand {
           task: async (context_): Promise<void> => {
             const {namespace, releaseName, context, upgradeVersion} = context_.config;
 
-            const validatedUpgradeVersion = Version.getValidSemanticVersion(
+            const validatedUpgradeVersion: string = Version.getValidSemanticVersion(
               upgradeVersion,
               false,
               'Block node chart version',
