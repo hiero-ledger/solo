@@ -117,6 +117,25 @@ export class K8ClientPod implements Pod {
     let availablePort: number = localPort;
 
     try {
+      // first use http.request(url[, options][, callback]) GET method against localhost:localPort to kill any pre-existing
+      // port-forward that is no longer active.  It doesn't matter what the response is.
+      const url: string = `http://${constants.LOCAL_HOST}:${localPort}`;
+      await new Promise<void>((resolve): void => {
+        http
+          .request(url, {method: 'GET'}, (response): void => {
+            response.on('data', (): void => {
+              // do nothing
+            });
+            response.on('end', (): void => {
+              resolve();
+            });
+          })
+          .on('error', (): void => {
+            resolve();
+          })
+          .end();
+      });
+
       if (reuse) {
         console.log(`Reuse port forward ${localPort}`);
         // use `ps -ef | grep "kubectl port-forward"`|grep ${this.podReference.name}
@@ -136,25 +155,23 @@ export class K8ClientPod implements Pod {
         const shellRunner: ShellRunner = new ShellRunner();
         const result: string[] = await shellRunner.run(shellCommand.join(' '), [], true, false);
         this.logger.info(`shell command result is ${result}`);
+
         // if length of result is 1 then could not find previous port forward running, then we can use next available port
-        if (result.length === 1) {
-          availablePort = await findAvailablePort(localPort, 30_000, this.logger);
-        } else {
+        if (result.length > 1) {
           // extract local port number from command output
-          const splitArray = result[0].split(/\s+/).filter(Boolean);
+          const splitArray: string[] = result[0].split(/\s+/).filter(Boolean);
 
           // The port number should be the last element in the command
           // It might be in the format localPort:podPort
-          const lastElement = splitArray.at(-1);
+          const lastElement: string = splitArray.at(-1);
           if (lastElement === undefined) {
             throw new SoloError(`Failed to extract port: lastElement is undefined in command output: ${result[0]}`);
           }
           const extractedString: string = lastElement.split(':')[0];
           this.logger.info(`extractedString = ${extractedString}`);
-          const parsedPort = Number.parseInt(extractedString, 10);
+          const parsedPort: number = Number.parseInt(extractedString, 10);
           if (Number.isNaN(parsedPort) || parsedPort <= 0 || parsedPort > 65_535) {
-            this.logger.warn(`Invalid port extracted: ${extractedString}. Falling back to finding an available port.`);
-            availablePort = await findAvailablePort(localPort, 30_000, this.logger);
+            throw new SoloError(`Invalid port extracted: ${extractedString}.`);
           } else {
             availablePort = parsedPort;
             this.logger.info(`Reuse already enabled port ${availablePort}`);
@@ -162,10 +179,11 @@ export class K8ClientPod implements Pod {
           // port forward already enabled
           return availablePort;
         }
-      } else {
-        // Find an available port starting from localPort with a 30-second timeout
-        availablePort = await findAvailablePort(localPort, 30_000, this.logger);
       }
+
+      // Find an available port starting from localPort with a 30-second timeout
+      availablePort = await findAvailablePort(localPort, 30_000, this.logger);
+
       if (availablePort === localPort) {
         this.logger.showUser(chalk.yellow(`Using requested port ${localPort}`));
       } else {
@@ -174,25 +192,6 @@ export class K8ClientPod implements Pod {
       this.logger.debug(
         `Creating port-forwarder for ${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${availablePort}`,
       );
-
-      // first use http.request(url[, options][, callback]) GET method against localhost:localPort to kill any pre-existing
-      // port-forward that is no longer active.  It doesn't matter what the response is.
-      const url: string = `http://${constants.LOCAL_HOST}:${localPort}`;
-      await new Promise<void>((resolve): void => {
-        http
-          .request(url, {method: 'GET'}, (response): void => {
-            response.on('data', (): void => {
-              // do nothing
-            });
-            response.on('end', (): void => {
-              resolve();
-            });
-          })
-          .on('error', (): void => {
-            resolve();
-          })
-          .end();
-      });
 
       // if detach is true, start a port-forwarder in detached mode
       if (detach) {

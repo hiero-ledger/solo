@@ -798,7 +798,7 @@ export class MirrorNodeCommand extends BaseCommand {
               this.k8Factory.getK8(context_.config.clusterContext),
               this.logger,
               ComponentTypes.MirrorNode,
-              this.remoteConfig.configuration,
+              this.remoteConfig,
               'Mirror ingress controller',
               context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             );

@@ -479,7 +479,7 @@ export class ExplorerCommand extends BaseCommand {
               this.k8Factory.getK8(context_.config.clusterContext),
               this.logger,
               ComponentTypes.Explorers,
-              this.remoteConfig.configuration,
+              this.remoteConfig,
               'Explorer',
               context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             );

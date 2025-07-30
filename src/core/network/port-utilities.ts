@@ -8,9 +8,9 @@ import {type ComponentTypes} from '../config/remote/enumerations/component-types
 import {type PodReference} from '../../integration/kube/resources/pod/pod-reference.js';
 import {type K8} from '../../integration/kube/k8.js';
 import {type ClusterReferenceName} from '../../types/index.js';
-import {type RemoteConfig} from '../../business/runtime-state/config/remote/remote-config.js';
 import semver from 'semver/preload.js';
 import {type SemVer} from 'semver';
+import type {RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 /**
  * Check if a TCP port is available on the local machine
@@ -101,12 +101,12 @@ export async function managePortForward(
   k8Client: K8,
   logger: SoloLogger,
   componentType: ComponentTypes,
-  remoteConfig: RemoteConfig,
+  remoteConfig: RemoteConfigRuntimeStateApi,
   lable: string,
   reuse: boolean = false,
   nodeId?: number,
 ): Promise<number> {
-  const installedSoloVersion: SemVer = remoteConfig.versions.cli;
+  const installedSoloVersion: SemVer = remoteConfig.configuration.versions.cli;
   if (semver.lte(installedSoloVersion, '0.41.0')) {
     // old version does not have port forward config
     reuse = true;
@@ -114,13 +114,17 @@ export async function managePortForward(
   }
 
   let component: BaseStateSchema;
+  console.log(`found component ${componentType}, clusterReference=${clusterReference}, nodeId=${nodeId}`);
   if (clusterReference) {
     const schemeComponents: BaseStateSchema[] =
-      remoteConfig.components.getComponentsByClusterReference<BaseStateSchema>(componentType, clusterReference);
+      remoteConfig.configuration.components.getComponentsByClusterReference<BaseStateSchema>(
+        componentType,
+        clusterReference,
+      );
     component = schemeComponents[0];
     console.log(`found by cluster component = ${component}`);
   } else {
-    component = remoteConfig.components.getComponentById<BaseStateSchema>(componentType, nodeId);
+    component = remoteConfig.configuration.components.getComponentById<BaseStateSchema>(componentType, nodeId);
     console.log(`found by node id component = ${component}`);
   }
 
@@ -153,13 +157,14 @@ export async function managePortForward(
     component.metadata.portForwardConfigs = [];
   }
 
+  console.log(`add port localPort=${portForwardPortNumber}, podPort=${podPort}`);
   // Save port forward config to component
   component.metadata.portForwardConfigs.push({
     localPort: portForwardPortNumber,
     podPort: podPort,
   });
 
-  remoteConfig.components.addNewComponent(component, componentType, true);
-
+  remoteConfig.configuration.components.addNewComponent(component, componentType, true);
+  await remoteConfig.persist();
   return portForwardPortNumber;
 }
