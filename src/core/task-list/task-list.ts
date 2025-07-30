@@ -13,6 +13,7 @@ import {
 } from 'listr2';
 import {type QuickStartSingleDeployContext} from '../../commands/quick-start/quick-start-single-deploy-context.js';
 import {type TaskListWrapper} from './task-list-wrapper.js';
+import {type AnyListrContext} from '../../types/aliases.js';
 
 export type TaskNodeType = {
   taskListWrapper: TaskListWrapper;
@@ -46,26 +47,18 @@ export interface TaskList<
 
   parentTaskListMap: Map<string, TaskNodeType>;
 
-  newTaskList(
+  newTaskList<T = AnyListrContext>(
     task:
-      | ListrTask<
-          ListrContext,
-          ListrGetRendererClassFromValue<Renderer>,
-          ListrGetRendererClassFromValue<FallbackRenderer>
-        >
-      | ListrTask<
-          ListrContext,
-          ListrGetRendererClassFromValue<Renderer>,
-          ListrGetRendererClassFromValue<FallbackRenderer>
-        >[],
-    options?: ListrBaseClassOptions<ListrContext, Renderer, FallbackRenderer>,
+      | ListrTask<T, ListrGetRendererClassFromValue<Renderer>, ListrGetRendererClassFromValue<FallbackRenderer>>
+      | ListrTask<T, ListrGetRendererClassFromValue<Renderer>, ListrGetRendererClassFromValue<FallbackRenderer>>[],
+    options?: ListrBaseClassOptions<T, Renderer, FallbackRenderer>,
     parentTask?: ListrTaskObject<
-      ListrContext,
+      T,
       ListrGetRendererClassFromValue<Renderer>,
       ListrGetRendererClassFromValue<FallbackRenderer>
     >,
     commandName?: string,
-  ): Listr<ListrContext, Renderer, FallbackRenderer>;
+  ): Listr<T, Renderer, FallbackRenderer>;
 
   registerCloseFunction(trailingCloseFunction: () => Promise<void>): void;
 
