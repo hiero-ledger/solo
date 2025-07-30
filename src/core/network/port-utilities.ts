@@ -3,7 +3,7 @@
 import net from 'node:net';
 import * as constants from '../constants.js';
 import {type SoloLogger} from '../logging/solo-logger.js';
-import {BaseStateSchema} from '../../data/schema/model/remote/state/base-state-schema.js';
+import {type BaseStateSchema} from '../../data/schema/model/remote/state/base-state-schema.js';
 import {type ComponentTypes} from '../config/remote/enumerations/component-types.js';
 import {type PodReference} from '../../integration/kube/resources/pod/pod-reference.js';
 import {type K8} from '../../integration/kube/k8.js';
