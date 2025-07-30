@@ -452,6 +452,9 @@ export class MirrorNodeCommand extends BaseCommand {
               config.namespace,
             );
 
+            config.releaseName = this.getReleaseName(config.newMirrorNodeComponent.metadata.id);
+            config.ingressReleaseName = this.getIngressReleaseName(config.newMirrorNodeComponent.metadata.id);
+
             const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
             const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
             const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
