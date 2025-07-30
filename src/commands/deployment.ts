@@ -144,8 +144,6 @@ export class DeploymentCommand extends BaseCommand {
             ) {
               throw new SoloError(ErrorMessages.DEPLOYMENT_NAME_ALREADY_EXISTS(context_.config.deployment));
             }
-
-            self.logger.debug('Prepared config', {config: context_.config, cachedConfig: self.configManager.config});
           },
         },
         {
@@ -228,8 +226,6 @@ export class DeploymentCommand extends BaseCommand {
             ) {
               throw new SoloError(ErrorMessages.DEPLOYMENT_NAME_ALREADY_EXISTS(context_.config.deployment));
             }
-
-            self.logger.debug('Prepared config', {config: context_.config, cachedConfig: self.configManager.config});
           },
         },
         {
@@ -335,13 +331,10 @@ export class DeploymentCommand extends BaseCommand {
             await self.localConfig.load();
 
             self.configManager.update(argv);
-            self.logger.debug('Updated config with argv', {config: self.configManager.config});
             await self.configManager.executePrompt(task, [flags.clusterRef]);
             context_.config = {
               clusterName: self.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
             } as Config;
-
-            self.logger.debug('Prepared config', {config: context_.config, cachedConfig: self.configManager.config});
           },
         },
         {
@@ -525,8 +518,6 @@ export class DeploymentCommand extends BaseCommand {
           nodeAliases: [] as NodeAliases,
           context: '',
         };
-
-        this.logger.debug('Prepared config', {config: context_.config, cachedConfig: this.configManager.config});
       },
     };
   }
