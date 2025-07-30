@@ -4,13 +4,13 @@ import net from 'node:net';
 import * as constants from '../constants.js';
 import {type SoloLogger} from '../logging/solo-logger.js';
 import {type BaseStateSchema} from '../../data/schema/model/remote/state/base-state-schema.js';
-import {type ComponentTypes} from '../config/remote/enumerations/component-types.js';
+import {ComponentTypes} from '../config/remote/enumerations/component-types.js';
 import {type PodReference} from '../../integration/kube/resources/pod/pod-reference.js';
 import {type K8} from '../../integration/kube/k8.js';
 import {type ClusterReferenceName} from '../../types/index.js';
 import semver from 'semver/preload.js';
 import {type SemVer} from 'semver';
-import type {RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 
 /**
  * Check if a TCP port is available on the local machine
@@ -102,20 +102,25 @@ export async function managePortForward(
   logger: SoloLogger,
   componentType: ComponentTypes,
   remoteConfig: RemoteConfigRuntimeStateApi,
-  lable: string,
+  label: string,
   reuse: boolean = false,
   nodeId?: number,
 ): Promise<number> {
   const installedSoloVersion: SemVer = remoteConfig.configuration.versions.cli;
+  let skipSearchComponent: boolean = false;
   if (semver.lte(installedSoloVersion, '0.41.0')) {
+    if (ComponentTypes.RelayNodes === componentType) {
+      logger.showUser('Previous version of remote config has no cluster reference field in relay component');
+      skipSearchComponent = true;
+    }
     // old version does not have port forward config
     reuse = true;
-    logger.showUser(`Port forward config not found for previous installed ${lable}, reusing existing port forward`);
+    logger.showUser(`Port forward config not found for previous installed ${label}, reusing existing port forward`);
   }
 
   let component: BaseStateSchema;
   console.log(`found component ${componentType}, clusterReference=${clusterReference}, nodeId=${nodeId}`);
-  if (clusterReference) {
+  if (!skipSearchComponent && clusterReference) {
     const schemeComponents: BaseStateSchema[] =
       remoteConfig.configuration.components.getComponentsByClusterReference<BaseStateSchema>(
         componentType,
@@ -129,11 +134,11 @@ export async function managePortForward(
   }
 
   // Check if port forwarding is already enabled for this pod port
-  if (component.metadata.portForwardConfigs) {
+  if (component && component.metadata.portForwardConfigs) {
     for (const portForwardConfig of component.metadata.portForwardConfigs) {
       if (portForwardConfig.podPort === podPort) {
         // Port forward already enabled
-        logger.showUser(`${lable} Port forward already enabled at ${portForwardConfig.localPort}`);
+        logger.showUser(`${label} Port forward already enabled at ${portForwardConfig.localPort}`);
         return portForwardConfig.localPort;
       }
     }
@@ -149,7 +154,7 @@ export async function managePortForward(
   logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
   logger.addMessageGroupMessage(
     constants.PORT_FORWARDING_MESSAGE_GROUP,
-    `${lable} port forward enabled on localhost:${portForwardPortNumber}`,
+    `${label} port forward enabled on localhost:${portForwardPortNumber}`,
   );
 
   // Update component configuration
