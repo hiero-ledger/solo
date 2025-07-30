@@ -260,7 +260,7 @@ export class ExplorerCommand extends BaseCommand {
             lease = await this.leaseManager.create();
 
             this.configManager.update(argv);
-            // disable the prompts that we don't want to prompt the user for
+
             flags.disablePrompts(ExplorerCommand.DEPLOY_FLAGS_LIST.optional);
 
             const allFlags: CommandFlag[] = [
@@ -270,42 +270,44 @@ export class ExplorerCommand extends BaseCommand {
 
             await this.configManager.executePrompt(task, allFlags);
 
-            context_.config = this.configManager.getConfig(ExplorerCommand.DEPLOY_CONFIGS_NAME, allFlags, [
-              'valuesArg',
-            ]) as ExplorerDeployConfigClass;
+            const config: ExplorerDeployConfigClass = this.configManager.getConfig(
+              ExplorerCommand.DEPLOY_CONFIGS_NAME,
+              allFlags,
+              [],
+            ) as ExplorerDeployConfigClass;
 
-            if (!context_.config.clusterRef) {
-              context_.config.clusterRef = this.remoteConfig.currentCluster;
+            context_.config = config
+
+            if (!config.clusterRef) {
+              config.clusterRef = this.remoteConfig.currentCluster;
             }
 
-            context_.config.clusterContext = this.localConfig.configuration.clusterRefs
-              .get(context_.config.clusterRef)
+            config.clusterContext = this.localConfig.configuration.clusterRefs
+              .get(config.clusterRef)
               ?.toString();
 
-            context_.config.releaseName = this.getReleaseName();
-            context_.config.ingressReleaseName = this.getIngressReleaseName();
+            config.releaseName = this.getReleaseName();
+            config.ingressReleaseName = this.getIngressReleaseName();
 
-            if (context_.config.mirrorNodeId === 1) {
-              context_.config.isMirrorNodeLegacyChartInstalled = await this.chartManager.isChartInstalled(
-                context_.config.namespace,
+            if (config.mirrorNodeId === 1) {
+              config.isMirrorNodeLegacyChartInstalled = await this.chartManager.isChartInstalled(
+                config.namespace,
                 constants.MIRROR_NODE_RELEASE_NAME,
-                context_.config.clusterContext,
+                config.clusterContext,
               );
             } else {
-              context_.config.isMirrorNodeLegacyChartInstalled = false;
+              config.isMirrorNodeLegacyChartInstalled = false;
             }
 
-            context_.config.newExplorerComponent = this.componentFactory.createNewExplorerComponent(
-              context_.config.clusterRef,
-              context_.config.namespace,
+            config.newExplorerComponent = this.componentFactory.createNewExplorerComponent(
+              config.clusterRef,
+              config.namespace,
             );
 
-            context_.config.valuesArg += await this.prepareValuesArg(context_.config);
+            config.valuesArg += await this.prepareValuesArg(config);
 
-            if (
-              !(await this.k8Factory.getK8(context_.config.clusterContext).namespaces().has(context_.config.namespace))
-            ) {
-              throw new SoloError(`namespace ${context_.config.namespace} does not exist`);
+            if (!(await this.k8Factory.getK8(config.clusterContext).namespaces().has(config.namespace))) {
+              throw new SoloError(`namespace ${config.namespace} does not exist`);
             }
 
             return ListrLock.newAcquireLockTask(lease, task);
@@ -773,10 +775,10 @@ export class ExplorerCommand extends BaseCommand {
   private addMirrorNodeExplorerComponents(): SoloListrTask<ExplorerDeployContext> {
     return {
       title: 'Add explorer to remote config',
-      skip: (context_): boolean => !this.remoteConfig.isLoaded() || context_.config.redeploy,
-      task: async (context_): Promise<void> => {
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      task: async ({config}): Promise<void> => {
         this.remoteConfig.configuration.components.addNewComponent(
-          context_.config.newExplorerComponent,
+          config.newExplorerComponent,
           ComponentTypes.Explorer,
         );
 

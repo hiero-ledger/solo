@@ -231,33 +231,31 @@ export class BlockNodeCommand extends BaseCommand {
 
             await this.configManager.executePrompt(task, allFlags);
 
-            context_.config = this.configManager.getConfig(
+            const config: BlockNodeDeployConfigClass = this.configManager.getConfig(
               BlockNodeCommand.ADD_CONFIGS_NAME,
               allFlags,
             ) as BlockNodeDeployConfigClass;
 
-            const platformVersion: SemVer = new SemVer(context_.config.releaseTag);
+            context_.config = config;
+
+            const platformVersion: SemVer = new SemVer(config.releaseTag);
             if (lt(platformVersion, new SemVer(MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE))) {
               throw new SoloError(
                 `Hedera platform versions less than ${MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} are not supported`,
               );
             }
 
-            context_.config.namespace = await resolveNamespaceFromDeployment(
-              this.localConfig,
-              this.configManager,
-              task,
-            );
+            config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
 
-            context_.config.nodeAliases = this.remoteConfig.getConsensusNodes().map((node): NodeAlias => node.name);
+            config.nodeAliases = this.remoteConfig.getConsensusNodes().map((node): NodeAlias => node.name);
 
-            if (!context_.config.clusterRef) {
-              context_.config.clusterRef = this.k8Factory.default().clusters().readCurrent();
+            if (!config.clusterRef) {
+              config.clusterRef = this.k8Factory.default().clusters().readCurrent();
             }
 
-            context_.config.context = this.remoteConfig.getClusterRefs()[context_.config.clusterRef];
+            config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
 
-            this.logger.debug('Initialized config', {config: context_.config});
+            this.logger.debug('Initialized config', {config: config});
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
@@ -623,8 +621,8 @@ export class BlockNodeCommand extends BaseCommand {
     return {
       title: 'Disable block node component in remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
-      task: async (context_): Promise<void> => {
-        this.remoteConfig.configuration.components.removeComponent(context_.config.id, ComponentTypes.BlockNode);
+      task: async ({config}): Promise<void> => {
+        this.remoteConfig.configuration.components.removeComponent(config.id, ComponentTypes.BlockNode);
 
         await this.remoteConfig.persist();
       },
