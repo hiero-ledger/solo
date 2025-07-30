@@ -287,6 +287,14 @@ export class ExplorerCommand extends BaseCommand {
             config.releaseName = this.getReleaseName();
             config.ingressReleaseName = this.getIngressReleaseName();
 
+            if (typeof config.mirrorNodeId !== 'number') {
+              if (this.remoteConfig.configuration.components.state.mirrorNodes.length === 0) {
+                throw new SoloError('Mirror node not found');
+              }
+
+              config.mirrorNodeId = this.remoteConfig.configuration.components.state.mirrorNodes[0].metadata.id;
+            }
+
             config.isMirrorNodeLegacyChartInstalled =
               config.mirrorNodeId === 1
                 ? await this.chartManager.isChartInstalled(
@@ -589,7 +597,6 @@ export class ExplorerCommand extends BaseCommand {
             let id: ComponentId = this.configManager.getFlag(flags.id);
             let releaseName: string;
             let ingressReleaseName: string;
-            let isLegacyChartInstalled: boolean;
             let isChartInstalled: boolean;
 
             if (typeof id === 'number') {
@@ -601,7 +608,7 @@ export class ExplorerCommand extends BaseCommand {
               ingressReleaseName = this.getIngressReleaseName(id);
             }
 
-            isLegacyChartInstalled =
+            const isLegacyChartInstalled: boolean =
               id === 1
                 ? await this.chartManager.isChartInstalled(
                     namespace,
