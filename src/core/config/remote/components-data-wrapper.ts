@@ -15,7 +15,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   /* -------- Modifiers -------- */
 
   /** Used to add new component to their respective group. */
-  public addNewComponent(component: BaseStateSchema, type: ComponentTypes): void {
+  public addNewComponent(component: BaseStateSchema, type: ComponentTypes, isReplace?: boolean): void {
     const componentId: ComponentId = component.metadata.id;
 
     if (typeof componentId !== 'number' || componentId < 0) {
@@ -27,9 +27,10 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     }
 
     const addComponentCallback: (components: BaseStateSchema[]) => void = (components): void => {
-      if (this.checkComponentExists(components, component)) {
+      if (this.checkComponentExists(components, component) && isReplace === false) {
         throw new SoloError('Component exists', undefined, component);
       }
+      console.log(`component = ${JSON.stringify(components)}`);
       components[componentId] = component;
     };
 

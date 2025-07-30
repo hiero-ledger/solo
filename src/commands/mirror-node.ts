@@ -787,6 +787,26 @@ export class MirrorNodeCommand extends BaseCommand {
               }
             }
 
+            const clusterReference: ClusterReferenceName = context_.config.clusterReference;
+            console.log(`clusterReference = ${clusterReference}`);
+
+            const mirrorNodeComponents: MirrorNodeStateSchema[] =
+              this.remoteConfig.configuration.components.getComponentsByClusterReference<MirrorNodeStateSchema>(
+                ComponentTypes.MirrorNode,
+                clusterReference,
+              );
+            const mirrorComponent: MirrorNodeStateSchema = mirrorNodeComponents[0];
+            if (mirrorComponent.metadata.portForwardConfigs) {
+              // search if any port used for podPort
+              for (const portForwardConfig of mirrorComponent.metadata.portForwardConfigs) {
+                if (portForwardConfig.podPort === 80) {
+                  // port forward already enabled
+                  this.logger.showUser(`Pod forward already enabled at ${portForwardConfig.localPort}`)
+                  return;
+                }
+              }
+            }
+
             const portForwardPortNumber: number = await this.k8Factory
               .getK8(context_.config.clusterContext)
               .pods()
@@ -798,6 +818,24 @@ export class MirrorNodeCommand extends BaseCommand {
               constants.PORT_FORWARDING_MESSAGE_GROUP,
               `Mirror Node port forward enabled on localhost:${portForwardPortNumber}`,
             );
+
+            if (!mirrorComponent.metadata.portForwardConfigs) {
+              // create the list first
+              mirrorComponent.metadata.portForwardConfigs = [];
+            }
+            // save port forward config to remote config component
+            mirrorComponent.metadata.portForwardConfigs.push({
+              localPort: portForwardPortNumber,
+              podPort: 80,
+            });
+
+            console.log(`mirrorNodeComponent = ${JSON.stringify(mirrorComponent)}`);
+            this.remoteConfig.configuration.components.addNewComponent(
+              mirrorComponent,
+              ComponentTypes.MirrorNode,
+              true,
+            );
+            await this.remoteConfig.persist();
           },
         },
         // TODO only show this if we are not running in quick-start mode
