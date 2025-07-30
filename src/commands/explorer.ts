@@ -250,7 +250,7 @@ export class ExplorerCommand extends BaseCommand {
   private async deploy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
-    const tasks = this.taskList.newTaskList(
+    const tasks = this.taskList.newTaskList<ExplorerDeployContext>(
       [
         {
           title: 'Initialize',

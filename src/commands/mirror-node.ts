@@ -388,11 +388,11 @@ export class MirrorNodeCommand extends BaseCommand {
   private async deploy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
-    const tasks: SoloListr<MirrorNodeDeployContext> = this.taskList.newTaskList(
+    const tasks: SoloListr<MirrorNodeDeployContext> = this.taskList.newTaskList<MirrorNodeDeployContext>(
       [
         {
           title: 'Initialize',
-          task: async (context_: MirrorNodeDeployContext, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             lease = await this.leaseManager.create();
