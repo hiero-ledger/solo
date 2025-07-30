@@ -26,6 +26,8 @@ import {
   type Context,
   type DeploymentName,
   type Optional,
+  type Realm,
+  type Shard,
   type SoloListr,
   type SoloListrTask,
 } from '../types/index.js';
@@ -90,9 +92,8 @@ interface MirrorNodeDeployConfigClass {
   releaseName: string;
   ingressReleaseName: string;
   newMirrorNodeComponent: MirrorNodeStateSchema;
-  useLegacyReleaseName: boolean;
+  isLegacyChartInstalled: boolean;
   id: number;
-  redeploy: boolean;
 }
 
 interface MirrorNodeDeployContext {
@@ -100,17 +101,19 @@ interface MirrorNodeDeployContext {
   addressBook: string;
 }
 
+interface MirrorNodeDestroyConfigClass {
+  namespace: NamespaceName;
+  clusterContext: string;
+  isChartInstalled: boolean;
+  clusterReference: ClusterReferenceName;
+  id: ComponentId;
+  releaseName: string;
+  ingressReleaseName: string;
+  isLegacyChartInstalled: boolean;
+}
+
 interface MirrorNodeDestroyContext {
-  config: {
-    namespace: NamespaceName;
-    clusterContext: string;
-    isChartInstalled: boolean;
-    clusterReference: ClusterReferenceName;
-    id: ComponentId;
-    releaseName: string;
-    ingressReleaseName: string;
-    useLegacyReleaseName: boolean;
-  };
+  config: MirrorNodeDestroyConfigClass;
 }
 
 @injectable()
@@ -164,7 +167,6 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.externalDatabaseReadonlyPassword,
       flags.domainName,
       flags.id,
-      flags.redeploy,
       flags.forcePortForward,
     ],
   };
@@ -284,7 +286,7 @@ export class MirrorNodeCommand extends BaseCommand {
   private async deployMirrorNode(context_: MirrorNodeDeployContext): Promise<void> {
     context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
       context_.config.namespace,
-      constants.MIRROR_NODE_RELEASE_NAME,
+      context_.config.releaseName,
       context_.config.clusterContext,
     );
 
@@ -327,6 +329,7 @@ export class MirrorNodeCommand extends BaseCommand {
         .getK8(context_.config.clusterContext)
         .ingressClasses()
         .list();
+
       for (const ingressClass of existingIngressClasses) {
         if (ingressClass.name === 'mirror-ingress-class') {
           this.logger.showUser('mirror-ingress-class already found, skipping');
@@ -389,133 +392,86 @@ export class MirrorNodeCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_: MirrorNodeDeployContext, task): Promise<SoloListr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             lease = await this.leaseManager.create();
             this.configManager.update(argv);
 
-            // disable the prompts that we don't want to prompt the user for
-            flags.disablePrompts([
-              flags.clusterRef,
-              flags.valuesFile,
-              flags.mirrorNodeVersion,
-              flags.pinger,
-              flags.operatorId,
-              flags.operatorKey,
-              flags.useExternalDatabase,
-              flags.externalDatabaseHost,
-              flags.externalDatabaseOwnerUsername,
-              flags.externalDatabaseOwnerPassword,
-              flags.externalDatabaseReadonlyUsername,
-              flags.externalDatabaseReadonlyPassword,
-              flags.profileFile,
-              flags.profileName,
-              flags.domainName,
-              flags.id,
-              flags.forcePortForward,
-            ]);
+            flags.disablePrompts(MirrorNodeCommand.DEPLOY_FLAGS_LIST.optional);
 
             const allFlags: CommandFlag[] = [
               ...MirrorNodeCommand.DEPLOY_FLAGS_LIST.required,
               ...MirrorNodeCommand.DEPLOY_FLAGS_LIST.optional,
             ];
+
             await this.configManager.executePrompt(task, allFlags);
+
             const namespace: NamespaceName = await resolveNamespaceFromDeployment(
               this.localConfig,
               this.configManager,
               task,
             );
 
-            context_.config = this.configManager.getConfig(MirrorNodeCommand.DEPLOY_CONFIGS_NAME, allFlags, [
-              'valuesArg',
-              'namespace',
-            ]) as MirrorNodeDeployConfigClass;
+            const config: MirrorNodeDeployConfigClass = this.configManager.getConfig(
+              MirrorNodeCommand.DEPLOY_CONFIGS_NAME,
+              allFlags,
+              [],
+            ) as MirrorNodeDeployConfigClass;
 
-            context_.config.namespace = namespace;
+            context_.config = config;
 
-            context_.config.clusterReference =
-              (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
-              this.k8Factory.default().clusters().readCurrent();
+            config.namespace = namespace;
 
-            context_.config.releaseName = this.getReleaseName();
-            context_.config.ingressReleaseName = this.getIngressReleaseName();
-
-            if (context_.config.redeploy) {
-              const existingMirrorNode: MirrorNodeStateSchema =
-                this.remoteConfig.configuration.components.state.mirrorNodes[0];
-
-              if (!existingMirrorNode) {
-                throw new SoloError('Mirror node not found in remote config to be redeployed');
-              }
-
-              if (!context_.config.id) {
-                context_.config.id = existingMirrorNode.metadata.id;
-              }
-
-              context_.config.releaseName = this.getReleaseName(context_.config.id);
-              context_.config.ingressReleaseName = this.getIngressReleaseName(context_.config.id);
-            }
-
-            // On redeploy
-            if (context_.config.id === 1) {
-              const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
-                context_.config.namespace,
-                constants.MIRROR_NODE_RELEASE_NAME,
-                context_.config.clusterContext,
-              );
-
-              if (isLegacyChartInstalled) {
-                context_.config.useLegacyReleaseName = true;
-                context_.config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
-                context_.config.ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
-              }
-            }
+            config.clusterReference =
+              this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
 
             // predefined values first
-            context_.config.valuesArg += semver.lt(context_.config.mirrorNodeVersion, '0.130.0')
+            config.valuesArg += semver.lt(config.mirrorNodeVersion, '0.130.0')
               ? helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA)
               : helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
-            // user defined values later to override predefined values
-            context_.config.valuesArg += await this.prepareValuesArg(context_.config);
 
-            context_.config.clusterContext = context_.config.clusterReference
-              ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterReference)?.toString()
+            // user defined values later to override predefined values
+            config.valuesArg += await this.prepareValuesArg(config);
+
+            config.clusterContext = config.clusterReference
+              ? this.localConfig.configuration.clusterRefs.get(config.clusterReference)?.toString()
               : this.k8Factory.default().contexts().readCurrent();
 
             const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
+
             await this.accountManager.loadNodeClient(
-              context_.config.namespace,
+              config.namespace,
               this.remoteConfig.getClusterRefs(),
               deploymentName,
               this.configManager.getFlag<boolean>(flags.forcePortForward),
             );
 
-            context_.config.newMirrorNodeComponent = this.componentFactory.createNewMirrorNodeComponent(
-              context_.config.clusterRef,
-              context_.config.namespace,
+            config.newMirrorNodeComponent = this.componentFactory.createNewMirrorNodeComponent(
+              config.clusterReference,
+              config.namespace,
             );
 
-            const realm = this.localConfig.configuration.realmForDeployment(deploymentName);
-            const shard = this.localConfig.configuration.shardForDeployment(deploymentName);
-            const chartNamespace: string = this.getChartNamespace(context_.config.mirrorNodeVersion);
+            const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
+            const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
+            const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
 
-            const modules = ['monitor', 'rest', 'grpc', 'importer', 'restJava', 'graphql', 'rosetta', 'web3'];
+            const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restJava', 'graphql', 'rosetta', 'web3'];
             for (const module of modules) {
-              context_.config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.realm=${realm}`;
-              context_.config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.shard=${shard}`;
+              config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.realm=${realm}`;
+              config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.shard=${shard}`;
             }
 
-            if (context_.config.pinger) {
-              context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=5`;
+            if (config.pinger) {
+              config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=5`;
 
               const operatorId: string =
-                context_.config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
-              context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
+                config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
+              config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
 
-              if (context_.config.operatorKey) {
+              if (config.operatorKey) {
                 this.logger.info('Using provided operator key');
-                context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${context_.config.operatorKey}`;
+                config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${config.operatorKey}`;
               } else {
                 try {
                   const namespace: NamespaceName = await resolveNamespaceFromDeployment(
@@ -525,16 +481,16 @@ export class MirrorNodeCommand extends BaseCommand {
                   );
 
                   const secrets = await this.k8Factory
-                    .getK8(context_.config.clusterContext)
+                    .getK8(config.clusterContext)
                     .secrets()
                     .list(namespace, [`solo.hedera.com/account-id=${operatorId}`]);
                   if (secrets.length === 0) {
                     this.logger.info(`No k8s secret found for operator account id ${operatorId}, use default one`);
-                    context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${constants.OPERATOR_KEY}`;
+                    config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${constants.OPERATOR_KEY}`;
                   } else {
                     this.logger.info('Using operator key from k8s secret');
                     const operatorKeyFromK8: string = Base64.decode(secrets[0].data.privateKey);
-                    context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${operatorKeyFromK8}`;
+                    config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.privateKey=${operatorKeyFromK8}`;
                   }
                 } catch (error) {
                   throw new SoloError(`Error getting operator key: ${error.message}`, error);
@@ -542,10 +498,10 @@ export class MirrorNodeCommand extends BaseCommand {
               }
             }
 
-            const isQuiet: boolean = context_.config.quiet;
+            const isQuiet: boolean = config.quiet;
 
             // In case the useExternalDatabase is set, prompt for the rest of the required data
-            if (context_.config.useExternalDatabase && !isQuiet) {
+            if (config.useExternalDatabase && !isQuiet) {
               await this.configManager.executePrompt(task, [
                 flags.externalDatabaseHost,
                 flags.externalDatabaseOwnerUsername,
@@ -554,28 +510,28 @@ export class MirrorNodeCommand extends BaseCommand {
                 flags.externalDatabaseReadonlyPassword,
               ]);
             } else if (
-              context_.config.useExternalDatabase &&
-              (!context_.config.externalDatabaseHost ||
-                !context_.config.externalDatabaseOwnerUsername ||
-                !context_.config.externalDatabaseOwnerPassword ||
-                !context_.config.externalDatabaseReadonlyUsername ||
-                !context_.config.externalDatabaseReadonlyPassword)
+              config.useExternalDatabase &&
+              (!config.externalDatabaseHost ||
+                !config.externalDatabaseOwnerUsername ||
+                !config.externalDatabaseOwnerPassword ||
+                !config.externalDatabaseReadonlyUsername ||
+                !config.externalDatabaseReadonlyPassword)
             ) {
               const missingFlags: CommandFlag[] = [];
-              if (!context_.config.externalDatabaseHost) {
+              if (!config.externalDatabaseHost) {
                 missingFlags.push(flags.externalDatabaseHost);
               }
-              if (!context_.config.externalDatabaseOwnerUsername) {
+              if (!config.externalDatabaseOwnerUsername) {
                 missingFlags.push(flags.externalDatabaseOwnerUsername);
               }
-              if (!context_.config.externalDatabaseOwnerPassword) {
+              if (!config.externalDatabaseOwnerPassword) {
                 missingFlags.push(flags.externalDatabaseOwnerPassword);
               }
 
-              if (!context_.config.externalDatabaseReadonlyUsername) {
+              if (!config.externalDatabaseReadonlyUsername) {
                 missingFlags.push(flags.externalDatabaseReadonlyUsername);
               }
-              if (!context_.config.externalDatabaseReadonlyPassword) {
+              if (!config.externalDatabaseReadonlyPassword) {
                 missingFlags.push(flags.externalDatabaseReadonlyPassword);
               }
 
@@ -588,10 +544,8 @@ export class MirrorNodeCommand extends BaseCommand {
               }
             }
 
-            if (
-              !(await this.k8Factory.getK8(context_.config.clusterContext).namespaces().has(context_.config.namespace))
-            ) {
-              throw new SoloError(`namespace ${context_.config.namespace} does not exist`);
+            if (!(await this.k8Factory.getK8(config.clusterContext).namespaces().has(config.namespace))) {
+              throw new SoloError(`namespace ${config.namespace} does not exist`);
             }
 
             return ListrLock.newAcquireLockTask(lease, task);
@@ -951,6 +905,7 @@ export class MirrorNodeCommand extends BaseCommand {
             }
 
             this.configManager.update(argv);
+
             const namespace: NamespaceName = await resolveNamespaceFromDeployment(
               this.localConfig,
               this.configManager,
@@ -968,45 +923,48 @@ export class MirrorNodeCommand extends BaseCommand {
               throw new SoloError(`namespace ${namespace} does not exist`);
             }
 
-            const id: ComponentId = this.configManager.getFlag<ComponentId>(flags.id);
+            let id: ComponentId = this.configManager.getFlag(flags.id);
+            let releaseName: string;
+            let ingressReleaseName: string;
+            let isChartInstalled: boolean;
+            let isLegacyChartInstalled: boolean = false;
+
+            if (typeof id !== 'number') {
+              if (this.remoteConfig.configuration.components.state.mirrorNodes.length === 0) {
+                throw new SoloError('Mirror node not found in remove config');
+              }
+
+              id = this.remoteConfig.configuration.components.state.mirrorNodes[0]?.metadata?.id;
+            }
+
+            if (id === 1) {
+              isLegacyChartInstalled = await this.chartManager.isChartInstalled(
+                namespace,
+                constants.MIRROR_NODE_RELEASE_NAME,
+                clusterContext,
+              );
+            }
+
+            if (isLegacyChartInstalled) {
+              isChartInstalled = true;
+              releaseName = constants.MIRROR_NODE_RELEASE_NAME;
+              ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
+            } else {
+              releaseName = this.getReleaseName(id);
+              ingressReleaseName = this.getIngressReleaseName(id);
+              isChartInstalled = await this.chartManager.isChartInstalled(namespace, releaseName, clusterContext);
+            }
 
             context_.config = {
               clusterContext,
               namespace,
               clusterReference,
               id,
-              isChartInstalled: false,
-              releaseName: this.getReleaseName(id),
-              ingressReleaseName: this.getIngressReleaseName(id),
-              useLegacyReleaseName: false,
+              isChartInstalled,
+              releaseName,
+              ingressReleaseName,
+              isLegacyChartInstalled,
             };
-
-            if (typeof context_.config.id !== 'number') {
-              context_.config.id = this.remoteConfig.configuration.components.state.mirrorNodes[0]?.metadata?.id;
-              context_.config.releaseName = this.getReleaseName(context_.config.id);
-              context_.config.ingressReleaseName = this.getIngressReleaseName(context_.config.id);
-            }
-
-            if (context_.config.id === 1) {
-              const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
-                context_.config.namespace,
-                constants.MIRROR_NODE_RELEASE_NAME,
-                context_.config.clusterContext,
-              );
-
-              if (isLegacyChartInstalled) {
-                context_.config.isChartInstalled = true;
-                context_.config.useLegacyReleaseName = true;
-                context_.config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
-                context_.config.ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
-              }
-            }
-
-            context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
-              namespace,
-              context_.config.releaseName,
-              clusterContext,
-            );
 
             await this.accountManager.loadNodeClient(
               context_.config.namespace,
@@ -1014,10 +972,6 @@ export class MirrorNodeCommand extends BaseCommand {
               this.configManager.getFlag<DeploymentName>(flags.deployment),
               this.configManager.getFlag<boolean>(flags.forcePortForward),
             );
-
-            if (!context_.config.id) {
-              throw new SoloError('Mirror Node is not found');
-            }
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
@@ -1188,7 +1142,7 @@ export class MirrorNodeCommand extends BaseCommand {
     return {
       title: 'Add mirror node to remote config',
       skip: (context_): boolean => {
-        return !this.remoteConfig.isLoaded() || context_.config.isChartInstalled || context_.config.redeploy;
+        return !this.remoteConfig.isLoaded() || context_.config.isChartInstalled;
       },
       task: async (context_): Promise<void> => {
         this.remoteConfig.configuration.components.addNewComponent(

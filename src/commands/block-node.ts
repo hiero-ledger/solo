@@ -82,6 +82,7 @@ interface BlockNodeDestroyConfigClass {
   releaseName: string;
   id: number;
   useLegacyReleaseName: boolean;
+  isLegacyChartInstalled: boolean;
 }
 
 interface BlockNodeDestroyContext {
@@ -446,29 +447,25 @@ export class BlockNodeCommand extends BaseCommand {
 
             // Check if release name is legacy
             if (context_.config.id <= 1) {
-              const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
+              context_.config.isLegacyChartInstalled = await this.chartManager.isChartInstalled(
                 context_.config.namespace,
                 `${constants.BLOCK_NODE_RELEASE_NAME}-0`,
                 context_.config.context,
               );
-
-              if (isLegacyChartInstalled) {
-                context_.config.isChartInstalled = true;
-                context_.config.useLegacyReleaseName = true;
-                context_.config.releaseName = `${constants.BLOCK_NODE_RELEASE_NAME}-0`;
-              }
+            } else {
+              context_.config.isLegacyChartInstalled = false;
             }
 
-            if (!context_.config.isChartInstalled) {
+            if (context_.config.isLegacyChartInstalled) {
+              context_.config.isChartInstalled = true;
+              context_.config.useLegacyReleaseName = true;
+              context_.config.releaseName = `${constants.BLOCK_NODE_RELEASE_NAME}-0`;
+            } else {
               context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
                 context_.config.namespace,
                 context_.config.releaseName,
                 context_.config.context,
               );
-            }
-
-            if (!context_.config.id) {
-              throw new SoloError('Block Node is not found');
             }
 
             this.logger.debug('Initialized config', {config: context_.config});
