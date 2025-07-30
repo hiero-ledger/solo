@@ -264,9 +264,7 @@ export class BlockNodeCommand extends BaseCommand {
         },
         {
           title: 'Prepare release name and block node name',
-          task: async (context_): Promise<void> => {
-            const config: BlockNodeDeployConfigClass = context_.config;
-
+          task: async ({config}): Promise<void> => {
             config.releaseName = this.getReleaseName();
 
             config.newBlockNodeComponent = this.componentFactory.createNewBlockNodeComponent(
@@ -277,17 +275,13 @@ export class BlockNodeCommand extends BaseCommand {
         },
         {
           title: 'Prepare chart values',
-          task: async (context_): Promise<void> => {
-            const config: BlockNodeDeployConfigClass = context_.config;
-
+          task: async ({config}): Promise<void> => {
             config.valuesArg = await this.prepareValuesArgForBlockNode(config);
           },
         },
         {
           title: 'Deploy block node',
-          task: async (context_, task): Promise<void> => {
-            const config: BlockNodeDeployConfigClass = context_.config;
-
+          task: async ({config}, task): Promise<void> => {
             config.chartVersion = Version.getValidSemanticVersion(
               config.chartVersion,
               false,
@@ -323,9 +317,7 @@ export class BlockNodeCommand extends BaseCommand {
         },
         {
           title: 'Check block node pod is running',
-          task: async (context_): Promise<void> => {
-            const config: BlockNodeDeployConfigClass = context_.config;
-
+          task: async ({config}): Promise<void> => {
             await this.k8Factory
               .getK8(config.context)
               .pods()
@@ -339,9 +331,7 @@ export class BlockNodeCommand extends BaseCommand {
         },
         {
           title: 'Check software',
-          task: async (context_): Promise<void> => {
-            const config: BlockNodeDeployConfigClass = context_.config;
-
+          task: async ({config}): Promise<void> => {
             const labels: string[] = Templates.renderBlockNodeLabels(config.newBlockNodeComponent.metadata.id);
 
             const blockNodePods: Pod[] = await this.k8Factory
@@ -356,8 +346,7 @@ export class BlockNodeCommand extends BaseCommand {
         },
         {
           title: 'Check block node pod is ready',
-          task: async (context_): Promise<void> => {
-            const config: BlockNodeDeployConfigClass = context_.config;
+          task: async ({config}): Promise<void> => {
             try {
               await this.k8Factory
                 .getK8(config.context)
@@ -471,12 +460,10 @@ export class BlockNodeCommand extends BaseCommand {
         },
         {
           title: 'Destroy block node',
-          task: async (context_): Promise<void> => {
-            const config: BlockNodeDestroyConfigClass = context_.config;
-
+          task: async ({config}): Promise<void> => {
             await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
           },
-          skip: (context_): boolean => !context_.config.isChartInstalled,
+          skip: ({config}): boolean => !config.isChartInstalled,
         },
         this.removeBlockNodeComponent(),
       ],
@@ -564,8 +551,7 @@ export class BlockNodeCommand extends BaseCommand {
         },
         {
           title: 'Look-up block node',
-          task: async (context_): Promise<void> => {
-            const config: BlockNodeUpgradeConfigClass = context_.config;
+          task: async ({config}): Promise<void> => {
             try {
               this.remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(
                 ComponentTypes.BlockNode,
@@ -578,8 +564,8 @@ export class BlockNodeCommand extends BaseCommand {
         },
         {
           title: 'Update block node chart',
-          task: async (context_): Promise<void> => {
-            const {namespace, releaseName, context, upgradeVersion} = context_.config;
+          task: async ({config}): Promise<void> => {
+            const {namespace, releaseName, context, upgradeVersion} = config;
 
             const validatedUpgradeVersion: string = Version.getValidSemanticVersion(
               upgradeVersion,
@@ -621,9 +607,7 @@ export class BlockNodeCommand extends BaseCommand {
     return {
       title: 'Add block node component in remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
-      task: async (context_): Promise<void> => {
-        const config: BlockNodeDeployConfigClass = context_.config;
-
+      task: async ({config}): Promise<void> => {
         this.remoteConfig.configuration.components.addNewComponent(
           config.newBlockNodeComponent,
           ComponentTypes.BlockNode,
