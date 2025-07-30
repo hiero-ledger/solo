@@ -54,6 +54,7 @@ import {Base64} from 'js-base64';
 import {Lock} from '../core/lock/lock.js';
 import {Version} from '../business/utils/version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
+import {managePortForward} from '../core/network/port-utilities.js';
 
 interface MirrorNodeDeployConfigClass {
   isChartInstalled: boolean;
@@ -788,53 +789,21 @@ export class MirrorNodeCommand extends BaseCommand {
             }
 
             const clusterReference: ClusterReferenceName = context_.config.clusterReference;
-            console.log(`clusterReference = ${clusterReference}`);
 
-            const mirrorNodeComponents: MirrorNodeStateSchema[] =
-              this.remoteConfig.configuration.components.getComponentsByClusterReference<MirrorNodeStateSchema>(
-                ComponentTypes.MirrorNode,
-                clusterReference,
-              );
-            const mirrorComponent: MirrorNodeStateSchema = mirrorNodeComponents[0];
-            if (mirrorComponent.metadata.portForwardConfigs) {
-              // search if any port used for podPort
-              for (const portForwardConfig of mirrorComponent.metadata.portForwardConfigs) {
-                if (portForwardConfig.podPort === 80) {
-                  // port forward already enabled
-                  this.logger.showUser(`Pod forward already enabled at ${portForwardConfig.localPort}`)
-                  return;
-                }
-              }
-            }
-
-            const portForwardPortNumber: number = await this.k8Factory
-              .getK8(context_.config.clusterContext)
-              .pods()
-              .readByReference(podReference)
-              // if chart already install, then this is upgrade operation, just reuse the same port
-              .portForward(constants.MIRROR_NODE_PORT, 80, true, context_.config.isChartInstalled);
-            this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-            this.logger.addMessageGroupMessage(
-              constants.PORT_FORWARDING_MESSAGE_GROUP,
-              `Mirror Node port forward enabled on localhost:${portForwardPortNumber}`,
-            );
-
-            if (!mirrorComponent.metadata.portForwardConfigs) {
-              // create the list first
-              mirrorComponent.metadata.portForwardConfigs = [];
-            }
-            // save port forward config to remote config component
-            mirrorComponent.metadata.portForwardConfigs.push({
-              localPort: portForwardPortNumber,
-              podPort: 80,
-            });
-
-            console.log(`mirrorNodeComponent = ${JSON.stringify(mirrorComponent)}`);
-            this.remoteConfig.configuration.components.addNewComponent(
-              mirrorComponent,
+            await managePortForward(
+              clusterReference,
+              podReference,
+              80, // Pod port
+              constants.MIRROR_NODE_PORT, // Local port
+              this.k8Factory.getK8(context_.config.clusterContext),
+              this.logger,
               ComponentTypes.MirrorNode,
-              true,
+              this.remoteConfig.configuration,
+              'Mirror ingress controller',
+              context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             );
+
+            // Persist the entire remote config
             await this.remoteConfig.persist();
           },
         },

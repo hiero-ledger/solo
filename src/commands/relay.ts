@@ -35,6 +35,7 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Duration} from '../core/time/duration.js';
 import {Version} from '../business/utils/version.js';
+import {managePortForward} from '../core/network/port-utilities.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -432,21 +433,36 @@ export class RelayCommand extends BaseCommand {
               throw new SoloError('No Relay pod found');
             }
             const podReference: PodReference = pods[0].podReference;
-            const portForwardPortNumber: number = await this.k8Factory
-              .getK8(context_.config.context)
-              .pods()
-              .readByReference(podReference)
-              .portForward(
-                constants.JSON_RPC_RELAY_PORT,
-                constants.JSON_RPC_RELAY_PORT,
-                true,
-                context_.config.isChartInstalled,
-              );
-            this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-            this.logger.addMessageGroupMessage(
-              constants.PORT_FORWARDING_MESSAGE_GROUP,
-              `JSON RPC Relay forward enabled on localhost:${portForwardPortNumber}`,
+            const clusterReference: ClusterReferenceName = context_.config.clusterRef;
+
+            await managePortForward(
+              clusterReference,
+              podReference,
+              constants.JSON_RPC_RELAY_PORT, // Pod port
+              constants.JSON_RPC_RELAY_PORT, // Local port
+              this.k8Factory.getK8(context_.config.clusterContext),
+              this.logger,
+              ComponentTypes.RelayNodes,
+              this.remoteConfig.configuration,
+              'JSON RPC Relay',
+              context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             );
+
+            // const portForwardPortNumber: number = await this.k8Factory
+            //   .getK8(context_.config.context)
+            //   .pods()
+            //   .readByReference(podReference)
+            //   .portForward(
+            //     constants.JSON_RPC_RELAY_PORT,
+            //     constants.JSON_RPC_RELAY_PORT,
+            //     true,
+            //     context_.config.isChartInstalled,
+            //   );
+            // this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+            // this.logger.addMessageGroupMessage(
+            //   constants.PORT_FORWARDING_MESSAGE_GROUP,
+            //   `JSON RPC Relay forward enabled on localhost:${portForwardPortNumber}`,
+            // );
           },
           skip: context_ => !context_.config.forcePortForward,
         },

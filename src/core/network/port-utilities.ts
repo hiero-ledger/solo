@@ -3,8 +3,14 @@
 import net from 'node:net';
 import * as constants from '../constants.js';
 import {type SoloLogger} from '../logging/solo-logger.js';
-import {sleep} from '../helpers.js';
-import {Duration} from '../time/duration.js';
+import {BaseStateSchema} from '../../data/schema/model/remote/state/base-state-schema.js';
+import {type ComponentTypes} from '../config/remote/enumerations/component-types.js';
+import {type PodReference} from '../../integration/kube/resources/pod/pod-reference.js';
+import {type K8} from '../../integration/kube/k8.js';
+import {type ClusterReferenceName} from '../../types/index.js';
+import {type RemoteConfig} from '../../business/runtime-state/config/remote/remote-config.js';
+import semver from 'semver/preload.js';
+import {type SemVer} from 'semver';
 
 /**
  * Check if a TCP port is available on the local machine
@@ -55,20 +61,98 @@ export async function findAvailablePort(
   logger: SoloLogger,
 ): Promise<number> {
   let port: number = startPort;
+  let attempts: number = 0;
   const startTime: number = Date.now();
 
   while (!(await isPortAvailable(port))) {
     logger.debug(`Port ${port} is not available, trying ${port + 1}`);
-    // add delay between attempts to avoid rapid successive network operations
-    await sleep(Duration.ofMillis(100));
     port++;
+    attempts++;
 
-    // Check if we've exceeded the timeout duration
     if (Date.now() - startTime > timeoutMs) {
-      const errorMessage: string = `Failed to find an available port after ${timeoutMs}ms timeout, starting from port ${startPort}, last checked port ${port}`;
+      const errorMessage: string = `Failed to find an available port after ${timeoutMs}ms timeout, starting from port ${startPort}`;
       logger.error(errorMessage);
       throw new Error(errorMessage);
     }
   }
+
   return port;
+}
+
+/**
+ * Manages port forwarding for a component, checking if it's already enabled and persisting configuration
+ * @param clusterReference The cluster reference to forward to
+ * @param podReference The pod reference to forward to
+ * @param podPort The port on the pod to forward from
+ * @param localPort The local port to forward to (starting port if not available)
+ * @param k8Client The Kubernetes client to use for port forwarding
+ * @param logger Logger for messages
+ * @param componentType The component type for persistence
+ * @param remoteConfig The remote config to use for persistence
+ * @param label Label for the port forward
+ * @param reuse Whether to reuse existing port forward if available
+ * @returns The local port number that was used for port forwarding
+ */
+export async function managePortForward(
+  clusterReference: ClusterReferenceName,
+  podReference: PodReference,
+  podPort: number,
+  localPort: number,
+  k8Client: K8,
+  logger: SoloLogger,
+  componentType: ComponentTypes,
+  remoteConfig: RemoteConfig,
+  lable: string,
+  reuse: boolean = false,
+): Promise<number> {
+  const installedSoloVersion: SemVer = remoteConfig.versions.cli;
+  if (semver.lte(installedSoloVersion, '0.41.0')) {
+    // old version does not have port forward config
+    reuse = true;
+    logger.showUser(`Port forward config not found for previous installed ${lable}, reusing existing port forward`);
+  }
+  const schemeComponents: BaseStateSchema[] = remoteConfig.components.getComponentsByClusterReference<BaseStateSchema>(
+    componentType,
+    clusterReference,
+  );
+  const component: BaseStateSchema = schemeComponents[0];
+
+  // Check if port forwarding is already enabled for this pod port
+  if (component.metadata.portForwardConfigs) {
+    for (const portForwardConfig of component.metadata.portForwardConfigs) {
+      if (portForwardConfig.podPort === podPort) {
+        // Port forward already enabled
+        logger.showUser(`${lable} Port forward already enabled at ${portForwardConfig.localPort}`);
+        return portForwardConfig.localPort;
+      }
+    }
+  }
+
+  // Enable port forwarding
+  const portForwardPortNumber: number = await k8Client
+    .pods()
+    .readByReference(podReference)
+    .portForward(localPort, podPort, true, reuse);
+
+  // Add message to logger
+  logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+  logger.addMessageGroupMessage(
+    constants.PORT_FORWARDING_MESSAGE_GROUP,
+    `${lable} port forward enabled on localhost:${portForwardPortNumber}`,
+  );
+
+  // Update component configuration
+  if (!component.metadata.portForwardConfigs) {
+    component.metadata.portForwardConfigs = [];
+  }
+
+  // Save port forward config to component
+  component.metadata.portForwardConfigs.push({
+    localPort: portForwardPortNumber,
+    podPort: podPort,
+  });
+
+  remoteConfig.components.addNewComponent(component, componentType, true);
+
+  return portForwardPortNumber;
 }

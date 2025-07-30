@@ -41,6 +41,7 @@ import {Lock} from '../core/lock/lock.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Version} from '../business/utils/version.js';
+import {managePortForward} from '../core/network/port-utilities.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -465,17 +466,31 @@ export class ExplorerCommand extends BaseCommand {
               throw new SoloError('No Hiero Explorer pod found');
             }
             const podReference: PodReference = pods[0].podReference;
+            const clusterReference: ClusterReferenceName = context_.config.clusterReference;
 
-            const portForwardPortNumber: number = await this.k8Factory
-              .getK8(context_.config.clusterContext)
-              .pods()
-              .readByReference(podReference)
-              .portForward(constants.EXPLORER_PORT, constants.EXPLORER_PORT, true, context_.config.isChartInstalled);
-            this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-            this.logger.addMessageGroupMessage(
-              constants.PORT_FORWARDING_MESSAGE_GROUP,
-              `Explorer port forward enabled on http://localhost:${portForwardPortNumber}`,
+            await managePortForward(
+              clusterReference,
+              podReference,
+              constants.EXPLORER_PORT, // Pod port
+              constants.EXPLORER_PORT, // Local port
+              this.k8Factory.getK8(context_.config.clusterContext),
+              this.logger,
+              ComponentTypes.Explorers,
+              this.remoteConfig.configuration,
+              'Explorer',
+              context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             );
+
+            // const portForwardPortNumber: number = await this.k8Factory
+            //   .getK8(context_.config.clusterContext)
+            //   .pods()
+            //   .readByReference(podReference)
+            //   .portForward(constants.EXPLORER_PORT, constants.EXPLORER_PORT, true, context_.config.isChartInstalled);
+            // this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+            // this.logger.addMessageGroupMessage(
+            //   constants.PORT_FORWARDING_MESSAGE_GROUP,
+            //   `Explorer port forward enabled on http://localhost:${portForwardPortNumber}`,
+            // );
           },
         },
         // TODO only show this if we are not running in quick-start mode

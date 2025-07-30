@@ -129,6 +129,7 @@ import {SemVer, lt} from 'semver';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
 import {Version} from '../../business/utils/version.js';
+import {managePortForward} from '../../core/network/port-utilities.js';
 
 export type LeaseWrapper = {lease: Lock};
 
@@ -1604,16 +1605,30 @@ export class NodeCommandTasks {
             throw new SoloError(`No HAProxy pod found for node alias: ${nodeAlias}`);
           }
           const podReference: PodReference = pods[0].podReference;
-          const portForwardPortNumber: number = await this.k8Factory
-            .getK8(context)
-            .pods()
-            .readByReference(podReference)
-            .portForward(constants.GRPC_PORT, constants.GRPC_PORT, true, context_.config.isChartInstalled);
-          this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-          this.logger.addMessageGroupMessage(
-            constants.PORT_FORWARDING_MESSAGE_GROUP,
-            `Consensus Node gRPC port forward enabled on localhost:${portForwardPortNumber}`,
+          const clusterReference: string = this.k8Factory.default().clusters().readCurrent();
+          await managePortForward(
+            clusterReference,
+            podReference,
+            constants.GRPC_PORT, // Pod port
+            constants.GRPC_PORT, // Local port
+            this.k8Factory.getK8(context_.config.clusterContext),
+            this.logger,
+            ComponentTypes.ConsensusNode,
+            this.remoteConfig.configuration,
+            'Consensus Node gRPC',
+            context_.config.isChartInstalled, // Reuse existing port if chart is already installed
           );
+
+          // const portForwardPortNumber: number = await this.k8Factory
+          //   .getK8(context)
+          //   .pods()
+          //   .readByReference(podReference)
+          //   .portForward(constants.GRPC_PORT, constants.GRPC_PORT, true, context_.config.isChartInstalled);
+          // this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+          // this.logger.addMessageGroupMessage(
+          //   constants.PORT_FORWARDING_MESSAGE_GROUP,
+          //   `Consensus Node gRPC port forward enabled on localhost:${portForwardPortNumber}`,
+          // );
         }
       },
       skip: context_ => !context_.config.debugNodeAlias && !context_.config.forcePortForward,
