@@ -176,7 +176,7 @@ fi
 
 grpcurl -plaintext -d '{"file_id": {"fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes
 
-node examples/create-topic.js
+node scripts/create-topic.js
 
 npm run solo-test -- node stop -i node1 --deployment "${SOLO_DEPLOYMENT}"
 

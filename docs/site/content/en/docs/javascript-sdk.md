@@ -89,7 +89,7 @@ account id = 0.0.1009
 Or try the topic creation example:
 
 ```bash
-node examples/create-topic.js
+node scripts/create-topic.js
 ```
 
 The output should be similar to the following:
