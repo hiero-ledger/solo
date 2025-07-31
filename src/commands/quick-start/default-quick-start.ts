@@ -34,7 +34,8 @@ import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {type AccountManager} from '../../core/account-manager.js';
 import {
-  CreatedPredefinedAccount, PREDEFINED_ACCOUNT_GROUPS,
+  CreatedPredefinedAccount,
+  PREDEFINED_ACCOUNT_GROUPS,
   PredefinedAccount,
   predefinedEcdsaAccounts,
   predefinedEcdsaAccountsWithAlias,
@@ -529,7 +530,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           .addSubcommand(
             new Subcommand(
               'destroy',
-              'Removes the deployed resources for the selected quick start configuration',
+              'UNDER CONSTRUCTION: Removes the deployed resources for the selected quick start configuration',
               this,
               this.destroy,
               (y: AnyYargs): void => {
