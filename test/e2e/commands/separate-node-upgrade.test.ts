@@ -78,24 +78,24 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argvPrepare,
         command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.NETWORK_UPGRADE_PREPARE,
+        subcommand: ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.DEV_NODE_PREPARE,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgradePrepare(argv),
       });
 
       await commandInvoker.invoke({
         argv: argvExecute,
         command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.NETWORK_UPGRADE_SUBMIT_TRANSACTION,
+        subcommand: ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgradeSubmitTransactions(argv),
       });
 
       await commandInvoker.invoke({
         argv: argvExecute,
         command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.NETWORK_UPGRADE_EXECUTE,
+        subcommand: ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.DEV_NODE_EXECUTE,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.upgradeExecute(argv),
       });
     }).timeout(Duration.ofMinutes(5).toMillis());

@@ -5,11 +5,10 @@ import {SoloError} from '../../core/errors/solo-error.js';
 import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
 import {Flags, Flags as flags} from '../flags.js';
-import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../../types/aliases.js';
-import {type CommandDefinition, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
+import {type AnyListrContext, type ArgvStruct} from '../../types/aliases.js';
+import {type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
-import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';
-import {injectable} from 'tsyringe-neo';
+import {injectable, inject} from 'tsyringe-neo';
 import {v4 as uuid4} from 'uuid';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {StringEx} from '../../business/utils/string-ex.js';
@@ -19,9 +18,6 @@ import {QuickStartSingleDeployConfigClass} from './quick-start-single-deploy-con
 import {QuickStartSingleDeployContext} from './quick-start-single-deploy-context.js';
 import {QuickStartSingleDestroyConfigClass} from './quick-start-single-destroy-config-class.js';
 import {QuickStartSingleDestroyContext} from './quick-start-single-destroy-context.js';
-import {ClusterCommandHandlers} from '../cluster/handlers.js';
-import {DeploymentCommand} from '../deployment.js';
-import {NodeCommandHandlers} from '../node/handlers.js';
 import {InitCommand} from '../init/init.js';
 import {TaskList} from '../../core/task-list/task-list.js';
 import {TaskListWrapper} from '../../core/task-list/task-list-wrapper.js';
@@ -33,15 +29,12 @@ import {KeysCommandDefinition} from '../command-definitions/keys-command-definit
 import {MirrorCommandDefinition} from '../command-definitions/mirror-command-definition.js';
 import {ExplorerCommandDefinition} from '../command-definitions/explorer-command-definition.js';
 import {RelayCommandDefinition} from '../command-definitions/relay-command-definition.js';
-import {NetworkCommand} from '../network.js';
-import {MirrorNodeCommand} from '../mirror-node.js';
-import {ExplorerCommand} from '../explorer.js';
-import {RelayCommand} from '../relay.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {type AccountManager} from '../../core/account-manager.js';
 import {
-  CreatedPredefinedAccount, PREDEFINED_ACCOUNT_GROUPS,
+  CreatedPredefinedAccount,
+  PREDEFINED_ACCOUNT_GROUPS,
   PredefinedAccount,
   predefinedEcdsaAccounts,
   predefinedEcdsaAccountsWithAlias,

@@ -108,24 +108,24 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argvPrepare,
         command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.NODE_ADD_PREPARE,
+        subcommand: ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.DEV_NODE_PREPARE,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.addPrepare(argv),
       });
 
       await commandInvoker.invoke({
         argv: argvExecute,
         command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.NODE_ADD_SUBMIT_TRANSACTIONS,
+        subcommand: ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.addSubmitTransactions(argv),
       });
 
       await commandInvoker.invoke({
         argv: argvExecute,
         command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.NODE_ADD_EXECUTE,
+        subcommand: ConsensusCommandDefinition.DEV_NODE_ADD_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.DEV_NODE_EXECUTE,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.addExecute(argv),
       });
 

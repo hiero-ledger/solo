@@ -71,24 +71,24 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argvPrepare,
         command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.NODE_DESTROY_PREPARE,
+        subcommand: ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.DEV_NODE_PREPARE,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.destroyPrepare(argv),
       });
 
       await commandInvoker.invoke({
         argv: argvExecute,
         command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.NODE_DESTROY_SUBMIT_TRANSACTIONS,
+        subcommand: ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.destroySubmitTransactions(argv),
       });
 
       await commandInvoker.invoke({
         argv: argvExecute,
         command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.NODE_DESTROY_EXECUTE,
+        subcommand: ConsensusCommandDefinition.DEV_NODE_DELETE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.DEV_NODE_EXECUTE,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.destroyExecute(argv),
       });
 

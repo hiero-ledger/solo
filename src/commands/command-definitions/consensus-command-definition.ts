@@ -67,18 +67,16 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
   // dev-node-upgrade
   // dev-node-delete
 
-  // < prepare-upgrade | freeze-upgrade >
-  // dev-freeze
-
-  // node freeze | network freeze-upgrade ( prepare )
-
-  // dev-freeze prepare-upgrade
-  // network freeze
-
   // add-prepare     | add-execute     | add-submit-transactions
   // update-prepare  | update-execute  | update-submit-transactions
   // destroy-prepare | destroy-execute | destroy-submit-transactions
   // upgrade-prepare | upgrade-execute | upgrade-submit-transactions
+
+  // < prepare-upgrade | freeze-upgrade >
+  // dev-freeze
+
+  // dev-freeze prepare-upgrade = network freeze
+  // dev-freeze freeze-upgrade = node freeze
 
   public static readonly DEV_NODE_PREPARE: string = 'prepare';
   public static readonly DEV_NODE_SUBMIT_TRANSACTION: string = 'submit-transactions';
