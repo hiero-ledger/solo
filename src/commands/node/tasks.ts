@@ -2773,8 +2773,6 @@ export class NodeCommandTasks {
           }
         }
 
-        this.logger.debug('Initialized config', {config});
-
         if (lease) {
           return ListrLock.newAcquireLockTask(lease, task);
         }
