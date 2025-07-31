@@ -337,11 +337,9 @@ export class Templates {
   // Component Label Selectors
 
   public static renderRelayLabels(id: ComponentId, legacyReleaseName?: string): string[] {
-    const releaseName: string = legacyReleaseName
-      ? constants.JSON_RPC_RELAY_CHART
-      : `${constants.JSON_RPC_RELAY_RELEASE_NAME}-${id}`;
-
-    return [`app.kubernetes.io/instance=${releaseName}`];
+    return legacyReleaseName
+      ? ['app.kubernetes.io/name=relay']
+      : [`app.kubernetes.io/instance=${constants.JSON_RPC_RELAY_RELEASE_NAME}-${id}`];
   }
 
   public static renderHaProxyLabels(id: ComponentId): string[] {
