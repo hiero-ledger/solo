@@ -448,10 +448,7 @@ export class RelayCommand extends BaseCommand {
             const pods: Pod[] = await this.k8Factory
               .getK8(config.context)
               .pods()
-              .list(config.namespace, [
-                `app=${config.releaseName}`,
-                `app.kubernetes.io/instance=${config.releaseName}`,
-              ]);
+              .list(config.namespace, Templates.renderRelayLabels(config.newRelayComponent.metadata.id));
 
             if (pods.length === 0) {
               throw new SoloError('No Relay pod found');

@@ -867,12 +867,12 @@ export class MirrorNodeCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error deploying mirror node: ${error.message}`, error);
       } finally {
-        await lease.release();
+        await lease?.release();
         await this.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease.release();
+        await lease?.release();
         await this.accountManager.close();
       });
     }
@@ -1052,7 +1052,7 @@ export class MirrorNodeCommand extends BaseCommand {
       throw new SoloError(`Error destroying mirror node: ${error.message}`, error);
     } finally {
       try {
-        await lease.release();
+        await lease?.release();
       } catch (error) {
         this.logger.error(`Error releasing lease: ${error.message}`, error);
       }
