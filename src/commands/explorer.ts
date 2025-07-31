@@ -163,12 +163,7 @@ export class ExplorerCommand extends BaseCommand {
     valuesArgument += ` --set fullnameOverride=${config.releaseName}`;
     const mirrorNodeReleaseName: string = `${constants.MIRROR_NODE_RELEASE_NAME}-${config.mirrorNodeId}`;
 
-    if (config.mirrorNamespace) {
-      // use fully qualified service name for mirror node since the explorer is in a different namespace
-      valuesArgument += ` --set proxyPass./api="http://${mirrorNodeReleaseName}-rest.${config.mirrorNamespace}.svc.cluster.local" `;
-    } else {
-      valuesArgument += ` --set proxyPass./api="http://${mirrorNodeReleaseName}-rest" `;
-    }
+    valuesArgument += ` --set proxyPass./api="http://${mirrorNodeReleaseName}-rest.${config.mirrorNamespace}.svc.cluster.local" `;
 
     if (config.domainName) {
       valuesArgument += helpers.populateHelmArguments({
@@ -284,15 +279,18 @@ export class ExplorerCommand extends BaseCommand {
 
             config.clusterContext = this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString();
 
+            if (!config.mirrorNamespace) {
+              config.mirrorNamespace = config.namespace;
+            }
+
             config.releaseName = this.getReleaseName();
             config.ingressReleaseName = this.getIngressReleaseName();
 
             if (typeof config.mirrorNodeId !== 'number') {
-              if (this.remoteConfig.configuration.components.state.mirrorNodes.length === 0) {
-                throw new SoloError('Mirror node not found');
-              }
-
-              config.mirrorNodeId = this.remoteConfig.configuration.components.state.mirrorNodes[0].metadata.id;
+              config.mirrorNodeId =
+                this.remoteConfig.getNamespace().name === config.mirrorNamespace.name
+                  ? this.remoteConfig.configuration.components.state.mirrorNodes[0].metadata.id
+                  : 1;
             }
 
             config.isMirrorNodeLegacyChartInstalled =
