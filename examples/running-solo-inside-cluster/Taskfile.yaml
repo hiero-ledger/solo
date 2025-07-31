@@ -1,14 +1,16 @@
 version: 3
 env:
-  SOLO_DEPLOYMENT: "solo-deployment"
-  SOLO_NAMESPACE: "solo-e2e"
-  SOLO_CLUSTER_NAME: "solo-e2e"
+  SOLO_DEPLOYMENT: "nested-cluster-deployment"
+  SOLO_NAMESPACE: "nested-cluster-namespace"
+  SOLO_CLUSTER_NAME: "nested-cluster-cluster"
 tasks:
-  test-e2e-running-solo-in-cluster:
+  start:
     cmds:
       - mkdir -p {{.TASKFILE_DIR}}/.task-tmp
-      - task: render-sa
-      - task: render-pod
+      - mkdir -p {{.TASKFILE_DIR}}/.task-tmp
+      - envsubst < {{.TASKFILE_DIR}}/templates/sa-admin.yaml.tmpl > {{.TASKFILE_DIR}}/.task-tmp/sa-admin.yaml
+      - mkdir -p {{.TASKFILE_DIR}}/.task-tmp
+      - envsubst < {{.TASKFILE_DIR}}/templates/ubuntu-privileged-pod.yaml.tmpl > {{.TASKFILE_DIR}}/.task-tmp/ubuntu-privileged-pod.yaml
       - kubectl apply -f {{.TASKFILE_DIR}}/.task-tmp/sa-admin.yaml
       - kubectl apply -f {{.TASKFILE_DIR}}/.task-tmp/ubuntu-privileged-pod.yaml
 
@@ -23,14 +25,9 @@ tasks:
 
       # Run the script to setup the environment inside the pod
       - kubectl exec -n solo-e2e ubuntu-priv -- sh -c "SOLO_DEPLOYMENT={{.SOLO_DEPLOYMENT}} SOLO_NAMESPACE={{.SOLO_NAMESPACE}} SOLO_CLUSTER_NAME={{.SOLO_CLUSTER_NAME}} /root/setup-environment.sh"
-
-
-  render-sa:
+    # ...existing code...
+  cleanup:
+    desc: Delete the privileged pod and ServiceAccount used for the test
     cmds:
-      - mkdir -p {{.TASKFILE_DIR}}/.task-tmp
-      - envsubst < {{.TASKFILE_DIR}}/templates/sa-admin.yaml.tmpl > {{.TASKFILE_DIR}}/.task-tmp/sa-admin.yaml
-
-  render-pod:
-    cmds:
-      - mkdir -p {{.TASKFILE_DIR}}/.task-tmp
-      - envsubst < {{.TASKFILE_DIR}}/templates/ubuntu-privileged-pod.yaml.tmpl > {{.TASKFILE_DIR}}/.task-tmp/ubuntu-privileged-pod.yaml
+      - kubectl delete pod ubuntu-privileged-pod || true
+      - kubectl delete sa solo-admin || true
