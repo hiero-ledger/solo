@@ -238,8 +238,6 @@ export class BlockNodeCommand extends BaseCommand {
 
             context_.config.context = this.remoteConfig.getClusterRefs()[context_.config.clusterRef];
 
-            this.logger.debug('Initialized config', {config: context_.config});
-
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
@@ -432,8 +430,6 @@ export class BlockNodeCommand extends BaseCommand {
               }
             }
 
-            this.logger.debug('Initialized config', {config: context_.config});
-
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
@@ -521,8 +517,6 @@ export class BlockNodeCommand extends BaseCommand {
             context_.config.releaseName = `${constants.BLOCK_NODE_RELEASE_NAME}-0`;
 
             context_.config.context = this.remoteConfig.getClusterRefs()[context_.config.clusterRef];
-
-            this.logger.debug('Initialized config', {config: context_.config});
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
