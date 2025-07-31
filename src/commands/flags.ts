@@ -353,7 +353,7 @@ export class Flags {
     ): Promise<string> {
       if (input && !fs.existsSync(input)) {
         input = await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
-          default: Flags.valuesFile.definition.defaultValue as string,
+          default: Flags.profileFile.definition.defaultValue as string,
           message: 'Enter path to custom resource profile definition file: ',
         });
       }
