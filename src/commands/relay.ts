@@ -34,6 +34,7 @@ import {Lock} from '../core/lock/lock.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Duration} from '../core/time/duration.js';
+import {Version} from '../business/utils/version.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -160,8 +161,9 @@ export class RelayCommand extends BaseCommand {
     }
 
     if (relayRelease) {
-      valuesArgument += ` --set relay.image.tag=${relayRelease.replace(/^v/, '')}`;
-      valuesArgument += ` --set ws.image.tag=${relayRelease.replace(/^v/, '')}`;
+      relayRelease = Version.getValidSemanticVersion(relayRelease, false, 'Relay release');
+      valuesArgument += ` --set relay.image.tag=${relayRelease}`;
+      valuesArgument += ` --set ws.image.tag=${relayRelease}`;
     }
 
     if (replicaCount) {
@@ -318,8 +320,6 @@ export class RelayCommand extends BaseCommand {
                 context_.config.context = context;
               }
             }
-
-            self.logger.debug('Initialized config', {config: context_.config});
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
@@ -529,8 +529,6 @@ export class RelayCommand extends BaseCommand {
               context_.config.context,
             );
 
-            self.logger.debug('Initialized config', {config: context_.config});
-
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
@@ -582,7 +580,7 @@ export class RelayCommand extends BaseCommand {
               flags.setOptionalCommandFlags(y, ...RelayCommand.DEPLOY_FLAGS_LIST.optional);
             },
             handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'relay deploy' ===", {argv});
+              self.logger.info("==== Running 'relay deploy' ===");
 
               await self.deploy(argv).then(r => {
                 self.logger.info('==== Finished running `relay deploy`====');
@@ -600,8 +598,7 @@ export class RelayCommand extends BaseCommand {
               flags.setOptionalCommandFlags(y, ...RelayCommand.DESTROY_FLAGS_LIST.optional);
             },
             handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'relay destroy' ===", {argv});
-              self.logger.debug(argv);
+              self.logger.info("==== Running 'relay destroy' ===");
 
               await self.destroy(argv).then(r => {
                 self.logger.info('==== Finished running `relay destroy`====');

@@ -128,6 +128,7 @@ import {NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
 import {SemVer, lt} from 'semver';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
+import {Version} from '../../business/utils/version.js';
 
 export type LeaseWrapper = {lease: Lock};
 
@@ -1191,6 +1192,10 @@ export class NodeCommandTasks {
         const {podRefs, localBuildPath} = context_.config;
         let {releaseTag} = context_.config;
 
+        if (releaseTag) {
+          releaseTag = Version.getValidSemanticVersion(releaseTag, true, 'Consensus release tag');
+        }
+
         if ('upgradeVersion' in context_.config) {
           if (!context_.config.upgradeVersion) {
             this.logger.info('Skip, no need to update the platform software');
@@ -1315,8 +1320,12 @@ export class NodeCommandTasks {
       },
       task: async (context_): Promise<void> => {
         for (const consensusNode of context_.config.consensusNodes) {
+          const context: string = helpers.extractContextFromConsensusNodes(
+            consensusNode.name,
+            context_.config.consensusNodes,
+          );
           const podReference: PodReference = await this.k8Factory
-            .getK8(consensusNode.cluster)
+            .getK8(context)
             .pods()
             .list(NamespaceName.of(consensusNode.namespace), [
               `solo.hedera.com/node-name=${consensusNode.name}`,
@@ -2289,6 +2298,11 @@ export class NodeCommandTasks {
             const valuesArguments = valuesArgumentMap[clusterReference];
             const context = this.localConfig.configuration.clusterRefs.get(clusterReference);
 
+            config.soloChartVersion = Version.getValidSemanticVersion(
+              config.soloChartVersion,
+              false,
+              'Solo chart version',
+            );
             await self.chartManager.upgrade(
               config.namespace,
               constants.SOLO_DEPLOYMENT_CHART,
@@ -2758,8 +2772,6 @@ export class NodeCommandTasks {
             throw new MissingArgumentError(`No value set for required flag: ${flag.name}`, flag.name);
           }
         }
-
-        this.logger.debug('Initialized config', {config});
 
         if (lease) {
           return ListrLock.newAcquireLockTask(lease, task);

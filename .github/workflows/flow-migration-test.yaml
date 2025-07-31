@@ -34,13 +34,13 @@ permissions:
 
 jobs:
   test-migration-process:
+    name: Migrate Solo from Prior to Current Version
     timeout-minutes: 30
     runs-on: hiero-solo-linux-large
     strategy:
       fail-fast: false
       matrix:
-        release-tag: ["0.35.2"]
-        # release-tag: ["0.39.0"]
+        release-tag: ["0.41.0"]
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -77,7 +77,7 @@ jobs:
           version: 'v1.27.3'
         id: install
 
-      - name: Launch Network with Release version ${{ matrix.release-tag }}
+      - name: Launch Network with Prior Release ${{ matrix.release-tag }}
         timeout-minutes: 60
         run: |
           echo "Install yq..."

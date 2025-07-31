@@ -75,6 +75,7 @@ import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
+import {Version} from '../business/utils/version.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -651,7 +652,6 @@ export class NetworkCommand extends BaseCommand {
     argv: ArgvStruct,
   ): Promise<NetworkDeployConfigClass> {
     this.configManager.update(argv);
-    this.logger.debug('Updated config with argv', {config: this.configManager.config});
 
     const flagsWithDisabledPrompts: CommandFlag[] = [
       flags.apiPermissionProperties,
@@ -779,10 +779,6 @@ export class NetworkCommand extends BaseCommand {
     this.logger.debug('Preparing storage secrets');
     await this.prepareStorageSecrets(config);
 
-    this.logger.debug('Prepared config', {
-      config,
-      cachedConfig: this.configManager.config,
-    });
     return config;
   }
 
@@ -979,6 +975,12 @@ export class NetworkCommand extends BaseCommand {
                 );
                 config.isUpgrade = true;
               }
+
+              config.soloChartVersion = Version.getValidSemanticVersion(
+                config.soloChartVersion,
+                false,
+                'Solo chart version',
+              );
 
               await this.chartManager.upgrade(
                 config.namespace,
