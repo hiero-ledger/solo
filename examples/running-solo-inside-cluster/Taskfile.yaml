@@ -4,30 +4,47 @@ env:
   SOLO_NAMESPACE: "nested-cluster-namespace"
   SOLO_CLUSTER_NAME: "nested-cluster-cluster"
 tasks:
-  start:
+  default:
     cmds:
-      - mkdir -p {{.TASKFILE_DIR}}/.task-tmp
-      - mkdir -p {{.TASKFILE_DIR}}/.task-tmp
-      - envsubst < {{.TASKFILE_DIR}}/templates/sa-admin.yaml.tmpl > {{.TASKFILE_DIR}}/.task-tmp/sa-admin.yaml
-      - mkdir -p {{.TASKFILE_DIR}}/.task-tmp
-      - envsubst < {{.TASKFILE_DIR}}/templates/ubuntu-privileged-pod.yaml.tmpl > {{.TASKFILE_DIR}}/.task-tmp/ubuntu-privileged-pod.yaml
-      - kubectl apply -f {{.TASKFILE_DIR}}/.task-tmp/sa-admin.yaml
-      - kubectl apply -f {{.TASKFILE_DIR}}/.task-tmp/ubuntu-privileged-pod.yaml
+      - name: "Create .task-tmp directory"
+        cmd: mkdir -p {{.TASKFILE_DIR}}/.task-tmp
 
-      # Wait for the pod to be ready
-      - kubectl wait --for=condition=Ready pod/ubuntu-priv -n solo-e2e --timeout=120s
+      - name: "Create .task-tmp directory (redundant)"
+        cmd: mkdir -p {{.TASKFILE_DIR}}/.task-tmp
 
-      # Copy the environment setup script to /root inside the pod
-      - kubectl cp {{.TASKFILE_DIR}}/scripts/setup-environment.sh solo-e2e/ubuntu-priv:/root/setup-environment.sh
+      - name: "Render ServiceAccount manifest"
+        cmd: envsubst < {{.TASKFILE_DIR}}/templates/sa-admin.yaml.tmpl > {{.TASKFILE_DIR}}/.task-tmp/sa-admin.yaml
 
-      # Change permission to executable inside the pod
-      - kubectl exec -n solo-e2e ubuntu-priv -- chmod +x /root/setup-environment.sh
+      - name: "Create .task-tmp directory (for pod)"
+        cmd: mkdir -p {{.TASKFILE_DIR}}/.task-tmp
 
-      # Run the script to setup the environment inside the pod
-      - kubectl exec -n solo-e2e ubuntu-priv -- sh -c "SOLO_DEPLOYMENT={{.SOLO_DEPLOYMENT}} SOLO_NAMESPACE={{.SOLO_NAMESPACE}} SOLO_CLUSTER_NAME={{.SOLO_CLUSTER_NAME}} /root/setup-environment.sh"
-    # ...existing code...
+      - name: "Render Ubuntu privileged pod manifest"
+        cmd: envsubst < {{.TASKFILE_DIR}}/templates/ubuntu-privileged-pod.yaml.tmpl > {{.TASKFILE_DIR}}/.task-tmp/ubuntu-privileged-pod.yaml
+
+      - name: "Apply ServiceAccount manifest"
+        cmd: kubectl apply -f {{.TASKFILE_DIR}}/.task-tmp/sa-admin.yaml
+
+      - name: "Apply Ubuntu privileged pod manifest"
+        cmd: kubectl apply -f {{.TASKFILE_DIR}}/.task-tmp/ubuntu-privileged-pod.yaml
+
+      - name: "Wait for pod to be ready"
+        cmd: kubectl wait --for=condition=Ready pod/ubuntu-priv -n solo-e2e --timeout=120s
+
+      - name: "Copy setup script to pod"
+        cmd: kubectl cp {{.TASKFILE_DIR}}/scripts/setup-environment.sh solo-e2e/ubuntu-priv:/root/setup-environment.sh
+
+      - name: "Make setup script executable in pod"
+        cmd: kubectl exec -n solo-e2e ubuntu-priv -- chmod +x /root/setup-environment.sh
+
+      - name: "Run setup script in pod"
+        cmd: |
+          kubectl exec -n solo-e2e ubuntu-priv -- sh -c "SOLO_DEPLOYMENT={{.SOLO_DEPLOYMENT}} \
+          SOLO_NAMESPACE={{.SOLO_NAMESPACE}} SOLO_CLUSTER_NAME={{.SOLO_CLUSTER_NAME}} /root/setup-environment.sh"
   cleanup:
     desc: Delete the privileged pod and ServiceAccount used for the test
     cmds:
-      - kubectl delete pod ubuntu-privileged-pod || true
-      - kubectl delete sa solo-admin || true
+      - name: "Delete privileged pod"
+        cmd: kubectl delete pod ubuntu-privileged-pod || true
+
+      - name: "Delete ServiceAccount"
+        cmd: kubectl delete sa solo-admin || true

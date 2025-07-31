@@ -16,7 +16,7 @@ This example demonstrates how to run the Solo network inside a privileged Ubuntu
 
 2. **Run the test**
    ```sh
-   task start
+   task
    ```
    This will:
    - Render and apply the ServiceAccount and Pod manifests

@@ -1,8 +1,4 @@
 version: 3
-includes:
-  main:
-    taskfile: ../../Taskfile.yml
-    flatten: true
 vars:
   use_port_forwards: "true"
 
@@ -20,37 +16,108 @@ vars:
   CLUSTER_REFERENCE: "kind-solo-cluster"
 
 tasks:
-  install:
+  default:
     desc: Run a full standalone Solo network with block node, mirror node, and relay
     cmds:
-      - npm i @hashgraph/solo
-      - kind create cluster -n {{ .CLUSTER_NAME }}
-      - sleep 10 # wait for control plane to come up
-      - kubectl config set-context {{ .CONTEXT }}
-      - solo init
-      - solo cluster-ref connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
-      - solo deployment create --deployment {{ .DEPLOYMENT }} --namespace {{ .NAMESPACE }}
-      - solo deployment add-cluster --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
-      - solo cluster-ref setup --cluster-ref {{ .CLUSTER_REFERENCE }}
-      - solo node keys --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }}
-      - solo network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} --domain-names node1={{ .NODE1_DOMAIN_NAME }}
-      - solo node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }} --domain-names node1={{ .NODE1_DOMAIN_NAME }}
-      - solo node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
-      - solo mirror-node deploy --deployment {{ .DEPLOYMENT }} --pinger --domain-name {{ .MIRROR_NODE_DOMAIN_NAME }} --enable-ingress
-      - solo relay deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }} --domain-name {{ .RELAY_DOMAIN_NAME }}
-      - solo explorer deploy --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} --domain-name {{ .EXPLORER_DOMAIN_NAME }} --enable-explorer-tls --tls-cluster-issuer-type acme-staging --enable-ingress --namespace {{ .NAMESPACE }} --mirrorNamespace ${NAMESPACE}
-      - explorer_svc="$(kubectl get svc -l app.kubernetes.io/component=hiero-explorer -n ${NAMESPACE} --output json | jq -r '.items[].metadata.name')"
-      - /bin/bash -c "nohup kubectl port-forward -n \"${NAMESPACE}\" svc/haproxy-node1-svc 50211:50211 > /dev/null 2>&1 &"
-      - /bin/bash -c "nohup kubectl port-forward -n \"${NAMESPACE}\" svc/mirror-grpc 5600:5600 > /dev/null 2>&1 &"
-      - /bin/bash -c "nohup kubectl port-forward -n \"${NAMESPACE}\" svc/mirror-rest 5551:80 > /dev/null 2>&1 &"
-      - /bin/bash -c "nohup kubectl port-forward -n \"${NAMESPACE}\" \"svc/${explorer_svc}\" 8080:80 > /dev/null 2>&1 &"
-      - ( cd ./sdk-network-connection && npm i && node solo-network-connection.js )
+      - name: "Install Solo CLI"
+        cmd: npm i @hashgraph/solo
+
+      - name: "Create Kind cluster"
+        cmd: kind create cluster -n {{ .CLUSTER_NAME }}
+
+      - name: "Wait for control plane"
+        cmd: sleep 10 # wait for control plane to come up
+
+      - name: "Set kubectl context"
+        cmd: kubectl config set-context {{ .CONTEXT }}
+
+      - name: "Solo init"
+        cmd: solo init
+
+      - name: "Solo cluster-ref connect"
+        cmd: solo cluster-ref connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
+
+      - name: "Solo deployment create"
+        cmd: solo deployment create --deployment {{ .DEPLOYMENT }} --namespace {{ .NAMESPACE }}
+
+      - name: "Solo deployment add-cluster"
+        cmd: |
+          solo deployment add-cluster --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
+
+      - name: "Solo cluster-ref setup"
+        cmd: solo cluster-ref setup --cluster-ref {{ .CLUSTER_REFERENCE }}
+
+      - name: "Solo node keys"
+        cmd: |
+          solo node keys --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
+          --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      - name: "Solo network deploy with domain name"
+        cmd: |
+          solo network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
+          --domain-names node1={{ .NODE1_DOMAIN_NAME }}
+
+      - name: "Solo node setup with domain name"
+        cmd: |
+          solo node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }} \
+          --domain-names node1={{ .NODE1_DOMAIN_NAME }}
+
+      - name: "Solo node start"
+        cmd: solo node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      - name: "Solo mirror-node deploy with domain name"
+        cmd: |
+          solo mirror-node deploy --deployment {{ .DEPLOYMENT }} --pinger \
+          --domain-name {{ .MIRROR_NODE_DOMAIN_NAME }} --enable-ingress
+
+      - name: "Solo relay deploy with domain name"
+        cmd: |
+          solo relay deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }} \
+          --domain-name {{ .RELAY_DOMAIN_NAME }}
+
+      - name: "Solo explorer deploy with domain name"
+        cmd: |
+          solo explorer deploy --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          --domain-name {{ .EXPLORER_DOMAIN_NAME }} --enable-explorer-tls --tls-cluster-issuer-type acme-staging \
+          --enable-ingress --namespace {{ .NAMESPACE }} --mirrorNamespace ${NAMESPACE}
+
+      - name: "Get explorer service name"
+        cmd: |
+          explorer_svc="$(kubectl get svc -l app.kubernetes.io/component=hiero-explorer -n ${NAMESPACE} \
+          --output json | jq -r '.items[].metadata.name')"
+
+      - name: "Port-forward haproxy-node1-svc"
+        cmd: /bin/bash -c "nohup kubectl port-forward -n \"${NAMESPACE}\" svc/haproxy-node1-svc 50211:50211 > /dev/null 2>&1 &"
+
+      - name: "Port-forward mirror-grpc"
+        cmd: /bin/bash -c "nohup kubectl port-forward -n \"${NAMESPACE}\" svc/mirror-grpc 5600:5600 > /dev/null 2>&1 &"
+
+      - name: "Port-forward mirror-rest"
+        cmd: /bin/bash -c "nohup kubectl port-forward -n \"${NAMESPACE}\" svc/mirror-rest 5551:80 > /dev/null 2>&1 &"
+
+      - name: "Port-forward explorer service"
+        cmd: /bin/bash -c "nohup kubectl port-forward -n \"${NAMESPACE}\" \"svc/${explorer_svc}\" 8080:80 > /dev/null 2>&1 &"
+
+      - name: "Run SDK network connection test"
+        cmd: ( cd ./sdk-network-connection && npm i && node solo-network-connection.js )
   destroy:
     desc: Destroy the Solo network with block node
     cmds:
-      - solo mirror-node destroy --deployment {{ .DEPLOYMENT }} --force
-      - solo relay destroy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
-      - solo explorer destroy --deployment {{ .DEPLOYMENT }}
-      - solo node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
-      - solo network destroy --deployment {{ .DEPLOYMENT }} --force
-      - kind delete cluster -n {{ .CLUSTER_NAME }}
+      - name: "Solo mirror-node destroy"
+        cmd: solo mirror-node destroy --deployment {{ .DEPLOYMENT }} --force
+
+      - name: "Solo relay destroy"
+        cmd: solo relay destroy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      - name: "Solo explorer destroy"
+        cmd: solo explorer destroy --deployment {{ .DEPLOYMENT }}
+
+      - name: "Solo node stop"
+        cmd: solo node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      - name: "Solo network destroy"
+        cmd: solo network destroy --deployment {{ .DEPLOYMENT }} --force
+
+      - name: "Delete Kind cluster"
+        cmd: kind delete cluster -n {{ .CLUSTER_NAME }}

@@ -12,32 +12,82 @@ vars:
   CONTEXT: "kind-solo-cluster"
   CLUSTER_REFERENCE: "kind-solo-cluster"
 tasks:
-  install:
+  default:
     desc: Run a full standalone Solo network with block node, mirror node, and relay
     cmds:
-      - npm i @hashgraph/solo
-      - kind create cluster -n {{ .CLUSTER_NAME }}
-      - sleep 10 # wait for control plane to come up
-      - kubectl config set-context {{ .CONTEXT }}
-      - solo init
-      - solo cluster-ref connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
-      - solo deployment create --deployment {{ .DEPLOYMENT }} --namespace {{ .NAMESPACE }}
-      - solo deployment add-cluster --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
-      - solo cluster-ref setup --cluster-ref {{ .CLUSTER_REFERENCE }}
-      - solo block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .BLOCK_NODE_RELEASE_TAG }} --cluster-ref {{ .CLUSTER_REFERENCE }}
-      - solo node keys --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }}
-      - solo network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }}
-      - solo node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
-      - solo node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
-      - solo mirror-node deploy --deployment {{ .DEPLOYMENT }} --pinger
-      - solo relay deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
-      - solo explorer deploy --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }}
+      - name: "Install Solo CLI"
+        cmd: npm i @hashgraph/solo
+
+      - name: "Create Kind cluster"
+        cmd: kind create cluster -n {{ .CLUSTER_NAME }}
+
+      - name: "Wait for control plane"
+        cmd: sleep 10 # wait for control plane to come up
+
+      - name: "Set kubectl context"
+        cmd: kubectl config set-context {{ .CONTEXT }}
+
+      - name: "Solo init"
+        cmd: solo init
+
+      - name: "Solo cluster-ref connect"
+        cmd: solo cluster-ref connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
+
+      - name: "Solo deployment create"
+        cmd: solo deployment create --deployment {{ .DEPLOYMENT }} --namespace {{ .NAMESPACE }}
+
+      - name: "Solo deployment add-cluster"
+        cmd: |
+          solo deployment add-cluster --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
+
+      - name: "Solo cluster-ref setup"
+        cmd: solo cluster-ref setup --cluster-ref {{ .CLUSTER_REFERENCE }}
+
+      - name: "Solo block node add"
+        cmd: |
+          solo block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .BLOCK_NODE_RELEASE_TAG }} \
+          --cluster-ref {{ .CLUSTER_REFERENCE }}
+
+      - name: "Solo node keys"
+        cmd: |
+          solo node keys --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
+          --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      - name: "Solo network deploy"
+        cmd: solo network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      - name: "Solo node setup"
+        cmd: solo node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
+
+      - name: "Solo node start"
+        cmd: solo node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      - name: "Solo mirror-node deploy"
+        cmd: solo mirror-node deploy --deployment {{ .DEPLOYMENT }} --pinger
+
+      - name: "Solo relay deploy"
+        cmd: solo relay deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      - name: "Solo explorer deploy"
+        cmd: solo explorer deploy --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }}
   destroy:
     desc: Destroy the Solo network with block node
     cmds:
-      - solo node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
-      - solo mirror-node destroy --deployment {{ .DEPLOYMENT }} --force
-      - solo relay destroy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
-      - solo explorer destroy --deployment {{ .DEPLOYMENT }}
-      - solo network destroy --deployment {{ .DEPLOYMENT }} --force
-      - kind delete cluster -n {{ .CLUSTER_NAME }}
+      - name: "Solo node stop"
+        cmd: solo node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      - name: "Solo mirror-node destroy"
+        cmd: solo mirror-node destroy --deployment {{ .DEPLOYMENT }} --force
+
+      - name: "Solo relay destroy"
+        cmd: solo relay destroy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      - name: "Solo explorer destroy"
+        cmd: solo explorer destroy --deployment {{ .DEPLOYMENT }}
+
+      - name: "Solo network destroy"
+        cmd: solo network destroy --deployment {{ .DEPLOYMENT }} --force
+
+      - name: "Delete Kind cluster"
+        cmd: kind delete cluster -n {{ .CLUSTER_NAME }}

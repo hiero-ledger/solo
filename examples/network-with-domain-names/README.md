@@ -14,7 +14,7 @@ This example demonstrates how to deploy a Hiero Hashgraph Solo network with cust
 
 2. **Deploy the network**
    ```sh
-   task install
+   task
    ```
    This will:
    - Install the Solo CLI

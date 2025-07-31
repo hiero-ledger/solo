@@ -12,24 +12,41 @@ This example demonstrates how to create and manage a custom Hiero Hashgraph Solo
 1. **Install dependencies:**
    - Make sure you have [Task](https://taskfile.dev/), [Node.js](https://nodejs.org/), [npm](https://www.npmjs.com/), [kubectl](https://kubernetes.io/docs/tasks/tools/), and [kind](https://kind.sigs.k8s.io/) installed.
 2. **Customize your network:**
-   - Edit `Taskfile.yml` to set the desired network size, namespaces, and other parameters. 
+   - Edit `Taskfile.yml` to set the desired network size, namespaces, and other parameters.
 3. **Run the default workflow:**
    - From this directory, run:
      ```sh
      task
      ```
-   - This will initialize the environment, install dependencies, create a kind cluster, and deploy the custom network.
-4. **Other useful commands:**
-   - `task destroy` — Tear down the network
-   - `task clean` — Remove all generated files and resources
-   - `task show:ips` — Show external IPs of the nodes
+   - This will:
+     - Install the Solo CLI
+     - Create a Kind cluster
+     - Set the kubectl context
+     - Initialize Solo
+     - Connect and set up the cluster reference
+     - Create and configure the deployment
+     - Add the cluster to the deployment
+     - Generate node keys
+     - Deploy the network with custom configuration files
+     - Set up and start nodes
+     - Deploy mirror node, relay, and explorer
+4. **Destroy the network:**
+   - Run:
+     ```sh
+     task destroy
+     ```
+   - This will:
+     - Stop all nodes
+     - Destroy mirror node, relay, and explorer
+     - Destroy the Solo network
+     - Delete the Kind cluster
 
 ## Files
 - `Taskfile.yml` — All automation tasks and configuration
-- `init-containers-values.yaml`, `settings.txt`, etc. — Example config files for customizing your deployment (add as needed)
+- `init-containers-values.yaml`, `settings.txt`, `log4j2.xml`, `application.properties` — Example config files for customizing your deployment
 
 ## Notes
 - This example is **self-contained** and does not require files from outside this directory.
-- You can extend the Taskfile to add mirror nodes, explorers, relays, or other custom resources.
+- All steps in the workflow are named for clear logging and troubleshooting.
+- You can extend the Taskfile to add more custom resources or steps as needed.
 - For more advanced usage, see the main [Solo documentation](https://github.com/hashgraph/solo).
-
