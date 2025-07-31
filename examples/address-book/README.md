@@ -1,3 +1,5 @@
+# TODO: yahcli.jar is broken
+
 # Yahcli Address Book Example
 
 This is an example of how to use Yahcli to pull the ledger and mirror node address book.  And to update the ledger address book.  It updates File 101 (the ledger address book file) and File 102 (the ledger node details file).
@@ -10,6 +12,11 @@ To get the address book from the ledger, this requires a port forward to be setu
 
 > \[!NOTE]
 > Due to file size, the Yahcli.jar file is stored with Git LFS (Large File Storage).  You will need to install Git LFS prior to cloning this repository to automatically download the Yahcli.jar file. For instructions on how to install see: <https://docs.github.com/en/repositories/working-with-files/managing-large-files/installing-git-large-file-storage>
+> 
+> After cloning the repository, navigate to this directory and run the following command to pull the Yahcli.jar file:
+> ```bash
+> git lfs fetch --all
+> ```
 
 ```bash
 # try and detect if the port forward is already setup
