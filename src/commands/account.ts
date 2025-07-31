@@ -275,8 +275,6 @@ export class AccountCommand extends BaseCommand {
             // set config in the context for later tasks to use
             context_.config = config;
 
-            self.logger.debug('Initialized config', {config});
-
             await self.accountManager.loadNodeClient(
               config.namespace,
               self.remoteConfig.getClusterRefs(),
@@ -519,8 +517,6 @@ export class AccountCommand extends BaseCommand {
             // set config in the context for later tasks to use
             context_.config = config;
 
-            self.logger.debug('Initialized config', {config});
-
             await self.accountManager.loadNodeClient(
               context_.config.namespace,
               self.remoteConfig.getClusterRefs(),
@@ -619,8 +615,6 @@ export class AccountCommand extends BaseCommand {
               config.deployment,
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
-
-            self.logger.debug('Initialized config', {config});
           },
         },
         {
@@ -724,8 +718,6 @@ export class AccountCommand extends BaseCommand {
               config.deployment,
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
-
-            self.logger.debug('Initialized config', {config});
           },
         },
         {

@@ -647,7 +647,6 @@ export class NetworkCommand extends BaseCommand {
     argv: ArgvStruct,
   ): Promise<NetworkDeployConfigClass> {
     this.configManager.update(argv);
-    this.logger.debug('Updated config with argv', {config: this.configManager.config});
 
     const flagsWithDisabledPrompts: CommandFlag[] = [
       flags.apiPermissionProperties,
@@ -775,10 +774,6 @@ export class NetworkCommand extends BaseCommand {
     this.logger.debug('Preparing storage secrets');
     await this.prepareStorageSecrets(config);
 
-    this.logger.debug('Prepared config', {
-      config,
-      cachedConfig: this.configManager.config,
-    });
     return config;
   }
 

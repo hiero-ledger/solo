@@ -312,8 +312,6 @@ export class RelayCommand extends BaseCommand {
               }
             }
 
-            self.logger.debug('Initialized config', {config: context_.config});
-
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
@@ -521,8 +519,6 @@ export class RelayCommand extends BaseCommand {
               context_.config.releaseName,
               context_.config.context,
             );
-
-            self.logger.debug('Initialized config', {config: context_.config});
 
             return ListrLock.newAcquireLockTask(lease, task);
           },

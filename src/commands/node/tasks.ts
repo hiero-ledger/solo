@@ -1320,8 +1320,12 @@ export class NodeCommandTasks {
       },
       task: async (context_): Promise<void> => {
         for (const consensusNode of context_.config.consensusNodes) {
+          const context: string = helpers.extractContextFromConsensusNodes(
+            consensusNode.name,
+            context_.config.consensusNodes,
+          );
           const podReference: PodReference = await this.k8Factory
-            .getK8(consensusNode.cluster)
+            .getK8(context)
             .pods()
             .list(NamespaceName.of(consensusNode.namespace), [
               `solo.hedera.com/node-name=${consensusNode.name}`,
@@ -2768,8 +2772,6 @@ export class NodeCommandTasks {
             throw new MissingArgumentError(`No value set for required flag: ${flag.name}`, flag.name);
           }
         }
-
-        this.logger.debug('Initialized config', {config});
 
         if (lease) {
           return ListrLock.newAcquireLockTask(lease, task);
