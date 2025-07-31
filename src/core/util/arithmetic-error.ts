@@ -17,7 +17,5 @@ export class ArithmeticError extends Error {
     if (cause) {
       this.cause = cause;
     }
-
-    Error.captureStackTrace(this, this.constructor);
   }
 }

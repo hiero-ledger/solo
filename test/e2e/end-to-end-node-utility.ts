@@ -16,7 +16,7 @@ import {sleep} from '../../src/core/helpers.js';
 import {type NodeAlias} from '../../src/types/aliases.js';
 import {type ConfigManager} from '../../src/core/config-manager.js';
 import {type K8Factory} from '../../src/integration/kube/k8-factory.js';
-import {NodeCommand} from '../../src/commands/node/index.js';
+import {type NodeCommand} from '../../src/commands/node/index.js';
 import {NodeCommandTasks} from '../../src/commands/node/tasks.js';
 import {Duration} from '../../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';
@@ -28,6 +28,7 @@ import {InjectTokens} from '../../src/core/dependency-injection/inject-tokens.js
 import {Argv} from '../helpers/argv-wrapper.js';
 import {type SoloListrTaskWrapper} from '../../src/types/index.js';
 import {type Pod} from '../../src/integration/kube/resources/pod/pod.js';
+import {ConsensusCommandDefinition} from '../../src/commands/command-definitions/consensus-command-definition.js';
 
 export function endToEndNodeKeyRefreshTest(testName: string, mode: string, releaseTag = HEDERA_PLATFORM_VERSION_TAG) {
   const namespace = NamespaceName.of(testName);
@@ -98,9 +99,10 @@ export function endToEndNodeKeyRefreshTest(testName: string, mode: string, relea
           } else if (mode === 'stop') {
             await commandInvoker.invoke({
               argv: argv,
-              command: NodeCommand.COMMAND_NAME,
-              subcommand: 'stop',
-              callback: async argv => nodeCmd.handlers.stop(argv),
+              command: ConsensusCommandDefinition.COMMAND_NAME,
+              subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+              action: ConsensusCommandDefinition.NODE_STOP,
+              callback: async (argv): Promise<boolean> => nodeCmd.handlers.stop(argv),
             });
 
             await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
@@ -142,9 +144,10 @@ export function endToEndNodeKeyRefreshTest(testName: string, mode: string, relea
           try {
             await commandInvoker.invoke({
               argv: argv,
-              command: NodeCommand.COMMAND_NAME,
-              subcommand: 'refresh',
-              callback: async argv => nodeCmd.handlers.refresh(argv),
+              command: ConsensusCommandDefinition.COMMAND_NAME,
+              subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+              action: ConsensusCommandDefinition.NODE_REFRESH,
+              callback: async (argv): Promise<boolean> => nodeCmd.handlers.refresh(argv),
             });
           } catch (error) {
             logger.showUserError(error);
