@@ -283,19 +283,19 @@ export class MirrorNodeCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private async deployMirrorNode(context_: MirrorNodeDeployContext): Promise<void> {
-    context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
-      context_.config.namespace,
-      context_.config.releaseName,
-      context_.config.clusterContext,
+  private async deployMirrorNode({config}: MirrorNodeDeployContext): Promise<void> {
+    config.isChartInstalled = await this.chartManager.isChartInstalled(
+      config.namespace,
+      config.releaseName,
+      config.clusterContext,
     );
 
-    if (context_.config.isChartInstalled && semver.gte(context_.config.mirrorNodeVersion, '0.130.0')) {
+    if (config.isChartInstalled && semver.gte(config.mirrorNodeVersion, '0.130.0')) {
       // migrating mirror node passwords from HEDERA_ (version 0.129.0) to HIERO_
       const existingSecrets = await this.k8Factory
-        .getK8(context_.config.clusterContext)
+        .getK8(config.clusterContext)
         .secrets()
-        .read(context_.config.namespace, 'mirror-passwords');
+        .read(config.namespace, 'mirror-passwords');
       const updatedData: Record<string, string> = {};
       for (const [key, value] of Object.entries(existingSecrets.data)) {
         if (key.startsWith('HEDERA_')) {
@@ -306,27 +306,27 @@ export class MirrorNodeCommand extends BaseCommand {
       }
       if (Object.keys(updatedData).length > 0) {
         await this.k8Factory
-          .getK8(context_.config.clusterContext)
+          .getK8(config.clusterContext)
           .secrets()
-          .replace(context_.config.namespace, 'mirror-passwords', SecretType.OPAQUE, updatedData);
+          .replace(config.namespace, 'mirror-passwords', SecretType.OPAQUE, updatedData);
       }
     }
 
     await this.chartManager.upgrade(
-      context_.config.namespace,
-      context_.config.releaseName,
+      config.namespace,
+      config.releaseName,
       constants.MIRROR_NODE_CHART,
       constants.MIRROR_NODE_RELEASE_NAME,
-      context_.config.mirrorNodeVersion,
-      context_.config.valuesArg,
-      context_.config.clusterContext,
+      config.mirrorNodeVersion,
+      config.valuesArg,
+      config.clusterContext,
     );
 
-    showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, context_.config.mirrorNodeVersion);
+    showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, config.mirrorNodeVersion);
 
-    if (context_.config.enableIngress) {
+    if (config.enableIngress) {
       const existingIngressClasses: IngressClass[] = await this.k8Factory
-        .getK8(context_.config.clusterContext)
+        .getK8(config.clusterContext)
         .ingressClasses()
         .list();
 
@@ -339,9 +339,9 @@ export class MirrorNodeCommand extends BaseCommand {
 
       await KeyManager.createTlsSecret(
         this.k8Factory,
-        context_.config.namespace,
-        context_.config.domainName,
-        context_.config.cacheDir,
+        config.namespace,
+        config.domainName,
+        config.cacheDir,
         constants.MIRROR_INGRESS_TLS_SECRET_NAME,
       );
       // patch ingressClassName of mirror ingress, so it can be recognized by haproxy ingress controller
@@ -350,19 +350,19 @@ export class MirrorNodeCommand extends BaseCommand {
           ingressClassName: `${constants.MIRROR_INGRESS_CLASS_NAME}`,
           tls: [
             {
-              hosts: [context_.config.domainName || 'localhost'],
+              hosts: [config.domainName || 'localhost'],
               secretName: constants.MIRROR_INGRESS_TLS_SECRET_NAME,
             },
           ],
         },
       };
       await this.k8Factory
-        .getK8(context_.config.clusterContext)
+        .getK8(config.clusterContext)
         .ingresses()
-        .update(context_.config.namespace, constants.MIRROR_NODE_RELEASE_NAME, updated);
+        .update(config.namespace, constants.MIRROR_NODE_RELEASE_NAME, updated);
 
       await this.k8Factory
-        .getK8(context_.config.clusterContext)
+        .getK8(config.clusterContext)
         .ingressClasses()
         .create(
           constants.MIRROR_INGRESS_CLASS_NAME,
@@ -425,6 +425,9 @@ export class MirrorNodeCommand extends BaseCommand {
 
             config.clusterReference =
               this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
+
+            // Initialize
+            config.valuesArg = ''
 
             // predefined values first
             config.valuesArg += semver.lt(config.mirrorNodeVersion, '0.130.0')
