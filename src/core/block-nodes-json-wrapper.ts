@@ -5,6 +5,9 @@ import {type ToJSON} from '../types/index.js';
 import * as constants from './constants.js';
 import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
+import {type ApplicationVersionsSchema} from '../data/schema/model/common/application-versions-schema.js';
+import {lt, type SemVer} from 'semver';
+import * as versions from '../../version.js';
 
 interface BlockNodeConnectionData {
   address: string;
@@ -20,6 +23,7 @@ export class BlockNodesJsonWrapper implements ToJSON {
   public constructor(
     private readonly blockNodeComponents: BlockNodeStateSchema[],
     private readonly clusters: Readonly<ClusterSchema[]>,
+    private readonly versions: Readonly<ApplicationVersionsSchema>,
   ) {}
 
   public toJSON(): string {
@@ -35,7 +39,12 @@ export class BlockNodesJsonWrapper implements ToJSON {
           cluster.dnsBaseDomain,
         );
 
-        const port: number = constants.BLOCK_NODE_PORT;
+        const useLegacyPort: boolean = lt(
+          this.versions.blockNodeChart,
+          versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT,
+        );
+
+        const port: number = useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
 
         return {address, port};
       },
