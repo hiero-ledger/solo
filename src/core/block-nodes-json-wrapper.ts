@@ -12,6 +12,7 @@ import * as versions from '../../version.js';
 interface BlockNodeConnectionData {
   address: string;
   port: number;
+  priority: number;
 }
 
 interface BlockNodesJsonStructure {
@@ -46,7 +47,7 @@ export class BlockNodesJsonWrapper implements ToJSON {
 
         const port: number = useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
 
-        return {address, port};
+        return {address, port, priority: 1};
       },
     );
 
