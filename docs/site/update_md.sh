@@ -1,119 +1,58 @@
-#!/bin/bash
-
-# This script is used to run some common solo commands, and use the output to update
-# the docs/site/content/en/docs/step-by-step-guide.md file. This is useful to keep the guide up to date
-
-set -xeo pipefail
-
-export TARGET_DIR=docs/site/content/en/docs
-export TEMPLATE_DIR=docs/site/content/en/templates
-export TARGET_FILE=${TARGET_DIR}/step-by-step-guide.md
-export TEMPLATE_FILE=${TEMPLATE_DIR}/step-by-step-guide.template.md
-export BUILD_DIR=docs/site/build
-mkdir -p ${BUILD_DIR}
-pwd
-
-
-# TBD, need to use at least version v0.62.6 for block node commands to work
-CONSENSUS_NODE_VERSION=${1:-v0.63.9}
-CONSENSUS_NODE_FLAG=() # Initialize an empty array
-
-if [[ -n "${CONSENSUS_NODE_VERSION}" ]]; then
-  CONSENSUS_NODE_FLAG=(--release-tag "${CONSENSUS_NODE_VERSION}")
-fi
+#!/bin/zsh
 
 export SOLO_CLUSTER_NAME=solo
 export SOLO_NAMESPACE=solo
 export SOLO_CLUSTER_SETUP_NAMESPACE=solo-cluster
 export SOLO_DEPLOYMENT=solo-deployment
 
-kind delete cluster -n "${SOLO_CLUSTER_NAME}" || true
-rm -Rf ~/.solo/cache || true
-rm ~/.solo/local-config.yaml || true
+for cluster in $(kind get clusters);do;kind delete cluster -n $cluster;done
+rm -Rf ~/.solo
 
-echo "Perform the following kind and solo commands and save output to environment variables"
+kind create cluster -n "${SOLO_CLUSTER_NAME}"
+task build
 
-kind create cluster -n "${SOLO_CLUSTER_NAME}" 2>&1 | tee ${BUILD_DIR}/create-cluster.log
-export KIND_CREATE_CLUSTER_OUTPUT=$( cat ${BUILD_DIR}/create-cluster.log | tee ${BUILD_DIR}/test.log )
+npm run solo -- init
 
-solo init | tee ${BUILD_DIR}/init.log
-export SOLO_INIT_OUTPUT=$( cat ${BUILD_DIR}/init.log | tee ${BUILD_DIR}/test.log )
+# connect to the cluster you created in a previous command
+npm run solo -- cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
 
-solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} | tee ${BUILD_DIR}/cluster-ref-connect.log
-export SOLO_CLUSTER_REF_CONNECT_OUTPUT=$( cat ${BUILD_DIR}/cluster-ref-connect.log | tee ${BUILD_DIR}/test.log )
+#create the deployment
+npm run solo -- deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 
-solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/deployment-create.log
-export SOLO_DEPLOYMENT_CREATE_OUTPUT=$( cat ${BUILD_DIR}/deployment-create.log | tee ${BUILD_DIR}/test.log )
+# Add a cluster to the deployment you created
+npm run solo -- deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
+# If the command line command is unresponsive there's also a handy cluster add configurator you can run `solo deployment add-cluster` without any arguments to get a guided setup.
 
-solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1 | tee ${BUILD_DIR}/deployment-add-cluster.log
-export SOLO_DEPLOYMENT_ADD_CLUSTER_OUTPUT=$( cat ${BUILD_DIR}/deployment-add-cluster.log | tee ${BUILD_DIR}/test.log )
+npm run solo -- node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
 
-solo node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/keys.log
-export SOLO_NODE_KEY_PEM_OUTPUT=$( cat ${BUILD_DIR}/keys.log | tee ${BUILD_DIR}/test.log )
+npm run solo -- cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 
-solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" | tee ${BUILD_DIR}/cluster-setup.log
-export SOLO_CLUSTER_SETUP_OUTPUT=$( cat ${BUILD_DIR}/cluster-setup.log | tee ${BUILD_DIR}/test.log )
+npm run solo -- network deploy --deployment "${SOLO_DEPLOYMENT}" --pvcs true
 
-solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-"${SOLO_CLUSTER_NAME}" "${CONSENSUS_NODE_FLAG[@]}" | tee ${BUILD_DIR}/block-node-add.log
-export SOLO_BLOCK_NODE_ADD_OUTPUT=$( cat ${BUILD_DIR}/block-node-add.log | tee ${BUILD_DIR}/test.log )
+# node setup
+npm run solo -- node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag v0.63.7
 
-solo network deploy --deployment "${SOLO_DEPLOYMENT}" "${CONSENSUS_NODE_FLAG[@]}" | tee ${BUILD_DIR}/network-deploy.log
-export SOLO_NETWORK_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/network-deploy.log | tee ${BUILD_DIR}/test.log )
+# start your node/nodes
+npm run solo -- node start --deployment "${SOLO_DEPLOYMENT}"
 
-solo node setup --deployment "${SOLO_DEPLOYMENT}" "${CONSENSUS_NODE_FLAG[@]}" | tee ${BUILD_DIR}/node-setup.log
-export SOLO_NODE_SETUP_OUTPUT=$( cat ${BUILD_DIR}/node-setup.log | tee ${BUILD_DIR}/test.log )
+# Deploy with explicit configuration
+npm run solo -- mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress
 
-solo node start --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/node-start.log
-export SOLO_NODE_START_OUTPUT=$( cat ${BUILD_DIR}/node-start.log | tee ${BUILD_DIR}/test.log )
+# deploy explorer
+npm run solo -- explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 
-# shellcheck disable=SC2086
-solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress -q | tee ${BUILD_DIR}/mirror-node-deploy.log
-export SOLO_MIRROR_NODE_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/mirror-node-deploy.log | tee ${BUILD_DIR}/test.log )
+#npm run solo -- node add-prepare --deployment "${SOLO_DEPLOYMENT}" --gossip-keys true --tls-keys true --release-tag v0.63.7 --output-dir context --admin-key 302e020100300506032b657004220420273389ed26af9c456faa81e9ae4004520130de36e4f534643b7081db21744496 --pvcs true
 
-solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q | tee ${BUILD_DIR}/explorer-deploy.log
-export SOLO_EXPLORER_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/explorer-deploy.log | tee ${BUILD_DIR}/test.log )
-
-solo relay deploy -i node1 --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/relay-deploy.log
-export SOLO_RELAY_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/relay-deploy.log | tee ${BUILD_DIR}/test.log )
-
-solo relay destroy -i node1 --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/relay-destroy.log
-export SOLO_RELAY_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/relay-destroy.log | tee ${BUILD_DIR}/test.log )
-
-solo mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/mirror-node-destroy.log
-export SOLO_MIRROR_NODE_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/mirror-node-destroy.log | tee ${BUILD_DIR}/test.log )
-
-solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/explorer-destroy.log
-export SOLO_EXPLORER_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/explorer-destroy.log | tee ${BUILD_DIR}/test.log )
-
-solo block node destroy --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/block-node-destroy.log
-export SOLO_BLOCK_NODE_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/block-node-destroy.log | tee ${BUILD_DIR}/test.log )
-
-solo network destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/network-destroy.log
-export SOLO_NETWORK_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/network-destroy.log | tee ${BUILD_DIR}/test.log )
-
-echo "Generating ${TARGET_FILE} from ${TEMPLATE_FILE}"
-
-envsubst '$KIND_CREATE_CLUSTER_OUTPUT,$SOLO_INIT_OUTPUT,$SOLO_NODE_KEY_PEM_OUTPUT,$SOLO_CLUSTER_SETUP_OUTPUT, \
-$SOLO_DEPLOYMENT_CREATE_OUTPUT,$SOLO_NETWORK_DEPLOY_OUTPUT,$SOLO_NODE_SETUP_OUTPUT,$SOLO_NODE_START_OUTPUT,\
-$SOLO_MIRROR_NODE_DEPLOY_OUTPUT,$SOLO_RELAY_DEPLOY_OUTPUT,$SOLO_CLUSTER_REF_CONNECT_OUTPUT,$SOLO_DEPLOYMENT_ADD_CLUSTER_OUTPUT,\
-$SOLO_EXPLORER_DEPLOY_OUTPUT,$SOLO_BLOCK_NODE_ADD_OUTPUT,$SOLO_RELAY_DESTROY_OUTPUT,$SOLO_MIRROR_NODE_DESTROY_OUTPUT,$SOLO_EXPLORER_DESTROY_OUTPUT,\
-$SOLO_BLOCK_NODE_DESTROY_OUTPUT,$SOLO_NETWORK_DESTROY_OUTPUT'\
-< ${TEMPLATE_FILE} > ${TARGET_FILE}
-
-echo "Remove color codes and lines showing intermediate progress"
-
-if [ "$(uname -s)" == "Linux" ]; then
-  sed -i 's/\[32m//g' ${TARGET_FILE}
-  sed -i 's/\[33m//g' ${TARGET_FILE}
-  sed -i 's/\[39m//g' ${TARGET_FILE}
-else
-  # For macOS the -i requires a parameter
-  sed -i '' 's/\[32m//g' ${TARGET_FILE}
-  sed -i '' 's/\[33m//g' ${TARGET_FILE}
-  sed -i '' 's/\[39m//g' ${TARGET_FILE}
-fi
-
-
-egrep -v '↓|❯|•' ${TARGET_FILE} > ${TARGET_FILE}.tmp && mv ${TARGET_FILE}.tmp ${TARGET_FILE}
-
-set +x
+# Consensus Service for node1 (node ID = 0): localhost:50211
+#kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &
+# Explorer UI: http://localhost:8080
+#kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:80 > /dev/null 2>&1 &
+# Mirror Node gRPC: localhost:5600
+kubectl port-forward svc/mirror-grpc -n "${SOLO_NAMESPACE}" 5600:5600 &
+# Mirror Node REST API: http://localhost:5551
+kubectl port-forward svc/mirror-rest -n "${SOLO_NAMESPACE}" svc/mirror-rest 5551:80 &
+# Mirror Node REST Java API http://localhost:8084
+kubectl port-forward svc/mirror-restjava -n "${SOLO_NAMESPACE}" 8084:80 &
+# JSON RPC Relay: localhost:7546
+#kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n "${SOLO_NAMESPACE}" 7546:7546 > /dev/null 2>&1 &
+npm run solo -- node add --deployment ${SOLO_DEPLOYMENT} --gossip-keys --tls-keys --pvcs true --release-tag v0.63.7 --dev
