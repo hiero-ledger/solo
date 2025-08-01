@@ -4,6 +4,6 @@
     "test-script": "test-update-markdown",
     "coverage-subdirectory": "update-markdown",
     "coverage-report-name": "Update_Markdown",
-    "local-java-build": false
+    "local-java-build": true
   }
 ]
