@@ -15,7 +15,8 @@ To get the address book from the ledger, this requires a port forward to be setu
 > 
 > After cloning the repository, navigate to this directory and run the following command to pull the Yahcli.jar file:
 > ```bash
-> git lfs fetch --all
+> git lfs install
+> git lfs pull
 > ```
 
 ```bash
