@@ -653,11 +653,14 @@ export class RelayCommand extends BaseCommand {
       task: async (context_): Promise<void> => {
         const clusterReference: ClusterReferenceName = context_.config.clusterRef;
 
-        const relayComponents: RelayNodeStateSchema[] =
-          this.remoteConfig.configuration.components.getComponentsByClusterReference<RelayNodeStateSchema>(
-            ComponentTypes.RelayNodes,
-            clusterReference,
-          );
+        const relayComponents: RelayNodeStateSchema[] = clusterReference
+          ? this.remoteConfig.configuration.components.getComponentsByClusterReference<RelayNodeStateSchema>(
+              ComponentTypes.RelayNodes,
+              clusterReference,
+            )
+          : this.remoteConfig.configuration.components.getComponentByType<RelayNodeStateSchema>(
+              ComponentTypes.RelayNodes,
+            );
 
         if (relayComponents.length === 0) {
           this.logger.showUser(
