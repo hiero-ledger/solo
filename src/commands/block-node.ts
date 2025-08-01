@@ -37,14 +37,17 @@ import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-bui
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {lt, SemVer} from 'semver';
+import {gte, lt, SemVer} from 'semver';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {K8} from '../integration/kube/k8.js';
 import {BLOCK_NODE_IMAGE_NAME} from '../core/constants.js';
 import {Version} from '../business/utils/version.js';
-import {MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} from '../../version.js';
+import {
+  MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT,
+  MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE,
+} from '../../version.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -228,19 +231,25 @@ export class BlockNodeCommand extends BaseCommand {
 
             context_.config = config;
 
-            const platformVersion: SemVer = new SemVer(config.releaseTag);
             if (
-              lt(platformVersion, new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE))
+              lt(
+                new SemVer(config.releaseTag),
+                new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE),
+              )
             ) {
               throw new SoloError(
                 `Hedera platform versions less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE} are not supported`,
               );
             }
 
-            if (lt(platformVersion, new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE))) {
+            const currentBlockNodeVersion: SemVer = new SemVer(config.chartVersion);
+            if (
+              lt(new SemVer(config.releaseTag), new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE)) &&
+              gte(currentBlockNodeVersion, MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)
+            ) {
               throw new SoloError(
-                `Hedera platform version less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE}` +
-                  'are not supported for block node version 0.15.x',
+                `Hedera platform version less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} ` +
+                  `are not supported for block node version ${MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT.version}`,
               );
             }
 

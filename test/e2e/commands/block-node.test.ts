@@ -50,6 +50,7 @@ argv.setArg(flags.generateTlsKeys, true);
 argv.setArg(flags.clusterRef, clusterReference);
 argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
 argv.setArg(flags.force, true);
+argv.setArg(flags.blockNodeChartVersion, version.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT.version);
 
 // Notes: need to check out block node repo and build the block node image first.
 // Then use the following command to load image into the kind cluster after cluster creation
@@ -171,3 +172,4 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
     });
   });
 });
+
