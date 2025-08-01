@@ -89,15 +89,8 @@ export class AccountCommand extends BaseCommand {
   };
 
   private static UPDATE_FLAGS_LIST = {
-    required: [],
-    optional: [
-      flags.accountId,
-      flags.amount,
-      flags.deployment,
-      flags.ecdsaPrivateKey,
-      flags.ed25519PrivateKey,
-      flags.clusterRef,
-    ],
+    required: [flags.accountId, flags.deployment],
+    optional: [flags.amount, flags.ecdsaPrivateKey, flags.ed25519PrivateKey, flags.clusterRef],
   };
 
   private static GET_FLAGS_LIST = {

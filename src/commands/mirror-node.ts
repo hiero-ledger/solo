@@ -614,6 +614,10 @@ export class MirrorNodeCommand extends BaseCommand {
                 labels: ['app.kubernetes.io/component=monitor', 'app.kubernetes.io/name=monitor'],
               },
               {
+                title: 'Check Web3',
+                labels: ['app.kubernetes.io/component=web3', 'app.kubernetes.io/name=web3'],
+              },
+              {
                 title: 'Check Importer',
                 labels: ['app.kubernetes.io/component=importer', 'app.kubernetes.io/name=importer'],
               },
