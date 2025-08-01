@@ -44,6 +44,7 @@ import {type ComponentFactoryApi} from '../core/config/remote/api/component-fact
 import {K8} from '../integration/kube/k8.js';
 import {BLOCK_NODE_IMAGE_NAME} from '../core/constants.js';
 import {Version} from '../business/utils/version.js';
+import {MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} from '../../version.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -228,9 +229,18 @@ export class BlockNodeCommand extends BaseCommand {
             context_.config = config;
 
             const platformVersion: SemVer = new SemVer(config.releaseTag);
+            if (
+              lt(platformVersion, new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE))
+            ) {
+              throw new SoloError(
+                `Hedera platform versions less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE} are not supported`,
+              );
+            }
+
             if (lt(platformVersion, new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE))) {
               throw new SoloError(
-                `Hedera platform versions less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} are not supported`,
+                `Hedera platform version less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE}` +
+                  'are not supported for block node version 0.15.x',
               );
             }
 
