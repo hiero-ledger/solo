@@ -92,7 +92,7 @@ function start_sdk_test ()
     log_and_exit $result
   fi
   result=0
-  node examples/create-topic.js || result=$?
+  node scripts/create-topic.js || result=$?
   cd -
   if [[ $result -ne 0 ]]; then
     echo "JavaScript SDK test failed with exit code $result"
