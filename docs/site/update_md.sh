@@ -1,119 +1,124 @@
-#!/bin/bash
+#!/bin/zsh
 
-# This script is used to run some common solo commands, and use the output to update
-# the docs/site/content/en/docs/step-by-step-guide.md file. This is useful to keep the guide up to date
-
-set -xeo pipefail
-
-export TARGET_DIR=docs/site/content/en/docs
-export TEMPLATE_DIR=docs/site/content/en/templates
-export TARGET_FILE=${TARGET_DIR}/step-by-step-guide.md
-export TEMPLATE_FILE=${TEMPLATE_DIR}/step-by-step-guide.template.md
-export BUILD_DIR=docs/site/build
-mkdir -p ${BUILD_DIR}
-pwd
-
-
-# TBD, need to use at least version v0.62.6 for block node commands to work
-CONSENSUS_NODE_VERSION=${1:-v0.63.9}
-CONSENSUS_NODE_FLAG=() # Initialize an empty array
-
-if [[ -n "${CONSENSUS_NODE_VERSION}" ]]; then
-  CONSENSUS_NODE_FLAG=(--release-tag "${CONSENSUS_NODE_VERSION}")
-fi
-
-export SOLO_CLUSTER_NAME=solo
-export SOLO_NAMESPACE=solo
-export SOLO_CLUSTER_SETUP_NAMESPACE=solo-cluster
+# can't use quick-start it doesn't have --pvcs
 export SOLO_DEPLOYMENT=solo-deployment
+export SOLO_CLUSTER_NAME=solo-cluster
+export SOLO_CLUSTER_REF=solo-cluster-reference
+export SOLO_NAMESPACE=solo-ns
+export SOLO_CLUSTER_SETUP_NAMESPACE=${SOLO_NAMESPACE}
+export CN_LOCAL_BUILD_PATH=/Users/user/source/hiero-consensus-node/data
+export GENESIS_KEY=302e020100300506032b657004220420273389ed26af9c456faa81e9ae4004520130de36e4f534643b7081db21744496
 
-kind delete cluster -n "${SOLO_CLUSTER_NAME}" || true
-rm -Rf ~/.solo/cache || true
-rm ~/.solo/local-config.yaml || true
+# copied from Solo and then edited as needed, be sure to match the version of Solo:
+#  https://github.com/hiero-ledger/solo/blob/v0.41.0/resources/templates/application.properties
+export APPLICATION_PROPERTIES=/Users/user/Downloads/application.properties
 
-echo "Perform the following kind and solo commands and save output to environment variables"
+# just needs to be approximate, if it is main, you can use the next release that it will probably be, this is for decision tree logic
+export CN_VERSION=v0.64.1
 
-kind create cluster -n "${SOLO_CLUSTER_NAME}" 2>&1 | tee ${BUILD_DIR}/create-cluster.log
-export KIND_CREATE_CLUSTER_OUTPUT=$( cat ${BUILD_DIR}/create-cluster.log | tee ${BUILD_DIR}/test.log )
+# the directory to use for Solo to write out the file with the values that are required for the add/update/delete-execute
+#  and possibly your SDK calls that replaces *-submit-transaction
+export PREPARE_OUTPUT_DIR=/Users/user/Downloads
 
-solo init | tee ${BUILD_DIR}/init.log
-export SOLO_INIT_OUTPUT=$( cat ${BUILD_DIR}/init.log | tee ${BUILD_DIR}/test.log )
+for cluster in $(kind get clusters);do kind delete cluster -n $cluster;done
+rm -Rf ~/.solo
 
-solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} | tee ${BUILD_DIR}/cluster-ref-connect.log
-export SOLO_CLUSTER_REF_CONNECT_OUTPUT=$( cat ${BUILD_DIR}/cluster-ref-connect.log | tee ${BUILD_DIR}/test.log )
+kind create cluster -n "${SOLO_CLUSTER_NAME}"
 
-solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/deployment-create.log
-export SOLO_DEPLOYMENT_CREATE_OUTPUT=$( cat ${BUILD_DIR}/deployment-create.log | tee ${BUILD_DIR}/test.log )
+# running with published version of Solo
+# export SOLO_COMMAND='solo'
 
-solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1 | tee ${BUILD_DIR}/deployment-add-cluster.log
-export SOLO_DEPLOYMENT_ADD_CLUSTER_OUTPUT=$( cat ${BUILD_DIR}/deployment-add-cluster.log | tee ${BUILD_DIR}/test.log )
+# running with solo source code
+task build
+export SOLO_COMMAND='npm run solo --'
 
-solo node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/keys.log
-export SOLO_NODE_KEY_PEM_OUTPUT=$( cat ${BUILD_DIR}/keys.log | tee ${BUILD_DIR}/test.log )
+# NOTE: the --dev just makes it print a stacktrace to the console if there is an error
 
-solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" | tee ${BUILD_DIR}/cluster-setup.log
-export SOLO_CLUSTER_SETUP_OUTPUT=$( cat ${BUILD_DIR}/cluster-setup.log | tee ${BUILD_DIR}/test.log )
+solo node start --deployment "${SOLO_DEPLOYMENT}" --release-tag ${CN_VERSION} --dev
+solo node add-prepare --deployment "${SOLO_DEPLOYMENT}" --release-tag ${CN_VERSION} --local-build-path ${CN_LOCAL_BUILD_PATH} --dev
 
-solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-"${SOLO_CLUSTER_NAME}" "${CONSENSUS_NODE_FLAG[@]}" | tee ${BUILD_DIR}/block-node-add.log
-export SOLO_BLOCK_NODE_ADD_OUTPUT=$( cat ${BUILD_DIR}/block-node-add.log | tee ${BUILD_DIR}/test.log )
+${SOLO_COMMAND} init
 
-solo network deploy --deployment "${SOLO_DEPLOYMENT}" "${CONSENSUS_NODE_FLAG[@]}" | tee ${BUILD_DIR}/network-deploy.log
-export SOLO_NETWORK_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/network-deploy.log | tee ${BUILD_DIR}/test.log )
+# connect to the cluster you created in a previous command
+${SOLO_COMMAND} cluster-ref connect --cluster-ref ${SOLO_CLUSTER_REF} --context kind-${SOLO_CLUSTER_NAME} --dev
 
-solo node setup --deployment "${SOLO_DEPLOYMENT}" "${CONSENSUS_NODE_FLAG[@]}" | tee ${BUILD_DIR}/node-setup.log
-export SOLO_NODE_SETUP_OUTPUT=$( cat ${BUILD_DIR}/node-setup.log | tee ${BUILD_DIR}/test.log )
+#create the deployment
+${SOLO_COMMAND} deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --dev
 
-solo node start --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/node-start.log
-export SOLO_NODE_START_OUTPUT=$( cat ${BUILD_DIR}/node-start.log | tee ${BUILD_DIR}/test.log )
+# Add a cluster to the deployment you created, we need at least two nodes for node add or node delete.  node update can run with a single node
+${SOLO_COMMAND} deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_REF} --num-consensus-nodes 2 --dev
 
-# shellcheck disable=SC2086
-solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress -q | tee ${BUILD_DIR}/mirror-node-deploy.log
-export SOLO_MIRROR_NODE_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/mirror-node-deploy.log | tee ${BUILD_DIR}/test.log )
+${SOLO_COMMAND} node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" --dev
 
-solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q | tee ${BUILD_DIR}/explorer-deploy.log
-export SOLO_EXPLORER_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/explorer-deploy.log | tee ${BUILD_DIR}/test.log )
+${SOLO_COMMAND} cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --dev
 
-solo relay deploy -i node1 --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/relay-deploy.log
-export SOLO_RELAY_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/relay-deploy.log | tee ${BUILD_DIR}/test.log )
+# The --release-tag here helps for decision tree logic, it isn't installing the CN here
+# --pvcs is required for node add/update/delete
+${SOLO_COMMAND} network deploy --deployment "${SOLO_DEPLOYMENT}" --release-tag ${CN_VERSION} --pvcs --dev
 
-solo relay destroy -i node1 --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/relay-destroy.log
-export SOLO_RELAY_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/relay-destroy.log | tee ${BUILD_DIR}/test.log )
+# node setup, we are doing a local build, but the --release-tag is still used for decision tree logic
+${SOLO_COMMAND} node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag ${CN_VERSION} --local-build-path ${CN_LOCAL_BUILD_PATH} --dev
 
-solo mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/mirror-node-destroy.log
-export SOLO_MIRROR_NODE_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/mirror-node-destroy.log | tee ${BUILD_DIR}/test.log )
+# start your node/nodes, the stake amounts puts a huge percentage on node1 so that it can reach consensus by itself,
+#  sort of a workaround to get it to work with 2 nodes instead of 3 due to CN logic
+${SOLO_COMMAND} node start --deployment "${SOLO_DEPLOYMENT}" --stake-amounts 1500,1 --dev
 
-solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/explorer-destroy.log
-export SOLO_EXPLORER_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/explorer-destroy.log | tee ${BUILD_DIR}/test.log )
+# Deploy with explicit configuration
+${SOLO_COMMAND} mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --dev
 
-solo block node destroy --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/block-node-destroy.log
-export SOLO_BLOCK_NODE_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/block-node-destroy.log | tee ${BUILD_DIR}/test.log )
+# deploy explorer
+${SOLO_COMMAND} explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --dev
 
-solo network destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/network-destroy.log
-export SOLO_NETWORK_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/network-destroy.log | tee ${BUILD_DIR}/test.log )
+# relay deployment
+${SOLO_COMMAND} relay deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --dev
 
-echo "Generating ${TARGET_FILE} from ${TEMPLATE_FILE}"
+# node add
+# the --admin-key is setting to genesis, which is the default, but we have a bug that we have logged an issue to fix that causes an error if it isn't supplied
 
-envsubst '$KIND_CREATE_CLUSTER_OUTPUT,$SOLO_INIT_OUTPUT,$SOLO_NODE_KEY_PEM_OUTPUT,$SOLO_CLUSTER_SETUP_OUTPUT, \
-$SOLO_DEPLOYMENT_CREATE_OUTPUT,$SOLO_NETWORK_DEPLOY_OUTPUT,$SOLO_NODE_SETUP_OUTPUT,$SOLO_NODE_START_OUTPUT,\
-$SOLO_MIRROR_NODE_DEPLOY_OUTPUT,$SOLO_RELAY_DEPLOY_OUTPUT,$SOLO_CLUSTER_REF_CONNECT_OUTPUT,$SOLO_DEPLOYMENT_ADD_CLUSTER_OUTPUT,\
-$SOLO_EXPLORER_DEPLOY_OUTPUT,$SOLO_BLOCK_NODE_ADD_OUTPUT,$SOLO_RELAY_DESTROY_OUTPUT,$SOLO_MIRROR_NODE_DESTROY_OUTPUT,$SOLO_EXPLORER_DESTROY_OUTPUT,\
-$SOLO_BLOCK_NODE_DESTROY_OUTPUT,$SOLO_NETWORK_DESTROY_OUTPUT'\
-< ${TEMPLATE_FILE} > ${TARGET_FILE}
+# Option A, node add by itself, useful to verify that Solo is working correctly, used by a normal users not wanting to code the SDK NodeAdd/Update/DeleteTransaction calls
+#${SOLO_COMMAND} node add --deployment ${SOLO_DEPLOYMENT} --gossip-keys --tls-keys --admin-key ${GENESIS_KEY} --pvcs true --release-tag v0.63.7 --dev
 
-echo "Remove color codes and lines showing intermediate progress"
+# Option B, break apart node add so that SDK calls can be made, you will need B.1, B.2a or B.2b, and B.3
 
-if [ "$(uname -s)" == "Linux" ]; then
-  sed -i 's/\[32m//g' ${TARGET_FILE}
-  sed -i 's/\[33m//g' ${TARGET_FILE}
-  sed -i 's/\[39m//g' ${TARGET_FILE}
-else
-  # For macOS the -i requires a parameter
-  sed -i '' 's/\[32m//g' ${TARGET_FILE}
-  sed -i '' 's/\[33m//g' ${TARGET_FILE}
-  sed -i '' 's/\[39m//g' ${TARGET_FILE}
-fi
+# Option B.1, node add-prepare will generate some keys to use, as well as upload a config version bump needed in order to get CN to
+#  apply the NodeAdd/Update/DeleteTransaction to the JVM in state memory (runtime)
+${SOLO_COMMAND} node add-prepare --deployment "${SOLO_DEPLOYMENT}" --gossip-keys true --tls-keys true --release-tag ${CN_VERSION} --output-dir ${PREPARE_OUTPUT_DIR} --admin-key ${GENESIS_KEY} --pvcs true --dev
 
+# Option B.2a is for Solo testing, Option 2.2b is for SDK team
 
-egrep -v '↓|❯|•' ${TARGET_FILE} > ${TARGET_FILE}.tmp && mv ${TARGET_FILE}.tmp ${TARGET_FILE}
+# Option B.2a, node add-submit-transaction, this is essentially what you will replace with Option B, but it is what Solo runs in our test harness, and solo node add = solo node {add-prepare + add-submit-transaction + add-execute}
+${SOLO_COMMAND} node add-submit-transaction --deployment "${SOLO_DEPLOYMENT}" --input-dir ${PREPARE_OUTPUT_DIR} --dev
 
-set +x
+# Option B.2b.1, this is where you add your SDK call
+# ... example: `node node-add-transaction.cjs`
+
+# Option B.2b.2, tell CN to prepare for freeze
+# ${SOLO_COMMAND} node prepare-upgrade --deployment "${SOLO_DEPLOYMENT}" --dev
+
+# Option B.2b.3, tell CN to freeze, which will cause it to block new transactions, finish existing transactions, and write out certain files
+# ${SOLO_COMMAND} node freeze-upgrade --deployment "${SOLO_DEPLOYMENT}" --dev
+
+# Option B.3, node add-execute, applies configuration files, keys, etc; installs software on new node; restarts the JVMs
+${SOLO_COMMAND} node add-execute --deployment "${SOLO_DEPLOYMENT}" --input-dir ${PREPARE_OUTPUT_DIR} --dev
+
+# PORT FORWARDS: if you need them, most is automatic now, see comments
+
+# Consensus Service for node1 (node ID = 0): localhost:50211, port-forward for this port is automatic in Solo in v0.40+
+#kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &
+# Explorer UI: http://localhost:8080, port-forward for this port is automatic in Solo in v0.40+
+#kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:80 > /dev/null 2>&1 &
+# JSON RPC Relay: localhost:7546, port-forward for this port is automatic in Solo in v0.40+
+#kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n "${SOLO_NAMESPACE}" 7546:7546 > /dev/null 2>&1 &
+# NOTE: with mirror-node `--enable-ingress`, it will open up port 8081 as a port-forward which will have all of the
+#  mirror node components like in MAINNET: mirror-grpc, mirror-rest, mirror-web3, mirror-restjava
+
+# if you still want to have separate ports, you can do this manually
+# Mirror Node gRPC: localhost:5600
+kubectl port-forward svc/mirror-grpc -n "${SOLO_NAMESPACE}" 5600:5600 &
+# Mirror Node REST API: http://localhost:5551
+kubectl port-forward svc/mirror-rest -n "${SOLO_NAMESPACE}" svc/mirror-rest 5551:80 &
+# Mirror Node REST Java API http://localhost:8084
+kubectl port-forward svc/mirror-restjava -n "${SOLO_NAMESPACE}" 8084:80 &
+
+# command to see what port-forwards are running
+ps -ef | grep port-forward | grep -v grep
