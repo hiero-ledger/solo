@@ -24,7 +24,7 @@ export const INGRESS_CONTROLLER_VERSION: string = '0.14.5';
 export const BLOCK_NODE_VERSION: string = 'v0.15.0';
 
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE: string = 'v0.62.3';
-export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT: SemVer = new SemVer('v0.15');
+export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT: SemVer = new SemVer('v0.15.0');
 
 export function getSoloVersion(): Version {
   if (process.env.npm_package_version) {

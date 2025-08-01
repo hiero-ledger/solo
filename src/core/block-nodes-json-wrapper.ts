@@ -6,7 +6,7 @@ import * as constants from './constants.js';
 import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import {type ApplicationVersionsSchema} from '../data/schema/model/common/application-versions-schema.js';
-import {lt, type SemVer} from 'semver';
+import {lt} from 'semver';
 import * as versions from '../../version.js';
 
 interface BlockNodeConnectionData {

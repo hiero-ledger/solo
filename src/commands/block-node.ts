@@ -139,8 +139,16 @@ export class BlockNodeCommand extends BaseCommand {
   };
 
   private static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
-    required: [flags.upgradeVersion],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.deployment, flags.devMode, flags.force, flags.quiet],
+    required: [],
+    optional: [
+      flags.chartDirectory,
+      flags.clusterRef,
+      flags.deployment,
+      flags.devMode,
+      flags.force,
+      flags.quiet,
+      flags.upgradeVersion,
+    ],
   };
 
   private async prepareValuesArgForBlockNode(config: BlockNodeDeployConfigClass): Promise<string> {
@@ -502,6 +510,10 @@ export class BlockNodeCommand extends BaseCommand {
 
             config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
 
+            if (!config.upgradeVersion) {
+              config.upgradeVersion = versions.BLOCK_NODE_VERSION;
+            }
+
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
@@ -570,7 +582,7 @@ export class BlockNodeCommand extends BaseCommand {
     let useLegacyPort: boolean = false;
 
     chartVersion = typeof chartVersion === 'string' ? new SemVer(chartVersion) : chartVersion;
-    imageTag = typeof imageTag === 'string' ? new SemVer(imageTag) : undefined;
+    imageTag = typeof imageTag === 'string' && imageTag ? new SemVer(imageTag) : undefined;
 
     if (lt(chartVersion, versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)) {
       useLegacyPort = true;
@@ -587,12 +599,12 @@ export class BlockNodeCommand extends BaseCommand {
     let blockNodeVersion: SemVer;
     let imageTag: SemVer | undefined;
 
-    if (config.hasOwnProperty('upgradeVersion')) {
+    if (config.hasOwnProperty('upgradeVersion') && (config as BlockNodeUpgradeConfigClass).upgradeVersion) {
       const version: string = (config as BlockNodeUpgradeConfigClass).upgradeVersion;
       blockNodeVersion = typeof version === 'string' ? new SemVer(version) : version;
     }
 
-    if (config.hasOwnProperty('chartVersion')) {
+    if (config.hasOwnProperty('chartVersion') && (config as BlockNodeDeployConfigClass).chartVersion) {
       const version: string = (config as BlockNodeDeployConfigClass).chartVersion;
       blockNodeVersion = typeof version === 'string' ? new SemVer(version) : version;
     }
