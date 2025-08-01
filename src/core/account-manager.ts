@@ -427,16 +427,15 @@ export class AccountManager {
       const targetPort: number = localPort;
 
       if (this._portForwards.length < totalNodes) {
-        this._portForwards.push(
-          await this.k8Factory
-            .getK8(networkNodeService.context)
-            .pods()
-            .readByReference(PodReference.of(networkNodeService.namespace, networkNodeService.haProxyPodName))
-            .portForward(localPort, port),
-        );
+        const portForward: ExtendedNetServer = await this.k8Factory
+          .getK8(networkNodeService.context)
+          .pods()
+          .readByReference(PodReference.of(networkNodeService.namespace, networkNodeService.haProxyPodName))
+          .portForward(localPort, port);
+        this._portForwards.push(portForward);
+        this.logger.debug(`using local host port forward: ${host}:${portForward.localPort}`);
       }
 
-      this.logger.debug(`using local host port forward: ${host}:${targetPort}`);
       object[`${host}:${targetPort}`] = accountId;
 
       await this.testNodeClientConnection(object, accountId);
