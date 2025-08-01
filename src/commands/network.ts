@@ -593,6 +593,7 @@ export class NetworkCommand extends BaseCommand {
         const blockNodesJsonData: string = new BlockNodesJsonWrapper(
           config.blockNodeComponents,
           this.remoteConfig.configuration.clusters,
+          this.remoteConfig.configuration.versions,
         ).toJSON();
 
         const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'block-nodes.json');

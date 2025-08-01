@@ -1653,26 +1653,6 @@ export class Flags {
     },
   };
 
-  public static readonly blockNodeVersion: CommandFlag = {
-    constName: 'blockNodeVersion',
-    name: 'block-node-version',
-    definition: {
-      describe: 'Block nodes chart version',
-      defaultValue: version.BLOCK_NODE_VERSION,
-      type: 'string',
-    },
-    prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: boolean): Promise<boolean> {
-      return await Flags.promptToggle(
-        task,
-        input,
-        Flags.blockNodeVersion.definition.defaultValue as boolean,
-        'Would you like to choose mirror node version? ',
-        null,
-        Flags.blockNodeVersion.name,
-      );
-    },
-  };
-
   public static readonly enableIngress: CommandFlag = {
     constName: 'enableIngress',
     name: 'enable-ingress',
@@ -2637,7 +2617,6 @@ export class Flags {
     Flags.domainName,
     Flags.domainNames,
     Flags.blockNodeChartVersion,
-    Flags.blockNodeVersion,
     Flags.realm,
     Flags.shard,
     Flags.username,
