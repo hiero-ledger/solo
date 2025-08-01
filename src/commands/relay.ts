@@ -73,6 +73,7 @@ interface RelayDeployConfigClass {
   domainName: Optional<string>;
   context: Optional<string>;
   forcePortForward: Optional<boolean>;
+  cacheDir: Optional<string>;
 }
 
 interface RelayDeployContext {
@@ -116,6 +117,7 @@ export class RelayCommand extends BaseCommand {
       flags.valuesFile,
       flags.domainName,
       flags.forcePortForward,
+      flags.cacheDir,
     ],
   };
 
@@ -321,8 +323,6 @@ export class RelayCommand extends BaseCommand {
                 context_.config.context = context;
               }
             }
-
-            self.logger.debug('Initialized config', {config: context_.config});
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
@@ -538,8 +538,6 @@ export class RelayCommand extends BaseCommand {
               context_.config.context,
             );
 
-            self.logger.debug('Initialized config', {config: context_.config});
-
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
@@ -591,7 +589,7 @@ export class RelayCommand extends BaseCommand {
               flags.setOptionalCommandFlags(y, ...RelayCommand.DEPLOY_FLAGS_LIST.optional);
             },
             handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'relay deploy' ===", {argv});
+              self.logger.info("==== Running 'relay deploy' ===");
 
               await self.deploy(argv).then(r => {
                 self.logger.info('==== Finished running `relay deploy`====');
@@ -609,8 +607,7 @@ export class RelayCommand extends BaseCommand {
               flags.setOptionalCommandFlags(y, ...RelayCommand.DESTROY_FLAGS_LIST.optional);
             },
             handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'relay destroy' ===", {argv});
-              self.logger.debug(argv);
+              self.logger.info("==== Running 'relay destroy' ===");
 
               await self.destroy(argv).then(r => {
                 self.logger.info('==== Finished running `relay destroy`====');
