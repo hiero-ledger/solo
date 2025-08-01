@@ -2783,7 +2783,7 @@ export class NodeCommandTasks {
   public addNewConsensusNodeToRemoteConfig(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Add new node to remote config',
-      task: async (context_, task) => {
+      task: async (context_, task): Promise<void> => {
         const nodeAlias: NodeAlias = context_.config.nodeAlias;
         const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
         const namespace: NamespaceName = context_.config.namespace;
@@ -2794,7 +2794,7 @@ export class NodeCommandTasks {
 
         this.remoteConfig.configuration.components.addNewComponent(
           this.componentFactory.createNewConsensusNodeComponent(
-            nodeId,
+            Templates.renderComponentIdFromNodeId(nodeId),
             clusterReference,
             namespace,
             DeploymentPhase.STARTED,
@@ -2819,7 +2819,7 @@ export class NodeCommandTasks {
         // if the consensusNodes does not contain the nodeAlias then add it
         if (!context_.config.consensusNodes.some((node: ConsensusNode) => node.name === nodeAlias)) {
           const cluster: ClusterSchema = this.remoteConfig.configuration.clusters.find(
-            cluster => cluster.name === clusterReference,
+            (cluster): boolean => cluster.name === clusterReference,
           );
 
           context_.config.consensusNodes.push(

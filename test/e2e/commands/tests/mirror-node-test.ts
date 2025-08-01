@@ -16,6 +16,7 @@ import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
+import {Templates} from '../../../../src/core/templates.js';
 
 import * as constants from '../../../../src/core/constants.js';
 import fs from 'node:fs';
@@ -53,16 +54,11 @@ export class MirrorNodeTest extends BaseCommandTest {
     contexts: string[],
     namespace: NamespaceName,
   ): Promise<ExtendedNetServer> {
-    const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+    const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
     const lastContext: string = contexts?.length ? contexts[contexts?.length - 1] : undefined;
     const k8: K8 = k8Factory.getK8(lastContext);
-    const mirrorNodeRestPods: Pod[] = await k8
-      .pods()
-      .list(namespace, [
-        'app.kubernetes.io/instance=mirror',
-        'app.kubernetes.io/name=rest',
-        'app.kubernetes.io/component=rest',
-      ]);
+    const mirrorNodeRestPods: Pod[] = await k8.pods().list(namespace, Templates.renderMirrorNodeLabels(1));
+
     expect(mirrorNodeRestPods).to.have.lengthOf(1);
 
     const portForwarder: ExtendedNetServer = await k8
