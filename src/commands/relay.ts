@@ -654,9 +654,7 @@ export class RelayCommand extends BaseCommand {
       title: 'Remove relay component from remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_): Promise<void> => {
-        const clusterReference: string =
-          (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
-          this.k8Factory.default().clusters().readCurrent();
+        const clusterReference: ClusterReferenceName = context_.config.clusterRef;
 
         const relayComponents: RelayNodeStateSchema[] =
           this.remoteConfig.configuration.components.getComponentsByClusterReference<RelayNodeStateSchema>(
