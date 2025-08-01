@@ -35,31 +35,31 @@ tasks:
         cmd: npm i @hashgraph/solo
 
       - name: "Solo init"
-        cmd: solo init
+        cmd: npx solo init
 
       - name: "Solo cluster-ref setup"
-        cmd: solo cluster-ref setup --quiet-mode --dev
+        cmd: npx solo cluster-ref setup --quiet-mode --dev
 
       - name: "Solo cluster-ref connect"
-        cmd: solo cluster-ref connect --cluster-ref {{ .CLUSTER_REF }} --context {{ .CONTEXT }}
+        cmd: npx solo cluster-ref connect --cluster-ref {{ .CLUSTER_REF }} --context {{ .CONTEXT }}
 
       - name: "Solo deployment create"
-        cmd: solo deployment create --namespace {{ .NAMESPACE }} --deployment {{ .DEPLOYMENT }} --realm 0 --shard 0
+        cmd: npx solo deployment create --namespace {{ .NAMESPACE }} --deployment {{ .DEPLOYMENT }} --realm 0 --shard 0
 
       - name: "Solo deployment add-cluster"
-        cmd: solo deployment add-cluster --cluster-ref {{ .CLUSTER_REF }} --deployment {{ .DEPLOYMENT }} --num-consensus-nodes {{ .NETWORK_SIZE }}
+        cmd: npx solo deployment add-cluster --cluster-ref {{ .CLUSTER_REF }} --deployment {{ .DEPLOYMENT }} --num-consensus-nodes {{ .NETWORK_SIZE }}
 
       - name: "Solo node keys"
-        cmd: solo node keys --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
+        cmd: npx solo node keys --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
 
       - name: "Solo network deploy"
-        cmd: solo network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
+        cmd: npx solo network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
 
       - name: "Solo node setup"
-        cmd: solo node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
+        cmd: npx solo node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
 
       - name: "Solo node start"
-        cmd: solo node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
+        cmd: npx solo node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
 
       - name: "Install PostgreSQL using Helm"
         cmd: |
@@ -93,7 +93,7 @@ tasks:
 
       - name: "Solo mirror-node deploy"
         cmd: |
-          solo mirror-node deploy --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }} --use-external-database \
+          npx solo mirror-node deploy --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }} --use-external-database \
           --enable-ingress --external-database-host {{ .POSTGRES_HOST_FQDN }} \
           --external-database-owner-username {{ .POSTGRES_USERNAME }} --external-database-owner-password {{ .POSTGRES_PASSWORD }} \
           --external-database-read-username {{ .POSTGRES_READONLY_USERNAME }} \
@@ -102,7 +102,7 @@ tasks:
 
       - name: "Solo explorer deploy"
         cmd: |
-          solo explorer deploy --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }} --mirrorNamespace {{ .NAMESPACE }} \
+          npx solo explorer deploy --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }} --mirrorNamespace {{ .NAMESPACE }} \
           --enable-explorer-tls --tls-cluster-issuer-type acme-staging --enable-ingress -q --dev
 
       - name: "Copy database-seeding-query.sql to database pod"
@@ -117,7 +117,7 @@ tasks:
           -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }}
 
       - name: "Solo relay deploy"
-        cmd: solo relay deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
+        cmd: npx solo relay deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
       - name: "Run solo smoke test"
         cmd: (cd ../../ && ./.github/workflows/script/solo_smoke_test.sh)
   destroy:

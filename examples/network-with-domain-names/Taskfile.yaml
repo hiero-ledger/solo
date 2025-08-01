@@ -32,53 +32,53 @@ tasks:
         cmd: kubectl config set-context {{ .CONTEXT }}
 
       - name: "Solo init"
-        cmd: solo init
+        cmd: npx solo init
 
       - name: "Solo cluster-ref connect"
-        cmd: solo cluster-ref connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
+        cmd: npx solo cluster-ref connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
 
       - name: "Solo deployment create"
-        cmd: solo deployment create --deployment {{ .DEPLOYMENT }} --namespace {{ .NAMESPACE }}
+        cmd: npx solo deployment create --deployment {{ .DEPLOYMENT }} --namespace {{ .NAMESPACE }}
 
       - name: "Solo deployment add-cluster"
         cmd: |
-          solo deployment add-cluster --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          npx solo deployment add-cluster --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
           --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
 
       - name: "Solo cluster-ref setup"
-        cmd: solo cluster-ref setup --cluster-ref {{ .CLUSTER_REFERENCE }}
+        cmd: npx solo cluster-ref setup --cluster-ref {{ .CLUSTER_REFERENCE }}
 
       - name: "Solo node keys"
         cmd: |
-          solo node keys --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
+          npx solo node keys --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
           --node-aliases {{ .NODE_IDENTIFIERS }}
 
       - name: "Solo network deploy with domain name"
         cmd: |
-          solo network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
+          npx solo network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
           --domain-names node1={{ .NODE1_DOMAIN_NAME }}
 
       - name: "Solo node setup with domain name"
         cmd: |
-          solo node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }} \
+          npx solo node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }} \
           --domain-names node1={{ .NODE1_DOMAIN_NAME }}
 
       - name: "Solo node start"
-        cmd: solo node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+        cmd: npx solo node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
       - name: "Solo mirror-node deploy with domain name"
         cmd: |
-          solo mirror-node deploy --deployment {{ .DEPLOYMENT }} --pinger \
+          npx solo mirror-node deploy --deployment {{ .DEPLOYMENT }} --pinger \
           --domain-name {{ .MIRROR_NODE_DOMAIN_NAME }} --enable-ingress
 
       - name: "Solo relay deploy with domain name"
         cmd: |
-          solo relay deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }} \
+          npx solo relay deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }} \
           --domain-name {{ .RELAY_DOMAIN_NAME }}
 
       - name: "Solo explorer deploy with domain name"
         cmd: |
-          solo explorer deploy --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          npx solo explorer deploy --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
           --domain-name {{ .EXPLORER_DOMAIN_NAME }} --enable-explorer-tls --tls-cluster-issuer-type acme-staging \
           --enable-ingress --namespace {{ .NAMESPACE }} --mirrorNamespace ${NAMESPACE}
 
@@ -105,19 +105,19 @@ tasks:
     desc: Destroy the Solo network with block node
     cmds:
       - name: "Solo mirror-node destroy"
-        cmd: solo mirror-node destroy --deployment {{ .DEPLOYMENT }} --force
+        cmd: npx solo mirror-node destroy --deployment {{ .DEPLOYMENT }} --force
 
       - name: "Solo relay destroy"
-        cmd: solo relay destroy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+        cmd: npx solo relay destroy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
       - name: "Solo explorer destroy"
-        cmd: solo explorer destroy --deployment {{ .DEPLOYMENT }}
+        cmd: npx solo explorer destroy --deployment {{ .DEPLOYMENT }}
 
       - name: "Solo node stop"
-        cmd: solo node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+        cmd: npx solo node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
       - name: "Solo network destroy"
-        cmd: solo network destroy --deployment {{ .DEPLOYMENT }} --force
+        cmd: npx solo network destroy --deployment {{ .DEPLOYMENT }} --force
 
       - name: "Delete Kind cluster"
         cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
