@@ -120,17 +120,19 @@ export async function managePortForward(
 
   let component: BaseStateSchema;
   console.log(`found component ${componentType}, clusterReference=${clusterReference}, nodeId=${nodeId}`);
-  if (!skipSearchComponent && clusterReference) {
-    const schemeComponents: BaseStateSchema[] =
-      remoteConfig.configuration.components.getComponentsByClusterReference<BaseStateSchema>(
-        componentType,
-        clusterReference,
-      );
-    component = schemeComponents[0];
-    console.log(`found by cluster component = ${component}`);
-  } else {
-    component = remoteConfig.configuration.components.getComponentById<BaseStateSchema>(componentType, nodeId);
-    console.log(`found by node id component = ${component}`);
+  if (!skipSearchComponent) {
+    if (clusterReference) {
+      const schemeComponents: BaseStateSchema[] =
+        remoteConfig.configuration.components.getComponentsByClusterReference<BaseStateSchema>(
+          componentType,
+          clusterReference,
+        );
+      component = schemeComponents[0];
+      console.log(`found by cluster component = ${component}`);
+    } else {
+      component = remoteConfig.configuration.components.getComponentById<BaseStateSchema>(componentType, nodeId);
+      console.log(`found by node id component = ${component}`);
+    }
   }
 
   // Check if port forwarding is already enabled for this pod port
