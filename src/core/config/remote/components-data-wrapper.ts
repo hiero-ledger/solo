@@ -30,7 +30,6 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
       if (this.checkComponentExists(components, component) && isReplace !== true) {
         throw new SoloError('Component exists', undefined, component);
       }
-      console.log(`component = ${JSON.stringify(components)}`);
       components[componentId] = component;
     };
 
@@ -83,6 +82,18 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     this.applyCallbackToComponentGroup(type, getComponentCallback, componentId);
 
     return component;
+  }
+
+  public getComponentByType<T extends BaseStateSchema>(type: ComponentTypes): T[] {
+    let components: T[] = [];
+
+    const getComponentsByTypeCallback: (comps: BaseStateSchema[]) => void = (comps): void => {
+      components = comps as T[];
+    };
+
+    this.applyCallbackToComponentGroup(type, getComponentsByTypeCallback);
+
+    return components;
   }
 
   public getComponentsByClusterReference<T extends BaseStateSchema>(

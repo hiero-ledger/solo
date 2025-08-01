@@ -117,7 +117,6 @@ export async function managePortForward(
   }
 
   let component: BaseStateSchema;
-  console.log(`found component ${componentType}, clusterReference=${clusterReference}, nodeId=${nodeId}`);
   if (clusterReference) {
     const schemeComponents: BaseStateSchema[] =
       remoteConfig.configuration.components.getComponentsByClusterReference<BaseStateSchema>(
@@ -125,21 +124,16 @@ export async function managePortForward(
         clusterReference,
       );
     component = schemeComponents[0];
-    console.log(`found by cluster component = ${component}`);
   } else {
     component = remoteConfig.configuration.components.getComponentById<BaseStateSchema>(componentType, nodeId);
-    console.log(`found by node id component = ${component}`);
   }
 
   if (component === undefined) {
-    // it is possible we are upgrading a relay chart and previous version has no clusterReference save in configMap
+    // it is possible we are upgrading a chart and previous version has no clusterReference save in configMap
     reuse = true;
-  }
-  // Check if port forwarding is already enabled for this pod port
-  else if (component.metadata.portForwardConfigs) {
+  } else if (component.metadata.portForwardConfigs) {
     for (const portForwardConfig of component.metadata.portForwardConfigs) {
       if (portForwardConfig.podPort === podPort) {
-        // Port forward already enabled
         logger.showUser(`${label} Port forward already enabled at ${portForwardConfig.localPort}`);
         return portForwardConfig.localPort;
       }
@@ -165,7 +159,7 @@ export async function managePortForward(
       component.metadata.portForwardConfigs = [];
     }
 
-    console.log(`add port localPort=${portForwardPortNumber}, podPort=${podPort}`);
+    logger.info(`add port localPort=${portForwardPortNumber}, podPort=${podPort}`);
     // Save port forward config to component
     component.metadata.portForwardConfigs.push({
       localPort: portForwardPortNumber,

@@ -483,17 +483,6 @@ export class ExplorerCommand extends BaseCommand {
               'Explorer',
               context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             );
-
-            // const portForwardPortNumber: number = await this.k8Factory
-            //   .getK8(context_.config.clusterContext)
-            //   .pods()
-            //   .readByReference(podReference)
-            //   .portForward(constants.EXPLORER_PORT, constants.EXPLORER_PORT, true, context_.config.isChartInstalled);
-            // this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-            // this.logger.addMessageGroupMessage(
-            //   constants.PORT_FORWARDING_MESSAGE_GROUP,
-            //   `Explorer port forward enabled on http://localhost:${portForwardPortNumber}`,
-            // );
           },
         },
         // TODO only show this if we are not running in quick-start mode

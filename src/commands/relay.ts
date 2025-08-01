@@ -653,6 +653,7 @@ export class RelayCommand extends BaseCommand {
       task: async (context_): Promise<void> => {
         const clusterReference: ClusterReferenceName = context_.config.clusterRef;
 
+        // if clusterReference not defined then we will remove all relay nodes
         const relayComponents: RelayNodeStateSchema[] = clusterReference
           ? this.remoteConfig.configuration.components.getComponentsByClusterReference<RelayNodeStateSchema>(
               ComponentTypes.RelayNodes,

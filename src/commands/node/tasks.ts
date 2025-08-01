@@ -1619,17 +1619,6 @@ export class NodeCommandTasks {
             context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             nodeId,
           );
-
-          // const portForwardPortNumber: number = await this.k8Factory
-          //   .getK8(context)
-          //   .pods()
-          //   .readByReference(podReference)
-          //   .portForward(constants.GRPC_PORT, constants.GRPC_PORT, true, context_.config.isChartInstalled);
-          // this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-          // this.logger.addMessageGroupMessage(
-          //   constants.PORT_FORWARDING_MESSAGE_GROUP,
-          //   `Consensus Node gRPC port forward enabled on localhost:${portForwardPortNumber}`,
-          // );
         }
       },
       skip: context_ => !context_.config.debugNodeAlias && !context_.config.forcePortForward,

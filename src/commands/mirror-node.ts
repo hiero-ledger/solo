@@ -806,9 +806,6 @@ export class MirrorNodeCommand extends BaseCommand {
               'Mirror ingress controller',
               context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             );
-
-            // Persist the entire remote config
-            await this.remoteConfig.persist();
           },
         },
         // TODO only show this if we are not running in quick-start mode

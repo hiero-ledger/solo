@@ -17,6 +17,8 @@ export interface ComponentsDataWrapperApi {
 
   getComponent<T extends BaseStateSchema>(type: ComponentTypes, componentId: ComponentId): T;
 
+  getComponentByType<T extends BaseStateSchema>(type: ComponentTypes): T[];
+
   getComponentsByClusterReference<T extends BaseStateSchema>(
     type: ComponentTypes,
     clusterReference: ClusterReferenceName,
