@@ -55,7 +55,7 @@ argv.setArg(flags.force, true);
 // Notes: need to check out block node repo and build the block node image first.
 // Then use the following command to load image into the kind cluster after cluster creation
 // kind load docker-image block-node-server:<tag> --name <cluster-name>
-argv.setArg(flags.imageTag, TEST_LOCAL_BLOCK_NODE_VERSION);
+argv.setArg(flags.blockNodeChartVersion, TEST_LOCAL_BLOCK_NODE_VERSION);
 
 endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, bootstrapResp => {
   describe('BlockNodeCommand', async (): Promise<void> => {
