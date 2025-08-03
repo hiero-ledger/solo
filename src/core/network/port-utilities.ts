@@ -60,6 +60,9 @@ export async function findAvailablePort(
   timeoutMs: number = 30_000,
   logger: SoloLogger,
 ): Promise<number> {
+  if (!Number.isInteger(startPort) || startPort < 1 || startPort > 65535) {
+    throw new Error(`Invalid startPort: ${startPort}. Must be an integer between 1 and 65535.`);
+  }
   let port: number = startPort;
   let attempts: number = 0;
   const startTime: number = Date.now();
