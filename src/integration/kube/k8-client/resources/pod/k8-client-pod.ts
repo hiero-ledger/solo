@@ -150,10 +150,20 @@ export class K8ClientPod implements Pod {
           `${this.podReference.name}`,
         ];
         const shellRunner: ShellRunner = new ShellRunner();
-        const result: string[] = await shellRunner.run(shellCommand.join(' '), [], true, false);
+        let result: string[];
+        try {
+          result = await shellRunner.run(shellCommand.join(' '), [], true, false);
+        } catch (error) {
+          this.logger.error(`Failed to execute shell command: ${shellCommand.join(' ')}`);
+          this.logger.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+          throw new SoloError(`Shell command execution failed: ${shellCommand.join(' ')}. Error: ${error instanceof Error ? error.message : String(error)}`);
+        }
         this.logger.info(`ps -ef port-forward command result is ${result}`);
 
         // if length of result is 1 then could not find previous port forward running, then we can use next available port
+        if (!result || result.length === 0) {
+          this.logger.warn(`Shell command returned no output: ${shellCommand.join(' ')}`);
+        }
         if (result.length > 1) {
           // extract local port number from command output
           const splitArray: string[] = result[0].split(/\s+/).filter(Boolean);
