@@ -11,6 +11,7 @@ import {type ClusterReferenceName} from '../../types/index.js';
 import semver from 'semver/preload.js';
 import {type SemVer} from 'semver';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {PORT_FORWARD_CONFIG_VERSION_CUTOFF} from '../../../version.js';
 
 /**
  * Check if a TCP port is available on the local machine
@@ -60,7 +61,7 @@ export async function findAvailablePort(
   timeoutMs: number = 30_000,
   logger: SoloLogger,
 ): Promise<number> {
-  if (!Number.isInteger(startPort) || startPort < 1 || startPort > 65535) {
+  if (!Number.isInteger(startPort) || startPort < 1 || startPort > 65_535) {
     throw new Error(`Invalid startPort: ${startPort}. Must be an integer between 1 and 65535.`);
   }
   let port: number = startPort;
@@ -110,7 +111,7 @@ export async function managePortForward(
   nodeId?: number,
 ): Promise<number> {
   const installedSoloVersion: SemVer = remoteConfig.configuration.versions.cli;
-  if (semver.lte(installedSoloVersion, '0.41.0')) {
+  if (semver.lte(installedSoloVersion, PORT_FORWARD_CONFIG_VERSION_CUTOFF)) {
     if (ComponentTypes.RelayNodes === componentType) {
       logger.showUser('Previous version of remote config has no cluster reference field in relay component');
     }

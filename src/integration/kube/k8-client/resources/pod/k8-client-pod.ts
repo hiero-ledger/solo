@@ -156,7 +156,9 @@ export class K8ClientPod implements Pod {
         } catch (error) {
           this.logger.error(`Failed to execute shell command: ${shellCommand.join(' ')}`);
           this.logger.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
-          throw new SoloError(`Shell command execution failed: ${shellCommand.join(' ')}. Error: ${error instanceof Error ? error.message : String(error)}`);
+          throw new SoloError(
+            `Shell command execution failed: ${shellCommand.join(' ')}. Error: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
         this.logger.info(`ps -ef port-forward command result is ${result}`);
 

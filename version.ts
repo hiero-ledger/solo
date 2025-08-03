@@ -22,7 +22,7 @@ export const HEDERA_JSON_RPC_RELAY_VERSION: string = '0.70.0';
 export const INGRESS_CONTROLLER_VERSION: string = '0.14.5';
 export const BLOCK_NODE_VERSION: string = '0.14.0';
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE: string = 'v0.62.3';
-
+export const PORT_FORWARD_CONFIG_VERSION_CUTOFF = '0.41.0'; // Version cutoff for port-forward config changes
 export function getSoloVersion(): Version {
   if (process.env.npm_package_version) {
     return process.env.npm_package_version;
