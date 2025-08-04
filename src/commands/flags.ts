@@ -129,8 +129,7 @@ export class Flags {
    */
   public static setOptionalCommandFlags(y: AnyYargs, ...commandFlags: CommandFlag[]) {
     for (const flag of commandFlags) {
-      let defaultValue = flag.definition.defaultValue === '' ? undefined : flag.definition.defaultValue;
-      defaultValue = defaultValue && flag.definition.dataMask ? flag.definition.dataMask : defaultValue;
+      const defaultValue = flag.definition.defaultValue === '' ? undefined : flag.definition.defaultValue;
       y.option(flag.name, {
         ...flag.definition,
         default: defaultValue,
