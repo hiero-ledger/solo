@@ -155,7 +155,7 @@ function log_and_exit()
   echo "load_log_and_exit begin with rc=$1"
 
   echo "------- BEGIN RELAY DUMP -------"
-  kubectl get services -n "${namespace}" --output=name | grep relay-node | grep -v '\-ws' | xargs -IRELAY kubectl logs -n "${namespace}" RELAY > relay.log || true
+  kubectl get services -n "${SOLO_NAMESPACE}" --output=name | grep relay-node | grep -v '\-ws' | xargs -IRELAY kubectl logs -n "${SOLO_NAMESPACE}" RELAY > relay.log || true
   cat relay.log || true
   echo "------- END RELAY DUMP -------"
 

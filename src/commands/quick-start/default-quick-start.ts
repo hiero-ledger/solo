@@ -530,7 +530,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           .addSubcommand(
             new Subcommand(
               'destroy',
-              'Removes the deployed resources for the selected quick start configuration',
+              'UNDER CONSTRUCTION: Removes the deployed resources for the selected quick start configuration',
               this,
               this.destroy,
               (y: AnyYargs): void => {

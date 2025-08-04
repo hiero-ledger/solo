@@ -86,6 +86,7 @@ interface RelayDeployConfigClass {
   context: Optional<string>;
   newRelayComponent: RelayNodeStateSchema;
   forcePortForward: Optional<boolean>;
+  cacheDir: Optional<string>;
 }
 
 interface RelayDeployContext {
@@ -128,6 +129,7 @@ export class RelayCommand extends BaseCommand {
       flags.valuesFile,
       flags.domainName,
       flags.forcePortForward,
+      flags.cacheDir,
     ],
   };
 

@@ -32,7 +32,7 @@ export class RelayTest extends BaseCommandTest {
       optionFromFlag(Flags.nodeAliasesUnparsed),
       'node2',
     );
-    argvPushGlobalFlags(argv, testName, false, false);
+    argvPushGlobalFlags(argv, testName, true, false);
     return argv;
   }
 

@@ -6,6 +6,14 @@ description: >
 type: docs
 ---
 
+### How can I set up a Solo network in a single command?
+
+You can run `npx @hashgraph/solo:@latest quick-start single deploy`
+
+More documentation can be found here:
+- [Solo User Guide](step-by-step-guide/#quick-start-deployment)
+- [Solo CLI Commands](solo-commands/#quick-start-single)
+
 ### How can I avoid using genesis keys ?
 
 You can run `solo account init` anytime after `solo node start`
