@@ -84,8 +84,6 @@ async function main() {
     let finished = false;
     new TopicMessageQuery()
       .setTopicId(createReceipt.topicId)
-      .setMaxAttempts(400)
-      .setLimit(1)
       // eslint-disable-next-line no-unused-vars
       .subscribe(
         mirrorClient,

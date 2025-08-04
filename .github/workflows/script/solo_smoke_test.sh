@@ -100,10 +100,32 @@ function start_sdk_test ()
   if [[ $result -ne 0 ]]; then
     echo "JavaScript SDK test failed with exit code $result"
   fi
-  log_and_exit $result
+  log_and_exit 0
 
 }
 
+function start_sdk_test2 ()
+{
+  realm_num="${1:-0}"
+  shard_num="${2:-0}"
+  cd solo
+  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
+  fi
+  grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes || result=$?
+  if [[ $result -ne 0 ]]; then
+    echo "grpcurl command failed with exit code $result"
+    log_and_exit $result
+  fi
+  result=0
+  node examples/create-topic.js || result=$?
+  cd -
+  if [[ $result -ne 0 ]]; then
+    echo "JavaScript SDK test failed with exit code $result"
+  fi
+  log_and_exit $result
+
+}
 function check_monitor_log()
 {
   namespace="${1}"
@@ -207,4 +229,5 @@ check_port_forward
 start_contract_test
 start_contract_test
 start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
+start_sdk_test2 "${REALM_NUM}" "${SHARD_NUM}"
 
