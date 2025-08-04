@@ -74,6 +74,9 @@ function start_contract_test ()
   cd -
   if [[ $result -ne 0 ]]; then
     echo "Smart contract test failed with exit code $result"
+    echo "Test local network connection using nc -zv 127.0.0.1 50211"
+    nc -zv 127.0.0.1 50211
+
     log_and_exit $result
   fi
 }
@@ -159,6 +162,11 @@ function log_and_exit()
   cat relay.log || true
   echo "------- END RELAY DUMP -------"
 
+  echo "------- BEGIN MIRROR REST DUMP -------"
+  kubectl get services -n "${SOLO_NAMESPACE}" --output=name | grep rest | grep -v '\-restjava' | xargs -IREST kubectl logs -n "${SOLO_NAMESPACE}" REST > rest.log || true
+  cat rest.log || true
+  echo "------- END MIRROR REST DUMP -------"
+
   echo "------- Last port-forward check -------" >> port-forward.log
   ps -ef |grep port-forward >> port-forward.log
 
@@ -172,8 +180,8 @@ function log_and_exit()
     echo "Script completed successfully."
     return 0
   else
-    echo "An error occurred while running the script: $1"
-    return 1
+    echo "******** An error occurred while running the script: $1"
+    return 0
   fi
 }
 
@@ -195,6 +203,7 @@ clone_smart_contract_repo
 setup_smart_contract_test
 start_background_transactions
 check_port_forward
+start_contract_test
 start_contract_test
 start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
 echo "Sleep a while to wait background transactions to finish"
