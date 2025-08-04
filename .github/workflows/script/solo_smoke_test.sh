@@ -99,8 +99,9 @@ function start_sdk_test ()
   cd -
   if [[ $result -ne 0 ]]; then
     echo "JavaScript SDK test failed with exit code $result"
-    log_and_exit $result
   fi
+  log_and_exit $result
+
 }
 
 function check_monitor_log()
