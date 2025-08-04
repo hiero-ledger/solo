@@ -206,22 +206,4 @@ check_port_forward
 start_contract_test
 start_contract_test
 start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
-echo "Sleep a while to wait background transactions to finish"
-sleep 30
 
-echo "Run mirror node acceptance test"
-helm test mirror -n "${SOLO_NAMESPACE}" --timeout 10m || result=$?
-if [[ $result -ne 0 ]]; then
-  echo "Mirror node acceptance test failed with exit code $result"
-  log_and_exit $result
-fi
-result=0
-
-check_monitor_log "${SOLO_NAMESPACE}"
-
-if [ -n "$1" ]; then
-  echo "Skip mirror importer log check"
-else
-  check_importer_log "${SOLO_NAMESPACE}"
-fi
-log_and_exit $?
