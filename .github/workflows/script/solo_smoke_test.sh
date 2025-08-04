@@ -180,8 +180,8 @@ function log_and_exit()
     echo "Script completed successfully."
     return 0
   else
-    echo "******** An error occurred while running the script: $1"
-    return 0
+    echo "An error occurred while running the script: $1"
+    return 1
   fi
 }
 
