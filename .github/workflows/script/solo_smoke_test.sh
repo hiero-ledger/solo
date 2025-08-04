@@ -227,7 +227,6 @@ setup_smart_contract_test
 start_background_transactions
 check_port_forward
 start_contract_test
-start_contract_test
 start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
 start_sdk_test2 "${REALM_NUM}" "${SHARD_NUM}"
 
