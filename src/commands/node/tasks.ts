@@ -734,7 +734,7 @@ export class NodeCommandTasks {
               context_.config.consensusNodes,
             );
 
-            // load nodeAdminKey form k8s if exist
+            // load nodeAdminKey from k8s if exist
             const keyFromK8 = await this.k8Factory
               .getK8(context)
               .secrets()
