@@ -12,7 +12,7 @@ export const GENESIS_KEY =
  * we want to run the following commands to open ports
  * $ export SOLO_NAMESPACE=solo-e2e
  * $ kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 &
- * $ kubectl port-forward svc/mirror-grpc -n "${SOLO_NAMESPACE}" 5600:5600 &
+ * $ kubectl port-forward svc/mirror-1-grpc -n "${SOLO_NAMESPACE}" 5600:5600 &
  **/
 
 async function main() {
