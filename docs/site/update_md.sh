@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/bin/bash
 set -xeo pipefail
 
 # --- skip this in pipeline .. begin .. -----------------------
