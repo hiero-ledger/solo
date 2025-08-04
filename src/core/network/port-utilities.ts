@@ -120,6 +120,7 @@ export async function managePortForward(
     logger.showUser(`Port forward config not found for previous installed ${label}, reusing existing port forward`);
   }
 
+  // found component by cluster reference or nodeId
   let component: BaseStateSchema;
   if (clusterReference) {
     const schemeComponents: BaseStateSchema[] =
@@ -134,6 +135,7 @@ export async function managePortForward(
 
   if (component === undefined) {
     // it is possible we are upgrading a chart and previous version has no clusterReference save in configMap
+    // so we will not be able to find component by clusterReference
     reuse = true;
   } else if (component.metadata.portForwardConfigs) {
     for (const portForwardConfig of component.metadata.portForwardConfigs) {
