@@ -954,20 +954,19 @@ export class NodeCommandTasks {
             .copyFrom(`${keyDirectory}/${signedKeyFile.name}`, `${config.keysDir}`);
         }
 
-        if (
-          await k8
-            .containers()
-            .readByRef(containerReference)
-            .hasFile(`${constants.HEDERA_HAPI_PATH}/data/upgrade/current/application.properties`)
-        ) {
-          await k8
-            .containers()
-            .readByRef(containerReference)
-            .copyFrom(
-              `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/application.properties`,
-              `${config.stagingDir}/templates`,
-            );
-        }
+        const applicationPropertiesSourceDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`;
+        await ((await k8.containers().readByRef(containerReference).hasFile(applicationPropertiesSourceDirectory))
+          ? k8
+              .containers()
+              .readByRef(containerReference)
+              .copyFrom(applicationPropertiesSourceDirectory, `${config.stagingDir}/templates`)
+          : k8
+              .containers()
+              .readByRef(containerReference)
+              .copyFrom(
+                `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`,
+                `${config.stagingDir}/templates`,
+              ));
       },
     };
   }

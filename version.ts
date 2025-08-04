@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {PathEx} from './src/business/utils/path-ex.js';
 import fs from 'node:fs';
+import {SemVer} from 'semver';
 
 /**
  * This file should only contain versions for dependencies and the function to get the Solo version.
@@ -20,9 +21,14 @@ export const EXPLORER_VERSION: string = '25.0.0';
 export const EXPLORER_OLD_VERSION_BEFORE_LABEL_CHANGE: string = '24.12.0';
 export const HEDERA_JSON_RPC_RELAY_VERSION: string = '0.70.0';
 export const INGRESS_CONTROLLER_VERSION: string = '0.14.5';
-export const BLOCK_NODE_VERSION: string = '0.14.0';
-export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE: string = 'v0.62.3';
+export const BLOCK_NODE_VERSION: string = 'v0.14.0';
+
+export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE: string = 'v0.62.3';
+export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT: SemVer = new SemVer('v0.15.0');
+
+export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE: string = 'v0.64.0';
 export const PORT_FORWARD_CONFIG_VERSION_CUTOFF = '0.41.0'; // Version cutoff for port-forward config changes
+
 export function getSoloVersion(): Version {
   if (process.env.npm_package_version) {
     return process.env.npm_package_version;
