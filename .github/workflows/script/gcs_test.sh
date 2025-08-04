@@ -118,7 +118,7 @@ SOLO_DEPLOYMENT=solo-e2e
 kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 
 if [ "${storageType}" == "minio_only" ]; then
-  cd examples
+  cd scripts
   SOLO_DEPLOYMENT=solo-deployment
   SOLO_DEPLOYMENT=solo-deployment task default-with-mirror
   cd -
