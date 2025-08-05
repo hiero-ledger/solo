@@ -251,7 +251,10 @@ export const BLOCK_NODE_PODS_RUNNING_DELAY: number = +process.env.BLOCK_NODE_POD
 export const BLOCK_NODE_ACTIVE_MAX_ATTEMPTS: number = +process.env.NETWORK_NODE_ACTIVE_MAX_ATTEMPTS || 100;
 export const BLOCK_NODE_ACTIVE_DELAY: number = +process.env.NETWORK_NODE_ACTIVE_DELAY || 1000;
 export const BLOCK_NODE_ACTIVE_TIMEOUT: number = +process.env.NETWORK_NODE_ACTIVE_TIMEOUT || 1000;
-export const BLOCK_NODE_PORT: number = +process.env.BLOCK_NODE_PORT || 8080;
+
+export const BLOCK_NODE_PORT: number = +process.env.BLOCK_NODE_PORT || 40_840;
+export const BLOCK_NODE_PORT_LEGACY: number = +process.env.BLOCK_NODE_PORT_LEGACY || 8080;
+
 export const BLOCK_ITEM_BATCH_SIZE: number = +process.env.BLOCK_ITEM_BATCH_SIZE || 256;
 
 export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
