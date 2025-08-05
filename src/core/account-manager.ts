@@ -741,6 +741,9 @@ export class AccountManager {
     try {
       keys = await this.getAccountKeys(accountId);
     } catch (error) {
+      if (error instanceof MissingArgumentError) {
+        throw error;
+      }
       this.logger.error(
         `failed to get keys for accountId ${accountId.toString()}, e: ${error.toString()}\n  ${error.stack}`,
       );
