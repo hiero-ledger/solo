@@ -20,7 +20,6 @@ import {DeploymentStateSchema} from '../../../data/schema/model/remote/deploymen
 import {ExplorerStateSchema} from '../../../data/schema/model/remote/state/explorer-state-schema.js';
 import {SemVer} from 'semver';
 import {EXPLORER_OLD_VERSION_BEFORE_LABEL_CHANGE} from '../../../../version.js';
-import {type RelayNodeStateSchema} from '../../../data/schema/model/remote/state/relay-node-state-schema.js';
 
 /**
  * Static class is used to validate that components in the remote config
