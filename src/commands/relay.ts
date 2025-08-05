@@ -319,6 +319,47 @@ export class RelayCommand extends BaseCommand {
     return JSON.stringify(networkIds);
   }
 
+  private checkRelayIsRunningTask(): SoloListrTask<RelayDeployContext | RelayUpgradeContext> {
+    return {
+      title: 'Check relay is running',
+      task: async ({config}): Promise<void> => {
+        await this.k8Factory
+          .getK8(config.context)
+          .pods()
+          .waitForRunningPhase(
+            config.namespace,
+            [`app.kubernetes.io/instance=${config.releaseName}`],
+            constants.RELAY_PODS_RUNNING_MAX_ATTEMPTS,
+            constants.RELAY_PODS_RUNNING_DELAY,
+          );
+
+        // reset nodeAlias
+        this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
+      },
+    };
+  }
+
+  private checkRelayIsReadyTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Check relay is ready',
+      task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
+        try {
+          await this.k8Factory
+            .getK8(config.context)
+            .pods()
+            .waitForReadyStatus(
+              config.namespace,
+              [`app.kubernetes.io/instance=${config.releaseName}`],
+              constants.RELAY_PODS_READY_MAX_ATTEMPTS,
+              constants.RELAY_PODS_READY_DELAY,
+            );
+        } catch (error) {
+          throw new SoloError(`Relay ${config.releaseName} is not ready: ${error.message}`, error);
+        }
+      },
+    };
+  }
+
   private prepareReleaseName(nodeAliases: NodeAliases = []): string {
     if (!nodeAliases) {
       throw new MissingArgumentError('Node IDs must be specified');
@@ -330,6 +371,54 @@ export class RelayCommand extends BaseCommand {
     }
 
     return releaseName;
+  }
+
+  private enablePortForwardingTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Enable port forwarding',
+      skip: ({config}: RelayDeployContext | RelayUpgradeContext): boolean => !config.forcePortForward,
+      task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
+        const pods: Pod[] = await this.k8Factory
+          .getK8(config.context)
+          .pods()
+          .list(config.namespace, ['app.kubernetes.io/name=relay']);
+
+        if (pods.length === 0) {
+          throw new SoloError('No Relay pod found');
+        }
+
+        const podReference: PodReference = pods[0].podReference;
+
+        await this.k8Factory
+          .getK8(config.context)
+          .pods()
+          .readByReference(podReference)
+          .portForward(constants.JSON_RPC_RELAY_PORT, constants.JSON_RPC_RELAY_PORT, true);
+
+        this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+
+        this.logger.addMessageGroupMessage(
+          constants.PORT_FORWARDING_MESSAGE_GROUP,
+          `JSON RPC Relay forward enabled on localhost:${constants.JSON_RPC_RELAY_PORT}`,
+        );
+      },
+    };
+  }
+
+  private prepareChartValuesTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Prepare chart values',
+      task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
+        await this.accountManager.loadNodeClient(
+          config.namespace,
+          this.remoteConfig.getClusterRefs(),
+          this.configManager.getFlag<DeploymentName>(flags.deployment),
+          this.configManager.getFlag<boolean>(flags.forcePortForward),
+        );
+
+        config.valuesArg = await this.prepareValuesArgForRelay(config);
+      },
+    };
   }
 
   private async deploy(argv: ArgvStruct): Promise<boolean> {
@@ -398,19 +487,7 @@ export class RelayCommand extends BaseCommand {
             );
           },
         },
-        {
-          title: 'Prepare chart values',
-          task: async ({config}): Promise<void> => {
-            await self.accountManager.loadNodeClient(
-              config.namespace,
-              self.remoteConfig.getClusterRefs(),
-              self.configManager.getFlag<DeploymentName>(flags.deployment),
-              self.configManager.getFlag<boolean>(flags.forcePortForward),
-            );
-
-            config.valuesArg = await self.prepareValuesArgForRelay(config);
-          },
-        },
+        this.prepareChartValuesTask(),
         {
           title: 'Deploy JSON RPC Relay',
           task: async ({config}): Promise<void> => {
@@ -427,66 +504,10 @@ export class RelayCommand extends BaseCommand {
             showVersionBanner(self.logger, config.releaseName, HEDERA_JSON_RPC_RELAY_VERSION);
           },
         },
-        {
-          title: 'Check relay is running',
-          task: async ({config}): Promise<void> => {
-            await self.k8Factory
-              .getK8(config.context)
-              .pods()
-              .waitForRunningPhase(
-                config.namespace,
-                [`app.kubernetes.io/instance=${config.releaseName}`],
-                constants.RELAY_PODS_RUNNING_MAX_ATTEMPTS,
-                constants.RELAY_PODS_RUNNING_DELAY,
-              );
-
-            // reset nodeAlias
-            self.configManager.setFlag(flags.nodeAliasesUnparsed, '');
-          },
-        },
-        {
-          title: 'Check relay is ready',
-          task: async ({config}): Promise<void> => {
-            const k8: K8 = self.k8Factory.getK8(config.context);
-            try {
-              await k8
-                .pods()
-                .waitForReadyStatus(
-                  config.namespace,
-                  [`app.kubernetes.io/instance=${config.releaseName}`],
-                  constants.RELAY_PODS_READY_MAX_ATTEMPTS,
-                  constants.RELAY_PODS_READY_DELAY,
-                );
-            } catch (error) {
-              throw new SoloError(`Relay ${config.releaseName} is not ready: ${error.message}`, error);
-            }
-          },
-        },
+        this.checkRelayIsRunningTask(),
+        this.checkRelayIsReadyTask(),
         this.addRelayComponent(),
-        {
-          title: 'Enable port forwarding',
-          task: async ({config}): Promise<void> => {
-            const pods: Pod[] = await this.k8Factory
-              .getK8(config.context)
-              .pods()
-              .list(config.namespace, ['app.kubernetes.io/name=relay']);
-            if (pods.length === 0) {
-              throw new SoloError('No Relay pod found');
-            }
-            const podReference: PodReference = pods[0].podReference;
-            await this.k8Factory
-              .getK8(config.context)
-              .pods()
-              .readByReference(podReference)
-              .portForward(constants.JSON_RPC_RELAY_PORT, constants.JSON_RPC_RELAY_PORT, true);
-            this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-            this.logger.addMessageGroupMessage(
-              constants.PORT_FORWARDING_MESSAGE_GROUP,
-              `JSON RPC Relay forward enabled on localhost:${constants.JSON_RPC_RELAY_PORT}`,
-            );
-          },
-          skip: ({config}): boolean => !config.forcePortForward,
-        },
+        this.enablePortForwardingTask(),
         // TODO only show this if we are not running in quick-start mode
         // {
         //   title: 'Show user messages',
@@ -594,19 +615,7 @@ export class RelayCommand extends BaseCommand {
             }
           },
         },
-        {
-          title: 'Prepare chart values',
-          task: async ({config}): Promise<void> => {
-            await this.accountManager.loadNodeClient(
-              config.namespace,
-              this.remoteConfig.getClusterRefs(),
-              this.configManager.getFlag<DeploymentName>(flags.deployment),
-              this.configManager.getFlag<boolean>(flags.forcePortForward),
-            );
-
-            config.valuesArg = await this.prepareValuesArgForRelay(config);
-          },
-        },
+        this.prepareChartValuesTask(),
         {
           title: 'Deploy JSON RPC Relay',
           task: async ({config}): Promise<void> => {
@@ -624,41 +633,9 @@ export class RelayCommand extends BaseCommand {
             await helpers.sleep(Duration.ofSeconds(40)); // wait for the pod to destroy in case it was an upgrade
           },
         },
-        {
-          title: 'Check relay is running',
-          task: async ({config}): Promise<void> => {
-            await this.k8Factory
-              .getK8(config.context)
-              .pods()
-              .waitForRunningPhase(
-                config.namespace,
-                [`app.kubernetes.io/instance=${config.releaseName}`],
-                constants.RELAY_PODS_RUNNING_MAX_ATTEMPTS,
-                constants.RELAY_PODS_RUNNING_DELAY,
-              );
-
-            // reset nodeAlias
-            this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
-          },
-        },
-        {
-          title: 'Check relay is ready',
-          task: async ({config}): Promise<void> => {
-            try {
-              await this.k8Factory
-                .getK8(config.context)
-                .pods()
-                .waitForReadyStatus(
-                  config.namespace,
-                  [`app.kubernetes.io/instance=${config.releaseName}`],
-                  constants.RELAY_PODS_READY_MAX_ATTEMPTS,
-                  constants.RELAY_PODS_READY_DELAY,
-                );
-            } catch (error) {
-              throw new SoloError(`Relay ${config.releaseName} is not ready: ${error.message}`, error);
-            }
-          },
-        },
+        this.checkRelayIsRunningTask(),
+        this.checkRelayIsReadyTask(),
+        this.enablePortForwardingTask(),
       ],
       {
         concurrent: false,
