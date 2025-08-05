@@ -24,7 +24,6 @@ import * as constants from '../../../src/core/constants.js';
 import * as SemVer from 'semver';
 import {type ArgvStruct} from '../../../src/types/aliases.js';
 import {type BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
-import {HEDERA_PLATFORM_VERSION, MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} from '../../../version.js';
 import {TEST_LOCAL_BLOCK_NODE_VERSION} from '../../../version-test.js';
 
 // eslint-disable-next-line @typescript-eslint/typedef
@@ -39,11 +38,11 @@ argv.setArg(flags.namespace, namespace.name);
 argv.setArg(
   flags.releaseTag,
   SemVer.lt(
-    new SemVer.SemVer(HEDERA_PLATFORM_VERSION),
-    new SemVer.SemVer(MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE),
+    new SemVer.SemVer(version.HEDERA_PLATFORM_VERSION),
+    new SemVer.SemVer(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE),
   )
-    ? MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE
-    : HEDERA_PLATFORM_VERSION,
+    ? version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE
+    : version.HEDERA_PLATFORM_VERSION,
 );
 argv.setArg(flags.nodeAliasesUnparsed, 'node1');
 argv.setArg(flags.generateGossipKeys, true);
@@ -51,11 +50,12 @@ argv.setArg(flags.generateTlsKeys, true);
 argv.setArg(flags.clusterRef, clusterReference);
 argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
 argv.setArg(flags.force, true);
+argv.setArg(flags.blockNodeChartVersion, version.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT.version);
 
 // Notes: need to check out block node repo and build the block node image first.
 // Then use the following command to load image into the kind cluster after cluster creation
 // kind load docker-image block-node-server:<tag> --name <cluster-name>
-argv.setArg(flags.imageTag, TEST_LOCAL_BLOCK_NODE_VERSION);
+argv.setArg(flags.blockNodeChartVersion, TEST_LOCAL_BLOCK_NODE_VERSION);
 
 endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, bootstrapResp => {
   describe('BlockNodeCommand', async (): Promise<void> => {
@@ -71,9 +71,14 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
     before(async (): Promise<void> => {
       blockNodeCommand = container.resolve<BlockNodeCommand>(InjectTokens.BlockNodeCommand);
       platformVersion = new SemVer.SemVer(argv.getArg<string>(flags.releaseTag));
-      if (SemVer.lt(platformVersion, new SemVer.SemVer(MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE))) {
+      if (
+        SemVer.lt(
+          platformVersion,
+          new SemVer.SemVer(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE),
+        )
+      ) {
         expect.fail(
-          `BlockNodeCommand should not be tested with versions less than ${MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE}`,
+          `BlockNodeCommand should not be tested with versions less than ${version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE}`,
         );
       }
     });
@@ -86,7 +91,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
 
     afterEach(async (): Promise<void> => await sleep(Duration.ofMillis(5)));
 
-    it(`Should fail with versions less than ${MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE}`, async (): Promise<void> => {
+    it(`Should fail with versions less than ${version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE}`, async (): Promise<void> => {
       const argvClone: Argv = argv.clone();
       argvClone.setArg(flags.releaseTag, 'v0.61.0');
 
@@ -130,7 +135,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
         .list(namespace, [`app.kubernetes.io/instance=${constants.BLOCK_NODE_RELEASE_NAME}-0`])
         .then((pods: Pod[]): Pod => pods[0]);
 
-      const srv: ExtendedNetServer = await pod.portForward(8080, 8080);
+      const srv: ExtendedNetServer = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
       const commandOptions: {cwd: string} = {cwd: './test/data'};
 
       // Make script executable
@@ -167,3 +172,4 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
     });
   });
 });
+
