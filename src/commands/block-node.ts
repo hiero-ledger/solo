@@ -19,7 +19,7 @@ import {ListrLock} from '../core/lock/listr-lock.js';
 import {
   type ClusterReferenceName,
   type CommandDefinition,
-  ComponentId,
+  type ComponentId,
   type DeploymentName,
   type Optional,
   type SoloListrTask,
@@ -37,13 +37,18 @@ import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-bui
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {lt, SemVer} from 'semver';
-import {injectable} from 'tsyringe-neo';
-import {MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} from '../../version.js';
+import {gte, lt, SemVer} from 'semver';
+import {inject, injectable} from 'tsyringe-neo';
+import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {Templates} from '../core/templates.js';
 import {K8} from '../integration/kube/k8.js';
 import {BLOCK_NODE_IMAGE_NAME} from '../core/constants.js';
 import {Version} from '../business/utils/version.js';
+import {
+  MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT,
+  MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE,
+} from '../../version.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -56,13 +61,14 @@ interface BlockNodeDeployConfigClass {
   quiet: boolean;
   valuesFile: Optional<string>;
   releaseTag: string;
-  imageTag: string;
+  imageTag: Optional<string>;
   namespace: NamespaceName;
   nodeAliases: NodeAliases; // from remote config
   context: string;
   valuesArg: string;
   newBlockNodeComponent: BlockNodeStateSchema;
   releaseName: string;
+  livenessCheckPort: number;
 }
 
 interface BlockNodeDeployContext {
@@ -238,10 +244,14 @@ export class BlockNodeCommand extends BaseCommand {
 
             context_.config = config;
 
-            const platformVersion: SemVer = new SemVer(config.releaseTag);
-            if (lt(platformVersion, new SemVer(MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE))) {
+            if (
+              lt(
+                new SemVer(config.releaseTag),
+                new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE),
+              )
+            ) {
               throw new SoloError(
-                `Hedera platform versions less than ${MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} are not supported`,
+                `Hedera platform versions less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE} are not supported`,
               );
             }
 
@@ -254,6 +264,25 @@ export class BlockNodeCommand extends BaseCommand {
             }
 
             config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
+
+            const currentBlockNodeVersion: SemVer = new SemVer(config.chartVersion);
+            if (
+              lt(new SemVer(config.releaseTag), new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE)) &&
+              gte(currentBlockNodeVersion, MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)
+            ) {
+              throw new SoloError(
+                `Hedera platform version less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} ` +
+                  `are not supported for block node version ${MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT.version}`,
+              );
+            }
+
+            config.chartVersion = Version.getValidSemanticVersion(
+              config.chartVersion,
+              false,
+              'Block node chart version',
+            );
+
+            config.livenessCheckPort = this.getLivenessCheckPortNumber(config.chartVersion, config.imageTag);
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
@@ -309,6 +338,8 @@ export class BlockNodeCommand extends BaseCommand {
               task.title += ` with local built image (${config.imageTag})`;
             }
             showVersionBanner(this.logger, config.releaseName, versions.BLOCK_NODE_VERSION);
+
+            await this.updateBlockNodeVersionInRemoteConfig(config);
           },
         },
         {
@@ -571,6 +602,10 @@ export class BlockNodeCommand extends BaseCommand {
               '',
               context,
             );
+
+            showVersionBanner(this.logger, constants.BLOCK_NODE_CHART, config.upgradeVersion);
+
+            await this.updateBlockNodeVersionInRemoteConfig(config);
           },
         },
       ],
@@ -589,6 +624,51 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     return true;
+  }
+
+  /**
+   * Gives the port used for liveness check based on the chart version and image tag (if set)
+   */
+  private getLivenessCheckPortNumber(chartVersion: string | SemVer, imageTag: Optional<string | SemVer>): number {
+    let useLegacyPort: boolean = false;
+
+    chartVersion = typeof chartVersion === 'string' ? new SemVer(chartVersion) : chartVersion;
+    imageTag = typeof imageTag === 'string' && imageTag ? new SemVer(imageTag) : undefined;
+
+    if (lt(chartVersion, versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)) {
+      useLegacyPort = true;
+    } else if (imageTag && lt(imageTag, versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)) {
+      useLegacyPort = true;
+    }
+
+    return useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
+  }
+
+  private async updateBlockNodeVersionInRemoteConfig(
+    config: BlockNodeDeployConfigClass | BlockNodeUpgradeConfigClass,
+  ): Promise<void> {
+    let blockNodeVersion: SemVer;
+    let imageTag: SemVer | undefined;
+
+    if (config.hasOwnProperty('upgradeVersion') && (config as BlockNodeUpgradeConfigClass).upgradeVersion) {
+      const version: string = (config as BlockNodeUpgradeConfigClass).upgradeVersion;
+      blockNodeVersion = typeof version === 'string' ? new SemVer(version) : version;
+    }
+
+    if (config.hasOwnProperty('chartVersion') && (config as BlockNodeDeployConfigClass).chartVersion) {
+      const version: string = (config as BlockNodeDeployConfigClass).chartVersion;
+      blockNodeVersion = typeof version === 'string' ? new SemVer(version) : version;
+    }
+
+    if (config.hasOwnProperty('imageTag') && (config as BlockNodeDeployConfigClass).imageTag) {
+      const tag: string = (config as BlockNodeDeployConfigClass).imageTag;
+      imageTag = typeof tag === 'string' ? new SemVer(tag) : tag;
+    }
+
+    this.remoteConfig.configuration.versions.blockNodeChart =
+      imageTag && lt(blockNodeVersion, imageTag) ? imageTag : blockNodeVersion;
+
+    await this.remoteConfig.persist();
   }
 
   /** Adds the block node component to remote config. */
@@ -638,9 +718,7 @@ export class BlockNodeCommand extends BaseCommand {
   private checkBlockNodeReadiness(): SoloListrTask<BlockNodeDeployContext> {
     return {
       title: 'Check block node readiness',
-      task: async (context_, task): Promise<void> => {
-        const config: BlockNodeDeployConfigClass = context_.config;
-
+      task: async ({config}, task): Promise<void> => {
         const displayHealthcheckCallback: (
           attempt: number,
           maxAttempt: number,
@@ -672,7 +750,7 @@ export class BlockNodeCommand extends BaseCommand {
                 .getK8(config.context)
                 .containers()
                 .readByRef(containerReference)
-                .execContainer(['bash', '-c', 'curl -s http://localhost:8080/healthz/readyz']),
+                .execContainer(['bash', '-c', `curl -s http://localhost:${config.livenessCheckPort}/healthz/readyz`]),
               Duration.ofMillis(constants.BLOCK_NODE_ACTIVE_TIMEOUT),
               'Healthcheck timed out',
             );
