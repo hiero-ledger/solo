@@ -617,7 +617,7 @@ export class RelayCommand extends BaseCommand {
         },
         this.prepareChartValuesTask(),
         {
-          title: 'Deploy JSON RPC Relay',
+          title: 'Upgrade JSON RPC Relay',
           task: async ({config}): Promise<void> => {
             await this.chartManager.upgrade(
               config.namespace,

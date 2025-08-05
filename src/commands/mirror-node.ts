@@ -1147,6 +1147,7 @@ export class MirrorNodeCommand extends BaseCommand {
             ) as MirrorNodeUpgradeConfigClass;
 
             context_.config.namespace = namespace;
+            context_.config.valuesArg = '';
 
             context_.config.clusterReference =
               this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
