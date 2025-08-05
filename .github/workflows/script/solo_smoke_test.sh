@@ -75,6 +75,7 @@ function start_contract_test ()
   if [[ $result -ne 0 ]]; then
     echo "Smart contract test failed with exit code $result"
     echo "Test local network connection using nc -zv 127.0.0.1 50211"
+    sudo apt-get update && sudo apt-get install -y netcat-traditional
     nc -zv 127.0.0.1 50211
 
     log_and_exit $result
