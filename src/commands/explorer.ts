@@ -372,7 +372,7 @@ export class ExplorerCommand extends BaseCommand {
               allFlags,
             ) as ExplorerDeployConfigClass;
 
-            context_.config.valuesArg = ''
+            context_.config.valuesArg = '';
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
 
             context_.config.clusterContext = context_.config.clusterRef
