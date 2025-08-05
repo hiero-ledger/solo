@@ -129,8 +129,7 @@ export class Flags {
    */
   public static setOptionalCommandFlags(y: AnyYargs, ...commandFlags: CommandFlag[]) {
     for (const flag of commandFlags) {
-      let defaultValue = flag.definition.defaultValue === '' ? undefined : flag.definition.defaultValue;
-      defaultValue = defaultValue && flag.definition.dataMask ? flag.definition.dataMask : defaultValue;
+      const defaultValue = flag.definition.defaultValue === '' ? undefined : flag.definition.defaultValue;
       y.option(flag.name, {
         ...flag.definition,
         default: defaultValue,
@@ -353,7 +352,7 @@ export class Flags {
     ): Promise<string> {
       if (input && !fs.existsSync(input)) {
         input = await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
-          default: Flags.valuesFile.definition.defaultValue as string,
+          default: Flags.profileFile.definition.defaultValue as string,
           message: 'Enter path to custom resource profile definition file: ',
         });
       }
@@ -1653,26 +1652,6 @@ export class Flags {
     },
   };
 
-  public static readonly blockNodeVersion: CommandFlag = {
-    constName: 'blockNodeVersion',
-    name: 'block-node-version',
-    definition: {
-      describe: 'Block nodes chart version',
-      defaultValue: version.BLOCK_NODE_VERSION,
-      type: 'string',
-    },
-    prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: boolean): Promise<boolean> {
-      return await Flags.promptToggle(
-        task,
-        input,
-        Flags.blockNodeVersion.definition.defaultValue as boolean,
-        'Would you like to choose mirror node version? ',
-        null,
-        Flags.blockNodeVersion.name,
-      );
-    },
-  };
-
   public static readonly enableIngress: CommandFlag = {
     constName: 'enableIngress',
     name: 'enable-ingress',
@@ -2637,7 +2616,6 @@ export class Flags {
     Flags.domainName,
     Flags.domainNames,
     Flags.blockNodeChartVersion,
-    Flags.blockNodeVersion,
     Flags.realm,
     Flags.shard,
     Flags.username,
