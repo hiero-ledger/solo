@@ -29,7 +29,7 @@
     "@listr2/prompt-adapter-inquirer": "^3.0.1",
     "@peculiar/x509": "^1.13.0",
     "adm-zip": "^0.5.16",
-    "chalk": "^5.4.1",
+    "chalk": "^5.5.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "dot-object": "^2.1.5",
