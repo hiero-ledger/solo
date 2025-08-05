@@ -3,6 +3,14 @@
 import {type NamespaceName} from '../../../../types/namespace/namespace-name.js';
 import {type SecretType} from './secret-type.js';
 
+export interface SoloKubeSecret {
+  data: Record<string, string>;
+  name: string;
+  namespace: string;
+  type: string;
+  labels: Record<string, string>;
+}
+
 export interface Secrets {
   /**
    * creates a new Kubernetes secret with the provided attributes
@@ -37,16 +45,7 @@ export interface Secrets {
     labels?: Record<string, string>,
   ): Promise<boolean>;
 
-  read(
-    namespace: NamespaceName,
-    name: string,
-  ): Promise<{
-    data: Record<string, string>;
-    name: string;
-    namespace: string;
-    type: string;
-    labels: Record<string, string>;
-  }>;
+  read(namespace: NamespaceName, name: string): Promise<SoloKubeSecret>;
 
   /**
    * Delete a secret from the namespace
@@ -62,18 +61,7 @@ export interface Secrets {
    * @param labels - list of labels
    * @returns the list of secrets that match the labels
    */
-  list(
-    namespace: NamespaceName,
-    labels?: string[],
-  ): Promise<
-    Array<{
-      data: Record<string, string>;
-      name: string;
-      namespace: string;
-      type: string;
-      labels: Record<string, string>;
-    }>
-  >;
+  list(namespace: NamespaceName, labels?: string[]): Promise<Array<SoloKubeSecret>>;
 
   exists(namespace: NamespaceName, name: string): Promise<boolean>;
 }
