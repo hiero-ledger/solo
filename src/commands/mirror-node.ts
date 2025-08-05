@@ -31,7 +31,8 @@ import {
   Realm,
   Shard,
   type SoloListr,
-  type SoloListrTask, SoloListrTaskWrapper,
+  type SoloListrTask,
+  SoloListrTaskWrapper,
 } from '../types/index.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
