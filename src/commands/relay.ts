@@ -99,10 +99,11 @@ export class RelayCommand extends BaseCommand {
   private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
 
   private static readonly DEPLOY_FLAGS_LIST = {
-    required: [flags.deployment, flags.clusterRef],
+    required: [flags.deployment],
     optional: [
       flags.chainId,
       flags.chartDirectory,
+      flags.clusterRef,
       flags.nodeAliasesUnparsed,
       flags.operatorId,
       flags.operatorKey,
