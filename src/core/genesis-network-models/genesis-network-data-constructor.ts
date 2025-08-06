@@ -16,6 +16,7 @@ import {type ConsensusNode} from '../model/consensus-node.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {type NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
 import {type NetworkNodeServices} from '../network-node-services.js';
+import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 
 /**
  * Used to construct the nodes data and convert them to JSON
@@ -34,17 +35,17 @@ export class GenesisNetworkDataConstructor implements ToJSON {
     public adminPublicKeyMap: Map<NodeAlias, string>,
     public domainNamesMapping?: Record<NodeAlias, string>,
   ) {
-    this.initializationPromise = (async () => {
+    this.initializationPromise = (async (): Promise<void> => {
       for (const consensusNode of consensusNodes) {
-        let adminPubKey: PublicKey;
+        let adminPublicKey: PublicKey;
         const networkNodeService: NetworkNodeServices = this.networkNodeServiceMap.get(consensusNode.name);
-        const accountId = AccountId.fromString(networkNodeService.accountId);
-        const namespace = networkNodeService.namespace;
+        const accountId: AccountId = AccountId.fromString(networkNodeService.accountId);
+        const namespace: NamespaceName = networkNodeService.namespace;
 
         if (adminPublicKeyMap.has(consensusNode.name as NodeAlias)) {
           try {
             if (PublicKey.fromStringED25519(adminPublicKeyMap[consensusNode.name])) {
-              adminPubKey = adminPublicKeyMap[consensusNode.name];
+              adminPublicKey = adminPublicKeyMap[consensusNode.name];
             }
           } catch {
             // Ignore error
@@ -52,10 +53,10 @@ export class GenesisNetworkDataConstructor implements ToJSON {
         }
 
         try {
-          // not found existing one, generate a new key, and save to k8 secret
-          if (!adminPubKey) {
-            const newKey = PrivateKey.generate();
-            adminPubKey = newKey.publicKey;
+          // not found existing one, generate a new key, and save to k8s secret
+          if (!adminPublicKey) {
+            const newKey: PrivateKey = PrivateKey.generateED25519();
+            adminPublicKey = newKey.publicKey;
             try {
               await this.accountManager.createOrReplaceAccountKeySecret(newKey, accountId, false, namespace);
             } catch {
@@ -63,24 +64,26 @@ export class GenesisNetworkDataConstructor implements ToJSON {
             }
           }
 
-          const nodeDataWrapper = new GenesisNetworkNodeDataWrapper(
+          const nodeDataWrapper: GenesisNetworkNodeDataWrapper = new GenesisNetworkNodeDataWrapper(
             +networkNodeService.nodeId,
-            adminPubKey,
+            adminPublicKey,
             consensusNode.name,
           );
           this.nodes[consensusNode.name] = nodeDataWrapper;
           nodeDataWrapper.accountId = accountId;
 
-          const rosterDataWrapper = new GenesisNetworkRosterEntryDataWrapper(+networkNodeService.nodeId);
+          const rosterDataWrapper: GenesisNetworkRosterEntryDataWrapper = new GenesisNetworkRosterEntryDataWrapper(
+            +networkNodeService.nodeId,
+          );
           this.rosters[consensusNode.name] = rosterDataWrapper;
           rosterDataWrapper.weight = this.nodes[consensusNode.name].weight = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
 
-          const externalPort = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
+          const externalPort: number = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
           // Add gossip endpoints
           nodeDataWrapper.addGossipEndpoint(networkNodeService.externalAddress, externalPort);
           rosterDataWrapper.addGossipEndpoint(networkNodeService.externalAddress, externalPort);
 
-          const domainName = domainNamesMapping?.[consensusNode.name];
+          const domainName: string = domainNamesMapping?.[consensusNode.name];
 
           // Add service endpoints
           nodeDataWrapper.addServiceEndpoint(domainName ?? networkNodeService.externalAddress, constants.GRPC_PORT);
@@ -102,8 +105,13 @@ export class GenesisNetworkDataConstructor implements ToJSON {
   ): Promise<GenesisNetworkDataConstructor> {
     const adminPublicKeyMap: Map<NodeAlias, string> = new Map();
 
-    const adminPublicKeyIsDefaultValue =
-      adminPublicKeys.length === 1 && adminPublicKeys[0] === flags.adminPublicKeys.definition.defaultValue;
+    let adminPublicKeyIsDefaultValue: boolean = true;
+    for (const publicKey of adminPublicKeys) {
+      if (publicKey !== flags.adminPublicKeys.definition.defaultValue) {
+        adminPublicKeyIsDefaultValue = false;
+      }
+    }
+
     // If admin keys are passed and if it is not the default value from flags then validate and build the adminPublicKeyMap
     if (adminPublicKeys.length > 0 && !adminPublicKeyIsDefaultValue) {
       if (adminPublicKeys.length !== consensusNodes.length) {
