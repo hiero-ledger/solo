@@ -148,7 +148,8 @@ async function main() {
         });
       });
       req.on('error', e => {
-        console.log(`problem with request: ${e.message}`);
+        console.log(`problem with request, message = : ${e.message}`);
+        console.log(`problem with request, cause = : ${e.cause}`);
       });
       req.end(); // make the request
       // wait and try again
