@@ -74,7 +74,7 @@ function start_contract_test ()
   cd -
   if [[ $result -ne 0 ]]; then
     echo "Smart contract test failed with exit code $result"
-    echo "Test local network connection using nc -zv 127.0.0.1 50211"
+    echo "Test local network connection using nc"
     sudo apt-get update && sudo apt-get install -y netcat-traditional
     nc -zv 127.0.0.1 50211
 
@@ -90,7 +90,6 @@ function start_sdk_test ()
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
   fi
-  result=0
   grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes || result=$?
   if [[ $result -ne 0 ]]; then
     echo "grpcurl command failed with exit code $result"
@@ -102,33 +101,8 @@ function start_sdk_test ()
   if [[ $result -ne 0 ]]; then
     echo "JavaScript SDK test failed with exit code $result"
   fi
-  log_and_exit 0
-
 }
 
-function start_sdk_test2 ()
-{
-  realm_num="${1:-0}"
-  shard_num="${2:-0}"
-  cd solo
-  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
-  fi
-  result=0
-  grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes || result=$?
-  if [[ $result -ne 0 ]]; then
-    echo "grpcurl command failed with exit code $result"
-    log_and_exit $result
-  fi
-  result=0
-  node examples/create-topic.js || result=$?
-  cd -
-  if [[ $result -ne 0 ]]; then
-    echo "JavaScript SDK test failed with exit code $result"
-  fi
-  log_and_exit $result
-
-}
 function check_monitor_log()
 {
   namespace="${1}"
@@ -231,5 +205,22 @@ start_background_transactions
 check_port_forward
 start_contract_test
 start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
-start_sdk_test2 "${REALM_NUM}" "${SHARD_NUM}"
+echo "Sleep a while to wait background transactions to finish"
+sleep 30
 
+echo "Run mirror node acceptance test"
+helm test mirror -n "${SOLO_NAMESPACE}" --timeout 10m || result=$?
+if [[ $result -ne 0 ]]; then
+  echo "Mirror node acceptance test failed with exit code $result"
+  log_and_exit $result
+fi
+result=0
+
+check_monitor_log "${SOLO_NAMESPACE}"
+
+if [ -n "$1" ]; then
+  echo "Skip mirror importer log check"
+else
+  check_importer_log "${SOLO_NAMESPACE}"
+fi
+log_and_exit $?
