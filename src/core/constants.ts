@@ -13,7 +13,7 @@ function getEnvironmentVariable(environmentVariableName: string): string {
     console.log(`>> environment variable '${environmentVariableName}' exists, using its value`);
     return process.env[environmentVariableName];
   }
-  return '';
+  return undefined;
 }
 export const ROOT_DIR = PathEx.joinWithRealPath(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
