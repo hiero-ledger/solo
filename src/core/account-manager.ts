@@ -729,6 +729,7 @@ export class AccountManager {
    * @param accountId - the account that will get its keys updated
    * @param genesisKey - the genesis key to compare against
    * @param updateSecrets - whether to delete the secret before creating a new secret
+   * @param isPostGenesis - whether the ledger has gone through genesis, defaults to true
    * @returns the result of the call
    */
   public async updateAccountKeys(
@@ -736,33 +737,39 @@ export class AccountManager {
     accountId: AccountId,
     genesisKey: PrivateKey,
     updateSecrets: boolean,
+    isPostGenesis: boolean = true,
   ): Promise<{value: string; status: string} | {reason: string; value: string; status: string}> {
     let keys: Key[];
-    try {
-      keys = await this.getAccountKeys(accountId);
-    } catch (error) {
-      if (error instanceof MissingArgumentError) {
-        throw error;
+    if (isPostGenesis) {
+      try {
+        keys = await this.getAccountKeys(accountId);
+      } catch (error) {
+        if (error instanceof MissingArgumentError) {
+          throw error;
+        }
+        this.logger.error(
+          `failed to get keys for accountId ${accountId.toString()}, e: ${error.toString()}\n  ${error.stack}`,
+        );
+        return {
+          status: REJECTED,
+          reason: REASON_FAILED_TO_GET_KEYS,
+          value: accountId.toString(),
+        };
       }
-      this.logger.error(
-        `failed to get keys for accountId ${accountId.toString()}, e: ${error.toString()}\n  ${error.stack}`,
-      );
-      return {
-        status: REJECTED,
-        reason: REASON_FAILED_TO_GET_KEYS,
-        value: accountId.toString(),
-      };
+
+      if (!keys || !keys[0]) {
+        return {
+          status: REJECTED,
+          reason: REASON_FAILED_TO_GET_KEYS,
+          value: accountId.toString(),
+        };
+      }
+    } else {
+      keys = [];
+      keys.push(constants.GENESIS_PUBLIC_KEY);
     }
 
-    if (!keys || !keys[0]) {
-      return {
-        status: REJECTED,
-        reason: REASON_FAILED_TO_GET_KEYS,
-        value: accountId.toString(),
-      };
-    }
-
-    if (constants.OPERATOR_PUBLIC_KEY !== keys[0].toString()) {
+    if (constants.GENESIS_PUBLIC_KEY.toString() !== keys[0].toString()) {
       this.logger.debug(`account ${accountId.toString()} can be skipped since it does not have a genesis key`);
       return {
         status: REJECTED,
