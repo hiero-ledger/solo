@@ -1,23 +1,30 @@
 #!/bin/bash
-set -xeo pipefail
-export CI=true # TODO remove this, just using it to verify older build of CN
-# --- skip this in pipeline .. begin .. -----------------------
-if [[ "${CI}" != "true" ]]; then
-  pushd ..
-  if [[ -z hiero-consensus-node ]]; then
-    git clone https://github.com/hiero-ledger/hiero-consensus-node.git
-  fi
-  pushd hiero-consensus-node
-  git checkout main
-  git pull
-  ./gradlew assemble
-  popd
-  popd
-fi
-# --- .. end .. ----------------------------------------------
-pwd
-node --version
-npm --version
+#/Users/user/.nvm/versions/node/v20.19.3/bin/node --import tsx --enable-source-maps /Users/user/source/solo/solo.ts node start -i node1,node2 --deployment solo-ns --dev
+
+#set -xeo pipefail
+#echo shell=$0
+#echo $PATH
+#env|sort > scripts.txt
+
+#exit
+#export CI=true # TODO remove this, just using it to verify older build of CN
+## --- skip this in pipeline .. begin .. -----------------------
+#if [[ "${CI}" != "true" ]]; then
+#  pushd ..
+#  if [[ -z hiero-consensus-node ]]; then
+#    git clone https://github.com/hiero-ledger/hiero-consensus-node.git
+#  fi
+#  pushd hiero-consensus-node
+#  git checkout main
+#  git pull
+#  ./gradlew assemble
+#  popd
+#  popd
+#fi
+## --- .. end .. ----------------------------------------------
+#pwd
+#node --version
+#npm --version
 
 # can't use quick-start it doesn't have --pvcs
 export SOLO_NAMESPACE=solo-ns
@@ -31,7 +38,6 @@ export SOLO_CLUSTER_REF=kind-${SOLO_CLUSTER_NAME} # TODO revert
 export SOLO_CLUSTER_SETUP_NAMESPACE=${SOLO_NAMESPACE}-setup # TODO revert
 export CN_LOCAL_BUILD_PATH=../hiero-consensus-node/hedera-node/data
 export LOCAL_BUILD_FLAG="--local-build-path ${CN_LOCAL_BUILD_PATH}"
-export GENESIS_KEY=302e020100300506032b657004220420273389ed26af9c456faa81e9ae4004520130de36e4f534643b7081db21744496 # TODO remove
 export NODE_ALIASES_FLAG="--node-aliases node1,node2" # TODO remove
 #export STAKE_FLAG="--stake-amounts 1500,1"
 #export DEBUG_NODE_FLAG="--debug-node-alias node1"
@@ -58,49 +64,52 @@ mkdir -p ./prepare-output || true
 pwd && ls ./prepare-output
 export PREPARE_OUTPUT_DIR=prepare-output
 
-for cluster in $(kind get clusters);do kind delete cluster -n $cluster;done
-rm -Rf ~/.solo
-
-kind create cluster -n "${SOLO_CLUSTER_NAME}"
-#export SOLO_CLUSTER_NAME=solo-e2e # TODO remove
-#task dual-cluster-setup # TODO remove
-#export SOLO_CLUSTER_NAME=solo-e2e-c1 # TODO remove
-
-# running with published version of Solo
-# export SOLO_COMMAND=(solo)
-
-# running with solo source code
-task build
-export SOLO_COMMAND=(npm run solo --)
-
-# NOTE: the --dev just makes it print a stacktrace to the console if there is an error
-
-"${SOLO_COMMAND[@]}" init
-
-# connect to the cluster you created in a previous command
-"${SOLO_COMMAND[@]}" cluster-ref connect --cluster-ref ${SOLO_CLUSTER_REF} --context kind-${SOLO_CLUSTER_NAME} --dev
-
-#create the deployment
-"${SOLO_COMMAND[@]}" deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --dev
-
-# Add a cluster to the deployment you created, we need at least two nodes for node add or node delete.  node update can run with a single node
-"${SOLO_COMMAND[@]}" deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_REF} --num-consensus-nodes 2 --dev
-
-"${SOLO_COMMAND[@]}" node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" --dev
-
-"${SOLO_COMMAND[@]}" cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --dev
-
-# The --release-tag here helps for decision tree logic, it isn't installing the CN here
-# --pvcs is required for node add/update/delete
-# (optional): --application-properties ${APPLICATION_PROPERTIES}
-"${SOLO_COMMAND[@]}" network deploy ${NODE_ALIASES_FLAG} --deployment "${SOLO_DEPLOYMENT}" --release-tag ${CN_VERSION} --pvcs ${APPLICATION_PROPERTIES_FLAG} ${DEBUG_NODE_FLAG} --dev
-
-# node setup, we are doing a local build, but the --release-tag is still used for decision tree logic
-"${SOLO_COMMAND[@]}" node setup ${NODE_ALIASES_FLAG} --deployment "${SOLO_DEPLOYMENT}" --release-tag ${CN_VERSION} ${LOCAL_BUILD_FLAG} --dev
-
-# start your node/nodes, the stake amounts puts a huge percentage on node1 so that it can reach consensus by itself,
-#  sort of a workaround to get it to work with 2 nodes instead of 3 due to CN logic
-"${SOLO_COMMAND[@]}" node start ${NODE_ALIASES_FLAG} --deployment "${SOLO_DEPLOYMENT}" ${STAKE_FLAG} ${DEBUG_NODE_FLAG} --dev
+#for cluster in $(kind get clusters);do kind delete cluster -n $cluster;done
+#rm -Rf ~/.solo
+#
+#kind create cluster -n "${SOLO_CLUSTER_NAME}"
+##export SOLO_CLUSTER_NAME=solo-e2e # TODO remove
+##task dual-cluster-setup # TODO remove
+##export SOLO_CLUSTER_NAME=solo-e2e-c1 # TODO remove
+#
+## running with published version of Solo
+## export SOLO_COMMAND=(solo)
+#
+## running with solo source code
+#task build
+#export SOLO_COMMAND=(npm run solo --)
+#
+## NOTE: the --dev just makes it print a stacktrace to the console if there is an error
+#
+#"${SOLO_COMMAND[@]}" init
+#
+## connect to the cluster you created in a previous command
+#"${SOLO_COMMAND[@]}" cluster-ref connect --cluster-ref ${SOLO_CLUSTER_REF} --context kind-${SOLO_CLUSTER_NAME} --dev
+#
+##create the deployment
+#"${SOLO_COMMAND[@]}" deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --dev
+#
+## Add a cluster to the deployment you created, we need at least two nodes for node add or node delete.  node update can run with a single node
+#"${SOLO_COMMAND[@]}" deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_REF} --num-consensus-nodes 2 --dev
+#
+#"${SOLO_COMMAND[@]}" node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" --dev
+#
+#"${SOLO_COMMAND[@]}" cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --dev
+#
+## The --release-tag here helps for decision tree logic, it isn't installing the CN here
+## --pvcs is required for node add/update/delete
+## (optional): --application-properties ${APPLICATION_PROPERTIES}
+#"${SOLO_COMMAND[@]}" network deploy ${NODE_ALIASES_FLAG} --deployment "${SOLO_DEPLOYMENT}" --release-tag ${CN_VERSION} --pvcs ${APPLICATION_PROPERTIES_FLAG} ${DEBUG_NODE_FLAG} --dev
+#
+## node setup, we are doing a local build, but the --release-tag is still used for decision tree logic
+#"${SOLO_COMMAND[@]}" node setup ${NODE_ALIASES_FLAG} --deployment "${SOLO_DEPLOYMENT}" --release-tag ${CN_VERSION} ${LOCAL_BUILD_FLAG} --dev
+##exit
+## start your node/nodes, the stake amounts puts a huge percentage on node1 so that it can reach consensus by itself,
+##  sort of a workaround to get it to work with 2 nodes instead of 3 due to CN logic
+##"${SOLO_COMMAND[@]}" node start ${NODE_ALIASES_FLAG} --deployment "${SOLO_DEPLOYMENT}" ${STAKE_FLAG} ${DEBUG_NODE_FLAG} --dev
+#which node
+#node --import tsx --enable-source-maps solo.ts node start -i node1,node2 --deployment solo-ns --dev
+/Users/user/.nvm/versions/node/v20.19.3/bin/node --import tsx --enable-source-maps /Users/user/source/solo/solo.ts node start -i node1,node2 --deployment solo-ns --dev
 
 # Deploy with explicit configuration
 "${SOLO_COMMAND[@]}" mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_REF} --enable-ingress --dev
