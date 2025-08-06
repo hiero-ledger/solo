@@ -53,6 +53,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     testName: string,
     deployment: DeploymentName,
     clusterReference: ClusterReferenceName,
+    pinger: boolean,
   ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = MirrorNodeTest;
 
@@ -67,7 +68,11 @@ export class MirrorNodeTest extends BaseCommandTest {
       optionFromFlag(Flags.enableIngress),
     );
 
-    argvPushGlobalFlags(argv, testName, false, false);
+    if (pinger) {
+      argv.push(optionFromFlag(Flags.pinger));
+    }
+
+    argvPushGlobalFlags(argv, testName, true, true);
 
     return argv;
   }
@@ -253,13 +258,22 @@ export class MirrorNodeTest extends BaseCommandTest {
       const transactionsEndpoint: string = 'http://localhost:5551/api/v1/transactions';
       const firstResponse = await fetch(transactionsEndpoint);
       const firstData = await firstResponse.json();
-      await sleep(Duration.ofSeconds(10));
+      await sleep(Duration.ofSeconds(20));
       const secondResponse = await fetch(transactionsEndpoint);
       const secondData = await secondResponse.json();
       expect(firstData.transactions).to.not.be.undefined;
       expect(firstData.transactions.length).to.be.gt(0);
       expect(secondData.transactions).to.not.be.undefined;
       expect(secondData.transactions.length).to.be.gt(0);
+
+      console.dir(
+        {
+          expected: firstData.transactions[0],
+          actual: secondData.transactions[0],
+        },
+        {depth: null},
+      );
+
       if (pingerIsEnabled) {
         expect(firstData.transactions[0]).to.not.deep.equal(secondData.transactions[0]);
       } else {
@@ -313,7 +327,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     const {soloMirrorNodeUpgradeArgv, verifyMirrorNodeUpgradeWasSuccessful, verifyPingerStatus} = MirrorNodeTest;
 
     it(`${testName}: mirror node upgrade`, async (): Promise<void> => {
-      await main(soloMirrorNodeUpgradeArgv(testName, deployment, clusterReferenceNameArray[1]));
+      await main(soloMirrorNodeUpgradeArgv(testName, deployment, clusterReferenceNameArray[1], pinger));
       await verifyMirrorNodeUpgradeWasSuccessful(contexts, namespace, testLogger, consensusNodesCount);
       await verifyPingerStatus(contexts, namespace, pinger);
     }).timeout(Duration.ofMinutes(10).toMillis());
