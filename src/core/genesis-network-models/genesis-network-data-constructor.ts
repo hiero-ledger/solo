@@ -56,7 +56,11 @@ export class GenesisNetworkDataConstructor implements ToJSON {
           if (!adminPubKey) {
             const newKey = PrivateKey.generate();
             adminPubKey = newKey.publicKey;
-            await this.accountManager.updateAccountKeys(namespace, accountId, newKey, false, false);
+            try {
+              await this.accountManager.createOrReplaceAccountKeySecret(newKey, accountId, false, namespace);
+            } catch {
+              throw new SoloError(`failed to create secret for admin key of: ${accountId.toString()}`);
+            }
           }
 
           const nodeDataWrapper = new GenesisNetworkNodeDataWrapper(
