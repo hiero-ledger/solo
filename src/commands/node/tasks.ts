@@ -1458,8 +1458,8 @@ export class NodeCommandTasks {
     if (this.configManager.getFlag(flags.adminPublicKeys)) {
       adminPublicKeys = splitFlagInput(this.configManager.getFlag(flags.adminPublicKeys));
     } else {
-      // set adminPublicKeys as array of constants.GENESIS_KEY with the same size consensus nodes
-      adminPublicKeys = Array.from({length: consensusNodes.length}).fill(constants.GENESIS_KEY);
+      // set adminPublicKeys as array of constants.GENESIS_PUBLIC_KEY with the same size consensus nodes
+      adminPublicKeys = Array.from({length: consensusNodes.length}).fill(constants.GENESIS_PUBLIC_KEY);
     }
     const genesisNetworkData = await GenesisNetworkDataConstructor.initialize(
       consensusNodes,
