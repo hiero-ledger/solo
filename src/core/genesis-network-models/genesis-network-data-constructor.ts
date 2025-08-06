@@ -44,8 +44,8 @@ export class GenesisNetworkDataConstructor implements ToJSON {
 
         if (adminPublicKeyMap.has(consensusNode.name as NodeAlias)) {
           try {
-            if (PublicKey.fromStringED25519(adminPublicKeyMap[consensusNode.name])) {
-              adminPublicKey = adminPublicKeyMap[consensusNode.name];
+            if (PublicKey.fromStringED25519(adminPublicKeyMap.get(consensusNode.name))) {
+              adminPublicKey = PublicKey.fromStringED25519(adminPublicKeyMap.get(consensusNode.name));
             }
           } catch {
             // Ignore error
@@ -121,7 +121,7 @@ export class GenesisNetworkDataConstructor implements ToJSON {
       }
 
       for (const [index, key] of adminPublicKeys.entries()) {
-        adminPublicKeyMap[consensusNodes[index].name] = key;
+        adminPublicKeyMap.set(consensusNodes[index].name, key);
       }
     }
 
