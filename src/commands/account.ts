@@ -74,13 +74,12 @@ export class AccountCommand extends BaseCommand {
   };
 
   private static CREATE_FLAGS_LIST = {
-    required: [],
+    required: [flags.deployment],
     optional: [
       flags.amount,
       flags.createAmount,
       flags.ecdsaPrivateKey,
       flags.privateKey,
-      flags.deployment,
       flags.ed25519PrivateKey,
       flags.generateEcdsaKey,
       flags.setAlias,
@@ -89,20 +88,13 @@ export class AccountCommand extends BaseCommand {
   };
 
   private static UPDATE_FLAGS_LIST = {
-    required: [],
-    optional: [
-      flags.accountId,
-      flags.amount,
-      flags.deployment,
-      flags.ecdsaPrivateKey,
-      flags.ed25519PrivateKey,
-      flags.clusterRef,
-    ],
+    required: [flags.accountId, flags.deployment],
+    optional: [flags.amount, flags.ecdsaPrivateKey, flags.ed25519PrivateKey, flags.clusterRef],
   };
 
   private static GET_FLAGS_LIST = {
-    required: [],
-    optional: [flags.accountId, flags.privateKey, flags.deployment, flags.clusterRef],
+    required: [flags.accountId, flags.deployment],
+    optional: [flags.privateKey, flags.clusterRef],
   };
 
   private async closeConnections(): Promise<void> {

@@ -114,7 +114,7 @@ const COMMON_DELETE_OPTIONAL_FLAGS = [
   flags.releaseTag,
 ];
 
-const COMMON_ADD_REQUIRED_FLAGS = [flags.deployment];
+const COMMON_ADD_REQUIRED_FLAGS = [flags.deployment, flags.clusterRef];
 
 const COMMON_ADD_OPTIONAL_FLAGS = [
   flags.app,
@@ -139,7 +139,6 @@ const COMMON_ADD_OPTIONAL_FLAGS = [
   flags.generateGossipKeys,
   flags.generateTlsKeys,
   flags.releaseTag,
-  flags.clusterRef,
 ];
 
 export const DELETE_FLAGS = {
@@ -188,7 +187,7 @@ export const LOGS_FLAGS = {
 };
 
 export const STATES_FLAGS = {
-  required: [flags.deployment, flags.nodeAliasesUnparsed],
+  required: [flags.deployment, flags.nodeAliasesUnparsed, flags.clusterRef],
   optional: [flags.quiet],
 };
 
