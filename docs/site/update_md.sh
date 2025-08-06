@@ -1,6 +1,6 @@
 #!/bin/bash
 set -xeo pipefail
-
+export CI=true # TODO remove this, just using it to verify older build of CN
 # --- skip this in pipeline .. begin .. -----------------------
 if [[ "${CI}" != "true" ]]; then
   pushd ..
@@ -18,25 +18,36 @@ fi
 pwd
 
 # can't use quick-start it doesn't have --pvcs
-export SOLO_DEPLOYMENT=solo-deployment
-export SOLO_CLUSTER_NAME=solo-cluster
-export SOLO_CLUSTER_REF=solo-cluster-reference
 export SOLO_NAMESPACE=solo-ns
-export SOLO_CLUSTER_SETUP_NAMESPACE=${SOLO_NAMESPACE}
+export SOLO_DEPLOYMENT=${SOLO_NAMESPACE}
+#export SOLO_DEPLOYMENT=solo-deployment
+export SOLO_CLUSTER_NAME=solo-cluster
+#export SOLO_CLUSTER_NAME=solo-e2e-c1
+export SOLO_CLUSTER_REF=kind-${SOLO_CLUSTER_NAME} # TODO revert
+#export SOLO_CLUSTER_REF=solo-cluster-reference
+#export SOLO_CLUSTER_SETUP_NAMESPACE=${SOLO_NAMESPACE}
+export SOLO_CLUSTER_SETUP_NAMESPACE=${SOLO_NAMESPACE}-setup # TODO revert
 export CN_LOCAL_BUILD_PATH=../hiero-consensus-node/hedera-node/data
-export GENESIS_KEY=302e020100300506032b657004220420273389ed26af9c456faa81e9ae4004520130de36e4f534643b7081db21744496
-
+export LOCAL_BUILD_FLAG="--local-build-path ${CN_LOCAL_BUILD_PATH}"
+export GENESIS_KEY=302e020100300506032b657004220420273389ed26af9c456faa81e9ae4004520130de36e4f534643b7081db21744496 # TODO remove
+export NODE_ALIASES_FLAG="--node-aliases node1,node2" # TODO remove
+#export STAKE_FLAG="--stake-amounts 1500,1"
 # copied from Solo and then edited as needed, be sure to match the version of Solo:
 #  https://github.com/hiero-ledger/solo/blob/v0.41.0/resources/templates/application.properties
 #  if solo is cloned with git, and you are currently in that directory, you can just modify the file directly, this
 #  assumes you are using the `npm run solo --` command
-export APPLICATION_PROPERTIES=resources/templates/application.properties
+#export APPLICATION_PROPERTIES=resources/templates/application.properties
 #  if you have Solo installed, then you can download a copy or grab it from its installation directory:
 # cp $(dirname $(dirname $(readlink -f $(which solo))))/resources/templates/application.properties ./application.properties
-# export APPLICATION_PROPERTIES=./application.properties
+cp resources/templates/application.properties ./application.properties
+echo "contracts.evm.ethTransaction.zeroHapiFees.enabled=false" >> ./application.properties
+export APPLICATION_PROPERTIES=./application.properties
+#export APPLICATION_PROPERTIES_FLAG="--application-properties ${APPLICATION_PROPERTIES}"
 
 # just needs to be approximate, if it is main, you can use the next release that it will probably be, this is for decision tree logic
-export CN_VERSION=v0.64.1
+#export CN_VERSION=v0.64.2-rc1
+export CN_VERSION=v0.63.9
+#export CN_VERSION=v0.62.6
 
 # the directory to use for Solo to write out the file with the values that are required for the add/update/delete-execute
 #  and possibly your SDK calls that replaces *-submit-transaction
@@ -48,6 +59,9 @@ for cluster in $(kind get clusters);do kind delete cluster -n $cluster;done
 rm -Rf ~/.solo
 
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
+#export SOLO_CLUSTER_NAME=solo-e2e # TODO remove
+#task dual-cluster-setup # TODO remove
+#export SOLO_CLUSTER_NAME=solo-e2e-c1 # TODO remove
 
 # running with published version of Solo
 # export SOLO_COMMAND=(solo)
@@ -76,40 +90,40 @@ export SOLO_COMMAND=(npm run solo --)
 # The --release-tag here helps for decision tree logic, it isn't installing the CN here
 # --pvcs is required for node add/update/delete
 # (optional): --application-properties ${APPLICATION_PROPERTIES}
-"${SOLO_COMMAND[@]}" network deploy --deployment "${SOLO_DEPLOYMENT}" --release-tag ${CN_VERSION} --pvcs --application-properties ${APPLICATION_PROPERTIES} --dev
+"${SOLO_COMMAND[@]}" network deploy ${NODE_ALIASES_FLAG} --deployment "${SOLO_DEPLOYMENT}" --release-tag ${CN_VERSION} --pvcs ${APPLICATION_PROPERTIES_FLAG} --dev
 
 # node setup, we are doing a local build, but the --release-tag is still used for decision tree logic
-"${SOLO_COMMAND[@]}" node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag ${CN_VERSION} --local-build-path ${CN_LOCAL_BUILD_PATH} --dev
+"${SOLO_COMMAND[@]}" node setup ${NODE_ALIASES_FLAG} --deployment "${SOLO_DEPLOYMENT}" --release-tag ${CN_VERSION} ${LOCAL_BUILD_FLAG} --dev
 
 # start your node/nodes, the stake amounts puts a huge percentage on node1 so that it can reach consensus by itself,
 #  sort of a workaround to get it to work with 2 nodes instead of 3 due to CN logic
-"${SOLO_COMMAND[@]}" node start --deployment "${SOLO_DEPLOYMENT}" --stake-amounts 1500,1 --dev
+"${SOLO_COMMAND[@]}" node start ${NODE_ALIASES_FLAG} --deployment "${SOLO_DEPLOYMENT}" ${STAKE_FLAG} --dev
 
 # Deploy with explicit configuration
-"${SOLO_COMMAND[@]}" mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --dev
+"${SOLO_COMMAND[@]}" mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_REF} --enable-ingress --dev
 
 # deploy explorer
-"${SOLO_COMMAND[@]}" explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --dev
+"${SOLO_COMMAND[@]}" explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_REF} --dev
 
 # relay deployment
-"${SOLO_COMMAND[@]}" relay deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --dev
+"${SOLO_COMMAND[@]}" relay deploy --node-aliases node1 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_REF} --dev
 
 # node add
 # the --admin-key is setting to genesis, which is the default, but we have a bug that we have logged an issue to fix that causes an error if it isn't supplied
 
 # Option A, node add by itself, useful to verify that Solo is working correctly, used by a normal users not wanting to code the SDK NodeAdd/Update/DeleteTransaction calls
-#"${SOLO_COMMAND[@]}" node add --deployment ${SOLO_DEPLOYMENT} --gossip-keys --tls-keys --admin-key ${GENESIS_KEY} --pvcs true --release-tag v0.63.7 --dev
+#"${SOLO_COMMAND[@]}" node add --deployment ${SOLO_DEPLOYMENT} --gossip-keys --tls-keys --admin-key ${GENESIS_KEY} --pvcs true --release-tag ${CN_VERSION} ${LOCAL_BUILD_FLAG} --dev
 
 # Option B, break apart node add so that SDK calls can be made, you will need B.1, B.2a or B.2b, and B.3
 
 # Option B.1, node add-prepare will generate some keys to use, as well as upload a config version bump needed in order to get CN to
 #  apply the NodeAdd/Update/DeleteTransaction to the JVM in state memory (runtime)
-"${SOLO_COMMAND[@]}" node add-prepare --deployment "${SOLO_DEPLOYMENT}" --gossip-keys true --tls-keys true --release-tag ${CN_VERSION} --output-dir ${PREPARE_OUTPUT_DIR} --admin-key ${GENESIS_KEY} --pvcs true --dev
+"${SOLO_COMMAND[@]}" node add-prepare --deployment "${SOLO_DEPLOYMENT}" --gossip-keys true --tls-keys true --release-tag ${CN_VERSION} --output-dir ${PREPARE_OUTPUT_DIR} --admin-key ${GENESIS_KEY} --pvcs --dev
 
 # Option B.2a is for Solo testing, Option 2.2b is for SDK team
 
 # Option B.2a, node add-submit-transaction, this is essentially what you will replace with Option B, but it is what Solo runs in our test harness, and solo node add = solo node {add-prepare + add-submit-transaction + add-execute}
-"${SOLO_COMMAND[@]}" node add-submit-transaction --deployment "${SOLO_DEPLOYMENT}" --input-dir ${PREPARE_OUTPUT_DIR} --dev
+"${SOLO_COMMAND[@]}" node add-submit-transaction --deployment "${SOLO_DEPLOYMENT}" --input-dir ${PREPARE_OUTPUT_DIR} --pvcs --dev
 
 # Option B.2b.1, this is where you add your SDK call
 # ... example: `node node-add-transaction.cjs`
@@ -121,7 +135,7 @@ export SOLO_COMMAND=(npm run solo --)
 # "${SOLO_COMMAND[@]}" node freeze-upgrade --deployment "${SOLO_DEPLOYMENT}" --dev
 
 # Option B.3, node add-execute, applies configuration files, keys, etc; installs software on new node; restarts the JVMs
-"${SOLO_COMMAND[@]}" node add-execute --deployment "${SOLO_DEPLOYMENT}" --input-dir ${PREPARE_OUTPUT_DIR} --dev
+"${SOLO_COMMAND[@]}" node add-execute --deployment "${SOLO_DEPLOYMENT}" --input-dir ${PREPARE_OUTPUT_DIR} --pvcs ${LOCAL_BUILD_FLAG} --dev
 
 # PORT FORWARDS: if you need them, most is automatic now, see comments
 
