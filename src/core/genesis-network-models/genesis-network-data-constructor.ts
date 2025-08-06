@@ -51,34 +51,38 @@ export class GenesisNetworkDataConstructor implements ToJSON {
           }
         }
 
-        // not found existing one, generate a new key, and save to k8 secret
-        if (!adminPubKey) {
-          const newKey = PrivateKey.generate();
-          adminPubKey = newKey.publicKey;
-          await this.accountManager.updateAccountKeys(namespace, accountId, newKey, true);
+        try {
+          // not found existing one, generate a new key, and save to k8 secret
+          if (!adminPubKey) {
+            const newKey = PrivateKey.generate();
+            adminPubKey = newKey.publicKey;
+            await this.accountManager.updateAccountKeys(namespace, accountId, newKey, false, false);
+          }
+
+          const nodeDataWrapper = new GenesisNetworkNodeDataWrapper(
+            +networkNodeService.nodeId,
+            adminPubKey,
+            consensusNode.name,
+          );
+          this.nodes[consensusNode.name] = nodeDataWrapper;
+          nodeDataWrapper.accountId = accountId;
+
+          const rosterDataWrapper = new GenesisNetworkRosterEntryDataWrapper(+networkNodeService.nodeId);
+          this.rosters[consensusNode.name] = rosterDataWrapper;
+          rosterDataWrapper.weight = this.nodes[consensusNode.name].weight = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
+
+          const externalPort = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
+          // Add gossip endpoints
+          nodeDataWrapper.addGossipEndpoint(networkNodeService.externalAddress, externalPort);
+          rosterDataWrapper.addGossipEndpoint(networkNodeService.externalAddress, externalPort);
+
+          const domainName = domainNamesMapping?.[consensusNode.name];
+
+          // Add service endpoints
+          nodeDataWrapper.addServiceEndpoint(domainName ?? networkNodeService.externalAddress, constants.GRPC_PORT);
+        } catch (error) {
+          throw new SoloError(error.message, error);
         }
-
-        const nodeDataWrapper = new GenesisNetworkNodeDataWrapper(
-          +networkNodeService.nodeId,
-          adminPubKey,
-          consensusNode.name,
-        );
-        this.nodes[consensusNode.name] = nodeDataWrapper;
-        nodeDataWrapper.accountId = accountId;
-
-        const rosterDataWrapper = new GenesisNetworkRosterEntryDataWrapper(+networkNodeService.nodeId);
-        this.rosters[consensusNode.name] = rosterDataWrapper;
-        rosterDataWrapper.weight = this.nodes[consensusNode.name].weight = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
-
-        const externalPort = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
-        // Add gossip endpoints
-        nodeDataWrapper.addGossipEndpoint(networkNodeService.externalAddress, externalPort);
-        rosterDataWrapper.addGossipEndpoint(networkNodeService.externalAddress, externalPort);
-
-        const domainName = domainNamesMapping?.[consensusNode.name];
-
-        // Add service endpoints
-        nodeDataWrapper.addServiceEndpoint(domainName ?? networkNodeService.externalAddress, constants.GRPC_PORT);
       }
     })();
   }
