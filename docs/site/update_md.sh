@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -xeo pipefail
-export CI=true # TODO remove this, just using it to verify older build of CN
+
 # --- skip this in pipeline .. begin .. -----------------------
 if [[ "${CI}" != "true" ]]; then
   pushd ..
@@ -22,19 +22,16 @@ npm --version
 
 # can't use quick-start it doesn't have --pvcs
 export SOLO_NAMESPACE=solo-ns
-export SOLO_DEPLOYMENT=${SOLO_NAMESPACE}
-#export SOLO_DEPLOYMENT=solo-deployment
-#export SOLO_CLUSTER_NAME=solo-cluster # TODO revert
-export SOLO_CLUSTER_NAME=solo-e2e-c1
-export SOLO_CLUSTER_REF=kind-${SOLO_CLUSTER_NAME} # TODO revert
-#export SOLO_CLUSTER_REF=solo-cluster-reference
-#export SOLO_CLUSTER_SETUP_NAMESPACE=${SOLO_NAMESPACE}
-export SOLO_CLUSTER_SETUP_NAMESPACE=${SOLO_NAMESPACE}-setup # TODO revert
+export SOLO_DEPLOYMENT=solo-deployment
+export SOLO_CLUSTER_NAME=solo-cluster
+export SOLO_CLUSTER_REF=solo-cluster-reference
+export SOLO_CLUSTER_SETUP_NAMESPACE=${SOLO_NAMESPACE}
 export CN_LOCAL_BUILD_PATH=../hiero-consensus-node/hedera-node/data
 export LOCAL_BUILD_FLAG="--local-build-path ${CN_LOCAL_BUILD_PATH}"
-export NODE_ALIASES_FLAG="--node-aliases node1,node2" # TODO remove
+#export NODE_ALIASES_FLAG="--node-aliases node1,node2" # TODO remove
 #export STAKE_FLAG="--stake-amounts 1500,1"
 #export DEBUG_NODE_FLAG="--debug-node-alias node1"
+
 # copied from Solo and then edited as needed, be sure to match the version of Solo:
 #  https://github.com/hiero-ledger/solo/blob/v0.41.0/resources/templates/application.properties
 #  if solo is cloned with git, and you are currently in that directory, you can just modify the file directly, this
@@ -62,9 +59,6 @@ for cluster in $(kind get clusters);do kind delete cluster -n $cluster;done
 rm -Rf ~/.solo
 
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
-##export SOLO_CLUSTER_NAME=solo-e2e # TODO remove
-##task dual-cluster-setup # TODO remove
-##export SOLO_CLUSTER_NAME=solo-e2e-c1 # TODO remove
 
 # running with published version of Solo
 # export SOLO_COMMAND=(solo)
@@ -158,7 +152,7 @@ export SOLO_COMMAND=(npm run solo --)
 # Mirror Node gRPC: localhost:5600
 kubectl port-forward svc/mirror-grpc -n "${SOLO_NAMESPACE}" 5600:5600 &
 # Mirror Node REST API: http://localhost:5551
-kubectl port-forward svc/mirror-rest -n "${SOLO_NAMESPACE}" svc/mirror-rest 5551:80 &
+kubectl port-forward svc/mirror-rest -n "${SOLO_NAMESPACE}" 5551:80 &
 # Mirror Node REST Java API http://localhost:8084
 kubectl port-forward svc/mirror-restjava -n "${SOLO_NAMESPACE}" 8084:80 &
 
@@ -166,3 +160,4 @@ kubectl port-forward svc/mirror-restjava -n "${SOLO_NAMESPACE}" 8084:80 &
 ps -ef | grep port-forward | grep -v grep
 
 set +x
+exit 0
