@@ -21,8 +21,8 @@ pwd
 export SOLO_NAMESPACE=solo-ns
 export SOLO_DEPLOYMENT=${SOLO_NAMESPACE}
 #export SOLO_DEPLOYMENT=solo-deployment
-export SOLO_CLUSTER_NAME=solo-cluster
-#export SOLO_CLUSTER_NAME=solo-e2e-c1
+#export SOLO_CLUSTER_NAME=solo-cluster # TODO revert
+export SOLO_CLUSTER_NAME=solo-e2e-c1
 export SOLO_CLUSTER_REF=kind-${SOLO_CLUSTER_NAME} # TODO revert
 #export SOLO_CLUSTER_REF=solo-cluster-reference
 #export SOLO_CLUSTER_SETUP_NAMESPACE=${SOLO_NAMESPACE}
@@ -58,10 +58,10 @@ export PREPARE_OUTPUT_DIR=prepare-output
 for cluster in $(kind get clusters);do kind delete cluster -n $cluster;done
 rm -Rf ~/.solo
 
-kind create cluster -n "${SOLO_CLUSTER_NAME}"
-#export SOLO_CLUSTER_NAME=solo-e2e # TODO remove
-#task dual-cluster-setup # TODO remove
-#export SOLO_CLUSTER_NAME=solo-e2e-c1 # TODO remove
+#kind create cluster -n "${SOLO_CLUSTER_NAME}"
+export SOLO_CLUSTER_NAME=solo-e2e # TODO remove
+task dual-cluster-setup # TODO remove
+export SOLO_CLUSTER_NAME=solo-e2e-c1 # TODO remove
 
 # running with published version of Solo
 # export SOLO_COMMAND=(solo)
