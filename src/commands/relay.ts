@@ -651,13 +651,12 @@ export class RelayCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error upgrading relay: ${error.message}`, error);
       } finally {
-        if (lease) {
-          await lease.release();
-        }
+        await lease?.release();
+        await this.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease.release();
+        await lease?.release();
         await this.accountManager.close();
       });
     }
