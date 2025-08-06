@@ -187,8 +187,8 @@ export const LOGS_FLAGS = {
 };
 
 export const STATES_FLAGS = {
-  required: [flags.deployment, flags.nodeAliasesUnparsed, flags.clusterRef],
-  optional: [flags.quiet],
+  required: [flags.deployment, flags.nodeAliasesUnparsed],
+  optional: [flags.clusterRef, flags.quiet],
 };
 
 export const REFRESH_FLAGS = {
