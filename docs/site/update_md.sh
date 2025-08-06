@@ -16,6 +16,8 @@ if [[ "${CI}" != "true" ]]; then
 fi
 # --- .. end .. ----------------------------------------------
 pwd
+node --version
+npm --version
 
 # can't use quick-start it doesn't have --pvcs
 export SOLO_NAMESPACE=solo-ns
@@ -59,10 +61,10 @@ export PREPARE_OUTPUT_DIR=prepare-output
 for cluster in $(kind get clusters);do kind delete cluster -n $cluster;done
 rm -Rf ~/.solo
 
-#kind create cluster -n "${SOLO_CLUSTER_NAME}"
-export SOLO_CLUSTER_NAME=solo-e2e # TODO remove
-task dual-cluster-setup # TODO remove
-export SOLO_CLUSTER_NAME=solo-e2e-c1 # TODO remove
+kind create cluster -n "${SOLO_CLUSTER_NAME}"
+#export SOLO_CLUSTER_NAME=solo-e2e # TODO remove
+#task dual-cluster-setup # TODO remove
+#export SOLO_CLUSTER_NAME=solo-e2e-c1 # TODO remove
 
 # running with published version of Solo
 # export SOLO_COMMAND=(solo)
