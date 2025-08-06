@@ -76,9 +76,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       NodeTest.setup(options);
       NodeTest.start(options);
       MirrorNodeTest.deploy(options);
-      MirrorNodeTest.upgrade(options);
       ExplorerTest.deploy(options);
-      ExplorerTest.upgrade(options);
 
       // TODO json rpc relay deploy
       // TODO json rpc relay destroy

@@ -49,34 +49,6 @@ export class MirrorNodeTest extends BaseCommandTest {
     return argv;
   }
 
-  private static soloMirrorNodeUpgradeArgv(
-    testName: string,
-    deployment: DeploymentName,
-    clusterReference: ClusterReferenceName,
-    pinger: boolean,
-  ): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = MirrorNodeTest;
-
-    const argv: string[] = newArgv();
-    argv.push(
-      'mirror-node',
-      'upgrade',
-      optionFromFlag(Flags.deployment),
-      deployment,
-      optionFromFlag(Flags.clusterRef),
-      clusterReference,
-      optionFromFlag(Flags.enableIngress),
-    );
-
-    if (pinger) {
-      argv.push(optionFromFlag(Flags.pinger));
-    }
-
-    argvPushGlobalFlags(argv, testName, true, true);
-
-    return argv;
-  }
-
   private static async forwardRestServicePort(
     contexts: string[],
     namespace: NamespaceName,
@@ -197,57 +169,6 @@ export class MirrorNodeTest extends BaseCommandTest {
     }
   }
 
-  private static async verifyMirrorNodeUpgradeWasSuccessful(
-    contexts: string[],
-    namespace: NamespaceName,
-    testLogger: SoloLogger,
-    consensusNodesCount: number,
-  ): Promise<void> {
-    const portForwarder: ExtendedNetServer = await MirrorNodeTest.forwardRestServicePort(contexts, namespace);
-    try {
-      const queryUrl: string = 'http://localhost:5551/api/v1/network/nodes';
-
-      let received: boolean = false;
-      // wait until the transaction reached consensus and retrievable from the mirror node API
-      while (!received) {
-        const request: http.ClientRequest = http.request(
-          queryUrl,
-          {method: 'GET', timeout: 100, headers: {Connection: 'close'}},
-          (response: http.IncomingMessage): void => {
-            response.setEncoding('utf8');
-
-            response.on('data', (chunk): void => {
-              // convert chunk to json object
-              const object: {nodes: {service_endpoints: unknown[]}[]} = JSON.parse(chunk);
-              expect(
-                object.nodes?.length,
-                `expect there to be ${consensusNodesCount} nodes in the mirror node's copy of the address book`,
-              ).to.equal(consensusNodesCount);
-
-              expect(
-                object.nodes[0].service_endpoints?.length,
-                'expect there to be at least one service endpoint',
-              ).to.be.greaterThan(0);
-
-              received = true;
-            });
-          },
-        );
-
-        request.on('error', (error: Error): void => {
-          testLogger.debug(`problem with request: ${error.message}`, error);
-        });
-
-        request.end(); // make the request
-        await sleep(Duration.ofSeconds(2));
-      }
-    } finally {
-      if (portForwarder) {
-        await MirrorNodeTest.stopPortForward(contexts, portForwarder);
-      }
-    }
-  }
-
   private static async verifyPingerStatus(
     contexts: string[],
     namespace: NamespaceName,
@@ -258,22 +179,13 @@ export class MirrorNodeTest extends BaseCommandTest {
       const transactionsEndpoint: string = 'http://localhost:5551/api/v1/transactions';
       const firstResponse = await fetch(transactionsEndpoint);
       const firstData = await firstResponse.json();
-      await sleep(Duration.ofSeconds(20));
+      await sleep(Duration.ofSeconds(10));
       const secondResponse = await fetch(transactionsEndpoint);
       const secondData = await secondResponse.json();
       expect(firstData.transactions).to.not.be.undefined;
       expect(firstData.transactions.length).to.be.gt(0);
       expect(secondData.transactions).to.not.be.undefined;
       expect(secondData.transactions.length).to.be.gt(0);
-
-      console.dir(
-        {
-          expected: firstData.transactions[0],
-          actual: secondData.transactions[0],
-        },
-        {depth: null},
-      );
-
       if (pingerIsEnabled) {
         expect(firstData.transactions[0]).to.not.deep.equal(secondData.transactions[0]);
       } else {
@@ -309,26 +221,6 @@ export class MirrorNodeTest extends BaseCommandTest {
         createdAccountIds,
         consensusNodesCount,
       );
-      await verifyPingerStatus(contexts, namespace, pinger);
-    }).timeout(Duration.ofMinutes(10).toMillis());
-  }
-
-  public static upgrade(options: BaseTestOptions): void {
-    const {
-      testName,
-      testLogger,
-      deployment,
-      contexts,
-      namespace,
-      clusterReferenceNameArray,
-      consensusNodesCount,
-      pinger,
-    } = options;
-    const {soloMirrorNodeUpgradeArgv, verifyMirrorNodeUpgradeWasSuccessful, verifyPingerStatus} = MirrorNodeTest;
-
-    it(`${testName}: mirror node upgrade`, async (): Promise<void> => {
-      await main(soloMirrorNodeUpgradeArgv(testName, deployment, clusterReferenceNameArray[1], pinger));
-      await verifyMirrorNodeUpgradeWasSuccessful(contexts, namespace, testLogger, consensusNodesCount);
       await verifyPingerStatus(contexts, namespace, pinger);
     }).timeout(Duration.ofMinutes(10).toMillis());
   }

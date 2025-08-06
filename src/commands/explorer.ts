@@ -309,6 +309,7 @@ export class ExplorerCommand extends BaseCommand {
           },
         },
       });
+
     await this.k8Factory
       .getK8(config.clusterContext)
       .ingressClasses()
@@ -491,6 +492,7 @@ export class ExplorerCommand extends BaseCommand {
               explorerIngressControllerValuesArgument,
               config.clusterContext,
             );
+
             showVersionBanner(
               self.logger,
               constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME,
@@ -657,34 +659,18 @@ export class ExplorerCommand extends BaseCommand {
           title: 'Handle explorer ingress controller',
           skip: ({config}): boolean => !config.enableIngress,
           task: async ({config}): Promise<void> => {
-            const explorerIngressControllerValuesArgument: string =
-              await this.prepareExplorerIngressControllerArg(config);
+            let valuesArguments: string = await this.prepareExplorerIngressControllerArg(config);
+            valuesArguments += ' --install';
 
-            const isIngressChartInstalled: boolean = await this.chartManager.isChartInstalled(
+            await this.chartManager.upgrade(
               config.namespace,
               constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME,
+              constants.INGRESS_CONTROLLER_RELEASE_NAME,
+              constants.INGRESS_CONTROLLER_RELEASE_NAME,
+              INGRESS_CONTROLLER_VERSION,
+              valuesArguments,
               config.clusterContext,
             );
-
-            await (isIngressChartInstalled
-              ? this.chartManager.upgrade(
-                  config.namespace,
-                  constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME,
-                  constants.INGRESS_CONTROLLER_RELEASE_NAME,
-                  constants.INGRESS_CONTROLLER_RELEASE_NAME,
-                  INGRESS_CONTROLLER_VERSION,
-                  explorerIngressControllerValuesArgument,
-                  config.clusterContext,
-                )
-              : this.chartManager.install(
-                  config.namespace,
-                  constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME,
-                  constants.INGRESS_CONTROLLER_RELEASE_NAME,
-                  constants.INGRESS_CONTROLLER_RELEASE_NAME,
-                  INGRESS_CONTROLLER_VERSION,
-                  explorerIngressControllerValuesArgument,
-                  config.clusterContext,
-                ));
 
             showVersionBanner(
               this.logger,

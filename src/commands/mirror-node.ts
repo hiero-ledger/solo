@@ -1209,13 +1209,7 @@ export class MirrorNodeCommand extends BaseCommand {
                 {
                   title: 'Install mirror ingress controller',
                   task: async ({config}): Promise<void> => {
-                    const isMirrorIngressControllerInstalled: boolean = await this.chartManager.isChartInstalled(
-                      config.namespace,
-                      constants.INGRESS_CONTROLLER_RELEASE_NAME,
-                      config.clusterContext,
-                    );
-
-                    let mirrorIngressControllerValuesArgument: string = '';
+                    let mirrorIngressControllerValuesArgument: string = ' --install ';
 
                     if (config.mirrorStaticIp !== '') {
                       mirrorIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${config.mirrorStaticIp}`;
@@ -1226,25 +1220,15 @@ export class MirrorNodeCommand extends BaseCommand {
 
                     mirrorIngressControllerValuesArgument += prepareValuesFiles(config.ingressControllerValueFile);
 
-                    await (isMirrorIngressControllerInstalled
-                      ? this.chartManager.upgrade(
-                          config.namespace,
-                          constants.INGRESS_CONTROLLER_RELEASE_NAME,
-                          constants.INGRESS_CONTROLLER_RELEASE_NAME,
-                          constants.INGRESS_CONTROLLER_RELEASE_NAME,
-                          INGRESS_CONTROLLER_VERSION,
-                          mirrorIngressControllerValuesArgument,
-                          config.clusterContext,
-                        )
-                      : this.chartManager.install(
-                          config.namespace,
-                          constants.INGRESS_CONTROLLER_RELEASE_NAME,
-                          constants.INGRESS_CONTROLLER_RELEASE_NAME,
-                          constants.INGRESS_CONTROLLER_RELEASE_NAME,
-                          INGRESS_CONTROLLER_VERSION,
-                          mirrorIngressControllerValuesArgument,
-                          config.clusterContext,
-                        ));
+                    await this.chartManager.upgrade(
+                      config.namespace,
+                      constants.INGRESS_CONTROLLER_RELEASE_NAME,
+                      constants.INGRESS_CONTROLLER_RELEASE_NAME,
+                      constants.INGRESS_CONTROLLER_RELEASE_NAME,
+                      INGRESS_CONTROLLER_VERSION,
+                      mirrorIngressControllerValuesArgument,
+                      config.clusterContext,
+                    );
 
                     showVersionBanner(
                       this.logger,
