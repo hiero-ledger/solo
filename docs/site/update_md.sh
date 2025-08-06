@@ -32,6 +32,7 @@ export LOCAL_BUILD_FLAG="--local-build-path ${CN_LOCAL_BUILD_PATH}"
 export GENESIS_KEY=302e020100300506032b657004220420273389ed26af9c456faa81e9ae4004520130de36e4f534643b7081db21744496 # TODO remove
 export NODE_ALIASES_FLAG="--node-aliases node1,node2" # TODO remove
 #export STAKE_FLAG="--stake-amounts 1500,1"
+#export DEBUG_NODE_FLAG="--debug-node-alias node1"
 # copied from Solo and then edited as needed, be sure to match the version of Solo:
 #  https://github.com/hiero-ledger/solo/blob/v0.41.0/resources/templates/application.properties
 #  if solo is cloned with git, and you are currently in that directory, you can just modify the file directly, this
@@ -90,14 +91,14 @@ export SOLO_COMMAND=(npm run solo --)
 # The --release-tag here helps for decision tree logic, it isn't installing the CN here
 # --pvcs is required for node add/update/delete
 # (optional): --application-properties ${APPLICATION_PROPERTIES}
-"${SOLO_COMMAND[@]}" network deploy ${NODE_ALIASES_FLAG} --deployment "${SOLO_DEPLOYMENT}" --release-tag ${CN_VERSION} --pvcs ${APPLICATION_PROPERTIES_FLAG} --dev
+"${SOLO_COMMAND[@]}" network deploy ${NODE_ALIASES_FLAG} --deployment "${SOLO_DEPLOYMENT}" --release-tag ${CN_VERSION} --pvcs ${APPLICATION_PROPERTIES_FLAG} ${DEBUG_NODE_FLAG} --dev
 
 # node setup, we are doing a local build, but the --release-tag is still used for decision tree logic
 "${SOLO_COMMAND[@]}" node setup ${NODE_ALIASES_FLAG} --deployment "${SOLO_DEPLOYMENT}" --release-tag ${CN_VERSION} ${LOCAL_BUILD_FLAG} --dev
 
 # start your node/nodes, the stake amounts puts a huge percentage on node1 so that it can reach consensus by itself,
 #  sort of a workaround to get it to work with 2 nodes instead of 3 due to CN logic
-"${SOLO_COMMAND[@]}" node start ${NODE_ALIASES_FLAG} --deployment "${SOLO_DEPLOYMENT}" ${STAKE_FLAG} --dev
+"${SOLO_COMMAND[@]}" node start ${NODE_ALIASES_FLAG} --deployment "${SOLO_DEPLOYMENT}" ${STAKE_FLAG} ${DEBUG_NODE_FLAG} --dev
 
 # Deploy with explicit configuration
 "${SOLO_COMMAND[@]}" mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_REF} --enable-ingress --dev
