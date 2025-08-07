@@ -230,3 +230,4 @@ tasks:
     dir: examples/node-create-transaction
     cmds:
       - task
+      - task destroy
