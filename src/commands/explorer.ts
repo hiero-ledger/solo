@@ -537,11 +537,15 @@ export class ExplorerCommand extends BaseCommand {
             self.configManager.update(argv);
             const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
 
-            const clusterReference: ClusterReferenceName = this.configManager.hasFlag(flags.clusterRef)
-              ? this.configManager.getFlag(flags.clusterRef)
-              : this.remoteConfig.currentCluster;
+            const clusterReference: ClusterReferenceName = self.configManager.hasFlag(flags.clusterRef)
+              ? self.configManager.getFlag(flags.clusterRef)
+              : self.remoteConfig.getClusterRefs().keys().next().value;
 
-            const clusterContext: Context = this.localConfig.configuration.clusterRefs
+            if (!clusterReference) {
+              throw new SoloError('Aborting Explorer Destroy, no cluster reference could be found');
+            }
+
+            const clusterContext: Context = self.localConfig.configuration.clusterRefs
               .get(clusterReference)
               ?.toString();
 
@@ -549,7 +553,7 @@ export class ExplorerCommand extends BaseCommand {
               namespace,
               clusterContext,
               clusterReference,
-              isChartInstalled: await this.chartManager.isChartInstalled(
+              isChartInstalled: await self.chartManager.isChartInstalled(
                 namespace,
                 constants.EXPLORER_RELEASE_NAME,
                 clusterContext,
@@ -563,11 +567,11 @@ export class ExplorerCommand extends BaseCommand {
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
-        this.loadRemoteConfigTask(argv),
+        self.loadRemoteConfigTask(argv),
         {
           title: 'Destroy explorer',
           task: async context_ => {
-            await this.chartManager.uninstall(
+            await self.chartManager.uninstall(
               context_.config.namespace,
               constants.EXPLORER_RELEASE_NAME,
               context_.config.clusterContext,
@@ -578,18 +582,18 @@ export class ExplorerCommand extends BaseCommand {
         {
           title: 'Uninstall explorer ingress controller',
           task: async context_ => {
-            await this.chartManager.uninstall(
+            await self.chartManager.uninstall(
               context_.config.namespace,
               constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME,
             );
             // delete ingress class if found one
-            const existingIngressClasses = await this.k8Factory
+            const existingIngressClasses = await self.k8Factory
               .getK8(context_.config.clusterContext)
               .ingressClasses()
               .list();
             existingIngressClasses.map(ingressClass => {
               if (ingressClass.name === constants.EXPLORER_INGRESS_CLASS_NAME) {
-                this.k8Factory
+                self.k8Factory
                   .getK8(context_.config.clusterContext)
                   .ingressClasses()
                   .delete(constants.EXPLORER_INGRESS_CLASS_NAME);
@@ -597,7 +601,7 @@ export class ExplorerCommand extends BaseCommand {
             });
           },
         },
-        this.disableMirrorNodeExplorerComponents(),
+        self.disableMirrorNodeExplorerComponents(),
       ],
       {
         concurrent: false,
