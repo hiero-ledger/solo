@@ -29,6 +29,7 @@ export class InjectTokens {
   public static HelmExecutionBuilder: symbol = Symbol.for('HelmExecutionBuilder');
   public static HelmDependencyManager: symbol = Symbol.for('HelmDependencyManager');
   public static KindDependencyManager: symbol = Symbol.for('KindDependencyManager');
+  public static KubectlDependencyManager: symbol = Symbol.for('KubectlDependencyManager');
   public static ChartManager: symbol = Symbol.for('ChartManager');
   public static ConfigManager: symbol = Symbol.for('ConfigManager');
   public static AccountManager: symbol = Symbol.for('AccountManager');
