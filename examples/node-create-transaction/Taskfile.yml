@@ -110,7 +110,8 @@ tasks:
       - cmd: |
           # Solo node add-prepare
           {{ .SOLO_COMMAND }} node add-prepare --deployment {{ .SOLO_DEPLOYMENT }} --gossip-keys true --tls-keys true \
-          --release-tag {{ .CN_VERSION }} --output-dir {{ .PREPARE_OUTPUT_DIR }} --pvcs --dev
+          --release-tag {{ .CN_VERSION }} --output-dir {{ .PREPARE_OUTPUT_DIR }} --pvcs --dev \
+          --cluster-ref {{ .SOLO_CLUSTER_REF }}
 
       - cmd: |
           # SDK NodeCreateTransaction
@@ -129,7 +130,7 @@ tasks:
       - cmd: |
           # Solo node add-execute
           {{ .SOLO_COMMAND }} node add-execute --deployment {{ .SOLO_DEPLOYMENT }} --input-dir {{ .PREPARE_OUTPUT_DIR }} \
-          --pvcs {{ .LOCAL_BUILD_FLAG }} --dev
+          --pvcs {{ .LOCAL_BUILD_FLAG }} --dev --cluster-ref {{ .SOLO_CLUSTER_REF }}
 
       - cmd: |
           # Mirror Node gRPC port forward
@@ -157,11 +158,12 @@ tasks:
 
       - cmd: |
           # Solo relay destroy
-          {{ .SOLO_COMMAND }} relay destroy --deployment {{ .SOLO_DEPLOYMENT }} --node-aliases node1 --dev
+          {{ .SOLO_COMMAND }} relay destroy --deployment {{ .SOLO_DEPLOYMENT }} --node-aliases node1 --dev \
+          --cluster-ref {{ .SOLO_CLUSTER_REF }}
 
       - cmd: |
           # Solo explorer destroy
-          {{ .SOLO_COMMAND }} explorer destroy --deployment {{ .SOLO_DEPLOYMENT }} --dev
+          {{ .SOLO_COMMAND }} explorer destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev
 
       - cmd: |
           # Solo mirror-node destroy
