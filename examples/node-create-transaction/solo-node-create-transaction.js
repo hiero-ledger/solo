@@ -32,7 +32,7 @@ async function main() {
   console.log(`${logPrefix} running node create transaction`);
   const prepareOutputString = readFileSync('/tmp/solo-deployment/prepare-output/node-add.json');
   const prepareOutput = JSON.parse(prepareOutputString.toString());
-  console.log(`${logPrefix} ${JSON.stringify(prepareOutput)}`);
+  // console.log(`${logPrefix} ${JSON.stringify(prepareOutput)}`);
   const transformedPrepareOutput = prepareOutputParser(prepareOutput);
   try {
     const nodeCreateTx = new NodeCreateTransaction()
