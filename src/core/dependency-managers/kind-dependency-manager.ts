@@ -7,7 +7,6 @@ import {patchInject} from '../dependency-injection/container-helper.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {BaseDependencyManager} from './base-dependency-manager.js';
 import {PackageDownloader} from '../package-downloader.js';
-import * as semver from 'semver';
 import util from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
 

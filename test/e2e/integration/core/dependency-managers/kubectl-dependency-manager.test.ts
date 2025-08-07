@@ -99,7 +99,9 @@ describe('KubectlDependencyManager', (): void => {
     it('should prefer the global installation if it meets the requirements', async (): Promise<void> => {
       runStub.withArgs('which kubectl').resolves(['/usr/local/bin/kubectl']);
       runStub.withArgs('/usr/local/bin/kubectl version --client').resolves(mockVersionOutputValid.split('\n'));
-      runStub.withArgs(`${localInstallationDirectory}/kubectl version --client`).resolves(mockVersionOutputValid.split('\n'));
+      runStub
+        .withArgs(`${localInstallationDirectory}/kubectl version --client`)
+        .resolves(mockVersionOutputValid.split('\n'));
       existsSyncStub.withArgs(`${localInstallationDirectory}/kubectl`).returns(false);
 
       // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
@@ -180,7 +182,9 @@ describe('KubectlDependencyManager', (): void => {
     });
 
     it('getVersion should succeed with valid version output', async (): Promise<void> => {
-      const runStub: SinonStub = sinon.stub(kubectlDependencyManager, 'run').resolves(mockVersionOutputValid.split('\n'));
+      const runStub: SinonStub = sinon
+        .stub(kubectlDependencyManager, 'run')
+        .resolves(mockVersionOutputValid.split('\n'));
 
       expect(await kubectlDependencyManager.getVersion('/usr/local/bin/kubectl')).to.equal('1.33.3');
       runStub.restore();
@@ -200,7 +204,9 @@ describe('KubectlDependencyManager', (): void => {
     });
 
     it('getVersion should handle invalid output', async (): Promise<void> => {
-      const runStub: SinonStub = sinon.stub(kubectlDependencyManager, 'run').resolves(mockVersionOutputInvalid.split('\n'));
+      const runStub: SinonStub = sinon
+        .stub(kubectlDependencyManager, 'run')
+        .resolves(mockVersionOutputInvalid.split('\n'));
 
       try {
         await kubectlDependencyManager.getVersion('/usr/local/bin/kubectl');
@@ -213,7 +219,9 @@ describe('KubectlDependencyManager', (): void => {
     });
 
     it('getVersion should handle missing client version in output', async (): Promise<void> => {
-      const runStub: SinonStub = sinon.stub(kubectlDependencyManager, 'run').resolves(mockVersionOutputMissingClient.split('\n'));
+      const runStub: SinonStub = sinon
+        .stub(kubectlDependencyManager, 'run')
+        .resolves(mockVersionOutputMissingClient.split('\n'));
 
       try {
         await kubectlDependencyManager.getVersion('/usr/local/bin/kubectl');
