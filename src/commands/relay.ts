@@ -417,7 +417,7 @@ export class RelayCommand extends BaseCommand {
           this.configManager.getFlag<boolean>(flags.forcePortForward),
         );
 
-        config.valuesArg += await this.prepareValuesArgForRelay(config);
+        config.valuesArg = await this.prepareValuesArgForRelay(config);
       },
     };
   }
