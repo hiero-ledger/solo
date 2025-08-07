@@ -113,9 +113,18 @@ tasks:
           --release-tag {{ .CN_VERSION }} --output-dir {{ .PREPARE_OUTPUT_DIR }} --pvcs --dev
 
       - cmd: |
-          # Solo node add-submit-transactions
-          {{ .SOLO_COMMAND }} node add-submit-transactions --deployment {{ .SOLO_DEPLOYMENT }} \
-          --input-dir {{ .PREPARE_OUTPUT_DIR }} --pvcs --dev
+          # SDK NodeCreateTransaction
+          which node
+          node --version
+          node examples/node-create-transaction/solo-node-create-transaction.js
+
+      - cmd: |
+          # Prepare Upgrade
+          {{ .SOLO_COMMAND }} node prepare-upgrade --deployment {{ .SOLO_DEPLOYMENT }} --dev 
+
+      - cmd: |
+          # Freeze Upgrade
+          {{ .SOLO_COMMAND }} node freeze-upgrade --deployment {{ .SOLO_DEPLOYMENT }} --dev 
 
       - cmd: |
           # Solo node add-execute
@@ -140,14 +149,11 @@ tasks:
 
   destroy:
     desc: Destroy the Solo network with block node
+    dir: ../..
     cmds:
       - cmd: |
           # Solo node stop
           {{ .SOLO_COMMAND }} node stop --deployment {{ .SOLO_DEPLOYMENT }} --dev
-
-      - cmd: |
-          # Solo mirror-node destroy
-          {{ .SOLO_COMMAND }} mirror-node destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev
 
       - cmd: |
           # Solo relay destroy
@@ -156,6 +162,10 @@ tasks:
       - cmd: |
           # Solo explorer destroy
           {{ .SOLO_COMMAND }} explorer destroy --deployment {{ .SOLO_DEPLOYMENT }} --dev
+
+      - cmd: |
+          # Solo mirror-node destroy
+          {{ .SOLO_COMMAND }} mirror-node destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev
 
       - cmd: |
           # Solo network destroy
