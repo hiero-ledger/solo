@@ -35,12 +35,12 @@ import {KeyManager} from '../core/key-manager.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {Lock} from '../core/lock/lock.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Version} from '../business/utils/version.js';
+import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -692,8 +692,8 @@ export class ExplorerCommand extends BaseCommand {
       task: async (context_): Promise<void> => {
         const clusterReference: ClusterReferenceName = context_.config.clusterReference;
 
-        const explorerComponents: MirrorNodeStateSchema[] =
-          this.remoteConfig.configuration.components.getComponentsByClusterReference<MirrorNodeStateSchema>(
+        const explorerComponents: ExplorerStateSchema[] =
+          this.remoteConfig.configuration.components.getComponentsByClusterReference<ExplorerStateSchema>(
             ComponentTypes.Explorers,
             clusterReference,
           );
