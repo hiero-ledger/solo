@@ -16,7 +16,7 @@ vars:
   # SOLO_COMMAND: "solo" # use this if running with installed version of Solo
 tasks:
   default:
-    desc: Run a full standalone Solo network with block node, mirror node, relay and prepare for node operations
+    desc: Run a full standalone Solo network with mirror node, relay and prepare for node operations
     dir: ../..
     cmds:
       - cmd: |
@@ -108,16 +108,15 @@ tasks:
           --cluster-ref {{ .SOLO_CLUSTER_REF }} --dev
 
       - cmd: |
-          # Solo node add-prepare
-          {{ .SOLO_COMMAND }} node add-prepare --deployment {{ .SOLO_DEPLOYMENT }} --gossip-keys true --tls-keys true \
-          --release-tag {{ .CN_VERSION }} --output-dir {{ .PREPARE_OUTPUT_DIR }} --pvcs --dev \
-          --cluster-ref {{ .SOLO_CLUSTER_REF }}
+          # Solo node delete-prepare
+          {{ .SOLO_COMMAND }} node delete-prepare --deployment {{ .SOLO_DEPLOYMENT }} --node-alias node1 \ 
+          --release-tag {{ .CN_VERSION }} {{ .LOCAL_BUILD_FLAG }} --output-dir {{ .PREPARE_OUTPUT_DIR }} --dev 
 
       - cmd: |
-          # SDK NodeCreateTransaction
+          # SDK NodeDeleteTransaction
           which node
           node --version
-          node examples/node-create-transaction/solo-node-create-transaction.js
+          node examples/node-delete-transaction/solo-node-delete-transaction.js
 
       - cmd: |
           # Prepare Upgrade
@@ -128,9 +127,9 @@ tasks:
           {{ .SOLO_COMMAND }} node freeze-upgrade --deployment {{ .SOLO_DEPLOYMENT }} --dev 
 
       - cmd: |
-          # Solo node add-execute
-          {{ .SOLO_COMMAND }} node add-execute --deployment {{ .SOLO_DEPLOYMENT }} --input-dir {{ .PREPARE_OUTPUT_DIR }} \
-          --pvcs {{ .LOCAL_BUILD_FLAG }} --dev --cluster-ref {{ .SOLO_CLUSTER_REF }}
+          # Solo node delete-execute
+          {{ .SOLO_COMMAND }} node delete-execute --deployment {{ .SOLO_DEPLOYMENT }} --input-dir {{ .PREPARE_OUTPUT_DIR }} \
+          --dev 
 
       - cmd: |
           # Mirror Node gRPC port forward
