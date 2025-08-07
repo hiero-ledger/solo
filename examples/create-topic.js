@@ -72,7 +72,7 @@ async function main() {
     console.log(`topic id = ${createReceipt.topicId.toString()}`);
 
     console.log('Wait to create subscribe to new topic');
-    await sleep(25000);
+    await sleep(3000);
 
     // Create a subscription to the topic
     const mirrorClient = (await Client.forMirrorNetwork(mirrorNetwork)).setOperator(
@@ -100,6 +100,8 @@ async function main() {
           console.log(`Subscription received message: ${topic.contents}`);
         },
       );
+
+    await sleep(3000);
 
     // send one message
     let topicMessageSubmitTransaction = await new TopicMessageSubmitTransaction({
