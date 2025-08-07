@@ -180,7 +180,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       const firstResponse = await fetch(transactionsEndpoint);
       const firstData = await firstResponse.json();
       console.log(`firstData = ${JSON.stringify(firstData, null, 2)}`);
-      await sleep(Duration.ofSeconds(10));
+      await sleep(Duration.ofSeconds(15));
       const secondResponse = await fetch(transactionsEndpoint);
       const secondData = await secondResponse.json();
       console.log(`secondData = ${JSON.stringify(secondData, null, 2)}`);
