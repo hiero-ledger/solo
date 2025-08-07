@@ -2687,9 +2687,9 @@ export class NodeCommandTasks {
 
           const signedTx = await nodeDeleteTx.sign(config.adminKey);
           const txResp = await signedTx.execute(config.nodeClient);
-          const nodeUpdateReceipt = await txResp.getReceipt(config.nodeClient);
+          const nodeDeleteReceipt = await txResp.getReceipt(config.nodeClient);
 
-          this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
+          this.logger.debug(`NodeDeleteReceipt: ${nodeDeleteReceipt.toString()}`);
         } catch (error) {
           throw new SoloError(`Error deleting node from network: ${error.message}`, error);
         }
