@@ -16,7 +16,7 @@ vars:
   # SOLO_COMMAND: "solo" # use this if running with installed version of Solo
 tasks:
   default:
-    desc: Run a full standalone Solo network with block node, mirror node, relay and prepare for node operations
+    desc: Run a full standalone Solo network with mirror node, relay and prepare for node operations
     dir: ../..
     cmds:
       - cmd: |
