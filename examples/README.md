@@ -1,5 +1,15 @@
 # The usage of examples in Solo
 
+## Table of Contents
+
+| Example Directory | Description |
+|------------------|-------------|
+| [address-book](./address-book/) | Example of using Yahcli to pull the ledger and mirror node address book |
+| [custom-network-config](./custom-network-config/) | Deploy a Solo network with custom configuration settings (log4j2, properties, etc.) |
+| [network-with-block-node](./network-with-block-node/) | Deploy a Solo network that includes a block node |
+| [network-with-domain-names](./network-with-domain-names/) | Setup a network using custom domain names for all components |
+| [running-solo-inside-cluster](./running-solo-inside-cluster/) | Example showing how to run Solo inside a Kubernetes cluster |
+
 ## Prerequisites
 
 * install taskfile: `npm install -g @go-task/cli`

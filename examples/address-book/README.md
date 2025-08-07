@@ -28,10 +28,21 @@ ps -ef | grep 50211 | grep -v grep
 kubectl port-forward -n "${SOLO_NAMESPACE}" pod/network-node1-0 50211:50211
 ```
 
-To get the address book from the ledger, run the following command:
+Navigate to the `examples/address-book` directory in the Solo repository:
 
 ```bash
 cd <solo-root>/examples/address-book
+```
+
+If you don't already have a running Solo network, you can start one by running the following command:
+
+```bash
+task start
+```
+
+To get the address book from the ledger, run the following command:
+
+```bash
 task get:ledger:addressbook
 ```
 
@@ -66,4 +77,10 @@ npm run solo -- account create
 npm run solo -- account create
 npm run solo -- account create
 npm run solo -- account update -n solo-e2e --account-id 0.0.1004 --hbar-amount 78910 
+```
+
+Stop the Solo network when you are done:
+
+```bash
+task destroy
 ```

@@ -12,7 +12,7 @@ tasks:
     desc: Run a full standalone Solo network with block node, mirror node, and relay
     cmds:
       - name: "Install Solo CLI"
-        cmd: npm i @hashgraph/solo
+        cmd: npm i @hashgraph/solo@latest
 
       - name: "Create Kind cluster"
         cmd: kind create cluster -n {{ .CLUSTER_NAME }}
