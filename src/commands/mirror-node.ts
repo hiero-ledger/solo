@@ -36,7 +36,7 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import chalk from 'chalk';
-import {type CommandFlag} from '../types/flag-types.js';
+import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {KeyManager} from '../core/key-manager.js';
@@ -124,7 +124,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
   private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
 
-  private static readonly DEPLOY_FLAGS_LIST = {
+  public static readonly DEPLOY_FLAGS_LIST = {
     required: [],
     optional: [
       flags.cacheDir,
@@ -158,6 +158,11 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.domainName,
       flags.forcePortForward,
     ],
+  };
+
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.deployment],
   };
 
   private async prepareValuesArg(config: MirrorNodeDeployConfigClass): Promise<string> {
@@ -847,7 +852,7 @@ export class MirrorNodeCommand extends BaseCommand {
     const self = this;
     let lease: Lock;
 
-    const tasks = new Listr<MirrorNodeDestroyContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -870,8 +875,7 @@ export class MirrorNodeCommand extends BaseCommand {
             self.configManager.update(argv);
             const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
             const clusterReference: ClusterReferenceName =
-              (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
-              this.k8Factory.default().clusters().readCurrent();
+              this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
 
             const clusterContext = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
 
@@ -956,24 +960,24 @@ export class MirrorNodeCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      'mirror-node destroy',
     );
 
-    try {
-      await tasks.run();
-      self.logger.debug('mirror node destruction has completed');
-    } catch (error) {
-      throw new SoloError(`Error destroying mirror node: ${error.message}`, error);
-    } finally {
+    if (tasks.isRoot()) {
       try {
-        await lease.release();
+        await tasks.run();
       } catch (error) {
-        self.logger.error(`Error releasing lease: ${error.message}`, error);
+        throw new SoloError(`Error destroying mirror node: ${error.message}`, error);
+      } finally {
+        await this.accountManager?.close().catch();
+        await lease?.release();
       }
-      try {
-        await self.accountManager.close();
-      } catch (error) {
-        self.logger.error(`Error closing account manager: ${error.message}`, error);
-      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await self.accountManager?.close().catch();
+        await lease?.release();
+      });
     }
 
     return true;
@@ -1012,15 +1016,10 @@ export class MirrorNodeCommand extends BaseCommand {
           .command({
             command: 'destroy',
             desc: 'Destroy mirror-node components and database',
-            builder: y =>
-              flags.setOptionalCommandFlags(
-                y,
-                flags.chartDirectory,
-                flags.clusterRef,
-                flags.force,
-                flags.quiet,
-                flags.deployment,
-              ),
+            builder: y => {
+              flags.setOptionalCommandFlags(y, ...MirrorNodeCommand.DESTROY_FLAGS_LIST.optional);
+              flags.setRequiredCommandFlags(y, ...MirrorNodeCommand.DESTROY_FLAGS_LIST.required);
+            },
             handler: async argv => {
               self.logger.info("==== Running 'mirror-node destroy' ===");
 

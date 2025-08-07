@@ -1259,7 +1259,8 @@ export class NetworkCommand extends BaseCommand {
     let lease: Lock;
 
     let networkDestroySuccess: boolean = true;
-    const tasks: Listr<NetworkDestroyContext> = new Listr<NetworkDestroyContext>(
+
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -1285,7 +1286,7 @@ export class NetworkCommand extends BaseCommand {
             context_.config = {
               deletePvcs: this.configManager.getFlag<boolean>(flags.deletePvcs) as boolean,
               deleteSecrets: this.configManager.getFlag<boolean>(flags.deleteSecrets) as boolean,
-              deployment: this.configManager.getFlag<string>(flags.deployment) as string,
+              deployment: this.configManager.getFlag(flags.deployment),
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
               enableTimeout: this.configManager.getFlag<boolean>(flags.enableTimeout) as boolean,
               force: this.configManager.getFlag<boolean>(flags.force) as boolean,
@@ -1345,15 +1346,23 @@ export class NetworkCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      'network destroy',
     );
 
-    try {
-      await tasks.run();
-    } catch (error) {
-      throw new SoloError('Error destroying network', error);
-    } finally {
-      // If the namespace is deleted, the lease can't be released
-      await lease.release().catch();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError('Error destroying network', error);
+      } finally {
+        // If the namespace is deleted, the lease can't be released
+        await lease?.release().catch();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease?.release();
+      });
     }
 
     return networkDestroySuccess;

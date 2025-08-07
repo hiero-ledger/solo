@@ -261,7 +261,7 @@ export class BlockNodeCommand extends BaseCommand {
               config.clusterRef = this.k8Factory.default().clusters().readCurrent();
             }
 
-            config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
+            config.context = this.remoteConfig.getClusterRefs().get(config.clusterRef);
 
             config.chartVersion = Version.getValidSemanticVersion(
               config.chartVersion,

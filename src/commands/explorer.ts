@@ -516,7 +516,7 @@ export class ExplorerCommand extends BaseCommand {
     const self = this;
     let lease: Lock;
 
-    const tasks = new Listr<ExplorerDestroyContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -605,15 +605,22 @@ export class ExplorerCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      'explorer destroy',
     );
 
-    try {
-      await tasks.run();
-      self.logger.debug('explorer destruction has completed');
-    } catch (error) {
-      throw new SoloError(`Error destroy explorer: ${error.message}`, error);
-    } finally {
-      await lease.release();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError(`Error destroy explorer: ${error.message}`, error);
+      } finally {
+        await lease?.release();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease?.release();
+      });
     }
 
     return true;
