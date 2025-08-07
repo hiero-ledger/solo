@@ -231,3 +231,15 @@ tasks:
     cmds:
       - task
       - task destroy
+
+  test-example-node-update-transaction:
+    dir: examples/node-update-transaction
+    cmds:
+      - task
+      - task destroy
+
+  test-example-node-delete-transaction:
+    dir: examples/node-delete-transaction
+    cmds:
+      - task
+      - task destroy

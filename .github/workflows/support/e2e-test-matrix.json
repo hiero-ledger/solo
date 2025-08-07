@@ -7,6 +7,20 @@
     "local-java-build": true
   },
   {
+    "name": "Example Node Update Transaction",
+    "test-script": "test-example-node-update-transaction",
+    "coverage-subdirectory": "node-update-transaction",
+    "coverage-report-name": "Node_Update_Transaction",
+    "local-java-build": true
+  },
+  {
+    "name": "Example Node Delete Transaction",
+    "test-script": "test-example-node-delete-transaction",
+    "coverage-subdirectory": "node-delete-transaction",
+    "coverage-report-name": "Node_Delete_Transaction",
+    "local-java-build": true
+  },
+  {
     "name": "External database new",
     "test-script": "test-e2e-external-database",
     "coverage-subdirectory": "e2e-external-database",
