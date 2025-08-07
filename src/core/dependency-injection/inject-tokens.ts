@@ -12,8 +12,10 @@ export class InjectTokens {
   public static OsArch: symbol = Symbol.for('OsArch');
   public static HelmInstallationDir: symbol = Symbol.for('HelmInstallationDir');
   public static KindInstallationDir: symbol = Symbol.for('KindInstallationDir');
+  public static KubectlInstallationDir: symbol = Symbol.for('KubectlInstallationDir');
   public static HelmVersion: symbol = Symbol.for('HelmVersion');
   public static KindVersion: symbol = Symbol.for('KindVersion');
+  public static KubectlVersion: symbol = Symbol.for('KubectlVersion');
   public static SystemAccounts: symbol = Symbol.for('SystemAccounts');
   public static CacheDir: symbol = Symbol.for('CacheDir');
   public static LockRenewalService: symbol = Symbol.for('LockRenewalService');

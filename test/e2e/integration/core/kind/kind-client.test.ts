@@ -50,7 +50,7 @@ describe('KindClient Integration Tests', function () {
     // Download and install Kind
     const kindManager: KindDependencyManager = container.resolve(KindDependencyManager);
     await kindManager.install(temporaryDirectory);
-    kindPath = kindManager.getKindPath();
+    kindPath = kindManager.getExecutablePath();
 
     console.log(`Using Kind at: ${kindPath}`);
 

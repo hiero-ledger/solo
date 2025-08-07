@@ -36,15 +36,14 @@ export class DependencyManager extends ShellRunner {
   /**
    * Check if the required dependency is installed or not
    * @param dep - is the name of the program
-   * @param [shouldInstall] - Whether or not install the dependency if not installed
    */
-  public async checkDependency(dep: string, shouldInstall: boolean = true): Promise<boolean> {
+  public async checkDependency(dep: string): Promise<boolean> {
     this.logger.debug(`Checking for dependency: ${dep}`);
 
     let status: boolean = false;
     const manager: HelmDependencyManager | KindDependencyManager = this.dependancyManagerMap.get(dep);
     if (manager) {
-      status = await manager.checkVersion(shouldInstall);
+      status = await manager.install();
     }
 
     if (!status) {
