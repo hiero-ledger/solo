@@ -44,6 +44,7 @@ import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Version} from '../business/utils/version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {Duration} from '../core/time/duration.js';
+import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -318,6 +319,16 @@ export class ExplorerCommand extends BaseCommand {
           },
         },
       });
+
+    const ingressClasses: IngressClass[] = await this.k8Factory.getK8(config.clusterContext).ingressClasses().list();
+
+    const explorerIngressClassExists: boolean = ingressClasses.some(
+      (ingress): boolean => ingress.name === constants.EXPLORER_INGRESS_CLASS_NAME,
+    );
+
+    if (explorerIngressClassExists) {
+      return;
+    }
 
     await this.k8Factory
       .getK8(config.clusterContext)
