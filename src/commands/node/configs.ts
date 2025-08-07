@@ -412,7 +412,10 @@ export class NodeCommandConfigs {
     context_.config.contexts = this.remoteConfig.getContexts();
 
     if (!context_.config.clusterRef) {
-      context_.config.clusterRef = this.k8Factory.default().clusters().readCurrent();
+      context_.config.clusterRef = this.remoteConfig.getClusterRefs()?.entries()?.next()?.value[0];
+      if (!context_.config.clusterRef) {
+        throw new SoloError('Error during initialization, cluster ref could not be determined');
+      }
     }
 
     if (context_.config.domainNames) {
