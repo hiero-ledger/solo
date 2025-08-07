@@ -1,5 +1,12 @@
 [
   {
+    "name": "Example Node Create Transaction",
+    "test-script": "test-example-node-create-transaction",
+    "coverage-subdirectory": "node-create-transaction",
+    "coverage-report-name": "Node_Create_Transaction",
+    "local-java-build": true
+  },
+  {
     "name": "External database new",
     "test-script": "test-e2e-external-database",
     "coverage-subdirectory": "e2e-external-database",
@@ -145,12 +152,5 @@
     "coverage-subdirectory": "update-markdown",
     "coverage-report-name": "Update_Markdown",
     "local-java-build": false
-  },
-  {
-    "name": "Example Node Create Transaction",
-    "test-script": "test-example-node-create-transaction",
-    "coverage-subdirectory": "node-create-transaction",
-    "coverage-report-name": "Node_Create_Transaction",
-    "local-java-build": true
   }
 ]
