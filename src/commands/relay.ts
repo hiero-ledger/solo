@@ -104,6 +104,7 @@ interface RelayUpgradeConfigClass {
   valuesFile: string;
   nodeAliases: NodeAliases;
   releaseName: string;
+  isChartInstalled: boolean;
   valuesArg: string;
   clusterRef: Optional<ClusterReferenceName>;
   domainName: Optional<string>;
@@ -416,9 +417,36 @@ export class RelayCommand extends BaseCommand {
           this.configManager.getFlag<boolean>(flags.forcePortForward),
         );
 
-        config.valuesArg = await this.prepareValuesArgForRelay(config);
+        config.valuesArg += await this.prepareValuesArgForRelay(config);
       },
     };
+  }
+
+  private handleRelayChartTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Deploy JSON RPC Relay',
+      task: async ({config}): Promise<void> => {
+        await this.chartManager.upgrade(
+          config.namespace,
+          config.releaseName,
+          constants.JSON_RPC_RELAY_CHART,
+          constants.JSON_RPC_RELAY_CHART,
+          '',
+          config.valuesArg,
+          config.context,
+        );
+
+        showVersionBanner(this.logger, config.releaseName, HEDERA_JSON_RPC_RELAY_VERSION);
+      },
+    };
+  }
+
+  private async checkChartIsInstalledTask(config: RelayDeployConfigClass | RelayUpgradeConfigClass): Promise<void> {
+    config.isChartInstalled = await this.chartManager.isChartInstalled(
+      config.namespace,
+      config.releaseName,
+      config.context,
+    );
   }
 
   private async deploy(argv: ArgvStruct): Promise<boolean> {
@@ -480,30 +508,11 @@ export class RelayCommand extends BaseCommand {
         {
           title: 'Check chart is installed',
           task: async ({config}): Promise<void> => {
-            config.isChartInstalled = await self.chartManager.isChartInstalled(
-              config.namespace,
-              config.releaseName,
-              config.context,
-            );
+            await this.checkChartIsInstalledTask(config);
           },
         },
         this.prepareChartValuesTask(),
-        {
-          title: 'Deploy JSON RPC Relay',
-          task: async ({config}): Promise<void> => {
-            await self.chartManager.upgrade(
-              config.namespace,
-              config.releaseName,
-              constants.JSON_RPC_RELAY_CHART,
-              constants.JSON_RPC_RELAY_CHART,
-              '',
-              config.valuesArg,
-              config.context,
-            );
-
-            showVersionBanner(self.logger, config.releaseName, HEDERA_JSON_RPC_RELAY_VERSION);
-          },
-        },
+        this.handleRelayChartTask(),
         this.checkRelayIsRunningTask(),
         this.checkRelayIsReadyTask(),
         this.addRelayComponent(),
@@ -604,35 +613,16 @@ export class RelayCommand extends BaseCommand {
         {
           title: 'Check chart is installed',
           task: async ({config}): Promise<void> => {
-            const isChartInstalled: boolean = await this.chartManager.isChartInstalled(
-              config.namespace,
-              config.releaseName,
-              config.context,
-            );
+            await this.checkChartIsInstalledTask(config);
 
-            if (!isChartInstalled) {
+            if (!config.isChartInstalled) {
               throw new SoloError('Relay is not deployed');
             }
           },
         },
         this.prepareChartValuesTask(),
-        {
-          title: 'Upgrade JSON RPC Relay',
-          task: async ({config}): Promise<void> => {
-            await this.chartManager.upgrade(
-              config.namespace,
-              config.releaseName,
-              constants.JSON_RPC_RELAY_CHART,
-              constants.JSON_RPC_RELAY_CHART,
-              '',
-              config.valuesArg,
-              config.context,
-            );
-
-            showVersionBanner(this.logger, config.releaseName, config.relayReleaseTag);
-            await helpers.sleep(Duration.ofSeconds(40)); // wait for the pod to destroy in case it was an upgrade
-          },
-        },
+        this.handleRelayChartTask(),
+        this.sleep('Wait after upgrade', Duration.ofSeconds(30)),
         this.checkRelayIsRunningTask(),
         this.checkRelayIsReadyTask(),
         this.enablePortForwardingTask(),
