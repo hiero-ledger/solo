@@ -129,7 +129,7 @@ tasks:
       - cmd: |
           # Solo node delete-execute
           {{ .SOLO_COMMAND }} node delete-execute --deployment {{ .SOLO_DEPLOYMENT }} --input-dir {{ .PREPARE_OUTPUT_DIR }} \
-          --dev 
+          --node-alias node1 --dev 
 
       - cmd: |
           # Mirror Node gRPC port forward
