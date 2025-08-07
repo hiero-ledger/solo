@@ -17,7 +17,7 @@ are available.
 `solo command --help` will return the help information for the specific command to show which options
 
 ```text
-solo account --help
+solo ledger account --help
 
 Manage Hedera accounts in solo network
 
@@ -44,7 +44,7 @@ Options:
 `solo command subcommand --help` will return the help information for the specific subcommand to show which options
 
 ```text
-solo account create --help
+solo ledger account create --help
 
 Creates a new account with a new key and stores the key in the Kubernetes secret
 s, if you supply no key one will be generated for you, otherwise you may supply

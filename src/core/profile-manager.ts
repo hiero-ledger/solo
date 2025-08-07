@@ -579,7 +579,7 @@ export class ProfileManager {
   }
 
   /**
-   * Prepare a values file for mirror-node Helm chart
+   * Prepare a values file for mirror node Helm chart
    * @param profileName - resource profile name
    * @returns the full path to the values file
    */

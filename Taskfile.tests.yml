@@ -82,7 +82,7 @@ tasks:
           --ignore 'test/e2e/commands/external-*.ts'
           --ignore 'test/e2e/commands/quick-start-single.test.ts'
           --ignore 'test/e2e/commands/separate-node-add.test.ts' 
-          --ignore 'test/e2e/commands/separate-node-delete.test.ts' 
+          --ignore 'test/e2e/commands/separate-node-destroy.test.ts' 
           --ignore 'test/e2e/commands/separate-node-update.test.ts' 
           --ignore 'test/e2e/commands/separate-node-upgrade.test.ts' 
         {{ .reporter_options_prefix }}-e2e-standard.xml --timeout 30000"
@@ -150,19 +150,19 @@ tasks:
         {{ .mocha_bin }} 'test/e2e/commands/separate-node-update.test.ts'
         {{ .reporter_options_prefix }}-e2e-node-update-separate.xml"
 
-  test-e2e-node-delete:
+  test-e2e-node-destroy:
     cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Delete Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-delete'
-        {{ .mocha_bin }} 'test/e2e/commands/node-delete.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-delete.xml"
+      - "{{ .test_prefix }}=\"Mocha E2E Node Destroy Tests\"
+        {{ .reporter_prefix }}='coverage/e2e-node-destroy'
+        {{ .mocha_bin }} 'test/e2e/commands/node-destroy.test.ts'
+        {{ .reporter_options_prefix }}-e2e-node-destroy.xml"
 
-  test-e2e-node-delete-separate:
+  test-e2e-node-destroy-separate:
     cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Delete - Separate commands Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-delete-separate'
-        {{ .mocha_bin }} 'test/e2e/commands/separate-node-delete.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-delete-separate.xml"
+      - "{{ .test_prefix }}=\"Mocha E2E Node Destroy - Separate commands Tests\"
+        {{ .reporter_prefix }}='coverage/e2e-node-destroy-separate'
+        {{ .mocha_bin }} 'test/e2e/commands/separate-node-destroy.test.ts'
+        {{ .reporter_options_prefix }}-e2e-node-destroy-separate.xml"
 
   test-e2e-node-upgrade:
     cmds:

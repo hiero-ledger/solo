@@ -16,7 +16,7 @@ More documentation can be found here:
 
 ### How can I avoid using genesis keys ?
 
-You can run `solo account init` anytime after `solo node start`
+You can run `solo ledger account init` anytime after `solo consensus node start`
 
 ### Where can I find the default account keys ?
 
@@ -28,7 +28,7 @@ Use the following command to get account balance and private key of the account 
 
 ```bash
 # get account info of 0.0.1007 and also show the private key
-solo account get --account-id 0.0.1007 --deployment solo-deployment  --private-key
+solo ledger account info --account-id 0.0.1007 --deployment solo-deployment  --private-key
 ```
 
 The output would be similar to the following:

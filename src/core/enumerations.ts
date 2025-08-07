@@ -39,6 +39,6 @@ export enum GrpcProxyTlsEnums {
 
 export enum NodeSubcommandType {
   ADD,
-  DELETE,
+  DESTROY,
   UPDATE,
 }

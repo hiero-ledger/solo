@@ -3,13 +3,14 @@
 import {BaseCommandTest} from './base-command-test.js';
 import {main} from '../../../../src/index.js';
 import {type BaseTestOptions} from './base-test-options.js';
+import {InitCommand} from '../../../../src/commands/init/init.js';
 
 export class InitTest extends BaseCommandTest {
   private static soloInitArgv(testName: string): string[] {
     const {newArgv, argvPushGlobalFlags} = InitTest;
 
     const argv: string[] = newArgv();
-    argv.push('init');
+    argv.push(InitCommand.INIT_COMMAND_NAME);
     argvPushGlobalFlags(argv, testName, true);
     return argv;
   }

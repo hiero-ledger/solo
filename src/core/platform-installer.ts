@@ -371,7 +371,7 @@ export class PlatformInstaller {
    * Copy configuration files to the network consensus node pod
    * @param stagingDirectory - staging directory path
    * @param podReference - pod reference
-   * @param isGenesis - true if this is `solo node setup` and we are at genesis
+   * @param isGenesis - true if this is `solo consensus node setup` and we are at genesis
    * @param context
    */
   private async copyConfigurationFiles(

@@ -52,7 +52,7 @@ describe('Lease', async () => {
       await lease.acquire();
       expect(await lease.isAcquired()).to.be.true;
 
-      await lease.release();
+      await lease?.release();
       expect(await lease.isAcquired()).to.be.false;
     });
 
@@ -82,7 +82,7 @@ describe('Lease', async () => {
       expect(await lease.isAcquired()).to.be.true;
       expect(await lease.isExpired()).to.be.false;
 
-      await lease.release();
+      await lease?.release();
       expect(await lease.isAcquired()).to.be.false;
       expect(await lease.isExpired()).to.be.false;
     });
@@ -135,7 +135,7 @@ describe('Lease', async () => {
       expect(await lease.isAcquired()).to.be.false;
       expect(await lease.isExpired()).to.be.true;
 
-      await lease.release();
+      await lease?.release();
       expect(await lease.isAcquired()).to.be.false;
       expect(await lease.isExpired()).to.be.false;
     });
