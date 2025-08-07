@@ -1,0 +1,98 @@
+version: 3
+vars:
+  NODE_IDENTIFIERS: "node1,node2"
+  SOLO_NETWORK_SIZE: "2"
+  DEPLOYMENT: "node-add-deployment"
+  NAMESPACE: "node-add-namespace"
+  CLUSTER_NAME: "node-add-cluster"
+  CONTEXT: "kind-node-add-cluster"
+  CLUSTER_REFERENCE: "node-add-cluster-reference"
+  CLUSTER_SETUP_NAMESPACE: "solo-setup"
+  CN_LOCAL_BUILD_PATH: "../hiero-consensus-node/hedera-node/data"
+  LOCAL_BUILD_FLAG: "--local-build-path {{.CN_LOCAL_BUILD_PATH}}"
+  CN_VERSION: "v0.64.2"
+tasks:
+  default:
+    desc: Run a full standalone Solo network with block node, mirror node, and relay
+    cmds:
+      - name: "Install Solo CLI"
+        cmd: npm i @hashgraph/solo
+
+      - name: "Create Kind cluster"
+        cmd: kind create cluster -n {{ .CLUSTER_NAME }}
+
+      - name: "Wait for control plane"
+        cmd: sleep 10 # wait for control plane to come up
+
+      - name: "Set kubectl context"
+        cmd: kubectl config set-context {{ .CONTEXT }}
+
+      - name: "Solo init"
+        cmd: npx solo init
+
+      - name: "Solo cluster-ref connect"
+        cmd: npx solo cluster-ref connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
+
+      - name: "Solo deployment create"
+        cmd: npx solo deployment create --deployment {{ .DEPLOYMENT }} --namespace {{ .NAMESPACE }}
+
+      - name: "Solo deployment add-cluster"
+        cmd: |
+          solo deployment add-cluster --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
+
+      - name: "Solo cluster-ref setup"
+        cmd: npx solo cluster-ref setup --cluster-ref {{ .CLUSTER_REFERENCE }}
+
+      - name: "Solo node keys"
+        cmd: |
+          solo node keys --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
+          --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      - name: "Solo network deploy"
+        cmd: |
+          solo network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
+          --values-file {{ .USER_WORKING_DIR }}/init-containers-values.yaml \
+          --settings-txt {{ .USER_WORKING_DIR }}/settings.txt \
+          --log4j2-xml {{ .USER_WORKING_DIR }}/log4j2.xml \
+          --application-properties {{ .USER_WORKING_DIR }}/application.properties
+
+      - name: "Solo node setup"
+        cmd: npx solo node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
+
+      - name: "Solo node start"
+        cmd: npx solo node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      - name: "Solo mirror-node deploy"
+        cmd: npx solo mirror-node deploy --deployment {{ .DEPLOYMENT }} --pinger --enable-ingress
+
+      - name: "Solo relay deploy"
+        cmd: npx solo relay deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      - name: "Solo explorer deploy"
+        cmd: |
+          solo explorer deploy --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          --enable-explorer-tls --tls-cluster-issuer-type acme-staging \
+          --enable-ingress \
+          -n {{ .EXPLORER_NAME_SPACE }} --deployment {{ .EXPLORER_DEPLOYMENT }} \
+          --cluster-ref {{ .CLUSTER_REFERENCE }}
+  destroy:
+    desc: Destroy the Solo network with block node
+    cmds:
+      - name: "Solo node stop"
+        cmd: npx solo node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      - name: "Solo mirror-node destroy"
+        cmd: npx solo mirror-node destroy --deployment {{ .DEPLOYMENT }} --force
+
+      - name: "Solo relay destroy"
+        cmd: npx solo relay destroy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      - name: "Solo explorer destroy"
+        cmd: npx solo explorer destroy --deployment {{ .DEPLOYMENT }}
+
+      - name: "Solo network destroy"
+        cmd: npx solo network destroy --deployment {{ .DEPLOYMENT }} --force
+
+      - name: "Delete Kind cluster"
+        cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
