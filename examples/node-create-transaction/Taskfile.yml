@@ -34,9 +34,15 @@ tasks:
           kind create cluster -n {{ .SOLO_CLUSTER_NAME }}
 
       - cmd: |
-          # TODO: check solo_command, build or install
-          # Build Solo
-          task build
+          # Install Solo
+          if [[ "{{ .SOLO_COMMAND }}" == "solo" ]];then
+            npm install -g @hashgraph/solo
+            solo --version
+            which solo
+          else
+            task build
+            npm run solo -- --version
+          fi
 
       - cmd: |
           # Solo init
