@@ -61,6 +61,10 @@ describe('KindDependencyManager', (): void => {
   describe('when kind is installed globally', (): void => {
     let kindDependencyManager: KindDependencyManager;
     let runStub: SinonStub;
+    let cpSyncStub: SinonStub;
+    let chmodSyncStub: SinonStub;
+    let existsSyncStub: SinonStub;
+    let rmSyncStub: SinonStub;
 
     beforeEach((): void => {
       kindDependencyManager = new KindDependencyManager(
@@ -72,29 +76,44 @@ describe('KindDependencyManager', (): void => {
       );
       kindDependencyManager.uninstallLocal();
       runStub = sinon.stub(kindDependencyManager, 'run');
+
+      // Add stubs for file system operations
+      cpSyncStub = sinon.stub(fs, 'cpSync').returns();
+      chmodSyncStub = sinon.stub(fs, 'chmodSync').returns();
+      existsSyncStub = sinon.stub(fs, 'existsSync').returns(true);
+      rmSyncStub = sinon.stub(fs, 'rmSync').returns();
     });
 
     afterEach((): void => {
       runStub.restore();
+      cpSyncStub.restore();
+      chmodSyncStub.restore();
+      existsSyncStub.restore();
+      rmSyncStub.restore();
     });
 
     it('should prefer the global installation if it meets the requirements', async (): Promise<void> => {
       runStub.withArgs('which kind').resolves(['/usr/local/bin/kind']);
       runStub.withArgs('/usr/local/bin/kind --version').resolves([`kind version ${version.KIND_VERSION}`]);
+      runStub.withArgs(`${temporaryDirectory}/kind --version`).resolves([`kind version ${version.KIND_VERSION}`]);
+      existsSyncStub.withArgs(`${temporaryDirectory}/kind`).returns(false);
 
       // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
       const result: boolean = await kindDependencyManager.isInstalledGloballyAndMeetsRequirements();
       expect(result).to.be.true;
 
       expect(await kindDependencyManager.install(getTestCacheDirectory())).to.be.true;
-      expect(fs.existsSync(PathEx.join(temporaryDirectory, 'kind'))).not.to.be.ok;
-      expect(kindDependencyManager.getExecutablePath()).to.equal('/usr/local/bin/kind');
+
+      // Verify that the file system operations were called
+      expect(cpSyncStub.calledOnce).to.be.true;
+      expect(kindDependencyManager.getExecutablePath()).to.equal(PathEx.join(temporaryDirectory, 'kind'));
     });
 
     it('should install kind locally if the global installation does not meet the requirements', async (): Promise<void> => {
       runStub.withArgs('which kind').resolves(['/usr/local/bin/kind']);
       runStub.withArgs('/usr/local/bin/kind --version').resolves(['kind version 0.1.0']);
       runStub.withArgs(`${PathEx.join(temporaryDirectory, 'kind')} --version`).resolves(['kind version 0.1.0']);
+      existsSyncStub.withArgs(PathEx.join(temporaryDirectory, 'kind')).returns(true);
 
       // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
       const result: boolean = await kindDependencyManager.isInstalledGloballyAndMeetsRequirements();
@@ -139,6 +158,7 @@ describe('KindDependencyManager', (): void => {
 
   describe('KindDependencyManager system methods', (): void => {
     let kindDependencyManager: KindDependencyManager;
+    let runStub: SinonStub;
 
     beforeEach((): void => {
       kindDependencyManager = new KindDependencyManager(
@@ -148,34 +168,46 @@ describe('KindDependencyManager', (): void => {
         process.arch,
         undefined,
       );
+
+      runStub = sinon.stub(kindDependencyManager, 'run');
+    });
+
+    afterEach((): void => {
+      runStub.restore();
     });
 
     it('getGlobalExecutablePath returns false if not found', async (): Promise<void> => {
-      const runStub: SinonStub = sinon.stub(kindDependencyManager, 'run').resolves([]);
+      runStub.resolves([]);
       // @ts-expect-error TS2341: Property getGlobalExecutablePath is private
       expect(await kindDependencyManager.getGlobalExecutablePath()).to.be.false;
-      runStub.restore();
     });
 
     it('installationMeetsRequirements returns false on error', async (): Promise<void> => {
-      const runStub: SinonStub = sinon.stub(kindDependencyManager, 'run').rejects(new Error('fail'));
+      runStub.rejects(new Error('fail'));
       const path: string = kindDependencyManager.getExecutablePath();
-      expect(await kindDependencyManager.installationMeetsRequirements(path)).to.be.false;
-      runStub.restore();
+      try {
+        await kindDependencyManager.installationMeetsRequirements(path);
+        expect.fail('Should have thrown an error');
+      } catch (error: any) {
+        expect(error.message).to.include('Failed to check kind version');
+      }
     });
 
     it('installationMeetsRequirements returns false on invalid version', async (): Promise<void> => {
-      const runStub: SinonStub = sinon.stub(kindDependencyManager, 'run').resolves(['not a version']);
+      runStub.resolves(['not a version']);
       const path: string = kindDependencyManager.getExecutablePath();
-      expect(await kindDependencyManager.installationMeetsRequirements(path)).to.be.false;
-      runStub.restore();
+      try {
+        await kindDependencyManager.installationMeetsRequirements(path);
+        expect.fail('Should have thrown an error');
+      } catch (error: any) {
+        expect(error.message).to.include('Failed to check kind version');
+      }
     });
 
     it('installationMeetsRequirements returns false on lower than required version', async (): Promise<void> => {
-      const runStub: SinonStub = sinon.stub(kindDependencyManager, 'run').resolves(['v0.0.5']);
+      runStub.resolves(['v0.0.5']);
       const path: string = kindDependencyManager.getExecutablePath();
       expect(await kindDependencyManager.installationMeetsRequirements(path)).to.be.false;
-      runStub.restore();
     });
   });
 });

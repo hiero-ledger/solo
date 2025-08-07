@@ -12,6 +12,7 @@ import {SoloError} from '../errors/solo-error.js';
 
 const KUBECTL_RELEASE_BASE_URL: string = 'https://dl.k8s.io/release';
 const KUBECTL_ARTIFACT_TEMPLATE: string = '%s/bin/%s/%s/kubectl';
+const KUBECTL_WINDOWS_ARTIFACT_TEMPLATE: string = '%s/bin/%s/%s/kubectl.exe';
 
 @injectable()
 export class KubectlDependencyManager extends BaseDependencyManager {
@@ -49,15 +50,26 @@ export class KubectlDependencyManager extends BaseDependencyManager {
    * Get the Kubectl artifact name based on version, OS, and architecture
    */
   protected getArtifactName(): string {
-    return util.format(KUBECTL_ARTIFACT_TEMPLATE, this.getRequiredVersion(), this.osPlatform, this.osArch);
+    return util.format(
+      this.osPlatform === constants.OS_WINDOWS ? KUBECTL_WINDOWS_ARTIFACT_TEMPLATE : KUBECTL_ARTIFACT_TEMPLATE,
+      this.getRequiredVersion(),
+      this.osPlatform,
+      this.osArch,
+    );
   }
 
   public async getVersion(executablePath: string): Promise<string> {
     try {
       const output: string[] = await this.run(`${executablePath} version --client`);
       if (output.length > 0) {
-        const match: RegExpMatchArray | null = output[0].trim().match(/(\d+\.\d+\.\d+)/);
-        return match[1];
+        for (const line of output) {
+          if (line.trim().startsWith('Client Version')) {
+            const match: RegExpMatchArray | null = line.trim().match(/(\d+\.\d+\.\d+)/);
+            if (match) {
+              return match[1];
+            }
+          }
+        }
       }
     } catch (error: any) {
       throw new SoloError('Failed to check kubectl version', error);

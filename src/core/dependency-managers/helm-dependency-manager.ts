@@ -77,7 +77,11 @@ export class HelmDependencyManager extends BaseDependencyManager {
     temporaryDirectory: string,
   ): Promise<string> {
     // Extract the archive
-    this.zippy!.untar(packageFilePath, temporaryDirectory);
+    if (this.osPlatform === constants.OS_WINDOWS) {
+      this.zippy!.unzip(packageFilePath, temporaryDirectory);
+    } else {
+      this.zippy!.untar(packageFilePath, temporaryDirectory);
+    }
 
     // Find the Helm executable inside the extracted directory
     const helmExecutablePath: string = path.join(
