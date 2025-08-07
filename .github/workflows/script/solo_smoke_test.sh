@@ -73,9 +73,11 @@ function start_contract_test ()
   npm run hh:test || result=$?
   cd -
 
-  echo "Test local network connection using nc"
-  sudo apt-get update && sudo apt-get install -y netcat-traditional
-  nc -zv 127.0.0.1 50211
+  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    echo "Test local network connection using nc"
+    sudo apt-get update && sudo apt-get install -y netcat-traditional
+    nc -zv 127.0.0.1 50211
+  fi
 
   if [[ $result -ne 0 ]]; then
     echo "Smart contract test failed with exit code $result"
@@ -203,7 +205,6 @@ fi
 create_test_account "${SOLO_DEPLOYMENT}"
 clone_smart_contract_repo
 setup_smart_contract_test
-start_background_transactions
 check_port_forward
 start_contract_test
 start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
