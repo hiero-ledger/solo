@@ -45,9 +45,7 @@ export APPLICATION_PROPERTIES=./application.properties
 #export APPLICATION_PROPERTIES_FLAG="--application-properties ${APPLICATION_PROPERTIES}"
 
 # just needs to be approximate, if it is main, you can use the next release that it will probably be, this is for decision tree logic
-#export CN_VERSION=v0.64.2-rc1
-export CN_VERSION=v0.63.9
-#export CN_VERSION=v0.62.6
+export CN_VERSION=v0.64.2-rc1
 
 # the directory to use for Solo to write out the file with the values that are required for the add/update/delete-execute
 #  and possibly your SDK calls that replaces *-submit-transaction
