@@ -1,4 +1,4 @@
-import {AccountId, Client, Logger, LogLevel, NodeDeleteTransaction, PrivateKey} from '@hashgraph/sdk';
+import {AccountId, Client, Logger, LogLevel, Long, NodeDeleteTransaction, PrivateKey} from '@hashgraph/sdk';
 import {readFileSync} from 'node:fs';
 
 const TREASURY_ACCOUNT_ID = '0.0.2';
@@ -49,7 +49,7 @@ function prepareOutputParser(prepareOutput) {
   const transformedPrepareOutput = {};
   transformedPrepareOutput.adminKey = PrivateKey.fromStringED25519(prepareOutput.adminKey);
   transformedPrepareOutput.existingNodeAliases = prepareOutput.existingNodeAliases;
-  transformedPrepareOutput.allNodeAliases = [...prepareOutput.existingNodeAliases, prepareOutput.newNode.name];
+  transformedPrepareOutput.allNodeAliases = prepareOutput.existingNodeAliases;
 
   const fieldsToImport = ['upgradeZipHash'];
 
