@@ -72,13 +72,7 @@ describe('HelmDependencyManager', () => {
     let runStub: SinonStub;
 
     beforeEach(() => {
-      helmDependencyManager = new HelmDependencyManager(
-        undefined,
-        undefined,
-        temporaryDirectory,
-        process.platform,
-        process.arch,
-      );
+      helmDependencyManager = new HelmDependencyManager(undefined, undefined, temporaryDirectory, process.platform, process.arch);
       helmDependencyManager.uninstall();
       runStub = sinon.stub(helmDependencyManager, 'run');
     });
