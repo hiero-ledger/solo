@@ -109,8 +109,8 @@ tasks:
 
       - cmd: |
           # Solo node delete-prepare
-          {{ .SOLO_COMMAND }} node delete-prepare --deployment {{ .SOLO_DEPLOYMENT }} --node-alias node1 \ 
-          --release-tag {{ .CN_VERSION }} {{ .LOCAL_BUILD_FLAG }} --output-dir {{ .PREPARE_OUTPUT_DIR }} --dev 
+          {{ .SOLO_COMMAND }} node delete-prepare --deployment {{ .SOLO_DEPLOYMENT }} --node-alias node1 \
+          --output-dir {{ .PREPARE_OUTPUT_DIR }} --dev 
 
       - cmd: |
           # SDK NodeDeleteTransaction
