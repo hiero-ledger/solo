@@ -1,98 +1,160 @@
 version: 3
 vars:
-  NODE_IDENTIFIERS: "node1,node2"
-  SOLO_NETWORK_SIZE: "2"
-  DEPLOYMENT: "node-add-deployment"
-  NAMESPACE: "node-add-namespace"
-  CLUSTER_NAME: "node-add-cluster"
-  CONTEXT: "kind-node-add-cluster"
-  CLUSTER_REFERENCE: "node-add-cluster-reference"
-  CLUSTER_SETUP_NAMESPACE: "solo-setup"
+  SOLO_NAMESPACE: "solo-ns"
+  SOLO_DEPLOYMENT: "solo-deployment"
+  SOLO_CLUSTER_NAME: "solo-cluster"
+  SOLO_CLUSTER_REF: "solo-cluster-reference"
+  SOLO_CLUSTER_SETUP_NAMESPACE: "{{.SOLO_NAMESPACE}}"
   CN_LOCAL_BUILD_PATH: "../hiero-consensus-node/hedera-node/data"
   LOCAL_BUILD_FLAG: "--local-build-path {{.CN_LOCAL_BUILD_PATH}}"
   CN_VERSION: "v0.64.2"
+  TEMPORARY_DIR: "/tmp/solo-deployment"
+  PREPARE_OUTPUT_DIR: "{{ .TEMPORARY_DIR }}/prepare-output"
+  APPLICATION_PROPERTIES: "{{ .TEMPORARY_DIR }}/application.properties"
+  APPLICATION_PROPERTIES_FLAG: "--application-properties {{.APPLICATION_PROPERTIES}}"
+  SOLO_COMMAND: "npm run solo --" # use this if running with solo source repository
+  # SOLO_COMMAND: "solo" # use this if running with installed version of Solo
 tasks:
   default:
-    desc: Run a full standalone Solo network with block node, mirror node, and relay
+    desc: Run a full standalone Solo network with block node, mirror node, relay and prepare for node operations
+    dir: ../..
     cmds:
-      - name: "Install Solo CLI"
-        cmd: npm i @hashgraph/solo
+      - cmd: |
+          # Clean up any existing Kind clusters
+          for cluster in $(kind get clusters); do
+            kind delete cluster -n $cluster
+          done
 
-      - name: "Create Kind cluster"
-        cmd: kind create cluster -n {{ .CLUSTER_NAME }}
+      - cmd: |
+          # Clean up Solo data
+          rm -Rf ~/.solo
 
-      - name: "Wait for control plane"
-        cmd: sleep 10 # wait for control plane to come up
+      - cmd: |
+          # Create Kind cluster
+          kind create cluster -n {{ .SOLO_CLUSTER_NAME }}
 
-      - name: "Set kubectl context"
-        cmd: kubectl config set-context {{ .CONTEXT }}
+      - cmd: |
+          # TODO: check solo_command, build or install
+          # Build Solo
+          task build
 
-      - name: "Solo init"
-        cmd: npx solo init
+      - cmd: |
+          # Solo init
+          {{ .SOLO_COMMAND }} init --dev
 
-      - name: "Solo cluster-ref connect"
-        cmd: npx solo cluster-ref connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
+      - cmd: |
+          # Solo cluster-ref connect
+          {{ .SOLO_COMMAND }} cluster-ref connect --cluster-ref {{ .SOLO_CLUSTER_REF }} --context kind-{{.SOLO_CLUSTER_NAME}} --dev
 
-      - name: "Solo deployment create"
-        cmd: npx solo deployment create --deployment {{ .DEPLOYMENT }} --namespace {{ .NAMESPACE }}
+      - cmd: |
+          # Solo deployment create
+          {{ .SOLO_COMMAND }} deployment create -n {{ .SOLO_NAMESPACE }} --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
-      - name: "Solo deployment add-cluster"
-        cmd: |
-          solo deployment add-cluster --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
-          --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
+      - cmd: |
+          # Solo deployment add-cluster
+          {{ .SOLO_COMMAND }} deployment add-cluster --deployment {{ .SOLO_DEPLOYMENT }} --cluster-ref {{ .SOLO_CLUSTER_REF }} \
+          --num-consensus-nodes 2 --dev
 
-      - name: "Solo cluster-ref setup"
-        cmd: npx solo cluster-ref setup --cluster-ref {{ .CLUSTER_REFERENCE }}
+      - cmd: |
+          # Create prepare output directory
+          mkdir -p {{.PREPARE_OUTPUT_DIR}}
 
-      - name: "Solo node keys"
-        cmd: |
-          solo node keys --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
-          --node-aliases {{ .NODE_IDENTIFIERS }}
+      - cmd: |
+          # Copy and update application.properties
+          cp resources/templates/application.properties {{ .APPLICATION_PROPERTIES }}
+          echo "contracts.evm.ethTransaction.zeroHapiFees.enabled=false" >> {{ .APPLICATION_PROPERTIES }}
 
-      - name: "Solo network deploy"
-        cmd: |
-          solo network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
-          --values-file {{ .USER_WORKING_DIR }}/init-containers-values.yaml \
-          --settings-txt {{ .USER_WORKING_DIR }}/settings.txt \
-          --log4j2-xml {{ .USER_WORKING_DIR }}/log4j2.xml \
-          --application-properties {{ .USER_WORKING_DIR }}/application.properties
+      - cmd: |
+          # Solo node keys
+          {{ .SOLO_COMMAND }} node keys --gossip-keys --tls-keys --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
-      - name: "Solo node setup"
-        cmd: npx solo node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
+      - cmd: |
+          # Solo cluster-ref setup
+          {{ .SOLO_COMMAND }} cluster-ref setup -s {{ .SOLO_CLUSTER_SETUP_NAMESPACE }} --dev
 
-      - name: "Solo node start"
-        cmd: npx solo node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      - cmd: |
+          # Solo network deploy
+          {{ .SOLO_COMMAND }} network deploy --deployment {{ .SOLO_DEPLOYMENT }} --release-tag {{ .CN_VERSION }} \
+          --pvcs {{.APPLICATION_PROPERTIES_FLAG}} --dev
 
-      - name: "Solo mirror-node deploy"
-        cmd: npx solo mirror-node deploy --deployment {{ .DEPLOYMENT }} --pinger --enable-ingress
+      - cmd: |
+          # Solo node setup
+          {{ .SOLO_COMMAND }} node setup --deployment {{ .SOLO_DEPLOYMENT }} --release-tag {{ .CN_VERSION }} \
+          {{.LOCAL_BUILD_FLAG}} --dev
 
-      - name: "Solo relay deploy"
-        cmd: npx solo relay deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      - cmd: |
+          # Solo node start
+          {{ .SOLO_COMMAND }} node start --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
-      - name: "Solo explorer deploy"
-        cmd: |
-          solo explorer deploy --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
-          --enable-explorer-tls --tls-cluster-issuer-type acme-staging \
-          --enable-ingress \
-          -n {{ .EXPLORER_NAME_SPACE }} --deployment {{ .EXPLORER_DEPLOYMENT }} \
-          --cluster-ref {{ .CLUSTER_REFERENCE }}
+      - cmd: |
+          # Solo mirror-node deploy
+          {{ .SOLO_COMMAND }} mirror-node deploy --deployment {{ .SOLO_DEPLOYMENT }} \
+          --cluster-ref {{ .SOLO_CLUSTER_REF }} --enable-ingress --dev
+
+      - cmd: |
+          # Solo explorer deploy
+          {{ .SOLO_COMMAND }} explorer deploy --deployment {{ .SOLO_DEPLOYMENT }} --cluster-ref {{ .SOLO_CLUSTER_REF }} \
+          --dev
+
+      - cmd: |
+          # Solo relay deploy
+          {{ .SOLO_COMMAND }} relay deploy --node-aliases node1 --deployment {{ .SOLO_DEPLOYMENT }} \
+          --cluster-ref {{ .SOLO_CLUSTER_REF }} --dev
+
+      - cmd: |
+          # Solo node add-prepare
+          {{ .SOLO_COMMAND }} node add-prepare --deployment {{ .SOLO_DEPLOYMENT }} --gossip-keys true --tls-keys true \
+          --release-tag {{ .CN_VERSION }} --output-dir {{ .PREPARE_OUTPUT_DIR }} --pvcs --dev
+
+      - cmd: |
+          # Solo node add-submit-transactions
+          {{ .SOLO_COMMAND }} node add-submit-transactions --deployment {{ .SOLO_DEPLOYMENT }} \
+          --input-dir {{ .PREPARE_OUTPUT_DIR }} --pvcs --dev
+
+      - cmd: |
+          # Solo node add-execute
+          {{ .SOLO_COMMAND }} node add-execute --deployment {{ .SOLO_DEPLOYMENT }} --input-dir {{ .PREPARE_OUTPUT_DIR }} \
+          --pvcs {{ .LOCAL_BUILD_FLAG }} --dev
+
+      - cmd: |
+          # Mirror Node gRPC port forward
+          /bin/bash -c "nohup kubectl port-forward svc/mirror-grpc -n {{ .SOLO_NAMESPACE }} 5600:5600 > /dev/null 2>&1 &"
+
+      - cmd: |
+          # Mirror Node REST API port forward
+          /bin/bash -c "nohup kubectl port-forward svc/mirror-rest -n {{ .SOLO_NAMESPACE }} 5551:80 > /dev/null 2>&1 &"
+
+      - cmd: |
+          # Mirror Node REST Java API port forward
+          /bin/bash -c "nohup kubectl port-forward svc/mirror-restjava -n {{ .SOLO_NAMESPACE }} 8084:80 > /dev/null 2>&1 &"
+
+      - cmd: |
+          # Show active port forwards
+          ps -ef | grep port-forward | grep -v grep
+
   destroy:
     desc: Destroy the Solo network with block node
     cmds:
-      - name: "Solo node stop"
-        cmd: npx solo node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      - cmd: |
+          # Solo node stop
+          {{ .SOLO_COMMAND }} node stop --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
-      - name: "Solo mirror-node destroy"
-        cmd: npx solo mirror-node destroy --deployment {{ .DEPLOYMENT }} --force
+      - cmd: |
+          # Solo mirror-node destroy
+          {{ .SOLO_COMMAND }} mirror-node destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev
 
-      - name: "Solo relay destroy"
-        cmd: npx solo relay destroy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      - cmd: |
+          # Solo relay destroy
+          {{ .SOLO_COMMAND }} relay destroy --deployment {{ .SOLO_DEPLOYMENT }} --node-aliases node1 --dev
 
-      - name: "Solo explorer destroy"
-        cmd: npx solo explorer destroy --deployment {{ .DEPLOYMENT }}
+      - cmd: |
+          # Solo explorer destroy
+          {{ .SOLO_COMMAND }} explorer destroy --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
-      - name: "Solo network destroy"
-        cmd: npx solo network destroy --deployment {{ .DEPLOYMENT }} --force
+      - cmd: |
+          # Solo network destroy
+          {{ .SOLO_COMMAND }} network destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev
 
-      - name: "Delete Kind cluster"
-        cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
+      - cmd: |
+          # Delete Kind cluster
+          kind delete cluster -n {{ .SOLO_CLUSTER_NAME }}
