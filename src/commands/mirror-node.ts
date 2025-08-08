@@ -125,12 +125,10 @@ export class MirrorNodeCommand extends BaseCommand {
   private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
 
   public static readonly DEPLOY_FLAGS_LIST = {
-    required: [],
+    required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.cacheDir,
       flags.chartDirectory,
-      flags.clusterRef,
-      flags.deployment,
       flags.enableIngress,
       flags.ingressControllerValueFile,
       flags.mirrorStaticIp,
@@ -161,8 +159,8 @@ export class MirrorNodeCommand extends BaseCommand {
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.deployment, flags.devMode],
+    required: [flags.deployment],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.devMode],
   };
 
   private async prepareValuesArg(config: MirrorNodeDeployConfigClass): Promise<string> {
@@ -1021,9 +1019,9 @@ export class MirrorNodeCommand extends BaseCommand {
           .command({
             command: 'destroy',
             desc: 'Destroy mirror-node components and database',
-            builder: y => {
-              flags.setOptionalCommandFlags(y, ...MirrorNodeCommand.DESTROY_FLAGS_LIST.optional);
+            builder: (y: AnyYargs) => {
               flags.setRequiredCommandFlags(y, ...MirrorNodeCommand.DESTROY_FLAGS_LIST.required);
+              flags.setOptionalCommandFlags(y, ...MirrorNodeCommand.DESTROY_FLAGS_LIST.optional);
             },
             handler: async argv => {
               self.logger.info("==== Running 'mirror-node destroy' ===");
