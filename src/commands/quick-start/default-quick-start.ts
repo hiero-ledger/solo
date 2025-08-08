@@ -80,7 +80,9 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
       flags.context,
       flags.deployment,
       flags.namespace,
-      // flags.clusterSetupNamespace,
+      flags.quiet,
+      flags.force,
+      flags.devMode,
     ],
   };
 
