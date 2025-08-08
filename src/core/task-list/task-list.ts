@@ -13,7 +13,7 @@ import {
 } from 'listr2';
 import {type QuickStartSingleDeployContext} from '../../commands/quick-start/quick-start-single-deploy-context.js';
 import {type TaskListWrapper} from './task-list-wrapper.js';
-import {QuickStartSingleDestroyContext} from '../../commands/quick-start/quick-start-single-destroy-context.js';
+import {type QuickStartSingleDestroyContext} from '../../commands/quick-start/quick-start-single-destroy-context.js';
 
 export type TaskNodeType = {
   taskListWrapper: TaskListWrapper;
