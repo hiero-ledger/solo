@@ -191,7 +191,7 @@ export class K8ClientPod implements Pod {
       }
 
       // Find an available port starting from localPort with a 30-second timeout
-      availablePort = await findAvailablePort(localPort, 30_000, this.logger);
+      availablePort = await findAvailablePort(localPort, Duration.ofSeconds(30).toMillis(), this.logger);
 
       if (availablePort === localPort) {
         this.logger.showUser(chalk.yellow(`Using requested port ${localPort}`));
