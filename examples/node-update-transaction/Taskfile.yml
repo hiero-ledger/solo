@@ -120,7 +120,7 @@ tasks:
 
       - cmd: |
           # Prepare Upgrade
-          {{ .SOLO_COMMAND }} node prepare-upgrade --deployment {{ .SOLO_DEPLOYMENT }} --dev 
+          {{ .SOLO_COMMAND }} node prepare-upgrade --deployment {{ .SOLO_DEPLOYMENT }} --skip-node-alias node2 --dev 
 
       - cmd: |
           # Freeze Upgrade
