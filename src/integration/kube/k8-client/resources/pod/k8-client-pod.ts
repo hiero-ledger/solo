@@ -177,7 +177,7 @@ export class K8ClientPod implements Pod {
             throw new SoloError(`Failed to extract port: lastElement is undefined in command output: ${result[0]}`);
           }
           const extractedString: string = lastElement.split(':')[0];
-          this.logger.info(`extractedString = ${extractedString}`);
+          this.logger.debug(`extractedString = ${extractedString}`);
           const parsedPort: number = Number.parseInt(extractedString, 10);
           if (Number.isNaN(parsedPort) || parsedPort <= 0 || parsedPort > 65_535) {
             throw new SoloError(`Invalid port extracted: ${extractedString}.`);
