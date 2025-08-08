@@ -873,7 +873,7 @@ export class MirrorNodeCommand extends BaseCommand {
             self.configManager.update(argv);
             const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
             const clusterReference: ClusterReferenceName =
-              this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
+              this.configManager.getFlag(flags.clusterRef) ?? self.remoteConfig.getClusterRefs().keys().next().value;
 
             const clusterContext = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
 
