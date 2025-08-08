@@ -9,13 +9,15 @@ import {type DeploymentStateSchema} from '../../../../data/schema/model/remote/d
 export interface ComponentsDataWrapperApi {
   state: DeploymentStateSchema;
 
-  addNewComponent(component: BaseStateSchema, type: ComponentTypes): void;
+  addNewComponent(component: BaseStateSchema, type: ComponentTypes, isReplace?: boolean): void;
 
   changeNodePhase(componentId: ComponentId, phase: DeploymentPhase): void;
 
   removeComponent(componentId: ComponentId, type: ComponentTypes): void;
 
   getComponent<T extends BaseStateSchema>(type: ComponentTypes, componentId: ComponentId): T;
+
+  getComponentByType<T extends BaseStateSchema>(type: ComponentTypes): T[];
 
   getComponentsByClusterReference<T extends BaseStateSchema>(
     type: ComponentTypes,

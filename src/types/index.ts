@@ -124,6 +124,11 @@ export interface GossipEndpoint {
   port: number;
 }
 
+export interface portForwardConfig {
+  localPort: number;
+  podPort: number;
+}
+
 export interface CommandDefinition {
   command: string;
   desc: string;

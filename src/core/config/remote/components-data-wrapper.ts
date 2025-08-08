@@ -15,7 +15,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   /* -------- Modifiers -------- */
 
   /** Used to add new component to their respective group. */
-  public addNewComponent(component: BaseStateSchema, type: ComponentTypes): void {
+  public addNewComponent(component: BaseStateSchema, type: ComponentTypes, isReplace?: boolean): void {
     const componentId: ComponentId = component.metadata.id;
 
     if (typeof componentId !== 'number' || componentId < 0) {
@@ -27,7 +27,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     }
 
     const addComponentCallback: (components: BaseStateSchema[]) => void = (components): void => {
-      if (this.checkComponentExists(components, component)) {
+      if (this.checkComponentExists(components, component) && !isReplace) {
         throw new SoloError('Component exists', undefined, component);
       }
       components[componentId] = component;
@@ -82,6 +82,18 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     this.applyCallbackToComponentGroup(type, getComponentCallback, componentId);
 
     return component;
+  }
+
+  public getComponentByType<T extends BaseStateSchema>(type: ComponentTypes): T[] {
+    let components: T[] = [];
+
+    const getComponentsByTypeCallback: (comps: BaseStateSchema[]) => void = (comps): void => {
+      components = comps as T[];
+    };
+
+    this.applyCallbackToComponentGroup(type, getComponentsByTypeCallback);
+
+    return components;
   }
 
   public getComponentsByClusterReference<T extends BaseStateSchema>(
