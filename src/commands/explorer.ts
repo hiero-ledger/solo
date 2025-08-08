@@ -101,11 +101,10 @@ export class ExplorerCommand extends BaseCommand {
   private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
 
   private static readonly DEPLOY_FLAGS_LIST = {
-    required: [],
+    required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.cacheDir,
       flags.chartDirectory,
-      flags.clusterRef,
       flags.enableIngress,
       flags.ingressControllerValueFile,
       flags.enableExplorerTls,
@@ -114,7 +113,6 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerVersion,
       flags.mirrorNamespace,
       flags.namespace,
-      flags.deployment,
       flags.profileFile,
       flags.profileName,
       flags.quiet,
@@ -128,8 +126,8 @@ export class ExplorerCommand extends BaseCommand {
   };
 
   private static readonly DESTROY_FLAGS_LIST = {
-    required: [],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.deployment],
+    required: [flags.deployment],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet],
   };
 
   /**
