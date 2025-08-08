@@ -182,6 +182,12 @@ For a simple setup with a single node with a mirror node, explorer, and JSON RPC
 solo quick-start single deploy
 ```
 
+When you're finished, you can tear down your Solo network just as easily:
+
+```bash
+solo quick-start single destroy
+```
+
 ## Step-by-Step Solo Network Deployment
 
 If you have a more complex setup in mind, such as multiple nodes or specific configurations, follow these detailed steps to deploy your Solo network.
