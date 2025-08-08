@@ -51,17 +51,17 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         testLogger.info(`${testName}: starting ${testName} e2e test`);
       }).timeout(Duration.ofMinutes(5).toMillis());
 
+      after(async (): Promise<void> => {
+        testLogger.info(`${testName}: beginning ${testName}: destroy`);
+        await main(soloQuickStartDestroy(testName));
+        testLogger.info(`${testName}: finished ${testName}: destroy`);
+      }).timeout(Duration.ofMinutes(5).toMillis());
+
       // TODO pass in namespace for cache directory for proper destroy on restart
       it(`${testName}: deploy`, async (): Promise<void> => {
         testLogger.info(`${testName}: beginning ${testName}: deploy`);
         await main(soloQuickStartDeploy(testName));
         testLogger.info(`${testName}: finished ${testName}: deploy`);
-      }).timeout(Duration.ofMinutes(15).toMillis());
-
-      it(`${testName}: destroy`, async (): Promise<void> => {
-        testLogger.info(`${testName}: beginning ${testName}: destroy`);
-        await main(soloQuickStartDestroy(testName));
-        testLogger.info(`${testName}: finished ${testName}: destroy`);
       }).timeout(Duration.ofMinutes(15).toMillis());
 
       // TODO add verifications

@@ -156,14 +156,15 @@ export class ClusterCommandTasks {
     configInit: ConfigBuilder,
     loadRemoteConfig: boolean = false,
   ): SoloListrTask<AnyListrContext> {
+    const {required, optional} = argv;
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
-    const {required, optional} = argv;
+
     argv.flags = [...required, ...optional];
 
     return {
       title: 'Initialize',
-      task: async (context_, task): Promise<void> => {
+      task: async (context_, task) => {
         await self.localConfig.load();
 
         if (loadRemoteConfig) {

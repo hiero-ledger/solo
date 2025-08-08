@@ -146,8 +146,8 @@ export class ClusterCommandHandlers extends CommandHandler {
         argv,
         [
           this.tasks.initialize(argv, this.configs.resetConfigBuilder.bind(this.configs)),
-          // this.tasks.acquireNewLease(),
-          // this.tasks.uninstallClusterChart(argv),
+          this.tasks.acquireNewLease(),
+          this.tasks.uninstallClusterChart(argv),
         ],
         {
           concurrent: false,
