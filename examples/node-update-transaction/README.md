@@ -1,12 +1,12 @@
 # Node Update Transaction Example
 
-This example demonstrates how to use the node add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands against a network in order manually write a NodeUpdateTransaction.
+This example demonstrates how to use the node add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands against a network in order to manually write a NodeUpdateTransaction.
 
 ## What It Does
 
 * Stands up a network with two existing nodes
 * Runs `solo node update-prepare` to get artifacts needed for the SDK NodeUpdateTransaction
-* Runs a custom JavaScript file using the Hiero SDK JS code to run a NodeUpdateTransaction
+* Runs a JavaScript program using the Hiero SDK JS code to run a NodeUpdateTransaction
 * Runs `solo node prepare-upgrade` and `solo node freeze-upgrade` to put the network into a freeze state
 * Runs `solo node update-execute` to update network resources for the changes to the updated node, then restarts the network to come out of the freeze and leverage the changes
 * Contains the destroy commands to bring down the network if desired
