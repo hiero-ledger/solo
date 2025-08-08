@@ -10,6 +10,6 @@
 
 1. open a terminal and cd into the root of the solo repo directory
 2. run: `task default-with-mirror`
-3. run: `cd examples/sdk-network-connection`
+3. run: `cd examples/network-with-domain-names/sdk-network-connection`
 4. run: `npm install`
 5. run: `node solo-network-connection.js`
