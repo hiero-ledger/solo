@@ -80,7 +80,7 @@ tasks:
     cmds:
       - task: "build:typedoc"
       - task: "build:cli:help"
-#      - task: "build:guide"
+      - task: "build:guide"
       - task: "solo:version"
       - task: "npmjs:latest:solo:version"
       - task: "npmjs:list:solo:versions"
