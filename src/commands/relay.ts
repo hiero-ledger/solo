@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import * as helpers from '../core/helpers.js';
