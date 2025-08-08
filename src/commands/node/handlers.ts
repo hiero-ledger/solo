@@ -263,7 +263,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async freezeUpgrade(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.DEFAULT_FLAGS);
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.PREPARE_UPGRADE_FLAGS);
 
     await this.commandAction(
       argv,

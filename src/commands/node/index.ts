@@ -333,7 +333,7 @@ export class NodeCommand extends BaseCommand {
                 commandDef: self,
                 handler: 'freezeUpgrade',
               },
-              NodeFlags.DEFAULT_FLAGS,
+              NodeFlags.PREPARE_UPGRADE_FLAGS,
             ),
           )
 
