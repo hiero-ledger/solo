@@ -53,18 +53,21 @@ export class KindDependencyManager extends BaseDependencyManager {
   }
 
   public async getVersion(executablePath: string): Promise<string> {
-    try {
-      this.logger.info('Checking kind version');
-      this.logger.info('============================');
-      const output: string[] = await this.run(`${executablePath} --version`);
-      this.logger.info(output);
-      this.logger.info('============================');
-      if (output.length > 0) {
-        const match: RegExpMatchArray | null = output[0].trim().match(/(\d+\.\d+\.\d+)/);
-        return match[1];
+    const maxAttempts: number = 3;
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        this.logger.info('Checking kind version');
+        this.logger.info('============================');
+        const output: string[] = await this.run(`${executablePath} --version`);
+        this.logger.info('Checking kind version: ' + output);
+        this.logger.info('============================');
+        if (output.length > 0) {
+          const match: RegExpMatchArray | null = output[0].trim().match(/(\d+\.\d+\.\d+)/);
+          return match[1];
+        }
+      } catch (error: any) {
+        throw new SoloError('Failed to check kind version', error);
       }
-    } catch (error: any) {
-      throw new SoloError('Failed to check kind version', error);
     }
     throw new SoloError('Failed to check kind version');
   }
