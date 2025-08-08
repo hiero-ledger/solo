@@ -20,7 +20,7 @@ This example demonstrates how to use the node add-prepare/prepare-upgrade/freeze
    * Edit `Taskfile.yml` and comment out/uncomment depending on if you want to run Solo checked out of the repository or running Solo with an NPM install
      * `SOLO_COMMAND: "npm run solo --"`: use this if running with solo source repository
      * `SOLO_COMMAND: "solo"`: use this if running with installed version of Solo
-3. \*\*Provide your custom `application.properties` if desired:
+3. **Provide your custom `application.properties` if desired:**
    * The following code is provided as an example and can be modified:
      ```
          # Copy and update application.properties
