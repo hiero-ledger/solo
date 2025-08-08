@@ -54,7 +54,11 @@ export class KindDependencyManager extends BaseDependencyManager {
 
   public async getVersion(executablePath: string): Promise<string> {
     try {
+      this.logger.info('Checking kind version');
+      this.logger.info('============================');
       const output: string[] = await this.run(`${executablePath} --version`);
+      this.logger.info(output);
+      this.logger.info('============================');
       if (output.length > 0) {
         const match: RegExpMatchArray | null = output[0].trim().match(/(\d+\.\d+\.\d+)/);
         return match[1];
