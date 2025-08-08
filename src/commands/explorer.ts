@@ -129,7 +129,7 @@ export class ExplorerCommand extends BaseCommand {
 
   private static readonly DESTROY_FLAGS_LIST = {
     required: [],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.deployment],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.deployment, flags.devMode],
   };
 
   /**
@@ -346,7 +346,6 @@ export class ExplorerCommand extends BaseCommand {
           },
           skip: context_ => !context_.config.enableExplorerTls,
         },
-
         {
           title: 'Install explorer',
           task: async context_ => {

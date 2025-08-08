@@ -45,6 +45,8 @@ import {AccountId, HbarUnit} from '@hashgraph/sdk';
 import * as helpers from '../../core/helpers.js';
 import {Duration} from '../../core/time/duration.js';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
+import fs from 'node:fs';
+import {SOLO_HOME_DIR} from '../../core/constants.js';
 
 @injectable()
 export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
@@ -73,7 +75,14 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
 
   private static readonly SINGLE_DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.cacheDir, flags.clusterRef, flags.context, flags.deployment, flags.namespace],
+    optional: [
+      flags.cacheDir,
+      flags.clusterRef,
+      flags.context,
+      flags.deployment,
+      flags.namespace,
+      flags.clusterSetupNamespace,
+    ],
   };
 
   public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {
@@ -235,25 +244,20 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             argv.push('node', 'start', this.optionFromFlag(Flags.deployment), config.deployment);
             return this.argvPushGlobalFlags(argv);
           }),
-          this.invokeSoloCommand(
-            'solo mirror-node deploy',
-            MirrorNodeCommand.DEPLOY_COMMAND,
-
-            () => {
-              const argv: string[] = this.newArgv();
-              argv.push(
-                'mirror-node',
-                'deploy',
-                this.optionFromFlag(Flags.deployment),
-                config.deployment,
-                this.optionFromFlag(Flags.clusterRef),
-                config.clusterRef,
-                this.optionFromFlag(Flags.pinger),
-                this.optionFromFlag(Flags.enableIngress),
-              );
-              return this.argvPushGlobalFlags(argv, config.cacheDir);
-            },
-          ),
+          this.invokeSoloCommand('solo mirror-node deploy', MirrorNodeCommand.DEPLOY_COMMAND, () => {
+            const argv: string[] = this.newArgv();
+            argv.push(
+              'mirror-node',
+              'deploy',
+              this.optionFromFlag(Flags.deployment),
+              config.deployment,
+              this.optionFromFlag(Flags.clusterRef),
+              config.clusterRef,
+              this.optionFromFlag(Flags.pinger),
+              this.optionFromFlag(Flags.enableIngress),
+            );
+            return this.argvPushGlobalFlags(argv, config.cacheDir);
+          }),
           this.invokeSoloCommand('solo explorer deploy', ExplorerCommand.DEPLOY_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push(
@@ -512,10 +516,6 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
               config.context = this.localConfig.configuration.clusterRefs.get(config.clusterRef).toString();
             }
 
-            if (!config.context) {
-              config.context = this.remoteConfig.getClusterRefs().get(config.clusterRef);
-            }
-
             if (!config.deployment) {
               config.deployment = this.localConfig.configuration.deployments.get(0).name;
               this.configManager.setFlag(flags.deployment, config.deployment);
@@ -526,68 +526,84 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             }
           },
         },
-        this.invokeSoloCommand('solo mirror-node destroy', 'solo mirror-node destroy', (): string[] => {
+        // this.invokeSoloCommand('solo explorer destroy', 'explorer destroy', (): string[] => {
+        //   const argv: string[] = this.newArgv();
+        //   argv.push(
+        //     'explorer',
+        //     'destroy',
+        //     this.optionFromFlag(flags.clusterRef),
+        //     config.clusterRef,
+        //     this.optionFromFlag(flags.deployment),
+        //     config.deployment,
+        //     this.optionFromFlag(flags.quiet),
+        //     this.optionFromFlag(flags.force),
+        //   );
+        //   return this.argvPushGlobalFlags(argv);
+        // }),
+        // this.invokeSoloCommand('solo mirror-node destroy', 'mirror-node destroy', (): string[] => {
+        //   const argv: string[] = this.newArgv();
+        //   argv.push(
+        //     'mirror-node',
+        //     'destroy',
+        //     this.optionFromFlag(flags.clusterRef),
+        //     config.clusterRef,
+        //     this.optionFromFlag(flags.deployment),
+        //     config.deployment,
+        //     this.optionFromFlag(flags.quiet),
+        //     this.optionFromFlag(flags.force),
+        //     this.optionFromFlag(flags.devMode),
+        //   );
+        //   return this.argvPushGlobalFlags(argv);
+        // }),
+        // this.invokeSoloCommand('solo relay destroy', 'relay destroy', (): string[] => {
+        //   const argv: string[] = this.newArgv();
+        //   argv.push(
+        //     'relay',
+        //     'destroy',
+        //     this.optionFromFlag(flags.clusterRef),
+        //     config.clusterRef,
+        //     this.optionFromFlag(flags.deployment),
+        //     config.deployment,
+        //     this.optionFromFlag(flags.nodeAliasesUnparsed),
+        //     'node1',
+        //     this.optionFromFlag(flags.quiet),
+        //   );
+        //   return this.argvPushGlobalFlags(argv);
+        // }),
+        // this.invokeSoloCommand('solo network destroy', 'network destroy', (): string[] => {
+        //   const argv: string[] = this.newArgv();
+        //   argv.push(
+        //     'network',
+        //     'destroy',
+        //     this.optionFromFlag(flags.deployment),
+        //     config.deployment,
+        //     this.optionFromFlag(flags.quiet),
+        //     this.optionFromFlag(flags.force),
+        //     this.optionFromFlag(flags.deletePvcs),
+        //     this.optionFromFlag(flags.deleteSecrets),
+        //     this.optionFromFlag(flags.enableTimeout),
+        //   );
+        //   return this.argvPushGlobalFlags(argv);
+        // }),
+        this.invokeSoloCommand('solo cluster-ref reset', 'cluster-ref reset', (): string[] => {
           const argv: string[] = this.newArgv();
           argv.push(
-            'mirror-node',
-            'destroy',
+            'cluster-ref',
+            'reset',
             this.optionFromFlag(flags.clusterRef),
             config.clusterRef,
-            this.optionFromFlag(flags.deployment),
-            config.deployment,
             this.optionFromFlag(flags.quiet),
             this.optionFromFlag(flags.force),
-            this.optionFromFlag(flags.devMode),
-          );
-          return this.argvPushGlobalFlags(argv, config.cacheDir);
-        }),
-        this.invokeSoloCommand('solo explorer destroy', 'solo explorer destroy', (): string[] => {
-          const argv: string[] = this.newArgv();
-          argv.push(
-            'explorer',
-            'destroy',
-            this.optionFromFlag(flags.clusterRef),
-            config.clusterRef,
-            this.optionFromFlag(flags.deployment),
-            config.deployment,
-            this.optionFromFlag(flags.quiet),
-            this.optionFromFlag(flags.force),
-          );
-          return this.argvPushGlobalFlags(argv, config.cacheDir);
-        }),
-        this.invokeSoloCommand('solo relay destroy', 'solo relay destroy', (): string[] => {
-          const argv: string[] = this.newArgv();
-          argv.push(
-            'relay',
-            'destroy',
-            this.optionFromFlag(flags.clusterRef),
-            config.clusterRef,
-            this.optionFromFlag(flags.deployment),
-            config.deployment,
-            this.optionFromFlag(flags.nodeAliasesUnparsed),
-            'node1',
-            this.optionFromFlag(flags.quiet),
-          );
-          return this.argvPushGlobalFlags(argv, config.cacheDir);
-        }),
-        this.invokeSoloCommand('solo network destroy', 'solo network destroy', (): string[] => {
-          const argv: string[] = this.newArgv();
-          argv.push(
-            'network',
-            'destroy',
-            this.optionFromFlag(flags.deployment),
-            config.deployment,
-            this.optionFromFlag(flags.quiet),
-            this.optionFromFlag(flags.force),
-            this.optionFromFlag(flags.deletePvcs),
-            this.optionFromFlag(flags.deleteSecrets),
-            this.optionFromFlag(flags.enableTimeout),
           );
           return this.argvPushGlobalFlags(argv);
         }),
-        // TODO: Cluster ref reset
-        // TODO: delete cache folder
-        {title: 'Finish', task: (): void => {}},
+        {
+          title: 'Delete cache folder',
+          task: (): void => {
+            fs.rmSync(constants.SOLO_HOME_DIR, {recursive: true, force: true});
+          },
+        },
+        {title: 'Finish', task: async (): Promise<void> => console.log('Finish')},
       ],
       {
         concurrent: false,
@@ -598,7 +614,6 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     try {
       await tasks.run();
     } catch (error) {
-      console.log(error);
       throw new SoloError(`Error destroying Solo in quick-start mode: ${error.message}`, error);
     } finally {
       await this.taskList

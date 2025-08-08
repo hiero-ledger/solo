@@ -12,6 +12,8 @@ import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {type ClusterCommandConfigs} from './configs.js';
 import {type ArgvStruct} from '../../types/aliases.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {LeaseWrapper} from '../node/tasks.js';
+import {type LockManager} from '../../core/lock/lock-manager.js';
 
 @injectable()
 export class ClusterCommandHandlers extends CommandHandler {
@@ -19,12 +21,13 @@ export class ClusterCommandHandlers extends CommandHandler {
   public static readonly SETUP_COMMAND: string = 'cluster-ref setup';
 
   public constructor(
+    @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
     @inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
     @inject(InjectTokens.ClusterCommandConfigs) private readonly configs: ClusterCommandConfigs,
   ) {
     super();
-
+    this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.tasks = patchInject(tasks, InjectTokens.ClusterCommandTasks, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.configs = patchInject(configs, InjectTokens.ClusterCommandConfigs, this.constructor.name);
@@ -155,6 +158,7 @@ export class ClusterCommandHandlers extends CommandHandler {
         },
         'cluster reset',
         null,
+        'cluster-ref reset',
       );
     } catch (error) {
       throw new SoloError('Error on cluster reset', error);

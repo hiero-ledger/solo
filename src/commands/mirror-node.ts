@@ -162,7 +162,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.deployment],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.deployment, flags.devMode],
   };
 
   private async prepareValuesArg(config: MirrorNodeDeployConfigClass): Promise<string> {
@@ -934,6 +934,11 @@ export class MirrorNodeCommand extends BaseCommand {
         {
           title: 'Uninstall mirror ingress controller',
           task: async context_ => {
+            await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .ingressClasses()
+              .delete(constants.MIRROR_INGRESS_CLASS_NAME);
+
             await this.chartManager.uninstall(
               context_.config.namespace,
               constants.INGRESS_CONTROLLER_RELEASE_NAME,

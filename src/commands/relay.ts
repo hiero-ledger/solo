@@ -122,7 +122,14 @@ export class RelayCommand extends BaseCommand {
 
   private static readonly DESTROY_FLAGS_LIST = {
     required: [],
-    optional: [flags.chartDirectory, flags.nodeAliasesUnparsed, flags.clusterRef, flags.quiet, flags.deployment],
+    optional: [
+      flags.chartDirectory,
+      flags.nodeAliasesUnparsed,
+      flags.clusterRef,
+      flags.quiet,
+      flags.deployment,
+      flags.devMode,
+    ],
   };
 
   private async prepareValuesArgForRelay(
