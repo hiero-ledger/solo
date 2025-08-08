@@ -58,6 +58,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         testLogger.info(`${testName}: finished ${testName}: deploy`);
       }).timeout(Duration.ofMinutes(15).toMillis());
 
+      it(`${testName}: destroy`, async (): Promise<void> => {
+        testLogger.info(`${testName}: beginning ${testName}: destroy`);
+        await main(soloQuickStartDestroy(testName));
+        testLogger.info(`${testName}: finished ${testName}: destroy`);
+      }).timeout(Duration.ofMinutes(15).toMillis());
+
       // TODO add verifications
     });
   })
@@ -69,6 +75,15 @@ export function soloQuickStartDeploy(testName: string): string[] {
 
   const argv: string[] = newArgv();
   argv.push('quick-start', 'single', 'deploy');
+  argvPushGlobalFlags(argv, testName);
+  return argv;
+}
+
+export function soloQuickStartDestroy(testName: string): string[] {
+  const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+
+  const argv: string[] = newArgv();
+  argv.push('quick-start', 'single', 'destroy');
   argvPushGlobalFlags(argv, testName);
   return argv;
 }

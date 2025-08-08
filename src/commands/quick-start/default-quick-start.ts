@@ -46,7 +46,6 @@ import * as helpers from '../../core/helpers.js';
 import {Duration} from '../../core/time/duration.js';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import fs from 'node:fs';
-import {SOLO_HOME_DIR} from '../../core/constants.js';
 
 @injectable()
 export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
