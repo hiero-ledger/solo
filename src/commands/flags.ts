@@ -2641,6 +2641,7 @@ export class Flags {
     Flags.realm,
     Flags.shard,
     Flags.username,
+    Flags.skipNodeAlias,
   ];
 
   /** Resets the definition.disablePrompt for all flags */
