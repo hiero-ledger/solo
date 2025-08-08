@@ -320,7 +320,7 @@ export class NodeCommand extends BaseCommand {
                 commandDef: self,
                 handler: 'prepareUpgrade',
               },
-              NodeFlags.DEFAULT_FLAGS,
+              NodeFlags.PREPARE_UPGRADE_FLAGS,
             ),
           )
 
