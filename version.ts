@@ -15,7 +15,7 @@ import {SemVer} from 'semver';
 export const HELM_VERSION: string = 'v3.14.2';
 export const KIND_VERSION: string = 'v0.29.0';
 export const SOLO_CHART_VERSION: string = '0.54.5';
-export const HEDERA_PLATFORM_VERSION: string = process.env.CONSENSUS_NODE_VERSION || 'v0.64.2-rc1';
+export const HEDERA_PLATFORM_VERSION: string = process.env.CONSENSUS_NODE_VERSION || 'v0.64.2';
 export const MIRROR_NODE_VERSION: string = 'v0.134.0';
 export const EXPLORER_VERSION: string = '25.1.1';
 export const EXPLORER_OLD_VERSION_BEFORE_LABEL_CHANGE: string = '24.12.0';
