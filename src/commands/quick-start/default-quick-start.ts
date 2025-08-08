@@ -509,6 +509,10 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
 
             await this.localConfig.load();
 
+            if (!config.cacheDir) {
+              config.cacheDir = constants.SOLO_CACHE_DIR;
+            }
+
             if (!config.clusterRef) {
               config.clusterRef = this.localConfig.configuration.clusterRefs.keys().next().value;
             }
@@ -604,7 +608,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
         {
           title: 'Delete cache folder',
           task: async (): Promise<void> => {
-            fs.rmSync(constants.SOLO_HOME_DIR, {recursive: true, force: true});
+            fs.rmSync(config.cacheDir, {recursive: true, force: true});
           },
         },
         {title: 'Finish', task: async (): Promise<void> => {}},

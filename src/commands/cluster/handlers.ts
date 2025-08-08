@@ -146,7 +146,6 @@ export class ClusterCommandHandlers extends CommandHandler {
         argv,
         [
           this.tasks.initialize(argv, this.configs.resetConfigBuilder.bind(this.configs)),
-          this.tasks.acquireNewLease(),
           this.tasks.uninstallClusterChart(argv),
         ],
         {
@@ -160,6 +159,7 @@ export class ClusterCommandHandlers extends CommandHandler {
     } catch (error) {
       throw new SoloError('Error on cluster reset', error);
     }
+
     return true;
   }
 }

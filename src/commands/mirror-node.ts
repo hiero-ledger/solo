@@ -8,6 +8,7 @@ import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
 import {
   INGRESS_CONTROLLER_PREFIX,
+  MIRROR_INGRESS_CLASS_NAME,
   MIRROR_INGRESS_CONTROLLER,
   MIRROR_INGRESS_TLS_SECRET_NAME,
 } from '../core/constants.js';
@@ -935,6 +936,18 @@ export class MirrorNodeCommand extends BaseCommand {
               .getK8(context_.config.clusterContext)
               .ingressClasses()
               .delete(constants.MIRROR_INGRESS_CLASS_NAME);
+
+            if (
+              await this.k8Factory
+                .getK8(context_.config.clusterContext)
+                .configMaps()
+                .exists(context_.config.namespace, 'ingress-controller-leader-' + constants.MIRROR_INGRESS_CLASS_NAME)
+            ) {
+              await this.k8Factory
+                .getK8(context_.config.clusterContext)
+                .configMaps()
+                .delete(context_.config.namespace, 'ingress-controller-leader-' + constants.MIRROR_INGRESS_CLASS_NAME);
+            }
 
             await this.chartManager.uninstall(
               context_.config.namespace,
