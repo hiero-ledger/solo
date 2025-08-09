@@ -90,35 +90,35 @@ defaults:
     recordStreamUploader:
       resources:
         requests:
-          cpu: 100m
-          memory: 200Mi
+          cpu: 500m
+          memory: 375Mi
         limits:
-          cpu: 150m
-          memory: 400Mi
+          cpu: 1000m
+          memory: 750Mi
     eventStreamUploader:
       resources:
         requests:
-          cpu: 100m
-          memory: 200Mi
+          cpu: 500m
+          memory: 375Mi
         limits:
-          cpu: 150m
-          memory: 400Mi
+          cpu: 1000m
+          memory: 750Mi
     recordStreamSidecarUploader:
       resources:
         requests:
-          cpu: 100m
-          memory: 200Mi
+          cpu: 500m
+          memory: 375Mi
         limits:
-          cpu: 150m
-          memory: 400Mi
+          cpu: 1000m
+          memory: 750Mi
     blockstreamUploader:
       resources:
         requests:
-          cpu: 100m
-          memory: 200Mi
+          cpu: 1000m
+          memory: 375Mi
         limits:
-          cpu: 150m
-          memory: 400Mi
+          cpu: 2000m
+          memory: 750Mi
   root:
     resources:
       requests:
