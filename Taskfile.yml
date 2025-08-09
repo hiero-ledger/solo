@@ -3,6 +3,9 @@ includes:
   tests:
     taskfile: ./Taskfile.tests.yml
     flatten: true
+  docker:
+    taskfile: ./docker/Taskfile.yaml
+    flatten: true
 vars:
   cross_env: npx cross-env
   mocha_bin: npx mocha
