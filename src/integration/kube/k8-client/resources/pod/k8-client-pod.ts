@@ -160,7 +160,7 @@ export class K8ClientPod implements Pod {
             `Shell command execution failed: ${shellCommand.join(' ')}. Error: ${error instanceof Error ? error.message : String(error)}`,
           );
         }
-        this.logger.info(`ps -ef port-forward command result is ${result}`);
+        this.logger.debug(`ps -ef port-forward command result is ${result}`);
 
         // if length of result is 1 then could not find previous port forward running, then we can use next available port
         if (!result || result.length === 0) {

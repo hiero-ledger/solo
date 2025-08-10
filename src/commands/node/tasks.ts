@@ -129,7 +129,6 @@ import {SemVer, lt} from 'semver';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
 import {Version} from '../../business/utils/version.js';
-import {managePortForward} from '../../core/network/port-utilities.js';
 
 export type LeaseWrapper = {lease: Lock};
 
@@ -1605,7 +1604,7 @@ export class NodeCommandTasks {
           }
           const podReference: PodReference = pods[0].podReference;
           const nodeId: number = Templates.nodeIdFromNodeAlias(nodeAlias);
-          await managePortForward(
+          await this.remoteConfig.configuration.components.managePortForward(
             undefined,
             podReference,
             constants.GRPC_PORT, // Pod port

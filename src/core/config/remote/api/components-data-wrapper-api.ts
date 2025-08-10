@@ -27,4 +27,18 @@ export interface ComponentsDataWrapperApi {
   getComponentById<T extends BaseStateSchema>(type: ComponentTypes, id: number): T;
 
   getNewComponentId(componentType: ComponentTypes): number;
+
+  managePortForward(
+    clusterReference: ClusterReferenceName,
+    podReference: any, // Using 'any' here to avoid adding too many imports
+    podPort: number,
+    localPort: number,
+    k8Client: any, // Using 'any' here to avoid adding too many imports
+    logger: any, // Using 'any' here to avoid adding too many imports
+    componentType: ComponentTypes,
+    remoteConfig: any, // Using 'any' here to avoid adding too many imports
+    label: string,
+    reuse?: boolean,
+    nodeId?: number,
+  ): Promise<number>;
 }

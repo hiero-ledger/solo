@@ -8,6 +8,14 @@ import {type DeploymentPhase} from '../../../data/schema/model/remote/deployment
 import {type ClusterReferenceName, type ComponentId} from '../../../types/index.js';
 import {type ComponentsDataWrapperApi} from './api/components-data-wrapper-api.js';
 import {type DeploymentStateSchema} from '../../../data/schema/model/remote/deployment-state-schema.js';
+import {type PodReference} from '../../../integration/kube/resources/pod/pod-reference.js';
+import {type K8} from '../../../integration/kube/k8.js';
+import {type SoloLogger} from '../../logging/solo-logger.js';
+import {type RemoteConfigRuntimeStateApi} from '../../../business/runtime-state/api/remote-config-runtime-state-api.js';
+import * as constants from '../../constants.js';
+import semver from 'semver/preload.js';
+import {type SemVer} from 'semver';
+import {PORT_FORWARD_CONFIG_VERSION_CUTOFF} from '../../../../version.js';
 
 export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   public constructor(public state: DeploymentStateSchema) {}
@@ -202,5 +210,95 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     this.applyCallbackToComponentGroup(componentType, calculateNewComponentIndexCallback);
 
     return newComponentId;
+  }
+
+  /**
+   * Manages port forwarding for a component, checking if it's already enabled and persisting configuration
+   * @param clusterReference The cluster reference to forward to
+   * @param podReference The pod reference to forward to
+   * @param podPort The port on the pod to forward from
+   * @param localPort The local port to forward to (starting port if not available)
+   * @param k8Client The Kubernetes client to use for port forwarding
+   * @param logger Logger for messages
+   * @param componentType The component type for persistence
+   * @param label Label for the port forward
+   * @param reuse Whether to reuse existing port forward if available
+   * @param nodeId Optional node ID for finding component when cluster reference is not available
+   * @returns The local port number that was used for port forwarding
+   */
+  public async managePortForward(
+    clusterReference: ClusterReferenceName,
+    podReference: PodReference,
+    podPort: number,
+    localPort: number,
+    k8Client: K8,
+    logger: SoloLogger,
+    componentType: ComponentTypes,
+    remoteConfig: RemoteConfigRuntimeStateApi,
+    label: string,
+    reuse: boolean = false,
+    nodeId?: number,
+  ): Promise<number> {
+    const installedSoloVersion: SemVer = remoteConfig.configuration.versions.cli;
+    if (semver.lte(installedSoloVersion, PORT_FORWARD_CONFIG_VERSION_CUTOFF)) {
+      if (ComponentTypes.RelayNodes === componentType) {
+        logger.showUser('Previous version of remote config has no cluster reference field in relay component');
+      }
+      // old version does not have port forward config
+      reuse = true;
+      logger.showUser(`Port forward config not found for previous installed ${label}, reusing existing port forward`);
+    }
+
+    // found component by cluster reference or nodeId
+    let component: BaseStateSchema;
+    if (clusterReference) {
+      const schemeComponents: BaseStateSchema[] = this.getComponentsByClusterReference<BaseStateSchema>(
+        componentType,
+        clusterReference,
+      );
+      component = schemeComponents[0];
+    } else {
+      component = this.getComponentById<BaseStateSchema>(componentType, nodeId);
+    }
+
+    if (component === undefined) {
+      // it is possible we are upgrading a chart and previous version has no clusterReference save in configMap
+      // so we will not be able to find component by clusterReference
+      reuse = true;
+    } else if (component.metadata.portForwardConfigs) {
+      for (const portForwardConfig of component.metadata.portForwardConfigs) {
+        if (portForwardConfig.podPort === podPort) {
+          logger.showUser(`${label} Port forward already enabled at ${portForwardConfig.localPort}`);
+          return portForwardConfig.localPort;
+        }
+      }
+    }
+
+    // Enable port forwarding
+    const portForwardPortNumber: number = await k8Client
+      .pods()
+      .readByReference(podReference)
+      .portForward(localPort, podPort, true, reuse);
+
+    logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+    logger.addMessageGroupMessage(
+      constants.PORT_FORWARDING_MESSAGE_GROUP,
+      `${label} port forward enabled on localhost:${portForwardPortNumber}`,
+    );
+
+    if (component !== undefined) {
+      if (component.metadata.portForwardConfigs === undefined) {
+        component.metadata.portForwardConfigs = [];
+      }
+
+      logger.info(`add port localPort=${portForwardPortNumber}, podPort=${podPort}`);
+      // Save port forward config to component
+      component.metadata.portForwardConfigs.push({
+        podPort,
+        localPort: portForwardPortNumber,
+      });
+    }
+
+    return portForwardPortNumber;
   }
 }

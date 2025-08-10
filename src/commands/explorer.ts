@@ -41,7 +41,6 @@ import {Lock} from '../core/lock/lock.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Version} from '../business/utils/version.js';
-import {managePortForward} from '../core/network/port-utilities.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -471,7 +470,7 @@ export class ExplorerCommand extends BaseCommand {
             const podReference: PodReference = pods[0].podReference;
             const clusterReference: ClusterReferenceName = context_.config.clusterReference;
 
-            await managePortForward(
+            await this.remoteConfig.configuration.components.managePortForward(
               clusterReference,
               podReference,
               constants.EXPLORER_PORT, // Pod port

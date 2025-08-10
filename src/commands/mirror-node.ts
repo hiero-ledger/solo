@@ -54,7 +54,7 @@ import {Base64} from 'js-base64';
 import {Lock} from '../core/lock/lock.js';
 import {Version} from '../business/utils/version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
-import {managePortForward} from '../core/network/port-utilities.js';
+// Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
   isChartInstalled: boolean;
@@ -794,7 +794,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
             const clusterReference: ClusterReferenceName = context_.config.clusterReference;
 
-            await managePortForward(
+            await this.remoteConfig.configuration.components.managePortForward(
               clusterReference,
               podReference,
               80, // Pod port

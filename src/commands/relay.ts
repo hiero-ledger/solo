@@ -35,7 +35,6 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Duration} from '../core/time/duration.js';
 import {Version} from '../business/utils/version.js';
-import {managePortForward} from '../core/network/port-utilities.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -437,7 +436,7 @@ export class RelayCommand extends BaseCommand {
               (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
               this.k8Factory.default().clusters().readCurrent();
 
-            await managePortForward(
+            await this.remoteConfig.configuration.components.managePortForward(
               clusterReference,
               podReference,
               constants.JSON_RPC_RELAY_PORT, // Pod port
