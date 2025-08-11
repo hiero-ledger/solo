@@ -50,7 +50,7 @@ export class K8ClientSecrets implements Secrets {
     data: Record<string, string>,
     labels: Optional<Record<string, string>>,
   ): Promise<boolean> {
-    return this.createOrReplaceWithForce(namespace, name, secretType, data, labels, true, false);
+    return this.createOrReplaceWithForce(namespace, name, secretType, data, labels, true);
   }
 
   public async read(

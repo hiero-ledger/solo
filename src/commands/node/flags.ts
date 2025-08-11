@@ -1,10 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Flags as flags} from '../flags.js';
+import {type CommandFlag} from '../../types/flag-types.js';
 
 export const DEFAULT_FLAGS = {
   required: [flags.deployment],
   optional: [flags.quiet, flags.devMode, flags.cacheDir, flags.releaseTag],
+};
+
+const PREPARE_UPGRADE_FLAGS_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment];
+const PREPARE_UPGRADE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
+  flags.cacheDir,
+  flags.devMode,
+  flags.quiet,
+  flags.skipNodeAlias,
+];
+export const PREPARE_UPGRADE_FLAGS: {optional: CommandFlag[]; required: CommandFlag[]} = {
+  required: PREPARE_UPGRADE_FLAGS_REQUIRED_FLAGS,
+  optional: PREPARE_UPGRADE_FLAGS_OPTIONAL_FLAGS,
 };
 
 const COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS = [flags.deployment];
