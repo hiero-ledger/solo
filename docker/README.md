@@ -6,15 +6,15 @@ This directory contains the Docker infrastructure for building and running Solo 
 
 The Solo Docker container allows developers to run Solo networks with Docker as the only dependency. The container includes:
 
-- Solo CLI built from local source code
-- All required tools (Kind, kubectl, Helm, Docker)
-- Pre-configured environment for quick-start deployments
-- Container version matches the Solo version number
+* Solo CLI built from local source code
+* All required tools (Kind, kubectl, Helm, Docker)
+* Pre-configured environment for quick-start deployments
+* Container version matches the Solo version number
 
 ## Prerequisites
 
-- Docker installed on your system
-- [Task](https://taskfile.dev) installed for build automation
+* Docker installed on your system
+* [Task](https://taskfile.dev) installed for build automation
 
 ## Quick Start
 
@@ -49,15 +49,17 @@ docker run --rm -it --privileged hashgraph/solo:latest sh
 ### Image Tagging
 
 The container is built with two tags:
-- `hashgraph/solo:latest` - Latest version
-- `hashgraph/solo:x.y.z` - Specific version matching Solo's package.json version
+
+* `hashgraph/solo:latest` - Latest version
+* `hashgraph/solo:x.y.z` - Specific version matching Solo's package.json version
 
 ### Environment Variables
 
 The container sets these default environment variables:
-- `SOLO_CLUSTER_NAME=solo-cluster`
-- `SOLO_NAMESPACE=solo` 
-- `SOLO_DEPLOYMENT=solo-deployment`
+
+* `SOLO_CLUSTER_NAME=solo-cluster`
+* `SOLO_NAMESPACE=solo`
+* `SOLO_DEPLOYMENT=solo-deployment`
 
 These can be overridden when running the container:
 
@@ -86,14 +88,14 @@ docker/
 ### Build Process
 
 1. **Stage 1 (installer)**: Downloads and prepares external tools (Kind, kubectl, Helm, Docker)
-2. **Stage 2 (main)**: 
-   - Starts with Node.js 20.18.0 Alpine base
-   - Copies tools from Stage 1
-   - Installs system dependencies
-   - Copies Solo source code
-   - Builds Solo from source using TypeScript compiler
-   - Packages and installs Solo globally
-   - Sets up quick-start script
+2. **Stage 2 (main)**:
+   * Starts with Node.js 20.18.0 Alpine base
+   * Copies tools from Stage 1
+   * Installs system dependencies
+   * Copies Solo source code
+   * Builds Solo from source using TypeScript compiler
+   * Packages and installs Solo globally
+   * Sets up quick-start script
 
 ### Customization
 
@@ -131,9 +133,10 @@ docker run --rm -it --privileged hashgraph/solo:latest sh
 ```
 
 Inside the container, you can:
-- Check Solo installation: `solo --version`
-- Verify tools: `kind version`, `kubectl version`, `helm version`
-- Run Solo commands manually: `solo init`, `solo cluster list`, etc.
+
+* Check Solo installation: `solo --version`
+* Verify tools: `kind version`, `kubectl version`, `helm version`
+* Run Solo commands manually: `solo init`, `solo cluster list`, etc.
 
 ## Contributing
 

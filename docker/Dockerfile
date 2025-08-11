@@ -29,7 +29,7 @@ RUN tar xzvf ./helm.tgz
 FROM node:20.18.0-alpine
 
 # Install required system packages
-RUN apk add --update --no-cache python3 jq git
+RUN apk add --no-cache python3 jq git
 
 # Copy external tools from installer stage
 COPY --from=installer ./kind /usr/local/bin/kind
@@ -40,11 +40,14 @@ COPY --from=installer ./linux-amd64/helm /usr/local/bin/helm
 # Set working directory
 WORKDIR /app
 
-# Copy the entire Solo source code
-COPY . .
+# Copy package files first for better caching
+COPY package*.json ./
 
 # Install dependencies using npm (works with package-lock.json)
 RUN npm ci
+
+# Copy the rest of the source code
+COPY . .
 
 # Build Solo from source (use the existing build process)
 RUN npx tsc
@@ -67,4 +70,4 @@ RUN echo '#!/bin/sh' > /usr/local/bin/solo-quick-start.sh && \
     chmod +x /usr/local/bin/solo-quick-start.sh
 
 # Default command runs Solo quick-start
-CMD ["solo-quick-start.sh"]
+CMD ["/usr/local/bin/solo-quick-start.sh"]

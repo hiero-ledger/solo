@@ -4,9 +4,6 @@ silent: false
 
 vars:
   DOCKER_IMAGE_NAME: hashgraph/solo
-  SOLO_VERSION: 
-    sh: node -p "require('../package.json').version"
-  DOCKER_TAG: "{{.SOLO_VERSION}}"
   DOCKERFILE_PATH: "{{.TASKFILE_DIR}}/Dockerfile"
 
 tasks:
@@ -15,7 +12,7 @@ tasks:
     cmds:
       - task --list
 
-  build-solo:
+  build:solo:
     desc: "Build Solo from source"
     dir: ..
     cmds:
@@ -23,18 +20,19 @@ tasks:
       - npx tsc
       - node {{.TASKFILE_DIR}}/../resources/post-build-script.js
 
-  build-docker:
+  build:docker:
     desc: "Build the Docker image"
     deps:
-      - build-solo
+      - build:solo
+    dir: ..
     cmds:
-      - docker build -f {{.DOCKERFILE_PATH}} -t {{.DOCKER_IMAGE_NAME}}:{{.DOCKER_TAG}} -t {{.DOCKER_IMAGE_NAME}}:latest ..
+      - docker build -f {{.DOCKERFILE_PATH}} -t {{.DOCKER_IMAGE_NAME}}:$(node -p "require('./package.json').version") -t {{.DOCKER_IMAGE_NAME}}:latest ..
       - echo "Docker image built successfully:"
-      - echo "  - {{.DOCKER_IMAGE_NAME}}:{{.DOCKER_TAG}}"
+      - echo "  - {{.DOCKER_IMAGE_NAME}}:$(node -p \"require('./package.json').version\")"
       - echo "  - {{.DOCKER_IMAGE_NAME}}:latest"
 
   build-all:
     desc: "Build Solo and then build the Docker image"
     cmds:
-      - task: build-solo
-      - task: build-docker
+      - task: build:solo
+      - task: build:docker
