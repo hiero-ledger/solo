@@ -11,11 +11,7 @@ import {type DeploymentStateSchema} from '../../../data/schema/model/remote/depl
 import {type PodReference} from '../../../integration/kube/resources/pod/pod-reference.js';
 import {type K8} from '../../../integration/kube/k8.js';
 import {type SoloLogger} from '../../logging/solo-logger.js';
-import {type RemoteConfigRuntimeStateApi} from '../../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import * as constants from '../../constants.js';
-import semver from 'semver/preload.js';
-import {type SemVer} from 'semver';
-import {PORT_FORWARD_CONFIG_VERSION_CUTOFF} from '../../../../version.js';
 
 export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   public constructor(public state: DeploymentStateSchema) {}
@@ -239,7 +235,6 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     reuse: boolean = false,
     nodeId?: number,
   ): Promise<number> {
-
     // found component by cluster reference or nodeId
     let component: BaseStateSchema;
     if (clusterReference) {
