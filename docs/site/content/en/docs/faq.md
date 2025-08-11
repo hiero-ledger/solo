@@ -20,7 +20,9 @@ You can run `solo ledger account init` anytime after `solo consensus node start`
 
 ### Where can I find the default account keys ?
 
-It is the well known default genesis key [Link](https://github.com/hiero-ledger/hiero-consensus-node/blob/develop/hedera-node/data/onboard/GenesisPrivKey.txt)
+The default genesis key is `302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137`
+It is the key for default operator account `0.0.2` of the consensus network.
+It is defined in Hiero source code [Link](https://github.com/hiero-ledger/hiero-consensus-node/blob/develop/hedera-node/data/onboard/GenesisPrivKey.txt)
 
 ### How do I get the key for an account?
 

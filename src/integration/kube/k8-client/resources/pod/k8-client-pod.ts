@@ -109,11 +109,22 @@ export class K8ClientPod implements Pod {
               resolve();
             });
           })
+          .on('close', (): void => {
+            resolve();
+          })
+          .on('timeout', (): void => {
+            resolve();
+          })
+          .on('information', (): void => {
+            resolve();
+          })
           .on('error', (): void => {
             resolve();
           })
+          .setTimeout(Duration.ofMinutes(5).toMillis())
           .end();
       });
+      this.logger.debug(`Returned from http request against http://${constants.LOCAL_HOST}:${localPort}`);
 
       // if detach is true, start a port-forwarder in detached mode
       if (detach) {
@@ -133,6 +144,9 @@ export class K8ClientPod implements Pod {
       const ns: NamespaceName = this.podReference.namespace;
       const forwarder: PortForward = new PortForward(this.kubeConfig, false);
 
+      this.logger.debug(
+        `Creating socket for port-forward for ${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${localPort}`,
+      );
       const server: ExtendedNetServer = (await net.createServer((socket): void => {
         forwarder.portForward(ns.name, this.podReference.name.toString(), [podPort], socket, undefined, socket, 3);
       })) as ExtendedNetServer;

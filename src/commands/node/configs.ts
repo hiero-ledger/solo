@@ -119,9 +119,10 @@ export class NodeCommandConfigs {
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
 
     await this.initializeSetup(context_.config, this.k8Factory);
-    context_.config.nodeClient = await this.accountManager.loadNodeClient(
+    context_.config.nodeClient = await this.accountManager.refreshNodeClient(
       context_.config.namespace,
       this.remoteConfig.getClusterRefs(),
+      context_.config.skipNodeAlias,
       context_.config.deployment,
     );
 
@@ -412,7 +413,10 @@ export class NodeCommandConfigs {
     context_.config.contexts = this.remoteConfig.getContexts();
 
     if (!context_.config.clusterRef) {
-      context_.config.clusterRef = this.k8Factory.default().clusters().readCurrent();
+      context_.config.clusterRef = this.remoteConfig.getClusterRefs()?.entries()?.next()?.value[0];
+      if (!context_.config.clusterRef) {
+        throw new SoloError('Error during initialization, cluster ref could not be determined');
+      }
     }
 
     if (context_.config.domainNames) {

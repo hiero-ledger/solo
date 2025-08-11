@@ -181,9 +181,11 @@ export class MirrorNodeTest extends BaseCommandTest {
       const transactionsEndpoint: string = 'http://localhost:5551/api/v1/transactions';
       const firstResponse = await fetch(transactionsEndpoint);
       const firstData = await firstResponse.json();
-      await sleep(Duration.ofSeconds(10));
+      console.log(`firstData = ${JSON.stringify(firstData, null, 2)}`);
+      await sleep(Duration.ofSeconds(15));
       const secondResponse = await fetch(transactionsEndpoint);
       const secondData = await secondResponse.json();
+      console.log(`secondData = ${JSON.stringify(secondData, null, 2)}`);
       expect(firstData.transactions).to.not.be.undefined;
       expect(firstData.transactions.length).to.be.gt(0);
       expect(secondData.transactions).to.not.be.undefined;

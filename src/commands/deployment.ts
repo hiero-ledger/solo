@@ -67,21 +67,19 @@ export class DeploymentCommand extends BaseCommand {
   }
 
   public static CREATE_FLAGS_LIST: CommandFlags = {
-    required: [],
-    optional: [flags.quiet, flags.namespace, flags.deployment, flags.realm, flags.shard],
+    required: [flags.namespace, flags.deployment],
+    optional: [flags.quiet, flags.realm, flags.shard],
   };
 
   public static DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [],
-    optional: [flags.quiet, flags.deployment],
+    required: [flags.deployment],
+    optional: [flags.quiet],
   };
 
   public static ADD_CLUSTER_FLAGS_LIST: CommandFlags = {
-    required: [],
+    required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.quiet,
-      flags.deployment,
-      flags.clusterRef,
       flags.enableCertManager,
       flags.numberOfConsensusNodes,
       flags.dnsBaseDomain,
@@ -90,8 +88,8 @@ export class DeploymentCommand extends BaseCommand {
   };
 
   public static LIST_DEPLOYMENTS_FLAGS_LIST: CommandFlags = {
-    required: [],
-    optional: [flags.quiet, flags.clusterRef],
+    required: [flags.clusterRef],
+    optional: [flags.quiet],
   };
 
   /**
