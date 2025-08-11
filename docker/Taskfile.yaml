@@ -26,9 +26,9 @@ tasks:
       - build:solo
     dir: ..
     cmds:
-      - docker build -f {{.DOCKERFILE_PATH}} -t {{.DOCKER_IMAGE_NAME}}:$(node -p "require('./package.json').version") -t {{.DOCKER_IMAGE_NAME}}:latest ..
+      - docker build -f {{.DOCKERFILE_PATH}} -t {{.DOCKER_IMAGE_NAME}}:$(echo -n "v$(node -p "require('./package.json').version")") -t {{.DOCKER_IMAGE_NAME}}:latest ..
       - echo "Docker image built successfully:"
-      - echo "  - {{.DOCKER_IMAGE_NAME}}:$(node -p \"require('./package.json').version\")"
+      - echo "  - {{.DOCKER_IMAGE_NAME}}:$(echo -n \"v$(node -p \"require('./package.json').version\")\")"
       - echo "  - {{.DOCKER_IMAGE_NAME}}:latest"
 
   build-all:
