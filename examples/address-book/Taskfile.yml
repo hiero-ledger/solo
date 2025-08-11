@@ -48,9 +48,9 @@ tasks:
     cmd: |
       jq --version > /dev/null 2>&1
       if [[ $? -eq 0 ]]; then
-        curl -s http://localhost:5551/api/v1/network/nodes | jq
+        curl -s http://localhost:8081/api/v1/network/nodes | jq
       else
-        curl -s http://localhost:5551/api/v1/network/nodes
+        curl -s http://localhost:8081/api/v1/network/nodes
       fi
 
   destroy:

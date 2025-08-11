@@ -136,6 +136,7 @@ tasks:
       - version.ts
       - solo.ts
       - docs/site/content/en/templates/step-by-step-guide.template.md
+      - docs/site/content/en/templates/example-index.template.md
       - docs/site/update_md.sh
       - docs/site/wrapper_for_update_md.sh
     generates:
