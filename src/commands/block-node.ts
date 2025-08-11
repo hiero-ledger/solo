@@ -118,12 +118,10 @@ export class BlockNodeCommand extends BaseCommand {
   private static readonly UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
 
   private static readonly ADD_FLAGS_LIST: CommandFlags = {
-    required: [],
+    required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.blockNodeChartVersion,
       flags.chartDirectory,
-      flags.clusterRef,
-      flags.deployment,
       flags.devMode,
       flags.domainName,
       flags.enableIngress,
@@ -135,21 +133,13 @@ export class BlockNodeCommand extends BaseCommand {
   };
 
   private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.deployment, flags.devMode, flags.force, flags.quiet],
+    required: [flags.deployment, flags.clusterRef],
+    optional: [flags.chartDirectory, flags.devMode, flags.force, flags.quiet],
   };
 
   private static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
-    required: [],
-    optional: [
-      flags.chartDirectory,
-      flags.clusterRef,
-      flags.deployment,
-      flags.devMode,
-      flags.force,
-      flags.quiet,
-      flags.upgradeVersion,
-    ],
+    required: [flags.deployment, flags.clusterRef],
+    optional: [flags.chartDirectory, flags.devMode, flags.force, flags.quiet, flags.upgradeVersion],
   };
 
   private async prepareValuesArgForBlockNode(config: BlockNodeDeployConfigClass): Promise<string> {

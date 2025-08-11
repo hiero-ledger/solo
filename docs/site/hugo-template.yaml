@@ -25,6 +25,9 @@ module:
     - source: build/
       target: content/development
       includeFiles: DEV.md
+    - source: build/
+      target: content/examples
+      includeFiles: node-*-transaction-example.md
     - source: ../../images
       target: content/docs/readme/images
     - source: content/en

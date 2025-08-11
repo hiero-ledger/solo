@@ -37,11 +37,7 @@ tasks:
   build:clean:
     desc: "Clean then build the documentation site"
     cmds:
-      - task: "check-doc-dir"
       - task: "clean"
-      - task: "install"
-      - task: "mutate:readme"
-      - task: "mutate:dev"
       - task: "build"
 
   build:
@@ -51,6 +47,9 @@ tasks:
       - task: "install"
       - task: "mutate:readme"
       - task: "mutate:dev"
+      - task: "mutate:node-create-example"
+      - task: "mutate:node-delete-example"
+      - task: "mutate:node-update-example"
       - task: "build:all"
 
   check-doc-dir:

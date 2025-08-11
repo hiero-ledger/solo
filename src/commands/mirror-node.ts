@@ -173,12 +173,10 @@ export class MirrorNodeCommand extends BaseCommand {
   private static readonly UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
 
   private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
-    required: [],
+    required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.cacheDir,
       flags.chartDirectory,
-      flags.clusterRef,
-      flags.deployment,
       flags.enableIngress,
       flags.ingressControllerValueFile,
       flags.mirrorStaticIp,
@@ -209,11 +207,9 @@ export class MirrorNodeCommand extends BaseCommand {
   };
 
   public static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
-    required: [],
+    required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.cacheDir,
-      flags.clusterRef,
-      flags.deployment,
       flags.enableIngress,
       flags.ingressControllerValueFile,
       flags.mirrorStaticIp,
@@ -236,6 +232,11 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.domainName,
       flags.forcePortForward,
     ],
+  };
+
+  private static readonly DESTROY_FLAGS_LIST = {
+    required: [flags.deployment],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet],
   };
 
   private async prepareValuesArg(config: MirrorNodeDeployConfigClass | MirrorNodeUpgradeConfigClass): Promise<string> {
@@ -1139,7 +1140,7 @@ export class MirrorNodeCommand extends BaseCommand {
             self.configManager.update(argv);
             const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
             const clusterReference: ClusterReferenceName =
-              this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
+              this.configManager.getFlag(flags.clusterRef) ?? self.remoteConfig.getClusterRefs().keys().next().value;
 
             const clusterContext = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
 
@@ -1280,15 +1281,10 @@ export class MirrorNodeCommand extends BaseCommand {
           .command({
             command: 'destroy',
             desc: 'Destroy mirror-node components and database',
-            builder: y =>
-              flags.setOptionalCommandFlags(
-                y,
-                flags.chartDirectory,
-                flags.clusterRef,
-                flags.force,
-                flags.quiet,
-                flags.deployment,
-              ),
+            builder: (y: AnyYargs) => {
+              flags.setRequiredCommandFlags(y, ...MirrorNodeCommand.DESTROY_FLAGS_LIST.required);
+              flags.setOptionalCommandFlags(y, ...MirrorNodeCommand.DESTROY_FLAGS_LIST.optional);
+            },
             handler: async argv => {
               self.logger.info("==== Running 'mirror-node destroy' ===");
 

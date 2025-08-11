@@ -494,32 +494,43 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
     const consensusNodes: ConsensusNode[] = [];
 
-    for (const node of Object.values(this.configuration.state.consensusNodes)) {
-      const cluster: ClusterSchema = this.configuration.clusters.find(
-        (cluster: ClusterSchema): boolean => cluster.name === node.metadata.cluster,
-      );
-      const context: Context = this.localConfig.configuration.clusterRefs.get(node.metadata.cluster)?.toString();
-      const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(node.metadata.id + 1);
+    let cluster: ClusterSchema;
+    let context: Context;
+    let nodeAlias: NodeAlias;
 
-      consensusNodes.push(
-        new ConsensusNode(
-          nodeAlias,
-          node.metadata.id,
-          node.metadata.namespace,
-          node.metadata.cluster,
-          context,
-          cluster.dnsBaseDomain,
-          cluster.dnsConsensusNodePattern,
-          Templates.renderConsensusNodeFullyQualifiedDomainName(
+    for (const node of Object.values(this.configuration.state.consensusNodes)) {
+      try {
+        cluster = this.configuration.clusters.find(
+          (cluster: ClusterSchema): boolean => cluster.name === node.metadata.cluster,
+        );
+        context = this.localConfig.configuration.clusterRefs.get(node.metadata.cluster)?.toString();
+        nodeAlias = Templates.renderNodeAliasFromNumber(node.metadata.id + 1);
+
+        consensusNodes.push(
+          new ConsensusNode(
             nodeAlias,
             node.metadata.id,
             node.metadata.namespace,
             node.metadata.cluster,
+            context,
             cluster.dnsBaseDomain,
             cluster.dnsConsensusNodePattern,
+            Templates.renderConsensusNodeFullyQualifiedDomainName(
+              nodeAlias,
+              node.metadata.id,
+              node.metadata.namespace,
+              node.metadata.cluster,
+              cluster.dnsBaseDomain,
+              cluster.dnsConsensusNodePattern,
+            ),
           ),
-        ),
-      );
+        );
+      } catch (error) {
+        throw new SoloError(
+          `Error getting consensus nodes: ${error.message}, for: [context: ${context}], [nodeAlias: ${nodeAlias}], [node: ${JSON.stringify(node)}], [cluster: ${JSON.stringify(cluster)}]`,
+          error,
+        );
+      }
     }
 
     // return the consensus nodes
