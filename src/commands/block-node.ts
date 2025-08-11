@@ -38,17 +38,12 @@ import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {gte, lt, SemVer} from 'semver';
-import {inject, injectable} from 'tsyringe-neo';
-import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
-import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {injectable} from 'tsyringe-neo';
 import {Templates} from '../core/templates.js';
 import {K8} from '../integration/kube/k8.js';
 import {BLOCK_NODE_IMAGE_NAME} from '../core/constants.js';
 import {Version} from '../business/utils/version.js';
-import {
-  MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT,
-  MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE,
-} from '../../version.js';
+import {MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT} from '../../version.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;

@@ -430,7 +430,7 @@ export class MirrorNodeCommand extends BaseCommand {
               this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
 
             // Initialize
-            config.valuesArg = ''
+            config.valuesArg = '';
 
             // predefined values first
             config.valuesArg += semver.lt(config.mirrorNodeVersion, '0.130.0')
