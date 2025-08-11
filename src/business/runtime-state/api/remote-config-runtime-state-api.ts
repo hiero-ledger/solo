@@ -16,7 +16,6 @@ import {type ComponentFactoryApi} from '../../../core/config/remote/api/componen
 import {type RemoteConfig} from '../config/remote/remote-config.js';
 
 export interface RemoteConfigRuntimeStateApi {
-  currentCluster: ClusterReferenceName;
   configuration?: RemoteConfig;
 
   getClusterRefs(): ClusterReferences;

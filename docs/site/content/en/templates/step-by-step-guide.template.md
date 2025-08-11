@@ -182,6 +182,12 @@ For a simple setup with a single node with a mirror node, explorer, and JSON RPC
 solo quick-start single deploy
 ```
 
+When you're finished, you can tear down your Solo network just as easily:
+
+```bash
+solo quick-start single destroy
+```
+
 ## Step-by-Step Solo Network Deployment
 
 If you have a more complex setup in mind, such as multiple nodes or specific configurations, follow these detailed steps to deploy your Solo network.
@@ -652,7 +658,7 @@ solo node refresh --node-aliases node1 --deployment solo-deployment
 When you need assistance:
 
 1. **Check the logs**: Use `solo node logs --deployment solo-deployment` and examine `~/.solo/logs/`
-2. **Documentation**: Visit https://solo.hiero.org/latest/docs/
+2. **Documentation**: Visit [https://solo.hiero.org/main/docs/](docs/_index.md)
 3. **GitHub Issues**: Report bugs at https://github.com/hiero-ledger/solo/issues
 4. **Community Support**: Join the Hedera Discord community: https://discord.gg/Ysruf53q
 

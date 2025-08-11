@@ -2,7 +2,7 @@
 
 import {type Pod} from '../../../resources/pod/pod.js';
 import {type ExtendedNetServer} from '../../../../../types/index.js';
-import {findAvailablePort} from '../../../../../core/network/port-utilities.js';
+import {PortUtilities} from '../../../../../business/utils/port-utilities.js';
 import {PodReference} from '../../../resources/pod/pod-reference.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
 import {sleep} from '../../../../../core/helpers.js';
@@ -130,11 +130,22 @@ export class K8ClientPod implements Pod {
               resolve();
             });
           })
+          .on('close', (): void => {
+            resolve();
+          })
+          .on('timeout', (): void => {
+            resolve();
+          })
+          .on('information', (): void => {
+            resolve();
+          })
           .on('error', (): void => {
             resolve();
           })
+          .setTimeout(Duration.ofMinutes(5).toMillis())
           .end();
       });
+      this.logger.debug(`Returned from http request against http://${constants.LOCAL_HOST}:${localPort}`);
 
       if (reuse) {
         // use `ps -ef | grep "kubectl port-forward"`|grep ${this.podReference.name}
@@ -191,7 +202,7 @@ export class K8ClientPod implements Pod {
       }
 
       // Find an available port starting from localPort with a 30-second timeout
-      availablePort = await findAvailablePort(localPort, Duration.ofSeconds(30).toMillis(), this.logger);
+      availablePort = await PortUtilities.findAvailablePort(localPort, Duration.ofSeconds(30).toMillis(), this.logger);
 
       if (availablePort === localPort) {
         this.logger.showUser(chalk.yellow(`Using requested port ${localPort}`));
@@ -220,6 +231,9 @@ export class K8ClientPod implements Pod {
       const ns: NamespaceName = this.podReference.namespace;
       const forwarder: PortForward = new PortForward(this.kubeConfig, false);
 
+      this.logger.debug(
+        `Creating socket for port-forward for ${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${localPort}`,
+      );
       const server: ExtendedNetServer = (await net.createServer((socket): void => {
         forwarder.portForward(ns.name, this.podReference.name.toString(), [podPort], socket, undefined, socket, 3);
       })) as ExtendedNetServer;

@@ -3,7 +3,6 @@
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import chalk from 'chalk';
-import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import {BaseCommand} from './base.js';
@@ -177,12 +176,12 @@ export class NetworkCommand extends BaseCommand {
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
   private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [],
-    optional: [flags.deletePvcs, flags.deleteSecrets, flags.enableTimeout, flags.force, flags.deployment, flags.quiet],
+    required: [flags.deployment],
+    optional: [flags.deletePvcs, flags.deleteSecrets, flags.enableTimeout, flags.force, flags.quiet],
   };
 
   private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
-    required: [],
+    required: [flags.deployment],
     optional: [
       flags.apiPermissionProperties,
       flags.app,
@@ -198,7 +197,6 @@ export class NetworkCommand extends BaseCommand {
       flags.debugNodeAlias,
       flags.loadBalancerEnabled,
       flags.log4j2Xml,
-      flags.deployment,
       flags.persistentVolumeClaims,
       flags.profileFile,
       flags.profileName,
@@ -1259,7 +1257,8 @@ export class NetworkCommand extends BaseCommand {
     let lease: Lock;
 
     let networkDestroySuccess: boolean = true;
-    const tasks: Listr<NetworkDestroyContext> = new Listr<NetworkDestroyContext>(
+
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -1285,7 +1284,7 @@ export class NetworkCommand extends BaseCommand {
             context_.config = {
               deletePvcs: this.configManager.getFlag<boolean>(flags.deletePvcs) as boolean,
               deleteSecrets: this.configManager.getFlag<boolean>(flags.deleteSecrets) as boolean,
-              deployment: this.configManager.getFlag<string>(flags.deployment) as string,
+              deployment: this.configManager.getFlag(flags.deployment),
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
               enableTimeout: this.configManager.getFlag<boolean>(flags.enableTimeout) as boolean,
               force: this.configManager.getFlag<boolean>(flags.force) as boolean,
@@ -1345,15 +1344,23 @@ export class NetworkCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      'network destroy',
     );
 
-    try {
-      await tasks.run();
-    } catch (error) {
-      throw new SoloError('Error destroying network', error);
-    } finally {
-      // If the namespace is deleted, the lease can't be released
-      await lease.release().catch();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError('Error destroying network', error);
+      } finally {
+        // If the namespace is deleted, the lease can't be released
+        await lease?.release().catch();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease?.release();
+      });
     }
 
     return networkDestroySuccess;

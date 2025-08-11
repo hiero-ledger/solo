@@ -72,7 +72,7 @@ async function main() {
     console.log(`topic id = ${createReceipt.topicId.toString()}`);
 
     console.log('Wait to create subscribe to new topic');
-    await sleep(25000);
+    await sleep(3000);
 
     // Create a subscription to the topic
     const mirrorClient = (await Client.forMirrorNetwork(mirrorNetwork)).setOperator(
@@ -84,8 +84,6 @@ async function main() {
     let finished = false;
     new TopicMessageQuery()
       .setTopicId(createReceipt.topicId)
-      .setMaxAttempts(400)
-      .setLimit(1)
       // eslint-disable-next-line no-unused-vars
       .subscribe(
         mirrorClient,
@@ -102,6 +100,8 @@ async function main() {
           console.log(`Subscription received message: ${topic.contents}`);
         },
       );
+
+    await sleep(3000);
 
     // send one message
     let topicMessageSubmitTransaction = await new TopicMessageSubmitTransaction({
@@ -150,7 +150,7 @@ async function main() {
         });
       });
       req.on('error', e => {
-        console.log(`problem with request: ${e.message}`);
+        console.log(`problem with request, message = : ${e.message}  cause = : ${e.cause}`);
       });
       req.end(); // make the request
       // wait and try again

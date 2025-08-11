@@ -3,7 +3,7 @@
 import {expect} from 'chai';
 import {describe, it} from 'mocha';
 import net from 'node:net';
-import {findAvailablePort, isPortAvailable} from '../../../../src/core/network/port-utilities.js';
+import {PortUtilities} from '../../../../src/business/utils/port-utilities.js';
 
 // Mock logger for testing
 const mockLogger = {
@@ -41,17 +41,17 @@ describe('Port Utils', (): void => {
 
       try {
         // Verify the port is actually in use
-        const isBasePortAvailable = await isPortAvailable(basePort);
+        const isBasePortAvailable = await PortUtilities.isPortAvailable(basePort);
         expect(isBasePortAvailable).to.be.false;
 
         // Call findAvailablePort with the occupied port
-        const availablePort = await findAvailablePort(basePort, 5000, mockLogger);
+        const availablePort = await PortUtilities.findAvailablePort(basePort, 5000, mockLogger);
 
         // Verify that the returned port is the next port (basePort + 1)
         expect(availablePort).to.equal(basePort + 1);
 
         // Verify that the returned port is actually available
-        const isNextPortAvailable = await isPortAvailable(basePort + 1);
+        const isNextPortAvailable = await PortUtilities.isPortAvailable(basePort + 1);
         expect(isNextPortAvailable).to.be.true;
       } finally {
         // Clean up: close the server
@@ -67,11 +67,11 @@ describe('Port Utils', (): void => {
       const basePort = 9000; // Use a different port for this test
 
       // Verify the port is available first
-      const isBasePortAvailable = await isPortAvailable(basePort);
+      const isBasePortAvailable = await PortUtilities.isPortAvailable(basePort);
       expect(isBasePortAvailable).to.be.true;
 
       // Call findAvailablePort with an available port
-      const availablePort = await findAvailablePort(basePort, 5000, mockLogger);
+      const availablePort = await PortUtilities.findAvailablePort(basePort, 5000, mockLogger);
 
       // Verify that the returned port is the same as the input port
       expect(availablePort).to.equal(basePort);

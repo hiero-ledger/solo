@@ -230,7 +230,6 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     k8Client: K8,
     logger: SoloLogger,
     componentType: ComponentTypes,
-
     label: string,
     reuse: boolean = false,
     nodeId?: number,
