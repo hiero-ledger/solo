@@ -1489,6 +1489,28 @@ export class Flags {
     },
   };
 
+  public static readonly skipNodeAlias: CommandFlag = {
+    constName: 'skipNodeAlias',
+    name: 'skip-node-alias',
+    definition: {
+      describe: 'The node alias to skip, because of a NodeUpdateTransaction or it is down (e.g. node99)',
+      type: 'string',
+    },
+    prompt: async function promptNewNodeAlias(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: string,
+    ): Promise<string> {
+      return await Flags.promptText(
+        task,
+        input,
+        Flags.skipNodeAlias.definition.defaultValue as string,
+        'Enter the node alias to skip: ',
+        null,
+        Flags.skipNodeAlias.name,
+      );
+    },
+  };
+
   public static readonly gossipEndpoints: CommandFlag = {
     constName: 'gossipEndpoints',
     name: 'gossip-endpoints',
@@ -2662,6 +2684,7 @@ export class Flags {
     Flags.realm,
     Flags.shard,
     Flags.username,
+    Flags.skipNodeAlias,
     Flags.id,
     Flags.mirrorNodeId,
     Flags.redeploy,

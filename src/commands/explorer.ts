@@ -34,12 +34,12 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {Lock} from '../core/lock/lock.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {CommandFlag, CommandFlags} from '../types/flag-types.js';
-import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {Templates} from '../core/templates.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Version} from '../business/utils/version.js';
 import {Duration} from '../core/time/duration.js';
+import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -108,11 +108,10 @@ export class ExplorerCommand extends BaseCommand {
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
   private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
-    required: [],
+    required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.cacheDir,
       flags.chartDirectory,
-      flags.clusterRef,
       flags.enableIngress,
       flags.ingressControllerValueFile,
       flags.enableExplorerTls,
@@ -121,7 +120,6 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerVersion,
       flags.mirrorNamespace,
       flags.namespace,
-      flags.deployment,
       flags.profileFile,
       flags.profileName,
       flags.quiet,
@@ -136,8 +134,8 @@ export class ExplorerCommand extends BaseCommand {
   };
 
   private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.deployment, flags.id],
+    required: [flags.deployment],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.id],
   };
 
   /**
@@ -584,11 +582,15 @@ export class ExplorerCommand extends BaseCommand {
               task,
             );
 
-            const clusterReference: ClusterReferenceName = this.configManager.hasFlag(flags.clusterRef)
-              ? this.configManager.getFlag(flags.clusterRef)
-              : this.remoteConfig.currentCluster;
+            const clusterReference: ClusterReferenceName = self.configManager.hasFlag(flags.clusterRef)
+              ? self.configManager.getFlag(flags.clusterRef)
+              : self.remoteConfig.getClusterRefs().keys().next().value;
 
-            const clusterContext: Context = this.localConfig.configuration.clusterRefs
+            if (!clusterReference) {
+              throw new SoloError('Aborting Explorer Destroy, no cluster reference could be found');
+            }
+
+            const clusterContext: Context = self.localConfig.configuration.clusterRefs
               .get(clusterReference)
               ?.toString();
 
@@ -641,7 +643,7 @@ export class ExplorerCommand extends BaseCommand {
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
-        this.loadRemoteConfigTask(argv),
+        self.loadRemoteConfigTask(argv),
         {
           title: 'Destroy explorer',
           task: async (context_): Promise<void> => {
@@ -672,7 +674,7 @@ export class ExplorerCommand extends BaseCommand {
             });
           },
         },
-        this.disableMirrorNodeExplorerComponents(),
+        self.disableMirrorNodeExplorerComponents(),
       ],
       {
         concurrent: false,

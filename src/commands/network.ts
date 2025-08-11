@@ -174,12 +174,12 @@ export class NetworkCommand extends BaseCommand {
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
   private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [],
-    optional: [flags.deletePvcs, flags.deleteSecrets, flags.enableTimeout, flags.force, flags.deployment, flags.quiet],
+    required: [flags.deployment],
+    optional: [flags.deletePvcs, flags.deleteSecrets, flags.enableTimeout, flags.force, flags.quiet],
   };
 
   private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
-    required: [],
+    required: [flags.deployment],
     optional: [
       flags.apiPermissionProperties,
       flags.app,
@@ -195,7 +195,6 @@ export class NetworkCommand extends BaseCommand {
       flags.debugNodeAlias,
       flags.loadBalancerEnabled,
       flags.log4j2Xml,
-      flags.deployment,
       flags.persistentVolumeClaims,
       flags.profileFile,
       flags.profileName,

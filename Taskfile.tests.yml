@@ -225,3 +225,21 @@ tasks:
         {{ .reporter_prefix }}='coverage/e2e-quick-start-single'
         {{ .mocha_bin }} 'test/e2e/commands/quick-start-single.test.ts' 
         {{ .reporter_options_prefix }}-e2e-quick-start-single.xml"
+
+  test-example-node-create-transaction:
+    dir: examples/node-create-transaction
+    cmds:
+      - task
+      - task destroy
+
+  test-example-node-update-transaction:
+    dir: examples/node-update-transaction
+    cmds:
+      - task
+      - task destroy
+
+  test-example-node-delete-transaction:
+    dir: examples/node-delete-transaction
+    cmds:
+      - task
+      - task destroy

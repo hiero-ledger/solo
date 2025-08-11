@@ -112,12 +112,11 @@ export class RelayCommand extends BaseCommand {
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
   private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
-    required: [],
+    required: [flags.deployment],
     optional: [
       flags.chainId,
       flags.chartDirectory,
       flags.clusterRef,
-      flags.deployment,
       flags.nodeAliasesUnparsed,
       flags.operatorId,
       flags.operatorKey,
@@ -134,15 +133,8 @@ export class RelayCommand extends BaseCommand {
   };
 
   private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [],
-    optional: [
-      flags.chartDirectory,
-      flags.deployment,
-      flags.nodeAliasesUnparsed,
-      flags.clusterRef,
-      flags.quiet,
-      flags.id,
-    ],
+    required: [flags.deployment, flags.clusterRef],
+    optional: [flags.chartDirectory, flags.nodeAliasesUnparsed, flags.quiet, flags.id],
   };
 
   private async prepareValuesArgForRelay({
