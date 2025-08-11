@@ -89,13 +89,13 @@ docker/
 
 1. **Stage 1 (installer)**: Downloads and prepares external tools (Kind, kubectl, Helm, Docker)
 2. **Stage 2 (main)**:
-   * Starts with Node.js 20.18.0 Alpine base
-   * Copies tools from Stage 1
-   * Installs system dependencies
-   * Copies Solo source code
-   * Builds Solo from source using TypeScript compiler
-   * Packages and installs Solo globally
-   * Sets up quick-start script
+* Starts with Node.js 20.18.0 Alpine base
+* Copies tools from Stage 1
+* Installs system dependencies
+* Copies Solo source code
+* Builds Solo from source using TypeScript compiler
+* Packages and installs Solo globally
+* Sets up quick-start script
 
 ### Customization
 
