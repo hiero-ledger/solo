@@ -108,6 +108,9 @@ echo "Extracting content from examples README"
 EXAMPLES_CONTENT=$(cat ${EXAMPLES_DIR}/README.md)
 export EXAMPLES_CONTENT
 
+# Create examples directory if it doesn't exist
+mkdir -p ${TARGET_DIR}/examples
+
 # Generate examples index page from template
 echo "Generating examples index page from template"
 envsubst '$EXAMPLES_CONTENT' < ${TEMPLATE_DIR}/examples-index.template.md > ${TARGET_DIR}/examples/_index.md
