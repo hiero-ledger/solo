@@ -44,10 +44,7 @@ import {type ComponentFactoryApi} from '../core/config/remote/api/component-fact
 import {K8} from '../integration/kube/k8.js';
 import {BLOCK_NODE_IMAGE_NAME} from '../core/constants.js';
 import {Version} from '../business/utils/version.js';
-import {
-  MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT,
-  MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE,
-} from '../../version.js';
+import {MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT} from '../../version.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;

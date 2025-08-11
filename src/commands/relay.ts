@@ -444,7 +444,7 @@ export class RelayCommand extends BaseCommand {
               this.k8Factory.getK8(context_.config.clusterContext),
               this.logger,
               ComponentTypes.RelayNodes,
-              this.remoteConfig,
+
               'JSON RPC Relay',
               context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             );

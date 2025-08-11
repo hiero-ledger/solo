@@ -234,20 +234,11 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     k8Client: K8,
     logger: SoloLogger,
     componentType: ComponentTypes,
-    remoteConfig: RemoteConfigRuntimeStateApi,
+
     label: string,
     reuse: boolean = false,
     nodeId?: number,
   ): Promise<number> {
-    const installedSoloVersion: SemVer = remoteConfig.configuration.versions.cli;
-    if (semver.lte(installedSoloVersion, PORT_FORWARD_CONFIG_VERSION_CUTOFF)) {
-      if (ComponentTypes.RelayNodes === componentType) {
-        logger.showUser('Previous version of remote config has no cluster reference field in relay component');
-      }
-      // old version does not have port forward config
-      reuse = true;
-      logger.showUser(`Port forward config not found for previous installed ${label}, reusing existing port forward`);
-    }
 
     // found component by cluster reference or nodeId
     let component: BaseStateSchema;
@@ -265,6 +256,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
       // it is possible we are upgrading a chart and previous version has no clusterReference save in configMap
       // so we will not be able to find component by clusterReference
       reuse = true;
+      logger.showUser(`Port forward config not found for previous installed ${label}, reusing existing port forward`);
     } else if (component.metadata.portForwardConfigs) {
       for (const portForwardConfig of component.metadata.portForwardConfigs) {
         if (portForwardConfig.podPort === podPort) {

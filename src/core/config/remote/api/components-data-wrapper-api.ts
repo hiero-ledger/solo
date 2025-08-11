@@ -36,7 +36,7 @@ export interface ComponentsDataWrapperApi {
     k8Client: any, // Using 'any' here to avoid adding too many imports
     logger: any, // Using 'any' here to avoid adding too many imports
     componentType: ComponentTypes,
-    remoteConfig: any, // Using 'any' here to avoid adding too many imports
+
     label: string,
     reuse?: boolean,
     nodeId?: number,
