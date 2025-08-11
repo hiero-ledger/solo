@@ -922,7 +922,7 @@ export class MirrorNodeCommand extends BaseCommand {
             );
 
             const clusterReference: ClusterReferenceName =
-              this.configManager.getFlag(flags.clusterRef) ?? self.remoteConfig.getClusterRefs().keys().next().value;
+              this.configManager.getFlag(flags.clusterRef) ?? this.remoteConfig.getClusterRefs().keys().next().value;
 
             const clusterContext: Context = this.localConfig.configuration.clusterRefs
               .get(clusterReference)

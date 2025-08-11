@@ -25,6 +25,7 @@ import {type ArgvStruct} from '../../../src/types/aliases.js';
 import {type BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
 import {TEST_LOCAL_BLOCK_NODE_VERSION} from '../../../version-test.js';
 import {Templates} from '../../../src/core/templates.js';
+import * as constants from '../../../src/core/constants.js';
 
 // eslint-disable-next-line @typescript-eslint/typedef
 const execAsync = promisify(exec);

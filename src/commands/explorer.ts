@@ -272,7 +272,7 @@ export class ExplorerCommand extends BaseCommand {
             context_.config = config;
 
             if (!config.clusterRef) {
-              config.clusterRef = this.remoteConfig.currentCluster;
+              config.clusterRef = this.k8Factory.default().clusters().readCurrent();
             }
 
             config.clusterContext = this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString();
@@ -582,15 +582,15 @@ export class ExplorerCommand extends BaseCommand {
               task,
             );
 
-            const clusterReference: ClusterReferenceName = self.configManager.hasFlag(flags.clusterRef)
-              ? self.configManager.getFlag(flags.clusterRef)
-              : self.remoteConfig.getClusterRefs().keys().next().value;
+            const clusterReference: ClusterReferenceName = this.configManager.hasFlag(flags.clusterRef)
+              ? this.configManager.getFlag(flags.clusterRef)
+              : this.remoteConfig.getClusterRefs().keys().next().value;
 
             if (!clusterReference) {
               throw new SoloError('Aborting Explorer Destroy, no cluster reference could be found');
             }
 
-            const clusterContext: Context = self.localConfig.configuration.clusterRefs
+            const clusterContext: Context = this.localConfig.configuration.clusterRefs
               .get(clusterReference)
               ?.toString();
 
@@ -643,7 +643,7 @@ export class ExplorerCommand extends BaseCommand {
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
-        self.loadRemoteConfigTask(argv),
+        this.loadRemoteConfigTask(argv),
         {
           title: 'Destroy explorer',
           task: async (context_): Promise<void> => {
@@ -674,7 +674,7 @@ export class ExplorerCommand extends BaseCommand {
             });
           },
         },
-        self.disableMirrorNodeExplorerComponents(),
+        this.disableMirrorNodeExplorerComponents(),
       ],
       {
         concurrent: false,
