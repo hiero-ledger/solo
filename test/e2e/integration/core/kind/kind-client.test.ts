@@ -42,7 +42,7 @@ describe('KindClient Integration Tests', function () {
       const {stdout} = await execAsync('kubectl config current-context');
       originalKubeConfigContext = stdout.trim();
       console.log(`Saved original kubectl context: ${originalKubeConfigContext}`);
-    } catch (error) {
+    } catch {
       console.log('No kubectl context found or kubectl not available');
       originalKubeConfigContext = null;
     }

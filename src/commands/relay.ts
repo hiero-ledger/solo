@@ -11,14 +11,23 @@ import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {type AnyYargs, type ArgvStruct, type NodeAlias, type NodeAliases, type NodeId} from '../types/aliases.js';
+import {
+  type AnyListrContext,
+  type AnyYargs,
+  type ArgvStruct,
+  type NodeAlias,
+  type NodeAliases,
+  type NodeId,
+} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as Base64 from 'js-base64';
 import {
   type ClusterReferenceName,
   type CommandDefinition,
+  type Context,
   type DeploymentName,
   type Optional,
+  type SoloListr,
   type SoloListrTask,
 } from '../types/index.js';
 import {HEDERA_JSON_RPC_RELAY_VERSION} from '../../version.js';
@@ -28,9 +37,11 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {Templates} from '../core/templates.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
-import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
-import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {CommandFlag, CommandFlags} from '../types/flag-types.js';
 import {Lock} from '../core/lock/lock.js';
+import {NodeServiceMapping} from '../types/mappings/node-service-mapping.js';
+import {Secret} from '../integration/kube/resources/secret/secret.js';
+import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Duration} from '../core/time/duration.js';
@@ -45,6 +56,8 @@ interface RelayDestroyConfigClass {
   isChartInstalled: boolean;
   clusterRef: Optional<ClusterReferenceName>;
   context: Optional<string>;
+  id: number;
+  isLegacyChartInstalled: boolean;
 }
 
 interface RelayDestroyContext {
@@ -71,6 +84,7 @@ interface RelayDeployConfigClass {
   clusterRef: Optional<ClusterReferenceName>;
   domainName: Optional<string>;
   context: Optional<string>;
+  newRelayComponent: RelayNodeStateSchema;
   forcePortForward: Optional<boolean>;
   cacheDir: Optional<string>;
 }
@@ -86,7 +100,6 @@ export class RelayCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
-    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
   ) {
     super();
 
@@ -94,11 +107,11 @@ export class RelayCommand extends BaseCommand {
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME = 'relay';
+  public static readonly COMMAND_NAME: string = 'relay';
 
-  private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
+  private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
-  private static readonly DEPLOY_FLAGS_LIST = {
+  private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [
       flags.chainId,
@@ -119,33 +132,37 @@ export class RelayCommand extends BaseCommand {
     ],
   };
 
-  private static readonly DESTROY_FLAGS_LIST = {
+  private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.clusterRef],
-    optional: [flags.chartDirectory, flags.nodeAliasesUnparsed, flags.quiet],
+    optional: [flags.chartDirectory, flags.nodeAliasesUnparsed, flags.quiet, flags.id],
   };
 
-  private async prepareValuesArgForRelay(
-    valuesFile: string,
-    nodeAliases: NodeAliases,
-    chainID: string,
-    relayRelease: string,
-    replicaCount: number,
-    operatorID: string,
-    operatorKey: string,
-    namespace: NamespaceName,
-    domainName: Optional<string>,
-    context?: Optional<string>,
-  ): Promise<string> {
-    let valuesArgument = '';
+  private async prepareValuesArgForRelay({
+    valuesFile,
+    nodeAliases,
+    chainId,
+    relayReleaseTag,
+    replicaCount,
+    operatorId,
+    operatorKey,
+    namespace,
+    domainName,
+    context,
+    releaseName,
+    deployment,
+  }: RelayDeployConfigClass): Promise<string> {
+    let valuesArgument: string = '';
 
-    const profileName = this.configManager.getFlag<string>(flags.profileName) as string;
-    const profileValuesFile = await this.profileManager.prepareValuesForRpcRelayChart(profileName);
+    const profileName: string = this.configManager.getFlag(flags.profileName);
+    const profileValuesFile: string = await this.profileManager.prepareValuesForRpcRelayChart(profileName);
     if (profileValuesFile) {
       valuesArgument += helpers.prepareValuesFiles(profileValuesFile);
     }
 
     // TODO need to change this so that the json rpc relay does not have to be in the same cluster as the mirror node
     valuesArgument += ' --install';
+    valuesArgument += helpers.populateHelmArguments({nameOverride: releaseName});
+
     valuesArgument += ' --set ws.enabled=true';
     valuesArgument += ` --set relay.config.MIRROR_NODE_URL=http://${constants.MIRROR_NODE_RELEASE_NAME}-rest`;
     valuesArgument += ` --set relay.config.MIRROR_NODE_URL_WEB3=http://${constants.MIRROR_NODE_RELEASE_NAME}-web3`;
@@ -156,15 +173,15 @@ export class RelayCommand extends BaseCommand {
     valuesArgument += ` --set ws.config.MIRROR_NODE_URL=http://${constants.MIRROR_NODE_RELEASE_NAME}-rest`;
     valuesArgument += ' --set ws.config.SUBSCRIPTIONS_ENABLED=true';
 
-    if (chainID) {
-      valuesArgument += ` --set relay.config.CHAIN_ID=${chainID}`;
-      valuesArgument += ` --set ws.config.CHAIN_ID=${chainID}`;
+    if (chainId) {
+      valuesArgument += ` --set relay.config.CHAIN_ID=${chainId}`;
+      valuesArgument += ` --set ws.config.CHAIN_ID=${chainId}`;
     }
 
-    if (relayRelease) {
-      relayRelease = Version.getValidSemanticVersion(relayRelease, false, 'Relay release');
-      valuesArgument += ` --set relay.image.tag=${relayRelease}`;
-      valuesArgument += ` --set ws.image.tag=${relayRelease}`;
+    if (relayReleaseTag) {
+      relayReleaseTag = Version.getValidSemanticVersion(relayReleaseTag, false, 'Relay release');
+      valuesArgument += ` --set relay.image.tag=${relayReleaseTag}`;
+      valuesArgument += ` --set ws.image.tag=${relayReleaseTag}`;
     }
 
     if (replicaCount) {
@@ -172,8 +189,7 @@ export class RelayCommand extends BaseCommand {
       valuesArgument += ` --set ws.replicaCount=${replicaCount}`;
     }
 
-    const deploymentName: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
-    const operatorIdUsing: string = operatorID || this.accountManager.getOperatorAccountId(deploymentName).toString();
+    const operatorIdUsing: string = operatorId || this.accountManager.getOperatorAccountId(deployment).toString();
     valuesArgument += ` --set relay.config.OPERATOR_ID_MAIN=${operatorIdUsing}`;
     valuesArgument += ` --set ws.config.OPERATOR_ID_MAIN=${operatorIdUsing}`;
 
@@ -183,17 +199,21 @@ export class RelayCommand extends BaseCommand {
       valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${operatorKey}`;
     } else {
       try {
-        const namespace = NamespaceName.of(this.localConfig.configuration.deploymentByName(deploymentName).namespace);
+        const namespace: NamespaceName = NamespaceName.of(
+          this.localConfig.configuration.deploymentByName(deployment).namespace,
+        );
 
-        const k8 = this.k8Factory.getK8(context);
-        const secrets = await k8.secrets().list(namespace, [`solo.hedera.com/account-id=${operatorIdUsing}`]);
+        const secrets: Secret[] = await this.k8Factory
+          .getK8(context)
+          .secrets()
+          .list(namespace, [`solo.hedera.com/account-id=${operatorIdUsing}`]);
         if (secrets.length === 0) {
           this.logger.info(`No k8s secret found for operator account id ${operatorIdUsing}, use default one`);
           valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${constants.OPERATOR_KEY}`;
           valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${constants.OPERATOR_KEY}`;
         } else {
           this.logger.info('Using operator key from k8s secret');
-          const operatorKeyFromK8 = Base64.decode(secrets[0].data.privateKey);
+          const operatorKeyFromK8: string = Base64.decode(secrets[0].data.privateKey);
           valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${operatorKeyFromK8}`;
           valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${operatorKeyFromK8}`;
         }
@@ -206,7 +226,7 @@ export class RelayCommand extends BaseCommand {
       throw new MissingArgumentError('Node IDs must be specified');
     }
 
-    const networkJsonString: string = await this.prepareNetworkJsonString(nodeAliases, namespace);
+    const networkJsonString: string = await this.prepareNetworkJsonString(nodeAliases, namespace, deployment);
     valuesArgument += ` --set-literal relay.config.HEDERA_NETWORK='${networkJsonString}'`;
     valuesArgument += ` --set-literal ws.config.HEDERA_NETWORK='${networkJsonString}'`;
 
@@ -230,107 +250,117 @@ export class RelayCommand extends BaseCommand {
    * created a JSON string to represent the map between the node keys and their ids
    * output example '{"node-1": "0.0.3", "node-2": "0.004"}'
    */
-  private async prepareNetworkJsonString(nodeAliases: NodeAliases = [], namespace: NamespaceName): Promise<string> {
+  private async prepareNetworkJsonString(
+    nodeAliases: NodeAliases,
+    namespace: NamespaceName,
+    deployment: DeploymentName,
+  ): Promise<string> {
     if (!nodeAliases) {
       throw new MissingArgumentError('Node IDs must be specified');
     }
 
-    const networkIds = {};
+    const networkIds: Record<string, string> = {};
 
-    const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
-    const accountMap = this.accountManager.getNodeAccountMap(nodeAliases, deploymentName);
-    const networkNodeServicesMap = await this.accountManager.getNodeServiceMap(
+    const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(nodeAliases, deployment);
+    const networkNodeServicesMap: NodeServiceMapping = await this.accountManager.getNodeServiceMap(
       namespace,
       this.remoteConfig.getClusterRefs(),
-      deploymentName,
+      deployment,
     );
     for (const nodeAlias of nodeAliases) {
-      const haProxyClusterIp = networkNodeServicesMap.get(nodeAlias).haProxyClusterIp;
-      const haProxyGrpcPort = networkNodeServicesMap.get(nodeAlias).haProxyGrpcPort;
-      const networkKey = `${haProxyClusterIp}:${haProxyGrpcPort}`;
+      const haProxyClusterIp: string = networkNodeServicesMap.get(nodeAlias).haProxyClusterIp;
+      const haProxyGrpcPort: string | number = networkNodeServicesMap.get(nodeAlias).haProxyGrpcPort;
+      const networkKey: string = `${haProxyClusterIp}:${haProxyGrpcPort}`;
       networkIds[networkKey] = accountMap.get(nodeAlias);
     }
 
     return JSON.stringify(networkIds);
   }
 
-  private prepareReleaseName(nodeAliases: NodeAliases = []): string {
-    if (!nodeAliases) {
-      throw new MissingArgumentError('Node IDs must be specified');
+  private getReleaseName(id?: number): string {
+    if (!id) {
+      id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.RelayNodes);
     }
+    return `${constants.JSON_RPC_RELAY_RELEASE_NAME}-${id}`;
+  }
 
-    let releaseName = 'relay';
+  private prepareLegacyReleaseName(nodeAliases: NodeAliases = []): string {
+    let releaseName: string = constants.JSON_RPC_RELAY_RELEASE_NAME;
     for (const nodeAlias of nodeAliases) {
       releaseName += `-${nodeAlias}`;
     }
-
     return releaseName;
   }
 
-  private async deploy(argv: ArgvStruct) {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
+  private async deploy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
-    const tasks = this.taskList.newTaskList(
+    const tasks: SoloListr<RelayDeployContext> = this.taskList.newTaskList<RelayDeployContext>(
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
-            await self.localConfig.load();
-            await self.remoteConfig.loadAndValidate(argv);
-            lease = await self.leaseManager.create();
-
+          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            lease = await this.leaseManager.create();
             // reset nodeAlias
-            self.configManager.setFlag(flags.nodeAliasesUnparsed, '');
+            this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
 
-            self.configManager.update(argv);
+            this.configManager.update(argv);
 
-            flags.disablePrompts([
-              flags.operatorId,
-              flags.operatorKey,
-              flags.clusterRef,
-              flags.profileFile,
-              flags.profileName,
-              flags.forcePortForward,
-            ]);
+            flags.disablePrompts(RelayCommand.DEPLOY_FLAGS_LIST.optional);
 
-            const allFlags = [...RelayCommand.DEPLOY_FLAGS_LIST.required, ...RelayCommand.DEPLOY_FLAGS_LIST.optional];
-            await self.configManager.executePrompt(task, allFlags);
+            const allFlags: CommandFlag[] = [
+              ...RelayCommand.DEPLOY_FLAGS_LIST.required,
+              ...RelayCommand.DEPLOY_FLAGS_LIST.optional,
+            ];
+
+            await this.configManager.executePrompt(task, allFlags);
 
             // prompt if inputs are empty and set it in the context
-            context_.config = this.configManager.getConfig(RelayCommand.DEPLOY_CONFIGS_NAME, allFlags, [
-              'nodeAliases',
-            ]) as RelayDeployConfigClass;
+            const config: RelayDeployConfigClass = this.configManager.getConfig(
+              RelayCommand.DEPLOY_CONFIGS_NAME,
+              allFlags,
+              [],
+            ) as RelayDeployConfigClass;
 
-            context_.config.namespace = await resolveNamespaceFromDeployment(
-              this.localConfig,
-              this.configManager,
-              task,
-            );
-            context_.config.nodeAliases = helpers.parseNodeAliases(
-              context_.config.nodeAliasesUnparsed,
+            context_.config = config;
+
+            config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+            config.nodeAliases = helpers.parseNodeAliases(
+              config.nodeAliasesUnparsed,
               this.remoteConfig.getConsensusNodes(),
               this.configManager,
             );
-            context_.config.releaseName = self.prepareReleaseName(context_.config.nodeAliases);
 
-            if (context_.config.clusterRef) {
-              const context: string = self.remoteConfig.getClusterRefs().get(context_.config.clusterRef);
-              if (context) {
-                context_.config.context = context;
-              }
+            if (!config.clusterRef) {
+              config.clusterRef = this.k8Factory.default().clusters().readCurrent();
             }
+
+            const context: Context = this.remoteConfig.getClusterRefs()[config.clusterRef];
+            if (context) {
+              config.context = context;
+            }
+
+            config.releaseName = this.getReleaseName();
+
+            const nodeIds: NodeId[] = config.nodeAliases.map((nodeAlias: NodeAlias): number =>
+              Templates.nodeIdFromNodeAlias(nodeAlias),
+            );
+
+            config.newRelayComponent = this.componentFactory.createNewRelayComponent(
+              config.clusterRef,
+              config.namespace,
+              nodeIds,
+            );
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
         {
           title: 'Check chart is installed',
-          task: async context_ => {
-            const config = context_.config;
-
-            config.isChartInstalled = await self.chartManager.isChartInstalled(
+          task: async ({config}): Promise<void> => {
+            config.isChartInstalled = await this.chartManager.isChartInstalled(
               config.namespace,
               config.releaseName,
               config.context,
@@ -339,35 +369,21 @@ export class RelayCommand extends BaseCommand {
         },
         {
           title: 'Prepare chart values',
-          task: async context_ => {
-            const config = context_.config;
-            await self.accountManager.loadNodeClient(
-              context_.config.namespace,
-              self.remoteConfig.getClusterRefs(),
-              self.configManager.getFlag<DeploymentName>(flags.deployment),
-              self.configManager.getFlag<boolean>(flags.forcePortForward),
+          task: async ({config}): Promise<void> => {
+            await this.accountManager.loadNodeClient(
+              config.namespace,
+              this.remoteConfig.getClusterRefs(),
+              config.deployment,
+              config.forcePortForward,
             );
 
-            config.valuesArg = await self.prepareValuesArgForRelay(
-              config.valuesFile,
-              config.nodeAliases,
-              config.chainId,
-              config.relayReleaseTag,
-              config.replicaCount,
-              config.operatorId,
-              config.operatorKey,
-              config.namespace,
-              config.domainName,
-              config.context,
-            );
+            config.valuesArg = await this.prepareValuesArgForRelay(config);
           },
         },
         {
           title: 'Deploy JSON RPC Relay',
-          task: async context_ => {
-            const config = context_.config;
-
-            await self.chartManager.upgrade(
+          task: async ({config}): Promise<void> => {
+            await this.chartManager.upgrade(
               config.namespace,
               config.releaseName,
               constants.JSON_RPC_RELAY_CHART,
@@ -377,40 +393,40 @@ export class RelayCommand extends BaseCommand {
               config.context,
             );
 
-            showVersionBanner(self.logger, config.releaseName, HEDERA_JSON_RPC_RELAY_VERSION);
+            showVersionBanner(this.logger, config.releaseName, HEDERA_JSON_RPC_RELAY_VERSION);
             await helpers.sleep(Duration.ofSeconds(40)); // wait for the pod to destroy in case it was an upgrade
           },
         },
         {
           title: 'Check relay is running',
-          task: async context_ => {
-            const config = context_.config;
-
-            await self.k8Factory
-              .getK8(config.context)
-              .pods()
-              .waitForRunningPhase(
-                config.namespace,
-                [`app.kubernetes.io/instance=${config.releaseName}`],
-                constants.RELAY_PODS_RUNNING_MAX_ATTEMPTS,
-                constants.RELAY_PODS_RUNNING_DELAY,
-              );
-
+          task: async ({config}): Promise<void> => {
+            try {
+              await this.k8Factory
+                .getK8(config.context)
+                .pods()
+                .waitForRunningPhase(
+                  config.namespace,
+                  Templates.renderRelayLabels(config.newRelayComponent.metadata.id),
+                  constants.RELAY_PODS_RUNNING_MAX_ATTEMPTS,
+                  constants.RELAY_PODS_RUNNING_DELAY,
+                );
+            } catch (error) {
+              throw new SoloError(`Relay ${config.releaseName} is not running: ${error.message}`, error);
+            }
             // reset nodeAlias
-            self.configManager.setFlag(flags.nodeAliasesUnparsed, '');
+            this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
           },
         },
         {
           title: 'Check relay is ready',
-          task: async context_ => {
-            const config = context_.config;
-            const k8 = self.k8Factory.getK8(config.context);
+          task: async ({config}): Promise<void> => {
             try {
-              await k8
+              await this.k8Factory
+                .getK8(config.context)
                 .pods()
                 .waitForReadyStatus(
                   config.namespace,
-                  [`app.kubernetes.io/instance=${config.releaseName}`],
+                  Templates.renderRelayLabels(config.newRelayComponent.metadata.id),
                   constants.RELAY_PODS_READY_MAX_ATTEMPTS,
                   constants.RELAY_PODS_READY_DELAY,
                 );
@@ -422,27 +438,31 @@ export class RelayCommand extends BaseCommand {
         this.addRelayComponent(),
         {
           title: 'Enable port forwarding',
-          task: async (context_): Promise<void> => {
+          task: async ({config}): Promise<void> => {
             const pods: Pod[] = await this.k8Factory
-              .getK8(context_.config.clusterContext)
+              .getK8(config.context)
               .pods()
-              .list(context_.config.namespace, ['app.kubernetes.io/name=relay']);
+              .list(config.namespace, Templates.renderRelayLabels(config.newRelayComponent.metadata.id));
+
             if (pods.length === 0) {
               throw new SoloError('No Relay pod found');
             }
+
             const podReference: PodReference = pods[0].podReference;
+
             await this.k8Factory
-              .getK8(context_.config.context)
+              .getK8(config.context)
               .pods()
               .readByReference(podReference)
               .portForward(constants.JSON_RPC_RELAY_PORT, constants.JSON_RPC_RELAY_PORT, true);
+
             this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
             this.logger.addMessageGroupMessage(
               constants.PORT_FORWARDING_MESSAGE_GROUP,
               `JSON RPC Relay forward enabled on localhost:${constants.JSON_RPC_RELAY_PORT}`,
             );
           },
-          skip: context_ => !context_.config.forcePortForward,
+          skip: ({config}): boolean => !config.forcePortForward,
         },
         // TODO only show this if we are not running in quick-start mode
         // {
@@ -469,81 +489,128 @@ export class RelayCommand extends BaseCommand {
         if (lease) {
           await lease.release();
         }
-        await self.accountManager.close();
+        await this.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
         await lease.release();
-        await self.accountManager.close();
+        await this.accountManager.close();
       });
     }
 
     return true;
   }
 
-  private async destroy(argv: ArgvStruct) {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
+  private async destroy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
-    const tasks = new Listr<RelayDestroyContext>(
+    const tasks: Listr<RelayDestroyContext> = new Listr(
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
-            await self.localConfig.load();
-            await self.remoteConfig.loadAndValidate(argv);
-            lease = await self.leaseManager.create();
-
+          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            lease = await this.leaseManager.create();
             // reset nodeAlias
-            self.configManager.setFlag(flags.nodeAliasesUnparsed, '');
-            self.configManager.update(argv);
+            this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
+            this.configManager.update(argv);
 
-            flags.disablePrompts([flags.clusterRef]);
+            flags.disablePrompts([flags.clusterRef, flags.id, flags.nodeAliasesUnparsed]);
 
-            const allFlags = [...RelayCommand.DESTROY_FLAGS_LIST.required, ...RelayCommand.DESTROY_FLAGS_LIST.optional];
-            await self.configManager.executePrompt(task, allFlags);
+            const allFlags: CommandFlag[] = [
+              ...RelayCommand.DESTROY_FLAGS_LIST.required,
+              ...RelayCommand.DESTROY_FLAGS_LIST.optional,
+            ];
 
-            // prompt if inputs are empty and set it in the context
-            context_.config = {
-              chartDirectory: self.configManager.getFlag<string>(flags.chartDirectory) as string,
-              namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
-              nodeAliases: helpers.parseNodeAliases(
-                self.configManager.getFlag<string>(flags.nodeAliasesUnparsed) as string,
-                this.remoteConfig.getConsensusNodes(),
-                this.configManager,
-              ),
-              clusterRef: self.configManager.getFlag<string>(flags.clusterRef) as string,
-            } as RelayDestroyConfigClass;
+            await this.configManager.executePrompt(task, allFlags);
 
-            if (context_.config.clusterRef) {
-              const context = self.remoteConfig.getClusterRefs()[context_.config.clusterRef];
-              if (context) {
-                context_.config.context = context;
-              }
+            const clusterReference: ClusterReferenceName =
+              this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
+
+            let context: Context = this.configManager.getFlag(flags.context);
+
+            if (clusterReference && !context) {
+              context = this.remoteConfig.getClusterRefs()[clusterReference];
             }
 
-            context_.config.releaseName = this.prepareReleaseName(context_.config.nodeAliases);
-            context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
-              context_.config.namespace,
-              context_.config.releaseName,
-              context_.config.context,
+            let id: number = this.configManager.getFlag(flags.id);
+            let nodeAliases: NodeAliases = helpers.parseNodeAliases(
+              this.configManager.getFlag(flags.nodeAliasesUnparsed),
+              this.remoteConfig.getConsensusNodes(),
+              this.configManager,
             );
+
+            if (typeof id !== 'number') {
+              if (this.remoteConfig.configuration.components.state.relayNodes.length === 0) {
+                throw new SoloError('Relay node not found');
+              }
+
+              id = this.remoteConfig.configuration.components.state.relayNodes[0].metadata.id;
+            }
+
+            const namespace: NamespaceName = await resolveNamespaceFromDeployment(
+              this.localConfig,
+              this.configManager,
+              task,
+            );
+            let isLegacyChartInstalled: boolean = false;
+            let isChartInstalled: boolean;
+
+            if (id === 1) {
+              nodeAliases = this.remoteConfig.configuration.components
+                .getComponentById<RelayNodeStateSchema>(ComponentTypes.RelayNodes, id)
+                ?.consensusNodeIds.map((nodeId: NodeId): NodeAlias => Templates.renderNodeAliasFromNumber(nodeId + 1));
+
+              isLegacyChartInstalled = await this.chartManager.isChartInstalled(
+                namespace,
+                this.prepareLegacyReleaseName(nodeAliases),
+                context,
+              );
+            }
+
+            let releaseName: string;
+
+            if (isLegacyChartInstalled) {
+              isChartInstalled = true;
+              releaseName = this.prepareLegacyReleaseName(nodeAliases);
+            } else {
+              releaseName = this.getReleaseName(id);
+              isChartInstalled = await this.chartManager.isChartInstalled(namespace, releaseName, context);
+            }
+
+            const config: RelayDestroyConfigClass = {
+              chartDirectory: this.configManager.getFlag(flags.chartDirectory),
+              namespace,
+              nodeAliases,
+              clusterRef: clusterReference,
+              id,
+              isLegacyChartInstalled,
+              isChartInstalled,
+              releaseName,
+              deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
+              context,
+            };
+
+            context_.config = config;
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
         {
           title: 'Destroy JSON RPC Relay',
-          task: async context_ => {
-            const config = context_.config;
-
+          task: async ({config}): Promise<void> => {
             await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
 
+            this.logger.showList(
+              'Destroyed Relays',
+              await this.chartManager.getInstalledCharts(config.namespace, config.context),
+            );
+
             // reset nodeAliasesUnparsed
-            self.configManager.setFlag(flags.nodeAliasesUnparsed, '');
+            this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
           },
-          skip: context_ => !context_.config.isChartInstalled,
+          skip: (context_): boolean => !context_.config.isChartInstalled,
         },
         this.disableRelayComponent(),
       ],
@@ -571,19 +638,19 @@ export class RelayCommand extends BaseCommand {
     return {
       command: RelayCommand.COMMAND_NAME,
       desc: 'Manage JSON RPC relays in solo network',
-      builder: (yargs: AnyYargs) => {
+      builder: (yargs: AnyYargs): AnyYargs => {
         return yargs
           .command({
             command: 'deploy',
             desc: 'Deploy a JSON RPC relay',
-            builder: (y: AnyYargs) => {
+            builder: (y: AnyYargs): void => {
               flags.setRequiredCommandFlags(y, ...RelayCommand.DEPLOY_FLAGS_LIST.required);
               flags.setOptionalCommandFlags(y, ...RelayCommand.DEPLOY_FLAGS_LIST.optional);
             },
-            handler: async (argv: ArgvStruct) => {
+            handler: async (argv: ArgvStruct): Promise<void> => {
               self.logger.info("==== Running 'relay deploy' ===");
 
-              await self.deploy(argv).then(r => {
+              await self.deploy(argv).then((r: boolean): void => {
                 self.logger.info('==== Finished running `relay deploy`====');
                 if (!r) {
                   throw new SoloError('Error deploying relay, expected return value to be true');
@@ -594,14 +661,14 @@ export class RelayCommand extends BaseCommand {
           .command({
             command: 'destroy',
             desc: 'Destroy JSON RPC relay',
-            builder: (y: AnyYargs) => {
+            builder: (y: AnyYargs): void => {
               flags.setRequiredCommandFlags(y, ...RelayCommand.DESTROY_FLAGS_LIST.required);
               flags.setOptionalCommandFlags(y, ...RelayCommand.DESTROY_FLAGS_LIST.optional);
             },
-            handler: async (argv: ArgvStruct) => {
+            handler: async (argv: ArgvStruct): Promise<void> => {
               self.logger.info("==== Running 'relay destroy' ===");
 
-              await self.destroy(argv).then(r => {
+              await self.destroy(argv).then((r: boolean): void => {
                 self.logger.info('==== Finished running `relay destroy`====');
 
                 if (!r) {
@@ -619,11 +686,13 @@ export class RelayCommand extends BaseCommand {
   public addRelayComponent(): SoloListrTask<RelayDeployContext> {
     return {
       title: 'Add relay component in remote config',
-      skip: context_ => !this.remoteConfig.isLoaded() || context_.config.isChartInstalled,
-      task: async (context_): Promise<void> => {
-        const {namespace, nodeAliases, clusterRef} = context_.config;
+      skip: ({config}): boolean => !this.remoteConfig.isLoaded() || config.isChartInstalled,
+      task: async ({config}): Promise<void> => {
+        const {namespace, nodeAliases, clusterRef} = config;
 
-        const nodeIds: NodeId[] = nodeAliases.map((nodeAlias: NodeAlias) => Templates.nodeIdFromNodeAlias(nodeAlias));
+        const nodeIds: NodeId[] = nodeAliases.map((nodeAlias: NodeAlias): number =>
+          Templates.nodeIdFromNodeAlias(nodeAlias),
+        );
 
         this.remoteConfig.configuration.components.addNewComponent(
           this.componentFactory.createNewRelayComponent(clusterRef, namespace, nodeIds),
@@ -640,21 +709,8 @@ export class RelayCommand extends BaseCommand {
     return {
       title: 'Remove relay component from remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
-      task: async (context_): Promise<void> => {
-        const clusterReference: ClusterReferenceName = context_.config.clusterRef;
-
-        const relayComponents: RelayNodeStateSchema[] =
-          this.remoteConfig.configuration.components.getComponentsByClusterReference<RelayNodeStateSchema>(
-            ComponentTypes.RelayNodes,
-            clusterReference,
-          );
-
-        for (const relayComponent of relayComponents) {
-          this.remoteConfig.configuration.components.removeComponent(
-            relayComponent.metadata.id,
-            ComponentTypes.RelayNodes,
-          );
-        }
+      task: async ({config}): Promise<void> => {
+        this.remoteConfig.configuration.components.removeComponent(config.id, ComponentTypes.RelayNodes);
 
         await this.remoteConfig.persist();
       },
