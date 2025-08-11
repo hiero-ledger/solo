@@ -6,20 +6,20 @@ tasks:
   start:
     desc: Quick start a Solo network
     cmds:
-      - name: "Install Solo CLI"
-        cmd: npm i @hashgraph/solo@latest
+      # "Install Solo CLI"
+      - cmd: npm i @hashgraph/solo@latest
 
-      - name: "Create Kind cluster"
-        cmd: kind create cluster -n {{ .CLUSTER_NAME }}
+      # "Create Kind cluster"
+      - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
 
-      - name: "Wait for control plane"
-        cmd: sleep 10 # wait for control plane to come up
+      # "Wait for control plane"
+      - cmd: sleep 10 # wait for control plane to come up
 
-      - name: "Set kubectl context"
-        cmd: kubectl config set-context {{ .CONTEXT }}
+      # "Set kubectl context"
+      - cmd: kubectl config set-context {{ .CONTEXT }}
 
-      - name: "Solo init"
-        cmd: npx solo quick-start
+      # "Solo init"
+      - cmd: npx solo quick-start single deploy
 
   get:ledger:addressbook:
     silent: true
@@ -45,17 +45,16 @@ tasks:
   get:mirror:addressbook:
     silent: true
     desc: retrieve the address book from the mirror node (file 102)
-    cmds:
-      - |
-        jq --version > /dev/null 2>&1
-        if [[ $? -eq 0 ]]; then
-          curl -s http://localhost:5551/api/v1/network/nodes | jq
-        else
-          curl -s http://localhost:5551/api/v1/network/nodes
-        fi
+    cmd: |
+      jq --version > /dev/null 2>&1
+      if [[ $? -eq 0 ]]; then
+        curl -s http://localhost:5551/api/v1/network/nodes | jq
+      else
+        curl -s http://localhost:5551/api/v1/network/nodes
+      fi
 
   destroy:
     desc: Destroy the Solo network by deleting the Kind cluster
     cmds:
-      - name: "Delete Kind cluster"
-        cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
+      # "Delete Kind cluster"
+      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}

@@ -1,5 +1,3 @@
-# TODO: yahcli.jar is broken
-
 # Yahcli Address Book Example
 
 This is an example of how to use Yahcli to pull the ledger and mirror node address book.  And to update the ledger address book.  It updates File 101 (the ledger address book file) and File 102 (the ledger node details file).
