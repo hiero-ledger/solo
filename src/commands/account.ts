@@ -28,6 +28,7 @@ import {Base64} from 'js-base64';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {CommandFlags} from '../types/flag-types.js';
 
 interface UpdateAccountConfig {
   accountId: string;
@@ -68,12 +69,12 @@ export class AccountCommand extends BaseCommand {
 
   public static readonly COMMAND_NAME = 'account';
 
-  private static INIT_FLAGS_LIST = {
+  public static INIT_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.deployment, flags.nodeAliasesUnparsed, flags.clusterRef],
   };
 
-  private static CREATE_FLAGS_LIST = {
+  public static CREATE_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [
       flags.amount,
@@ -87,12 +88,12 @@ export class AccountCommand extends BaseCommand {
     ],
   };
 
-  private static UPDATE_FLAGS_LIST = {
+  public static UPDATE_FLAGS_LIST: CommandFlags = {
     required: [flags.accountId, flags.deployment],
     optional: [flags.amount, flags.ecdsaPrivateKey, flags.ed25519PrivateKey, flags.clusterRef],
   };
 
-  private static GET_FLAGS_LIST = {
+  public static GET_FLAGS_LIST: CommandFlags = {
     required: [flags.accountId, flags.deployment],
     optional: [flags.privateKey, flags.clusterRef],
   };

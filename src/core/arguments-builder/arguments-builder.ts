@@ -65,7 +65,7 @@ export class ArgumentsBuilder {
   }
 
   public setQuiet(): ArgumentsBuilder {
-    this.setArg(flags.force);
+    this.setArg(flags.quiet);
     return this;
   }
 

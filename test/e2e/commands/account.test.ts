@@ -37,6 +37,9 @@ import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
+import {TestArgumentsBuilder} from '../../helpers/test-arguments-builder.js';
+import {main} from '../../../src/index.js';
+import {InitCommand} from '../../../src/commands/init/init.js';
 
 const defaultTimeout = Duration.ofSeconds(20).toMillis();
 
@@ -107,12 +110,13 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
     describe('account init command', () => {
       it('should succeed with init command', async () => {
-        await commandInvoker.invoke({
-          argv: argv,
-          command: AccountCommand.COMMAND_NAME,
-          subcommand: 'init',
-          callback: async argv => accountCmd.init(argv),
-        });
+        await main(
+          TestArgumentsBuilder.initializeFromArgvMapping(
+            `${AccountCommand.COMMAND_NAME} init`,
+            AccountCommand.INIT_FLAGS_LIST,
+            argv,
+          ).build(),
+        );
       }).timeout(Duration.ofMinutes(8).toMillis());
 
       describe('special accounts should have new keys', () => {

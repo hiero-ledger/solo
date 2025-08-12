@@ -40,7 +40,11 @@ export class TestArgumentsBuilder extends ArgumentsBuilder {
     return this;
   }
 
-  public static fromArgvMapping(command: string, commandFlags: CommandFlags, argv: Argv): TestArgumentsBuilder {
+  public static initializeFromArgvMapping(
+    command: string,
+    commandFlags: CommandFlags,
+    argv: Argv,
+  ): TestArgumentsBuilder {
     const flagArguments: Record<FlagName, any> = {};
 
     const flagList: CommandFlag[] = [...commandFlags.optional, ...commandFlags.required];

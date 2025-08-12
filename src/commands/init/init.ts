@@ -12,6 +12,7 @@ import {type CommandDefinition} from '../../types/index.js';
 import {InitConfig} from './init-config.js';
 import {InitContext} from './init-context.js';
 import {Listr, ListrRendererValue} from 'listr2';
+import {CommandFlags} from '../../types/flag-types.js';
 
 /**
  * Defines the core functionalities of 'init' command
@@ -25,6 +26,11 @@ export class InitCommand extends BaseCommand {
   public constructor() {
     super();
   }
+
+  public static INIT_COMMAND_FLAGS: CommandFlags = {
+    required: [],
+    optional: [flags.cacheDir, flags.quiet, flags.username],
+  };
 
   /** Executes the init CLI command */
   public async init(argv: any): Promise<boolean> {
@@ -150,7 +156,8 @@ export class InitCommand extends BaseCommand {
       desc: 'Initialize local environment',
       builder: (y: any) => {
         // set the quiet flag even though it isn't used for consistency across all commands
-        flags.setOptionalCommandFlags(y, flags.cacheDir, flags.quiet, flags.username);
+        flags.setOptionalCommandFlags(y, ...InitCommand.INIT_COMMAND_FLAGS.optional);
+        flags.setRequiredCommandFlags(y, ...InitCommand.INIT_COMMAND_FLAGS.required);
       },
       handler: async (argv: any) => {
         await self
