@@ -30,6 +30,7 @@ export class ArgumentProcessor {
         .command(commands.getCommandDefinitions())
         .strict()
         .demand(1, 'Select a command'),
+      helpRenderer,
     );
 
     rootCmd.middleware(
