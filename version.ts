@@ -27,7 +27,6 @@ export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE: strin
 export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT: SemVer = new SemVer('v0.15.0');
 
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE: string = 'v0.64.0';
-export const PORT_FORWARD_CONFIG_VERSION_CUTOFF = '0.41.0'; // Version cutoff for port-forward config changes
 
 export function getSoloVersion(): Version {
   if (process.env.npm_package_version) {
