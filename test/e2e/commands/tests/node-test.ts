@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {BaseCommandTest} from './base-command-test.js';
 import {main} from '../../../../src/index.js';
 import {type ClusterReferences, type DeploymentName} from '../../../../src/types/index.js';
 import {Flags} from '../../../../src/commands/flags.js';
@@ -29,23 +28,16 @@ import {
   type TransactionResponse,
 } from '@hashgraph/sdk';
 import {type BaseTestOptions} from './base-test-options.js';
+import {TestArgumentsBuilder} from '../../../helpers/test-arguments-builder.js';
 
-export class NodeTest extends BaseCommandTest {
+export class NodeTest {
   private static soloNodeKeysArgv(testName: string, deployment: DeploymentName): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
-
-    const argv: string[] = newArgv();
-    argv.push(
-      'node',
-      'keys',
-      optionFromFlag(Flags.deployment),
-      deployment,
-      optionFromFlag(Flags.generateGossipKeys),
-      'true',
-      optionFromFlag(Flags.generateTlsKeys),
-    );
-    argvPushGlobalFlags(argv, testName, true);
-    return argv;
+    return TestArgumentsBuilder.initialize('node keys', testName)
+      .setArg(Flags.deployment, deployment)
+      .setArg(Flags.generateGossipKeys)
+      .setArg(Flags.generateTlsKeys)
+      .setTestCacheDirectory()
+      .build();
   }
 
   public static keys(options: BaseTestOptions): void {
@@ -70,20 +62,15 @@ export class NodeTest extends BaseCommandTest {
     localBuildPath: string,
     localBuildReleaseTag: string,
   ): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+    const testArgumentsBuilder: TestArgumentsBuilder = TestArgumentsBuilder.initialize('node setup', testName)
+      .setArg(Flags.deployment, deployment)
+      .setTestCacheDirectory();
 
-    const argv: string[] = newArgv();
-    argv.push('node', 'setup', optionFromFlag(Flags.deployment), deployment);
     if (enableLocalBuildPathTesting) {
-      argv.push(
-        optionFromFlag(Flags.localBuildPath),
-        localBuildPath,
-        optionFromFlag(Flags.releaseTag),
-        localBuildReleaseTag,
-      );
+      testArgumentsBuilder.setArg(Flags.localBuildPath, localBuildPath).setArg(Flags.releaseTag, localBuildReleaseTag);
     }
-    argvPushGlobalFlags(argv, testName, true);
-    return argv;
+
+    return testArgumentsBuilder.build();
   }
 
   public static setup(options: BaseTestOptions): void {
@@ -136,12 +123,7 @@ export class NodeTest extends BaseCommandTest {
   }
 
   private static soloNodeStartArgv(testName: string, deployment: DeploymentName): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
-
-    const argv: string[] = newArgv();
-    argv.push('node', 'start', optionFromFlag(Flags.deployment), deployment);
-    argvPushGlobalFlags(argv, testName);
-    return argv;
+    return TestArgumentsBuilder.initialize('node start', testName).setArg(Flags.deployment, deployment).build();
   }
 
   private static async verifyAccountCreateWasSuccessful(

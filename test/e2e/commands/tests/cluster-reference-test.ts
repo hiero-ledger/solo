@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {BaseCommandTest} from './base-command-test.js';
 import {main} from '../../../../src/index.js';
 import {type LocalConfigRuntimeState} from '../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
@@ -11,26 +10,19 @@ import {Flags} from '../../../../src/commands/flags.js';
 import {container} from 'tsyringe-neo';
 import {expect} from 'chai';
 import {type BaseTestOptions} from './base-test-options.js';
+import {TestArgumentsBuilder} from '../../../helpers/test-arguments-builder.js';
 
-export class ClusterReferenceTest extends BaseCommandTest {
+export class ClusterReferenceTest {
   private static soloClusterReferenceConnectArgv(
     testName: string,
     clusterReference: ClusterReferenceName,
     context: string,
   ): string[] {
-    const {newArgv, optionFromFlag, argvPushGlobalFlags} = ClusterReferenceTest;
-
-    const argv: string[] = newArgv();
-    argv.push(
-      'cluster-ref',
-      'connect',
-      optionFromFlag(Flags.clusterRef),
-      clusterReference,
-      optionFromFlag(Flags.context),
-      context,
-    );
-    argvPushGlobalFlags(argv, testName);
-    return argv;
+    return TestArgumentsBuilder.initialize('cluster-ref connect', testName)
+      .setArg(Flags.clusterRef, clusterReference)
+      .setArg(Flags.context, context)
+      .setTestCacheDirectory()
+      .build();
   }
 
   public static connect(options: BaseTestOptions): void {
@@ -53,12 +45,10 @@ export class ClusterReferenceTest extends BaseCommandTest {
   }
 
   private static soloClusterReferenceSetup(testName: string, clusterReference: ClusterReferenceName): string[] {
-    const {newArgv, optionFromFlag, argvPushGlobalFlags} = ClusterReferenceTest;
-
-    const argv: string[] = newArgv();
-    argv.push('cluster-ref', 'setup', optionFromFlag(Flags.clusterRef), clusterReference);
-    argvPushGlobalFlags(argv, testName, false, true);
-    return argv;
+    return TestArgumentsBuilder.initialize('cluster-ref setup', testName)
+      .setArg(Flags.clusterRef, clusterReference)
+      .setChartDirectory()
+      .build();
   }
 
   public static setup(options: BaseTestOptions): void {

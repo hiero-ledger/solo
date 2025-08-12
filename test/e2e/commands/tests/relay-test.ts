@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {BaseCommandTest} from './base-command-test.js';
 import {type ClusterReferenceName, type DeploymentName} from '../../../../src/types/index.js';
 import {Flags} from '../../../../src/commands/flags.js';
 import {main} from '../../../../src/index.js';
@@ -13,26 +12,19 @@ import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
+import {TestArgumentsBuilder} from '../../../helpers/test-arguments-builder.js';
 
-export class RelayTest extends BaseCommandTest {
+export class RelayTest {
   private static soloRelayDeployArgv(
     testName: string,
     deployment: DeploymentName,
     clusterReference: ClusterReferenceName,
   ): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = RelayTest;
-
-    const argv: string[] = newArgv();
-    argv.push(
-      'relay',
-      'deploy',
-      optionFromFlag(Flags.deployment),
-      deployment,
-      optionFromFlag(Flags.nodeAliasesUnparsed),
-      'node2',
-    );
-    argvPushGlobalFlags(argv, testName, true, false);
-    return argv;
+    return TestArgumentsBuilder.initialize('relay deploy', testName)
+      .setArg(Flags.deployment, deployment)
+      .setArg(Flags.nodeAliasesUnparsed, 'node2')
+      .setTestCacheDirectory()
+      .build();
   }
 
   private static async verifyRelayDeployWasSuccessful(contexts: string[], namespace: NamespaceName): Promise<void> {

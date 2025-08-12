@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {BaseCommandTest} from './base-command-test.js';
 import {main} from '../../../../src/index.js';
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
@@ -14,8 +13,9 @@ import {expect} from 'chai';
 import {type DeploymentName} from '../../../../src/types/index.js';
 import {Flags} from '../../../../src/commands/flags.js';
 import {type BaseTestOptions} from './base-test-options.js';
+import {TestArgumentsBuilder} from '../../../helpers/test-arguments-builder.js';
 
-export class NetworkTest extends BaseCommandTest {
+export class NetworkTest {
   private static soloNetworkDeployArgv(
     testName: string,
     deployment: DeploymentName,
@@ -23,21 +23,20 @@ export class NetworkTest extends BaseCommandTest {
     localBuildReleaseTag: string,
     loadBalancerEnabled: boolean,
   ): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NetworkTest;
+    const testArgumentsBuilder: TestArgumentsBuilder = TestArgumentsBuilder.initialize('network deploy', testName)
+      .setArg(Flags.deployment, deployment)
+      .setTestCacheDirectory()
+      .setChartDirectory();
 
-    const argv: string[] = newArgv();
-    argv.push('network', 'deploy', optionFromFlag(Flags.deployment), deployment);
-
-    // have to enable load balancer to resolve cross cluster in multi-cluster
     if (loadBalancerEnabled) {
-      argv.push(optionFromFlag(Flags.loadBalancerEnabled));
+      testArgumentsBuilder.setArg(Flags.loadBalancerEnabled);
     }
 
     if (enableLocalBuildPathTesting) {
-      argv.push(optionFromFlag(Flags.releaseTag), localBuildReleaseTag);
+      testArgumentsBuilder.setArg(Flags.releaseTag, localBuildReleaseTag);
     }
-    argvPushGlobalFlags(argv, testName, true, true);
-    return argv;
+
+    return testArgumentsBuilder.build();
   }
 
   public static deploy(options: BaseTestOptions): void {
@@ -75,12 +74,10 @@ export class NetworkTest extends BaseCommandTest {
   }
 
   private static soloNetworkDestroyArgv(testName: string, deployment: DeploymentName): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NetworkTest;
-
-    const argv: string[] = newArgv();
-    argv.push('network', 'destroy', optionFromFlag(Flags.deployment), deployment);
-    argvPushGlobalFlags(argv, testName, false, true);
-    return argv;
+    return TestArgumentsBuilder.initialize('network destroy', testName)
+      .setArg(Flags.deployment, deployment)
+      .setChartDirectory()
+      .build();
   }
 
   public static destroy(options: BaseTestOptions): void {

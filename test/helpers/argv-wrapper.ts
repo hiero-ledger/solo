@@ -23,7 +23,7 @@ export class Argv implements CloneTrait<Argv> {
     this.args[flag.name] = value;
   }
 
-  public getArg<T>(flag: CommandFlag): T {
+  public getArg<T = any>(flag: CommandFlag): T {
     return this.args[flag.name];
   }
 

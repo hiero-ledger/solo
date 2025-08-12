@@ -16,7 +16,7 @@ import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
 import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
 import {type BaseTestOptions} from './tests/base-test-options.js';
 import {main} from '../../../src/index.js';
-import {BaseCommandTest} from './tests/base-command-test.js';
+import {TestArgumentsBuilder} from '../../helpers/test-arguments-builder.js';
 
 const testName: string = 'quick-start-single';
 const testTitle: string = 'Quick Start Single E2E Test';
@@ -71,19 +71,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 endToEndTestSuite.runTestSuite();
 
 export function soloQuickStartDeploy(testName: string): string[] {
-  const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
-
-  const argv: string[] = newArgv();
-  argv.push('quick-start', 'single', 'deploy');
-  argvPushGlobalFlags(argv, testName);
-  return argv;
+  return TestArgumentsBuilder.initialize('quick-start single deploy', testName).build();
 }
 
 export function soloQuickStartDestroy(testName: string): string[] {
-  const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
-
-  const argv: string[] = newArgv();
-  argv.push('quick-start', 'single', 'destroy');
-  argvPushGlobalFlags(argv, testName);
-  return argv;
+  return TestArgumentsBuilder.initialize('quick-start single destroy', testName).build();
 }

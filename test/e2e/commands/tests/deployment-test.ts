@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {BaseCommandTest} from './base-command-test.js';
 import {main} from '../../../../src/index.js';
 import {type ClusterReferenceName, type ComponentId, type DeploymentName} from '../../../../src/types/index.js';
 import {type NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
@@ -11,8 +10,9 @@ import {type ConsensusNodeStateSchema} from '../../../../src/data/schema/model/r
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
+import {TestArgumentsBuilder} from '../../../helpers/test-arguments-builder.js';
 
-export class DeploymentTest extends BaseCommandTest {
+export class DeploymentTest {
   private static soloDeploymentCreateArgv(
     testName: string,
     deployment: DeploymentName,
@@ -20,23 +20,12 @@ export class DeploymentTest extends BaseCommandTest {
     realm: number,
     shard: number,
   ): string[] {
-    const {newArgv, optionFromFlag, argvPushGlobalFlags} = DeploymentTest;
-
-    const argv: string[] = newArgv();
-    argv.push(
-      'deployment',
-      'create',
-      optionFromFlag(Flags.deployment),
-      deployment,
-      optionFromFlag(Flags.namespace),
-      namespace.name,
-      optionFromFlag(Flags.realm),
-      String(realm),
-      optionFromFlag(Flags.shard),
-      String(shard),
-    );
-    argvPushGlobalFlags(argv, testName);
-    return argv;
+    return TestArgumentsBuilder.initialize('deployment create', testName)
+      .setArg(Flags.deployment, deployment)
+      .setArg(Flags.namespace, namespace.name)
+      .setArg(Flags.realm, realm)
+      .setArg(Flags.shard, shard)
+      .build();
   }
 
   public static create(options: BaseTestOptions): void {
@@ -57,21 +46,11 @@ export class DeploymentTest extends BaseCommandTest {
     clusterReference: ClusterReferenceName,
     numberOfNodes: number,
   ): string[] {
-    const {newArgv, optionFromFlag, argvPushGlobalFlags} = DeploymentTest;
-
-    const argv: string[] = newArgv();
-    argv.push(
-      'deployment',
-      'add-cluster',
-      optionFromFlag(Flags.deployment),
-      deployment,
-      optionFromFlag(Flags.clusterRef),
-      clusterReference,
-      optionFromFlag(Flags.numberOfConsensusNodes),
-      numberOfNodes.toString(),
-    );
-    argvPushGlobalFlags(argv, testName);
-    return argv;
+    return TestArgumentsBuilder.initialize('deployment add-cluster', testName)
+      .setArg(Flags.deployment, deployment)
+      .setArg(Flags.clusterRef, clusterReference)
+      .setArg(Flags.numberOfConsensusNodes, numberOfNodes)
+      .build();
   }
 
   public static addCluster(options: BaseTestOptions): void {

@@ -590,10 +590,10 @@ export const testLocalConfigData = {
 
 export {HEDERA_PLATFORM_VERSION as HEDERA_PLATFORM_VERSION_TAG} from '../version.js';
 
-export function hederaPlatformSupportsNonZeroRealms() {
+export function hederaPlatformSupportsNonZeroRealms(): boolean {
   return semVersionGte(HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
 }
 
-export function localHederaPlatformSupportsNonZeroRealms() {
+export function localHederaPlatformSupportsNonZeroRealms(): boolean {
   return semVersionGte(TEST_LOCAL_HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
 }

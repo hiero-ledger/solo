@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {BaseCommandTest} from './base-command-test.js';
 import {type ClusterReferenceName, type DeploymentName} from '../../../../src/types/index.js';
-import {Flags} from '../../../../src/commands/flags.js';
+import {Flags as flags} from '../../../../src/commands/flags.js';
 import {main} from '../../../../src/index.js';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {type NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
@@ -17,26 +16,20 @@ import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
+import {TestArgumentsBuilder} from '../../../helpers/test-arguments-builder.js';
 
-export class ExplorerTest extends BaseCommandTest {
+export class ExplorerTest {
   private static soloExplorerDeployArgv(
     testName: string,
     deployment: DeploymentName,
     clusterReference: ClusterReferenceName,
   ): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = ExplorerTest;
-
-    const argv: string[] = newArgv();
-    argv.push(
-      'explorer',
-      'deploy',
-      optionFromFlag(Flags.deployment),
-      deployment,
-      optionFromFlag(Flags.clusterRef),
-      clusterReference,
-    );
-    argvPushGlobalFlags(argv, testName, true, true);
-    return argv;
+    return TestArgumentsBuilder.initialize('explorer deploy', testName)
+      .setArg(flags.deployment, deployment)
+      .setArg(flags.clusterRef, clusterReference)
+      .setTestCacheDirectory()
+      .setChartDirectory()
+      .build();
   }
 
   private static async verifyExplorerDeployWasSuccessful(
