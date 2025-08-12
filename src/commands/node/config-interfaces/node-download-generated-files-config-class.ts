@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type CheckedNodesConfigClass, type NodeCommonConfigWithNodeAliases} from './node-common-config-class.js';
-import {type Client} from '@hashgraph/sdk';
+import {type Client} from '@hiero-ledger/sdk';
 
 export interface NodeDownloadGeneratedFilesConfigClass
   extends NodeCommonConfigWithNodeAliases,

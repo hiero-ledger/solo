@@ -9,6 +9,6 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@hashgraph/sdk": "^2.70.0"
+    "@hiero-ledger/sdk": "^2.70.0"
   }
 }
