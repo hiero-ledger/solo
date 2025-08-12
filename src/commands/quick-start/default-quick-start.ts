@@ -4,7 +4,7 @@ import {Listr, ListrContext, ListrRendererValue} from 'listr2';
 import {SoloError} from '../../core/errors/solo-error.js';
 import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
-import {Flags as flags, Flags} from '../flags.js';
+import {Flags as flags} from '../flags.js';
 import {type AnyYargs, type ArgvStruct} from '../../types/aliases.js';
 import {type CommandDefinition, SoloListr, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';

@@ -3,11 +3,13 @@
 import {ArgumentsBuilder, type FlagName} from '../../src/core/arguments-builder/arguments-builder.js';
 import {Flags as flags} from '../../src/commands/flags.js';
 import {getTestCacheDirectory} from '../test-utility.js';
+import {type Argv} from './argv-wrapper.js';
+import {type CommandFlag, type CommandFlags} from '../../src/types/flag-types.js';
 
 export class TestArgumentsBuilder extends ArgumentsBuilder {
   private constructor(
     command: string[],
-    private readonly testName: string,
+    private readonly testName?: string,
     flagArguments?: Record<FlagName, any>,
   ) {
     super(command, flagArguments);
@@ -15,9 +17,6 @@ export class TestArgumentsBuilder extends ArgumentsBuilder {
   }
 
   public static override initialize(command: string, testName?: string): TestArgumentsBuilder {
-    if (!testName) {
-      throw new Error('Test name is required');
-    }
     return new TestArgumentsBuilder(command.split(' '), testName);
   }
 
@@ -26,9 +25,6 @@ export class TestArgumentsBuilder extends ArgumentsBuilder {
     testName: string,
     flagArguments: Record<FlagName, any>,
   ): TestArgumentsBuilder {
-    if (!testName) {
-      throw new Error('Test name is required');
-    }
     return new TestArgumentsBuilder(command.split(' '), testName, flagArguments);
   }
 
@@ -42,5 +38,20 @@ export class TestArgumentsBuilder extends ArgumentsBuilder {
       this.setArg(flags.chartDirectory, process.env.SOLO_CHARTS_DIR);
     }
     return this;
+  }
+
+  public static fromArgvMapping(command: string, commandFlags: CommandFlags, argv: Argv): TestArgumentsBuilder {
+    const flagArguments: Record<FlagName, any> = {};
+
+    const flagList: CommandFlag[] = [...commandFlags.optional, ...commandFlags.required];
+
+    for (const flag of flagList) {
+      const value: any = argv.getArg(flag);
+      if (value !== undefined && value !== null) {
+        flagArguments[flag.name] = value;
+      }
+    }
+
+    return new TestArgumentsBuilder(command.split(' '), undefined, flagArguments);
   }
 }
