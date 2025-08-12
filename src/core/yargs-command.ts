@@ -5,6 +5,7 @@ import {IllegalArgumentError} from './errors/illegal-argument-error.js';
 import {SoloError} from './errors/solo-error.js';
 import {type BaseCommand} from '../commands/base.js';
 import {type CommandFlag} from '../types/flag-types.js';
+import {applyHelpMiddleware} from './help-middleware.js';
 
 export class YargsCommand {
   constructor(
@@ -46,7 +47,10 @@ export class YargsCommand {
         builder: (y: any) => {
           commandFlags.setRequiredCommandFlags(y, ...required);
           commandFlags.setOptionalCommandFlags(y, ...optional);
-          y.help(); // Enable help for this subcommand
+          // Enable help for this subcommand and apply help middleware
+          y.help(false); // Disable default help to use custom help handling
+          y.alias('h', 'help');
+          return applyHelpMiddleware(y);
         },
         handler: async (argv: any) => {
           commandDef.logger.info(`==== Running '${commandNamespace} ${command}' ===`);
