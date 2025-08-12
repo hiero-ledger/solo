@@ -1,6 +1,4 @@
-> \[!WARNING]
->
-> Any version of Solo prior to `v0.35.3` will fail on Apple M3/M4 chipsets due to a known issue with Java 21 and these chipsets.
+> 📝 Solo has a new quick-start command!  check it out: [Solo User Guide](https://solo.hiero.org/v0.41.0/docs/step-by-step-guide/#quick-start-deployment), [Solo CLI Commands](https://solo.hiero.org/v0.41.0/docs/solo-commands/#quick-start-single)
 
 # Solo
 

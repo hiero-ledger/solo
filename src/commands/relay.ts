@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import * as helpers from '../core/helpers.js';
@@ -72,6 +71,7 @@ interface RelayDeployConfigClass {
   domainName: Optional<string>;
   context: Optional<string>;
   forcePortForward: Optional<boolean>;
+  cacheDir: Optional<string>;
 }
 
 interface RelayDeployContext {
@@ -98,12 +98,11 @@ export class RelayCommand extends BaseCommand {
   private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
 
   private static readonly DEPLOY_FLAGS_LIST = {
-    required: [],
+    required: [flags.deployment],
     optional: [
       flags.chainId,
       flags.chartDirectory,
       flags.clusterRef,
-      flags.deployment,
       flags.nodeAliasesUnparsed,
       flags.operatorId,
       flags.operatorKey,
@@ -115,12 +114,13 @@ export class RelayCommand extends BaseCommand {
       flags.valuesFile,
       flags.domainName,
       flags.forcePortForward,
+      flags.cacheDir,
     ],
   };
 
   private static readonly DESTROY_FLAGS_LIST = {
-    required: [],
-    optional: [flags.chartDirectory, flags.deployment, flags.nodeAliasesUnparsed, flags.clusterRef, flags.quiet],
+    required: [flags.deployment, flags.clusterRef],
+    optional: [flags.chartDirectory, flags.nodeAliasesUnparsed, flags.quiet, flags.devMode],
   };
 
   private async prepareValuesArgForRelay(
@@ -321,8 +321,6 @@ export class RelayCommand extends BaseCommand {
               }
             }
 
-            self.logger.debug('Initialized config', {config: context_.config});
-
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
@@ -487,7 +485,7 @@ export class RelayCommand extends BaseCommand {
     const self = this;
     let lease: Lock;
 
-    const tasks = new Listr<RelayDestroyContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -507,14 +505,14 @@ export class RelayCommand extends BaseCommand {
 
             // prompt if inputs are empty and set it in the context
             context_.config = {
-              chartDirectory: self.configManager.getFlag<string>(flags.chartDirectory) as string,
+              chartDirectory: self.configManager.getFlag(flags.chartDirectory),
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
               nodeAliases: helpers.parseNodeAliases(
-                self.configManager.getFlag<string>(flags.nodeAliasesUnparsed) as string,
+                self.configManager.getFlag(flags.nodeAliasesUnparsed),
                 this.remoteConfig.getConsensusNodes(),
                 this.configManager,
               ),
-              clusterRef: self.configManager.getFlag<string>(flags.clusterRef) as string,
+              clusterRef: self.configManager.getFlag(flags.clusterRef),
             } as RelayDestroyConfigClass;
 
             if (context_.config.clusterRef) {
@@ -530,8 +528,6 @@ export class RelayCommand extends BaseCommand {
               context_.config.releaseName,
               context_.config.context,
             );
-
-            self.logger.debug('Initialized config', {config: context_.config});
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
@@ -554,16 +550,22 @@ export class RelayCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      'relay destroy',
     );
 
-    try {
-      await tasks.run();
-    } catch (error) {
-      throw new SoloError('Error uninstalling relays', error);
-    } finally {
-      if (lease) {
-        await lease.release();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError('Error uninstalling relays', error);
+      } finally {
+        await lease?.release();
       }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease?.release();
+      });
     }
 
     return true;
@@ -584,7 +586,7 @@ export class RelayCommand extends BaseCommand {
               flags.setOptionalCommandFlags(y, ...RelayCommand.DEPLOY_FLAGS_LIST.optional);
             },
             handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'relay deploy' ===", {argv});
+              self.logger.info("==== Running 'relay deploy' ===");
 
               await self.deploy(argv).then(r => {
                 self.logger.info('==== Finished running `relay deploy`====');
@@ -602,8 +604,7 @@ export class RelayCommand extends BaseCommand {
               flags.setOptionalCommandFlags(y, ...RelayCommand.DESTROY_FLAGS_LIST.optional);
             },
             handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'relay destroy' ===", {argv});
-              self.logger.debug(argv);
+              self.logger.info("==== Running 'relay destroy' ===");
 
               await self.destroy(argv).then(r => {
                 self.logger.info('==== Finished running `relay destroy`====');

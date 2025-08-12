@@ -734,7 +734,7 @@ export class NodeCommandTasks {
               context_.config.consensusNodes,
             );
 
-            // load nodeAdminKey form k8s if exist
+            // load nodeAdminKey from k8s if exist
             const keyFromK8 = await this.k8Factory
               .getK8(context)
               .secrets()
@@ -953,20 +953,19 @@ export class NodeCommandTasks {
             .copyFrom(`${keyDirectory}/${signedKeyFile.name}`, `${config.keysDir}`);
         }
 
-        if (
-          await k8
-            .containers()
-            .readByRef(containerReference)
-            .hasFile(`${constants.HEDERA_HAPI_PATH}/data/upgrade/current/application.properties`)
-        ) {
-          await k8
-            .containers()
-            .readByRef(containerReference)
-            .copyFrom(
-              `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/application.properties`,
-              `${config.stagingDir}/templates`,
-            );
-        }
+        const applicationPropertiesSourceDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`;
+        await ((await k8.containers().readByRef(containerReference).hasFile(applicationPropertiesSourceDirectory))
+          ? k8
+              .containers()
+              .readByRef(containerReference)
+              .copyFrom(applicationPropertiesSourceDirectory, `${config.stagingDir}/templates`)
+          : k8
+              .containers()
+              .readByRef(containerReference)
+              .copyFrom(
+                `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`,
+                `${config.stagingDir}/templates`,
+              ));
       },
     };
   }
@@ -1320,8 +1319,12 @@ export class NodeCommandTasks {
       },
       task: async (context_): Promise<void> => {
         for (const consensusNode of context_.config.consensusNodes) {
+          const context: string = helpers.extractContextFromConsensusNodes(
+            consensusNode.name,
+            context_.config.consensusNodes,
+          );
           const podReference: PodReference = await this.k8Factory
-            .getK8(consensusNode.cluster)
+            .getK8(context)
             .pods()
             .list(NamespaceName.of(consensusNode.namespace), [
               `solo.hedera.com/node-name=${consensusNode.name}`,
@@ -1451,13 +1454,10 @@ export class NodeCommandTasks {
       deploymentName,
     );
 
-    let adminPublicKeys = [];
-    if (this.configManager.getFlag(flags.adminPublicKeys)) {
-      adminPublicKeys = splitFlagInput(this.configManager.getFlag(flags.adminPublicKeys));
-    } else {
-      // set adminPublicKeys as array of constants.GENESIS_KEY with the same size consensus nodes
-      adminPublicKeys = Array.from({length: consensusNodes.length}).fill(constants.GENESIS_KEY);
-    }
+    let adminPublicKeys: string[] = [];
+    adminPublicKeys = this.configManager.getFlag(flags.adminPublicKeys)
+      ? splitFlagInput(this.configManager.getFlag(flags.adminPublicKeys))
+      : (Array.from({length: consensusNodes.length}).fill(constants.GENESIS_PUBLIC_KEY.toString()) as string[]);
     const genesisNetworkData = await GenesisNetworkDataConstructor.initialize(
       consensusNodes,
       this.keyManager,
@@ -2687,9 +2687,9 @@ export class NodeCommandTasks {
 
           const signedTx = await nodeDeleteTx.sign(config.adminKey);
           const txResp = await signedTx.execute(config.nodeClient);
-          const nodeUpdateReceipt = await txResp.getReceipt(config.nodeClient);
+          const nodeDeleteReceipt = await txResp.getReceipt(config.nodeClient);
 
-          this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
+          this.logger.debug(`NodeDeleteReceipt: ${nodeDeleteReceipt.toString()}`);
         } catch (error) {
           throw new SoloError(`Error deleting node from network: ${error.message}`, error);
         }
@@ -2768,8 +2768,6 @@ export class NodeCommandTasks {
             throw new MissingArgumentError(`No value set for required flag: ${flag.name}`, flag.name);
           }
         }
-
-        this.logger.debug('Initialized config', {config});
 
         if (lease) {
           return ListrLock.newAcquireLockTask(lease, task);

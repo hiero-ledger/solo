@@ -4,9 +4,9 @@ import {Listr, ListrContext, ListrRendererValue} from 'listr2';
 import {SoloError} from '../../core/errors/solo-error.js';
 import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
-import {Flags, Flags as flags} from '../flags.js';
-import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../../types/aliases.js';
-import {type CommandDefinition, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
+import {Flags as flags, Flags} from '../flags.js';
+import {type AnyYargs, type ArgvStruct} from '../../types/aliases.js';
+import {type CommandDefinition, SoloListr, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';
 import {inject, injectable} from 'tsyringe-neo';
@@ -34,7 +34,8 @@ import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {type AccountManager} from '../../core/account-manager.js';
 import {
-  CreatedPredefinedAccount, PREDEFINED_ACCOUNT_GROUPS,
+  CreatedPredefinedAccount,
+  PREDEFINED_ACCOUNT_GROUPS,
   PredefinedAccount,
   predefinedEcdsaAccounts,
   predefinedEcdsaAccountsWithAlias,
@@ -43,6 +44,8 @@ import {
 import {AccountId, HbarUnit} from '@hashgraph/sdk';
 import * as helpers from '../../core/helpers.js';
 import {Duration} from '../../core/time/duration.js';
+import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
+import fs from 'node:fs';
 
 @injectable()
 export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
@@ -71,7 +74,16 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
 
   private static readonly SINGLE_DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [],
+    optional: [
+      flags.cacheDir,
+      flags.clusterRef,
+      flags.context,
+      flags.deployment,
+      flags.namespace,
+      flags.quiet,
+      flags.force,
+      flags.devMode,
+    ],
   };
 
   public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {
@@ -233,25 +245,20 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             argv.push('node', 'start', this.optionFromFlag(Flags.deployment), config.deployment);
             return this.argvPushGlobalFlags(argv);
           }),
-          this.invokeSoloCommand(
-            'solo mirror-node deploy',
-            MirrorNodeCommand.DEPLOY_COMMAND,
-
-            () => {
-              const argv: string[] = this.newArgv();
-              argv.push(
-                'mirror-node',
-                'deploy',
-                this.optionFromFlag(Flags.deployment),
-                config.deployment,
-                this.optionFromFlag(Flags.clusterRef),
-                config.clusterRef,
-                this.optionFromFlag(Flags.pinger),
-                this.optionFromFlag(Flags.enableIngress),
-              );
-              return this.argvPushGlobalFlags(argv, config.cacheDir);
-            },
-          ),
+          this.invokeSoloCommand('solo mirror-node deploy', MirrorNodeCommand.DEPLOY_COMMAND, () => {
+            const argv: string[] = this.newArgv();
+            argv.push(
+              'mirror-node',
+              'deploy',
+              this.optionFromFlag(Flags.deployment),
+              config.deployment,
+              this.optionFromFlag(Flags.clusterRef),
+              config.clusterRef,
+              this.optionFromFlag(Flags.pinger),
+              this.optionFromFlag(Flags.enableIngress),
+            );
+            return this.argvPushGlobalFlags(argv, config.cacheDir);
+          }),
           this.invokeSoloCommand('solo explorer deploy', ExplorerCommand.DEPLOY_COMMAND, () => {
             const argv: string[] = this.newArgv();
             argv.push(
@@ -475,36 +482,152 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
   }
 
   private async destroy(argv: ArgvStruct): Promise<boolean> {
-    const tasks: Listr<QuickStartSingleDestroyContext> = new Listr<QuickStartSingleDestroyContext>([
-      {
-        title: 'Initialize',
-        task: async (context_, task): Promise<Listr<AnyListrContext>> => {
-          this.configManager.update(argv);
+    let config: QuickStartSingleDestroyConfigClass;
 
-          flags.disablePrompts(DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST.optional);
+    const tasks: SoloListr<QuickStartSingleDestroyContext> = this.taskList.newQuickStartSingleDestroyTaskList(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_, task): Promise<void> => {
+            this.configManager.update(argv);
 
-          const allFlags: CommandFlag[] = [
-            ...DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST.required,
-            ...DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST.optional,
-          ];
+            flags.disablePrompts(DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST.optional);
 
-          await this.configManager.executePrompt(task, allFlags);
+            const allFlags: CommandFlag[] = [
+              ...DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST.required,
+              ...DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST.optional,
+            ];
 
-          context_.config = this.configManager.getConfig(
-            DefaultQuickStartCommand.SINGLE_DESTROY_CONFIGS_NAME,
-            allFlags,
-          ) as QuickStartSingleDestroyConfigClass;
+            await this.configManager.executePrompt(task, allFlags);
 
-          return null;
+            context_.config = this.configManager.getConfig(
+              DefaultQuickStartCommand.SINGLE_DESTROY_CONFIGS_NAME,
+              allFlags,
+            ) as QuickStartSingleDestroyConfigClass;
+
+            config = context_.config;
+
+            await this.localConfig.load();
+
+            if (!config.cacheDir) {
+              config.cacheDir = constants.SOLO_CACHE_DIR;
+            }
+
+            if (!config.clusterRef) {
+              config.clusterRef = this.localConfig.configuration.clusterRefs.keys().next().value;
+            }
+
+            if (!config.context) {
+              config.context = this.localConfig.configuration.clusterRefs.get(config.clusterRef).toString();
+            }
+
+            if (!config.deployment) {
+              if (this.localConfig.configuration.deployments.length === 0) {
+                throw new SoloError('Deployments name is not found in local config');
+              }
+              config.deployment = this.localConfig.configuration.deployments.get(0).name;
+              this.configManager.setFlag(flags.deployment, config.deployment);
+            }
+
+            if (!config.namespace) {
+              config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+            }
+          },
         },
+        this.invokeSoloCommand('solo explorer destroy', 'explorer destroy', (): string[] => {
+          const argv: string[] = this.newArgv();
+          argv.push(
+            'explorer',
+            'destroy',
+            this.optionFromFlag(flags.clusterRef),
+            config.clusterRef,
+            this.optionFromFlag(flags.deployment),
+            config.deployment,
+            this.optionFromFlag(flags.quiet),
+            this.optionFromFlag(flags.force),
+          );
+          return this.argvPushGlobalFlags(argv);
+        }),
+        this.invokeSoloCommand('solo mirror-node destroy', 'mirror-node destroy', (): string[] => {
+          const argv: string[] = this.newArgv();
+          argv.push(
+            'mirror-node',
+            'destroy',
+            this.optionFromFlag(flags.clusterRef),
+            config.clusterRef,
+            this.optionFromFlag(flags.deployment),
+            config.deployment,
+            this.optionFromFlag(flags.quiet),
+            this.optionFromFlag(flags.force),
+            this.optionFromFlag(flags.devMode),
+          );
+          return this.argvPushGlobalFlags(argv);
+        }),
+        this.invokeSoloCommand('solo relay destroy', 'relay destroy', (): string[] => {
+          const argv: string[] = this.newArgv();
+          argv.push(
+            'relay',
+            'destroy',
+            this.optionFromFlag(flags.clusterRef),
+            config.clusterRef,
+            this.optionFromFlag(flags.deployment),
+            config.deployment,
+            this.optionFromFlag(flags.nodeAliasesUnparsed),
+            'node1',
+            this.optionFromFlag(flags.quiet),
+          );
+          return this.argvPushGlobalFlags(argv);
+        }),
+        this.invokeSoloCommand('solo network destroy', 'network destroy', (): string[] => {
+          const argv: string[] = this.newArgv();
+          argv.push(
+            'network',
+            'destroy',
+            this.optionFromFlag(flags.deployment),
+            config.deployment,
+            this.optionFromFlag(flags.quiet),
+            this.optionFromFlag(flags.force),
+            this.optionFromFlag(flags.deletePvcs),
+            this.optionFromFlag(flags.deleteSecrets),
+            this.optionFromFlag(flags.enableTimeout),
+          );
+          return this.argvPushGlobalFlags(argv);
+        }),
+        this.invokeSoloCommand('solo cluster-ref reset', 'cluster-ref reset', (): string[] => {
+          const argv: string[] = this.newArgv();
+          argv.push(
+            'cluster-ref',
+            'reset',
+            this.optionFromFlag(flags.clusterRef),
+            config.clusterRef,
+            this.optionFromFlag(flags.quiet),
+            this.optionFromFlag(flags.force),
+          );
+          return this.argvPushGlobalFlags(argv);
+        }),
+        {
+          title: 'Delete cache folder',
+          task: async (): Promise<void> => {
+            fs.rmSync(config.cacheDir, {recursive: true, force: true});
+          },
+        },
+        {title: 'Finish', task: async (): Promise<void> => {}},
+      ],
+      {
+        concurrent: false,
+        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
-      // TODO implement destroy tasks
-    ]);
+    );
 
     try {
       await tasks.run();
     } catch (error) {
       throw new SoloError(`Error destroying Solo in quick-start mode: ${error.message}`, error);
+    } finally {
+      await this.taskList
+        .callCloseFunctions()
+        .then()
+        .catch((error): void => this.logger.error('Error during closing task list:', error));
     }
 
     return true;

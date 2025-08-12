@@ -72,6 +72,13 @@ function start_contract_test ()
   result=0
   npm run hh:test || result=$?
   cd -
+
+  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    echo "Test local network connection using nc"
+    sudo apt-get update && sudo apt-get install -y netcat-traditional
+    nc -zv 127.0.0.1 50211
+  fi
+
   if [[ $result -ne 0 ]]; then
     echo "Smart contract test failed with exit code $result"
     log_and_exit $result
@@ -155,9 +162,14 @@ function log_and_exit()
   echo "load_log_and_exit begin with rc=$1"
 
   echo "------- BEGIN RELAY DUMP -------"
-  kubectl get services -n "${namespace}" --output=name | grep relay-node | grep -v '\-ws' | xargs -IRELAY kubectl logs -n "${namespace}" RELAY > relay.log || true
+  kubectl get services -n "${SOLO_NAMESPACE}" --output=name | grep relay-node | grep -v '\-ws' | xargs -IRELAY kubectl logs -n "${SOLO_NAMESPACE}" RELAY > relay.log || true
   cat relay.log || true
   echo "------- END RELAY DUMP -------"
+
+  echo "------- BEGIN MIRROR REST DUMP -------"
+  kubectl get services -n "${SOLO_NAMESPACE}" --output=name | grep rest | grep -v '\-restjava' | xargs -IREST kubectl logs -n "${SOLO_NAMESPACE}" REST > rest.log || true
+  cat rest.log || true
+  echo "------- END MIRROR REST DUMP -------"
 
   echo "------- Last port-forward check -------" >> port-forward.log
   ps -ef |grep port-forward >> port-forward.log
@@ -193,7 +205,6 @@ fi
 create_test_account "${SOLO_DEPLOYMENT}"
 clone_smart_contract_repo
 setup_smart_contract_test
-start_background_transactions
 check_port_forward
 start_contract_test
 start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"

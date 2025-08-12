@@ -238,7 +238,7 @@ export class NodeCommandHandlers extends CommandHandler {
   /** ******** Handlers **********/
 
   public async prepareUpgrade(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.DEFAULT_FLAGS);
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.PREPARE_UPGRADE_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
@@ -263,7 +263,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async freezeUpgrade(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.DEFAULT_FLAGS);
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.PREPARE_UPGRADE_FLAGS);
 
     await this.commandAction(
       argv,

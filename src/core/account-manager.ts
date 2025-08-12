@@ -414,7 +414,7 @@ export class AccountManager {
 
         try {
           object[`${host}:${targetPort}`] = accountId;
-          await this.pingNetworkNode(object, accountId);
+          await this.sdkPingNetworkNode(object, accountId);
           this.logger.debug(`successfully pinged network node: ${host}:${targetPort}`);
 
           return object;
@@ -457,8 +457,8 @@ export class AccountManager {
     object: Record<SdkNetworkEndpoint, AccountId>,
     accountId: AccountId,
   ): Promise<void> {
-    const maxRetries: number = constants.NODE_CLIENT_PING_MAX_RETRIES;
-    const sleepInterval: number = constants.NODE_CLIENT_PING_RETRY_INTERVAL;
+    const maxRetries: number = constants.NODE_CLIENT_SDK_PING_MAX_RETRIES;
+    const sleepInterval: number = constants.NODE_CLIENT_SDK_PING_RETRY_INTERVAL;
 
     let currentRetry: number = 0;
     let success: boolean = false;
@@ -467,14 +467,14 @@ export class AccountManager {
       while (!success && currentRetry < maxRetries) {
         try {
           this.logger.debug(
-            `attempting to ping network node: ${Object.keys(object)[0]}, attempt: ${currentRetry}, of ${maxRetries}`,
+            `attempting to sdk ping network node: ${Object.keys(object)[0]}, attempt: ${currentRetry}, of ${maxRetries}`,
           );
-          await this.pingNetworkNode(object, accountId);
+          await this.sdkPingNetworkNode(object, accountId);
           success = true;
 
           return;
         } catch (error) {
-          this.logger.error(`failed to ping network node: ${Object.keys(object)[0]}, ${error.message}`);
+          this.logger.error(`failed to sdk ping network node: ${Object.keys(object)[0]}, ${error.message}`);
           currentRetry++;
           await sleep(Duration.ofMillis(sleepInterval));
         }
@@ -485,7 +485,7 @@ export class AccountManager {
     }
 
     if (currentRetry >= maxRetries) {
-      throw new SoloError(`failed to ping network node: ${Object.keys(object)[0]}, after ${maxRetries} retries`);
+      throw new SoloError(`failed to sdk ping network node: ${Object.keys(object)[0]}, after ${maxRetries} retries`);
     }
 
     return;
@@ -741,6 +741,9 @@ export class AccountManager {
     try {
       keys = await this.getAccountKeys(accountId);
     } catch (error) {
+      if (error instanceof MissingArgumentError) {
+        throw error;
+      }
       this.logger.error(
         `failed to get keys for accountId ${accountId.toString()}, e: ${error.toString()}\n  ${error.stack}`,
       );
@@ -759,7 +762,7 @@ export class AccountManager {
       };
     }
 
-    if (constants.OPERATOR_PUBLIC_KEY !== keys[0].toString()) {
+    if (constants.GENESIS_PUBLIC_KEY.toString() !== keys[0].toString()) {
       this.logger.debug(`account ${accountId.toString()} can be skipped since it does not have a genesis key`);
       return {
         status: REJECTED,
@@ -771,34 +774,10 @@ export class AccountManager {
     this.logger.debug(`updating account ${accountId.toString()} since it is using the genesis key`);
 
     const newPrivateKey: PrivateKey = PrivateKey.generateED25519();
-    const data: {privateKey: string; publicKey: string} = {
-      privateKey: Base64.encode(newPrivateKey.toString()),
-      publicKey: Base64.encode(newPrivateKey.publicKey.toString()),
-    };
-
     try {
-      const contexts: Context[] = this.remoteConfig.getContexts();
-      for (const context of contexts) {
-        const secretName: string = Templates.renderAccountKeySecretName(accountId);
-        const secretLabels: {'solo.hedera.com/account-id': string} =
-          Templates.renderAccountKeySecretLabelObject(accountId);
-        const secretType: SecretType.OPAQUE = SecretType.OPAQUE;
-
-        const createdOrUpdated: boolean = await (updateSecrets
-          ? this.k8Factory.getK8(context).secrets().replace(namespace, secretName, secretType, data, secretLabels)
-          : this.k8Factory.getK8(context).secrets().create(namespace, secretName, secretType, data, secretLabels));
-
-        if (!createdOrUpdated) {
-          this.logger.error(`failed to create secret for accountId ${accountId.toString()}`);
-          return {
-            status: REJECTED,
-            reason: REASON_FAILED_TO_CREATE_K8S_S_KEY,
-            value: accountId.toString(),
-          };
-        }
-      }
+      await this.createOrReplaceAccountKeySecret(newPrivateKey, accountId, updateSecrets, namespace);
     } catch (error) {
-      this.logger.error(`failed to create secret for accountId ${accountId.toString()}, e: ${error.toString()}`);
+      this.logger.error(error.message, error);
       return {
         status: REJECTED,
         reason: REASON_FAILED_TO_CREATE_K8S_S_KEY,
@@ -828,6 +807,48 @@ export class AccountManager {
       status: FULFILLED,
       value: accountId.toString(),
     };
+  }
+
+  /**
+   * creates or replaces the Kubernetes secret for the account key
+   * @param privateKey - the private key to store in the secret
+   * @param accountId - the account id for which to create the secret
+   * @param updateSecrets - whether to replace the secret if it exists
+   * @param namespace - the namespace in which to create the secret
+   */
+  public async createOrReplaceAccountKeySecret(
+    privateKey: PrivateKey,
+    accountId: AccountId,
+    updateSecrets: boolean,
+    namespace: NamespaceName,
+  ): Promise<void> {
+    const data: {privateKey: string; publicKey: string} = {
+      privateKey: Base64.encode(privateKey.toString()),
+      publicKey: Base64.encode(privateKey.publicKey.toString()),
+    };
+
+    try {
+      const contexts: Context[] = this.remoteConfig.getContexts();
+      for (const context of contexts) {
+        const secretName: string = Templates.renderAccountKeySecretName(accountId);
+        const secretLabels: {'solo.hedera.com/account-id': string} =
+          Templates.renderAccountKeySecretLabelObject(accountId);
+        const secretType: SecretType.OPAQUE = SecretType.OPAQUE;
+
+        const createdOrUpdated: boolean = await (updateSecrets
+          ? this.k8Factory.getK8(context).secrets().replace(namespace, secretName, secretType, data, secretLabels)
+          : this.k8Factory.getK8(context).secrets().create(namespace, secretName, secretType, data, secretLabels));
+
+        if (!createdOrUpdated) {
+          throw new SoloError(`failed to create secret for accountId ${accountId.toString()}`);
+        }
+      }
+    } catch (error) {
+      throw new SoloError(
+        `failed to create secret for accountId ${accountId.toString()}, e: ${error.toString()}`,
+        error,
+      );
+    }
   }
 
   /**
@@ -1071,20 +1092,20 @@ export class AccountManager {
    * @param accountId - the account id to ping
    * @throws {@link SoloError} if the ping fails
    */
-  private async pingNetworkNode(object: Record<SdkNetworkEndpoint, AccountId>, accountId: AccountId): Promise<void> {
+  private async sdkPingNetworkNode(object: Record<SdkNetworkEndpoint, AccountId>, accountId: AccountId): Promise<void> {
     let nodeClient: Client;
     try {
       nodeClient = Client.fromConfig({network: object, scheduleNetworkUpdate: false});
-      this.logger.debug(`pinging network node: ${Object.keys(object)[0]}`);
+      this.logger.debug(`sdk pinging network node: ${Object.keys(object)[0]}`);
 
       if (!constants.SKIP_NODE_PING) {
         await nodeClient.ping(accountId);
       }
-      this.logger.debug(`ping successful for network node: ${Object.keys(object)[0]}`);
+      this.logger.debug(`sdk ping successful for network node: ${Object.keys(object)[0]}`);
 
       return;
     } catch (error) {
-      throw new SoloError(`failed to ping network node: ${Object.keys(object)[0]} ${error.message}`, error);
+      throw new SoloError(`failed to sdk ping network node: ${Object.keys(object)[0]} ${error.message}`, error);
     } finally {
       if (nodeClient) {
         try {
