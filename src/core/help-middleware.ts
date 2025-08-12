@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type HelpRenderer} from './help-renderer.js';
+import {SilentBreak} from './errors/silent-break.js';
 
 /**
  * Global middleware to handle help flags for all commands and subcommands
@@ -24,7 +25,7 @@ export function applyHelpMiddleware(yargs: any, helpRenderer?: HelpRenderer): an
           // Fallback to default help
           yargs.showHelp();
         }
-        process.exit(0);
+        throw new SilentBreak('printed help, exiting');
       }
     }, true); // applyBeforeValidation = true
   }
