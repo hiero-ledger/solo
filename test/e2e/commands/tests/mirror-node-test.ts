@@ -182,11 +182,11 @@ export class MirrorNodeTest extends BaseCommandTest {
         cache: 'no-cache' as RequestCache,
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
       };
-      
+
       const firstResponse = await fetch(transactionsEndpoint, fetchOptions);
       const firstData = await firstResponse.json();
       console.log(`firstData = ${JSON.stringify(firstData, null, 2)}`);
