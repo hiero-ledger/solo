@@ -5,9 +5,9 @@ import {type ComponentTypes} from '../enumerations/component-types.js';
 import {type DeploymentPhase} from '../../../../data/schema/model/remote/deployment-phase.js';
 import {type ClusterReferenceName, type ComponentId} from '../../../../types/index.js';
 import {type DeploymentStateSchema} from '../../../../data/schema/model/remote/deployment-state-schema.js';
-import type {PodReference} from '../../../../integration/kube/resources/pod/pod-reference.js';
-import type {K8} from '../../../../integration/kube/k8.js';
-import type {SoloLogger} from '../../../logging/solo-logger.js';
+import {type PodReference} from '../../../../integration/kube/resources/pod/pod-reference.js';
+import {type K8} from '../../../../integration/kube/k8.js';
+import {type SoloLogger} from '../../../logging/solo-logger.js';
 
 export interface ComponentsDataWrapperApi {
   state: DeploymentStateSchema;
