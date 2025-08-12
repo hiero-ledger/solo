@@ -256,6 +256,7 @@ export class ClusterCommandTasks {
 
         // If all are already present or not wanted, skip installation
         if (!context_.config.deployPrometheusStack && !context_.config.deployMinio) {
+          // TODO: I think this will skip installing the RBAC role
           context_.isChartInstalled = true;
           return;
         }
