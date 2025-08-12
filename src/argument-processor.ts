@@ -57,7 +57,7 @@ export class ArgumentProcessor {
         } else {
           logger.showUserError(new SoloError(`Error running Solo CLI, failure occurred: ${message ? message : ''}`));
         }
-        rootCmd.exit(1, error);
+        rootCmd.exit(0, error);
       }
     });
 
