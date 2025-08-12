@@ -9,33 +9,30 @@ import {container} from 'tsyringe-neo';
 import {type SoloLogger} from './core/logging/solo-logger.js';
 import yargs from 'yargs';
 import {hideBin} from 'yargs/helpers';
-import {applyHelpMiddleware} from './core/help-middleware.js';
 
 export class ArgumentProcessor {
   public static process(argv: string[]) {
     const logger: SoloLogger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
     const middlewares: Middlewares = container.resolve(InjectTokens.Middlewares);
     const helpRenderer: HelpRenderer = container.resolve(InjectTokens.HelpRenderer);
-    const commands = container.resolve(InjectTokens.Commands) as {getCommandDefinitions(): any[]};
+    const commands = container.resolve(InjectTokens.Commands);
 
     logger.debug('Initializing commands');
-    // Create the root command and apply help middleware
-    const rootCmd = applyHelpMiddleware(
-      yargs(hideBin(argv))
-        .scriptName('')
-        .usage('Usage:\n  solo <command> [options]')
-        .alias('h', 'help')
-        .alias('v', 'version')
-        .help(false) // disable default help to enable custom help renderer
-        .command(commands.getCommandDefinitions())
-        .strict()
-        .demand(1, 'Select a command'),
-      helpRenderer,
-    );
+    const rootCmd = yargs(hideBin(argv))
+      .scriptName('')
+      .usage('Usage:\n  solo <command> [options]')
+      .alias('h', 'help')
+      .alias('v', 'version')
+      .help(false) // disable default help to enable custom help renderer
+      // @ts-expect-error - TS2769: No overload matches this call.
+      .command(commands.getCommandDefinitions())
+      .strict()
+      .demand(1, 'Select a command');
 
     rootCmd.middleware(
       [
         middlewares.printCustomHelp(rootCmd),
+        // @ts-expect-error - TS2322: To assign middlewares
         middlewares.setLoggerDevFlag(),
         // @ts-expect-error - TS2322: To assign middlewares
         middlewares.processArgumentsAndDisplayHeader(),
