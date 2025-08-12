@@ -4,20 +4,38 @@ import {type CommandFlag} from '../../types/flag-types.js';
 import {Flags as flags} from '../../commands/flags.js';
 import {SoloError} from '../errors/solo-error.js';
 
+export type FlagName = string;
+
 export class ArgumentsBuilder {
-  protected constructor(protected readonly argv: string[]) {}
+  private readonly baseParams: string[] = ['${PATH}/node', '${SOLO_ROOT}/solo.ts'];
+
+  protected constructor(
+    private readonly command: string[],
+    public readonly flagArguments: Record<FlagName, any> = {},
+  ) {}
 
   public static initialize(command: string): ArgumentsBuilder {
-    return new ArgumentsBuilder(['${PATH}/node', '${SOLO_ROOT}/solo.ts', ...command.split(' ')]);
+    return new ArgumentsBuilder(command.split(' '));
   }
 
   public build(cacheDirectory?: string): string[] {
+    const argv: string[] = [...this.baseParams, ...this.command];
     this.setDevMode();
     this.setQuiet();
+
     if (cacheDirectory) {
-      this.argv.push(this.optionFromFlag(flags.cacheDir), cacheDirectory);
+      this.setArg(flags.cacheDir, cacheDirectory);
     }
-    return this.argv;
+
+    for (const [flagName, value] of Object.entries(this.flagArguments)) {
+      if (typeof value === 'boolean') {
+        argv.push(this.optionFromFlag(flagName));
+      } else {
+        argv.push(this.optionFromFlag(flagName), value);
+      }
+    }
+
+    return argv;
   }
 
   public setArg(flag: CommandFlag): this;
@@ -29,32 +47,32 @@ export class ArgumentsBuilder {
           `Flag ${flag.name} requires a value of type ${flag.definition.type} but got ${typeof value}`,
         );
       }
-      this.argv.push(this.optionFromFlag(flag), value);
+
+      this.flagArguments[flag.name] = value;
     } else {
       if (flag.definition.type !== 'boolean') {
         throw new SoloError(`Flag ${flag.name} is not a boolean flag and can't work with supplied value: ${value}`);
       }
-      this.argv.push(this.optionFromFlag(flag));
+
+      this.flagArguments[flag.name] = true;
     }
     return this;
   }
 
   public setForce(): ArgumentsBuilder {
-    this.argv.push(this.optionFromFlag(flags.force));
+    this.setArg(flags.force);
     return this;
   }
 
-  protected setQuiet(): void {
-    if (!this.argv.includes(this.optionFromFlag(flags.quiet))) {
-      this.argv.push(this.optionFromFlag(flags.quiet));
-    }
+  public setQuiet(): ArgumentsBuilder {
+    this.setArg(flags.force);
+    return this;
   }
 
-  protected setDevMode(): void {
-    if (!this.argv.includes(this.optionFromFlag(flags.devMode))) {
-      this.argv.push(this.optionFromFlag(flags.devMode));
-    }
+  public setDevMode(): ArgumentsBuilder {
+    this.setArg(flags.devMode);
+    return this;
   }
 
-  protected optionFromFlag: (flag: CommandFlag) => string = (flag: CommandFlag): string => `--${flag.name}`;
+  protected optionFromFlag: (flagName: FlagName) => string = (flagName: FlagName): string => `--${flagName}`;
 }

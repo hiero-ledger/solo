@@ -27,7 +27,7 @@ export class MirrorNodeTest {
     deployment: DeploymentName,
     clusterReference: ClusterReferenceName,
     pinger: boolean,
-  ): string[] {
+  ): TestArgumentsBuilder {
     const testArgumentsBuilder: TestArgumentsBuilder = TestArgumentsBuilder.initialize('mirror-node deploy', testName)
       .setArg(Flags.deployment, deployment)
       .setArg(Flags.clusterRef, clusterReference)
@@ -39,7 +39,7 @@ export class MirrorNodeTest {
       testArgumentsBuilder.setArg(Flags.pinger);
     }
 
-    return testArgumentsBuilder.build();
+    return testArgumentsBuilder;
   }
 
   private static async forwardRestServicePort(
@@ -208,7 +208,7 @@ export class MirrorNodeTest {
     const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, verifyPingerStatus} = MirrorNodeTest;
 
     it(`${testName}: mirror node deploy`, async (): Promise<void> => {
-      await main(soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger));
+      await main(soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger).build());
       await verifyMirrorNodeDeployWasSuccessful(
         contexts,
         namespace,
@@ -247,9 +247,17 @@ export class MirrorNodeTest {
     const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, verifyPingerStatus} = MirrorNodeTest;
 
     it(`${testName}: mirror node deploy with external database`, async (): Promise<void> => {
-      const argv: string[] = TestArgumentsBuilder.initializeFromExisting(
-        soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger),
+      const baseArguments: TestArgumentsBuilder = soloMirrorNodeDeployArgv(
         testName,
+        deployment,
+        clusterReferenceNameArray[1],
+        pinger,
+      );
+
+      const argv: string[] = TestArgumentsBuilder.initializeFromExisting(
+        'mirror-node deploy',
+        testName,
+        baseArguments.flagArguments,
       )
         .setArg(Flags.enableIngress)
         .setArg(Flags.useExternalDatabase)

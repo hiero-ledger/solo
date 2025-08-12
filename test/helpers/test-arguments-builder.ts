@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {ArgumentsBuilder} from '../../src/core/arguments-builder/arguments-builder.js';
+import {ArgumentsBuilder, type FlagName} from '../../src/core/arguments-builder/arguments-builder.js';
 import {Flags as flags} from '../../src/commands/flags.js';
 import {getTestCacheDirectory} from '../test-utility.js';
 
 export class TestArgumentsBuilder extends ArgumentsBuilder {
   private constructor(
-    argv: string[],
+    command: string[],
     private readonly testName: string,
+    flagArguments?: Record<FlagName, any>,
   ) {
-    super(argv);
+    super(command, flagArguments);
     this.testName = testName;
   }
 
@@ -17,31 +18,29 @@ export class TestArgumentsBuilder extends ArgumentsBuilder {
     if (!testName) {
       throw new Error('Test name is required');
     }
-
-    const argv: string[] = ['${PATH}/node', '${SOLO_ROOT}/solo.ts', ...command.split(' ')];
-    return new TestArgumentsBuilder(argv, testName);
+    return new TestArgumentsBuilder(command.split(' '), testName);
   }
 
-  public static initializeFromExisting(argv: string[], testName: string): TestArgumentsBuilder {
+  public static initializeFromExisting(
+    command: string,
+    testName: string,
+    flagArguments: Record<FlagName, any>,
+  ): TestArgumentsBuilder {
     if (!testName) {
       throw new Error('Test name is required');
     }
-    return new TestArgumentsBuilder(argv, testName);
+    return new TestArgumentsBuilder(command.split(' '), testName, flagArguments);
   }
 
   public setTestCacheDirectory(): this {
-    this.argv.push(this.optionFromFlag(flags.cacheDir), getTestCacheDirectory(this.testName));
+    this.setArg(flags.cacheDir, getTestCacheDirectory(this.testName));
     return this;
   }
 
   public setChartDirectory(): this {
-    this.argv.push(this.optionFromFlag(flags.cacheDir), getTestCacheDirectory(this.testName));
+    if (process.env.SOLO_CHARTS_DIR && process.env.SOLO_CHARTS_DIR !== '') {
+      this.setArg(flags.chartDirectory, process.env.SOLO_CHARTS_DIR);
+    }
     return this;
-  }
-
-  public override build(): string[] {
-    this.setQuiet();
-    this.setDevMode();
-    return this.argv;
   }
 }
