@@ -5,25 +5,81 @@
 # Stage 1: Install external tools required by Solo
 FROM busybox:1.37.0 AS installer
 
-# Install Kind
+# Install Kind with multi-architecture support
 ARG KIND_VERSION=0.26.0
-RUN wget -O ./kind https://kind.sigs.k8s.io/dl/v${KIND_VERSION}/kind-linux-amd64
-RUN chmod +x ./kind
+RUN set -eux; \
+    ARCH="$(uname -m)"; \
+    case "${ARCH}" in \
+        aarch64|arm64) \
+            KIND_ARCH="arm64"; \
+            ;; \
+        amd64|x86_64) \
+            KIND_ARCH="amd64"; \
+            ;; \
+        *) \
+            echo "Unsupported arch: ${ARCH}"; \
+            exit 1; \
+            ;; \
+    esac; \
+    wget -O ./kind "https://kind.sigs.k8s.io/dl/v${KIND_VERSION}/kind-linux-${KIND_ARCH}"; \
+    chmod +x ./kind
 
-# Install Docker
+# Install Docker with multi-architecture support
 ARG DOCKER_VERSION=27.3.1
-RUN wget -O ./docker.tgz https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VERSION}.tgz
-RUN tar xzvf ./docker.tgz
+RUN set -eux; \
+    ARCH="$(uname -m)"; \
+    case "${ARCH}" in \
+        aarch64|arm64) \
+            DOCKER_ARCH="aarch64"; \
+            ;; \
+        amd64|x86_64) \
+            DOCKER_ARCH="x86_64"; \
+            ;; \
+        *) \
+            echo "Unsupported arch: ${ARCH}"; \
+            exit 1; \
+            ;; \
+    esac; \
+    wget -O ./docker.tgz "https://download.docker.com/linux/static/stable/${DOCKER_ARCH}/docker-${DOCKER_VERSION}.tgz"; \
+    tar xzvf ./docker.tgz
 
-# Install Kubectl
+# Install Kubectl with multi-architecture support
 ARG KUBECTL_VERSION=1.27.3
-RUN wget -O ./kubectl "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
-RUN chmod +x ./kubectl
+RUN set -eux; \
+    ARCH="$(uname -m)"; \
+    case "${ARCH}" in \
+        aarch64|arm64) \
+            KUBECTL_ARCH="arm64"; \
+            ;; \
+        amd64|x86_64) \
+            KUBECTL_ARCH="amd64"; \
+            ;; \
+        *) \
+            echo "Unsupported arch: ${ARCH}"; \
+            exit 1; \
+            ;; \
+    esac; \
+    wget -O ./kubectl "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${KUBECTL_ARCH}/kubectl"; \
+    chmod +x ./kubectl
 
-# Install Helm
+# Install Helm with multi-architecture support
 ARG HELM_VERSION=3.14.2
-RUN wget -O ./helm.tgz https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz
-RUN tar xzvf ./helm.tgz
+RUN set -eux; \
+    ARCH="$(uname -m)"; \
+    case "${ARCH}" in \
+        aarch64|arm64) \
+            HELM_ARCH="arm64"; \
+            ;; \
+        amd64|x86_64) \
+            HELM_ARCH="amd64"; \
+            ;; \
+        *) \
+            echo "Unsupported arch: ${ARCH}"; \
+            exit 1; \
+            ;; \
+    esac; \
+    wget -O ./helm.tgz "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${HELM_ARCH}.tar.gz"; \
+    tar xzvf ./helm.tgz
 
 # Stage 2: Main application image
 FROM node:20.18.0-alpine
@@ -35,7 +91,7 @@ RUN apk add --no-cache python3 jq git
 COPY --from=installer ./kind /usr/local/bin/kind
 COPY --from=installer ./docker/docker /usr/local/bin/docker
 COPY --from=installer ./kubectl /usr/local/bin/kubectl
-COPY --from=installer ./linux-amd64/helm /usr/local/bin/helm
+COPY --from=installer ./linux-*/helm /usr/local/bin/helm
 
 # Set working directory
 WORKDIR /app
@@ -65,8 +121,7 @@ ENV SOLO_DEPLOYMENT=solo-deployment
 # Create a startup script for quick-start
 RUN echo '#!/bin/sh' > /usr/local/bin/solo-quick-start.sh && \
     echo 'echo "Starting Solo quick-start single deploy..."' >> /usr/local/bin/solo-quick-start.sh && \
-    echo 'solo init' >> /usr/local/bin/solo-quick-start.sh && \
-    echo 'solo quick-start single' >> /usr/local/bin/solo-quick-start.sh && \
+    echo 'solo quick-start single deploy' >> /usr/local/bin/solo-quick-start.sh && \
     chmod +x /usr/local/bin/solo-quick-start.sh
 
 # Default command runs Solo quick-start
