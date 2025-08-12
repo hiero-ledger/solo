@@ -26,8 +26,6 @@ import {ClusterCommandHandlers} from '../../../src/commands/cluster/handlers.js'
 import {ClusterCommandTasks} from '../../../src/commands/cluster/tasks.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
-import {main} from '../../../src/index.js';
-import {TestArgumentsBuilder} from '../../helpers/test-arguments-builder.js';
 
 describe('ClusterCommand', () => {
   // mock showUser and showJSON to silent logging during tests
@@ -69,17 +67,7 @@ describe('ClusterCommand', () => {
     await k8Factory.default().namespaces().delete(namespace);
     argv.setArg(flags.clusterSetupNamespace, constants.SOLO_SETUP_NAMESPACE.name);
     configManager.update(argv.build());
-
-    const testArgumentsBuilder: TestArgumentsBuilder = TestArgumentsBuilder.initialize('cluster-ref setup', testName)
-      .setArg(flags.chartDirectory, argv.getArg(flags.chartDirectory))
-      .setArg(flags.clusterRef, argv.getArg(flags.clusterRef))
-      .setArg(flags.clusterSetupNamespace, argv.getArg(flags.clusterSetupNamespace))
-      .setArg(flags.deployMinio)
-      .setArg(flags.deployPrometheusStack);
-
-    // restore solo-cluster-setup for other e2e tests to leverage
-    await main(testArgumentsBuilder.build());
-
+    await clusterCmdHandlers.setup(argv.build()); // restore solo-cluster-setup for other e2e tests to leverage
     do {
       await sleep(Duration.ofSeconds(5));
     } while (
@@ -98,33 +86,18 @@ describe('ClusterCommand', () => {
 
   it('should cleanup existing deployment', async () => {
     if (await chartManager.isChartInstalled(constants.SOLO_SETUP_NAMESPACE, constants.SOLO_CLUSTER_SETUP_CHART)) {
-      const testArgumentsBuilder: TestArgumentsBuilder = TestArgumentsBuilder.initialize('cluster-ref reset', testName)
-        .setArg(flags.clusterRef, argv.getArg(flags.clusterRef))
-        .setArg(flags.clusterSetupNamespace, argv.getArg(flags.clusterSetupNamespace))
-        .setArg(flags.force);
-
-      await main(testArgumentsBuilder.build());
+      expect(await clusterCmdHandlers.reset(argv.build())).to.be.true;
     }
   }).timeout(Duration.ofMinutes(1).toMillis());
 
   it('solo cluster setup should fail with invalid cluster name', async () => {
-    const testArgumentsBuilder: TestArgumentsBuilder = TestArgumentsBuilder.initialize('cluster-ref setup', testName)
-      .setArg(flags.clusterRef, argv.getArg(flags.clusterRef))
-      .setArg(flags.clusterSetupNamespace, 'INVALID')
-      .setArg(flags.force);
-
-    await expect(main(testArgumentsBuilder.build())).to.be.rejectedWith('Error on cluster setup');
+    argv.setArg(flags.clusterSetupNamespace, 'INVALID');
+    await expect(clusterCmdHandlers.setup(argv.build())).to.be.rejectedWith('Error on cluster setup');
   }).timeout(Duration.ofMinutes(1).toMillis());
 
   it('solo cluster setup should work with valid args', async () => {
-    const testArgumentsBuilder: TestArgumentsBuilder = TestArgumentsBuilder.initialize('cluster-ref setup', testName)
-      .setArg(flags.chartDirectory, argv.getArg(flags.chartDirectory))
-      .setArg(flags.clusterRef, argv.getArg(flags.clusterRef))
-      .setArg(flags.clusterSetupNamespace, namespace.name)
-      .setArg(flags.deployMinio)
-      .setArg(flags.deployPrometheusStack);
-
-    await main(testArgumentsBuilder.build());
+    argv.setArg(flags.clusterSetupNamespace, namespace.name);
+    expect(await clusterCmdHandlers.setup(argv.build())).to.be.true;
   }).timeout(Duration.ofMinutes(1).toMillis());
 
   it('cluster-ref connect should pass with correct data', async () => {
@@ -132,11 +105,7 @@ describe('ClusterCommand', () => {
 
     const localConfigPath = PathEx.joinWithRealPath(getTestCacheDirectory(), constants.DEFAULT_LOCAL_CONFIG_FILE);
 
-    const testArgumentsBuilder: TestArgumentsBuilder = TestArgumentsBuilder.initialize('cluster-ref connect', testName)
-      .setArg(flags.clusterRef, clusterRef)
-      .setArg(flags.context, contextName);
-
-    await main(testArgumentsBuilder.build());
+    await clusterCmdHandlers.connect(argv.build());
 
     const localConfigYaml = fs.readFileSync(localConfigPath).toString();
     const localConfigData = yaml.parse(localConfigYaml);
@@ -177,22 +146,18 @@ describe('ClusterCommand', () => {
   }).timeout(Duration.ofMinutes(1).toMillis());
 
   // 'solo cluster-ref connect' tests
-  function getClusterConnectDefaultArgv(): {
-    testArgumentsBuilder: TestArgumentsBuilder;
-    clusterRef: string;
-    contextName: string;
-  } {
-    const clusterReference: string = `${TEST_CLUSTER_REFERENCE}-ref`;
-    const contextName: string = TEST_CONTEXT;
+  function getClusterConnectDefaultArgv(): {argv: Argv; clusterRef: string; contextName: string} {
+    const clusterReference = `${TEST_CLUSTER_REFERENCE}-ref`;
+    const contextName = TEST_CONTEXT;
 
-    return {
-      testArgumentsBuilder: TestArgumentsBuilder.initialize('cluster-ref connect', testName)
-        .setArg(flags.cacheDir, getTestCacheDirectory())
-        .setArg(flags.clusterRef, clusterReference)
-        .setArg(flags.context, contextName),
-      clusterRef: clusterReference,
-      contextName: contextName,
-    };
+    const argv = Argv.initializeEmpty();
+    const cacheDirectory = getTestCacheDirectory();
+    argv.cacheDir = cacheDirectory;
+    argv.setArg(flags.cacheDir, cacheDirectory);
+    argv.setArg(flags.clusterRef, clusterReference);
+    argv.setArg(flags.quiet, true);
+    argv.setArg(flags.context, contextName);
+    return {argv, clusterRef: clusterReference, contextName};
   }
 
   it('cluster-ref connect should fail with invalid context name', async () => {
