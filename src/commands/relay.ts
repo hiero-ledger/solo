@@ -420,7 +420,7 @@ export class RelayCommand extends BaseCommand {
         },
         this.addRelayComponent(),
         {
-          title: 'Enable port forwarding',
+          title: 'Enable port forwarding for relay node',
           task: async (context_): Promise<void> => {
             const pods: Pod[] = await this.k8Factory
               .getK8(context_.config.clusterContext)
@@ -430,15 +430,21 @@ export class RelayCommand extends BaseCommand {
               throw new SoloError('No Relay pod found');
             }
             const podReference: PodReference = pods[0].podReference;
-            await this.k8Factory
-              .getK8(context_.config.context)
-              .pods()
-              .readByReference(podReference)
-              .portForward(constants.JSON_RPC_RELAY_PORT, constants.JSON_RPC_RELAY_PORT, true);
-            this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-            this.logger.addMessageGroupMessage(
-              constants.PORT_FORWARDING_MESSAGE_GROUP,
-              `JSON RPC Relay forward enabled on localhost:${constants.JSON_RPC_RELAY_PORT}`,
+            const clusterReference: string =
+              (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
+              this.k8Factory.default().clusters().readCurrent();
+
+            await this.remoteConfig.configuration.components.managePortForward(
+              clusterReference,
+              podReference,
+              constants.JSON_RPC_RELAY_PORT, // Pod port
+              constants.JSON_RPC_RELAY_PORT, // Local port
+              this.k8Factory.getK8(context_.config.clusterContext),
+              this.logger,
+              ComponentTypes.RelayNodes,
+
+              'JSON RPC Relay',
+              context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             );
           },
           skip: context_ => !context_.config.forcePortForward,
@@ -626,12 +632,14 @@ export class RelayCommand extends BaseCommand {
       title: 'Add relay component in remote config',
       skip: context_ => !this.remoteConfig.isLoaded() || context_.config.isChartInstalled,
       task: async (context_): Promise<void> => {
-        const {namespace, nodeAliases, clusterRef} = context_.config;
+        const {namespace, nodeAliases} = context_.config;
 
         const nodeIds: NodeId[] = nodeAliases.map((nodeAlias: NodeAlias) => Templates.nodeIdFromNodeAlias(nodeAlias));
-
+        const clusterReference: string =
+          (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
+          this.k8Factory.default().clusters().readCurrent();
         this.remoteConfig.configuration.components.addNewComponent(
-          this.componentFactory.createNewRelayComponent(clusterRef, namespace, nodeIds),
+          this.componentFactory.createNewRelayComponent(clusterReference, namespace, nodeIds),
           ComponentTypes.RelayNodes,
         );
 
@@ -648,12 +656,22 @@ export class RelayCommand extends BaseCommand {
       task: async (context_): Promise<void> => {
         const clusterReference: ClusterReferenceName = context_.config.clusterRef;
 
-        const relayComponents: RelayNodeStateSchema[] =
-          this.remoteConfig.configuration.components.getComponentsByClusterReference<RelayNodeStateSchema>(
-            ComponentTypes.RelayNodes,
-            clusterReference,
-          );
+        // if clusterReference not defined then we will remove all relay nodes
+        const relayComponents: RelayNodeStateSchema[] = clusterReference
+          ? this.remoteConfig.configuration.components.getComponentsByClusterReference<RelayNodeStateSchema>(
+              ComponentTypes.RelayNodes,
+              clusterReference,
+            )
+          : this.remoteConfig.configuration.components.getComponentByType<RelayNodeStateSchema>(
+              ComponentTypes.RelayNodes,
+            );
 
+        if (relayComponents.length === 0) {
+          this.logger.showUser(
+            `Did not find any relay node in remote config to be removed, clusterReference = ${clusterReference}`,
+          );
+          return;
+        }
         for (const relayComponent of relayComponents) {
           this.remoteConfig.configuration.components.removeComponent(
             relayComponent.metadata.id,
