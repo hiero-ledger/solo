@@ -1454,13 +1454,10 @@ export class NodeCommandTasks {
       deploymentName,
     );
 
-    let adminPublicKeys = [];
-    if (this.configManager.getFlag(flags.adminPublicKeys)) {
-      adminPublicKeys = splitFlagInput(this.configManager.getFlag(flags.adminPublicKeys));
-    } else {
-      // set adminPublicKeys as array of constants.GENESIS_KEY with the same size consensus nodes
-      adminPublicKeys = Array.from({length: consensusNodes.length}).fill(constants.GENESIS_KEY);
-    }
+    let adminPublicKeys: string[] = [];
+    adminPublicKeys = this.configManager.getFlag(flags.adminPublicKeys)
+      ? splitFlagInput(this.configManager.getFlag(flags.adminPublicKeys))
+      : (Array.from({length: consensusNodes.length}).fill(constants.GENESIS_PUBLIC_KEY.toString()) as string[]);
     const genesisNetworkData = await GenesisNetworkDataConstructor.initialize(
       consensusNodes,
       this.keyManager,
@@ -2690,9 +2687,9 @@ export class NodeCommandTasks {
 
           const signedTx = await nodeDeleteTx.sign(config.adminKey);
           const txResp = await signedTx.execute(config.nodeClient);
-          const nodeUpdateReceipt = await txResp.getReceipt(config.nodeClient);
+          const nodeDeleteReceipt = await txResp.getReceipt(config.nodeClient);
 
-          this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
+          this.logger.debug(`NodeDeleteReceipt: ${nodeDeleteReceipt.toString()}`);
         } catch (error) {
           throw new SoloError(`Error deleting node from network: ${error.message}`, error);
         }
