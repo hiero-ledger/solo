@@ -17,6 +17,7 @@ import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
 import {TestArgumentsBuilder} from '../../../helpers/test-arguments-builder.js';
+import {ExplorerCommand} from '../../../../src/commands/explorer.js';
 
 export class ExplorerTest {
   private static soloExplorerDeployArgv(
@@ -25,6 +26,7 @@ export class ExplorerTest {
     clusterReference: ClusterReferenceName,
   ): string[] {
     return TestArgumentsBuilder.initialize('explorer deploy', testName)
+      .setCommandFlags(ExplorerCommand.DEPLOY_FLAGS_LIST)
       .setArg(flags.deployment, deployment)
       .setArg(flags.clusterRef, clusterReference)
       .setTestCacheDirectory()

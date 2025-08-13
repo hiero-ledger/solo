@@ -71,7 +71,7 @@ export class AccountCommand extends BaseCommand {
 
   public static INIT_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.deployment, flags.nodeAliasesUnparsed, flags.clusterRef],
+    optional: [flags.deployment, flags.nodeAliasesUnparsed, flags.clusterRef, flags.quiet, flags.devMode],
   };
 
   public static CREATE_FLAGS_LIST: CommandFlags = {
@@ -85,17 +85,26 @@ export class AccountCommand extends BaseCommand {
       flags.generateEcdsaKey,
       flags.setAlias,
       flags.clusterRef,
+      flags.quiet,
+      flags.devMode,
     ],
   };
 
   public static UPDATE_FLAGS_LIST: CommandFlags = {
     required: [flags.accountId, flags.deployment],
-    optional: [flags.amount, flags.ecdsaPrivateKey, flags.ed25519PrivateKey, flags.clusterRef],
+    optional: [
+      flags.amount,
+      flags.ecdsaPrivateKey,
+      flags.ed25519PrivateKey,
+      flags.clusterRef,
+      flags.quiet,
+      flags.devMode,
+    ],
   };
 
   public static GET_FLAGS_LIST: CommandFlags = {
     required: [flags.accountId, flags.deployment],
-    optional: [flags.privateKey, flags.clusterRef],
+    optional: [flags.privateKey, flags.clusterRef, flags.quiet, flags.devMode],
   };
 
   private async closeConnections(): Promise<void> {

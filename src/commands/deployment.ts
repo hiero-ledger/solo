@@ -31,6 +31,7 @@ import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {StringFacade} from '../business/runtime-state/facade/string-facade.js';
 import {Deployment} from '../business/runtime-state/config/local/deployment.js';
+import {CommandFlags} from '../types/flag-types.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -71,17 +72,17 @@ export class DeploymentCommand extends BaseCommand {
 
   public static readonly COMMAND_NAME = 'deployment';
 
-  private static CREATE_FLAGS_LIST = {
+  public static CREATE_FLAGS_LIST: CommandFlags = {
     required: [flags.namespace, flags.deployment],
     optional: [flags.quiet, flags.realm, flags.shard],
   };
 
-  private static DELETE_FLAGS_LIST = {
+  public static DELETE_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [flags.quiet],
   };
 
-  private static ADD_CLUSTER_FLAGS_LIST = {
+  public static ADD_CLUSTER_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.quiet,
@@ -92,7 +93,7 @@ export class DeploymentCommand extends BaseCommand {
     ],
   };
 
-  private static LIST_DEPLOYMENTS_FLAGS_LIST = {
+  public static LIST_DEPLOYMENTS_FLAGS_LIST: CommandFlags = {
     required: [flags.clusterRef],
     optional: [flags.quiet],
   };

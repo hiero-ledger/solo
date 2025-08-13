@@ -62,6 +62,10 @@ import {gte as semVersionGte} from 'semver';
 import {type LocalConfigRuntimeState} from '../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type InstanceOverrides} from '../src/core/dependency-injection/container-init.js';
 import {type RemoteConfigRuntimeStateApi} from '../src/business/runtime-state/api/remote-config-runtime-state-api.js';
+import {main} from '../src/index.js';
+import {TestArgumentsBuilder} from './helpers/test-arguments-builder.js';
+import * as nodeFlags from '../src/commands/node/flags.js';
+import * as clusterFlags from '../src/commands/cluster/flags.js';
 
 export const BASE_TEST_DIR = PathEx.join('test', 'data', 'tmp');
 
@@ -93,43 +97,46 @@ export function getTemporaryDirectory() {
 
 export function deployNetworkTest(argv: Argv, commandInvoker: CommandInvoker, networkCmd: NetworkCommand): void {
   it('should succeed with network deploy', async () => {
-    await commandInvoker.invoke({
-      argv: argv,
-      command: NetworkCommand.COMMAND_NAME,
-      subcommand: 'deploy',
-      // @ts-expect-error - to access private property
-      callback: async argv => networkCmd.deploy(argv),
-    });
+    await main(
+      TestArgumentsBuilder.initializeFromArgvMapping(
+        `${NetworkCommand.COMMAND_NAME} deploy`,
+        NetworkCommand.DEPLOY_FLAGS_LIST,
+        argv,
+      ).build(),
+    );
   }).timeout(Duration.ofMinutes(5).toMillis());
 }
 
 export function startNodesTest(argv: Argv, commandInvoker: CommandInvoker, nodeCmd: NodeCommand): void {
   it('should succeed with node setup command', async () => {
     // cache this, because `solo node setup.finalize()` will reset it to false
-    await commandInvoker.invoke({
-      argv: argv,
-      command: NodeCommand.COMMAND_NAME,
-      subcommand: 'setup',
-      callback: async argv => nodeCmd.handlers.setup(argv),
-    });
+    await main(
+      TestArgumentsBuilder.initializeFromArgvMapping(
+        `${NodeCommand.COMMAND_NAME} setup`,
+        nodeFlags.SETUP_FLAGS,
+        argv,
+      ).build(),
+    );
   }).timeout(Duration.ofMinutes(4).toMillis());
 
   it('should succeed with node start command', async () => {
-    await commandInvoker.invoke({
-      argv: argv,
-      command: NodeCommand.COMMAND_NAME,
-      subcommand: 'start',
-      callback: async argv => nodeCmd.handlers.start(argv),
-    });
+    await main(
+      TestArgumentsBuilder.initializeFromArgvMapping(
+        `${NodeCommand.COMMAND_NAME} start`,
+        nodeFlags.START_FLAGS,
+        argv,
+      ).build(),
+    );
   }).timeout(Duration.ofMinutes(30).toMillis());
 
   it('node log command should work', async () => {
-    await commandInvoker.invoke({
-      argv: argv,
-      command: NodeCommand.COMMAND_NAME,
-      subcommand: 'logs',
-      callback: async argv => nodeCmd.handlers.logs(argv),
-    });
+    await main(
+      TestArgumentsBuilder.initializeFromArgvMapping(
+        `${NodeCommand.COMMAND_NAME} logs`,
+        nodeFlags.LOGS_FLAGS,
+        argv,
+      ).build(),
+    );
 
     const soloLogPath: string = PathEx.joinWithRealPath(SOLO_LOGS_DIR, 'solo.log');
     const soloLog: string = fs.readFileSync(soloLogPath, 'utf8');
@@ -332,11 +339,13 @@ export function endToEndTestSuite(
       });
 
       it('should cleanup previous deployment', async () => {
-        await commandInvoker.invoke({
-          argv: argv,
-          command: InitCommand.COMMAND_NAME,
-          callback: async argv => initCmd.init(argv),
-        });
+        await main(
+          TestArgumentsBuilder.initializeFromArgvMapping(
+            `${InitCommand.COMMAND_NAME}`,
+            InitCommand.INIT_COMMAND_FLAGS,
+            argv,
+          ).build(),
+        );
 
         if (await k8Factory.default().namespaces().has(namespace)) {
           await k8Factory.default().namespaces().delete(namespace);
@@ -350,12 +359,13 @@ export function endToEndTestSuite(
         if (
           !(await chartManager.isChartInstalled(constants.SOLO_SETUP_NAMESPACE, constants.SOLO_CLUSTER_SETUP_CHART))
         ) {
-          await commandInvoker.invoke({
-            argv: argv,
-            command: ClusterCommand.COMMAND_NAME,
-            subcommand: 'setup',
-            callback: async argv => clusterCmd.handlers.setup(argv),
-          });
+          await main(
+            TestArgumentsBuilder.initializeFromArgvMapping(
+              `${ClusterCommand.COMMAND_NAME} setup`,
+              InitCommand.INIT_COMMAND_FLAGS,
+              argv,
+            ).build(),
+          );
         }
       }).timeout(Duration.ofMinutes(2).toMillis());
 

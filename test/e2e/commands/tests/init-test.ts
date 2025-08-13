@@ -3,10 +3,14 @@
 import {main} from '../../../../src/index.js';
 import {type BaseTestOptions} from './base-test-options.js';
 import {TestArgumentsBuilder} from '../../../helpers/test-arguments-builder.js';
+import {InitCommand} from '../../../../src/commands/init/init.js';
 
 export class InitTest {
   private static soloInitArgv(testName: string): string[] {
-    return TestArgumentsBuilder.initialize('init', testName).setTestCacheDirectory().build();
+    return TestArgumentsBuilder.initialize('init', testName)
+      .setCommandFlags(InitCommand.INIT_COMMAND_FLAGS)
+      .setTestCacheDirectory()
+      .build();
   }
 
   public static init(options: BaseTestOptions): void {

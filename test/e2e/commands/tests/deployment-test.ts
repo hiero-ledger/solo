@@ -11,6 +11,7 @@ import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
 import {TestArgumentsBuilder} from '../../../helpers/test-arguments-builder.js';
+import {DeploymentCommand} from '../../../../src/commands/deployment.js';
 
 export class DeploymentTest {
   private static soloDeploymentCreateArgv(
@@ -21,6 +22,7 @@ export class DeploymentTest {
     shard: number,
   ): string[] {
     return TestArgumentsBuilder.initialize('deployment create', testName)
+      .setCommandFlags(DeploymentCommand.CREATE_FLAGS_LIST)
       .setArg(Flags.deployment, deployment)
       .setArg(Flags.namespace, namespace.name)
       .setArg(Flags.realm, realm)
@@ -47,6 +49,7 @@ export class DeploymentTest {
     numberOfNodes: number,
   ): string[] {
     return TestArgumentsBuilder.initialize('deployment add-cluster', testName)
+      .setCommandFlags(DeploymentCommand.ADD_CLUSTER_FLAGS_LIST)
       .setArg(Flags.deployment, deployment)
       .setArg(Flags.clusterRef, clusterReference)
       .setArg(Flags.numberOfConsensusNodes, numberOfNodes)

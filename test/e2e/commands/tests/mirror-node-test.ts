@@ -20,6 +20,7 @@ import * as constants from '../../../../src/core/constants.js';
 import fs from 'node:fs';
 import {ShellRunner} from '../../../../src/core/shell-runner.js';
 import {TestArgumentsBuilder} from '../../../helpers/test-arguments-builder.js';
+import {MirrorNodeCommand} from '../../../../src/commands/mirror-node.js';
 
 export class MirrorNodeTest {
   private static soloMirrorNodeDeployArgv(
@@ -29,6 +30,7 @@ export class MirrorNodeTest {
     pinger: boolean,
   ): TestArgumentsBuilder {
     const testArgumentsBuilder: TestArgumentsBuilder = TestArgumentsBuilder.initialize('mirror-node deploy', testName)
+      .setCommandFlags(MirrorNodeCommand.DEPLOY_FLAGS_LIST)
       .setArg(Flags.deployment, deployment)
       .setArg(Flags.clusterRef, clusterReference)
       .setArg(Flags.enableIngress)
@@ -259,6 +261,7 @@ export class MirrorNodeTest {
         testName,
         baseArguments.flagArguments,
       )
+        .setCommandFlags(MirrorNodeCommand.DEPLOY_FLAGS_LIST)
         .setArg(Flags.enableIngress)
         .setArg(Flags.useExternalDatabase)
         .setArg(Flags.externalDatabaseHost, this.postgresHostFqdn)

@@ -46,6 +46,8 @@ import {Duration} from '../../core/time/duration.js';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import fs from 'node:fs';
 import {ArgumentsBuilder} from '../../core/arguments-builder/arguments-builder.js';
+import * as nodeFlags from '../node/flags.js';
+import * as clusterFlags from '../cluster/flags.js';
 
 @injectable()
 export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
@@ -55,7 +57,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
 
   private static readonly SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';
 
-  private static readonly SINGLE_ADD_FLAGS_LIST: CommandFlags = {
+  public static readonly SINGLE_ADD_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.cacheDir,
@@ -72,7 +74,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     ],
   };
 
-  private static readonly SINGLE_DESTROY_FLAGS_LIST: CommandFlags = {
+  public static readonly SINGLE_DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.cacheDir,
@@ -154,22 +156,27 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             },
           },
           this.invokeSoloCommand('solo init', InitCommand.INIT_COMMAND_NAME, () => {
-            return ArgumentsBuilder.initialize('init').build(config.cacheDir);
+            return ArgumentsBuilder.initialize('init')
+              .setCommandFlags(InitCommand.INIT_COMMAND_FLAGS)
+              .build(config.cacheDir);
           }),
           this.invokeSoloCommand('solo cluster-ref connect', ClusterCommandHandlers.CONNECT_COMMAND, () => {
             return ArgumentsBuilder.initialize('cluster-ref connect')
+              .setCommandFlags(clusterFlags.CONNECT_FLAGS)
               .setArg(flags.clusterRef, config.clusterRef)
               .setArg(flags.context, config.context)
               .build();
           }),
           this.invokeSoloCommand('solo deployment create', DeploymentCommand.CREATE_COMMAND, () => {
             return ArgumentsBuilder.initialize('deployment create')
+              .setCommandFlags(DeploymentCommand.CREATE_FLAGS_LIST)
               .setArg(flags.deployment, config.deployment)
               .setArg(flags.namespace, config.namespace.name)
               .build();
           }),
           this.invokeSoloCommand('solo deployment add-cluster', DeploymentCommand.ADD_COMMAND, () => {
             return ArgumentsBuilder.initialize('deployment add-cluster')
+              .setCommandFlags(DeploymentCommand.ADD_CLUSTER_FLAGS_LIST)
               .setArg(flags.deployment, config.deployment)
               .setArg(flags.clusterRef, config.clusterRef)
               .setArg(flags.numberOfConsensusNodes, config.numberOfConsensusNodes)
@@ -180,6 +187,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           }),
           this.invokeSoloCommand('solo node keys', NodeCommandHandlers.KEYS_COMMAND, () => {
             return ArgumentsBuilder.initialize('node keys')
+              .setCommandFlags(nodeFlags.KEYS_FLAGS)
               .setArg(flags.deployment, config.deployment)
               .setArg(flags.generateGossipKeys)
               .setArg(flags.generateTlsKeys)
@@ -187,19 +195,25 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           }),
           this.invokeSoloCommand('solo network deploy', NetworkCommand.DEPLOY_COMMAND, () => {
             return ArgumentsBuilder.initialize('network deploy')
+              .setCommandFlags(NetworkCommand.DEPLOY_FLAGS_LIST)
               .setArg(flags.deployment, config.deployment)
               .build(config.cacheDir);
           }),
           this.invokeSoloCommand('solo node setup', NodeCommandHandlers.SETUP_COMMAND, () => {
             return ArgumentsBuilder.initialize('node setup')
+              .setCommandFlags(nodeFlags.SETUP_FLAGS)
               .setArg(flags.deployment, config.deployment)
               .build(config.cacheDir);
           }),
           this.invokeSoloCommand('solo node start', NodeCommandHandlers.START_COMMAND, () => {
-            return ArgumentsBuilder.initialize('node start').setArg(flags.deployment, config.deployment).build();
+            return ArgumentsBuilder.initialize('node start')
+              .setCommandFlags(nodeFlags.START_FLAGS)
+              .setArg(flags.deployment, config.deployment)
+              .build();
           }),
           this.invokeSoloCommand('solo mirror-node deploy', MirrorNodeCommand.DEPLOY_COMMAND, () => {
             return ArgumentsBuilder.initialize('mirror-node deploy')
+              .setCommandFlags(MirrorNodeCommand.DEPLOY_FLAGS_LIST)
               .setArg(flags.deployment, config.deployment)
               .setArg(flags.clusterRef, config.clusterRef)
               .setArg(flags.pinger)
@@ -208,12 +222,14 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           }),
           this.invokeSoloCommand('solo explorer deploy', ExplorerCommand.DEPLOY_COMMAND, () => {
             return ArgumentsBuilder.initialize('explorer deploy')
+              .setCommandFlags(ExplorerCommand.DEPLOY_FLAGS_LIST)
               .setArg(flags.deployment, config.deployment)
               .setArg(flags.clusterRef, config.clusterRef)
               .build(config.cacheDir);
           }),
           this.invokeSoloCommand('solo relay deploy', RelayCommand.DEPLOY_COMMAND, () => {
             return ArgumentsBuilder.initialize('relay deploy')
+              .setCommandFlags(RelayCommand.DEPLOY_FLAGS_LIST)
               .setArg(flags.deployment, config.deployment)
               .setArg(flags.clusterRef, config.clusterRef)
               .setArg(flags.nodeAliasesUnparsed, 'node1')
@@ -470,6 +486,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
         },
         this.invokeSoloCommand('solo explorer destroy', 'explorer destroy', (): string[] => {
           return ArgumentsBuilder.initialize('explorer destroy')
+            .setCommandFlags(ExplorerCommand.DESTROY_FLAGS_LIST)
             .setArg(flags.clusterRef, config.clusterRef)
             .setArg(flags.deployment, config.deployment)
             .setForce()
@@ -477,6 +494,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
         }),
         this.invokeSoloCommand('solo mirror-node destroy', 'mirror-node destroy', (): string[] => {
           return ArgumentsBuilder.initialize('mirror-node destroy')
+            .setCommandFlags(MirrorNodeCommand.DESTROY_FLAGS_LIST)
             .setArg(flags.clusterRef, config.clusterRef)
             .setArg(flags.deployment, config.deployment)
             .setForce()
@@ -484,6 +502,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
         }),
         this.invokeSoloCommand('solo relay destroy', 'relay destroy', (): string[] => {
           return ArgumentsBuilder.initialize('relay destroy')
+            .setCommandFlags(RelayCommand.DESTROY_FLAGS_LIST)
             .setArg(flags.clusterRef, config.clusterRef)
             .setArg(flags.deployment, config.deployment)
             .setArg(flags.nodeAliasesUnparsed, 'node1')
@@ -491,6 +510,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
         }),
         this.invokeSoloCommand('solo network destroy', 'network destroy', (): string[] => {
           return ArgumentsBuilder.initialize('network destroy')
+            .setCommandFlags(NetworkCommand.DESTROY_FLAGS_LIST)
             .setArg(flags.deployment, config.deployment)
             .setArg(flags.deleteSecrets)
             .setArg(flags.deletePvcs)
@@ -500,6 +520,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
         }),
         this.invokeSoloCommand('solo cluster-ref reset', 'cluster-ref reset', (): string[] => {
           return ArgumentsBuilder.initialize('cluster-ref reset')
+            .setCommandFlags(clusterFlags.RESET_FLAGS)
             .setArg(flags.clusterRef, config.clusterRef)
             .setForce()
             .build();

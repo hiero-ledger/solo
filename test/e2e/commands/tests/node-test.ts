@@ -29,10 +29,12 @@ import {
 } from '@hashgraph/sdk';
 import {type BaseTestOptions} from './base-test-options.js';
 import {TestArgumentsBuilder} from '../../../helpers/test-arguments-builder.js';
+import * as nodeFlags from '../../../../src/commands/node/flags.js';
 
 export class NodeTest {
   private static soloNodeKeysArgv(testName: string, deployment: DeploymentName): string[] {
     return TestArgumentsBuilder.initialize('node keys', testName)
+      .setCommandFlags(nodeFlags.KEYS_FLAGS)
       .setArg(Flags.deployment, deployment)
       .setArg(Flags.generateGossipKeys)
       .setArg(Flags.generateTlsKeys)
@@ -63,6 +65,7 @@ export class NodeTest {
     localBuildReleaseTag: string,
   ): string[] {
     const testArgumentsBuilder: TestArgumentsBuilder = TestArgumentsBuilder.initialize('node setup', testName)
+      .setCommandFlags(nodeFlags.SETUP_FLAGS)
       .setArg(Flags.deployment, deployment)
       .setTestCacheDirectory();
 
@@ -123,7 +126,10 @@ export class NodeTest {
   }
 
   private static soloNodeStartArgv(testName: string, deployment: DeploymentName): string[] {
-    return TestArgumentsBuilder.initialize('node start', testName).setArg(Flags.deployment, deployment).build();
+    return TestArgumentsBuilder.initialize('node start', testName)
+      .setCommandFlags(nodeFlags.START_FLAGS)
+      .setArg(Flags.deployment, deployment)
+      .build();
   }
 
   private static async verifyAccountCreateWasSuccessful(

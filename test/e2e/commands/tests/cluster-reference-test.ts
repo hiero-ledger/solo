@@ -11,6 +11,7 @@ import {container} from 'tsyringe-neo';
 import {expect} from 'chai';
 import {type BaseTestOptions} from './base-test-options.js';
 import {TestArgumentsBuilder} from '../../../helpers/test-arguments-builder.js';
+import * as clusterFlags from '../../../../src/commands/cluster/flags.js';
 
 export class ClusterReferenceTest {
   private static soloClusterReferenceConnectArgv(
@@ -19,6 +20,7 @@ export class ClusterReferenceTest {
     context: string,
   ): string[] {
     return TestArgumentsBuilder.initialize('cluster-ref connect', testName)
+      .setCommandFlags(clusterFlags.CONNECT_FLAGS)
       .setArg(Flags.clusterRef, clusterReference)
       .setArg(Flags.context, context)
       .setTestCacheDirectory()
@@ -46,6 +48,7 @@ export class ClusterReferenceTest {
 
   private static soloClusterReferenceSetup(testName: string, clusterReference: ClusterReferenceName): string[] {
     return TestArgumentsBuilder.initialize('cluster-ref setup', testName)
+      .setCommandFlags(clusterFlags.SETUP_FLAGS)
       .setArg(Flags.clusterRef, clusterReference)
       .setChartDirectory()
       .build();

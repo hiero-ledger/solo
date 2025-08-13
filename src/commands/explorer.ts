@@ -40,6 +40,7 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Version} from '../business/utils/version.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
+import {CommandFlags} from '../types/flag-types.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -99,7 +100,7 @@ export class ExplorerCommand extends BaseCommand {
 
   private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
 
-  private static readonly DEPLOY_FLAGS_LIST = {
+  public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.cacheDir,
@@ -124,7 +125,7 @@ export class ExplorerCommand extends BaseCommand {
     ],
   };
 
-  private static readonly DESTROY_FLAGS_LIST = {
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.devMode],
   };

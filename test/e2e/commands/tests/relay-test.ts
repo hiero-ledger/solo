@@ -13,6 +13,7 @@ import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
 import {TestArgumentsBuilder} from '../../../helpers/test-arguments-builder.js';
+import {RelayCommand} from '../../../../src/commands/relay.js';
 
 export class RelayTest {
   private static soloRelayDeployArgv(
@@ -21,7 +22,22 @@ export class RelayTest {
     clusterReference: ClusterReferenceName,
   ): string[] {
     return TestArgumentsBuilder.initialize('relay deploy', testName)
+      .setCommandFlags(RelayCommand.DEPLOY_FLAGS_LIST)
       .setArg(Flags.deployment, deployment)
+      .setArg(Flags.nodeAliasesUnparsed, 'node2')
+      .setTestCacheDirectory()
+      .build();
+  }
+
+  private static soloRelayDestroyArgv(
+    testName: string,
+    deployment: DeploymentName,
+    clusterReference: ClusterReferenceName,
+  ): string[] {
+    return TestArgumentsBuilder.initialize('relay destroy', testName)
+      .setCommandFlags(RelayCommand.DESTROY_FLAGS_LIST)
+      .setArg(Flags.deployment, deployment)
+      .setArg(Flags.clusterRef, clusterReference)
       .setArg(Flags.nodeAliasesUnparsed, 'node2')
       .setTestCacheDirectory()
       .build();
@@ -34,6 +50,13 @@ export class RelayTest {
     expect(relayPods).to.have.lengthOf(1);
   }
 
+  private static async verifyRelayDestroyWasSuccessful(contexts: string[], namespace: NamespaceName): Promise<void> {
+    const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+    const k8: K8 = k8Factory.getK8(contexts[1]);
+    const relayPods: Pod[] = await k8.pods().list(namespace, ['app.kubernetes.io/name=relay']);
+    expect(relayPods).to.have.lengthOf(0);
+  }
+
   public static deploy(options: BaseTestOptions): void {
     const {testName, deployment, namespace, contexts, clusterReferenceNameArray, testLogger} = options;
     const {soloRelayDeployArgv, verifyRelayDeployWasSuccessful} = RelayTest;
@@ -41,6 +64,16 @@ export class RelayTest {
     it(`${testName}: JSON-RPC relay deploy`, async (): Promise<void> => {
       await main(soloRelayDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
       await verifyRelayDeployWasSuccessful(contexts, namespace);
+    }).timeout(Duration.ofMinutes(5).toMillis());
+  }
+
+  public static destroy(options: BaseTestOptions): void {
+    const {testName, deployment, namespace, contexts, clusterReferenceNameArray, testLogger} = options;
+    const {soloRelayDestroyArgv, verifyRelayDestroyWasSuccessful} = RelayTest;
+
+    it(`${testName}: JSON-RPC relay deploy`, async (): Promise<void> => {
+      await main(soloRelayDestroyArgv(testName, deployment, clusterReferenceNameArray[1]));
+      await verifyRelayDestroyWasSuccessful(contexts, namespace);
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 }

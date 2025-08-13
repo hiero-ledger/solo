@@ -17,6 +17,7 @@ import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
 import {type BaseTestOptions} from './tests/base-test-options.js';
 import {main} from '../../../src/index.js';
 import {TestArgumentsBuilder} from '../../helpers/test-arguments-builder.js';
+import {DefaultQuickStartCommand} from '../../../src/commands/quick-start/default-quick-start.js';
 
 const testName: string = 'quick-start-single';
 const testTitle: string = 'Quick Start Single E2E Test';
@@ -71,9 +72,13 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 endToEndTestSuite.runTestSuite();
 
 export function soloQuickStartDeploy(testName: string): string[] {
-  return TestArgumentsBuilder.initialize('quick-start single deploy', testName).build();
+  return TestArgumentsBuilder.initialize('quick-start single deploy', testName)
+    .setCommandFlags(DefaultQuickStartCommand.SINGLE_ADD_FLAGS_LIST)
+    .build();
 }
 
 export function soloQuickStartDestroy(testName: string): string[] {
-  return TestArgumentsBuilder.initialize('quick-start single destroy', testName).build();
+  return TestArgumentsBuilder.initialize('quick-start single destroy', testName)
+    .setCommandFlags(DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST)
+    .build();
 }

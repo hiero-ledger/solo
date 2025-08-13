@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type CommandFlag} from '../../types/flag-types.js';
+import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {Flags as flags} from '../../commands/flags.js';
 import {SoloError} from '../errors/solo-error.js';
 
@@ -8,6 +8,7 @@ export type FlagName = string;
 
 export class ArgumentsBuilder {
   private readonly baseParams: string[] = ['${PATH}/node', '${SOLO_ROOT}/solo.ts'];
+  private flagList?: CommandFlag[];
 
   protected constructor(
     private readonly command: string[],
@@ -16,6 +17,11 @@ export class ArgumentsBuilder {
 
   public static initialize(command: string): ArgumentsBuilder {
     return new ArgumentsBuilder(command.split(' '));
+  }
+
+  public setCommandFlags(flags: CommandFlags): this {
+    this.flagList = [...flags.optional, ...flags.required];
+    return this;
   }
 
   public build(cacheDirectory?: string): string[] {
@@ -27,7 +33,26 @@ export class ArgumentsBuilder {
       this.setArg(flags.cacheDir, cacheDirectory);
     }
 
+    // Remove common flags if they are not allowed
+    if (this.flagList && !this.flagList.some((flag): boolean => flag.name === flags.devMode.name)) {
+      delete this.flagArguments[flags.devMode.name];
+    }
+    if (this.flagList && !this.flagList.some((flag): boolean => flag.name === flags.quiet.name)) {
+      delete this.flagArguments[flags.quiet.name];
+    }
+    if (this.flagList && !this.flagList.some((flag): boolean => flag.name === flags.cacheDir.name)) {
+      delete this.flagArguments[flags.cacheDir.name];
+    }
+
     for (const [flagName, value] of Object.entries(this.flagArguments)) {
+      if (this.flagList && !this.flagList.some((flag): boolean => flag.name === flagName)) {
+        throw new SoloError(
+          `Flag ${flagName} is not a valid flag for command ${this.command.join(' ')}. ` +
+            `Allowed flags [ ${this.flagList.map((flag): string => flag.name).join(', ')} ] ` +
+            `Supplied flags [ ${Object.keys(this.flagArguments).join(', ')} ] `,
+        );
+      }
+
       if (typeof value === 'boolean') {
         argv.push(this.optionFromFlag(flagName));
       } else {

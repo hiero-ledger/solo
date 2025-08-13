@@ -56,6 +56,6 @@ export class TestArgumentsBuilder extends ArgumentsBuilder {
       }
     }
 
-    return new TestArgumentsBuilder(command.split(' '), undefined, flagArguments);
+    return new TestArgumentsBuilder(command.split(' '), undefined, flagArguments).setCommandFlags(commandFlags);
   }
 }

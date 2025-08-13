@@ -14,6 +14,7 @@ import {type DeploymentName} from '../../../../src/types/index.js';
 import {Flags} from '../../../../src/commands/flags.js';
 import {type BaseTestOptions} from './base-test-options.js';
 import {TestArgumentsBuilder} from '../../../helpers/test-arguments-builder.js';
+import {NetworkCommand} from '../../../../src/commands/network.js';
 
 export class NetworkTest {
   private static soloNetworkDeployArgv(
@@ -24,6 +25,7 @@ export class NetworkTest {
     loadBalancerEnabled: boolean,
   ): string[] {
     const testArgumentsBuilder: TestArgumentsBuilder = TestArgumentsBuilder.initialize('network deploy', testName)
+      .setCommandFlags(NetworkCommand.DEPLOY_FLAGS_LIST)
       .setArg(Flags.deployment, deployment)
       .setTestCacheDirectory()
       .setChartDirectory();
@@ -75,6 +77,7 @@ export class NetworkTest {
 
   private static soloNetworkDestroyArgv(testName: string, deployment: DeploymentName): string[] {
     return TestArgumentsBuilder.initialize('network destroy', testName)
+      .setCommandFlags(NetworkCommand.DESTROY_FLAGS_LIST)
       .setArg(Flags.deployment, deployment)
       .setChartDirectory()
       .build();
