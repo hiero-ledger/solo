@@ -688,7 +688,7 @@ rm -Rf ~/.solo
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
 ```
-solo relay destroy -i node1 --deployment "${SOLO_DEPLOYMENT}"
+solo relay destroy -i node1 --deployment "${SOLO_DEPLOYMENT} --cluster-ref kind-${SOLO_CLUSTER_NAME}"
 ```
 
 Example output:
@@ -738,7 +738,7 @@ $SOLO_EXPLORER_DESTROY_OUTPUT
 Block Node destroy should run prior to network destroy, since network destroy removes the remote config.  To destroy the block node (if you deployed it), you can use the following command:
 
 ```
-solo block node destroy --deployment "${SOLO_DEPLOYMENT}"
+solo block node destroy --deployment "${SOLO_DEPLOYMENT} --cluster-ref kind-${SOLO_CLUSTER_NAME}"
 ```
 
 Example output:
