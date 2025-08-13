@@ -62,6 +62,7 @@ const REJECTED: string = 'rejected';
 
 @injectable()
 export class AccountManager {
+  private _portForwards: number[];
   private _forcePortForward: boolean = false;
   public _nodeClient: Client | null;
 
@@ -76,6 +77,7 @@ export class AccountManager {
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
 
+    this._portForwards = [];
     this._nodeClient = null;
   }
 
@@ -183,7 +185,14 @@ export class AccountManager {
   /** stops and closes the port forwards and the _nodeClient */
   public async close(): Promise<void> {
     this._nodeClient?.close();
+    if (this._portForwards) {
+      for (const srv of this._portForwards) {
+        await this.k8Factory.default().pods().readByReference(null).stopPortForward(srv);
+      }
+    }
+
     this._nodeClient = null;
+    this._portForwards = [];
     this.logger.debug('node client and port forwards have been closed');
   }
 
@@ -417,12 +426,15 @@ export class AccountManager {
       const host: string = '127.0.0.1';
       const targetPort: number = localPort;
 
-      const actualPort: number = await this.k8Factory
-        .getK8(networkNodeService.context)
-        .pods()
-        .readByReference(PodReference.of(networkNodeService.namespace, networkNodeService.haProxyPodName))
-        .portForward(localPort, port);
-      this.logger.debug(`using local host port forward: ${host}:${actualPort}`);
+      if (this._portForwards.length < totalNodes) {
+        const portForward: number = await this.k8Factory
+          .getK8(networkNodeService.context)
+          .pods()
+          .readByReference(PodReference.of(networkNodeService.namespace, networkNodeService.haProxyPodName))
+          .portForward(localPort, port);
+        this._portForwards.push(portForward);
+        this.logger.debug(`using local host port forward: ${host}:${portForward}`);
+      }
 
       object[`${host}:${targetPort}`] = accountId;
 

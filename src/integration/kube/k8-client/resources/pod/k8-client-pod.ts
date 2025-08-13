@@ -221,11 +221,77 @@ export class K8ClientPod implements Pod {
     }
   }
 
-  public async stopPortForward(server: number, maxAttempts: number = 20, timeout: number = 500): Promise<void> {
-    if (!server) {
+  public async stopPortForward(port: number, maxAttempts: number = 20, timeout: number = 500): Promise<void> {
+    if (!port) {
       return;
     }
-    this.logger.debug(`Stopping port-forwarder [${server}]`);
+
+    this.logger.debug(`Stopping port-forwarder for port [${port}]`);
+
+    try {
+      // Use ps -ef | grep "port-forward" | grep ${port}: to find kubectl port-forward processes using the specified port
+      const shellCommand: string[] = ['ps', '-ef', '|', 'grep', 'port-forward', '|', 'grep', `${port}:`];
+      const shellRunner: ShellRunner = new ShellRunner();
+      let result: string[];
+      try {
+        result = await shellRunner.run(shellCommand.join(' '), [], true, false);
+      } catch (error) {
+        this.logger.error(`Failed to execute shell command: ${shellCommand.join(' ')}`);
+        this.logger.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+        throw new SoloError(
+          `Shell command execution failed: ${shellCommand.join(' ')}. Error: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      this.logger.debug(`ps -ef port-forward command result is ${result}`);
+
+      // if length of result is 0 then could not find port forward running for this port
+      if (!result || result.length === 0) {
+        this.logger.debug(`No port-forward processes found for port ${port}`);
+        return;
+      }
+
+      // Extract PIDs and kill the processes
+      for (const processLine of result) {
+        // Process line format: UID PID PPID C STIME TTY TIME CMD
+        // Split by whitespace and get the PID (second column)
+        const parts = processLine.trim().split(/\s+/);
+        if (parts.length >= 2) {
+          const pid = parts[1];
+
+          // Validate that PID is a number
+          if (/^\d+$/.test(pid)) {
+            this.logger.debug(`Killing port-forward process PID: ${pid}`);
+
+            try {
+              // Try SIGTERM first (graceful shutdown)
+              await shellRunner.run(`kill -TERM ${pid}`, [], false, false);
+
+              this.logger.debug(`Successfully sent SIGTERM to PID: ${pid}`);
+
+              // Wait a moment for graceful shutdown
+              await new Promise(resolve => setTimeout(resolve, 1000));
+
+              // Check if process is still running
+              const checkResult = await shellRunner.run(`ps -p ${pid}`, [], false, false);
+
+              // If process still exists, use SIGKILL
+              if (checkResult.length > 1) {
+                // ps header + process line
+                this.logger.debug(`Process ${pid} still running, sending SIGKILL`);
+                await shellRunner.run(`kill -KILL ${pid}`, [], false, false);
+              }
+            } catch (killError) {
+              this.logger.warn(`Failed to kill process ${pid}: ${killError.message}`);
+            }
+          }
+        }
+      }
+
+      this.logger.debug(`Finished stopping port-forwarder for port [${port}]`);
+    } catch (error) {
+      this.logger.error(`Error stopping port-forwarder for port ${port}: ${error.message}`);
+      throw new SoloError(`Failed to stop port-forwarder for port ${port}: ${error.message}`, error);
+    }
   }
 
   public static toV1Pod(pod: Pod): V1Pod {
