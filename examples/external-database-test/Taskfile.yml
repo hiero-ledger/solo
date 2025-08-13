@@ -32,7 +32,7 @@ tasks:
       - cmd: kubectl config set-context {{ .CONTEXT }}
 
       # Install Solo CLI"
-      - cmd: npm i @hashgraph/solo
+      - cmd: npm i @hashgraph/solo@latest
 
       # Solo init"
       - cmd: npx solo init
