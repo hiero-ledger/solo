@@ -89,7 +89,6 @@ jobs:
           task build
           timeout --kill-after=1s --preserve-status 55m bash -c '.github/workflows/script/launch_network.sh ${{ matrix.release-tag }}' || RC=$? || true
           if [[ "$RC" != "0" ]]; then
-            npm run solo-test -- consensus node logs --deployment solo-e2e -q --dev || true
             echo "Failed to launch network with release version ${{ matrix.release-tag }}"
             exit $RC
           fi

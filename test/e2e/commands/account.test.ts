@@ -106,7 +106,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
       }
     });
 
-    describe('account init command', () => {
+    describe('ledger system init command', () => {
       it('should succeed with init command', async () => {
         await commandInvoker.invoke({
           argv: argv,
