@@ -38,7 +38,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
   private static readonly CRYPTO_SUBCOMMAND_DESCRIPTION: string =
     'Transfer native crypto tokens or query native token account balances.';
 
-  public static readonly ACCOUNT_INIT: string = 'init';
+  public static readonly SYSTEM_INIT: string = 'init';
   public static readonly ACCOUNT_UPDATE: string = 'update';
   public static readonly ACCOUNT_CREATE: string = 'create';
   public static readonly ACCOUNT_INFO: string = 'info';
@@ -47,18 +47,23 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
     return new CommandBuilder(LedgerCommandDefinition.COMMAND_NAME, LedgerCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(
         new CommandGroup(
+          LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
+          LedgerCommandDefinition.SYSTEM_SUBCOMMAND_DESCRIPTION,
+        ).addSubcommand(
+          new Subcommand(
+            LedgerCommandDefinition.SYSTEM_INIT,
+            'Rekeys system accounts and stake consensus nodes.',
+            this.accountCommand,
+            this.accountCommand.init,
+            AccountCommand.INIT_FLAGS_LIST,
+          ),
+        ),
+      )
+      .addCommandGroup(
+        new CommandGroup(
           LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
           LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_DESCRIPTION,
         )
-          .addSubcommand(
-            new Subcommand(
-              LedgerCommandDefinition.ACCOUNT_INIT,
-              'Lists all ledger accounts.',
-              this.accountCommand,
-              this.accountCommand.init,
-              AccountCommand.INIT_FLAGS_LIST,
-            ),
-          )
           .addSubcommand(
             new Subcommand(
               LedgerCommandDefinition.ACCOUNT_UPDATE,

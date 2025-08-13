@@ -60,8 +60,8 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argv,
         command: LedgerCommandDefinition.COMMAND_NAME,
-        subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
-        action: LedgerCommandDefinition.ACCOUNT_INIT,
+        subcommand: LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
+        action: LedgerCommandDefinition.SYSTEM_INIT,
         callback: async (argv): Promise<boolean> => accountCmd.init(argv),
       });
     }).timeout(Duration.ofMinutes(8).toMillis());

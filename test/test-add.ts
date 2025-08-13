@@ -105,7 +105,7 @@ export function testNodeAdd(
           argv: argv,
           command: LedgerCommandDefinition.COMMAND_NAME,
           subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
-          action: LedgerCommandDefinition.ACCOUNT_INIT,
+          action: LedgerCommandDefinition.SYSTEM_INIT,
           callback: async (argv): Promise<boolean> => accountCmd.init(argv),
         });
       }).timeout(Duration.ofMinutes(8).toMillis());
