@@ -34,6 +34,7 @@ export class ExplorerCommandDefinition extends BaseCommandDefinition {
   public static readonly NODE_DESTROY: string = 'destroy';
 
   public static readonly DEPLOY_COMMAND: string = `${ExplorerCommandDefinition.COMMAND_NAME} ${ExplorerCommandDefinition.NODE_SUBCOMMAND_NAME} ${ExplorerCommandDefinition.NODE_ADD}`;
+  public static readonly DESTROY_COMMAND: string = `${ExplorerCommandDefinition.COMMAND_NAME} ${ExplorerCommandDefinition.NODE_SUBCOMMAND_NAME} ${ExplorerCommandDefinition.NODE_DESTROY}`;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(

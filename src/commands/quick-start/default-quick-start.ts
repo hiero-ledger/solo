@@ -611,78 +611,92 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             }
           },
         },
-        // TODO
-        this.invokeSoloCommand('solo explorer destroy', 'explorer destroy', (): string[] => {
-          const argv: string[] = this.newArgv();
-          argv.push(
-            'explorer',
-            'destroy',
-            this.optionFromFlag(flags.clusterRef),
-            config.clusterRef,
-            this.optionFromFlag(flags.deployment),
-            config.deployment,
-            this.optionFromFlag(flags.quiet),
-            this.optionFromFlag(flags.force),
-          );
-          return this.argvPushGlobalFlags(argv);
-        }),
-        this.invokeSoloCommand('solo mirror-node destroy', 'mirror-node destroy', (): string[] => {
-          const argv: string[] = this.newArgv();
-          argv.push(
-            'mirror-node',
-            'destroy',
-            this.optionFromFlag(flags.clusterRef),
-            config.clusterRef,
-            this.optionFromFlag(flags.deployment),
-            config.deployment,
-            this.optionFromFlag(flags.quiet),
-            this.optionFromFlag(flags.force),
-            this.optionFromFlag(flags.devMode),
-          );
-          return this.argvPushGlobalFlags(argv);
-        }),
-        this.invokeSoloCommand('solo relay destroy', 'relay destroy', (): string[] => {
-          const argv: string[] = this.newArgv();
-          argv.push(
-            'relay',
-            'destroy',
-            this.optionFromFlag(flags.clusterRef),
-            config.clusterRef,
-            this.optionFromFlag(flags.deployment),
-            config.deployment,
-            this.optionFromFlag(flags.nodeAliasesUnparsed),
-            'node1',
-            this.optionFromFlag(flags.quiet),
-          );
-          return this.argvPushGlobalFlags(argv);
-        }),
-        this.invokeSoloCommand('solo network destroy', 'network destroy', (): string[] => {
-          const argv: string[] = this.newArgv();
-          argv.push(
-            'network',
-            'destroy',
-            this.optionFromFlag(flags.deployment),
-            config.deployment,
-            this.optionFromFlag(flags.quiet),
-            this.optionFromFlag(flags.force),
-            this.optionFromFlag(flags.deletePvcs),
-            this.optionFromFlag(flags.deleteSecrets),
-            this.optionFromFlag(flags.enableTimeout),
-          );
-          return this.argvPushGlobalFlags(argv);
-        }),
-        this.invokeSoloCommand('solo cluster-ref reset', 'cluster-ref reset', (): string[] => {
-          const argv: string[] = this.newArgv();
-          argv.push(
-            'cluster-ref',
-            'reset',
-            this.optionFromFlag(flags.clusterRef),
-            config.clusterRef,
-            this.optionFromFlag(flags.quiet),
-            this.optionFromFlag(flags.force),
-          );
-          return this.argvPushGlobalFlags(argv);
-        }),
+        this.invokeSoloCommand(
+          `solo ${ExplorerCommandDefinition.DESTROY_COMMAND}`,
+          `${ExplorerCommandDefinition.DESTROY_COMMAND}`,
+          (): string[] => {
+            const argv: string[] = this.newArgv();
+            argv.push(
+              ...ExplorerCommandDefinition.DESTROY_COMMAND.split(' '),
+              this.optionFromFlag(flags.clusterRef),
+              config.clusterRef,
+              this.optionFromFlag(flags.deployment),
+              config.deployment,
+              this.optionFromFlag(flags.quiet),
+              this.optionFromFlag(flags.force),
+            );
+            return this.argvPushGlobalFlags(argv);
+          },
+        ),
+        this.invokeSoloCommand(
+          `solo ${MirrorCommandDefinition.DESTROY_COMMAND}`,
+          `${MirrorCommandDefinition.DESTROY_COMMAND}`,
+          (): string[] => {
+            const argv: string[] = this.newArgv();
+            argv.push(
+              ...MirrorCommandDefinition.DESTROY_COMMAND.split(' '),
+              this.optionFromFlag(flags.clusterRef),
+              config.clusterRef,
+              this.optionFromFlag(flags.deployment),
+              config.deployment,
+              this.optionFromFlag(flags.quiet),
+              this.optionFromFlag(flags.force),
+              this.optionFromFlag(flags.devMode),
+            );
+            return this.argvPushGlobalFlags(argv);
+          },
+        ),
+        this.invokeSoloCommand(
+          `solo ${RelayCommandDefinition.DESTROY_COMMAND}`,
+          `${RelayCommandDefinition.DESTROY_COMMAND}`,
+          (): string[] => {
+            const argv: string[] = this.newArgv();
+            argv.push(
+              ...RelayCommandDefinition.DESTROY_COMMAND.split(' '),
+              this.optionFromFlag(flags.clusterRef),
+              config.clusterRef,
+              this.optionFromFlag(flags.deployment),
+              config.deployment,
+              this.optionFromFlag(flags.nodeAliasesUnparsed),
+              'node1',
+              this.optionFromFlag(flags.quiet),
+            );
+            return this.argvPushGlobalFlags(argv);
+          },
+        ),
+        this.invokeSoloCommand(
+          `solo ${ConsensusCommandDefinition.NETWORK_DESTROY}`,
+          ConsensusCommandDefinition.NETWORK_DESTROY,
+          (): string[] => {
+            const argv: string[] = this.newArgv();
+            argv.push(
+              ...ConsensusCommandDefinition.NETWORK_DESTROY.split(' '),
+              this.optionFromFlag(flags.deployment),
+              config.deployment,
+              this.optionFromFlag(flags.quiet),
+              this.optionFromFlag(flags.force),
+              this.optionFromFlag(flags.deletePvcs),
+              this.optionFromFlag(flags.deleteSecrets),
+              this.optionFromFlag(flags.enableTimeout),
+            );
+            return this.argvPushGlobalFlags(argv);
+          },
+        ),
+        this.invokeSoloCommand(
+          `solo ${ClusterReferenceCommandDefinition.RESET_COMMAND}`,
+          ClusterReferenceCommandDefinition.RESET_COMMAND,
+          (): string[] => {
+            const argv: string[] = this.newArgv();
+            argv.push(
+              ...ClusterReferenceCommandDefinition.RESET_COMMAND.split(' '),
+              this.optionFromFlag(flags.clusterRef),
+              config.clusterRef,
+              this.optionFromFlag(flags.quiet),
+              this.optionFromFlag(flags.force),
+            );
+            return this.argvPushGlobalFlags(argv);
+          },
+        ),
         {
           title: 'Delete cache folder',
           task: async (): Promise<void> => {

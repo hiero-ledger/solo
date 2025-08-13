@@ -33,6 +33,7 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
   public static readonly NODE_DESTROY: string = 'destroy';
 
   public static readonly DEPLOY_COMMAND: string = `${MirrorCommandDefinition.COMMAND_NAME} ${MirrorCommandDefinition.NODE_SUBCOMMAND_NAME} ${MirrorCommandDefinition.NODE_ADD}`;
+  public static readonly DESTROY_COMMAND: string = `${MirrorCommandDefinition.COMMAND_NAME} ${MirrorCommandDefinition.NODE_SUBCOMMAND_NAME} ${MirrorCommandDefinition.NODE_DESTROY}`;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(MirrorCommandDefinition.COMMAND_NAME, MirrorCommandDefinition.DESCRIPTION, this.logger)

@@ -33,6 +33,7 @@ export class RelayCommandDefinition extends BaseCommandDefinition {
   public static readonly NODE_DESTROY: string = 'destroy';
 
   public static readonly DEPLOY_COMMAND: string = `${RelayCommandDefinition.COMMAND_NAME} ${RelayCommandDefinition.NODE_SUBCOMMAND_NAME} ${RelayCommandDefinition.NODE_ADD}`;
+  public static readonly DESTROY_COMMAND: string = `${RelayCommandDefinition.COMMAND_NAME} ${RelayCommandDefinition.NODE_SUBCOMMAND_NAME} ${RelayCommandDefinition.NODE_DESTROY}`;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(RelayCommandDefinition.COMMAND_NAME, RelayCommandDefinition.DESCRIPTION, this.logger)

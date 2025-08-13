@@ -61,23 +61,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
   public static readonly DEV_FREEZE_SUBCOMMAND_NAME: string = 'dev-freeze';
   private static readonly DEV_FREEZE_SUBCOMMAND_DESCRIPTION: string = 'TODO: ADD DESCRIPTION';
 
-  // < prepare | submit-transactions | execute >
-  // dev-node-add
-  // dev-node-update
-  // dev-node-upgrade
-  // dev-node-delete
-
-  // add-prepare     | add-execute     | add-submit-transactions
-  // update-prepare  | update-execute  | update-submit-transactions
-  // destroy-prepare | destroy-execute | destroy-submit-transactions
-  // upgrade-prepare | upgrade-execute | upgrade-submit-transactions
-
-  // < prepare-upgrade | freeze-upgrade >
-  // dev-freeze
-
-  // dev-freeze prepare-upgrade = network freeze
-  // dev-freeze freeze-upgrade = node freeze
-
   public static readonly DEV_NODE_PREPARE: string = 'prepare';
   public static readonly DEV_NODE_SUBMIT_TRANSACTION: string = 'submit-transactions';
   public static readonly DEV_NODE_EXECUTE: string = 'execute';
@@ -104,7 +87,8 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
 
   public static readonly SETUP_COMMAND: string = `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NODE_SETUP}`;
   public static readonly START_COMMAND: string = `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NODE_START}`;
-  public static DEPLOY_COMMAND: string = `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NETWORK_DEPLOY}`;
+  public static readonly DEPLOY_COMMAND: string = `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NETWORK_DEPLOY}`;
+  public static readonly DESTROY_COMMAND: string = `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NETWORK_DESTROY}`;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(

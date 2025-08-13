@@ -39,6 +39,7 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
 
   public static readonly CONNECT_COMMAND: string = `${ClusterReferenceCommandDefinition.COMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_CONNECT}`;
   public static readonly SETUP_COMMAND: string = `${ClusterReferenceCommandDefinition.COMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_SETUP}`;
+  public static readonly RESET_COMMAND: string = `${ClusterReferenceCommandDefinition.COMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_RESET}`;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
