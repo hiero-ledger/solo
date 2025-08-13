@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {PathEx} from '../business/utils/path-ex.js';
-import {PrivateKey} from '@hashgraph/sdk';
+import {PrivateKey} from '@hiero-ledger/sdk';
 
 function getEnvironmentVariable(environmentVariableName: string): string {
   if (process.env[environmentVariableName]) {

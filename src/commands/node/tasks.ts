@@ -36,7 +36,7 @@ import {
   Timestamp,
   TransactionReceipt,
   TransactionResponse,
-} from '@hashgraph/sdk';
+} from '@hiero-ledger/sdk';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {MissingArgumentError} from '../../core/errors/missing-argument-error.js';
 import path from 'node:path';
