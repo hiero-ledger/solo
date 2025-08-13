@@ -362,7 +362,7 @@ export class AccountManager {
 
       // start a background pinger to keep the node client alive, Hashgraph SDK JS has a 90-second keep alive time, and
       // 5-second keep alive timeout
-      this.startIntervalPinger(operatorId);
+      // this.startIntervalPinger(operatorId);
 
       return this._nodeClient;
     } catch (error) {
