@@ -478,7 +478,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           expect(submitReceipt.status).to.deep.equal(Status.Success);
 
           // disable portForward
-          portForward.close();
+          // portForward.close();
         } catch (error) {
           testLogger.showUserError(error);
         }
