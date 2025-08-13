@@ -25,7 +25,7 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {TEST_UPGRADE_VERSION} from '../../../version-test.js';
-import {AccountId, AccountInfoQuery} from '@hashgraph/sdk';
+import {AccountId, AccountInfoQuery} from '@hiero-ledger/sdk';
 import {type Container} from '../../../src/integration/kube/resources/container/container.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {Templates} from '../../../src/core/templates.js';

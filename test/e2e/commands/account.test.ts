@@ -15,7 +15,7 @@ import {
   Status,
   TopicCreateTransaction,
   TopicMessageSubmitTransaction,
-} from '@hashgraph/sdk';
+} from '@hiero-ledger/sdk';
 import * as constants from '../../../src/core/constants.js';
 import * as version from '../../../version.js';
 import {endToEndTestSuite, getTestCluster, getTestLogger, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';

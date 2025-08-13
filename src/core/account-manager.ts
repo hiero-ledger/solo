@@ -22,7 +22,7 @@ import {
   PrivateKey,
   Status,
   TransferTransaction,
-} from '@hashgraph/sdk';
+} from '@hiero-ledger/sdk';
 import {MissingArgumentError} from './errors/missing-argument-error.js';
 import {ResourceNotFoundError} from './errors/resource-not-found-error.js';
 import {SoloError} from './errors/solo-error.js';

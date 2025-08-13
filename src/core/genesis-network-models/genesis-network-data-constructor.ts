@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {AccountId, PrivateKey, PublicKey} from '@hashgraph/sdk';
+import {AccountId, PrivateKey, PublicKey} from '@hiero-ledger/sdk';
 import {GenesisNetworkNodeDataWrapper} from './genesis-network-node-data-wrapper.js';
 import * as constants from '../constants.js';
 

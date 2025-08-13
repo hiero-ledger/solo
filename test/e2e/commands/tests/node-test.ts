@@ -27,7 +27,7 @@ import {
   PrivateKey,
   type TransactionReceipt,
   type TransactionResponse,
-} from '@hashgraph/sdk';
+} from '@hiero-ledger/sdk';
 import {type BaseTestOptions} from './base-test-options.js';
 import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
 import {KeysCommandDefinition} from '../../../../src/commands/command-definitions/keys-command-definition.js';

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {AccountId, Client, Logger, LogLevel, Long, NodeUpdateTransaction, PrivateKey} from '@hashgraph/sdk';
+import {AccountId, Client, Logger, LogLevel, Long, NodeUpdateTransaction, PrivateKey} from '@hiero-ledger/sdk';
 import {readFileSync} from 'node:fs';
 
 const TREASURY_ACCOUNT_ID = '0.0.2';

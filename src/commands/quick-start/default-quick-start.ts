@@ -40,7 +40,7 @@ import {
   predefinedEcdsaAccountsWithAlias,
   predefinedEd25519Accounts,
 } from './predefined-accounts.js';
-import {AccountId, HbarUnit} from '@hashgraph/sdk';
+import {AccountId, HbarUnit} from '@hiero-ledger/sdk';
 import * as helpers from '../../core/helpers.js';
 import {Duration} from '../../core/time/duration.js';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';

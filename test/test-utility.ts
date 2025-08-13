@@ -25,7 +25,7 @@ import {
   PrivateKey,
   type TransactionReceipt,
   type TransactionResponse,
-} from '@hashgraph/sdk';
+} from '@hiero-ledger/sdk';
 import * as constants from '../src/core/constants.js';
 import {NODE_LOG_FAILURE_MSG, ROOT_CONTAINER, SOLO_LOGS_DIR} from '../src/core/constants.js';
 import crypto from 'node:crypto';
