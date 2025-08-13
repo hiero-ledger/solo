@@ -11,7 +11,7 @@ import {
   TopicMessageQuery,
   Client,
   AccountId,
-} from '@hashgraph/sdk';
+} from '@hiero-ledger/sdk';
 
 import dotenv from 'dotenv';
 import http from 'http';

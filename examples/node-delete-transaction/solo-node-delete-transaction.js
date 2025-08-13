@@ -1,4 +1,4 @@
-import {AccountId, Client, Logger, LogLevel, Long, NodeDeleteTransaction, PrivateKey} from '@hashgraph/sdk';
+import {AccountId, Client, Logger, LogLevel, Long, NodeDeleteTransaction, PrivateKey} from '@hiero-ledger/sdk';
 import {readFileSync} from 'node:fs';
 
 const TREASURY_ACCOUNT_ID = '0.0.2';

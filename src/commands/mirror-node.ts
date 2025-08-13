@@ -8,7 +8,6 @@ import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
 import {
   INGRESS_CONTROLLER_PREFIX,
-  MIRROR_INGRESS_CLASS_NAME,
   MIRROR_INGRESS_CONTROLLER,
   MIRROR_INGRESS_TLS_SECRET_NAME,
 } from '../core/constants.js';
@@ -54,6 +53,7 @@ import {Base64} from 'js-base64';
 import {Lock} from '../core/lock/lock.js';
 import {Version} from '../business/utils/version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
+// Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
   isChartInstalled: boolean;
@@ -616,6 +616,10 @@ export class MirrorNodeCommand extends BaseCommand {
                 labels: ['app.kubernetes.io/component=monitor', 'app.kubernetes.io/name=monitor'],
               },
               {
+                title: 'Check Web3',
+                labels: ['app.kubernetes.io/component=web3', 'app.kubernetes.io/name=web3'],
+              },
+              {
                 title: 'Check Importer',
                 labels: ['app.kubernetes.io/component=importer', 'app.kubernetes.io/name=importer'],
               },
@@ -772,7 +776,7 @@ export class MirrorNodeCommand extends BaseCommand {
         },
         this.addMirrorNodeComponents(),
         {
-          title: 'Enable port forwarding',
+          title: 'Enable port forwarding for mirror ingress controller',
           skip: context_ => !context_.config.forcePortForward || !context_.config.enableIngress,
           task: async context_ => {
             const pods: Pod[] = await this.k8Factory
@@ -790,15 +794,19 @@ export class MirrorNodeCommand extends BaseCommand {
               }
             }
 
-            await this.k8Factory
-              .getK8(context_.config.clusterContext)
-              .pods()
-              .readByReference(podReference)
-              .portForward(constants.MIRROR_NODE_PORT, 80, true);
-            this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-            this.logger.addMessageGroupMessage(
-              constants.PORT_FORWARDING_MESSAGE_GROUP,
-              `Mirror Node port forward enabled on localhost:${constants.MIRROR_NODE_PORT}`,
+            const clusterReference: ClusterReferenceName = context_.config.clusterReference;
+
+            await this.remoteConfig.configuration.components.managePortForward(
+              clusterReference,
+              podReference,
+              80, // Pod port
+              constants.MIRROR_NODE_PORT, // Local port
+              this.k8Factory.getK8(context_.config.clusterContext),
+              this.logger,
+              ComponentTypes.MirrorNode,
+
+              'Mirror ingress controller',
+              context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             );
           },
         },

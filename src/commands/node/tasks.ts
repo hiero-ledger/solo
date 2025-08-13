@@ -36,7 +36,7 @@ import {
   Timestamp,
   TransactionReceipt,
   TransactionResponse,
-} from '@hashgraph/sdk';
+} from '@hiero-ledger/sdk';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {MissingArgumentError} from '../../core/errors/missing-argument-error.js';
 import path from 'node:path';
@@ -1573,7 +1573,7 @@ export class NodeCommandTasks {
 
   public enablePortForwarding(enablePortForwardHaProxy: boolean = false) {
     return {
-      title: 'Enable port forwarding',
+      title: 'Enable port forwarding for debug port and/or GRPC port',
       task: async context_ => {
         const nodeAlias: NodeAlias = context_.config.debugNodeAlias || 'node1';
         const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
@@ -1600,15 +1600,19 @@ export class NodeCommandTasks {
             throw new SoloError(`No HAProxy pod found for node alias: ${nodeAlias}`);
           }
           const podReference: PodReference = pods[0].podReference;
-          await this.k8Factory
-            .getK8(context)
-            .pods()
-            .readByReference(podReference)
-            .portForward(constants.GRPC_PORT, constants.GRPC_PORT, true);
-          this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-          this.logger.addMessageGroupMessage(
-            constants.PORT_FORWARDING_MESSAGE_GROUP,
-            `Consensus Node gRPC port forward enabled on localhost:${constants.GRPC_PORT}`,
+          const nodeId: number = Templates.nodeIdFromNodeAlias(nodeAlias);
+          await this.remoteConfig.configuration.components.managePortForward(
+            undefined,
+            podReference,
+            constants.GRPC_PORT, // Pod port
+            constants.GRPC_PORT, // Local port
+            this.k8Factory.getK8(context_.config.clusterContext),
+            this.logger,
+            ComponentTypes.ConsensusNode,
+
+            'Consensus Node gRPC',
+            context_.config.isChartInstalled, // Reuse existing port if chart is already installed
+            nodeId,
           );
         }
       },
