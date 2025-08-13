@@ -40,8 +40,8 @@ export class IntervalLockRenewalService implements LockRenewalService {
    */
   public async schedule(lock: Lock): Promise<number> {
     const renewalDelay: Duration = this.calculateRenewalDelay(lock);
-    const timeout: NodeJS.Timeout = setInterval(() => lock.tryRenew(), renewalDelay.toMillis());
-    const scheduleId = Number(timeout);
+    const timeout: NodeJS.Timeout = setInterval((): Promise<boolean> => lock.tryRenew(), renewalDelay.toMillis());
+    const scheduleId: number = Number(timeout);
 
     this._scheduledLeases.set(scheduleId, lock);
     return scheduleId;

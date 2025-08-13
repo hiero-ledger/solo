@@ -13,6 +13,7 @@ import {
 } from 'listr2';
 import {type QuickStartSingleDeployContext} from '../../commands/quick-start/quick-start-single-deploy-context.js';
 import {type TaskListWrapper} from './task-list-wrapper.js';
+import {type QuickStartSingleDestroyContext} from '../../commands/quick-start/quick-start-single-destroy-context.js';
 
 export type TaskNodeType = {
   taskListWrapper: TaskListWrapper;
@@ -43,6 +44,26 @@ export interface TaskList<
       ListrGetRendererClassFromValue<FallbackRenderer>
     >,
   ): Listr<QuickStartSingleDeployContext, Renderer, FallbackRenderer>;
+
+  newQuickStartSingleDestroyTaskList(
+    task:
+      | ListrTask<
+          QuickStartSingleDestroyContext,
+          ListrGetRendererClassFromValue<Renderer>,
+          ListrGetRendererClassFromValue<FallbackRenderer>
+        >
+      | ListrTask<
+          QuickStartSingleDestroyContext,
+          ListrGetRendererClassFromValue<Renderer>,
+          ListrGetRendererClassFromValue<FallbackRenderer>
+        >[],
+    options?: ListrBaseClassOptions<QuickStartSingleDestroyContext, Renderer, FallbackRenderer>,
+    parentTask?: ListrTaskObject<
+      any,
+      ListrGetRendererClassFromValue<Renderer>,
+      ListrGetRendererClassFromValue<FallbackRenderer>
+    >,
+  ): Listr<QuickStartSingleDestroyContext, Renderer, FallbackRenderer>;
 
   parentTaskListMap: Map<string, TaskNodeType>;
 

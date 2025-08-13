@@ -10,6 +10,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@hashgraph/sdk": "^2.59.0"
+    "@hiero-ledger/sdk": "^2.70.0"
   }
 }

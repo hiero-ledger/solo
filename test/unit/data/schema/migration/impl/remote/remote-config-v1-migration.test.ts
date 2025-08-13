@@ -421,8 +421,8 @@ describe('RemoteConfigV1Migration', () => {
 
       // Check that id and consensusNodeIds exist and other properties match
       expect(result.state.relayNodes[0].metadata).to.have.property('id');
-      expect(result.state.relayNodes[0].metadata).to.have.property('consensusNodeIds');
-      expect(result.state.relayNodes[0].metadata.consensusNodeIds).to.deep.equal(['node1']);
+      expect(result.state.relayNodes[0]).to.have.property('consensusNodeIds');
+      expect(result.state.relayNodes[0].consensusNodeIds).to.deep.equal([0]);
       expect(result.state.relayNodes[0].metadata).to.include({
         namespace: 'namespace1',
         cluster: 'cluster1',

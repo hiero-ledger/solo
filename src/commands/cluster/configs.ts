@@ -110,8 +110,6 @@ export class ClusterCommandConfigs {
       clusterRef: configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
     } as ClusterReferenceSetupConfigClass;
 
-    this.logger.debug('Prepare ctx.config', {config: context_.config, argv});
-
     context_.config.context =
       this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString() ??
       this.k8Factory.default().contexts().readCurrent();

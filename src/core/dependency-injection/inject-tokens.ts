@@ -11,7 +11,9 @@ export class InjectTokens {
   public static OsPlatform: symbol = Symbol.for('OsPlatform');
   public static OsArch: symbol = Symbol.for('OsArch');
   public static HelmInstallationDir: symbol = Symbol.for('HelmInstallationDir');
+  public static KindInstallationDir: symbol = Symbol.for('KindInstallationDir');
   public static HelmVersion: symbol = Symbol.for('HelmVersion');
+  public static KindVersion: symbol = Symbol.for('KindVersion');
   public static SystemAccounts: symbol = Symbol.for('SystemAccounts');
   public static CacheDir: symbol = Symbol.for('CacheDir');
   public static LockRenewalService: symbol = Symbol.for('LockRenewalService');
@@ -24,6 +26,7 @@ export class InjectTokens {
   public static Helm: symbol = Symbol.for('Helm');
   public static HelmExecutionBuilder: symbol = Symbol.for('HelmExecutionBuilder');
   public static HelmDependencyManager: symbol = Symbol.for('HelmDependencyManager');
+  public static KindDependencyManager: symbol = Symbol.for('KindDependencyManager');
   public static ChartManager: symbol = Symbol.for('ChartManager');
   public static ConfigManager: symbol = Symbol.for('ConfigManager');
   public static AccountManager: symbol = Symbol.for('AccountManager');

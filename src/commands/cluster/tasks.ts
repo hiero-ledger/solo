@@ -32,6 +32,7 @@ import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local
 import {StringFacade} from '../../business/runtime-state/facade/string-facade.js';
 import {Lock} from '../../core/lock/lock.js';
 import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';
+import {Version} from '../../business/utils/version.js';
 
 @injectable()
 export class ClusterCommandTasks {
@@ -110,7 +111,7 @@ export class ClusterCommandTasks {
         task.title = clusterRef;
 
         if (self.localConfig.configuration.clusterRefs.get(clusterRef)) {
-          throw new SoloError(`Cluster ref ${clusterRef} already exists inside local config`);
+          this.logger.showUser(chalk.yellow(`Cluster ref ${clusterRef} already exists inside local config`));
         }
       },
     };
@@ -143,6 +144,7 @@ export class ClusterCommandTasks {
 
   /** Show list of installed chart */
   private async showInstalledChartList(clusterSetupNamespace: NamespaceName, context?: string): Promise<void> {
+    // TODO convert to logger.addMessageGroup() & logger.addMessageGroupMessage()
     this.logger.showList(
       'Installed Charts',
       await this.chartManager.getInstalledCharts(clusterSetupNamespace, context),
@@ -254,6 +256,7 @@ export class ClusterCommandTasks {
 
         // If all are already present or not wanted, skip installation
         if (!context_.config.deployPrometheusStack && !context_.config.deployMinio) {
+          // TODO: I think this will skip installing the RBAC role
           context_.isChartInstalled = true;
           return;
         }
@@ -276,7 +279,7 @@ export class ClusterCommandTasks {
       title: `Install '${constants.SOLO_CLUSTER_SETUP_CHART}' chart`,
       task: async context_ => {
         const clusterSetupNamespace = context_.config.clusterSetupNamespace;
-        const version = context_.config.soloChartVersion;
+        const version = Version.getValidSemanticVersion(context_.config.soloChartVersion, false, 'Solo chart version');
         const valuesArgument = context_.valuesArg;
 
         try {

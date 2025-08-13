@@ -15,7 +15,7 @@ import {
   Status,
   TopicCreateTransaction,
   TopicMessageSubmitTransaction,
-} from '@hashgraph/sdk';
+} from '@hiero-ledger/sdk';
 import * as constants from '../../../src/core/constants.js';
 import * as version from '../../../version.js';
 import {endToEndTestSuite, getTestCluster, getTestLogger, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
@@ -440,6 +440,45 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           const submitReceipt = await submitResponse.getReceipt(sdkClient);
 
           expect(submitReceipt.status).to.deep.equal(Status.Success);
+        } catch (error) {
+          testLogger.showUserError(error);
+        }
+      }).timeout(Duration.ofMinutes(2).toMillis());
+
+      it('Enable Envoy proxy port forwarding and create client from network config should succeed', async () => {
+        try {
+          // using label `app=envoy-proxy-node1` to find Envoy proxy pod
+          const envoyProxyPod = await k8Factory.default().pods().list(namespace, ['app=envoy-proxy-node1']);
+          // enable portfroward of Envoy proxy pod
+          const portForward = await k8Factory
+            .default()
+            .pods()
+            .readByReference(envoyProxyPod[0].podReference)
+            .portForward(10_500, 8080);
+
+          // Setup network configuration
+          const networkConfig = {};
+          networkConfig['127.0.0.1:10500'] = AccountId.fromString('0.0.3');
+
+          // Instantiate SDK client
+          const sdkClient = Client.fromConfig({network: networkConfig, scheduleNetworkUpdate: false});
+          sdkClient.setOperator(MY_ACCOUNT_ID, MY_PRIVATE_KEY);
+
+          // Create a new public topic and submit a message
+          const txResponse = await new TopicCreateTransaction().execute(sdkClient);
+          const receipt = await txResponse.getReceipt(sdkClient);
+
+          const submitResponse = await new TopicMessageSubmitTransaction({
+            topicId: receipt.topicId,
+            message: 'Hello, Hedera!',
+          }).execute(sdkClient);
+
+          const submitReceipt = await submitResponse.getReceipt(sdkClient);
+
+          expect(submitReceipt.status).to.deep.equal(Status.Success);
+
+          // disable portForward
+          portForward.close();
         } catch (error) {
           testLogger.showUserError(error);
         }

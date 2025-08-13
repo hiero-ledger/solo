@@ -7,7 +7,7 @@ import {endToEndTestSuite, getTestCluster, localHederaPlatformSupportsNonZeroRea
 import {sleep} from '../../../src/core/helpers.js';
 import {SOLO_LOGS_DIR} from '../../../src/core/constants.js';
 import {expect} from 'chai';
-import {AccountBalanceQuery, AccountCreateTransaction, Hbar, HbarUnit, PrivateKey} from '@hashgraph/sdk';
+import {AccountBalanceQuery, AccountCreateTransaction, Hbar, HbarUnit, PrivateKey} from '@hiero-ledger/sdk';
 import {Duration} from '../../../src/core/time/duration.js';
 import {AccountCommand} from '../../../src/commands/account.js';
 import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../../../version-test.js';

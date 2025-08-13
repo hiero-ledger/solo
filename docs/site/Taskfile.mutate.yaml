@@ -42,3 +42,70 @@ tasks:
         ---
         EOF
       - cat DEV.md >> docs/site/build/DEV.md
+
+  mutate:node-create-example:
+    desc: "Mutate the examples/node-create-transaction/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/node-create-transaction/README.md
+    generates:
+      - docs/site/build/node-create-transaction-example.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/node-create-transaction-example.md << 'EOF'
+        ---
+        title: "Node Create Transaction Example"
+        weight: 1
+        description: >
+          Using Solo with a custom NodeCreateTransaction from an SDK call
+        type: docs
+        ---
+        EOF
+      - cat examples/node-create-transaction/README.md >> docs/site/build/node-create-transaction-example.md
+
+
+  mutate:node-delete-example:
+    desc: "Mutate the examples/node-delete-transaction/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/node-delete-transaction/README.md
+    generates:
+      - docs/site/build/node-delete-transaction-example.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/node-delete-transaction-example.md << 'EOF'
+        ---
+        title: "Node Delete Transaction Example"
+        weight: 10
+        description: >
+          Using Solo with a custom NodeDeleteTransaction from an SDK call
+        type: docs
+        ---
+        EOF
+      - cat examples/node-delete-transaction/README.md >> docs/site/build/node-delete-transaction-example.md
+
+  mutate:node-update-example:
+    desc: "Mutate the examples/node-update-transaction/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/node-update-transaction/README.md
+    generates:
+      - docs/site/build/node-update-transaction-example.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/node-update-transaction-example.md << 'EOF'
+        ---
+        title: "Node Update Transaction Example"
+        weight: 20
+        description: >
+          Using Solo with a custom NodeUpdateTransaction from an SDK call
+        type: docs
+        ---
+        EOF
+      - cat examples/node-update-transaction/README.md >> docs/site/build/node-update-transaction-example.md

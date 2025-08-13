@@ -28,11 +28,9 @@ solo node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i nod
 solo network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
 solo node setup     --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
 solo node start     --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
-solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} 
-solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME}
+solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --enable-ingress
+solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} 
 
-kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &
-kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:80 > /dev/null 2>&1 &
 ```
 
 Then you can access the Explorer at <http://localhost:8080>
@@ -42,8 +40,8 @@ Or you can use Task tool to deploy Solo network with Mirror Node with a single c
 Next, you can try to create a few accounts with Solo and see the transactions in the Explorer.
 
 ```bash
-solo account create -n solo-e2e --hbar-amount 100
-solo account create -n solo-e2e --hbar-amount 100
+solo account create --deployment solo-deployment  --hbar-amount 100
+solo account create --deployment solo-deployment  --hbar-amount 100
 ```
 
 Or you can use Hedera JavaScript SDK examples to create topic, submit message and subscribe to the topic.
@@ -54,7 +52,7 @@ Add SDK.md link here
 
 * [Instructions for using Solo with Hiero JavaScript SDK](javascript-sdk.md)
 
-If you need to access mirror node service directly, use the following command to enable port forwarding:
+If you need to access mirror node service directly, use the following command to enable port forwarding, or just use `localhost:8081` as it should have all the mirror node services exposed to this port:
 
 ```bash
 kubectl port-forward svc/mirror-grpc -n "${SOLO_NAMESPACE}" 5600:5600 &

@@ -10,7 +10,8 @@ import {
   Hbar,
   TopicMessageQuery,
   Client,
-} from '@hashgraph/sdk';
+  AccountId,
+} from '@hiero-ledger/sdk';
 
 import dotenv from 'dotenv';
 import http from 'http';
@@ -41,13 +42,20 @@ async function main() {
 
   console.log(`Hedera network = ${process.env.HEDERA_NETWORK}`);
   const provider = new LocalProvider();
-  const mirrorNetwork = '127.0.0.1:5600';
+  const mirrorNetwork = '127.0.0.1:8081';
   provider._client.setMirrorNetwork(mirrorNetwork);
 
   const wallet = new Wallet(process.env.OPERATOR_ID, process.env.OPERATOR_KEY, provider);
 
   const TEST_MESSAGE = 'Hello World';
   try {
+    if (process.env.NEW_NODE_ACCOUNT_ID) {
+      console.log(`NEW_NODE_ACCOUNT_ID = ${process.env.NEW_NODE_ACCOUNT_ID}`);
+      provider._client.setNetwork({
+        "127.0.0.1:50211": AccountId.fromString(process.env.NEW_NODE_ACCOUNT_ID),
+    })
+    }
+
     // if process.env.OPERATOR_KEY string size is 100, it is ECDSA key, if 96, it is ED25519 key
     const operatorKeySize = process.env.OPERATOR_KEY.length;
     // create topic
@@ -64,7 +72,7 @@ async function main() {
     console.log(`topic id = ${createReceipt.topicId.toString()}`);
 
     console.log('Wait to create subscribe to new topic');
-    await sleep(25000);
+    await sleep(3000);
 
     // Create a subscription to the topic
     const mirrorClient = (await Client.forMirrorNetwork(mirrorNetwork)).setOperator(
@@ -76,8 +84,6 @@ async function main() {
     let finished = false;
     new TopicMessageQuery()
       .setTopicId(createReceipt.topicId)
-      .setMaxAttempts(400)
-      .setLimit(1)
       // eslint-disable-next-line no-unused-vars
       .subscribe(
         mirrorClient,
@@ -94,6 +100,8 @@ async function main() {
           console.log(`Subscription received message: ${topic.contents}`);
         },
       );
+
+    await sleep(3000);
 
     // send one message
     let topicMessageSubmitTransaction = await new TopicMessageSubmitTransaction({
@@ -142,7 +150,7 @@ async function main() {
         });
       });
       req.on('error', e => {
-        console.log(`problem with request: ${e.message}`);
+        console.log(`problem with request, message = : ${e.message}  cause = : ${e.cause}`);
       });
       req.end(); // make the request
       // wait and try again
@@ -164,9 +172,9 @@ async function main() {
     }
 
     if (receivedMessage === TEST_MESSAGE) {
-      console.log('Message received successfully');
+      console.log('Message received through query successfully');
     } else {
-      console.error('ERROR: Message received but not match: ' + receivedMessage);
+      console.error('ERROR: Message received through query but not match: ' + receivedMessage);
       process.exit(1);
     }
   } catch (error) {

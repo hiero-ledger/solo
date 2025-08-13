@@ -18,6 +18,7 @@ export class ArithmeticError extends Error {
       this.cause = cause;
     }
 
+    // eslint-disable-next-line unicorn/no-useless-error-capture-stack-trace
     Error.captureStackTrace(this, this.constructor);
   }
 }

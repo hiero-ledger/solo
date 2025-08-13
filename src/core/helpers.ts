@@ -8,7 +8,7 @@ import {SoloError} from './errors/solo-error.js';
 import * as semver from 'semver';
 import {Templates} from './templates.js';
 import * as constants from './constants.js';
-import {PrivateKey, ServiceEndpoint, type Long} from '@hashgraph/sdk';
+import {PrivateKey, ServiceEndpoint, type Long} from '@hiero-ledger/sdk';
 import {type NodeAlias, type NodeAliases} from '../types/aliases.js';
 import {type CommandFlag} from '../types/flag-types.js';
 import {type SoloLogger} from './logging/solo-logger.js';
@@ -87,8 +87,8 @@ async function resolveLoadBalancerAddress(consensusNode: ConsensusNode, k8: K8):
   return consensusNode.fullyQualifiedDomainName;
 }
 
-export function sleep(duration: Duration) {
-  return new Promise<void>(resolve => {
+export function sleep(duration: Duration): Promise<void> {
+  return new Promise<void>((resolve): void => {
     setTimeout(resolve, duration.toMillis());
   });
 }
@@ -511,6 +511,7 @@ function printPaddedMessage(message: string, totalWidth: number): string {
  * @param version The version of the chart
  * @param type The action that was performed such as 'Installed' or 'Upgraded'
  */
+// TODO convert usages to leverage the logger.addMessageGroupMessage()
 export function showVersionBanner(logger: SoloLogger, chartName: string, version: string, type: string = 'Installed') {
   logger.showUser(chalk.cyan(` - ${type} ${chartName} chart, version:`, chalk.yellow(version)));
 }

@@ -10,7 +10,7 @@ import * as constants from '../core/constants.js';
 import * as helpers from '../core/helpers.js';
 import {entityId} from '../core/helpers.js';
 import {type AccountManager} from '../core/account-manager.js';
-import {type AccountId, AccountInfo, HbarUnit, Long, NodeUpdateTransaction, PrivateKey} from '@hashgraph/sdk';
+import {type AccountId, AccountInfo, HbarUnit, Long, NodeUpdateTransaction, PrivateKey} from '@hiero-ledger/sdk';
 import {type AnyYargs, type ArgvStruct, type NodeAliases} from '../types/aliases.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
@@ -74,12 +74,12 @@ export class AccountCommand extends BaseCommand {
   };
 
   private static CREATE_FLAGS_LIST = {
-    required: [],
+    required: [flags.deployment],
     optional: [
       flags.amount,
       flags.createAmount,
       flags.ecdsaPrivateKey,
-      flags.deployment,
+      flags.privateKey,
       flags.ed25519PrivateKey,
       flags.generateEcdsaKey,
       flags.setAlias,
@@ -88,20 +88,13 @@ export class AccountCommand extends BaseCommand {
   };
 
   private static UPDATE_FLAGS_LIST = {
-    required: [],
-    optional: [
-      flags.accountId,
-      flags.amount,
-      flags.deployment,
-      flags.ecdsaPrivateKey,
-      flags.ed25519PrivateKey,
-      flags.clusterRef,
-    ],
+    required: [flags.accountId, flags.deployment],
+    optional: [flags.amount, flags.ecdsaPrivateKey, flags.ed25519PrivateKey, flags.clusterRef],
   };
 
   private static GET_FLAGS_LIST = {
-    required: [],
-    optional: [flags.accountId, flags.privateKey, flags.deployment, flags.clusterRef],
+    required: [flags.accountId, flags.deployment],
+    optional: [flags.privateKey, flags.clusterRef],
   };
 
   private async closeConnections(): Promise<void> {
@@ -275,8 +268,6 @@ export class AccountCommand extends BaseCommand {
 
             // set config in the context for later tasks to use
             context_.config = config;
-
-            self.logger.debug('Initialized config', {config});
 
             await self.accountManager.loadNodeClient(
               config.namespace,
@@ -466,6 +457,7 @@ export class AccountCommand extends BaseCommand {
       ecdsaPrivateKey: string;
       ed25519PrivateKey: string;
       namespace: NamespaceName;
+      privateKey: boolean;
       deployment: DeploymentName;
       setAlias: boolean;
       generateEcdsaKey: boolean;
@@ -499,6 +491,7 @@ export class AccountCommand extends BaseCommand {
               ed25519PrivateKey: self.configManager.getFlag(flags.ed25519PrivateKey),
               setAlias: self.configManager.getFlag<boolean>(flags.setAlias),
               generateEcdsaKey: self.configManager.getFlag<boolean>(flags.generateEcdsaKey),
+              privateKey: self.configManager.getFlag<boolean>(flags.privateKey),
               createAmount: self.configManager.getFlag<number>(flags.createAmount),
               clusterRef: self.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
             } as Config;
@@ -517,8 +510,6 @@ export class AccountCommand extends BaseCommand {
 
             // set config in the context for later tasks to use
             context_.config = config;
-
-            self.logger.debug('Initialized config', {config});
 
             await self.accountManager.loadNodeClient(
               context_.config.namespace,
@@ -539,7 +530,9 @@ export class AccountCommand extends BaseCommand {
                 task: async (context_: Context) => {
                   self.accountInfo = await self.createNewAccount(context_);
                   const accountInfoCopy = {...self.accountInfo};
-                  delete accountInfoCopy.privateKey;
+                  if (!context_.config.privateKey) {
+                    delete accountInfoCopy.privateKey;
+                  }
                   this.logger.showJSON('new account created', accountInfoCopy);
                 },
               });
@@ -616,8 +609,6 @@ export class AccountCommand extends BaseCommand {
               config.deployment,
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
-
-            self.logger.debug('Initialized config', {config});
           },
         },
         {
@@ -721,8 +712,6 @@ export class AccountCommand extends BaseCommand {
               config.deployment,
               self.configManager.getFlag<boolean>(flags.forcePortForward),
             );
-
-            self.logger.debug('Initialized config', {config});
           },
         },
         {
@@ -770,7 +759,6 @@ export class AccountCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct) => {
               self.logger.info("==== Running 'account init' ===");
-              self.logger.info(argv);
 
               await self
                 .init(argv)
@@ -794,7 +782,6 @@ export class AccountCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct) => {
               self.logger.info("==== Running 'account create' ===");
-              self.logger.info(argv);
 
               await self
                 .create(argv)
@@ -818,7 +805,6 @@ export class AccountCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct) => {
               self.logger.info("==== Running 'account update' ===");
-              self.logger.info(argv);
 
               await self
                 .update(argv)
@@ -842,7 +828,6 @@ export class AccountCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct) => {
               self.logger.info("==== Running 'account get' ===");
-              self.logger.info(argv);
 
               await self
                 .get(argv)

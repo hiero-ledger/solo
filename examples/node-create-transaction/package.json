@@ -1,0 +1,14 @@
+{
+  "name": "solo-node-create-transaction",
+  "version": "1.0.0",
+  "main": "solo-node-create-transaction.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@hiero-ledger/sdk": "^2.70.0"
+  }
+}

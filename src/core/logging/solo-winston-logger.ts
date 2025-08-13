@@ -10,6 +10,7 @@ import {patchInject} from '../dependency-injection/container-helper.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {type SoloLogger} from './solo-logger.js';
+import {SoloError} from '../errors/solo-error.js';
 
 const customFormat = winston.format.combine(
   winston.format.label({label: 'SOLO', message: false}),
@@ -41,6 +42,9 @@ const customFormat = winston.format.combine(
 export class SoloWinstonLogger implements SoloLogger {
   private winstonLogger: winston.Logger;
   private traceId?: string;
+  private messageGroupMap: Map<string, string[]> = new Map();
+  private readonly MINOR_LINE_SEPARATOR: string =
+    '-------------------------------------------------------------------------------';
 
   /**
    * @param logLevel - the log level to use
@@ -62,12 +66,12 @@ export class SoloWinstonLogger implements SoloLogger {
     });
   }
 
-  public setDevMode(developmentMode: boolean) {
+  public setDevMode(developmentMode: boolean): void {
     this.debug(`dev mode logging: ${developmentMode}`);
     this.developmentMode = developmentMode;
   }
 
-  public nextTraceId() {
+  public nextTraceId(): void {
     this.traceId = uuidv4();
   }
 
@@ -76,16 +80,16 @@ export class SoloWinstonLogger implements SoloLogger {
     return meta;
   }
 
-  public showUser(message: any, ...arguments_: any) {
+  public showUser(message: any, ...arguments_: any): void {
     console.log(util.format(message, ...arguments_));
     this.info(util.format(message, ...arguments_));
   }
 
-  public showUserError(error: Error | any) {
-    const stack = [{message: error.message, stacktrace: error.stack}];
+  public showUserError(error: Error | any): void {
+    const stack: {stacktrace: any; message: any}[] = [{message: error.message, stacktrace: error.stack}];
     if (error.cause) {
-      let depth = 0;
-      let cause = error.cause;
+      let depth: number = 0;
+      let cause: any = error.cause;
       while (cause !== undefined && depth < 10) {
         if (cause.stack) {
           stack.push({message: cause.message, stacktrace: cause.stack});
@@ -98,12 +102,12 @@ export class SoloWinstonLogger implements SoloLogger {
 
     console.log(chalk.red('*********************************** ERROR *****************************************'));
     if (this.developmentMode) {
-      let prefix = '';
-      let indent = '';
+      let prefix: string = '';
+      let indent: string = '';
       for (const s of stack) {
         console.log(indent + prefix + chalk.yellow(s.message));
         // Remove everything after the first "Caused by: " and add indentation
-        const formattedStacktrace = s.stacktrace
+        const formattedStacktrace: string = s.stacktrace
           .replace(/Caused by:.*/s, '')
           .replaceAll(/\n\s*/g, '\n' + indent)
           .trim();
@@ -122,25 +126,25 @@ export class SoloWinstonLogger implements SoloLogger {
     this.error(error.message, error);
   }
 
-  public error(message: any, ...arguments_: any) {
+  public error(message: any, ...arguments_: any): void {
     this.winstonLogger.error(message, ...arguments_, this.prepMeta());
   }
 
-  public warn(message: any, ...arguments_: any) {
+  public warn(message: any, ...arguments_: any): void {
     this.winstonLogger.warn(message, ...arguments_, this.prepMeta());
   }
 
-  public info(message: any, ...arguments_: any) {
+  public info(message: any, ...arguments_: any): void {
     this.winstonLogger.info(message, ...arguments_, this.prepMeta());
   }
 
-  public debug(message: any, ...arguments_: any) {
+  public debug(message: any, ...arguments_: any): void {
     this.winstonLogger.debug(message, ...arguments_, this.prepMeta());
   }
 
-  public showList(title: string, items: string[] = []) {
+  public showList(title: string, items: string[] = []): boolean {
     this.showUser(chalk.green(`\n *** ${title} ***`));
-    this.showUser(chalk.green('-------------------------------------------------------------------------------'));
+    this.showUser(chalk.green(this.MINOR_LINE_SEPARATOR));
     if (items.length > 0) {
       for (const name of items) {
         this.showUser(chalk.cyan(` - ${name}`));
@@ -153,9 +157,56 @@ export class SoloWinstonLogger implements SoloLogger {
     return true;
   }
 
-  public showJSON(title: string, object: object) {
+  public showJSON(title: string, object: object): void {
     this.showUser(chalk.green(`\n *** ${title} ***`));
-    this.showUser(chalk.green('-------------------------------------------------------------------------------'));
+    this.showUser(chalk.green(this.MINOR_LINE_SEPARATOR));
     console.log(JSON.stringify(object, null, ' '));
+  }
+
+  public addMessageGroup(key: string, title: string): void {
+    if (this.messageGroupMap.has(key)) {
+      this.warn(`Message group with key "${key}" already exists. Skipping.`);
+      return;
+    }
+    this.messageGroupMap.set(key, [`${title}:`]);
+    this.debug(`Added message group "${title}" with key "${key}".`);
+  }
+
+  public addMessageGroupMessage(key: string, message: string): void {
+    if (!this.messageGroupMap.has(key)) {
+      throw new SoloError(`Message group with key "${key}" does not exist.`);
+    }
+    this.messageGroupMap.get(key).push(message);
+    this.debug(`Added message to group "${key}": ${message}`);
+  }
+
+  public showMessageGroup(key: string): void {
+    if (!this.messageGroupMap.has(key)) {
+      this.warn(`Message group with key "${key}" does not exist.`);
+      return;
+    }
+    const messages: string[] = this.messageGroupMap.get(key);
+    this.showUser(chalk.green(`\n *** ${messages[0]} ***`));
+    this.showUser(chalk.green(this.MINOR_LINE_SEPARATOR));
+    for (let index: number = 1; index < messages.length; index++) {
+      this.showUser(chalk.cyan(` - ${messages[index]}`));
+    }
+    this.showUser(chalk.green(this.MINOR_LINE_SEPARATOR));
+    this.debug(`Displayed message group "${key}".`);
+  }
+
+  public getMessageGroupKeys(): string[] {
+    return [...this.messageGroupMap.keys()];
+  }
+
+  public showAllMessageGroups(): void {
+    const keys: string[] = this.getMessageGroupKeys();
+    if (keys.length === 0) {
+      this.debug('No message groups available.');
+      return;
+    }
+    for (const key of keys) {
+      this.showMessageGroup(key);
+    }
   }
 }

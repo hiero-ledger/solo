@@ -238,9 +238,7 @@ export class NodeCommandHandlers extends CommandHandler {
   /** ******** Handlers **********/
 
   public async prepareUpgrade(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.DEFAULT_FLAGS);
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.PREPARE_UPGRADE_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
@@ -265,12 +263,13 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async freezeUpgrade(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.DEFAULT_FLAGS);
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.PREPARE_UPGRADE_FLAGS);
 
     await this.commandAction(
       argv,
       [
         this.tasks.initialize(argv, this.configs.prepareUpgradeConfigBuilder.bind(this.configs), null),
+        this.tasks.identifyExistingNodes(),
         this.tasks.prepareUpgradeZip(),
         this.tasks.sendFreezeUpgradeTransaction(),
       ],
@@ -286,8 +285,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async downloadGeneratedFiles(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DEFAULT_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};
 
@@ -316,9 +313,6 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async update(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_FLAGS);
-
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
@@ -342,8 +336,6 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async updatePrepare(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_PREPARE_FLAGS);
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
@@ -365,8 +357,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async updateSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     const leaseWrapper: LeaseWrapper = {lease: null};
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_SUBMIT_TRANSACTIONS_FLAGS);
 
@@ -390,8 +380,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async updateExecute(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     const leaseWrapper: LeaseWrapper = {lease: null};
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_EXECUTE_FLAGS);
 
@@ -422,8 +410,6 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async upgradePrepare(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_PREPARE_FLAGS);
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     const leaseWrapper: LeaseWrapper = {lease: null};
     await this.commandAction(
       argv,
@@ -443,8 +429,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async upgradeSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     const leaseWrapper: LeaseWrapper = {lease: null};
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_SUBMIT_TRANSACTIONS_FLAGS);
 
@@ -468,11 +452,8 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async upgradeExecute(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     const leaseWrapper: LeaseWrapper = {lease: null};
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_FLAGS);
-
     await this.commandAction(
       argv,
       [
@@ -500,8 +481,6 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async upgrade(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_FLAGS);
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     const leaseWrapper: LeaseWrapper = {lease: null};
     await this.commandAction(
       argv,
@@ -524,8 +503,6 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async delete(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_FLAGS);
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     const leaseWrapper: LeaseWrapper = {lease: null};
     await this.commandAction(
       argv,
@@ -548,9 +525,6 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async deletePrepare(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_PREPARE_FLAGS);
-
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
@@ -572,8 +546,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async deleteSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_SUBMIT_TRANSACTIONS_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};
 
@@ -597,8 +569,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async deleteExecute(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DELETE_EXECUTE_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};
 
@@ -623,9 +593,6 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async add(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_FLAGS);
-
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
@@ -649,9 +616,6 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async addPrepare(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_PREPARE_FLAGS);
-
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     const leaseWrapper: LeaseWrapper = {lease: null};
 
     await this.commandAction(
@@ -673,8 +637,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async addSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_SUBMIT_TRANSACTIONS_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};
 
@@ -698,8 +660,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async addExecute(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_EXECUTE_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};
 
@@ -771,8 +731,6 @@ export class NodeCommandHandlers extends CommandHandler {
   // TODO this is broken, since genesis reconnects is no longer supported in 0.59+
   // TODO this is not in the test harness
   public async refresh(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.REFRESH_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};
 
@@ -827,8 +785,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async stop(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.STOP_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};
 
@@ -856,8 +812,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async start(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.START_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};
 
@@ -870,11 +824,14 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.identifyExistingNodes(),
         this.tasks.uploadStateFiles(context_ => context_.config.stateFile.length === 0),
         this.tasks.startNodes('nodeAliases'),
-        this.tasks.enablePortForwarding(),
+        this.tasks.enablePortForwarding(true),
         this.tasks.checkAllNodesAreActive('nodeAliases'),
         this.tasks.checkNodeProxiesAreActive(),
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
         this.tasks.addNodeStakes(),
+        this.tasks.setGrpcWebEndpoint(),
+        // TODO only show this if we are not running in quick-start mode
+        // this.tasks.showUserMessages(),
       ],
       {
         concurrent: false,
@@ -889,8 +846,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async setup(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.SETUP_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};
 
@@ -905,6 +860,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.identifyNetworkPods(),
         this.tasks.fetchPlatformSoftware('nodeAliases'),
         this.tasks.setupNetworkNodes('nodeAliases', true),
+        this.tasks.setupNetworkNodeFolders(),
         this.changeAllNodePhases(DeploymentPhase.CONFIGURED),
       ],
       {
@@ -920,8 +876,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async freeze(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.FREEZE_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};
 
@@ -948,8 +902,6 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async restart(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     argv = helpers.addFlagsToArgv(argv, NodeFlags.RESTART_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};
 

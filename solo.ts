@@ -10,12 +10,13 @@ import {container} from 'tsyringe-neo';
 import {type ErrorHandler} from './src/core/error-handler.js';
 
 const context: {logger: SoloLogger} = {logger: undefined};
+
 await fnm
   .main(process.argv, context)
-  .then(() => {
+  .then((): void => {
     context.logger.info('Solo CLI completed, via entrypoint');
   })
-  .catch(error => {
+  .catch((error): void => {
     const errorHandler: ErrorHandler = container.resolve(InjectTokens.ErrorHandler);
     errorHandler.handle(error);
   });

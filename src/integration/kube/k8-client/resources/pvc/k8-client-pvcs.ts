@@ -31,7 +31,9 @@ export class K8ClientPvcs implements Pvcs {
         pvcReference.namespace.toString(),
       );
     } catch (error) {
-      throw new SoloError('Failed to delete pvc', error);
+      throw new SoloError(
+        `Failed to delete pvc [pvc=${pvcReference.name.toString()}, ns=${pvcReference.namespace.toString()}], error: ${error.message}`,
+      );
     }
 
     KubeApiResponse.check(

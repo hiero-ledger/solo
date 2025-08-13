@@ -9,4 +9,5 @@ export interface QuickStartSingleDeployConfigClass {
   namespace: NamespaceName;
   numberOfConsensusNodes: number;
   cacheDir: string;
+  predefinedAccounts: boolean;
 }

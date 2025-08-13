@@ -261,9 +261,13 @@ export class RemoteConfigV1Migration implements SchemaMigration {
           cluster: string;
         } = clone.components.relays[relayNode];
 
+        // convert component.consensusNodeAliases [node1, node2 ] to [1, 2]
+        const consensusNodeIds: number[] = component.consensusNodeAliases.map((alias: string) =>
+          Templates.nodeIdFromNodeAlias(alias as NodeAlias),
+        );
         clone.state.relayNodes.push({
+          consensusNodeIds: consensusNodeIds,
           metadata: {
-            consensusNodeIds: component.consensusNodeAliases,
             id: 0,
             // name: component.name,
             namespace: component.namespace,

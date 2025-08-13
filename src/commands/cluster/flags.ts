@@ -26,11 +26,11 @@ export const SETUP_FLAGS = {
 };
 
 export const RESET_FLAGS = {
-  required: [],
-  optional: [flags.clusterRef, flags.clusterSetupNamespace, flags.force, flags.quiet],
+  required: [flags.clusterRef],
+  optional: [flags.clusterSetupNamespace, flags.force, flags.quiet],
 };
 
 export const CONNECT_FLAGS = {
-  required: [flags.clusterRef],
-  optional: [flags.devMode, flags.quiet, flags.context],
+  required: [flags.clusterRef, flags.context],
+  optional: [flags.devMode, flags.quiet],
 };

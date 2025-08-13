@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {AccountBalanceQuery, AccountId, Client, Logger, LogLevel, PrivateKey} from '@hashgraph/sdk';
+import {AccountBalanceQuery, AccountId, Client, Logger, LogLevel, PrivateKey} from '@hiero-ledger/sdk';
 
 export const TREASURY_ACCOUNT_ID = '0.0.2';
 export const GENESIS_KEY =

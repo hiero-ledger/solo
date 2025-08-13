@@ -29,9 +29,11 @@ export class ShellRunner {
       const child: ChildProcessWithoutNullStreams = spawn(cmd, arguments_, {
         shell: true,
         detached,
+        stdio: detached ? 'ignore' : undefined,
       });
 
       if (detached) {
+        child.unref(); // allow the parent process to exit independently of this child
         resolve([]);
       }
 

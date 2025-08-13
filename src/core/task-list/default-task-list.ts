@@ -15,6 +15,7 @@ import {
 import {QuickStartSingleDeployContext} from '../../commands/quick-start/quick-start-single-deploy-context.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {patchInject} from '../dependency-injection/container-helper.js';
+import {QuickStartSingleDestroyContext} from '../../commands/quick-start/quick-start-single-destroy-context.js';
 
 @injectable()
 export class DefaultTaskList<
@@ -46,6 +47,28 @@ export class DefaultTaskList<
     >,
   ): Listr<QuickStartSingleDeployContext, Renderer, FallbackRenderer> {
     return new Listr<QuickStartSingleDeployContext, Renderer, FallbackRenderer>(task, options, parentTask);
+  }
+
+  public newQuickStartSingleDestroyTaskList(
+    task:
+      | ListrTask<
+          QuickStartSingleDestroyContext,
+          ListrGetRendererClassFromValue<Renderer>,
+          ListrGetRendererClassFromValue<FallbackRenderer>
+        >
+      | ListrTask<
+          QuickStartSingleDestroyContext,
+          ListrGetRendererClassFromValue<Renderer>,
+          ListrGetRendererClassFromValue<FallbackRenderer>
+        >[],
+    options?: ListrBaseClassOptions<QuickStartSingleDestroyContext, Renderer, FallbackRenderer>,
+    parentTask?: ListrTaskObject<
+      any,
+      ListrGetRendererClassFromValue<Renderer>,
+      ListrGetRendererClassFromValue<FallbackRenderer>
+    >,
+  ): Listr<QuickStartSingleDestroyContext, Renderer, FallbackRenderer> {
+    return new Listr<QuickStartSingleDestroyContext, Renderer, FallbackRenderer>(task, options, parentTask);
   }
 
   public parentTaskListMap: Map<string, TaskNodeType> = new Map();
@@ -87,7 +110,12 @@ export class DefaultTaskList<
   public async callCloseFunctions(): Promise<void> {
     for (const closeFunction of this.trailingCloseFunctions) {
       try {
-        await closeFunction();
+        await closeFunction()
+          .then()
+          .catch((error): void => {
+            // Log the error or handle it as needed
+            this.logger.error('Error during trailing close function:', error);
+          });
       } catch (error) {
         // Log the error or handle it as needed
         this.logger.error('Error during trailing close function:', error);

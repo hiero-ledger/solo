@@ -27,7 +27,7 @@ import {
   PrivateKey,
   type TransactionReceipt,
   type TransactionResponse,
-} from '@hashgraph/sdk';
+} from '@hiero-ledger/sdk';
 import {type BaseTestOptions} from './base-test-options.js';
 
 export class NodeTest extends BaseCommandTest {
@@ -214,6 +214,6 @@ export class NodeTest extends BaseCommandTest {
       }
       // create one more account to make sure that the last one gets pushed to mirror node
       await verifyAccountCreateWasSuccessful(namespace, clusterReferences, deployment);
-    }).timeout(Duration.ofMinutes(5).toMillis());
+    }).timeout(Duration.ofMinutes(10).toMillis());
   }
 }

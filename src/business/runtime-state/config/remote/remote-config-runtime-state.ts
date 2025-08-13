@@ -21,6 +21,7 @@ import {
   type Context,
   type DeploymentName,
   type NamespaceNameAsString,
+  Optional,
 } from '../../../../types/index.js';
 import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases} from '../../../../types/aliases.js';
 import {NamespaceName} from '../../../../types/namespace/namespace-name.js';
@@ -49,6 +50,7 @@ import {ConsensusNodeStateSchema} from '../../../../data/schema/model/remote/sta
 import {UserIdentitySchema} from '../../../../data/schema/model/common/user-identity-schema.js';
 import {Deployment} from '../local/deployment.js';
 import {RemoteConfig} from './remote-config.js';
+import * as helpers from '../../../../core/helpers.js';
 
 enum RuntimeStatePhase {
   Loaded = 'loaded',
@@ -322,7 +324,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       this.clusterReferences.set(context, clusterReference.toString());
     }
 
-    return this.localConfig.configuration.clusterRefs.get(deployment.clusters[0])?.toString();
+    return this.localConfig.configuration.clusterRefs.get(deployment.clusters.get(0)?.toString())?.toString();
   }
 
   /**
@@ -492,32 +494,43 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
     const consensusNodes: ConsensusNode[] = [];
 
-    for (const node of Object.values(this.configuration.state.consensusNodes)) {
-      const cluster: ClusterSchema = this.configuration.clusters.find(
-        (cluster: ClusterSchema): boolean => cluster.name === node.metadata.cluster,
-      );
-      const context: Context = this.localConfig.configuration.clusterRefs.get(node.metadata.cluster)?.toString();
-      const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(node.metadata.id + 1);
+    let cluster: ClusterSchema;
+    let context: Context;
+    let nodeAlias: NodeAlias;
 
-      consensusNodes.push(
-        new ConsensusNode(
-          nodeAlias,
-          node.metadata.id,
-          node.metadata.namespace,
-          node.metadata.cluster,
-          context,
-          cluster.dnsBaseDomain,
-          cluster.dnsConsensusNodePattern,
-          Templates.renderConsensusNodeFullyQualifiedDomainName(
+    for (const node of Object.values(this.configuration.state.consensusNodes)) {
+      try {
+        cluster = this.configuration.clusters.find(
+          (cluster: ClusterSchema): boolean => cluster.name === node.metadata.cluster,
+        );
+        context = this.localConfig.configuration.clusterRefs.get(node.metadata.cluster)?.toString();
+        nodeAlias = Templates.renderNodeAliasFromNumber(node.metadata.id + 1);
+
+        consensusNodes.push(
+          new ConsensusNode(
             nodeAlias,
             node.metadata.id,
             node.metadata.namespace,
             node.metadata.cluster,
+            context,
             cluster.dnsBaseDomain,
             cluster.dnsConsensusNodePattern,
+            Templates.renderConsensusNodeFullyQualifiedDomainName(
+              nodeAlias,
+              node.metadata.id,
+              node.metadata.namespace,
+              node.metadata.cluster,
+              cluster.dnsBaseDomain,
+              cluster.dnsConsensusNodePattern,
+            ),
           ),
-        ),
-      );
+        );
+      } catch (error) {
+        throw new SoloError(
+          `Error getting consensus nodes: ${error.message}, for: [context: ${context}], [nodeAlias: ${nodeAlias}], [node: ${JSON.stringify(node)}], [cluster: ${JSON.stringify(cluster)}]`,
+          error,
+        );
+      }
     }
 
     // return the consensus nodes
@@ -562,5 +575,9 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
   public getNamespace(): NamespaceName {
     return NamespaceName.of(this.configuration.clusters?.at(0)?.namespace);
+  }
+
+  public extractContextFromConsensusNodes(nodeAlias: NodeAlias): Optional<string> {
+    return helpers.extractContextFromConsensusNodes(nodeAlias, this.getConsensusNodes());
   }
 }

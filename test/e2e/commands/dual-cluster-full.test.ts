@@ -31,6 +31,11 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withNamespace(testName)
   .withDeployment(`${testName}-deployment`)
   .withClusterCount(2)
+  .withConsensusNodesCount(2)
+  .withLoadBalancerEnabled(true)
+  .withPinger(true)
+  .withRealm(2)
+  .withShard(3)
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe('Dual Cluster Full E2E Test', (): void => {
       const {testCacheDirectory, testLogger, namespace, contexts} = options;
@@ -78,7 +83,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       // TODO explorer destroy
       // TODO mirror node destroy
       // TODO network destroy
-    });
+    }).timeout(Duration.ofMinutes(10).toMillis());
   })
   .build();
 endToEndTestSuite.runTestSuite();
