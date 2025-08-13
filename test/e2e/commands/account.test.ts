@@ -37,9 +37,6 @@ import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
-import {TestArgumentsBuilder} from '../../helpers/test-arguments-builder.js';
-import {main} from '../../../src/index.js';
-import * as nodeFlags from '../../../src/commands/node/flags.js';
 
 const defaultTimeout = Duration.ofSeconds(20).toMillis();
 

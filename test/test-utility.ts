@@ -65,7 +65,6 @@ import {type RemoteConfigRuntimeStateApi} from '../src/business/runtime-state/ap
 import {main} from '../src/index.js';
 import {TestArgumentsBuilder} from './helpers/test-arguments-builder.js';
 import * as nodeFlags from '../src/commands/node/flags.js';
-import * as clusterFlags from '../src/commands/cluster/flags.js';
 
 export const BASE_TEST_DIR = PathEx.join('test', 'data', 'tmp');
 
