@@ -34,14 +34,12 @@ export class ArgumentsBuilder {
     }
 
     // Remove common flags if they are not allowed
-    if (this.flagList && !this.flagList.some((flag): boolean => flag.name === flags.devMode.name)) {
-      delete this.flagArguments[flags.devMode.name];
-    }
-    if (this.flagList && !this.flagList.some((flag): boolean => flag.name === flags.quiet.name)) {
-      delete this.flagArguments[flags.quiet.name];
-    }
-    if (this.flagList && !this.flagList.some((flag): boolean => flag.name === flags.cacheDir.name)) {
-      delete this.flagArguments[flags.cacheDir.name];
+    const commonFlags: CommandFlag[] = [flags.devMode, flags.quiet, flags.cacheDir, flags.chartDirectory];
+
+    for (const commonFlag of commonFlags) {
+      if (this.flagList && !this.flagList.some((flag): boolean => flag.name === commonFlag.name)) {
+        delete this.flagArguments[commonFlag.name];
+      }
     }
 
     for (const [flagName, value] of Object.entries(this.flagArguments)) {
