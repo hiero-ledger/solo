@@ -127,7 +127,7 @@ export class HelmDependencyManager extends ShellRunner {
 
   public async install(temporaryDirectory: string = helpers.getTemporaryDirectory()): Promise<boolean> {
     let helmSource: string;
-    let extractedDirectory: string;
+    const extractedDirectory: string = PathEx.join(temporaryDirectory, 'extracted-helm');
     if (await this.isInstalledGloballyAndMeetsRequirements()) {
       // Copy global helm to local installation directory
       if (!fs.existsSync(this.installationDirectory)) {
@@ -139,7 +139,6 @@ export class HelmDependencyManager extends ShellRunner {
       return this.isInstalled();
     }
 
-    extractedDirectory = PathEx.join(temporaryDirectory, 'extracted-helm');
     helmSource = PathEx.join(extractedDirectory, `${this.osPlatform}-${this.osArch}`, constants.HELM);
 
     const packageFile = await this.downloader.fetchPackage(this.helmURL, this.checksumURL, temporaryDirectory);

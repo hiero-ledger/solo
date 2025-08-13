@@ -2,7 +2,6 @@
 
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
-import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
@@ -118,7 +117,7 @@ export class ExplorerCommand extends BaseCommand {
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.devMode],
   };
 
   private async prepareHederaExplorerValuesArg(config: ExplorerDeployConfigClass): Promise<string> {
@@ -247,6 +246,9 @@ export class ExplorerCommand extends BaseCommand {
             ]) as ExplorerDeployConfigClass;
 
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
+            context_.config.clusterReference =
+              (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
+              this.k8Factory.default().clusters().readCurrent();
             context_.config.clusterContext = context_.config.clusterRef
               ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString()
               : this.k8Factory.default().contexts().readCurrent();
@@ -329,7 +331,6 @@ export class ExplorerCommand extends BaseCommand {
           },
           skip: context_ => !context_.config.enableExplorerTls,
         },
-
         {
           title: 'Install explorer',
           task: async context_ => {
@@ -437,7 +438,7 @@ export class ExplorerCommand extends BaseCommand {
         },
         this.addMirrorNodeExplorerComponents(),
         {
-          title: 'Enable port forwarding',
+          title: 'Enable port forwarding for explorer',
           skip: context_ => !context_.config.forcePortForward,
           task: async context_ => {
             const pods: Pod[] = await this.k8Factory
@@ -448,16 +449,19 @@ export class ExplorerCommand extends BaseCommand {
               throw new SoloError('No Hiero Explorer pod found');
             }
             const podReference: PodReference = pods[0].podReference;
+            const clusterReference: ClusterReferenceName = context_.config.clusterReference;
 
-            await this.k8Factory
-              .getK8(context_.config.clusterContext)
-              .pods()
-              .readByReference(podReference)
-              .portForward(constants.EXPLORER_PORT, constants.EXPLORER_PORT, true);
-            this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-            this.logger.addMessageGroupMessage(
-              constants.PORT_FORWARDING_MESSAGE_GROUP,
-              `Explorer port forward enabled on http://localhost:${constants.EXPLORER_PORT}`,
+            await this.remoteConfig.configuration.components.managePortForward(
+              clusterReference,
+              podReference,
+              constants.EXPLORER_PORT, // Pod port
+              constants.EXPLORER_PORT, // Local port
+              this.k8Factory.getK8(context_.config.clusterContext),
+              this.logger,
+              ComponentTypes.Explorers,
+
+              'Explorer',
+              context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             );
           },
         },
@@ -499,7 +503,7 @@ export class ExplorerCommand extends BaseCommand {
     const self = this;
     let lease: Lock;
 
-    const tasks = new Listr<ExplorerDestroyContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -592,15 +596,22 @@ export class ExplorerCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      'explorer node destroy',
     );
 
-    try {
-      await tasks.run();
-      self.logger.debug('explorer destruction has completed');
-    } catch (error) {
-      throw new SoloError(`Error destroy explorer: ${error.message}`, error);
-    } finally {
-      await lease?.release();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError(`Error destroy explorer: ${error.message}`, error);
+      } finally {
+        await lease?.release();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease?.release();
+      });
     }
 
     return true;

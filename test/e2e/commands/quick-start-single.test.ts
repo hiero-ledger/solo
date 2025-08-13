@@ -52,6 +52,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         testLogger.info(`${testName}: starting ${testName} e2e test`);
       }).timeout(Duration.ofMinutes(5).toMillis());
 
+      after(async (): Promise<void> => {
+        testLogger.info(`${testName}: beginning ${testName}: destroy`);
+        await main(soloQuickStartDestroy(testName));
+        testLogger.info(`${testName}: finished ${testName}: destroy`);
+      }).timeout(Duration.ofMinutes(5).toMillis());
+
       // TODO pass in namespace for cache directory for proper destroy on restart
       it(`${testName}: deploy`, async (): Promise<void> => {
         testLogger.info(`${testName}: beginning ${testName}: deploy`);
@@ -74,6 +80,15 @@ export function soloQuickStartDeploy(testName: string): string[] {
     QuickStartCommandDefinition.SINGLE_SUBCOMMAND_NAME,
     QuickStartCommandDefinition.SINGLE_DEPLOY,
   );
+  argvPushGlobalFlags(argv, testName);
+  return argv;
+}
+
+export function soloQuickStartDestroy(testName: string): string[] {
+  const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+
+  const argv: string[] = newArgv();
+  argv.push('quick-start', 'single', 'destroy');
   argvPushGlobalFlags(argv, testName);
   return argv;
 }

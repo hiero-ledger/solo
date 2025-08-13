@@ -71,8 +71,8 @@ if ! grep -q "schemaVersion: 2" ./local-config-after.yaml; then
 fi
 
 # check remote-config-after.yaml should contains 'schemaVersion: 1'
-if ! grep -q "schemaVersion: 1" ./remote-config-after.yaml; then
-  echo "schemaVersion: 1 not found in remote-config-after.yaml"
+if ! grep -q "schemaVersion: 2" ./remote-config-after.yaml; then
+  echo "schemaVersion: 2 not found in remote-config-after.yaml"
   exit 1
 fi
 echo "::endgroup::"

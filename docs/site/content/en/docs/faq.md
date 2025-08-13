@@ -14,6 +14,10 @@ More documentation can be found here:
 - [Solo User Guide](step-by-step-guide/#quick-start-deployment)
 - [Solo CLI Commands](solo-commands/#quick-start-single)
 
+# How cain I tear down a Solo network in a single command?
+
+You can run `npx @hashgraph/solo:@latest quick-start single destroy`
+
 ### How can I avoid using genesis keys ?
 
 You can run `solo ledger account init` anytime after `solo consensus node start`

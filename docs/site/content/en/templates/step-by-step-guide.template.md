@@ -104,7 +104,7 @@ You should see output showing the latest version which should match our NPM pack
 The team is presently working on a number of fixes and automation that will relegate the need for this, but currently as deployed Solo can be finnicky with artifacts from prior installs. A quick command to prep your station for a new install is a good idea.
 
 ```bash
-for cluster in $(kind get clusters);do;kind delete cluster -n $cluster;done
+for cluster in $(kind get clusters);do kind delete cluster -n $cluster;done
 rm -Rf ~/.solo
 ```
 
@@ -180,6 +180,12 @@ For a simple setup with a single node with a mirror node, explorer, and JSON RPC
 
 ```bash
 solo quick-start single deploy
+```
+
+When you're finished, you can tear down your Solo network just as easily:
+
+```bash
+solo quick-start single destroy
 ```
 
 ## Step-by-Step Solo Network Deployment
@@ -671,7 +677,7 @@ When you're done with your test network:
 To quickly clean up your Solo network and remove all resources (all Kind clusters!), you can use the following commands, be aware you will lose all your logs and data from prior runs:
 
 ```bash
-for cluster in $(kind get clusters);do;kind delete cluster -n $cluster;done
+for cluster in $(kind get clusters);do kind delete cluster -n $cluster;done
 rm -Rf ~/.solo
 ```
 
