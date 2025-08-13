@@ -613,7 +613,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
         },
         this.invokeSoloCommand(
           `solo ${ExplorerCommandDefinition.DESTROY_COMMAND}`,
-          `${ExplorerCommandDefinition.DESTROY_COMMAND}`,
+          ExplorerCommandDefinition.DESTROY_COMMAND,
           (): string[] => {
             const argv: string[] = this.newArgv();
             argv.push(
@@ -630,7 +630,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
         ),
         this.invokeSoloCommand(
           `solo ${MirrorCommandDefinition.DESTROY_COMMAND}`,
-          `${MirrorCommandDefinition.DESTROY_COMMAND}`,
+          MirrorCommandDefinition.DESTROY_COMMAND,
           (): string[] => {
             const argv: string[] = this.newArgv();
             argv.push(
@@ -648,7 +648,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
         ),
         this.invokeSoloCommand(
           `solo ${RelayCommandDefinition.DESTROY_COMMAND}`,
-          `${RelayCommandDefinition.DESTROY_COMMAND}`,
+          RelayCommandDefinition.DESTROY_COMMAND,
           (): string[] => {
             const argv: string[] = this.newArgv();
             argv.push(
@@ -665,8 +665,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
         ),
         this.invokeSoloCommand(
-          `solo ${ConsensusCommandDefinition.NETWORK_DESTROY}`,
-          ConsensusCommandDefinition.NETWORK_DESTROY,
+          `solo ${ConsensusCommandDefinition.DESTROY_COMMAND}`,
+          ConsensusCommandDefinition.DESTROY_COMMAND,
           (): string[] => {
             const argv: string[] = this.newArgv();
             argv.push(
