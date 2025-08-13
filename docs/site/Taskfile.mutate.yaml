@@ -87,6 +87,28 @@ tasks:
         EOF
       - cat examples/custom-network-config/README.md >> docs/site/build/custom-network-config-example.md
 
+  mutate:external-database-test-example:
+    desc: "Mutate the examples/external-database-test/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/external-database-test/README.md
+    generates:
+      - docs/site/build/external-database-test-example.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/external-database-test-example.md << 'EOF'
+        ---
+        title: "Network with an External PostgreSQL Database Example"
+        weight: 1
+        description: >
+          example of how to deploy a Solo network with an external PostgreSQL database
+        type: docs
+        ---
+        EOF
+      - cat examples/external-database-test/README.md >> docs/site/build/external-database-test-example.md
+
   mutate:network-with-block-node-example:
     desc: "Mutate the examples/network-with-block-node/README.md file to add front-matter"
     dir: ../..
