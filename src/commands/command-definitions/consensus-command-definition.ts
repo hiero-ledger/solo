@@ -256,6 +256,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
             ),
           ),
         )
+        // TODO: Discuss during code review
         // DEV NODE ADD SUBCOMMANDS
         .addCommandGroup(
           new CommandGroup(

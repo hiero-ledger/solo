@@ -324,7 +324,7 @@ export class NodeCommandHandlers extends CommandHandler {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
-      'Error in updating nodes',
+      'Error in updating consensus nodes',
       leaseWrapper.lease,
     );
 
@@ -513,7 +513,7 @@ export class NodeCommandHandlers extends CommandHandler {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
-      'Error in deleting nodes',
+      'Error in destroying nodes',
       leaseWrapper.lease,
     );
 
@@ -604,7 +604,7 @@ export class NodeCommandHandlers extends CommandHandler {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
-      'Error in adding node',
+      'Error in adding consensus node',
       leaseWrapper.lease,
     );
 
