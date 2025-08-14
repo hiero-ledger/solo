@@ -327,8 +327,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             },
           ),
           this.invokeSoloCommand(
-            `solo ${ExplorerCommandDefinition.DEPLOY_COMMAND}`,
-            ExplorerCommandDefinition.DEPLOY_COMMAND,
+            `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
+            ExplorerCommandDefinition.ADD_COMMAND,
             (): string[] => {
               const argv: string[] = this.newArgv();
               argv.push(

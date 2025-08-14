@@ -35,6 +35,7 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Version} from '../business/utils/version.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
+import {ExplorerCommandDefinition} from './command-definitions/explorer-command-definition.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -478,7 +479,7 @@ export class ExplorerCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      'explorer node add',
+      ExplorerCommandDefinition.ADD_COMMAND,
     );
 
     if (tasks.isRoot()) {
@@ -597,7 +598,7 @@ export class ExplorerCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      'explorer node destroy',
+      ExplorerCommandDefinition.DESTROY_COMMAND,
     );
 
     if (tasks.isRoot()) {

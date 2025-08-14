@@ -161,8 +161,8 @@ tasks:
           --cluster-ref {{ .SOLO_CLUSTER_REF }}
 
       - cmd: |
-          # Solo explorer destroy
-          {{ .SOLO_COMMAND }} explorer destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev
+          # Solo explorer node destroy
+          {{ .SOLO_COMMAND }} explorer node destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev
 
       - cmd: |
           # Solo mirror node destroy
