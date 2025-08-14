@@ -201,16 +201,8 @@ export class K8ClientPod implements Pod {
         'Port-forwarding in detached mode has to be manually stopped or will stop when the Kubernetes pod it ',
         'is connected to terminates.',
       );
-      const result = await new ShellRunner().runWithPid(
-        `kubectl port-forward -n ${this.podReference.namespace.name} pods/${this.podReference.name} ${availablePort}:${podPort}`,
-        [],
-        false,
-        true,
-      );
-
-      if (result.pid) {
-        this.logger.showUser(chalk.yellow(`Port-forward process started with PID: ${result.pid}`));
-      }
+      const cmd: string = `kubectl port-forward -n ${this.podReference.namespace.name} --context ${this.kubeConfig.currentContext} pods/${this.podReference.name} ${availablePort}:${podPort}`;
+      const result = await new ShellRunner().runWithPid(cmd, [], true, true);
 
       return availablePort;
     } catch (error) {
