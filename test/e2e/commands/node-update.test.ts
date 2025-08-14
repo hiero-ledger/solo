@@ -14,6 +14,7 @@ import {
   HEDERA_PLATFORM_VERSION_TAG,
   hederaPlatformSupportsNonZeroRealms,
   getTestCluster,
+  type BootstrapResponse,
 } from '../../test-utility.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
@@ -21,23 +22,28 @@ import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
-import {type DeploymentName} from '../../../src/types/index.js';
-import {type NodeAlias} from '../../../src/types/aliases.js';
+import {
+  type DeploymentName,
+  type NodeKeyObject,
+  type PrivateKeyAndCertificateObject,
+} from '../../../src/types/index.js';
+import {type ArgvStruct, type NodeAlias} from '../../../src/types/aliases.js';
 import {AccountCommand} from '../../../src/commands/account.js';
 import {NodeCommand} from '../../../src/commands/node/index.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
-import {AccountCreateTransaction, AccountId, Hbar, HbarUnit, PrivateKey, TransferTransaction} from '@hashgraph/sdk';
+import {AccountCreateTransaction, AccountId, Hbar, HbarUnit, PrivateKey, TransferTransaction} from '@hiero-ledger/sdk';
 import {main} from '../../../src/index.js';
 import http from 'node:http';
 import {sleep} from '../../../src/core/helpers.js';
+import {type NetworkNodeServices} from '../../../src/core/network-node-services.js';
 
-const defaultTimeout = Duration.ofMinutes(2).toMillis();
-const namespace = NamespaceName.of('node-update');
-const updateNodeId = 'node2';
-const newAccountId = hederaPlatformSupportsNonZeroRealms() ? '1.1.7' : '0.0.7';
+const defaultTimeout: number = Duration.ofMinutes(2).toMillis();
+const namespace: NamespaceName = NamespaceName.of('node-update');
+const updateNodeId: NodeAlias = 'node2';
+const newAccountId: string = hederaPlatformSupportsNonZeroRealms() ? '1.1.7' : '0.0.7';
 const deployment: DeploymentName = `${namespace.name}-deployment` as DeploymentName;
-const argv = Argv.getDefaultArgv(namespace);
+const argv: Argv = Argv.getDefaultArgv(namespace);
 
 argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
 argv.setArg(flags.nodeAlias, updateNodeId);
@@ -55,39 +61,60 @@ argv.setArg(flags.realm, hederaPlatformSupportsNonZeroRealms() ? 1 : 0);
 argv.setArg(flags.shard, hederaPlatformSupportsNonZeroRealms() ? 1 : 0);
 argv.setArg(flags.deployment, deployment);
 
-endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
+function mirrorNodeDeployArguments(clusterReference: string): string[] {
+  return [
+    'node',
+    'solo',
+    'mirror-node',
+    'deploy',
+    '--deployment',
+    deployment,
+    '--cluster-ref',
+    clusterReference,
+    '--pinger',
+    '--dev',
+    '--quiet-mode',
+    '--enable-ingress',
+  ];
+}
+
+async function fetchMirrorNodes(): Promise<{nodes: unknown[]}> {
+  return new Promise((resolve): void => {
+    const request: http.ClientRequest = http.request(
+      'http://127.0.0.1:8081/api/v1/network/nodes',
+      {method: 'GET', timeout: 5000, headers: {Connection: 'close'}},
+      (response: http.IncomingMessage): void => {
+        let data: string = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk): void => {
+          data += chunk;
+        });
+        response.on('end', (): void => {
+          resolve(JSON.parse(data) as {nodes: unknown[]});
+        });
+      },
+    );
+    request.end();
+  });
+}
+
+endToEndTestSuite(namespace.name, argv, {}, (bootstrapResp: BootstrapResponse): void => {
   const {
     opts: {k8Factory, commandInvoker, accountManager, remoteConfig, logger, keyManager},
     cmd: {nodeCmd, accountCmd},
   } = bootstrapResp;
 
-  describe('Node update', async () => {
+  describe('Node update', async (): Promise<void> => {
     let existingServiceMap: NodeServiceMapping;
     let existingNodeIdsPrivateKeysHash: Map<NodeAlias, Map<string, string>>;
     let oldAccountId: string;
     let mirrorRestPortForward: any;
-    const mirrorClusterReference = getTestCluster();
-
-    function mirrorNodeDeployArguments(clusterReference: string): string[] {
-      return [
-        'node',
-        'solo',
-        'mirror-node',
-        'deploy',
-        '--deployment',
-        deployment,
-        '--cluster-ref',
-        clusterReference,
-        '--pinger',
-        '--dev',
-        '--quiet-mode',
-      ];
-    }
+    const mirrorClusterReference: string = getTestCluster();
 
     async function deployMirrorNode(): Promise<void> {
       await main(mirrorNodeDeployArguments(mirrorClusterReference));
 
-      const restPods = await k8Factory
+      const restPods: Pod[] = await k8Factory
         .getK8(mirrorClusterReference)
         .pods()
         .list(namespace, [
@@ -101,27 +128,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await sleep(Duration.ofSeconds(5));
     }
 
-    async function fetchMirrorNodes(): Promise<{nodes: unknown[]}> {
-      return new Promise(resolve => {
-        const request = http.request(
-          'http://127.0.0.1:8081/api/v1/network/nodes',
-          {method: 'GET', timeout: 5000, headers: {Connection: 'close'}},
-          res => {
-            let data = '';
-            res.setEncoding('utf8');
-            res.on('data', chunk => {
-              data += chunk;
-            });
-            res.on('end', () => {
-              resolve(JSON.parse(data) as {nodes: unknown[]});
-            });
-          },
-        );
-        request.end();
-      });
-    }
-
-    after(async function () {
+    after(async function (): Promise<void> {
       this.timeout(Duration.ofMinutes(10).toMillis());
 
       await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
@@ -130,7 +137,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
         argv: argv,
         command: NodeCommand.COMMAND_NAME,
         subcommand: 'stop',
-        callback: async argv => nodeCmd.handlers.stop(argv),
+        callback: async (argv: ArgvStruct): Promise<boolean> => nodeCmd.handlers.stop(argv),
       });
 
       await k8Factory.default().namespaces().delete(namespace);
@@ -139,13 +146,14 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
         await k8Factory
           .getK8(mirrorClusterReference)
           .pods()
+          // eslint-disable-next-line unicorn/no-null
           .readByReference(null)
           .stopPortForward(mirrorRestPortForward);
       }
       await accountManager.close();
     });
 
-    it('cache current version of private keys', async () => {
+    it('cache current version of private keys', async (): Promise<void> => {
       existingServiceMap = await accountManager.getNodeServiceMap(
         namespace,
         remoteConfig.getClusterRefs(),
@@ -159,16 +167,16 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       );
     }).timeout(defaultTimeout);
 
-    it('should succeed with init command', async () => {
+    it('should succeed with init command', async (): Promise<void> => {
       await commandInvoker.invoke({
         argv: argv,
         command: AccountCommand.COMMAND_NAME,
         subcommand: 'init',
-        callback: async argv => accountCmd.init(argv),
+        callback: async (argv: ArgvStruct): Promise<boolean> => accountCmd.init(argv),
       });
     }).timeout(Duration.ofMinutes(8).toMillis());
 
-    it('record existing service-map and deploy mirror-node', async () => {
+    it('record existing service-map and deploy mirror-node', async (): Promise<void> => {
       existingServiceMap = await accountManager.getNodeServiceMap(
         namespace,
         remoteConfig.getClusterRefs(),
@@ -178,24 +186,32 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await deployMirrorNode();
     }).timeout(Duration.ofMinutes(5).toMillis());
 
-    it('initial mirror-node /network/nodes should contain old account-id', async () => {
-      const resp = await fetchMirrorNodes();
-      const accountIds = resp.nodes.map((n: any) => n.node_account_id ?? n.account_id);
+    it('initial mirror-node /network/nodes should contain old account-id', async (): Promise<void> => {
+      const resp: {nodes: unknown[]} = await fetchMirrorNodes();
+      const accountIds: any[] = resp.nodes.map((n: any): any => n.node_account_id ?? n.account_id);
       expect(accountIds).to.include(oldAccountId);
     }).timeout(defaultTimeout);
 
-    it('should update a new node property successfully', async () => {
+    it('should update a new node property successfully', async (): Promise<void> => {
       // generate gossip and tls keys for the updated node
-      const temporaryDirectory = getTemporaryDirectory();
+      const temporaryDirectory: string = getTemporaryDirectory();
 
-      const signingKey = await keyManager.generateSigningKey(updateNodeId);
-      const signingKeyFiles = await keyManager.storeSigningKey(updateNodeId, signingKey, temporaryDirectory);
+      const signingKey: NodeKeyObject = await keyManager.generateSigningKey(updateNodeId);
+      const signingKeyFiles: PrivateKeyAndCertificateObject = await keyManager.storeSigningKey(
+        updateNodeId,
+        signingKey,
+        temporaryDirectory,
+      );
       logger.debug(`generated test gossip signing keys for node ${updateNodeId} : ${signingKeyFiles.certificateFile}`);
       argv.setArg(flags.gossipPublicKey, signingKeyFiles.certificateFile);
       argv.setArg(flags.gossipPrivateKey, signingKeyFiles.privateKeyFile);
 
-      const tlsKey = await keyManager.generateGrpcTlsKey(updateNodeId);
-      const tlsKeyFiles = await keyManager.storeTLSKey(updateNodeId, tlsKey, temporaryDirectory);
+      const tlsKey: NodeKeyObject = await keyManager.generateGrpcTlsKey(updateNodeId);
+      const tlsKeyFiles: PrivateKeyAndCertificateObject = await keyManager.storeTLSKey(
+        updateNodeId,
+        tlsKey,
+        temporaryDirectory,
+      );
       logger.debug(`generated test TLS keys for node ${updateNodeId} : ${tlsKeyFiles.certificateFile}`);
       argv.setArg(flags.tlsPublicKey, tlsKeyFiles.certificateFile);
       argv.setArg(flags.tlsPrivateKey, tlsKeyFiles.privateKeyFile);
@@ -204,7 +220,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
         argv: argv,
         command: NodeCommand.COMMAND_NAME,
         subcommand: 'update',
-        callback: async argv => nodeCmd.handlers.update(argv),
+        callback: async (argv: ArgvStruct): Promise<boolean> => nodeCmd.handlers.update(argv),
       });
     }).timeout(Duration.ofMinutes(30).toMillis());
 
@@ -212,15 +228,15 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
 
     accountCreationShouldSucceed(accountManager, namespace, remoteConfig, logger, updateNodeId);
 
-    it('signing key and tls key should not match previous one', async () => {
-      const currentNodeIdsPrivateKeysHash = await getNodeAliasesPrivateKeysHash(
+    it('signing key and tls key should not match previous one', async (): Promise<void> => {
+      const currentNodeIdsPrivateKeysHash: Map<NodeAlias, Map<string, string>> = await getNodeAliasesPrivateKeysHash(
         existingServiceMap,
         k8Factory,
         getTemporaryDirectory(),
       );
 
       for (const [nodeAlias, existingKeyHashMap] of existingNodeIdsPrivateKeysHash.entries()) {
-        const currentNodeKeyHashMap = currentNodeIdsPrivateKeysHash.get(nodeAlias);
+        const currentNodeKeyHashMap: Map<string, string> = currentNodeIdsPrivateKeysHash.get(nodeAlias);
 
         for (const [keyFileName, existingKeyHash] of existingKeyHashMap.entries()) {
           if (
@@ -239,7 +255,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       }
     }).timeout(defaultTimeout);
 
-    it('the consensus nodes accountId should be the newAccountId', async () => {
+    it('the consensus nodes accountId should be the newAccountId', async (): Promise<void> => {
       // read config.txt file from first node, read config.txt line by line, it should not contain value of newAccountId
       const pods: Pod[] = await k8Factory
         .default()
@@ -249,12 +265,12 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       expect(accountId).to.equal(newAccountId);
     }).timeout(Duration.ofMinutes(10).toMillis());
 
-    it('mirror-node should now expose new account-id', async () => {
-      let seen = false;
-      const maxAttempts = 30;
-      for (let attempt = 0; attempt < maxAttempts && !seen; attempt++) {
-        const resp = await fetchMirrorNodes();
-        const accountIds = new Set(resp.nodes.map((n: any) => n.node_account_id ?? n.account_id));
+    it('mirror-node should now expose new account-id', async (): Promise<void> => {
+      let seen: boolean = false;
+      const maxAttempts: number = 30;
+      for (let attempt: number = 0; attempt < maxAttempts && !seen; attempt++) {
+        const resp: {nodes: unknown[]} = await fetchMirrorNodes();
+        const accountIds: Set<any> = new Set(resp.nodes.map((n: any): any => n.node_account_id ?? n.account_id));
         if (accountIds.has(newAccountId) && !accountIds.has(oldAccountId)) {
           seen = true;
           break;
@@ -264,18 +280,18 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       expect(seen, 'mirror-node did not reflect account-id change in time').to.be.true;
     }).timeout(Duration.ofMinutes(4).toMillis());
 
-    it('service-map should reflect the new account-id', async () => {
-      const updatedMap = await accountManager.getNodeServiceMap(
+    it('service-map should reflect the new account-id', async (): Promise<void> => {
+      const updatedMap: NodeServiceMapping = await accountManager.getNodeServiceMap(
         namespace,
         remoteConfig.getClusterRefs(),
         argv.getArg<DeploymentName>(flags.deployment),
       );
-      const updatedIds = [...updatedMap.values()].map(s => s.accountId);
+      const updatedIds: string[] = [...updatedMap.values()].map((s: NetworkNodeServices): string => s.accountId);
       expect(updatedIds).to.include(newAccountId);
       expect(updatedIds).to.not.include(oldAccountId);
     }).timeout(defaultTimeout);
 
-    it('transaction directed at the NEW account-id should succeed', async () => {
+    it('transaction directed at the NEW account-id should succeed', async (): Promise<void> => {
       await accountManager.refreshNodeClient(
         namespace,
         remoteConfig.getClusterRefs(),
@@ -283,44 +299,44 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
         argv.getArg<DeploymentName>(flags.deployment),
       );
       const client: any = accountManager._nodeClient;
-      const senderKey = PrivateKey.generate();
-      const receiverKey = PrivateKey.generate();
+      const senderKey: PrivateKey = PrivateKey.generate();
+      const receiverKey: PrivateKey = PrivateKey.generate();
 
-      const senderId = await (async () => {
-        const tx = await new AccountCreateTransaction()
-          .setKey(senderKey)
+      const senderId: AccountId = await (async (): Promise<any> => {
+        const tx: AccountCreateTransaction = new AccountCreateTransaction()
+          .setKeyWithoutAlias(senderKey)
           .setInitialBalance(Hbar.from(1000, HbarUnit.Hbar))
           .setNodeAccountIds([AccountId.fromString(newAccountId)])
           .freezeWith(client);
         await tx.sign(senderKey);
-        const resp = await tx.execute(client);
-        const receipt = await resp.getReceipt(client);
+        const resp: any = await tx.execute(client);
+        const receipt: any = await resp.getReceipt(client);
         return receipt.accountId;
       })();
 
-      const receiverId = await (async () => {
-        const tx = await new AccountCreateTransaction()
-          .setKey(receiverKey)
+      const receiverId: AccountId = await (async (): Promise<AccountId> => {
+        const tx: AccountCreateTransaction = new AccountCreateTransaction()
+          .setKeyWithoutAlias(receiverKey)
           .setInitialBalance(Hbar.from(1, HbarUnit.Hbar))
           .setNodeAccountIds([AccountId.fromString(newAccountId)])
           .freezeWith(client);
         await tx.sign(receiverKey);
-        const resp = await tx.execute(client);
-        const receipt = await resp.getReceipt(client);
+        const resp: any = await tx.execute(client);
+        const receipt: any = await resp.getReceipt(client);
         return receipt.accountId;
       })();
 
-      const transfer = await new TransferTransaction()
+      const transfer: TransferTransaction = new TransferTransaction()
         .addHbarTransfer(senderId, Hbar.from(-1, HbarUnit.Hbar))
         .addHbarTransfer(receiverId, Hbar.from(1, HbarUnit.Hbar))
         .setNodeAccountIds([AccountId.fromString(newAccountId)])
         .freezeWith(client);
       await transfer.sign(senderKey);
-      const txResp = await transfer.execute(client);
+      const txResp: any = await transfer.execute(client);
       await txResp.getReceipt(client);
     }).timeout(Duration.ofMinutes(5).toMillis());
 
-    it('transaction directed at the OLD account-id should fail', async () => {
+    it('transaction directed at the OLD account-id should fail', async (): Promise<void> => {
       await accountManager.refreshNodeClient(
         namespace,
         remoteConfig.getClusterRefs(),
@@ -328,15 +344,15 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
         argv.getArg<DeploymentName>(flags.deployment),
       );
       const client: any = accountManager._nodeClient;
-      const key = PrivateKey.generate();
-      const tx = await new AccountCreateTransaction()
-        .setKey(key)
+      const key: PrivateKey = PrivateKey.generate();
+      const tx: AccountCreateTransaction = new AccountCreateTransaction()
+        .setKeyWithoutAlias(key)
         .setInitialBalance(Hbar.from(1000, HbarUnit.Hbar))
         .setNodeAccountIds([AccountId.fromString(oldAccountId)])
         .freezeWith(client);
       await tx.sign(key);
 
-      let threw = false;
+      let threw: boolean = false;
       try {
         await tx.execute(client);
       } catch {
