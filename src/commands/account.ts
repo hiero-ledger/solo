@@ -10,7 +10,7 @@ import * as constants from '../core/constants.js';
 import * as helpers from '../core/helpers.js';
 import {entityId} from '../core/helpers.js';
 import {type AccountManager} from '../core/account-manager.js';
-import {type AccountId, AccountInfo, HbarUnit, Long, NodeUpdateTransaction, PrivateKey} from '@hashgraph/sdk';
+import {type AccountId, AccountInfo, HbarUnit, Long, NodeUpdateTransaction, PrivateKey} from '@hiero-ledger/sdk';
 import {type AnyYargs, type ArgvStruct, type NodeAliases} from '../types/aliases.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';

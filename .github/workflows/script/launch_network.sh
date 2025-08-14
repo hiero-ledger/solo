@@ -47,7 +47,7 @@ solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q
 solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q
 solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
-solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
+solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 echo "::endgroup::"
 
 echo "::group::Verification"
@@ -71,8 +71,8 @@ if ! grep -q "schemaVersion: 2" ./local-config-after.yaml; then
 fi
 
 # check remote-config-after.yaml should contains 'schemaVersion: 1'
-if ! grep -q "schemaVersion: 1" ./remote-config-after.yaml; then
-  echo "schemaVersion: 1 not found in remote-config-after.yaml"
+if ! grep -q "schemaVersion: 2" ./remote-config-after.yaml; then
+  echo "schemaVersion: 2 not found in remote-config-after.yaml"
   exit 1
 fi
 echo "::endgroup::"
@@ -91,7 +91,7 @@ npm run solo -- node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 npm run solo -- mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --dev
 
 # redeploy explorer and relay node to upgrade to a newer version
-npm run solo -- relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+npm run solo -- relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q --dev
 npm run solo -- explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
 # wait a few seconds for the pods to be ready before running transactions against them
@@ -102,6 +102,8 @@ npm run solo -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 1
 echo "::endgroup::"
 
 echo "::group::Upgrade Consensus Node"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade consensus node"
+ps -ef |grep port-forward
 # Upgrade to latest version
 export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
 npm run solo -- node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q
@@ -109,6 +111,8 @@ npm run solo -- account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 1
 echo "::endgroup::"
 
 echo "::group::Final Verification"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before smoke test"
+ps -ef |grep port-forward
 SKIP_IMPORTER_CHECK=true
 .github/workflows/script/solo_smoke_test.sh "${SKIP_IMPORTER_CHECK}"
 echo "::endgroup::"
@@ -116,7 +120,7 @@ echo "::endgroup::"
 echo "::group::Cleanup"
 # uninstall components using current Solo version
 npm run solo -- explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force
-npm run solo -- relay destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
+npm run solo -- relay destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 npm run solo -- mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --force
 npm run solo -- node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 npm run solo -- network destroy --deployment "${SOLO_DEPLOYMENT}" --force

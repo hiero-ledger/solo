@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type NodeAlias, type NodeAliases} from '../../../types/aliases.js';
-import {type PrivateKey} from '@hashgraph/sdk';
+import {type PrivateKey} from '@hiero-ledger/sdk';
 import {type CheckedNodesConfigClass, type NodeCommonConfigWithNodeAlias} from './node-common-config-class.js';
-import {type Client} from '@hashgraph/sdk';
+import {type Client} from '@hiero-ledger/sdk';
 import {type ClusterReferenceName} from '../../../types/index.js';
 
 export interface NodeAddConfigClass extends NodeCommonConfigWithNodeAlias, CheckedNodesConfigClass {

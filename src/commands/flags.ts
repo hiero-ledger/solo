@@ -116,8 +116,11 @@ export class Flags {
    *
    */
   public static setRequiredCommandFlags(y: AnyYargs, ...commandFlags: CommandFlag[]) {
+    // Check if help is being requested to avoid enforcing required flags
+    const isHelpRequested = process.argv.includes('--help') || process.argv.includes('-h');
+
     for (const flag of commandFlags) {
-      y.option(flag.name, {...flag.definition, demandOption: true});
+      y.option(flag.name, {...flag.definition, demandOption: !isHelpRequested});
     }
   }
 

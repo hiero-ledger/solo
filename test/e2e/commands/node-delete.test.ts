@@ -23,7 +23,7 @@ import {Argv} from '../../helpers/argv-wrapper.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {NodeCommand} from '../../../src/commands/node/index.js';
 import {AccountCommand} from '../../../src/commands/account.js';
-import {AccountId} from '@hashgraph/sdk';
+import {AccountId} from '@hiero-ledger/sdk';
 
 const namespace = NamespaceName.of('node-delete');
 const deleteNodeAlias = 'node1';
