@@ -98,8 +98,8 @@ tasks:
           --cluster-ref {{ .SOLO_CLUSTER_REF }} --enable-ingress --dev
 
       - cmd: |
-          # Solo explorer deploy
-          {{ .SOLO_COMMAND }} explorer deploy --deployment {{ .SOLO_DEPLOYMENT }} --cluster-ref {{ .SOLO_CLUSTER_REF }} \
+          # Solo explorer node add
+          {{ .SOLO_COMMAND }} explorer node add --deployment {{ .SOLO_DEPLOYMENT }} --cluster-ref {{ .SOLO_CLUSTER_REF }} \
           --dev
 
       - cmd: |
