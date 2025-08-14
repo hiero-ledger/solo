@@ -215,10 +215,6 @@ tasks:
         SOLO_CLUSTER_NAME=solo-task-test-external-database task install:external-database
         task destroy:external-database
 
-  test-update-markdown:
-    cmd: |
-      docs/site/wrapper_for_update_md.sh
-
   test-e2e-quick-start-single:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Quick Start Single Test\"

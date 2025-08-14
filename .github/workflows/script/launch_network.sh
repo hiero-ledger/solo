@@ -47,7 +47,7 @@ solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q
 solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q
 solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
-solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
+solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 echo "::endgroup::"
 
 echo "::group::Verification"
@@ -91,7 +91,7 @@ npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYM
 npm run solo -- mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --dev
 
 # redeploy explorer and relay node to upgrade to a newer version
-npm run solo -- relay node add -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+npm run solo -- relay node add -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q --dev
 npm run solo -- explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
 # wait a few seconds for the pods to be ready before running transactions against them
@@ -102,6 +102,8 @@ npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-a
 echo "::endgroup::"
 
 echo "::group::Upgrade Consensus Node"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade consensus node"
+ps -ef |grep port-forward
 # Upgrade to latest version
 export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
 npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q
@@ -109,6 +111,8 @@ npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-a
 echo "::endgroup::"
 
 echo "::group::Final Verification"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before smoke test"
+ps -ef |grep port-forward
 SKIP_IMPORTER_CHECK=true
 .github/workflows/script/solo_smoke_test.sh "${SKIP_IMPORTER_CHECK}"
 echo "::endgroup::"
@@ -116,7 +120,7 @@ echo "::endgroup::"
 echo "::group::Cleanup"
 # uninstall components using current Solo version
 npm run solo -- explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --force
-npm run solo -- relay node destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
+npm run solo -- relay node destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 npm run solo -- mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force
 npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 npm run solo -- consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force
