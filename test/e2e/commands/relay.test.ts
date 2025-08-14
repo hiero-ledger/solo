@@ -68,7 +68,7 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
     each(['node1', 'node1,node2']).describe(
       'relay and deploy and destroy for each',
       async (relayNodes: string): Promise<void> => {
-        it(`relay add and destroy should work with ${relayNodes}`, async function (): Promise<void> {
+        it(`relay node add and destroy should work with ${relayNodes}`, async function (): Promise<void> {
           testLogger.info(`#### Running relay node add for: ${relayNodes} ####`);
           this.timeout(Duration.ofMinutes(5).toMillis());
 

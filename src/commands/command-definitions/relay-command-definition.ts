@@ -32,7 +32,7 @@ export class RelayCommandDefinition extends BaseCommandDefinition {
   public static readonly NODE_ADD = 'add';
   public static readonly NODE_DESTROY = 'destroy';
 
-  public static readonly DEPLOY_COMMAND =
+  public static readonly ADD_COMMAND =
     `${RelayCommandDefinition.COMMAND_NAME} ${RelayCommandDefinition.NODE_SUBCOMMAND_NAME} ${RelayCommandDefinition.NODE_ADD}` as const;
 
   public static readonly DESTROY_COMMAND =

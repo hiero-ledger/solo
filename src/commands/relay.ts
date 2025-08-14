@@ -29,6 +29,7 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Duration} from '../core/time/duration.js';
 import {Version} from '../business/utils/version.js';
+import {RelayCommandDefinition} from './command-definitions/relay-command-definition.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -453,7 +454,7 @@ export class RelayCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      'relay node add',
+      RelayCommandDefinition.ADD_COMMAND,
     );
 
     if (tasks.isRoot()) {
@@ -548,7 +549,7 @@ export class RelayCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      'relay destroy',
+      RelayCommandDefinition.DESTROY_COMMAND,
     );
 
     if (tasks.isRoot()) {
