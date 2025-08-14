@@ -193,6 +193,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 NodeFlags.REFRESH_FLAGS,
               ),
             )
+            // TODO: Review during code review
             .addSubcommand(
               new Subcommand(
                 ConsensusCommandDefinition.NODE_LOGS,
@@ -202,6 +203,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 NodeFlags.LOGS_FLAGS,
               ),
             )
+            // TODO: Review during code review
             .addSubcommand(
               new Subcommand(
                 ConsensusCommandDefinition.NODE_STATES,

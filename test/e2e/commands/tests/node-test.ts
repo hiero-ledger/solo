@@ -107,7 +107,7 @@ export class NodeTest extends BaseCommandTest {
     } = options;
     const {soloNodeSetupArgv} = NodeTest;
 
-    it(`${testName}: node setup`, async (): Promise<void> => {
+    it(`${testName}: consensus node setup`, async (): Promise<void> => {
       await main(
         soloNodeSetupArgv(testName, deployment, enableLocalBuildPathTesting, localBuildPath, localBuildReleaseTag),
       );
@@ -203,7 +203,7 @@ export class NodeTest extends BaseCommandTest {
     const {testName, deployment, namespace, contexts, createdAccountIds, clusterReferences} = options;
     const {soloNodeStartArgv, verifyAccountCreateWasSuccessful} = NodeTest;
 
-    it(`${testName}: node start`, async (): Promise<void> => {
+    it(`${testName}: consensus node start`, async (): Promise<void> => {
       await main(soloNodeStartArgv(testName, deployment));
       for (const context_ of contexts) {
         const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);

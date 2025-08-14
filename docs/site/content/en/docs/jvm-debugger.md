@@ -107,7 +107,7 @@ The Hiero Consensus Node application should stop at the breakpoint you set:
 ![alt text](hedera-breakpoint.png)
 ![alt text](platform-breakpoint.png)
 
-Example 2: attach a JVM debugger with the node add operation
+Example 2: attach a JVM debugger with the consensus node add operation
 
 ```bash
 SOLO_CLUSTER_NAME=solo-cluster

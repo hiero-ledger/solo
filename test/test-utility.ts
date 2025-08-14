@@ -111,8 +111,8 @@ export function deployNetworkTest(argv: Argv, commandInvoker: CommandInvoker, ne
 }
 
 export function startNodesTest(argv: Argv, commandInvoker: CommandInvoker, nodeCmd: NodeCommand): void {
-  it('should succeed with node setup command', async (): Promise<void> => {
-    // cache this, because `solo node setup.finalize()` will reset it to false
+  it('should succeed with consensus node setup command', async (): Promise<void> => {
+    // cache this, because `solo consensus node setup.finalize()` will reset it to false
     await commandInvoker.invoke({
       argv: argv,
       command: ConsensusCommandDefinition.COMMAND_NAME,
@@ -122,7 +122,7 @@ export function startNodesTest(argv: Argv, commandInvoker: CommandInvoker, nodeC
     });
   }).timeout(Duration.ofMinutes(4).toMillis());
 
-  it('should succeed with node start command', async (): Promise<void> => {
+  it('should succeed with consensus node start command', async (): Promise<void> => {
     await commandInvoker.invoke({
       argv: argv,
       command: ConsensusCommandDefinition.COMMAND_NAME,

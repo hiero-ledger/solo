@@ -1276,7 +1276,7 @@ export class NodeCommandTasks {
           );
         }
 
-        // TODO: during `node add` ctx.config.nodeAliases is empty, since ctx.config.nodeAliasesUnparsed is empty
+        // TODO: during `consensus node add` ctx.config.nodeAliases is empty, since ctx.config.nodeAliasesUnparsed is empty
         await this.generateNodeOverridesJson(
           context_.config.namespace,
           // @ts-expect-error: all fields are not present in every task's context
@@ -1867,7 +1867,7 @@ export class NodeCommandTasks {
     NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
   > {
     return {
-      title: 'Get node logs and configs',
+      title: 'Get consensus node logs and configs',
       task: async context_ => {
         await container
           .resolve<NetworkNodes>(NetworkNodes)
@@ -2264,7 +2264,7 @@ export class NodeCommandTasks {
         if (profileValuesFile) {
           const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMap(
             clusterReferences,
-            undefined, // do not trigger of adding default value file for chart upgrade due to node add or destroy
+            undefined, // do not trigger of adding default value file for chart upgrade due to consensus node add or destroy
             profileValuesFile,
             (config as any).valuesFile,
           );

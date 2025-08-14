@@ -84,13 +84,13 @@ tasks:
           --pvcs {{.APPLICATION_PROPERTIES_FLAG}} --dev
 
       - cmd: |
-          # Solo node setup
-          {{ .SOLO_COMMAND }} node setup --deployment {{ .SOLO_DEPLOYMENT }} --release-tag {{ .CN_VERSION }} \
+          # Solo consensus node setup
+          {{ .SOLO_COMMAND }} consensus node setup --deployment {{ .SOLO_DEPLOYMENT }} --release-tag {{ .CN_VERSION }} \
           {{.LOCAL_BUILD_FLAG}} --dev
 
       - cmd: |
-          # Solo node start
-          {{ .SOLO_COMMAND }} node start --deployment {{ .SOLO_DEPLOYMENT }} --dev
+          # Solo consensus node start
+          {{ .SOLO_COMMAND }} consensus node start --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
       - cmd: |
           # Solo mirror node add
@@ -153,8 +153,8 @@ tasks:
     dir: ../..
     cmds:
       - cmd: |
-          # Solo node stop
-          {{ .SOLO_COMMAND }} node stop --deployment {{ .SOLO_DEPLOYMENT }} --dev
+          # Solo consensus node stop
+          {{ .SOLO_COMMAND }} consensus node stop --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
       - cmd: |
           # Solo relay node destroy
