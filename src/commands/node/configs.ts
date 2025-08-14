@@ -2,7 +2,7 @@
 
 import {Templates} from '../../core/templates.js';
 import * as constants from '../../core/constants.js';
-import {AccountId, PrivateKey} from '@hashgraph/sdk';
+import {AccountId, PrivateKey, ServiceEndpoint} from '@hashgraph/sdk';
 import {SoloError} from '../../core/errors/solo-error.js';
 import * as helpers from '../../core/helpers.js';
 import {checkNamespace} from '../../core/helpers.js';
@@ -378,6 +378,13 @@ export class NodeCommandConfigs {
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
     context_.config.curDate = new Date();
     context_.config.existingNodeAliases = [];
+
+    if (this.configManager.getFlag(flags.grpcWebProxyEndpoint)) {
+      context_.config.grpcWebProxyEndpoint = new ServiceEndpoint({
+        port: 8080,
+        domainName: 'envoy-proxy-node4-svc.solo-ns.svc.cluster.local',
+      });
+    }
 
     await this.initializeSetup(context_.config, this.k8Factory);
 
