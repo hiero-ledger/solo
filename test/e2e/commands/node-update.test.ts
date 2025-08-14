@@ -27,14 +27,7 @@ import {AccountCommand} from '../../../src/commands/account.js';
 import {NodeCommand} from '../../../src/commands/node/index.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
-import {
-  AccountCreateTransaction,
-  AccountId,
-  Hbar,
-  HbarUnit,
-  PrivateKey,
-  TransferTransaction,
-} from '@hashgraph/sdk';
+import {AccountCreateTransaction, AccountId, Hbar, HbarUnit, PrivateKey, TransferTransaction} from '@hashgraph/sdk';
 import {main} from '../../../src/index.js';
 import http from 'node:http';
 import {sleep} from '../../../src/core/helpers.js';
@@ -73,9 +66,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     let existingNodeIdsPrivateKeysHash: Map<NodeAlias, Map<string, string>>;
     let oldAccountId: string;
     let mirrorRestPortForward: any;
-    const mirrorClusterRef = getTestCluster();
+    const mirrorClusterReference = getTestCluster();
 
-    function mirrorNodeDeployArgs(clusterRef: string): string[] {
+    function mirrorNodeDeployArguments(clusterReference: string): string[] {
       return [
         'node',
         'solo',
@@ -84,7 +77,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
         '--deployment',
         deployment,
         '--cluster-ref',
-        clusterRef,
+        clusterReference,
         '--pinger',
         '--dev',
         '--quiet-mode',
@@ -92,10 +85,10 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     }
 
     async function deployMirrorNode(): Promise<void> {
-      await main(mirrorNodeDeployArgs(mirrorClusterRef));
-  
+      await main(mirrorNodeDeployArguments(mirrorClusterReference));
+
       const restPods = await k8Factory
-        .getK8(mirrorClusterRef)
+        .getK8(mirrorClusterReference)
         .pods()
         .list(namespace, [
           'app.kubernetes.io/instance=mirror',
@@ -103,21 +96,15 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
           'app.kubernetes.io/component=rest',
         ]);
       expect(restPods, 'mirror-node rest pod').to.have.lengthOf(1);
-  
-      mirrorRestPortForward = await k8Factory
-        .getK8(mirrorClusterRef)
-        .pods()
-        .readByReference(restPods[0].podReference)
-        .portForward(5551, 5551);
-  
+
       // give REST a moment to start accepting connections
       await sleep(Duration.ofSeconds(5));
     }
 
     async function fetchMirrorNodes(): Promise<{nodes: unknown[]}> {
       return new Promise(resolve => {
-        const req = http.request(
-          'http://127.0.0.1:5551/api/v1/network/nodes',
+        const request = http.request(
+          'http://127.0.0.1:8081/api/v1/network/nodes',
           {method: 'GET', timeout: 5000, headers: {Connection: 'close'}},
           res => {
             let data = '';
@@ -130,7 +117,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
             });
           },
         );
-        req.end();
+        request.end();
       });
     }
 
@@ -149,8 +136,11 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await k8Factory.default().namespaces().delete(namespace);
 
       if (mirrorRestPortForward) {
-        // eslint-disable-next-line unicorn/no-null
-        await k8Factory.getK8(mirrorClusterRef).pods().readByReference(null).stopPortForward(mirrorRestPortForward);
+        await k8Factory
+          .getK8(mirrorClusterReference)
+          .pods()
+          .readByReference(null)
+          .stopPortForward(mirrorRestPortForward);
       }
       await accountManager.close();
     });
@@ -264,8 +254,8 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       const maxAttempts = 30;
       for (let attempt = 0; attempt < maxAttempts && !seen; attempt++) {
         const resp = await fetchMirrorNodes();
-        const accountIds = resp.nodes.map((n: any) => n.node_account_id ?? n.account_id);
-        if (accountIds.includes(newAccountId) && !accountIds.includes(oldAccountId)) {
+        const accountIds = new Set(resp.nodes.map((n: any) => n.node_account_id ?? n.account_id));
+        if (accountIds.has(newAccountId) && !accountIds.has(oldAccountId)) {
           seen = true;
           break;
         }
@@ -280,7 +270,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
         remoteConfig.getClusterRefs(),
         argv.getArg<DeploymentName>(flags.deployment),
       );
-      const updatedIds = Array.from(updatedMap.values()).map(s => s.accountId);
+      const updatedIds = [...updatedMap.values()].map(s => s.accountId);
       expect(updatedIds).to.include(newAccountId);
       expect(updatedIds).to.not.include(oldAccountId);
     }).timeout(defaultTimeout);
@@ -292,7 +282,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
         undefined,
         argv.getArg<DeploymentName>(flags.deployment),
       );
-      const client = accountManager._nodeClient;
+      const client: any = accountManager._nodeClient;
       const senderKey = PrivateKey.generate();
       const receiverKey = PrivateKey.generate();
 
@@ -337,7 +327,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
         undefined,
         argv.getArg<DeploymentName>(flags.deployment),
       );
-      const client = accountManager._nodeClient;
+      const client: any = accountManager._nodeClient;
       const key = PrivateKey.generate();
       const tx = await new AccountCreateTransaction()
         .setKey(key)
