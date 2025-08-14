@@ -9,4 +9,4 @@ type: docs
 The examples section provides information on some examples of how Solo can be used and leveraged.
 {{% /pageinfo %}}
 
-The examples section provides information on some examples of how Solo can be used and leveraged.
+$EXAMPLES_CONTENT
