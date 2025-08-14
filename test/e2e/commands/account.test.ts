@@ -173,7 +173,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
       });
     });
 
-    describe('account create/update command', () => {
+    describe('ledger account create/update command', () => {
       let accountId1: string, accountId2: string;
 
       it('should create account with no options', async () => {

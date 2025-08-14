@@ -22,7 +22,7 @@ solo ledger account --help
 Manage Hedera accounts in solo network
 
 Commands:
-  account init     Initialize system accounts with new keys
+  system init     Initialize system accounts with new keys
   account create   Creates a new account with a new key and stores the key in th
                    e Kubernetes secrets, if you supply no key one will be genera
                    ted for you, otherwise you may supply either a ECDSA or ED255
