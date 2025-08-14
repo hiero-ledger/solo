@@ -135,7 +135,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
         .list(namespace, [`app.kubernetes.io/instance=${constants.BLOCK_NODE_RELEASE_NAME}-0`])
         .then((pods: Pod[]): Pod => pods[0]);
 
-      await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
+      const srv: number = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
       const commandOptions: {cwd: string} = {cwd: './test/data'};
 
       // Make script executable
