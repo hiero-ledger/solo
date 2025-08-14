@@ -346,7 +346,7 @@ export class NodeCommandHandlers extends CommandHandler {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
-      'Error in preparing node update',
+      'Error in preparing consensus node update',
       leaseWrapper.lease,
     );
 
@@ -369,7 +369,7 @@ export class NodeCommandHandlers extends CommandHandler {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
-      'Error in submitting transactions for node update',
+      'Error in submitting transactions for consensus node update',
       leaseWrapper.lease,
     );
 

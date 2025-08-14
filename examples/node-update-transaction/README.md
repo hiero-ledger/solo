@@ -54,7 +54,7 @@ This example demonstrates how to use the node add-prepare/prepare-upgrade/freeze
      * Deploy the network with custom configuration files
      * Set up and start nodes
      * Deploy mirror node, relay, and explorer
-     * Perform the node update as described in the 'What It Does' section above
+     * Perform the consensus node update as described in the 'What It Does' section above
 7. **Destroy the network:**
    * Run:
      ```sh

@@ -133,7 +133,7 @@ solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
 solo consensus node add --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys --debug-node-alias node4 --local-build-path ../hiero-consensus-node/hedera-node/data --pvcs true
 ```
 
-Example 3: attach a JVM debugger with the node update operation
+Example 3: attach a JVM debugger with the consensus node update operation
 
 ```bash
 SOLO_CLUSTER_NAME=solo-cluster

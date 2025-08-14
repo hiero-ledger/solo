@@ -78,7 +78,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await accountManager.close();
     }).timeout(Duration.ofMinutes(10).toMillis());
 
-    it('should be able to create account after a node destroy', async () => {
+    it('should be able to create account after a consensus node destroy', async () => {
       await commandInvoker.invoke({
         argv: argv,
         command: LedgerCommandDefinition.COMMAND_NAME,
@@ -94,7 +94,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       updateAccountPrivateKey = newAccountInfo.privateKey;
     });
 
-    it('should be able to update a node after node destroy', async () => {
+    it('should be able to update a node after consensus node destroy', async () => {
       argv.setArg(flags.newAccountNumber, updateAccountId.toString());
       argv.setArg(flags.nodeAlias, updateNodeAlias);
       argv.setArg(flags.newAdminKey, updateAccountPrivateKey);
