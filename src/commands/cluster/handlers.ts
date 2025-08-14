@@ -47,7 +47,7 @@ export class ClusterCommandHandlers extends CommandHandler {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
-      'cluster-ref connect',
+      'cluster-ref config connect',
       null,
       'cluster-ref config connect',
     );

@@ -371,7 +371,7 @@ export function endToEndTestSuite(
         }
       }).timeout(Duration.ofMinutes(2).toMillis());
 
-      it("should success with 'cluster-ref connect'", async (): Promise<void> => {
+      it("should success with 'cluster-ref config connect'", async (): Promise<void> => {
         const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
         await localConfig.load();
         await commandInvoker.invoke({

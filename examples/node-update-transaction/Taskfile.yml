@@ -49,16 +49,16 @@ tasks:
           {{ .SOLO_COMMAND }} init --dev
 
       - cmd: |
-          # Solo cluster-ref connect
-          {{ .SOLO_COMMAND }} cluster-ref connect --cluster-ref {{ .SOLO_CLUSTER_REF }} --context kind-{{.SOLO_CLUSTER_NAME}} --dev
+          # Solo cluster-ref config connect
+          {{ .SOLO_COMMAND }} cluster-ref config connect --cluster-ref {{ .SOLO_CLUSTER_REF }} --context kind-{{.SOLO_CLUSTER_NAME}} --dev
 
       - cmd: |
-          # Solo deployment create
-          {{ .SOLO_COMMAND }} deployment create -n {{ .SOLO_NAMESPACE }} --deployment {{ .SOLO_DEPLOYMENT }} --dev
+          # Solo deployment config create
+          {{ .SOLO_COMMAND }} deployment config create -n {{ .SOLO_NAMESPACE }} --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
       - cmd: |
-          # Solo deployment add-cluster
-          {{ .SOLO_COMMAND }} deployment add-cluster --deployment {{ .SOLO_DEPLOYMENT }} --cluster-ref {{ .SOLO_CLUSTER_REF }} \
+          # Solo deployment cluster attach
+          {{ .SOLO_COMMAND }} deployment cluster attach --deployment {{ .SOLO_DEPLOYMENT }} --cluster-ref {{ .SOLO_CLUSTER_REF }} \
           --num-consensus-nodes 2 --dev
 
       - cmd: |
@@ -71,8 +71,8 @@ tasks:
           echo "contracts.evm.ethTransaction.zeroHapiFees.enabled=false" >> {{ .APPLICATION_PROPERTIES }}
 
       - cmd: |
-          # Solo node keys
-          {{ .SOLO_COMMAND }} node keys --gossip-keys --tls-keys --deployment {{ .SOLO_DEPLOYMENT }} --dev
+          # Solo keys consensus generate
+          {{ .SOLO_COMMAND }} keys consensus generate --gossip-keys --tls-keys --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
       - cmd: |
           # Solo cluster-ref setup

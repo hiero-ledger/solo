@@ -100,7 +100,7 @@ describe('ClusterCommand', () => {
     expect(await clusterCmdHandlers.setup(argv.build())).to.be.true;
   }).timeout(Duration.ofMinutes(1).toMillis());
 
-  it('cluster-ref connect should pass with correct data', async () => {
+  it('cluster-ref config connect should pass with correct data', async () => {
     const {argv, clusterRef, contextName} = getClusterConnectDefaultArgv();
 
     const localConfigPath = PathEx.joinWithRealPath(getTestCacheDirectory(), constants.DEFAULT_LOCAL_CONFIG_FILE);
@@ -160,7 +160,7 @@ describe('ClusterCommand', () => {
     return {argv, clusterRef: clusterReference, contextName};
   }
 
-  it('cluster-ref connect should fail with invalid context name', async () => {
+  it('cluster-ref config connect should fail with invalid context name', async () => {
     const clusterReference = 'test-context-name';
     const contextName = 'INVALID_CONTEXT';
     const {argv} = getClusterConnectDefaultArgv();

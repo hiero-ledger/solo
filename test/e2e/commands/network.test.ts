@@ -105,7 +105,7 @@ describe('NetworkCommand', function networkCommand() {
     fs.writeFileSync(applicationEnvironmentFilePath, applicationEnvironmentFileContents);
   });
 
-  it('deployment create should succeed', async () => {
+  it('deployment config create should succeed', async () => {
     await commandInvoker.invoke({
       argv: argv,
       command: DeploymentCommandDefinition.COMMAND_NAME,

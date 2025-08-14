@@ -55,14 +55,14 @@ export class NodeTest extends BaseCommandTest {
     const {testName, testLogger, deployment, testCacheDirectory} = options;
     const {soloNodeKeysArgv} = NodeTest;
 
-    it(`${testName}: node keys`, async (): Promise<void> => {
-      testLogger.info(`${testName}: beginning node keys command`);
+    it(`${testName}: keys consensus generate`, async (): Promise<void> => {
+      testLogger.info(`${testName}: beginning keys consensus generate command`);
       await main(soloNodeKeysArgv(testName, deployment));
       const node1Key: Buffer = fs.readFileSync(
         PathEx.joinWithRealPath(testCacheDirectory, 'keys', 's-private-node1.pem'),
       );
       expect(node1Key).to.not.be.null;
-      testLogger.info(`${testName}: finished node keys command`);
+      testLogger.info(`${testName}: finished keys consensus generate command`);
     });
   }
 
