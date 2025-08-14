@@ -12,6 +12,7 @@ import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {type ClusterCommandConfigs} from './configs.js';
 import {type ArgvStruct} from '../../types/aliases.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {ClusterReferenceCommandDefinition} from '../command-definitions/cluster-reference-command-definition.js';
 
 @injectable()
 export class ClusterCommandHandlers extends CommandHandler {
@@ -47,9 +48,9 @@ export class ClusterCommandHandlers extends CommandHandler {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
-      'cluster-ref config connect',
+      ClusterReferenceCommandDefinition.CONNECT_COMMAND,
       null,
-      'cluster-ref config connect',
+      ClusterReferenceCommandDefinition.CONNECT_COMMAND,
     );
 
     return true;
@@ -68,7 +69,7 @@ export class ClusterCommandHandlers extends CommandHandler {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
-      'cluster-ref disconnect',
+      ClusterReferenceCommandDefinition.DISCONNECT_COMMAND,
       null,
     );
 
@@ -85,7 +86,7 @@ export class ClusterCommandHandlers extends CommandHandler {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
-      'cluster list',
+      ClusterReferenceCommandDefinition.LIST_COMMAND,
       null,
     );
 
@@ -102,7 +103,7 @@ export class ClusterCommandHandlers extends CommandHandler {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
-      'cluster info',
+      ClusterReferenceCommandDefinition.INFO_COMMAND,
       null,
     );
 
@@ -124,9 +125,9 @@ export class ClusterCommandHandlers extends CommandHandler {
           concurrent: false,
           rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
         },
-        'cluster setup',
+        ClusterReferenceCommandDefinition.SETUP_COMMAND,
         null,
-        'cluster-ref config setup',
+        ClusterReferenceCommandDefinition.SETUP_COMMAND,
       );
     } catch (error) {
       throw new SoloError('Error on cluster setup', error);
@@ -149,9 +150,9 @@ export class ClusterCommandHandlers extends CommandHandler {
           concurrent: false,
           rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
         },
-        'cluster reset',
+        ClusterReferenceCommandDefinition.RESET_COMMAND,
         null,
-        'cluster-ref reset',
+        ClusterReferenceCommandDefinition.RESET_COMMAND,
       );
     } catch (error) {
       throw new SoloError('Error on cluster reset', error);

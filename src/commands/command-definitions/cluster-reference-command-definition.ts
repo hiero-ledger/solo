@@ -39,10 +39,21 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
 
   public static readonly CONNECT_COMMAND =
     `${ClusterReferenceCommandDefinition.COMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_CONNECT}` as const;
+
   public static readonly SETUP_COMMAND =
     `${ClusterReferenceCommandDefinition.COMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_SETUP}` as const;
+
   public static readonly RESET_COMMAND =
     `${ClusterReferenceCommandDefinition.COMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_RESET}` as const;
+
+  public static readonly DISCONNECT_COMMAND =
+    `${ClusterReferenceCommandDefinition.COMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_DISCONNECT}` as const;
+
+  public static readonly LIST_COMMAND =
+    `${ClusterReferenceCommandDefinition.COMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_LIST}` as const;
+
+  public static readonly INFO_COMMAND =
+    `${ClusterReferenceCommandDefinition.COMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_INFO}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -92,7 +103,6 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
             ),
           )
 
-          // TODO: Those might need to be moved
           .addSubcommand(
             new Subcommand(
               ClusterReferenceCommandDefinition.CONFIG_SETUP,

@@ -75,8 +75,8 @@ tasks:
           {{ .SOLO_COMMAND }} keys consensus generate --gossip-keys --tls-keys --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
       - cmd: |
-          # Solo cluster-ref setup
-          {{ .SOLO_COMMAND }} cluster-ref setup -s {{ .SOLO_CLUSTER_SETUP_NAMESPACE }} --dev
+          # Solo cluster-ref config setup
+          {{ .SOLO_COMMAND }} cluster-ref config setup -s {{ .SOLO_CLUSTER_SETUP_NAMESPACE }} --dev
 
       - cmd: |
           # Solo consensus network deploy
