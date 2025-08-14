@@ -77,7 +77,6 @@ describe('K8', () => {
       const serviceReference: ServiceReference = ServiceReference.of(testNamespace, ServiceName.of(serviceName));
       await k8Factory.default().services().create(serviceReference, {app: 'svc-test'}, 80, 80);
       // wait 10 seconds for the pod up and running
-      console.log(`Waiting for pod ${podName} to be created...`);
       await new Promise(resolve => setTimeout(resolve, 10_000));
     } catch (error) {
       console.log(`${error}, ${error.stack}`);

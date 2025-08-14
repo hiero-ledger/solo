@@ -147,7 +147,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
       expect(scriptStd.stderr).to.equal('');
       expect(scriptStd.stdout).to.include('"status": "SUCCESS"');
 
-      // await pod.stopPortForward(srv);
+      await pod.stopPortForward(srv);
     });
 
     it("Should succeed with removing block node with 'destroy' command", async function (): Promise<void> {
