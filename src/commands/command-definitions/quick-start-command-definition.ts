@@ -20,23 +20,23 @@ export class QuickStartCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME: string = 'quick-start';
-  protected static override readonly DESCRIPTION: string =
+  public static override readonly COMMAND_NAME = 'quick-start';
+  protected static override readonly DESCRIPTION =
     'Quick start commands for new and returning users who need a preset environment type. ' +
     'These commands use reasonable defaults to provide a single command out of box experience.';
 
-  public static readonly SINGLE_SUBCOMMAND_NAME: string = 'single';
-  private static readonly SINGLE_SUBCOMMAND_DESCRIPTION: string =
+  public static readonly SINGLE_SUBCOMMAND_NAME = 'single';
+  private static readonly SINGLE_SUBCOMMAND_DESCRIPTION =
     'Creates a uniquely named deployment with a single consensus node, ' +
     'mirror node, block node, relay node, and explorer node.';
 
-  public static readonly MULTI_SUBCOMMAND_NAME: string = 'multi';
-  private static readonly MULTI_SUBCOMMAND_DESCRIPTION: string =
+  public static readonly MULTI_SUBCOMMAND_NAME = 'multi';
+  private static readonly MULTI_SUBCOMMAND_DESCRIPTION =
     'Creates a uniquely named deployment with a four consensus nodes, ' +
     'a single mirror node, a single block node, a single relay node, and a single explorer node.';
 
-  public static readonly SINGLE_DEPLOY: string = 'deploy';
-  public static readonly SINGLE_DESTROY: string = 'destroy';
+  public static readonly SINGLE_DEPLOY = 'deploy';
+  public static readonly SINGLE_DESTROY = 'destroy';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(

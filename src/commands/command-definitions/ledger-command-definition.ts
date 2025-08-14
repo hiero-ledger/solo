@@ -20,28 +20,28 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME: string = 'ledger';
-  protected static override readonly DESCRIPTION: string =
+  public static override readonly COMMAND_NAME = 'ledger';
+  protected static override readonly DESCRIPTION =
     'System, Account, and Crypto ledger-based management operations. ' +
     'These commands require an operational set of consensus nodes and may require an operational mirror node.';
 
-  public static readonly SYSTEM_SUBCOMMAND_NAME: string = 'system';
-  private static readonly SYSTEM_SUBCOMMAND_DESCRIPTION: string =
+  public static readonly SYSTEM_SUBCOMMAND_NAME = 'system';
+  private static readonly SYSTEM_SUBCOMMAND_DESCRIPTION =
     'Perform a full ledger initialization on a new deployment, ' +
     'rekey privileged/system accounts, or setup network staking parameters.';
 
-  public static readonly ACCOUNT_SUBCOMMAND_NAME: string = 'account';
-  private static readonly ACCOUNT_SUBCOMMAND_DESCRIPTION: string =
+  public static readonly ACCOUNT_SUBCOMMAND_NAME = 'account';
+  private static readonly ACCOUNT_SUBCOMMAND_DESCRIPTION =
     'View, list, create, update, delete, and import ledger accounts.';
 
-  public static readonly CRYPTO_SUBCOMMAND_NAME: string = 'crypto';
-  private static readonly CRYPTO_SUBCOMMAND_DESCRIPTION: string =
+  public static readonly CRYPTO_SUBCOMMAND_NAME = 'crypto';
+  private static readonly CRYPTO_SUBCOMMAND_DESCRIPTION =
     'Transfer native crypto tokens or query native token account balances.';
 
-  public static readonly SYSTEM_INIT: string = 'init';
-  public static readonly ACCOUNT_UPDATE: string = 'update';
-  public static readonly ACCOUNT_CREATE: string = 'create';
-  public static readonly ACCOUNT_INFO: string = 'info';
+  public static readonly SYSTEM_INIT = 'init';
+  public static readonly ACCOUNT_UPDATE = 'update';
+  public static readonly ACCOUNT_CREATE = 'create';
+  public static readonly ACCOUNT_INFO = 'info';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(LedgerCommandDefinition.COMMAND_NAME, LedgerCommandDefinition.DESCRIPTION, this.logger)

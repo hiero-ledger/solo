@@ -20,18 +20,18 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME: string = 'block';
-  protected static override readonly DESCRIPTION: string =
+  public static override readonly COMMAND_NAME = 'block';
+  protected static override readonly DESCRIPTION =
     'Block Node operations for creating, modifying, and destroying resources. ' +
     'These commands require the presence of an existing deployment.';
 
-  public static readonly NODE_SUBCOMMAND_NAME: string = 'node';
-  private static readonly NODE_SUBCOMMAND_DESCRIPTION: string =
+  public static readonly NODE_SUBCOMMAND_NAME = 'node';
+  private static readonly NODE_SUBCOMMAND_DESCRIPTION =
     'Create, manage, or destroy block node instances. Operates on a single block node instance at a time.';
 
-  public static readonly NODE_ADD: string = 'add';
-  public static readonly NODE_DESTROY: string = 'destroy';
-  public static readonly NODE_UPGRADE: string = 'upgrade';
+  public static readonly NODE_ADD = 'add';
+  public static readonly NODE_DESTROY = 'destroy';
+  public static readonly NODE_UPGRADE = 'upgrade';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(BlockCommandDefinition.COMMAND_NAME, BlockCommandDefinition.DESCRIPTION, this.logger)

@@ -20,20 +20,23 @@ export class RelayCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME: string = 'relay';
-  protected static override readonly DESCRIPTION: string =
+  public static override readonly COMMAND_NAME = 'relay';
+  protected static override readonly DESCRIPTION =
     'RPC Relay Node operations for creating, modifying, and destroying resources. ' +
     'These commands require the presence of an existing deployment.';
 
-  public static readonly NODE_SUBCOMMAND_NAME: string = 'node';
-  private static readonly NODE_SUBCOMMAND_DESCRIPTION: string =
+  public static readonly NODE_SUBCOMMAND_NAME = 'node';
+  private static readonly NODE_SUBCOMMAND_DESCRIPTION =
     'List, create, manage, or destroy relay node instances. Operates on a single relay node instance at a time.';
 
-  public static readonly NODE_ADD: string = 'add';
-  public static readonly NODE_DESTROY: string = 'destroy';
+  public static readonly NODE_ADD = 'add';
+  public static readonly NODE_DESTROY = 'destroy';
 
-  public static readonly DEPLOY_COMMAND: string = `${RelayCommandDefinition.COMMAND_NAME} ${RelayCommandDefinition.NODE_SUBCOMMAND_NAME} ${RelayCommandDefinition.NODE_ADD}`;
-  public static readonly DESTROY_COMMAND: string = `${RelayCommandDefinition.COMMAND_NAME} ${RelayCommandDefinition.NODE_SUBCOMMAND_NAME} ${RelayCommandDefinition.NODE_DESTROY}`;
+  public static readonly DEPLOY_COMMAND =
+    `${RelayCommandDefinition.COMMAND_NAME} ${RelayCommandDefinition.NODE_SUBCOMMAND_NAME} ${RelayCommandDefinition.NODE_ADD}` as const;
+
+  public static readonly DESTROY_COMMAND =
+    `${RelayCommandDefinition.COMMAND_NAME} ${RelayCommandDefinition.NODE_SUBCOMMAND_NAME} ${RelayCommandDefinition.NODE_DESTROY}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(RelayCommandDefinition.COMMAND_NAME, RelayCommandDefinition.DESCRIPTION, this.logger)

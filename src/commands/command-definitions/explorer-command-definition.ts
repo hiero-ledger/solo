@@ -20,21 +20,23 @@ export class ExplorerCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME: string = 'explorer';
-  protected static override readonly DESCRIPTION: string =
+  public static override readonly COMMAND_NAME = 'explorer';
+  protected static override readonly DESCRIPTION =
     'Explorer Node operations for creating, modifying, and destroying resources.' +
     'These commands require the presence of an existing deployment.';
 
-  public static readonly NODE_SUBCOMMAND_NAME: string = 'node';
-  private static readonly NODE_SUBCOMMAND_DESCRIPTION: string =
+  public static readonly NODE_SUBCOMMAND_NAME = 'node';
+  private static readonly NODE_SUBCOMMAND_DESCRIPTION =
     'List, create, manage, or destroy explorer node instances. ' +
     'Operates on a single explorer node instance at a time.';
 
-  public static readonly NODE_ADD: string = 'add';
-  public static readonly NODE_DESTROY: string = 'destroy';
+  public static readonly NODE_ADD = 'add';
+  public static readonly NODE_DESTROY = 'destroy';
 
-  public static readonly DEPLOY_COMMAND: string = `${ExplorerCommandDefinition.COMMAND_NAME} ${ExplorerCommandDefinition.NODE_SUBCOMMAND_NAME} ${ExplorerCommandDefinition.NODE_ADD}`;
-  public static readonly DESTROY_COMMAND: string = `${ExplorerCommandDefinition.COMMAND_NAME} ${ExplorerCommandDefinition.NODE_SUBCOMMAND_NAME} ${ExplorerCommandDefinition.NODE_DESTROY}`;
+  public static readonly DEPLOY_COMMAND =
+    `${ExplorerCommandDefinition.COMMAND_NAME} ${ExplorerCommandDefinition.NODE_SUBCOMMAND_NAME} ${ExplorerCommandDefinition.NODE_ADD}` as const;
+  public static readonly DESTROY_COMMAND =
+    `${ExplorerCommandDefinition.COMMAND_NAME} ${ExplorerCommandDefinition.NODE_SUBCOMMAND_NAME} ${ExplorerCommandDefinition.NODE_DESTROY}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(

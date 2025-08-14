@@ -21,25 +21,28 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME: string = 'cluster-ref';
-  protected static override readonly DESCRIPTION: string =
+  public static override readonly COMMAND_NAME = 'cluster-ref';
+  protected static override readonly DESCRIPTION =
     'Manages the relationship between Kubernetes context names and ' +
     'Solo cluster references which are an alias for a kubernetes context.';
 
-  public static readonly CONFIG_SUBCOMMAND_NAME: string = 'config';
-  private static readonly CONFIG_SUBCOMMAND_DESCRIPTION: string =
+  public static readonly CONFIG_SUBCOMMAND_NAME = 'config';
+  private static readonly CONFIG_SUBCOMMAND_DESCRIPTION =
     'List, create, manage, and remove associations between Kubernetes contexts and Solo cluster references.';
 
-  public static readonly CONFIG_CONNECT: string = 'connect';
-  public static readonly CONFIG_DISCONNECT: string = 'disconnect';
-  public static readonly CONFIG_LIST: string = 'list';
-  public static readonly CONFIG_INFO: string = 'info';
-  public static readonly CONFIG_SETUP: string = 'setup';
-  public static readonly CONFIG_RESET: string = 'reset';
+  public static readonly CONFIG_CONNECT = 'connect';
+  public static readonly CONFIG_DISCONNECT = 'disconnect';
+  public static readonly CONFIG_LIST = 'list';
+  public static readonly CONFIG_INFO = 'info';
+  public static readonly CONFIG_SETUP = 'setup';
+  public static readonly CONFIG_RESET = 'reset';
 
-  public static readonly CONNECT_COMMAND: string = `${ClusterReferenceCommandDefinition.COMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_CONNECT}`;
-  public static readonly SETUP_COMMAND: string = `${ClusterReferenceCommandDefinition.COMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_SETUP}`;
-  public static readonly RESET_COMMAND: string = `${ClusterReferenceCommandDefinition.COMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_RESET}`;
+  public static readonly CONNECT_COMMAND =
+    `${ClusterReferenceCommandDefinition.COMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_CONNECT}` as const;
+  public static readonly SETUP_COMMAND =
+    `${ClusterReferenceCommandDefinition.COMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_SETUP}` as const;
+  public static readonly RESET_COMMAND =
+    `${ClusterReferenceCommandDefinition.COMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${ClusterReferenceCommandDefinition.CONFIG_RESET}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(

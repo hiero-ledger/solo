@@ -326,15 +326,15 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
             ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_NAME,
             ConsensusCommandDefinition.DEV_NODE_UPGRADE_SUBCOMMAND_DESCRIPTION,
           )
-            // .addSubcommand(
-            //   new Subcommand(
-            //     ConsensusCommandDefinition.DEV_NODE_PREPARE,
-            //     'Prepare the network for a Freeze Upgrade operation',
-            //     this.nodeCommand.handlers,
-            //     this.nodeCommand.handlers.prepareUpgrade,
-            //     NodeFlags.DEFAULT_FLAGS,
-            //   ),
-            // )
+            .addSubcommand(
+              new Subcommand(
+                ConsensusCommandDefinition.DEV_NODE_PREPARE,
+                'Prepare for upgrading network',
+                this.nodeCommand.handlers,
+                this.nodeCommand.handlers.upgradePrepare,
+                NodeFlags.DEFAULT_FLAGS,
+              ),
+            )
             .addSubcommand(
               new Subcommand(
                 ConsensusCommandDefinition.DEV_NODE_SUBMIT_TRANSACTION,

@@ -20,32 +20,34 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME: string = 'deployment';
-  protected static override readonly DESCRIPTION: string =
+  public static override readonly COMMAND_NAME = 'deployment';
+  protected static override readonly DESCRIPTION =
     'Create, modify, and delete deployment configurations. ' +
     'Deployments are required for most of the other commands.';
 
-  public static readonly CLUSTER_SUBCOMMAND_NAME: string = 'cluster';
-  private static readonly CLUSTER_SUBCOMMAND_DESCRIPTION: string =
+  public static readonly CLUSTER_SUBCOMMAND_NAME = 'cluster';
+  private static readonly CLUSTER_SUBCOMMAND_DESCRIPTION =
     'View and manage Solo cluster references used by a deployment.';
 
-  public static readonly CONFIG_SUBCOMMAND_NAME: string = 'config';
-  private static readonly CONFIG_SUBCOMMAND_DESCRIPTION: string =
+  public static readonly CONFIG_SUBCOMMAND_NAME = 'config';
+  private static readonly CONFIG_SUBCOMMAND_DESCRIPTION =
     'List, view, create, delete, and import deployments. These commands affect the local configuration only.';
 
-  public static readonly STATE_SUBCOMMAND_NAME: string = 'state';
-  private static readonly STATE_SUBCOMMAND_DESCRIPTION: string =
+  public static readonly STATE_SUBCOMMAND_NAME = 'state';
+  private static readonly STATE_SUBCOMMAND_DESCRIPTION =
     'View the actual state of the deployment on the Kubernetes clusters or ' +
     'teardown/destroy all remote and local configuration for a given deployment.';
 
-  public static readonly CLUSTER_ATTACH: string = 'attach';
+  public static readonly CLUSTER_ATTACH = 'attach';
 
-  public static readonly CONFIG_LIST: string = 'list';
-  public static readonly CONFIG_CREATE: string = 'create';
-  public static readonly CONFIG_DELETE: string = 'delete';
+  public static readonly CONFIG_LIST = 'list';
+  public static readonly CONFIG_CREATE = 'create';
+  public static readonly CONFIG_DELETE = 'delete';
 
-  public static readonly CREATE_COMMAND: string = `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_CREATE}`;
-  public static readonly ADD_COMMAND: string = `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CLUSTER_ATTACH}`;
+  public static readonly CREATE_COMMAND =
+    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_CREATE}` as const;
+  public static readonly ADD_COMMAND =
+    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CLUSTER_ATTACH}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
