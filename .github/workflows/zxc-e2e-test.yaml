@@ -271,7 +271,7 @@ jobs:
           cd ../solo
 
       - name: Setup E2E Tests
-        if: ${{ inputs.test-script != 'test-e2e-external-database' && inputs.test-script != 'test-update-markdown' && !cancelled() }}
+        if: ${{ inputs.test-script != 'test-external-database' && !cancelled() }}
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           max_attempts: 3
@@ -311,7 +311,7 @@ jobs:
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
 
       - name: Upload E2E Logs to GitHub
-        if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && inputs.test-script != 'test-update-markdown' && !cancelled() }}
+        if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-external-database' && !cancelled() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: solo-${{ inputs.test-script }}.log
@@ -321,7 +321,7 @@ jobs:
 
       - name: Upload E2E Test Report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && inputs.test-script != 'test-update-markdown' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
+        if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-external-database' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
         with:
           name: e2e_test_report_${{ inputs.test-script }}
           path: "junit-${{ inputs.coverage-subdirectory }}.xml"
@@ -330,7 +330,7 @@ jobs:
 
       - name: Publish E2E Coverage Report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && inputs.test-script != 'test-update-markdown' && !cancelled() }}
+        if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-external-database' && !cancelled() }}
         with:
           name: ${{ inputs.coverage-report-name }}
           path: 'coverage/${{ inputs.coverage-subdirectory }}'
