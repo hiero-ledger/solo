@@ -360,38 +360,10 @@ export class AccountManager {
         await this._nodeClient.ping(AccountId.fromString(operatorId));
       }
 
-      // start a background pinger to keep the node client alive, Hashgraph SDK JS has a 90-second keep alive time, and
-      // 5-second keep alive timeout
-      this.startIntervalPinger(operatorId);
-
       return this._nodeClient;
     } catch (error) {
       throw new SoloError(`failed to setup node client: ${error.message}`, error);
     }
-  }
-
-  /**
-   * pings the node client at a set interval, can throw an exception if the ping fails
-   * @param operatorId
-   */
-  private startIntervalPinger(operatorId: string): void {
-    const interval: number = constants.NODE_CLIENT_PING_INTERVAL;
-    const intervalId = setInterval(async (): Promise<void> => {
-      if (this._nodeClient || !this._nodeClient?.isClientShutDown) {
-        this.logger.debug('node client has been closed, clearing node client ping interval');
-        clearInterval(intervalId);
-      } else {
-        try {
-          this.logger.debug(`pinging node client at an interval of ${Duration.ofMillis(interval).seconds} seconds`);
-          if (!constants.SKIP_NODE_PING) {
-            await this._nodeClient.ping(AccountId.fromString(operatorId));
-          }
-        } catch (error) {
-          const message: string = `failed to ping node client while running the interval pinger: ${error.message}`;
-          throw new SoloError(message, error);
-        }
-      }
-    }, interval);
   }
 
   private async configureNodeAccess(

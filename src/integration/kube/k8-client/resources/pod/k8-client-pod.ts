@@ -209,9 +209,7 @@ export class K8ClientPod implements Pod {
       );
 
       if (result.pid) {
-        this.logger.debug(`Port-forward process started with PID: ${result.pid}`);
-        // TODO: Store the PID for later cleanup - you can store it in a class property,
-        // database, or return it along with the port number
+        this.logger.showUser(chalk.yellow(`Port-forward process started with PID: ${result.pid}`));
       }
 
       return availablePort;
@@ -226,7 +224,7 @@ export class K8ClientPod implements Pod {
       return;
     }
 
-    this.logger.debug(`Stopping port-forwarder for port [${port}]`);
+    this.logger.showUser(chalk.yellow(`Stopping port-forwarder for port [${port}]`));
 
     try {
       // Use ps -ef | grep "port-forward" | grep ${port}: to find kubectl port-forward processes using the specified port
