@@ -3,7 +3,6 @@
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import chalk from 'chalk';
-import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import {BaseCommand} from './base.js';
@@ -75,6 +74,7 @@ import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
+import {Version} from '../business/utils/version.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -176,12 +176,12 @@ export class NetworkCommand extends BaseCommand {
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
   private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [],
-    optional: [flags.deletePvcs, flags.deleteSecrets, flags.enableTimeout, flags.force, flags.deployment, flags.quiet],
+    required: [flags.deployment],
+    optional: [flags.deletePvcs, flags.deleteSecrets, flags.enableTimeout, flags.force, flags.quiet],
   };
 
   private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
-    required: [],
+    required: [flags.deployment],
     optional: [
       flags.apiPermissionProperties,
       flags.app,
@@ -197,7 +197,6 @@ export class NetworkCommand extends BaseCommand {
       flags.debugNodeAlias,
       flags.loadBalancerEnabled,
       flags.log4j2Xml,
-      flags.deployment,
       flags.persistentVolumeClaims,
       flags.profileFile,
       flags.profileName,
@@ -592,6 +591,7 @@ export class NetworkCommand extends BaseCommand {
         const blockNodesJsonData: string = new BlockNodesJsonWrapper(
           config.blockNodeComponents,
           this.remoteConfig.configuration.clusters,
+          this.remoteConfig.configuration.versions,
         ).toJSON();
 
         const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'block-nodes.json');
@@ -651,7 +651,6 @@ export class NetworkCommand extends BaseCommand {
     argv: ArgvStruct,
   ): Promise<NetworkDeployConfigClass> {
     this.configManager.update(argv);
-    this.logger.debug('Updated config with argv', {config: this.configManager.config});
 
     const flagsWithDisabledPrompts: CommandFlag[] = [
       flags.apiPermissionProperties,
@@ -779,10 +778,6 @@ export class NetworkCommand extends BaseCommand {
     this.logger.debug('Preparing storage secrets');
     await this.prepareStorageSecrets(config);
 
-    this.logger.debug('Prepared config', {
-      config,
-      cachedConfig: this.configManager.config,
-    });
     return config;
   }
 
@@ -979,6 +974,12 @@ export class NetworkCommand extends BaseCommand {
                 );
                 config.isUpgrade = true;
               }
+
+              config.soloChartVersion = Version.getValidSemanticVersion(
+                config.soloChartVersion,
+                false,
+                'Solo chart version',
+              );
 
               await this.chartManager.upgrade(
                 config.namespace,
@@ -1256,7 +1257,8 @@ export class NetworkCommand extends BaseCommand {
     let lease: Lock;
 
     let networkDestroySuccess: boolean = true;
-    const tasks: Listr<NetworkDestroyContext> = new Listr<NetworkDestroyContext>(
+
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -1282,7 +1284,7 @@ export class NetworkCommand extends BaseCommand {
             context_.config = {
               deletePvcs: this.configManager.getFlag<boolean>(flags.deletePvcs) as boolean,
               deleteSecrets: this.configManager.getFlag<boolean>(flags.deleteSecrets) as boolean,
-              deployment: this.configManager.getFlag<string>(flags.deployment) as string,
+              deployment: this.configManager.getFlag(flags.deployment),
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
               enableTimeout: this.configManager.getFlag<boolean>(flags.enableTimeout) as boolean,
               force: this.configManager.getFlag<boolean>(flags.force) as boolean,
@@ -1342,15 +1344,23 @@ export class NetworkCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      'network destroy',
     );
 
-    try {
-      await tasks.run();
-    } catch (error) {
-      throw new SoloError('Error destroying network', error);
-    } finally {
-      // If the namespace is deleted, the lease can't be released
-      await lease.release().catch();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError('Error destroying network', error);
+      } finally {
+        // If the namespace is deleted, the lease can't be released
+        await lease?.release().catch();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease?.release();
+      });
     }
 
     return networkDestroySuccess;
@@ -1372,7 +1382,6 @@ export class NetworkCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct): Promise<void> => {
               self.logger.info("==== Running 'network deploy' ===");
-              self.logger.info(argv);
 
               await self
                 .deploy(argv)
@@ -1397,7 +1406,6 @@ export class NetworkCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct): Promise<void> => {
               self.logger.info("==== Running 'network destroy' ===");
-              self.logger.info(argv);
 
               await self
                 .destroy(argv)

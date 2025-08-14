@@ -1,6 +1,14 @@
 baseURL: https://solo.hiero.org/
 title: Solo
 
+menu:
+  main:
+    - name: Release Notes
+      weight: 40
+      url: https://github.com/hiero-ledger/solo/releases
+      post: <sup><i class="ps-1 fa-solid fa-up-right-from-square fa-xs"
+        aria-hidden="true"></i></sup>
+
 module:
   # Uncomment the next line to build and serve using local docsy clone declared in the named Hugo workspace:
   # workspace: docsy.work
@@ -17,6 +25,9 @@ module:
     - source: build/
       target: content/development
       includeFiles: DEV.md
+    - source: build/
+      target: content/examples
+      includeFiles: node-*-transaction-example.md
     - source: ../../images
       target: content/docs/readme/images
     - source: content/en
@@ -125,7 +136,7 @@ params:
   url_latest_version: https://solo.hiero.org/
 
   # Repository configuration (URLs for in-page links to opening issues and suggesting changes)
-  github_repo: https://github.com/hiero-ledger/solo/issues
+  github_repo: https://github.com/hiero-ledger/solo
 
   # An optional link to a related project repo. For example, the sibling repository where your product code lives.
   github_project_repo: https://github.com/hiero-ledger/solo

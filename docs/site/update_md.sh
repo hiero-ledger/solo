@@ -5,17 +5,20 @@
 
 set -xeo pipefail
 
-export TARGET_DIR=docs/site/content/en/docs
+export TARGET_DIR=docs/site/content/en
+export TARGET_DIR_DOCS=docs/site/content/en/docs
 export TEMPLATE_DIR=docs/site/content/en/templates
-export TARGET_FILE=${TARGET_DIR}/step-by-step-guide.md
+export TARGET_FILE=${TARGET_DIR_DOCS}/step-by-step-guide.md
 export TEMPLATE_FILE=${TEMPLATE_DIR}/step-by-step-guide.template.md
+export TEMPLATE_EXAMPLES_FILE=${TEMPLATE_DIR}/examples-index.template.md
 export BUILD_DIR=docs/site/build
+export EXAMPLES_DIR=examples
 mkdir -p ${BUILD_DIR}
 pwd
 
 
 # TBD, need to use at least version v0.62.6 for block node commands to work
-CONSENSUS_NODE_VERSION=${1:-v0.62.6}
+CONSENSUS_NODE_VERSION=${1:-v0.63.9}
 CONSENSUS_NODE_FLAG=() # Initialize an empty array
 
 if [[ -n "${CONSENSUS_NODE_VERSION}" ]]; then
@@ -73,10 +76,10 @@ export SOLO_MIRROR_NODE_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/mirror-node-deploy.log
 solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q | tee ${BUILD_DIR}/explorer-deploy.log
 export SOLO_EXPLORER_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/explorer-deploy.log | tee ${BUILD_DIR}/test.log )
 
-solo relay deploy -i node1 --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/relay-deploy.log
+solo relay deploy -i node1 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} | tee ${BUILD_DIR}/relay-deploy.log
 export SOLO_RELAY_DEPLOY_OUTPUT=$( cat ${BUILD_DIR}/relay-deploy.log | tee ${BUILD_DIR}/test.log )
 
-solo relay destroy -i node1 --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/relay-destroy.log
+solo relay destroy -i node1 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} | tee ${BUILD_DIR}/relay-destroy.log
 export SOLO_RELAY_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/relay-destroy.log | tee ${BUILD_DIR}/test.log )
 
 solo mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/mirror-node-destroy.log
@@ -85,7 +88,7 @@ export SOLO_MIRROR_NODE_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/mirror-node-destroy.l
 solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/explorer-destroy.log
 export SOLO_EXPLORER_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/explorer-destroy.log | tee ${BUILD_DIR}/test.log )
 
-solo block node destroy --deployment "${SOLO_DEPLOYMENT}" | tee ${BUILD_DIR}/block-node-destroy.log
+solo block node destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} | tee ${BUILD_DIR}/block-node-destroy.log
 export SOLO_BLOCK_NODE_DESTROY_OUTPUT=$( cat ${BUILD_DIR}/block-node-destroy.log | tee ${BUILD_DIR}/test.log )
 
 solo network destroy --deployment "${SOLO_DEPLOYMENT}" --force -q | tee ${BUILD_DIR}/network-destroy.log
@@ -99,6 +102,18 @@ $SOLO_MIRROR_NODE_DEPLOY_OUTPUT,$SOLO_RELAY_DEPLOY_OUTPUT,$SOLO_CLUSTER_REF_CONN
 $SOLO_EXPLORER_DEPLOY_OUTPUT,$SOLO_BLOCK_NODE_ADD_OUTPUT,$SOLO_RELAY_DESTROY_OUTPUT,$SOLO_MIRROR_NODE_DESTROY_OUTPUT,$SOLO_EXPLORER_DESTROY_OUTPUT,\
 $SOLO_BLOCK_NODE_DESTROY_OUTPUT,$SOLO_NETWORK_DESTROY_OUTPUT'\
 < ${TEMPLATE_FILE} > ${TARGET_FILE}
+
+# Extract the entire content from examples/README.md (excluding first line)
+echo "Extracting content from examples README"
+EXAMPLES_CONTENT=$(cat ${EXAMPLES_DIR}/README.md)
+export EXAMPLES_CONTENT
+
+# Create examples directory if it doesn't exist
+mkdir -p ${TARGET_DIR}/examples
+
+# Generate examples index page from template
+echo "Generating examples index page from template"
+envsubst '$EXAMPLES_CONTENT' < ${TEMPLATE_DIR}/examples-index.template.md > ${TARGET_DIR}/examples/_index.md
 
 echo "Remove color codes and lines showing intermediate progress"
 

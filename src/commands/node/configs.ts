@@ -2,7 +2,7 @@
 
 import {Templates} from '../../core/templates.js';
 import * as constants from '../../core/constants.js';
-import {AccountId, PrivateKey} from '@hashgraph/sdk';
+import {AccountId, PrivateKey} from '@hiero-ledger/sdk';
 import {SoloError} from '../../core/errors/solo-error.js';
 import * as helpers from '../../core/helpers.js';
 import {checkNamespace} from '../../core/helpers.js';
@@ -53,6 +53,7 @@ import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {SOLO_USER_AGENT_HEADER} from '../../core/constants.js';
 import {SemVer} from 'semver';
+import {Version} from '../../business/utils/version.js';
 
 const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
 const DOWNLOAD_GENERATED_FILES_CONFIGS_NAME = 'downloadGeneratedFilesConfig';
@@ -118,9 +119,10 @@ export class NodeCommandConfigs {
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
 
     await this.initializeSetup(context_.config, this.k8Factory);
-    context_.config.nodeClient = await this.accountManager.loadNodeClient(
+    context_.config.nodeClient = await this.accountManager.refreshNodeClient(
       context_.config.namespace,
       this.remoteConfig.getClusterRefs(),
+      context_.config.skipNodeAlias,
       context_.config.deployment,
     );
 
@@ -259,6 +261,13 @@ export class NodeCommandConfigs {
       );
     }
 
+    // check consensus releaseTag to make sure it is a valid semantic version string starting with 'v'
+    context_.config.releaseTag = Version.getValidSemanticVersion(
+      context_.config.releaseTag,
+      true,
+      'Consensus release tag',
+    );
+
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
     const accountKeys = await this.accountManager.getAccountKeysFromSecret(
       freezeAdminAccountId.toString(),
@@ -362,8 +371,8 @@ export class NodeCommandConfigs {
       'contexts',
     ]) as NodeAddConfigClass;
 
-    context_.adminKey = argv[flags.adminKey.name]
-      ? PrivateKey.fromStringED25519(argv[flags.adminKey.name])
+    context_.adminKey = argv[flags.adminKey?.name]
+      ? PrivateKey.fromStringED25519(argv[flags.adminKey?.name])
       : PrivateKey.fromStringED25519(constants.GENESIS_KEY);
 
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
@@ -404,7 +413,10 @@ export class NodeCommandConfigs {
     context_.config.contexts = this.remoteConfig.getContexts();
 
     if (!context_.config.clusterRef) {
-      context_.config.clusterRef = this.k8Factory.default().clusters().readCurrent();
+      context_.config.clusterRef = this.remoteConfig.getClusterRefs()?.entries()?.next()?.value[0];
+      if (!context_.config.clusterRef) {
+        throw new SoloError('Error during initialization, cluster ref could not be determined');
+      }
     }
 
     if (context_.config.domainNames) {

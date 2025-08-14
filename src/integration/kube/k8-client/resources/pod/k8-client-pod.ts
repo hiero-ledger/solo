@@ -2,6 +2,7 @@
 
 import {type Pod} from '../../../resources/pod/pod.js';
 import {type ExtendedNetServer} from '../../../../../types/index.js';
+import {PortUtilities} from '../../../../../business/utils/port-utilities.js';
 import {PodReference} from '../../../resources/pod/pod-reference.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
 import {sleep} from '../../../../../core/helpers.js';
@@ -30,6 +31,8 @@ import {PodName} from '../../../resources/pod/pod-name.js';
 import {K8ClientPodCondition} from './k8-client-pod-condition.js';
 import {type PodCondition} from '../../../resources/pod/pod-condition.js';
 import {ShellRunner} from '../../../../../core/shell-runner.js';
+import chalk from 'chalk';
+import http from 'node:http';
 
 export class K8ClientPod implements Pod {
   private readonly logger: SoloLogger;
@@ -89,40 +92,159 @@ export class K8ClientPod implements Pod {
     }
   }
 
-  public async portForward(localPort: number, podPort: number, detach: boolean = false): Promise<ExtendedNetServer> {
+  /**
+   * Forward a local port to a port on the pod
+   * @param localPort The local port to forward from
+   * @param podPort The pod port to forward to
+   * @param detach Whether to run the port forwarding in detached mode
+   * @param reuse - if true, reuse the port number from previous port forward operation
+   * @returns Promise resolving to the port forwarder server when not detached,
+   *          or the port number (which may differ from localPort if it was in use) when detached
+   */
+  public async portForward(localPort: number, podPort: number, detach: true, reuse?: boolean): Promise<number>;
+  public async portForward(
+    localPort: number,
+    podPort: number,
+    detach?: false,
+    reuse?: boolean,
+  ): Promise<ExtendedNetServer>;
+  public async portForward(
+    localPort: number,
+    podPort: number,
+    detach: boolean = false,
+    reuse: boolean = false,
+  ): Promise<ExtendedNetServer | number> {
+    let availablePort: number = localPort;
+
     try {
+      // first use http.request(url[, options][, callback]) GET method against localhost:localPort to kill any pre-existing
+      // port-forward that is no longer active.  It doesn't matter what the response is.
+      const url: string = `http://${constants.LOCAL_HOST}:${localPort}`;
+      await new Promise<void>((resolve): void => {
+        http
+          .request(url, {method: 'GET'}, (response): void => {
+            response.on('data', (): void => {
+              // do nothing
+            });
+            response.on('end', (): void => {
+              resolve();
+            });
+          })
+          .on('close', (): void => {
+            resolve();
+          })
+          .on('timeout', (): void => {
+            resolve();
+          })
+          .on('information', (): void => {
+            resolve();
+          })
+          .on('error', (): void => {
+            resolve();
+          })
+          .setTimeout(Duration.ofMinutes(5).toMillis())
+          .end();
+      });
+      this.logger.debug(`Returned from http request against http://${constants.LOCAL_HOST}:${localPort}`);
+
+      if (reuse) {
+        // use `ps -ef | grep "kubectl port-forward"`|grep ${this.podReference.name}
+        // to find previous port-forward port number
+        const shellCommand: string[] = [
+          'ps',
+          '-ef',
+          '|',
+          'grep',
+          'port-forward',
+          '|',
+          'grep',
+          `${this.podReference.name}`,
+        ];
+        const shellRunner: ShellRunner = new ShellRunner();
+        let result: string[];
+        try {
+          result = await shellRunner.run(shellCommand.join(' '), [], true, false);
+        } catch (error) {
+          this.logger.error(`Failed to execute shell command: ${shellCommand.join(' ')}`);
+          this.logger.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+          throw new SoloError(
+            `Shell command execution failed: ${shellCommand.join(' ')}. Error: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+        this.logger.debug(`ps -ef port-forward command result is ${result}`);
+
+        // if length of result is 1 then could not find previous port forward running, then we can use next available port
+        if (!result || result.length === 0) {
+          this.logger.warn(`Shell command returned no output: ${shellCommand.join(' ')}`);
+        }
+        if (result.length > 1) {
+          // extract local port number from command output
+          const splitArray: string[] = result[0].split(/\s+/).filter(Boolean);
+
+          // The port number should be the last element in the command
+          // It might be in the format localPort:podPort
+          const lastElement: string = splitArray.at(-1);
+          if (lastElement === undefined) {
+            throw new SoloError(`Failed to extract port: lastElement is undefined in command output: ${result[0]}`);
+          }
+          const extractedString: string = lastElement.split(':')[0];
+          this.logger.debug(`extractedString = ${extractedString}`);
+          const parsedPort: number = Number.parseInt(extractedString, 10);
+          if (Number.isNaN(parsedPort) || parsedPort <= 0 || parsedPort > 65_535) {
+            throw new SoloError(`Invalid port extracted: ${extractedString}.`);
+          } else {
+            availablePort = parsedPort;
+            this.logger.info(`Reuse already enabled port ${availablePort}`);
+          }
+          // port forward already enabled
+          return availablePort;
+        }
+      }
+
+      // Find an available port starting from localPort with a 30-second timeout
+      availablePort = await PortUtilities.findAvailablePort(localPort, Duration.ofSeconds(30).toMillis(), this.logger);
+
+      if (availablePort === localPort) {
+        this.logger.showUser(chalk.yellow(`Using requested port ${localPort}`));
+      } else {
+        this.logger.showUser(chalk.yellow(`Using available port ${availablePort}`));
+      }
       this.logger.debug(
-        `Creating port-forwarder for ${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${localPort}`,
+        `Creating port-forwarder for ${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${availablePort}`,
       );
 
+      // if detach is true, start a port-forwarder in detached mode
       if (detach) {
         this.logger.warn(
           'Port-forwarding in detached mode has to be manually stopped or will stop when the Kubernetes pod it ',
           'is connected to terminates.',
         );
         await new ShellRunner().run(
-          `kubectl port-forward -n ${this.podReference.namespace.name} pods/${this.podReference.name} ${localPort}:${podPort}`,
+          `kubectl port-forward -n ${this.podReference.namespace.name} pods/${this.podReference.name} ${availablePort}:${podPort}`,
           [],
           false,
           true,
         );
-        return undefined; // detached mode does not return a server instance
+        return availablePort;
       }
 
       const ns: NamespaceName = this.podReference.namespace;
       const forwarder: PortForward = new PortForward(this.kubeConfig, false);
 
+      this.logger.debug(
+        `Creating socket for port-forward for ${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${localPort}`,
+      );
       const server: ExtendedNetServer = (await net.createServer((socket): void => {
         forwarder.portForward(ns.name, this.podReference.name.toString(), [podPort], socket, undefined, socket, 3);
       })) as ExtendedNetServer;
 
       // add info for logging
-      server.info = `${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${localPort}`;
-      server.localPort = localPort;
+      server.info = `${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${availablePort}`;
+      server.localPort = availablePort;
       this.logger.debug(`Starting port-forwarder [${server.info}]`);
-      return server.listen(localPort, constants.LOCAL_HOST);
+      return server.listen(availablePort, constants.LOCAL_HOST);
     } catch (error) {
-      const message: string = `failed to start port-forwarder [${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${localPort}]: ${error.message}`;
+      const message: string = `failed to start port-forwarder [${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${availablePort}]: ${error.message}`;
       throw new SoloError(message, error);
     }
   }

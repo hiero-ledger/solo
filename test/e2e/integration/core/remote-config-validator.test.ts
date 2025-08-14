@@ -32,7 +32,7 @@ import {type HAProxyStateSchema} from '../../../../src/data/schema/model/remote/
 import {type EnvoyProxyStateSchema} from '../../../../src/data/schema/model/remote/state/envoy-proxy-state-schema.js';
 import {DeploymentStateSchema} from '../../../../src/data/schema/model/remote/deployment-state-schema.js';
 import {RemoteConfigSchema} from '../../../../src/data/schema/model/remote/remote-config-schema.js';
-import {LocalConfigRuntimeState} from '../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
+import {type LocalConfigRuntimeState} from '../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type BlockNodeStateSchema} from '../../../../src/data/schema/model/remote/state/block-node-state-schema.js';
 import {resetForTest} from '../../../test-container.js';
 
@@ -86,7 +86,7 @@ function prepareComponentsData(namespace: NamespaceName): ComponentsData {
 
   const labelRecord: LabelRecord = {
     // @ts-expect-error - to access private property
-    relayNodes: RemoteConfigValidator.getRelayLabels(),
+    relayNodes: RemoteConfigValidator.getRelayLabels(components.relayNodes),
     // @ts-expect-error - to access private property
     haProxies: RemoteConfigValidator.getHaProxyLabels(components.haProxies),
     // @ts-expect-error - to access private property

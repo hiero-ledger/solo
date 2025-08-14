@@ -36,7 +36,7 @@ import {
   Timestamp,
   TransactionReceipt,
   TransactionResponse,
-} from '@hashgraph/sdk';
+} from '@hiero-ledger/sdk';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {MissingArgumentError} from '../../core/errors/missing-argument-error.js';
 import path from 'node:path';
@@ -128,6 +128,7 @@ import {NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
 import {SemVer, lt} from 'semver';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
+import {Version} from '../../business/utils/version.js';
 
 export type LeaseWrapper = {lease: Lock};
 
@@ -733,7 +734,7 @@ export class NodeCommandTasks {
               context_.config.consensusNodes,
             );
 
-            // load nodeAdminKey form k8s if exist
+            // load nodeAdminKey from k8s if exist
             const keyFromK8 = await this.k8Factory
               .getK8(context)
               .secrets()
@@ -952,20 +953,19 @@ export class NodeCommandTasks {
             .copyFrom(`${keyDirectory}/${signedKeyFile.name}`, `${config.keysDir}`);
         }
 
-        if (
-          await k8
-            .containers()
-            .readByRef(containerReference)
-            .hasFile(`${constants.HEDERA_HAPI_PATH}/data/upgrade/current/application.properties`)
-        ) {
-          await k8
-            .containers()
-            .readByRef(containerReference)
-            .copyFrom(
-              `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/application.properties`,
-              `${config.stagingDir}/templates`,
-            );
-        }
+        const applicationPropertiesSourceDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`;
+        await ((await k8.containers().readByRef(containerReference).hasFile(applicationPropertiesSourceDirectory))
+          ? k8
+              .containers()
+              .readByRef(containerReference)
+              .copyFrom(applicationPropertiesSourceDirectory, `${config.stagingDir}/templates`)
+          : k8
+              .containers()
+              .readByRef(containerReference)
+              .copyFrom(
+                `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`,
+                `${config.stagingDir}/templates`,
+              ));
       },
     };
   }
@@ -1191,6 +1191,10 @@ export class NodeCommandTasks {
         const {podRefs, localBuildPath} = context_.config;
         let {releaseTag} = context_.config;
 
+        if (releaseTag) {
+          releaseTag = Version.getValidSemanticVersion(releaseTag, true, 'Consensus release tag');
+        }
+
         if ('upgradeVersion' in context_.config) {
           if (!context_.config.upgradeVersion) {
             this.logger.info('Skip, no need to update the platform software');
@@ -1315,8 +1319,12 @@ export class NodeCommandTasks {
       },
       task: async (context_): Promise<void> => {
         for (const consensusNode of context_.config.consensusNodes) {
+          const context: string = helpers.extractContextFromConsensusNodes(
+            consensusNode.name,
+            context_.config.consensusNodes,
+          );
           const podReference: PodReference = await this.k8Factory
-            .getK8(consensusNode.cluster)
+            .getK8(context)
             .pods()
             .list(NamespaceName.of(consensusNode.namespace), [
               `solo.hedera.com/node-name=${consensusNode.name}`,
@@ -1446,13 +1454,10 @@ export class NodeCommandTasks {
       deploymentName,
     );
 
-    let adminPublicKeys = [];
-    if (this.configManager.getFlag(flags.adminPublicKeys)) {
-      adminPublicKeys = splitFlagInput(this.configManager.getFlag(flags.adminPublicKeys));
-    } else {
-      // set adminPublicKeys as array of constants.GENESIS_KEY with the same size consensus nodes
-      adminPublicKeys = Array.from({length: consensusNodes.length}).fill(constants.GENESIS_KEY);
-    }
+    let adminPublicKeys: string[] = [];
+    adminPublicKeys = this.configManager.getFlag(flags.adminPublicKeys)
+      ? splitFlagInput(this.configManager.getFlag(flags.adminPublicKeys))
+      : (Array.from({length: consensusNodes.length}).fill(constants.GENESIS_PUBLIC_KEY.toString()) as string[]);
     const genesisNetworkData = await GenesisNetworkDataConstructor.initialize(
       consensusNodes,
       this.keyManager,
@@ -1568,7 +1573,7 @@ export class NodeCommandTasks {
 
   public enablePortForwarding(enablePortForwardHaProxy: boolean = false) {
     return {
-      title: 'Enable port forwarding',
+      title: 'Enable port forwarding for debug port and/or GRPC port',
       task: async context_ => {
         const nodeAlias: NodeAlias = context_.config.debugNodeAlias || 'node1';
         const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
@@ -1595,15 +1600,19 @@ export class NodeCommandTasks {
             throw new SoloError(`No HAProxy pod found for node alias: ${nodeAlias}`);
           }
           const podReference: PodReference = pods[0].podReference;
-          await this.k8Factory
-            .getK8(context)
-            .pods()
-            .readByReference(podReference)
-            .portForward(constants.GRPC_PORT, constants.GRPC_PORT, true);
-          this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-          this.logger.addMessageGroupMessage(
-            constants.PORT_FORWARDING_MESSAGE_GROUP,
-            `Consensus Node gRPC port forward enabled on localhost:${constants.GRPC_PORT}`,
+          const nodeId: number = Templates.nodeIdFromNodeAlias(nodeAlias);
+          await this.remoteConfig.configuration.components.managePortForward(
+            undefined,
+            podReference,
+            constants.GRPC_PORT, // Pod port
+            constants.GRPC_PORT, // Local port
+            this.k8Factory.getK8(context_.config.clusterContext),
+            this.logger,
+            ComponentTypes.ConsensusNode,
+
+            'Consensus Node gRPC',
+            context_.config.isChartInstalled, // Reuse existing port if chart is already installed
+            nodeId,
           );
         }
       },
@@ -2289,6 +2298,11 @@ export class NodeCommandTasks {
             const valuesArguments = valuesArgumentMap[clusterReference];
             const context = this.localConfig.configuration.clusterRefs.get(clusterReference);
 
+            config.soloChartVersion = Version.getValidSemanticVersion(
+              config.soloChartVersion,
+              false,
+              'Solo chart version',
+            );
             await self.chartManager.upgrade(
               config.namespace,
               constants.SOLO_DEPLOYMENT_CHART,
@@ -2677,9 +2691,9 @@ export class NodeCommandTasks {
 
           const signedTx = await nodeDeleteTx.sign(config.adminKey);
           const txResp = await signedTx.execute(config.nodeClient);
-          const nodeUpdateReceipt = await txResp.getReceipt(config.nodeClient);
+          const nodeDeleteReceipt = await txResp.getReceipt(config.nodeClient);
 
-          this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
+          this.logger.debug(`NodeDeleteReceipt: ${nodeDeleteReceipt.toString()}`);
         } catch (error) {
           throw new SoloError(`Error deleting node from network: ${error.message}`, error);
         }
@@ -2758,8 +2772,6 @@ export class NodeCommandTasks {
             throw new MissingArgumentError(`No value set for required flag: ${flag.name}`, flag.name);
           }
         }
-
-        this.logger.debug('Initialized config', {config});
 
         if (lease) {
           return ListrLock.newAcquireLockTask(lease, task);

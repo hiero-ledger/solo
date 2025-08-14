@@ -82,8 +82,6 @@ describe('ClusterCommand unit tests', () => {
 
       options.configManager = container.resolve(InjectTokens.ConfigManager);
       options.remoteConfig = sandbox.stub();
-
-      options.remoteConfig.currentCluster = 'solo-e2e';
     });
 
     it('Install function is called with expected parameters', async () => {

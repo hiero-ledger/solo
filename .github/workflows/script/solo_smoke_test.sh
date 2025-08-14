@@ -18,7 +18,7 @@ function clone_smart_contract_repo ()
     echo "Directory hedera-smart-contracts exists."
   else
     echo "Directory hedera-smart-contracts does not exist."
-    git clone https://github.com/hashgraph/hedera-smart-contracts --branch only-erc20-tests-v2
+    git clone https://github.com/hashgraph/hedera-smart-contracts --branch only-erc20-tests-v3
   fi
 }
 
@@ -47,7 +47,7 @@ function check_port_forward ()
   # run background task for few minutes
   for i in {1..20}
   do
-    echo "Check port forward i = $i out of 20" >> port-forward.log
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - Check port forward i = $i out of 20" >> port-forward.log
     ps -ef |grep port-forward >> port-forward.log
     sleep 10
   done &
@@ -72,6 +72,13 @@ function start_contract_test ()
   result=0
   npm run hh:test || result=$?
   cd -
+
+  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    echo "Test local network connection using nc"
+    sudo apt-get update && sudo apt-get install -y netcat-traditional
+    nc -zv 127.0.0.1 50211
+  fi
+
   if [[ $result -ne 0 ]]; then
     echo "Smart contract test failed with exit code $result"
     log_and_exit $result
@@ -80,17 +87,19 @@ function start_contract_test ()
 
 function start_sdk_test ()
 {
+  realm_num="${1:-0}"
+  shard_num="${2:-0}"
   cd solo
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
   fi
-  grpcurl -plaintext -d '{"file_id": {"fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes || result=$?
+  grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes || result=$?
   if [[ $result -ne 0 ]]; then
     echo "grpcurl command failed with exit code $result"
     log_and_exit $result
   fi
   result=0
-  node examples/create-topic.js || result=$?
+  node scripts/create-topic.js || result=$?
   cd -
   if [[ $result -ne 0 ]]; then
     echo "JavaScript SDK test failed with exit code $result"
@@ -100,8 +109,9 @@ function start_sdk_test ()
 
 function check_monitor_log()
 {
+  namespace="${1}"
   # get the logs of mirror-monitor
-  kubectl get pods -n solo-e2e | grep mirror-monitor | awk '{print $1}' | xargs -IPOD kubectl logs -n solo-e2e POD > mirror-monitor.log
+  kubectl get pods -n "${namespace}" | grep mirror-monitor | awk '{print $1}' | xargs -IPOD kubectl logs -n "${namespace}" POD > mirror-monitor.log
 
   if grep -q "ERROR" mirror-monitor.log; then
     echo "mirror-monitor.log contains ERROR"
@@ -128,70 +138,92 @@ function check_monitor_log()
 
 function check_importer_log()
 {
-  kubectl get pods -n solo-e2e | grep mirror-importer | awk '{print $1}' | xargs -IPOD kubectl logs -n solo-e2e POD > mirror-importer.log
+  namespace="${1}"
+
+  kubectl get pods -n "${namespace}" | grep mirror-importer | awk '{print $1}' | xargs -IPOD kubectl logs -n "${namespace}" POD > mirror-importer.log || result=$?
+  if [[ $result -ne 0 ]]; then
+    echo "Failed to get the mirror node importer logs with exit code $result"
+    log_and_exit $result
+  fi
+
   if grep -q "ERROR" mirror-importer.log; then
     echo "mirror-importer.log contains ERROR"
-
     echo "------- BEGIN LOG DUMP -------"
     echo
     cat mirror-importer.log
     echo
     echo "------- END LOG DUMP -------"
-
     log_and_exit 1
   fi
 }
 
 function log_and_exit()
 {
+  echo "load_log_and_exit begin with rc=$1"
+
+  echo "------- BEGIN RELAY DUMP -------"
+  kubectl get services -n "${SOLO_NAMESPACE}" --output=name | grep relay-node | grep -v '\-ws' | xargs -IRELAY kubectl logs -n "${SOLO_NAMESPACE}" RELAY > relay.log || true
+  cat relay.log || true
+  echo "------- END RELAY DUMP -------"
+
+  echo "------- BEGIN MIRROR REST DUMP -------"
+  kubectl get services -n "${SOLO_NAMESPACE}" --output=name | grep rest | grep -v '\-restjava' | xargs -IREST kubectl logs -n "${SOLO_NAMESPACE}" REST > rest.log || true
+  cat rest.log || true
+  echo "------- END MIRROR REST DUMP -------"
+
   echo "------- Last port-forward check -------" >> port-forward.log
   ps -ef |grep port-forward >> port-forward.log
+
+  echo "------- BEGIN PORT-FORWARD DUMP -------"
+  cat port-forward.log
+  echo "------- END PORT-FORWARD DUMP -------"
+
+  # sleep for a few seconds to give time for stdout to stream back in case it was called using nodejs
+  sleep 5
   if [[ "$1" == "0" ]]; then
     echo "Script completed successfully."
-    echo "------- BEGIN PORT-FORWARD DUMP -------"
-    cat port-forward.log
-    echo "------- END PORT-FORWARD DUMP -------"
-    exit 0
+    return 0
   else
     echo "An error occurred while running the script: $1"
-    echo "------- BEGIN PORT-FORWARD DUMP -------"
-    cat port-forward.log
-    echo "------- END PORT-FORWARD DUMP -------"
-    exit 1
+    return 1
   fi
 }
 
 echo "Change to parent directory"
 
 cd ../
-rm port-forward.log || true
+rm -rf port-forward.log || true
 
 if [ -z "${SOLO_DEPLOYMENT}" ]; then
   export SOLO_DEPLOYMENT="solo-deployment"
 fi
+
+if [ -z "${SOLO_NAMESPACE}" ]; then
+  export SOLO_NAMESPACE="solo-e2e"
+fi
+
 create_test_account "${SOLO_DEPLOYMENT}"
 clone_smart_contract_repo
 setup_smart_contract_test
-start_background_transactions
 check_port_forward
 start_contract_test
-start_sdk_test
+start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
 echo "Sleep a while to wait background transactions to finish"
 sleep 30
 
 echo "Run mirror node acceptance test"
-helm test mirror -n solo-e2e --timeout 10m
-result=$?
+helm test mirror -n "${SOLO_NAMESPACE}" --timeout 10m || result=$?
 if [[ $result -ne 0 ]]; then
   echo "Mirror node acceptance test failed with exit code $result"
   log_and_exit $result
 fi
+result=0
 
-check_monitor_log
+check_monitor_log "${SOLO_NAMESPACE}"
 
 if [ -n "$1" ]; then
   echo "Skip mirror importer log check"
 else
-  check_importer_log
+  check_importer_log "${SOLO_NAMESPACE}"
 fi
 log_and_exit $?

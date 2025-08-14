@@ -104,7 +104,7 @@ You should see output showing the latest version which should match our NPM pack
 The team is presently working on a number of fixes and automation that will relegate the need for this, but currently as deployed Solo can be finnicky with artifacts from prior installs. A quick command to prep your station for a new install is a good idea.
 
 ```bash
-for cluster in $(kind get clusters);do;kind delete cluster -n $cluster;done
+for cluster in $(kind get clusters);do kind delete cluster -n $cluster;done
 rm -Rf ~/.solo
 ```
 
@@ -174,13 +174,18 @@ kubectl config use-context <context-name>
 
 {{< /details >}}<br/>
 
-
 ## Quick Start Deployment
 
 For a simple setup with a single node with a mirror node, explorer, and JSON RPC relay, you can follow these quick steps. This is ideal for testing and development purposes.
 
 ```bash
 solo quick-start single deploy
+```
+
+When you're finished, you can tear down your Solo network just as easily:
+
+```bash
+solo quick-start single destroy
 ```
 
 ## Step-by-Step Solo Network Deployment
@@ -463,7 +468,7 @@ kubectl get pods -n solo
 
 At this time Solo doesn't automatically set up port forwarding for you, so you'll need to do that manually.
 
-The port forwarding is now automatic for many endpoints.  However, you can set up your own using `kubectl port-forward` command: 
+The port forwarding is now automatic for many endpoints.  However, you can set up your own using `kubectl port-forward` command:
 
 ```bash
 # Consensus Service for node1 (node ID = 0): localhost:50211
@@ -476,13 +481,12 @@ kubectl port-forward svc/mirror-grpc -n "${SOLO_NAMESPACE}" 5600:5600 > /dev/nul
 # Mirror Node REST API: http://localhost:5551
 kubectl port-forward svc/mirror-rest -n "${SOLO_NAMESPACE}" 5551:80 > /dev/null 2>&1 &
 # Mirror Node REST Java API http://localhost:8084
-kubectl port-forward service/mirror-restjava -n "${SOLO_NAMESPACE}" 8084:80 > /dev/null 2>&1 &
+kubectl port-forward svc/mirror-restjava -n "${SOLO_NAMESPACE}" 8084:80 > /dev/null 2>&1 &
 # JSON RPC Relay: localhost:7546
 # should be automatic: kubectl port-forward svc/relay-node1-hedera-json-rpc-relay -n "${SOLO_NAMESPACE}" 7546:7546 > /dev/null 2>&1 &
 ```
 
 {{< /details >}}<br/>
-
 
 ## Managing Your Network
 
@@ -518,7 +522,7 @@ Access Solo and Consensus Node logs for troubleshooting:
 # Download logs from all nodes
 
 # Logs are saved to ~/.solo/logs/<namespace>/<pod-name>/# You can also use kubectl directly:
-solo node logs --node-aliases node1 --deployment solo-deployment
+solo node logs --deployment solo-deployment
 ```
 
 {{< /details >}}<br/>
@@ -653,8 +657,8 @@ solo node refresh --node-aliases node1 --deployment solo-deployment
 
 When you need assistance:
 
-1. **Check the logs**: Use `solo node logs --deployment solo-deployment --node-aliases node1` and examine `~/.solo/logs/`
-2. **Documentation**: Visit https://solo.hiero.org/latest/docs/
+1. **Check the logs**: Use `solo node logs --deployment solo-deployment` and examine `~/.solo/logs/`
+2. **Documentation**: Visit [https://solo.hiero.org/main/docs/](docs/_index.md)
 3. **GitHub Issues**: Report bugs at https://github.com/hiero-ledger/solo/issues
 4. **Community Support**: Join the Hedera Discord community: https://discord.gg/Ysruf53q
 
@@ -673,7 +677,7 @@ When you're done with your test network:
 To quickly clean up your Solo network and remove all resources (all Kind clusters!), you can use the following commands, be aware you will lose all your logs and data from prior runs:
 
 ```bash
-for cluster in $(kind get clusters);do;kind delete cluster -n $cluster;done
+for cluster in $(kind get clusters);do kind delete cluster -n $cluster;done
 rm -Rf ~/.solo
 ```
 
@@ -684,7 +688,7 @@ rm -Rf ~/.solo
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
 ```
-solo relay destroy -i node1 --deployment "${SOLO_DEPLOYMENT}"
+solo relay destroy -i node1 --deployment "${SOLO_DEPLOYMENT} --cluster-ref kind-${SOLO_CLUSTER_NAME}"
 ```
 
 Example output:
@@ -734,7 +738,7 @@ $SOLO_EXPLORER_DESTROY_OUTPUT
 Block Node destroy should run prior to network destroy, since network destroy removes the remote config.  To destroy the block node (if you deployed it), you can use the following command:
 
 ```
-solo block node destroy --deployment "${SOLO_DEPLOYMENT}"
+solo block node destroy --deployment "${SOLO_DEPLOYMENT} --cluster-ref kind-${SOLO_CLUSTER_NAME}"
 ```
 
 Example output:

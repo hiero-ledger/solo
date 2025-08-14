@@ -50,7 +50,6 @@ export class YargsCommand {
         },
         handler: async (argv: any) => {
           commandDef.logger.info(`==== Running '${commandNamespace} ${command}' ===`);
-          commandDef.logger.info(argv);
           await commandDef.handlers[handler](argv)
             .then((r: any) => {
               commandDef.logger.info(`==== Finished running '${commandNamespace} ${command}' ====`);

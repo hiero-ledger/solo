@@ -72,21 +72,19 @@ export class DeploymentCommand extends BaseCommand {
   public static readonly COMMAND_NAME = 'deployment';
 
   private static CREATE_FLAGS_LIST = {
-    required: [],
-    optional: [flags.quiet, flags.namespace, flags.deployment, flags.realm, flags.shard],
+    required: [flags.namespace, flags.deployment],
+    optional: [flags.quiet, flags.realm, flags.shard],
   };
 
   private static DELETE_FLAGS_LIST = {
-    required: [],
-    optional: [flags.quiet, flags.deployment],
+    required: [flags.deployment],
+    optional: [flags.quiet],
   };
 
   private static ADD_CLUSTER_FLAGS_LIST = {
-    required: [],
+    required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.quiet,
-      flags.deployment,
-      flags.clusterRef,
       flags.enableCertManager,
       flags.numberOfConsensusNodes,
       flags.dnsBaseDomain,
@@ -95,8 +93,8 @@ export class DeploymentCommand extends BaseCommand {
   };
 
   private static LIST_DEPLOYMENTS_FLAGS_LIST = {
-    required: [],
-    optional: [flags.quiet, flags.clusterRef],
+    required: [flags.clusterRef],
+    optional: [flags.quiet],
   };
 
   /**
@@ -144,8 +142,6 @@ export class DeploymentCommand extends BaseCommand {
             ) {
               throw new SoloError(ErrorMessages.DEPLOYMENT_NAME_ALREADY_EXISTS(context_.config.deployment));
             }
-
-            self.logger.debug('Prepared config', {config: context_.config, cachedConfig: self.configManager.config});
           },
         },
         {
@@ -228,8 +224,6 @@ export class DeploymentCommand extends BaseCommand {
             ) {
               throw new SoloError(ErrorMessages.DEPLOYMENT_NAME_ALREADY_EXISTS(context_.config.deployment));
             }
-
-            self.logger.debug('Prepared config', {config: context_.config, cachedConfig: self.configManager.config});
           },
         },
         {
@@ -335,13 +329,10 @@ export class DeploymentCommand extends BaseCommand {
             await self.localConfig.load();
 
             self.configManager.update(argv);
-            self.logger.debug('Updated config with argv', {config: self.configManager.config});
             await self.configManager.executePrompt(task, [flags.clusterRef]);
             context_.config = {
               clusterName: self.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
             } as Config;
-
-            self.logger.debug('Prepared config', {config: context_.config, cachedConfig: self.configManager.config});
           },
         },
         {
@@ -400,7 +391,6 @@ export class DeploymentCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct) => {
               self.logger.info("==== Running 'deployment create' ===");
-              self.logger.info(argv);
 
               await self
                 .create(argv)
@@ -425,7 +415,6 @@ export class DeploymentCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct) => {
               self.logger.info("==== Running 'deployment delete' ===");
-              self.logger.info(argv);
 
               await self
                 .delete(argv)
@@ -450,7 +439,6 @@ export class DeploymentCommand extends BaseCommand {
             },
             handler: async argv => {
               self.logger.info("==== Running 'deployment list' ===");
-              self.logger.info(argv);
 
               await self
                 .list(argv)
@@ -475,7 +463,6 @@ export class DeploymentCommand extends BaseCommand {
             },
             handler: async (argv: ArgvStruct) => {
               self.logger.info("==== Running 'deployment add-cluster' ===");
-              self.logger.info(argv);
 
               await self
                 .addCluster(argv)
@@ -529,8 +516,6 @@ export class DeploymentCommand extends BaseCommand {
           nodeAliases: [] as NodeAliases,
           context: '',
         };
-
-        this.logger.debug('Prepared config', {config: context_.config, cachedConfig: this.configManager.config});
       },
     };
   }

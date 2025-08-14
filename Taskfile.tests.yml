@@ -79,6 +79,7 @@ tasks:
           --ignore 'test/e2e/commands/relay*.ts' 
           --ignore 'test/e2e/commands/block-node.test.ts' 
           --ignore 'test/e2e/commands/dual-*.ts'
+          --ignore 'test/e2e/commands/external-*.ts'
           --ignore 'test/e2e/commands/quick-start-single.test.ts'
           --ignore 'test/e2e/commands/separate-node-add.test.ts' 
           --ignore 'test/e2e/commands/separate-node-delete.test.ts' 
@@ -198,18 +199,21 @@ tasks:
         {{ .mocha_bin }} 'test/e2e/commands/dual-cluster-full.test.ts' 
         {{ .reporter_options_prefix }}-e2e-dual-cluster-full.xml"
 
+  test-e2e-external-database:
+    cmds:
+      - "{{ .test_prefix }}=\"Mocha E2E External Database Test\"
+        {{ .reporter_prefix }}='coverage/e2e-external-database'
+        {{ .mocha_bin }} 'test/e2e/commands/external-database.test.ts' 
+        {{ .reporter_options_prefix }}-e2e-external-database.xml"
+
   test-external-database:
     cmd: |
         if [ -z "$CONSENSUS_NODE_VERSION" ]; then
           export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
         fi
         cd examples/external-database-test
-        SOLO_CLUSTER_NAME=solo-task-test-external-database task install:external-database
-        task destroy:external-database
-
-  test-update-markdown:
-    cmd: |
-      docs/site/wrapper_for_update_md.sh
+        task default
+        task destroy
 
   test-e2e-quick-start-single:
     cmds:
@@ -217,3 +221,21 @@ tasks:
         {{ .reporter_prefix }}='coverage/e2e-quick-start-single'
         {{ .mocha_bin }} 'test/e2e/commands/quick-start-single.test.ts' 
         {{ .reporter_options_prefix }}-e2e-quick-start-single.xml"
+
+  test-example-node-create-transaction:
+    dir: examples/node-create-transaction
+    cmds:
+      - task
+      - task destroy
+
+  test-example-node-update-transaction:
+    dir: examples/node-update-transaction
+    cmds:
+      - task
+      - task destroy
+
+  test-example-node-delete-transaction:
+    dir: examples/node-delete-transaction
+    cmds:
+      - task
+      - task destroy

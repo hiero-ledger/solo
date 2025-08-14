@@ -89,28 +89,28 @@ jobs:
           egress-policy: audit
 
       - name: Download All Unit Test Coverage Reports
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && !cancelled() && !failure() }}
         with:
           pattern: "Unit*"
           path: 'coverage/unit'
 
       - name: Download All E2E Coverage Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
         with:
           pattern: "E2E*"
           path: 'coverage/e2e'
 
       - name: Download E2E Test Report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
         with:
           pattern: "e2e_test_report_*"
           path: "e2e_test_report"
 
       - name: Publish E2E Test Report
-        uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1
+        uses: step-security/publish-unit-test-result-action@43e0c963eea0ace6eca353cb1d814d857fee5c53 # v2.20.2
         if: ${{ (inputs.enable-codecov-analysis || inputs.enable-codacy-coverage) && inputs.enable-e2e-coverage-report && !cancelled() && !failure() }}
         with:
           check_name: "E2E Test Report"
