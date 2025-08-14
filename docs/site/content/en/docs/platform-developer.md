@@ -46,7 +46,7 @@ solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
 It is possible that different nodes are running different versions of Hiero app, as long as in the above
 setup command, each node0, or node1 is given different paths to the local repositories.
 
-If need to provide customized configuration files for Hedera application, please use the following flags with network deploy command:
+If need to provide customized configuration files for Hedera application, please use the following flags with consensus network deploy command:
 
 * `--settings-txt` - to provide custom settings.txt file
 * `--api-permission-properties` - to provide custom api-permission.properties file

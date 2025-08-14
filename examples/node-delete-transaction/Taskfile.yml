@@ -79,8 +79,8 @@ tasks:
           {{ .SOLO_COMMAND }} cluster-ref setup -s {{ .SOLO_CLUSTER_SETUP_NAMESPACE }} --dev
 
       - cmd: |
-          # Solo network deploy
-          {{ .SOLO_COMMAND }} network deploy --deployment {{ .SOLO_DEPLOYMENT }} --release-tag {{ .CN_VERSION }} \
+          # Solo consensus network deploy
+          {{ .SOLO_COMMAND }} consensus network deploy --deployment {{ .SOLO_DEPLOYMENT }} --release-tag {{ .CN_VERSION }} \
           --pvcs {{.APPLICATION_PROPERTIES_FLAG}} --dev
 
       - cmd: |

@@ -99,7 +99,7 @@ export function getTemporaryDirectory(): string {
 }
 
 export function deployNetworkTest(argv: Argv, commandInvoker: CommandInvoker, networkCmd: NetworkCommand): void {
-  it('should succeed with network deploy', async (): Promise<void> => {
+  it('should succeed with consensus network deploy', async (): Promise<void> => {
     await commandInvoker.invoke({
       argv: argv,
       command: ConsensusCommandDefinition.COMMAND_NAME,

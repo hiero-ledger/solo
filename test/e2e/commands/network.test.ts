@@ -143,7 +143,7 @@ describe('NetworkCommand', function networkCommand() {
     });
   });
 
-  it('network deploy command should succeed', async () => {
+  it('consensus network deploy command should succeed', async () => {
     await commandInvoker.invoke({
       argv: argv,
       command: ConsensusCommandDefinition.COMMAND_NAME,
