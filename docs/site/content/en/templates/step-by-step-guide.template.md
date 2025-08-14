@@ -475,7 +475,7 @@ The port forwarding is now automatic for many endpoints.  However, you can set u
 # should be automatic: kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 > /dev/null 2>&1 &
 # Explorer UI: http://localhost:8080
 # should be automatic: kubectl port-forward svc/hiero-explorer -n "${SOLO_NAMESPACE}" 8080:8080 > /dev/null 2>&1 &
-# Mirror Node gRPC, REST, REST Java, Web3 will be automatic on `localhost:8081` if you passed `--enable-ingress` to the `solo mirror-node deploy` command
+# Mirror Node gRPC, REST, REST Java, Web3 will be automatic on `localhost:8081` if you passed `--enable-ingress` to the `solo mirror node add` command
 # Mirror Node gRPC: localhost:5600
 kubectl port-forward svc/mirror-grpc -n "${SOLO_NAMESPACE}" 5600:5600 > /dev/null 2>&1 &
 # Mirror Node REST API: http://localhost:5551

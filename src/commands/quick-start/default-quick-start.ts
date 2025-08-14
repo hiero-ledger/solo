@@ -307,8 +307,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             },
           ),
           this.invokeSoloCommand(
-            `solo ${MirrorCommandDefinition.DEPLOY_COMMAND}`,
-            MirrorCommandDefinition.DEPLOY_COMMAND,
+            `solo ${MirrorCommandDefinition.ADD_COMMAND}`,
+            MirrorCommandDefinition.ADD_COMMAND,
 
             (): string[] => {
               const argv: string[] = this.newArgv();

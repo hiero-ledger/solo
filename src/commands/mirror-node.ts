@@ -47,6 +47,7 @@ import {Base64} from 'js-base64';
 import {Lock} from '../core/lock/lock.js';
 import {Version} from '../business/utils/version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
+import {MirrorCommandDefinition} from './command-definitions/mirror-command-definition.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -813,15 +814,15 @@ export class MirrorNodeCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      'mirror node add',
+      MirrorCommandDefinition.ADD_COMMAND,
     );
 
     if (tasks.isRoot()) {
       try {
         await tasks.run();
-        self.logger.debug('mirror node deployment has completed');
+        self.logger.debug('mirror node add has completed');
       } catch (error) {
-        throw new SoloError(`Error deploying mirror node: ${error.message}`, error);
+        throw new SoloError(`Error adding mirror node: ${error.message}`, error);
       } finally {
         await lease?.release();
         await self.accountManager.close();
@@ -974,7 +975,7 @@ export class MirrorNodeCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      'mirror node destroy',
+      MirrorCommandDefinition.DESTROY_COMMAND,
     );
 
     if (tasks.isRoot()) {

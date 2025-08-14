@@ -32,7 +32,7 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
   public static readonly NODE_ADD = 'add';
   public static readonly NODE_DESTROY = 'destroy';
 
-  public static readonly DEPLOY_COMMAND =
+  public static readonly ADD_COMMAND =
     `${MirrorCommandDefinition.COMMAND_NAME} ${MirrorCommandDefinition.NODE_SUBCOMMAND_NAME} ${MirrorCommandDefinition.NODE_ADD}` as const;
 
   public static readonly DESTROY_COMMAND =
