@@ -31,6 +31,7 @@ import {type ComponentFactoryApi} from '../core/config/remote/api/component-fact
 import {StringFacade} from '../business/runtime-state/facade/string-facade.js';
 import {Deployment} from '../business/runtime-state/config/local/deployment.js';
 import {CommandFlags} from '../types/flag-types.js';
+import {DeploymentCommandDefinition} from './command-definitions/deployment-command-definition.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -164,7 +165,7 @@ export class DeploymentCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      'deployment config create',
+      DeploymentCommandDefinition.CREATE_COMMAND,
     );
 
     if (tasks.isRoot()) {
@@ -291,7 +292,7 @@ export class DeploymentCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      'deployment cluster attach',
+      DeploymentCommandDefinition.ADD_COMMAND,
     );
 
     if (tasks.isRoot()) {
