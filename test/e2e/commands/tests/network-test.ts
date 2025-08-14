@@ -100,7 +100,7 @@ export class NetworkTest extends BaseCommandTest {
     const {testName, deployment} = options;
     const {soloNetworkDestroyArgv} = NetworkTest;
 
-    it(`${testName}: network destroy`, async (): Promise<void> => {
+    it(`${testName}: consensus network destroy`, async (): Promise<void> => {
       await main(soloNetworkDestroyArgv(testName, deployment));
     });
   }

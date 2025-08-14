@@ -73,6 +73,7 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {Version} from '../business/utils/version.js';
+import {ConsensusCommandDefinition} from './command-definitions/consensus-command-definition.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -1224,7 +1225,7 @@ export class NetworkCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      'consensus network deploy',
+      ConsensusCommandDefinition.DEPLOY_COMMAND,
     );
 
     if (tasks.isRoot()) {
@@ -1308,7 +1309,7 @@ export class NetworkCommand extends BaseCommand {
           task: async (context_, task): Promise<void> => {
             if (context_.config.enableTimeout) {
               const timeoutId: NodeJS.Timeout = setTimeout(async () => {
-                const message: string = `\n\nUnable to finish network destroy in ${constants.NETWORK_DESTROY_WAIT_TIMEOUT} seconds\n\n`;
+                const message: string = `\n\nUnable to finish consensus network destroy in ${constants.NETWORK_DESTROY_WAIT_TIMEOUT} seconds\n\n`;
                 this.logger.error(message);
                 this.logger.showUser(chalk.red(message));
                 networkDestroySuccess = false;
@@ -1340,7 +1341,7 @@ export class NetworkCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      'consensus network destroy',
+      ConsensusCommandDefinition.DESTROY_COMMAND,
     );
 
     if (tasks.isRoot()) {

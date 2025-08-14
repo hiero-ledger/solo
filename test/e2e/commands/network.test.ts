@@ -173,7 +173,7 @@ describe('NetworkCommand', function networkCommand() {
     }
   });
 
-  it('network destroy should success', async () => {
+  it('consensus network destroy should success', async () => {
     argv.setArg(flags.deletePvcs, true);
     argv.setArg(flags.deleteSecrets, true);
     argv.setArg(flags.force, true);

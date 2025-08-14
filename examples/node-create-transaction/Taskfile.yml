@@ -170,8 +170,8 @@ tasks:
           {{ .SOLO_COMMAND }} mirror node destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev
 
       - cmd: |
-          # Solo network destroy
-          {{ .SOLO_COMMAND }} network destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev --delete-pvcs --delete-secrets -q
+          # Solo consensus network destroy
+          {{ .SOLO_COMMAND }} consensus network destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev --delete-pvcs --delete-secrets -q
 
       - cmd: |
           # Delete Kind cluster

@@ -82,7 +82,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       // TODO json rpc relay node destroy
       // TODO explorer node destroy
       // TODO mirror node destroy
-      // TODO network destroy
+      // TODO consensus network destroy
     }).timeout(Duration.ofMinutes(10).toMillis());
   })
   .build();
