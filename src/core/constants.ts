@@ -8,7 +8,7 @@ import {ContainerName} from '../integration/kube/resources/container/container-n
 import {PathEx} from '../business/utils/path-ex.js';
 import {PrivateKey} from '@hiero-ledger/sdk';
 
-function getEnvironmentVariable(environmentVariableName: string): string {
+export function getEnvironmentVariable(environmentVariableName: string): string {
   if (process.env[environmentVariableName]) {
     console.log(`>> environment variable '${environmentVariableName}' exists, using its value`);
     return process.env[environmentVariableName];
@@ -26,6 +26,7 @@ export const DEFAULT_NAMESPACE = NamespaceName.of('default');
 export const DEFAULT_CERT_MANAGER_NAMESPACE = NamespaceName.of('cert-manager');
 export const HELM = 'helm';
 export const KIND = 'kind';
+export const KUBECTL = 'kubectl';
 export const RESOURCES_DIR = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
 
 export const ROOT_CONTAINER = ContainerName.of('root-container');

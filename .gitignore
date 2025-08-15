@@ -483,6 +483,7 @@ deleteme.yaml
 /docs/site/static/
 /docs/site/nginx/nginx.conf
 /docs/site/hugo.yaml
+/docs/site/content/en/examples/_index.md
 /test/data/proto/block/
 /test/data/proto/mirror/
 /test/data/proto/platform/

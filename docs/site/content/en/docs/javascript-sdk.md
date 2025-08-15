@@ -16,7 +16,7 @@ Then we start with launching a local Solo network with the following commands:
 
 ```bash
 # launch a local Solo network with mirror node and hedera explorer
-cd examples
+cd scripts
 task default-with-mirror
 ```
 
@@ -89,7 +89,7 @@ account id = 0.0.1009
 Or try the topic creation example:
 
 ```bash
-node examples/create-topic.js
+node scripts/create-topic.js
 ```
 
 The output should be similar to the following:

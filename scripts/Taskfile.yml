@@ -1,7 +1,7 @@
 version: 3
 includes:
   helper:
-    taskfile: ./Taskfile.examples.yml
+    taskfile: ./Taskfile.scripts.yml
     flatten: true
 env:
   SOLO_NETWORK_SIZE: 1
