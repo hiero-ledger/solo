@@ -22,7 +22,7 @@ export class KeysCommandDefinition extends BaseCommandDefinition {
   }
 
   public static override readonly COMMAND_NAME = 'keys';
-  protected static override readonly DESCRIPTION = 'TODO'; // TODO
+  protected static override readonly DESCRIPTION = 'Consensus key generation operations';
 
   public static readonly CONSENSUS_SUBCOMMAND_NAME = 'consensus';
   private static readonly CONSENSUS_SUBCOMMAND_DESCRIPTION =

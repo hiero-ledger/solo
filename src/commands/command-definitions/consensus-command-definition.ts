@@ -47,19 +47,19 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
     'Capture diagnostic information such as logs, signed states, and ledger/network/node configurations.';
 
   public static readonly DEV_NODE_ADD_SUBCOMMAND_NAME = 'dev-node-add';
-  private static readonly DEV_NODE_ADD_SUBCOMMAND_DESCRIPTION = 'TODO: ADD DESCRIPTION';
+  private static readonly DEV_NODE_ADD_SUBCOMMAND_DESCRIPTION = 'Dev operations for adding consensus nodes.';
 
   public static readonly DEV_NODE_UPDATE_SUBCOMMAND_NAME = 'dev-node-update';
-  private static readonly DEV_NODE_UPDATE_SUBCOMMAND_DESCRIPTION = 'TODO: ADD DESCRIPTION';
+  private static readonly DEV_NODE_UPDATE_SUBCOMMAND_DESCRIPTION = 'Dev operations for updating consensus nodes';
 
   public static readonly DEV_NODE_UPGRADE_SUBCOMMAND_NAME = 'dev-node-upgrade';
-  private static readonly DEV_NODE_UPGRADE_SUBCOMMAND_DESCRIPTION = 'TODO: ADD DESCRIPTION';
+  private static readonly DEV_NODE_UPGRADE_SUBCOMMAND_DESCRIPTION = 'Dev operations for upgrading consensus nodes';
 
   public static readonly DEV_NODE_DELETE_SUBCOMMAND_NAME = 'dev-node-delete';
-  private static readonly DEV_NODE_DELETE_SUBCOMMAND_DESCRIPTION = 'TODO: ADD DESCRIPTION';
+  private static readonly DEV_NODE_DELETE_SUBCOMMAND_DESCRIPTION = 'Dev operations for delete consensus nodes';
 
   public static readonly DEV_FREEZE_SUBCOMMAND_NAME = 'dev-freeze';
-  private static readonly DEV_FREEZE_SUBCOMMAND_DESCRIPTION = 'TODO: ADD DESCRIPTION';
+  private static readonly DEV_FREEZE_SUBCOMMAND_DESCRIPTION = 'Dev operations for freezing consensus nodes';
 
   public static readonly DEV_NODE_PREPARE = 'prepare';
   public static readonly DEV_NODE_SUBMIT_TRANSACTION = 'submit-transactions';
@@ -409,7 +409,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
             .addSubcommand(
               new Subcommand(
                 ConsensusCommandDefinition.DEV_FREEZE_PREPARE_UPGRADE,
-                'TODO',
+                'Prepare the network for a Freeze Upgrade operation',
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.prepareUpgrade,
                 NodeFlags.DEFAULT_FLAGS,
@@ -418,7 +418,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
             .addSubcommand(
               new Subcommand(
                 ConsensusCommandDefinition.DEV_FREEZE_FREEZE_UPGRADE,
-                'TODO',
+                'Performs a Freeze Upgrade operation with on the network after it has been prepared with prepare-upgrade',
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.freezeUpgrade,
                 NodeFlags.DEFAULT_FLAGS,
