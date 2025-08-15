@@ -279,8 +279,9 @@ export class K8ClientPod implements Pod {
 
       this.logger.debug(`Finished stopping port-forwarder for port [${port}]`);
     } catch (error) {
-      this.logger.error(`Error stopping port-forwarder for port ${port}: ${error.message}`);
-      throw new SoloError(`Failed to stop port-forwarder for port ${port}: ${error.message}`, error);
+      const errorMessage: string = `Error stopping port-forwarder for port ${port}: ${error.message}`;
+      this.logger.error(errorMessage);
+      throw new SoloError(errorMessage, error);
     }
   }
 
