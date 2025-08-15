@@ -22,7 +22,7 @@ export const EXPLORER_VERSION: string = '25.1.1';
 export const EXPLORER_OLD_VERSION_BEFORE_LABEL_CHANGE: string = '24.12.0';
 export const HEDERA_JSON_RPC_RELAY_VERSION: string = '0.70.0';
 export const INGRESS_CONTROLLER_VERSION: string = '0.14.5';
-export const BLOCK_NODE_VERSION: string = 'v0.14.0';
+export const BLOCK_NODE_VERSION: string = process.env.BLOCK_NODE_VERSION || 'v0.14.0';
 
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE: string = 'v0.62.3';
 export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT: SemVer = new SemVer('v0.15.0');
