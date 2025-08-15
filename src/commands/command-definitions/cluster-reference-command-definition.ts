@@ -102,7 +102,7 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               ContextFlags.DEFAULT_FLAGS,
             ),
           )
-
+          // TODO: remove once command is merged in 'consensus network deploy'
           .addSubcommand(
             new Subcommand(
               ClusterReferenceCommandDefinition.CONFIG_SETUP,
@@ -112,6 +112,7 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               ContextFlags.SETUP_FLAGS,
             ),
           )
+          // TODO: remove once command is merged in 'consensus network destroy'
           .addSubcommand(
             new Subcommand(
               ClusterReferenceCommandDefinition.CONFIG_RESET,

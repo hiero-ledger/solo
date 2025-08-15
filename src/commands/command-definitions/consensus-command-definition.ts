@@ -78,12 +78,16 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
   public static readonly NODE_ADD = 'add';
   public static readonly NODE_UPDATE = 'update';
   public static readonly NODE_DESTROY = 'destroy';
-  public static readonly NODE_DESTROY_EXECUTE_DOWNLOAD_GENERATED_FILES = 'destroy-execute-download-generated-files';
 
   public static readonly NETWORK_DEPLOY = 'deploy';
   public static readonly NETWORK_DESTROY = 'destroy';
   public static readonly NETWORK_UPGRADE = 'upgrade';
   public static readonly NETWORK_FREEZE = 'freeze';
+
+  public static readonly DIAGNOSTIC_CONFIGS = 'config';
+  public static readonly DIAGNOSTIC_ALL = 'all';
+
+  public static readonly STATES_DOWNLOAD = 'download';
 
   public static readonly SETUP_COMMAND =
     `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NODE_SETUP}` as const;
@@ -193,26 +197,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 NodeFlags.REFRESH_FLAGS,
               ),
             )
-            // TODO: Review during code review
-            .addSubcommand(
-              new Subcommand(
-                ConsensusCommandDefinition.NODE_LOGS,
-                'Download application logs from the network nodes and stores them in <SOLO_LOGS_DIR>/<namespace>/<podName>/ directory',
-                this.nodeCommand.handlers,
-                this.nodeCommand.handlers.logs,
-                NodeFlags.LOGS_FLAGS,
-              ),
-            )
-            // TODO: Review during code review
-            .addSubcommand(
-              new Subcommand(
-                ConsensusCommandDefinition.NODE_STATES,
-                'Download hedera states from the network nodes and stores them in <SOLO_LOGS_DIR>/<namespace>/<podName>/ directory',
-                this.nodeCommand.handlers,
-                this.nodeCommand.handlers.states,
-                NodeFlags.STATES_FLAGS,
-              ),
-            )
             .addSubcommand(
               new Subcommand(
                 ConsensusCommandDefinition.NODE_ADD,
@@ -248,15 +232,38 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
             ConsensusCommandDefinition.STATE_SUBCOMMAND_DESCRIPTION,
           ).addSubcommand(
             new Subcommand(
-              'download',
-              'Downloads a signed state from a consensus node.',
+              ConsensusCommandDefinition.STATES_DOWNLOAD,
+              'Downloads a signed state from consensus node/nodes.',
               this.nodeCommand.handlers,
-              this.nodeCommand.handlers.downloadGeneratedFiles,
-              NodeFlags.DEFAULT_FLAGS,
+              this.nodeCommand.handlers.states,
+              NodeFlags.STATES_FLAGS,
             ),
           ),
         )
-        // TODO: Discuss during code review
+        .addCommandGroup(
+          new CommandGroup(
+            ConsensusCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
+            ConsensusCommandDefinition.DIAGNOSTIC_SUBCOMMAND_DESCRIPTION,
+          )
+            .addSubcommand(
+              new Subcommand(
+                ConsensusCommandDefinition.DIAGNOSTIC_CONFIGS,
+                'Collects configuration files from consensus nodes.',
+                this.nodeCommand.handlers,
+                this.nodeCommand.handlers.downloadGeneratedFiles,
+                NodeFlags.DEFAULT_FLAGS,
+              ),
+            )
+            .addSubcommand(
+              new Subcommand(
+                ConsensusCommandDefinition.DIAGNOSTIC_ALL,
+                'Captures logs, configs, and diagnostic artifacts from all consensus nodes.',
+                this.nodeCommand.handlers,
+                this.nodeCommand.handlers.logs,
+                NodeFlags.LOGS_FLAGS,
+              ),
+            ),
+        )
         // DEV NODE ADD SUBCOMMANDS
         .addCommandGroup(
           new CommandGroup(
