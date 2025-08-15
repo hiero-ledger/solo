@@ -396,7 +396,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     }
 
     const isCommandUsingReleaseTagVersionFlag: boolean =
-      (subcommand === 'node' && action !== 'logs' && action !== 'states') ||
+      (subcommand === 'node' && action !== 'all' && action !== 'states' && action !== 'download') ||
       (subcommand === 'network' && action === 'deploy') ||
       command !== 'keys';
 

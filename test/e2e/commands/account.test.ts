@@ -499,8 +499,8 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           await commandInvoker.invoke({
             argv: argv,
             command: ConsensusCommandDefinition.COMMAND_NAME,
-            subcommand: ConsensusCommandDefinition.DEV_FREEZE_SUBCOMMAND_NAME,
-            action: ConsensusCommandDefinition.DEV_FREEZE_PREPARE_UPGRADE,
+            subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+            action: ConsensusCommandDefinition.NETWORK_FREEZE,
             callback: async (argv): Promise<boolean> => nodeCmd.handlers.freeze(argv),
           });
 

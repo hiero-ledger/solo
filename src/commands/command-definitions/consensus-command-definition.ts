@@ -87,7 +87,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
   public static readonly DIAGNOSTIC_CONFIGS = 'config';
   public static readonly DIAGNOSTIC_ALL = 'all';
 
-  public static readonly STATES_DOWNLOAD = 'download';
+  public static readonly STATE_DOWNLOAD = 'download';
 
   public static readonly SETUP_COMMAND =
     `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NODE_SETUP}` as const;
@@ -232,7 +232,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
             ConsensusCommandDefinition.STATE_SUBCOMMAND_DESCRIPTION,
           ).addSubcommand(
             new Subcommand(
-              ConsensusCommandDefinition.STATES_DOWNLOAD,
+              ConsensusCommandDefinition.STATE_DOWNLOAD,
               'Downloads a signed state from consensus node/nodes.',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.states,

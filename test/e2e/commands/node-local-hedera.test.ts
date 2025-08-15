@@ -103,8 +103,8 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await commandInvoker.invoke({
         argv: argv,
         command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.NODE_STATES,
+        subcommand: ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.STATE_DOWNLOAD,
         callback: async (argv): Promise<boolean> => nodeCmd.handlers.states(argv),
       });
 

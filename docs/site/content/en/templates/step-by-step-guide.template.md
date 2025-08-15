@@ -522,7 +522,7 @@ Access Solo and Consensus Node logs for troubleshooting:
 # Download logs from all nodes
 
 # Logs are saved to ~/.solo/logs/<namespace>/<pod-name>/# You can also use kubectl directly:
-solo consensus node logs --deployment solo-deployment
+solo consensus diagnostics all --deployment solo-deployment
 ```
 
 {{< /details >}}<br/>

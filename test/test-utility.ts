@@ -136,8 +136,8 @@ export function startNodesTest(argv: Argv, commandInvoker: CommandInvoker, nodeC
     await commandInvoker.invoke({
       argv: argv,
       command: ConsensusCommandDefinition.COMMAND_NAME,
-      subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-      action: ConsensusCommandDefinition.NODE_LOGS,
+      subcommand: ConsensusCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
+      action: ConsensusCommandDefinition.DIAGNOSTIC_ALL,
       callback: async (argv): Promise<boolean> => nodeCmd.handlers.logs(argv),
     });
 
