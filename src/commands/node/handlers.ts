@@ -31,7 +31,6 @@ import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api
 import {ComponentsDataWrapperApi} from '../../core/config/remote/api/components-data-wrapper-api.js';
 import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
-import {ConsensusCommandDefinition} from '../command-definitions/consensus-command-definition.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -836,7 +835,7 @@ export class NodeCommandHandlers extends CommandHandler {
       },
       'Error starting node',
       leaseWrapper.lease,
-      ConsensusCommandDefinition.START_COMMAND,
+      'consensus node start',
     );
 
     return true;
@@ -866,7 +865,7 @@ export class NodeCommandHandlers extends CommandHandler {
       },
       'Error in setting up nodes',
       leaseWrapper.lease,
-      ConsensusCommandDefinition.SETUP_COMMAND,
+      'consensus node setup',
     );
 
     return true;

@@ -73,7 +73,6 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {Version} from '../business/utils/version.js';
-import {ConsensusCommandDefinition} from './command-definitions/consensus-command-definition.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -1225,7 +1224,7 @@ export class NetworkCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      ConsensusCommandDefinition.DEPLOY_COMMAND,
+      'consensus network deploy',
     );
 
     if (tasks.isRoot()) {
@@ -1341,7 +1340,7 @@ export class NetworkCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      ConsensusCommandDefinition.DESTROY_COMMAND,
+      'consensus network destroy',
     );
 
     if (tasks.isRoot()) {

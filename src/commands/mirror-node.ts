@@ -47,7 +47,6 @@ import {Base64} from 'js-base64';
 import {Lock} from '../core/lock/lock.js';
 import {Version} from '../business/utils/version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
-import {MirrorCommandDefinition} from './command-definitions/mirror-command-definition.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -814,7 +813,7 @@ export class MirrorNodeCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      MirrorCommandDefinition.ADD_COMMAND,
+      'mirror node add',
     );
 
     if (tasks.isRoot()) {
@@ -975,7 +974,7 @@ export class MirrorNodeCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      MirrorCommandDefinition.DESTROY_COMMAND,
+      'mirror node destroy',
     );
 
     if (tasks.isRoot()) {
