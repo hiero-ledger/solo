@@ -334,7 +334,7 @@ export class MirrorNodeTest extends BaseCommandTest {
           constants.PODS_READY_DELAY,
         );
 
-      const initScriptPath: string = 'examples/external-database-test/scripts/init.sh';
+      const initScriptPath: string = 'scripts/external-database/init.sh';
 
       // check if initScriptPath exist, otherwise throw error
       if (!fs.existsSync(initScriptPath)) {

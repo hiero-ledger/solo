@@ -1357,7 +1357,12 @@ export class NodeCommandTasks {
   public setGrpcWebEndpoint(): SoloListrTask<NodeStartContext> {
     return {
       title: 'set gRPC Web endpoint',
-      skip: (): boolean => {
+      skip: (context_): boolean => {
+        // skip setting the gRPC Web endpoint if we are not running a Consensus Node
+        if (context_.config.app !== constants.HEDERA_APP_NAME) {
+          return true;
+        }
+
         const currentVersion: SemVer = this.remoteConfig.configuration.versions.consensusNode;
         const versionRequirement: SemVer = new SemVer('0.63.0');
         return lt(currentVersion, versionRequirement);

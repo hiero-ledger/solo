@@ -5,11 +5,14 @@
 
 set -xeo pipefail
 
-export TARGET_DIR=docs/site/content/en/docs
+export TARGET_DIR=docs/site/content/en
+export TARGET_DIR_DOCS=docs/site/content/en/docs
 export TEMPLATE_DIR=docs/site/content/en/templates
-export TARGET_FILE=${TARGET_DIR}/step-by-step-guide.md
+export TARGET_FILE=${TARGET_DIR_DOCS}/step-by-step-guide.md
 export TEMPLATE_FILE=${TEMPLATE_DIR}/step-by-step-guide.template.md
+export TEMPLATE_EXAMPLES_FILE=${TEMPLATE_DIR}/examples-index.template.md
 export BUILD_DIR=docs/site/build
+export EXAMPLES_DIR=examples
 mkdir -p ${BUILD_DIR}
 pwd
 
@@ -99,6 +102,18 @@ $SOLO_MIRROR_NODE_DEPLOY_OUTPUT,$SOLO_RELAY_DEPLOY_OUTPUT,$SOLO_CLUSTER_REF_CONN
 $SOLO_EXPLORER_DEPLOY_OUTPUT,$SOLO_BLOCK_NODE_ADD_OUTPUT,$SOLO_RELAY_DESTROY_OUTPUT,$SOLO_MIRROR_NODE_DESTROY_OUTPUT,$SOLO_EXPLORER_DESTROY_OUTPUT,\
 $SOLO_BLOCK_NODE_DESTROY_OUTPUT,$SOLO_NETWORK_DESTROY_OUTPUT'\
 < ${TEMPLATE_FILE} > ${TARGET_FILE}
+
+# Extract the entire content from examples/README.md (excluding first line)
+echo "Extracting content from examples README"
+EXAMPLES_CONTENT=$(cat ${EXAMPLES_DIR}/README.md)
+export EXAMPLES_CONTENT
+
+# Create examples directory if it doesn't exist
+mkdir -p ${TARGET_DIR}/examples
+
+# Generate examples index page from template
+echo "Generating examples index page from template"
+envsubst '$EXAMPLES_CONTENT' < ${TEMPLATE_DIR}/examples-index.template.md > ${TARGET_DIR}/examples/_index.md
 
 echo "Remove color codes and lines showing intermediate progress"
 
