@@ -47,7 +47,7 @@ swirlds.log for further analysis.
 
 ```bash
 # download logs as zip file from node1 and save in default ~/.solo/logs/<namespace>/<timestamp/
-solo consensus node logs --deployment solo-deployment
+solo consensus diagnostics all --deployment solo-deployment
 ```
 
 ### 2. Using IntelliJ remote debug with Solo
@@ -194,7 +194,7 @@ With the following command you can save the network state to a file.
 solo consensus node stop --deployment "${SOLO_DEPLOYMENT}"
 
 # download state file to default location at ~/.solo/logs/<namespace>
-solo consensus node states -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
+solo consensus state download -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 By default, the state files are saved under `~/.solo` directory

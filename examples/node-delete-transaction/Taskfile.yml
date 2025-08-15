@@ -108,8 +108,8 @@ tasks:
           --cluster-ref {{ .SOLO_CLUSTER_REF }} --dev
 
       - cmd: |
-          # Solo node delete-prepare
-          {{ .SOLO_COMMAND }} node delete-prepare --deployment {{ .SOLO_DEPLOYMENT }} --node-alias node1 \
+          # Solo consensus dev-node-delete prepare
+          {{ .SOLO_COMMAND }} consensus dev-node-delete prepare --deployment {{ .SOLO_DEPLOYMENT }} --node-alias node1 \
           --output-dir {{ .PREPARE_OUTPUT_DIR }} --dev 
 
       - cmd: |
@@ -120,15 +120,15 @@ tasks:
 
       - cmd: |
           # Prepare Upgrade
-          {{ .SOLO_COMMAND }} node prepare-upgrade --deployment {{ .SOLO_DEPLOYMENT }} --dev 
+          {{ .SOLO_COMMAND }} consensus dev-freeze prepare-upgrade --deployment {{ .SOLO_DEPLOYMENT }} --dev 
 
       - cmd: |
           # Freeze Upgrade
-          {{ .SOLO_COMMAND }} node freeze-upgrade --deployment {{ .SOLO_DEPLOYMENT }} --dev 
+          {{ .SOLO_COMMAND }} consensus dev-freeze freeze-upgrade --deployment {{ .SOLO_DEPLOYMENT }} --dev 
 
       - cmd: |
-          # Solo node delete-execute
-          {{ .SOLO_COMMAND }} node delete-execute --deployment {{ .SOLO_DEPLOYMENT }} --input-dir {{ .PREPARE_OUTPUT_DIR }} \
+          # Solo consensus dev-node-delete execute
+          {{ .SOLO_COMMAND }} consensus dev-node-delete execute --deployment {{ .SOLO_DEPLOYMENT }} --input-dir {{ .PREPARE_OUTPUT_DIR }} \
           --node-alias node1 --dev 
 
       - cmd: |

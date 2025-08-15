@@ -120,15 +120,15 @@ tasks:
 
       - cmd: |
           # Prepare Upgrade
-          {{ .SOLO_COMMAND }} node prepare-upgrade --deployment {{ .SOLO_DEPLOYMENT }} --skip-node-alias node2 --dev 
+          {{ .SOLO_COMMAND }} consensus dev-freeze prepare-upgrade --deployment {{ .SOLO_DEPLOYMENT }} --skip-node-alias node2 --dev 
 
       - cmd: |
           # Freeze Upgrade
           {{ .SOLO_COMMAND }} node freeze-upgrade --deployment {{ .SOLO_DEPLOYMENT }} --skip-node-alias node2 --dev 
 
       - cmd: |
-          # Solo node update-execute
-          {{ .SOLO_COMMAND }} node update-execute --deployment {{ .SOLO_DEPLOYMENT }} --input-dir {{ .PREPARE_OUTPUT_DIR }} \
+          # Solo consensus dev-node-update execute
+          {{ .SOLO_COMMAND }} consensus dev-node-update execute --deployment {{ .SOLO_DEPLOYMENT }} --input-dir {{ .PREPARE_OUTPUT_DIR }} \
           {{ .LOCAL_BUILD_FLAG }} --dev
 
       - cmd: |

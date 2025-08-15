@@ -371,7 +371,7 @@ tasks:
 
   solo:freeze:restart:
     cmds:
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- consensus node prepare-upgrade --deployment "${SOLO_DEPLOYMENT}" -q --dev
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- consensus dev-freeze prepare-upgrade todo do do do --deployment "${SOLO_DEPLOYMENT}" -q --dev
       - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- consensus dev-freeze prepare-upgrade --deployment "${SOLO_DEPLOYMENT}" -q --dev
       - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- consensus node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} -q --dev
       - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- consensus node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} -q --dev

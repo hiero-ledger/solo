@@ -553,7 +553,7 @@ It is possible to update a single node to a new Hedera version through a process
 
 ```bash
 solo consensus dev-node-update prepare --deployment solo-deployment --node-alias node1 --release-tag v0.62.6 --output-dir context
-solo consensus dev-node-update submit-transactions --deployment solo-deployment --input-dir context
+solo consensus dev-node-update submit-transaction --deployment solo-deployment --input-dir context
 solo consensus dev-node-update execute --deployment solo-deployment --input-dir context
 ```
 
@@ -573,7 +573,7 @@ It is possible to add a new node through a process with separated steps. This is
 
 ```bash
 solo consensus dev-node-add prepare --gossip-keys true --tls-keys true --deployment solo-deployment --pvcs true --admin-key ***** --node-alias node1 --output-dir context
-solo consensus dev-node-add submit-transactions --deployment solo-deployment --input-dir context
+solo consensus dev-node-add submit-transaction --deployment solo-deployment --input-dir context
 solo consensus dev-node-add execute --deployment solo-deployment --input-dir context
 ```
 
@@ -592,9 +592,9 @@ TODO solo consensus node destroy
 It is possible to delete a node through a process with separated steps. This is only useful in very specific cases, such as when testing the delete process.
 
 ```bash
-solo consensus node destroy-prepare --deployment solo-deployment --node-alias node1 --output-dir context
-solo consensus node destroy-submit-transactions --deployment solo-deployment --input-dir context
-solo consensus node destroy-execute --deployment solo-deployment --input-dir context
+solo consensus dev-node-delete prepare --deployment solo-deployment --node-alias node1 --output-dir context
+solo consensus dev-node-delete submit-transaction --deployment solo-deployment --input-dir context
+solo consensus dev-node-delete execute --deployment solo-deployment --input-dir context
 ```
 
 {{< /details >}}<br/>
@@ -640,7 +640,7 @@ If nodes aren't forming consensus:
 
 ```bash
 # Check node status
-solo consensus node states --deployment solo-deployment --node-aliases node1
+solo consensus state download --deployment solo-deployment --node-aliases node1
 
 # Look for gossip connectivity issues
 kubectl logs -n solo network-node-0 | grep -i gossip
@@ -657,7 +657,7 @@ solo consensus node refresh --node-aliases node1 --deployment solo-deployment
 
 When you need assistance:
 
-1. **Check the logs**: Use `solo consensus node logs --deployment solo-deployment` and examine `~/.solo/logs/`
+1. **Check the logs**: Use `solo consensus diagnostics all --deployment solo-deployment` and examine `~/.solo/logs/`
 2. **Documentation**: Visit [https://solo.hiero.org/main/docs/](docs/_index.md)
 3. **GitHub Issues**: Report bugs at https://github.com/hiero-ledger/solo/issues
 4. **Community Support**: Join the Hedera Discord community: https://discord.gg/Ysruf53q
