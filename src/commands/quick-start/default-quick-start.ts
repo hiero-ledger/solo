@@ -181,9 +181,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             (): string[] => {
               const argv: string[] = this.newArgv();
               argv.push(
-                ClusterReferenceCommandDefinition.COMMAND_NAME,
-                ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME,
-                ClusterReferenceCommandDefinition.CONFIG_CONNECT,
+                ...ClusterReferenceCommandDefinition.CONNECT_COMMAND.split(' '),
                 this.optionFromFlag(Flags.clusterRef),
                 config.clusterRef,
                 this.optionFromFlag(Flags.context),
@@ -198,9 +196,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             (): string[] => {
               const argv: string[] = this.newArgv();
               argv.push(
-                DeploymentCommandDefinition.COMMAND_NAME,
-                DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME,
-                DeploymentCommandDefinition.CONFIG_CREATE,
+                ...DeploymentCommandDefinition.CREATE_COMMAND.split(' '),
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,
                 this.optionFromFlag(Flags.namespace),
@@ -210,14 +206,12 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             },
           ),
           this.invokeSoloCommand(
-            `solo ${DeploymentCommandDefinition.ADD_COMMAND}`,
-            DeploymentCommandDefinition.ADD_COMMAND,
+            `solo ${DeploymentCommandDefinition.ATTACH_COMMAND}`,
+            DeploymentCommandDefinition.ATTACH_COMMAND,
             (): string[] => {
               const argv: string[] = this.newArgv();
               argv.push(
-                DeploymentCommandDefinition.COMMAND_NAME,
-                DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_NAME,
-                DeploymentCommandDefinition.CLUSTER_ATTACH,
+                ...DeploymentCommandDefinition.ATTACH_COMMAND.split(' '),
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,
                 this.optionFromFlag(Flags.clusterRef),
@@ -234,9 +228,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             (): string[] => {
               const argv: string[] = this.newArgv();
               argv.push(
-                ClusterReferenceCommandDefinition.COMMAND_NAME,
-                ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME,
-                ClusterReferenceCommandDefinition.CONFIG_SETUP,
+                ...ClusterReferenceCommandDefinition.SETUP_COMMAND.split(' '),
                 this.optionFromFlag(Flags.clusterRef),
                 config.clusterRef,
               );
@@ -249,9 +241,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             (): string[] => {
               const argv: string[] = this.newArgv();
               argv.push(
-                KeysCommandDefinition.COMMAND_NAME,
-                KeysCommandDefinition.CONSENSUS_SUBCOMMAND_NAME,
-                KeysCommandDefinition.CONSENSUS_GENERATE,
+                ...KeysCommandDefinition.KEYS_COMMAND.split(' '),
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,
                 this.optionFromFlag(Flags.generateGossipKeys),
@@ -267,9 +257,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             (): string[] => {
               const argv: string[] = this.newArgv();
               argv.push(
-                ConsensusCommandDefinition.COMMAND_NAME,
-                ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-                ConsensusCommandDefinition.NETWORK_DEPLOY,
+                ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,
               );
@@ -282,9 +270,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             (): string[] => {
               const argv: string[] = this.newArgv();
               argv.push(
-                ConsensusCommandDefinition.COMMAND_NAME,
-                ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-                ConsensusCommandDefinition.NODE_SETUP,
+                ...ConsensusCommandDefinition.SETUP_COMMAND.split(' '),
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,
               );
@@ -297,9 +283,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             (): string[] => {
               const argv: string[] = this.newArgv();
               argv.push(
-                ConsensusCommandDefinition.COMMAND_NAME,
-                ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-                ConsensusCommandDefinition.NODE_START,
+                ...ConsensusCommandDefinition.START_COMMAND.split(' '),
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,
               );
@@ -313,9 +297,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             (): string[] => {
               const argv: string[] = this.newArgv();
               argv.push(
-                MirrorCommandDefinition.COMMAND_NAME,
-                MirrorCommandDefinition.NODE_SUBCOMMAND_NAME,
-                MirrorCommandDefinition.NODE_ADD,
+                ...MirrorCommandDefinition.ADD_COMMAND.split(' '),
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,
                 this.optionFromFlag(Flags.clusterRef),
@@ -332,9 +314,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             (): string[] => {
               const argv: string[] = this.newArgv();
               argv.push(
-                ExplorerCommandDefinition.COMMAND_NAME,
-                ExplorerCommandDefinition.NODE_SUBCOMMAND_NAME,
-                ExplorerCommandDefinition.NODE_ADD,
+                ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,
                 this.optionFromFlag(Flags.clusterRef),
@@ -349,9 +329,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             (): string[] => {
               const argv: string[] = this.newArgv();
               argv.push(
-                RelayCommandDefinition.COMMAND_NAME,
-                RelayCommandDefinition.NODE_SUBCOMMAND_NAME,
-                RelayCommandDefinition.NODE_ADD,
+                ...RelayCommandDefinition.ADD_COMMAND.split(' '),
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,
                 this.optionFromFlag(Flags.clusterRef),

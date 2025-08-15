@@ -47,7 +47,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly CREATE_COMMAND =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_CREATE}` as const;
 
-  public static readonly ADD_COMMAND =
+  public static readonly ATTACH_COMMAND =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CLUSTER_ATTACH}` as const;
 
   public getCommandDefinition(): CommandDefinition {

@@ -108,7 +108,7 @@ export class BlockNodeCommand extends BaseCommand {
   private static readonly UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
 
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
-    required: [flags.accountId, flags.deployment],
+    required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.blockNodeChartVersion,
       flags.chartDirectory,
