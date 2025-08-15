@@ -20,23 +20,12 @@ export class ShellRunner {
     verbose: boolean = false,
     detached: boolean = false,
   ): Promise<string[]> {
-    const result = await this.runWithPid(cmd, arguments_, verbose, detached);
-    return result.output;
-  }
-
-  /** Returns a promise that invokes the shell command and returns PID for detached processes */
-  public async runWithPid(
-    cmd: string,
-    arguments_: string[] = [],
-    verbose: boolean = false,
-    detached: boolean = false,
-  ): Promise<{output: string[]; pid?: number}> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
     const callStack: string = new Error('INFO').stack; // capture the callstack to be included in error
     self.logger.info(`Executing command: '${cmd}'`);
 
-    return new Promise<{output: string[]; pid?: number}>((resolve, reject): void => {
+    return new Promise<string[]>((resolve, reject): void => {
       const child: ChildProcessWithoutNullStreams = spawn(cmd, arguments_, {
         shell: true,
         detached,
@@ -45,7 +34,7 @@ export class ShellRunner {
 
       if (detached) {
         child.unref(); // allow the parent process to exit independently of this child
-        resolve({output: [], pid: child.pid});
+        resolve([]);
         return;
       }
 
@@ -100,7 +89,7 @@ export class ShellRunner {
           commandOutput: output,
           errOutput: errorOutput,
         });
-        resolve({output, pid: child.pid});
+        resolve(output);
       });
     });
   }

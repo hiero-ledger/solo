@@ -450,7 +450,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           // using label `app=envoy-proxy-node1` to find Envoy proxy pod
           const envoyProxyPod = await k8Factory.default().pods().list(namespace, ['app=envoy-proxy-node1']);
           // enable portfroward of Envoy proxy pod
-          const portForward = await k8Factory
+          const portNumber = await k8Factory
             .default()
             .pods()
             .readByReference(envoyProxyPod[0].podReference)
@@ -477,8 +477,8 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
           expect(submitReceipt.status).to.deep.equal(Status.Success);
 
-          // disable portForward
-          // portForward.close();
+          // stop port forwarding
+          await k8Factory.default().pods().readByReference(envoyProxyPod[0].podReference).stopPortForward(portNumber);
         } catch (error) {
           testLogger.showUserError(error);
         }

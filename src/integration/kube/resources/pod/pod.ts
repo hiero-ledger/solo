@@ -72,8 +72,6 @@ export interface Pod {
   /**
    * Stop the port forward
    * @param server - an instance of server returned by portForward method
-   * @param [maxAttempts] - the maximum number of attempts to check if the server is stopped
-   * @param [timeout] - the delay between checks in milliseconds
    */
-  stopPortForward(server: number, maxAttempts?: number, timeout?: number): Promise<void>;
+  stopPortForward(server: number): Promise<void>;
 }

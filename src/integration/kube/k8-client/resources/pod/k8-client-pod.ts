@@ -202,7 +202,7 @@ export class K8ClientPod implements Pod {
         'is connected to terminates.',
       );
       const cmd: string = `kubectl port-forward -n ${this.podReference.namespace.name} --context ${this.kubeConfig.currentContext} pods/${this.podReference.name} ${availablePort}:${podPort}`;
-      const result = await new ShellRunner().runWithPid(cmd, [], true, true);
+      const result = await new ShellRunner().run(cmd, [], true, true);
 
       return availablePort;
     } catch (error) {
@@ -211,7 +211,7 @@ export class K8ClientPod implements Pod {
     }
   }
 
-  public async stopPortForward(port: number, maxAttempts: number = 20, timeout: number = 500): Promise<void> {
+  public async stopPortForward(port: number): Promise<void> {
     if (!port) {
       return;
     }
