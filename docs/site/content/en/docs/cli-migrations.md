@@ -1,5 +1,12 @@
-TODO: Document all CLI migrations
-Add table of all the mappings
+# Updated CLI Command Mappings
+
+> The following tables provide a complete mapping of previous CLI commands to their updated three-level structure.
+> Entries marked as No changes retain their original form.
+
+## Init
+| **Old Command** | **New Command** |
+|-----------------|-----------------|
+| init            | *No changes*    |
 
 ## Block node
 | **Old Command**     | **New Command** |
