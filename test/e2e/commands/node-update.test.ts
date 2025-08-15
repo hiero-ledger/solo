@@ -27,9 +27,7 @@ import {
   type NodeKeyObject,
   type PrivateKeyAndCertificateObject,
 } from '../../../src/types/index.js';
-import {type ArgvStruct, type NodeAlias} from '../../../src/types/aliases.js';
-import {AccountCommand} from '../../../src/commands/account.js';
-import {NodeCommand} from '../../../src/commands/node/index.js';
+import {type NodeAlias} from '../../../src/types/aliases.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
