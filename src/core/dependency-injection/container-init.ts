@@ -67,7 +67,6 @@ import {BeanFactorySupplier} from './bean-factory-supplier.js';
 import {DefaultQuickStartCommand} from '../../commands/quick-start/default-quick-start.js';
 import {DefaultTaskList} from '../task-list/default-task-list.js';
 import {Commands} from '../../commands/commands.js';
-import {KindDependencyManager} from '../dependency-managers/kind-dependency-manager.js';
 import {BlockCommandDefinition} from '../../commands/command-definitions/block-command-definition.js';
 import {ClusterReferenceCommandDefinition} from '../../commands/command-definitions/cluster-reference-command-definition.js';
 import {ConsensusCommandDefinition} from '../../commands/command-definitions/consensus-command-definition.js';
