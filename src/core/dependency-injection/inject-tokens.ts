@@ -70,4 +70,16 @@ export class InjectTokens {
   public static QuickStartCommand: symbol = Symbol.for('QuickStartCommand');
   public static TaskList: symbol = Symbol.for('TaskList');
   public static Commands: symbol = Symbol.for('Commands');
+
+  // Command Definitions
+  public static BlockCommandDefinition: symbol = Symbol.for('BlockCommandDefinition');
+  public static ClusterReferenceCommandDefinition: symbol = Symbol.for('ClusterReferenceCommandDefinition');
+  public static ConsensusCommandDefinition: symbol = Symbol.for('ConsensusCommandDefinition');
+  public static DeploymentCommandDefinition: symbol = Symbol.for('DeploymentCommandDefinition');
+  public static ExplorerCommandDefinition: symbol = Symbol.for('ExplorerCommandDefinition');
+  public static KeysCommandDefinition: symbol = Symbol.for('KeysCommandDefinition');
+  public static LedgerCommandDefinition: symbol = Symbol.for('LedgerCommandDefinition');
+  public static MirrorCommandDefinition: symbol = Symbol.for('MirrorCommandDefinition');
+  public static RelayCommandDefinition: symbol = Symbol.for('RelayCommandDefinition');
+  public static QuickStartCommandDefinition: symbol = Symbol.for('QuickStartCommandDefinition');
 }

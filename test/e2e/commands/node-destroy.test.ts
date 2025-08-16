@@ -21,9 +21,9 @@ import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
-import {NodeCommand} from '../../../src/commands/node/index.js';
-import {AccountCommand} from '../../../src/commands/account.js';
 import {AccountId} from '@hiero-ledger/sdk';
+import {LedgerCommandDefinition} from '../../../src/commands/command-definitions/ledger-command-definition.js';
+import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 
 const namespace = NamespaceName.of('node-delete');
 const deleteNodeAlias = 'node1';
@@ -40,8 +40,8 @@ argv.setArg(flags.namespace, namespace.name);
 argv.setArg(flags.realm, hederaPlatformSupportsNonZeroRealms() ? 65_535 : 0);
 argv.setArg(flags.shard, 0);
 
-let updateAcccountId: AccountId;
-let updateAcccountPrivateKey: string;
+let updateAccountId: AccountId;
+let updateAccountPrivateKey: string;
 
 endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   describe('Node delete', async () => {
@@ -59,47 +59,51 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     it('should succeed with in it command', async () => {
       await commandInvoker.invoke({
         argv: argv,
-        command: AccountCommand.COMMAND_NAME,
-        subcommand: 'init',
-        callback: async argv => accountCmd.init(argv),
+        command: LedgerCommandDefinition.COMMAND_NAME,
+        subcommand: LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
+        action: LedgerCommandDefinition.SYSTEM_INIT,
+        callback: async (argv): Promise<boolean> => accountCmd.init(argv),
       });
     }).timeout(Duration.ofMinutes(8).toMillis());
 
     it('should delete a node from the network successfully', async () => {
       await commandInvoker.invoke({
         argv: argv,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: 'delete',
-        callback: async argv => nodeCmd.handlers.delete(argv),
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_DESTROY,
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.destroy(argv),
       });
 
       await accountManager.close();
     }).timeout(Duration.ofMinutes(10).toMillis());
 
-    it('should be able to create account after a node delete', async () => {
+    it('should be able to create account after a consensus node destroy', async () => {
       await commandInvoker.invoke({
         argv: argv,
-        command: AccountCommand.COMMAND_NAME,
-        subcommand: 'create',
-        callback: async argv => accountCmd.create(argv),
+        command: LedgerCommandDefinition.COMMAND_NAME,
+        subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+        action: LedgerCommandDefinition.ACCOUNT_CREATE,
+        callback: async (argv): Promise<boolean> => accountCmd.create(argv),
       });
 
       // Create a new account to update the node account id
       // @ts-expect-error - TS2341: to access private property
       const newAccountInfo = accountCmd.accountInfo;
-      updateAcccountId = AccountId.fromString(newAccountInfo.accountId);
-      updateAcccountPrivateKey = newAccountInfo.privateKey;
+      updateAccountId = AccountId.fromString(newAccountInfo.accountId);
+      updateAccountPrivateKey = newAccountInfo.privateKey;
     });
 
-    it('should be able to update a node after node delete', async () => {
-      argv.setArg(flags.newAccountNumber, updateAcccountId.toString());
+    it('should be able to update a node after consensus node destroy', async () => {
+      argv.setArg(flags.newAccountNumber, updateAccountId.toString());
       argv.setArg(flags.nodeAlias, updateNodeAlias);
-      argv.setArg(flags.newAdminKey, updateAcccountPrivateKey);
+      argv.setArg(flags.newAdminKey, updateAccountPrivateKey);
       await commandInvoker.invoke({
         argv: argv,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: 'update',
-        callback: async argv => nodeCmd.handlers.update(argv),
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_UPDATE,
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.update(argv),
       });
 
       await accountManager.close();

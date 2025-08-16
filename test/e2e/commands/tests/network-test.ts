@@ -14,6 +14,7 @@ import {expect} from 'chai';
 import {type DeploymentName} from '../../../../src/types/index.js';
 import {Flags} from '../../../../src/commands/flags.js';
 import {type BaseTestOptions} from './base-test-options.js';
+import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
 
 export class NetworkTest extends BaseCommandTest {
   private static soloNetworkDeployArgv(
@@ -26,7 +27,13 @@ export class NetworkTest extends BaseCommandTest {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NetworkTest;
 
     const argv: string[] = newArgv();
-    argv.push('network', 'deploy', optionFromFlag(Flags.deployment), deployment);
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_DEPLOY,
+      optionFromFlag(Flags.deployment),
+      deployment,
+    );
 
     // have to enable load balancer to resolve cross cluster in multi-cluster
     if (loadBalancerEnabled) {
@@ -52,7 +59,7 @@ export class NetworkTest extends BaseCommandTest {
     } = options;
     const {soloNetworkDeployArgv} = NetworkTest;
 
-    it(`${testName}: network deploy`, async (): Promise<void> => {
+    it(`${testName}: consensus network deploy`, async (): Promise<void> => {
       await main(
         soloNetworkDeployArgv(
           testName,
@@ -78,7 +85,13 @@ export class NetworkTest extends BaseCommandTest {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NetworkTest;
 
     const argv: string[] = newArgv();
-    argv.push('network', 'destroy', optionFromFlag(Flags.deployment), deployment);
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_DESTROY,
+      optionFromFlag(Flags.deployment),
+      deployment,
+    );
     argvPushGlobalFlags(argv, testName, false, true);
     return argv;
   }
@@ -87,7 +100,7 @@ export class NetworkTest extends BaseCommandTest {
     const {testName, deployment} = options;
     const {soloNetworkDestroyArgv} = NetworkTest;
 
-    it(`${testName}: network destroy`, async (): Promise<void> => {
+    it(`${testName}: consensus network destroy`, async (): Promise<void> => {
       await main(soloNetworkDestroyArgv(testName, deployment));
     });
   }

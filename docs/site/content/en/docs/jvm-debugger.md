@@ -47,7 +47,7 @@ swirlds.log for further analysis.
 
 ```bash
 # download logs as zip file from node1 and save in default ~/.solo/logs/<namespace>/<timestamp/
-solo node logs --deployment solo-deployment
+solo consensus diagnostics all --deployment solo-deployment
 ```
 
 ### 2. Using IntelliJ remote debug with Solo
@@ -81,16 +81,16 @@ rm -Rf ~/.solo # to avoid name collision issues if you ran previously with the s
 kind delete cluster -n "${SOLO_CLUSTER_NAME}" 
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 solo init
-solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 
-solo cluster-ref connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
-solo deployment create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
-solo node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
+solo cluster-ref config connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+solo deployment config create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
+solo keys consensus generate --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
 
-solo network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --debug-node-alias node2
-solo node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data
-solo node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --debug-node-alias node2
+solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --debug-node-alias node2
+solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data
+solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --debug-node-alias node2
 ```
 
 Once you see the following message, you can launch the JVM debugger from Intellij
@@ -107,7 +107,7 @@ The Hiero Consensus Node application should stop at the breakpoint you set:
 ![alt text](hedera-breakpoint.png)
 ![alt text](platform-breakpoint.png)
 
-Example 2: attach a JVM debugger with the node add operation
+Example 2: attach a JVM debugger with the consensus node add operation
 
 ```bash
 SOLO_CLUSTER_NAME=solo-cluster
@@ -119,21 +119,21 @@ rm -Rf ~/.solo
 kind delete cluster -n "${SOLO_CLUSTER_NAME}" 
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 solo init
-solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 
-solo cluster-ref connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
-solo deployment create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
-solo node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
+solo cluster-ref config connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+solo deployment config create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
+solo keys consensus generate --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
 
-solo network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --pvcs true
-solo node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data
-solo node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
+solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --pvcs true
+solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data
+solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
 
-solo node add --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys --debug-node-alias node4 --local-build-path ../hiero-consensus-node/hedera-node/data --pvcs true
+solo consensus node add --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys --debug-node-alias node4 --local-build-path ../hiero-consensus-node/hedera-node/data --pvcs true
 ```
 
-Example 3: attach a JVM debugger with the node update operation
+Example 3: attach a JVM debugger with the consensus node update operation
 
 ```bash
 SOLO_CLUSTER_NAME=solo-cluster
@@ -145,18 +145,18 @@ rm -Rf ~/.solo
 kind delete cluster -n "${SOLO_CLUSTER_NAME}" 
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 solo init
-solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 
-solo cluster-ref connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
-solo deployment create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
-solo node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
+solo cluster-ref config connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+solo deployment config create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
+solo keys consensus generate --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
 
-solo network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
-solo node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data
-solo node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
+solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
+solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data
+solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
 
-solo node update --deployment "${SOLO_DEPLOYMENT}" --node-alias node2  --debug-node-alias node2 --local-build-path ../hiero-consensus-node/hedera-node/data --new-account-number 0.0.7 --gossip-public-key ./s-public-node2.pem --gossip-private-key ./s-private-node2.pem --release-tag v0.59.5
+solo consensus node update --deployment "${SOLO_DEPLOYMENT}" --node-alias node2  --debug-node-alias node2 --local-build-path ../hiero-consensus-node/hedera-node/data --new-account-number 0.0.7 --gossip-public-key ./s-public-node2.pem --gossip-private-key ./s-private-node2.pem --release-tag v0.59.5
 ```
 
 Example 4: attach a JVM debugger with the node delete operation
@@ -171,18 +171,18 @@ rm -Rf ~/.solo
 kind delete cluster -n "${SOLO_CLUSTER_NAME}" 
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 solo init
-solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 
-solo cluster-ref connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
-solo deployment create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
-solo node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
+solo cluster-ref config connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+solo deployment config create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
+solo keys consensus generate --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
 
-solo network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
-solo node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data
-solo node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
+solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
+solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data
+solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
 
-solo node delete --deployment "${SOLO_DEPLOYMENT}" --node-alias node2  --debug-node-alias node3 --local-build-path ../hiero-consensus-node/hedera-node/data
+solo consensus node destroy --deployment "${SOLO_DEPLOYMENT}" --node-alias node2  --debug-node-alias node3 --local-build-path ../hiero-consensus-node/hedera-node/data
 ```
 
 ### 3. Save and reuse network state files
@@ -191,10 +191,10 @@ With the following command you can save the network state to a file.
 
 ```bash
 # must stop hedera node operation first
-solo node stop --deployment "${SOLO_DEPLOYMENT}"
+solo consensus node stop --deployment "${SOLO_DEPLOYMENT}"
 
 # download state file to default location at ~/.solo/logs/<namespace>
-solo node states -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
+solo consensus state download -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
 ```
 
 By default, the state files are saved under `~/.solo` directory
@@ -219,20 +219,20 @@ rm -Rf ~/.solo
 kind delete cluster -n "${SOLO_CLUSTER_NAME}" 
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 solo init
-solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 
-solo cluster-ref connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
-solo deployment create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
-solo node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
+solo cluster-ref config connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+solo deployment config create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
+solo keys consensus generate --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
 
-solo network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
-solo node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data
-solo node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
-solo node stop --deployment "${SOLO_DEPLOYMENT}"
+solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
+solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data
+solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
+solo consensus node stop --deployment "${SOLO_DEPLOYMENT}"
 
-solo node states -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
+solo consensus node states -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
 
 # start network with pre-existing state files
-solo node start --deployment "${SOLO_DEPLOYMENT}" --state-file network-node1-0-state.zip
+solo consensus node start --deployment "${SOLO_DEPLOYMENT}" --state-file network-node1-0-state.zip
 ```

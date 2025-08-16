@@ -17,6 +17,7 @@ import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
 import {type BaseTestOptions} from './tests/base-test-options.js';
 import {main} from '../../../src/index.js';
 import {BaseCommandTest} from './tests/base-command-test.js';
+import {QuickStartCommandDefinition} from '../../../src/commands/command-definitions/quick-start-command-definition.js';
 
 const testName: string = 'quick-start-single';
 const testTitle: string = 'Quick Start Single E2E Test';
@@ -74,7 +75,11 @@ export function soloQuickStartDeploy(testName: string): string[] {
   const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
 
   const argv: string[] = newArgv();
-  argv.push('quick-start', 'single', 'deploy');
+  argv.push(
+    QuickStartCommandDefinition.COMMAND_NAME,
+    QuickStartCommandDefinition.SINGLE_SUBCOMMAND_NAME,
+    QuickStartCommandDefinition.SINGLE_DEPLOY,
+  );
   argvPushGlobalFlags(argv, testName);
   return argv;
 }

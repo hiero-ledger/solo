@@ -27,11 +27,11 @@ import {
   type NodeKeyObject,
   type PrivateKeyAndCertificateObject,
 } from '../../../src/types/index.js';
-import {type ArgvStruct, type NodeAlias} from '../../../src/types/aliases.js';
-import {AccountCommand} from '../../../src/commands/account.js';
-import {NodeCommand} from '../../../src/commands/node/index.js';
+import {type NodeAlias} from '../../../src/types/aliases.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
+import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
+import {LedgerCommandDefinition} from '../../../src/commands/command-definitions/ledger-command-definition.js';
 import {AccountCreateTransaction, AccountId, Hbar, HbarUnit, PrivateKey, TransferTransaction} from '@hiero-ledger/sdk';
 import {main} from '../../../src/index.js';
 import http from 'node:http';
@@ -65,8 +65,9 @@ function mirrorNodeDeployArguments(clusterReference: string): string[] {
   return [
     'node',
     'solo',
-    'mirror-node',
-    'deploy',
+    'mirror',
+    'node',
+    'add',
     '--deployment',
     deployment,
     '--cluster-ref',
@@ -135,9 +136,10 @@ endToEndTestSuite(namespace.name, argv, {}, (bootstrapResp: BootstrapResponse): 
 
       await commandInvoker.invoke({
         argv: argv,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: 'stop',
-        callback: async (argv: ArgvStruct): Promise<boolean> => nodeCmd.handlers.stop(argv),
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_STOP,
+        callback: (argv): Promise<boolean> => nodeCmd.handlers.stop(argv),
       });
 
       await k8Factory.default().namespaces().delete(namespace);
@@ -170,9 +172,10 @@ endToEndTestSuite(namespace.name, argv, {}, (bootstrapResp: BootstrapResponse): 
     it('should succeed with init command', async (): Promise<void> => {
       await commandInvoker.invoke({
         argv: argv,
-        command: AccountCommand.COMMAND_NAME,
-        subcommand: 'init',
-        callback: async (argv: ArgvStruct): Promise<boolean> => accountCmd.init(argv),
+        command: LedgerCommandDefinition.COMMAND_NAME,
+        subcommand: LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
+        action: LedgerCommandDefinition.SYSTEM_INIT,
+        callback: (argv): Promise<boolean> => accountCmd.init(argv),
       });
     }).timeout(Duration.ofMinutes(8).toMillis());
 
@@ -218,9 +221,10 @@ endToEndTestSuite(namespace.name, argv, {}, (bootstrapResp: BootstrapResponse): 
 
       await commandInvoker.invoke({
         argv: argv,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: 'update',
-        callback: async (argv: ArgvStruct): Promise<boolean> => nodeCmd.handlers.update(argv),
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_UPDATE,
+        callback: (argv): Promise<boolean> => nodeCmd.handlers.update(argv),
       });
     }).timeout(Duration.ofMinutes(30).toMillis());
 

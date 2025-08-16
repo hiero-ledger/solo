@@ -34,22 +34,24 @@ export class CommandInvoker {
     argv,
     command,
     subcommand,
+    action,
   }: {
     callback: (argv: ArgvStruct) => Promise<boolean | ListrContext>;
     argv: Argv;
     command: string;
-    subcommand?: string;
+    subcommand: string;
+    action: string;
   }): Promise<void> {
     // unload the remote config from the manager
     // this.remoteConfig.unload(); // TODO: unload using runtime state
 
-    if (!argv.getArg<string>(flags.context)) {
+    if (!argv.getArg(flags.context)) {
       argv.setArg(flags.context, this.k8Factory.default().contexts().readCurrent());
     }
 
     const middlewares: ((Argv: ArgvStruct) => Promise<boolean | AnyObject>)[] = [this.updateConfigManager()];
 
-    argv.setCommand(command, subcommand);
+    argv.setCommand(command, subcommand, action);
 
     for (const executable of middlewares) {
       await executable(argv.build());

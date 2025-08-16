@@ -16,6 +16,7 @@ import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
+import {MirrorCommandDefinition} from '../../../../src/commands/command-definitions/mirror-command-definition.js';
 
 import * as constants from '../../../../src/core/constants.js';
 import fs from 'node:fs';
@@ -32,8 +33,9 @@ export class MirrorNodeTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      'mirror-node',
-      'deploy',
+      MirrorCommandDefinition.COMMAND_NAME,
+      MirrorCommandDefinition.NODE_SUBCOMMAND_NAME,
+      MirrorCommandDefinition.NODE_ADD,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.clusterRef),
@@ -210,7 +212,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     }
   }
 
-  public static deploy(options: BaseTestOptions): void {
+  public static add(options: BaseTestOptions): void {
     const {
       testName,
       testLogger,
@@ -224,7 +226,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     } = options;
     const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, verifyPingerStatus} = MirrorNodeTest;
 
-    it(`${testName}: mirror node deploy`, async (): Promise<void> => {
+    it(`${testName}: mirror node add`, async (): Promise<void> => {
       await main(soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger));
       await verifyMirrorNodeDeployWasSuccessful(
         contexts,

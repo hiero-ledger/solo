@@ -2,7 +2,7 @@
 
 import {type NodeAlias, type NodeAliases} from '../../types/aliases.js';
 import {PrivateKey} from '@hiero-ledger/sdk';
-import {type NodeDeleteConfigClass} from './config-interfaces/node-delete-config-class.js';
+import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
 import {type NodeUpdateConfigClass} from './config-interfaces/node-update-config-class.js';
 import {type NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-class.js';
 
@@ -13,7 +13,7 @@ export class NodeHelper {
    * @param ctx - accumulator object
    * @returns file writable object
    */
-  public static deleteSaveContextParser(context_: {config: NodeDeleteConfigClass; upgradeZipHash: string}) {
+  public static deleteSaveContextParser(context_: {config: NodeDestroyConfigClass; upgradeZipHash: string}) {
     const exportedContext = {} as {
       adminKey: string;
       existingNodeAliases: NodeAliases;
@@ -37,7 +37,7 @@ export class NodeHelper {
    * @returns file writable object
    */
   public static deleteLoadContextParser(
-    context_: {config: NodeDeleteConfigClass; upgradeZipHash: string},
+    context_: {config: NodeDestroyConfigClass; upgradeZipHash: string},
     contextData: any,
   ) {
     const config = context_.config;

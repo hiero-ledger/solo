@@ -69,12 +69,12 @@ NOTE: Mirror Node may not pick up the changes automatically, it might require ru
 
 ```bash
 cd <solo-root>
-npm run solo -- account create
-npm run solo -- account create
-npm run solo -- account create
-npm run solo -- account create
-npm run solo -- account create
-npm run solo -- account update -n solo-e2e --account-id 0.0.1004 --hbar-amount 78910 
+npm run solo -- ledger account create
+npm run solo -- ledger account create
+npm run solo -- ledger account create
+npm run solo -- ledger account create
+npm run solo -- ledger account create
+npm run solo -- ledger account update -n solo-e2e --account-id 0.0.1004 --hbar-amount 78910 
 ```
 
 Stop the Solo network when you are done:
