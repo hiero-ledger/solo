@@ -204,6 +204,7 @@ describe('NetworkCommand unit tests', () => {
 
       options.remoteConfig.configuration = {
         components: {changeNodePhase: sinon.stub(), getNewComponentId: sinon.stub(), addNewComponent: sinon.stub()},
+        versions: {consensusNode: '0.0.0'},
       };
 
       await options.localConfig.load();

@@ -94,7 +94,7 @@ import {type K8} from '../../integration/kube/k8.js';
 import {Base64} from 'js-base64';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {BaseCommand} from '../base.js';
-import {HEDERA_PLATFORM_VERSION} from '../../../version.js';
+import {HEDERA_PLATFORM_VERSION, MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS} from '../../../version.js';
 import {ShellRunner} from '../../core/shell-runner.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {type NodeDeleteConfigClass} from './config-interfaces/node-delete-config-class.js';
@@ -1364,7 +1364,7 @@ export class NodeCommandTasks {
         }
 
         const currentVersion: SemVer = this.remoteConfig.configuration.versions.consensusNode;
-        const versionRequirement: SemVer = new SemVer('0.63.0');
+        const versionRequirement: SemVer = new SemVer(MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS);
         return lt(currentVersion, versionRequirement);
       },
       task: async (context_): Promise<void> => {

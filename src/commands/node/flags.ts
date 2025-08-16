@@ -245,7 +245,6 @@ export const FREEZE_FLAGS = {
 export const START_FLAGS = {
   required: [flags.deployment],
   optional: [
-    flags.releaseTag,
     flags.app,
     flags.quiet,
     flags.nodeAliasesUnparsed,

@@ -1455,7 +1455,9 @@ export class NetworkCommand extends BaseCommand {
             );
           }
         }
-
+        if (context_.config.releaseTag) {
+          this.remoteConfig.configuration.versions.consensusNode = new SemVer(context_.config.releaseTag);
+        }
         await this.remoteConfig.persist();
       },
     };
