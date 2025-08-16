@@ -4,7 +4,7 @@ import {Listr, ListrContext, ListrRendererValue} from 'listr2';
 import {SoloError} from '../../core/errors/solo-error.js';
 import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
-import {Flags as flags, Flags} from '../flags.js';
+import {Flags as flags} from '../flags.js';
 import {type AnyYargs, type ArgvStruct} from '../../types/aliases.js';
 import {type CommandDefinition, SoloListr, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
@@ -12,7 +12,6 @@ import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-
 import {inject, injectable} from 'tsyringe-neo';
 import {v4 as uuid4} from 'uuid';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
-import {StringEx} from '../../business/utils/string-ex.js';
 import {ArgumentProcessor} from '../../argument-processor.js';
 import {QuickStartCommand} from './quick-start.js';
 import {QuickStartSingleDeployConfigClass} from './quick-start-single-deploy-config-class.js';
@@ -46,6 +45,9 @@ import * as helpers from '../../core/helpers.js';
 import {Duration} from '../../core/time/duration.js';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import fs from 'node:fs';
+import {ArgumentsBuilder} from '../../core/arguments-builder/arguments-builder.js';
+import * as nodeFlags from '../node/flags.js';
+import * as clusterFlags from '../cluster/flags.js';
 
 @injectable()
 export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
@@ -55,7 +57,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
 
   private static readonly SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';
 
-  private static readonly SINGLE_ADD_FLAGS_LIST: CommandFlags = {
+  public static readonly SINGLE_ADD_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.cacheDir,
@@ -72,7 +74,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     ],
   };
 
-  private static readonly SINGLE_DESTROY_FLAGS_LIST: CommandFlags = {
+  public static readonly SINGLE_DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.cacheDir,
@@ -89,22 +91,6 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
   public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {
     super();
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
-  }
-
-  private newArgv(): string[] {
-    return ['${PATH}/node', '${SOLO_ROOT}/solo.ts'];
-  }
-
-  private optionFromFlag(flag: CommandFlag): string {
-    return `--${flag.name}`;
-  }
-
-  private argvPushGlobalFlags(argv: string[], cacheDirectory: string = StringEx.EMPTY): string[] {
-    argv.push(this.optionFromFlag(Flags.devMode), this.optionFromFlag(Flags.quiet));
-    if (cacheDirectory) {
-      argv.push(this.optionFromFlag(Flags.cacheDir), cacheDirectory);
-    }
-    return argv;
   }
 
   private invokeSoloCommand(title: string, commandName: string, callback: () => string[]) {
@@ -170,124 +156,88 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             },
           },
           this.invokeSoloCommand('solo init', InitCommand.INIT_COMMAND_NAME, () => {
-            const argv: string[] = this.newArgv();
-            argv.push('init');
-            return this.argvPushGlobalFlags(argv, config.cacheDir);
+            return ArgumentsBuilder.initialize('init')
+              .setCommandFlags(InitCommand.INIT_COMMAND_FLAGS)
+              .build(config.cacheDir);
           }),
           this.invokeSoloCommand('solo cluster-ref connect', ClusterCommandHandlers.CONNECT_COMMAND, () => {
-            const argv: string[] = this.newArgv();
-            argv.push(
-              'cluster-ref',
-              'connect',
-              this.optionFromFlag(Flags.clusterRef),
-              config.clusterRef,
-              this.optionFromFlag(Flags.context),
-              config.context,
-            );
-            return this.argvPushGlobalFlags(argv);
+            return ArgumentsBuilder.initialize('cluster-ref connect')
+              .setCommandFlags(clusterFlags.CONNECT_FLAGS)
+              .setArg(flags.clusterRef, config.clusterRef)
+              .setArg(flags.context, config.context)
+              .build();
           }),
           this.invokeSoloCommand('solo deployment create', DeploymentCommand.CREATE_COMMAND, () => {
-            const argv: string[] = this.newArgv();
-            argv.push(
-              'deployment',
-              'create',
-              this.optionFromFlag(Flags.deployment),
-              config.deployment,
-              this.optionFromFlag(Flags.namespace),
-              config.namespace.name,
-            );
-            return this.argvPushGlobalFlags(argv);
+            return ArgumentsBuilder.initialize('deployment create')
+              .setCommandFlags(DeploymentCommand.CREATE_FLAGS_LIST)
+              .setArg(flags.deployment, config.deployment)
+              .setArg(flags.namespace, config.namespace.name)
+              .build();
           }),
           this.invokeSoloCommand('solo deployment add-cluster', DeploymentCommand.ADD_COMMAND, () => {
-            const argv: string[] = this.newArgv();
-            argv.push(
-              'deployment',
-              'add-cluster',
-              this.optionFromFlag(Flags.deployment),
-              config.deployment,
-              this.optionFromFlag(Flags.clusterRef),
-              config.clusterRef,
-              this.optionFromFlag(Flags.numberOfConsensusNodes),
-              config.numberOfConsensusNodes.toString(),
-            );
-            return this.argvPushGlobalFlags(argv);
+            return ArgumentsBuilder.initialize('deployment add-cluster')
+              .setCommandFlags(DeploymentCommand.ADD_CLUSTER_FLAGS_LIST)
+              .setArg(flags.deployment, config.deployment)
+              .setArg(flags.clusterRef, config.clusterRef)
+              .setArg(flags.numberOfConsensusNodes, config.numberOfConsensusNodes)
+              .build();
           }),
           this.invokeSoloCommand('solo cluster-ref setup', ClusterCommandHandlers.SETUP_COMMAND, () => {
-            const argv: string[] = this.newArgv();
-            argv.push('cluster-ref', 'setup', this.optionFromFlag(Flags.clusterRef), config.clusterRef);
-            return this.argvPushGlobalFlags(argv);
+            return ArgumentsBuilder.initialize('cluster-ref setup').setArg(flags.clusterRef, config.clusterRef).build();
           }),
           this.invokeSoloCommand('solo node keys', NodeCommandHandlers.KEYS_COMMAND, () => {
-            const argv: string[] = this.newArgv();
-            argv.push(
-              'node',
-              'keys',
-              this.optionFromFlag(Flags.deployment),
-              config.deployment,
-              this.optionFromFlag(Flags.generateGossipKeys),
-              'true',
-              this.optionFromFlag(Flags.generateTlsKeys),
-            );
-            return this.argvPushGlobalFlags(argv, config.cacheDir);
+            return ArgumentsBuilder.initialize('node keys')
+              .setCommandFlags(nodeFlags.KEYS_FLAGS)
+              .setArg(flags.deployment, config.deployment)
+              .setArg(flags.generateGossipKeys)
+              .setArg(flags.generateTlsKeys)
+              .build(config.cacheDir);
           }),
           this.invokeSoloCommand('solo network deploy', NetworkCommand.DEPLOY_COMMAND, () => {
-            const argv: string[] = this.newArgv();
-            argv.push('network', 'deploy', this.optionFromFlag(Flags.deployment), config.deployment);
-            return this.argvPushGlobalFlags(argv, config.cacheDir);
+            return ArgumentsBuilder.initialize('network deploy')
+              .setCommandFlags(NetworkCommand.DEPLOY_FLAGS_LIST)
+              .setArg(flags.deployment, config.deployment)
+              .build(config.cacheDir);
           }),
           this.invokeSoloCommand('solo node setup', NodeCommandHandlers.SETUP_COMMAND, () => {
-            const argv: string[] = this.newArgv();
-            argv.push('node', 'setup', this.optionFromFlag(Flags.deployment), config.deployment);
-            return this.argvPushGlobalFlags(argv, config.cacheDir);
+            return ArgumentsBuilder.initialize('node setup')
+              .setCommandFlags(nodeFlags.SETUP_FLAGS)
+              .setArg(flags.deployment, config.deployment)
+              .build(config.cacheDir);
           }),
           this.invokeSoloCommand('solo node start', NodeCommandHandlers.START_COMMAND, () => {
-            const argv: string[] = this.newArgv();
-            argv.push('node', 'start', this.optionFromFlag(Flags.deployment), config.deployment);
-            return this.argvPushGlobalFlags(argv);
+            return ArgumentsBuilder.initialize('node start')
+              .setCommandFlags(nodeFlags.START_FLAGS)
+              .setArg(flags.deployment, config.deployment)
+              .build();
           }),
           this.invokeSoloCommand('solo mirror-node deploy', MirrorNodeCommand.DEPLOY_COMMAND, () => {
-            const argv: string[] = this.newArgv();
-            argv.push(
-              'mirror-node',
-              'deploy',
-              this.optionFromFlag(Flags.deployment),
-              config.deployment,
-              this.optionFromFlag(Flags.clusterRef),
-              config.clusterRef,
-              this.optionFromFlag(Flags.pinger),
-              this.optionFromFlag(Flags.enableIngress),
-            );
-            return this.argvPushGlobalFlags(argv, config.cacheDir);
+            return ArgumentsBuilder.initialize('mirror-node deploy')
+              .setCommandFlags(MirrorNodeCommand.DEPLOY_FLAGS_LIST)
+              .setArg(flags.deployment, config.deployment)
+              .setArg(flags.clusterRef, config.clusterRef)
+              .setArg(flags.pinger)
+              .setArg(flags.enableIngress)
+              .build(config.cacheDir);
           }),
           this.invokeSoloCommand('solo explorer deploy', ExplorerCommand.DEPLOY_COMMAND, () => {
-            const argv: string[] = this.newArgv();
-            argv.push(
-              'explorer',
-              'deploy',
-              this.optionFromFlag(Flags.deployment),
-              config.deployment,
-              this.optionFromFlag(Flags.clusterRef),
-              config.clusterRef,
-            );
-            return this.argvPushGlobalFlags(argv, config.cacheDir);
+            return ArgumentsBuilder.initialize('explorer deploy')
+              .setCommandFlags(ExplorerCommand.DEPLOY_FLAGS_LIST)
+              .setArg(flags.deployment, config.deployment)
+              .setArg(flags.clusterRef, config.clusterRef)
+              .build(config.cacheDir);
           }),
           this.invokeSoloCommand('solo relay deploy', RelayCommand.DEPLOY_COMMAND, () => {
-            const argv: string[] = this.newArgv();
-            argv.push(
-              'relay',
-              'deploy',
-              this.optionFromFlag(Flags.deployment),
-              config.deployment,
-              this.optionFromFlag(Flags.clusterRef),
-              config.clusterRef,
-              this.optionFromFlag(Flags.nodeAliasesUnparsed),
-              'node1',
-            );
-            return this.argvPushGlobalFlags(argv);
+            return ArgumentsBuilder.initialize('relay deploy')
+              .setCommandFlags(RelayCommand.DEPLOY_FLAGS_LIST)
+              .setArg(flags.deployment, config.deployment)
+              .setArg(flags.clusterRef, config.clusterRef)
+              .setArg(flags.nodeAliasesUnparsed, 'node1')
+              .build();
           }),
           {
             title: 'Create Accounts',
-            skip: () => config.predefinedAccounts === false,
+            skip: (): boolean => config.predefinedAccounts === false,
             task: async (
               context_: QuickStartSingleDeployContext,
               task: SoloListrTaskWrapper<QuickStartSingleDeployContext>,
@@ -535,75 +485,45 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
         },
         this.invokeSoloCommand('solo explorer destroy', 'explorer destroy', (): string[] => {
-          const argv: string[] = this.newArgv();
-          argv.push(
-            'explorer',
-            'destroy',
-            this.optionFromFlag(flags.clusterRef),
-            config.clusterRef,
-            this.optionFromFlag(flags.deployment),
-            config.deployment,
-            this.optionFromFlag(flags.quiet),
-            this.optionFromFlag(flags.force),
-          );
-          return this.argvPushGlobalFlags(argv);
+          return ArgumentsBuilder.initialize('explorer destroy')
+            .setCommandFlags(ExplorerCommand.DESTROY_FLAGS_LIST)
+            .setArg(flags.clusterRef, config.clusterRef)
+            .setArg(flags.deployment, config.deployment)
+            .setForce()
+            .build();
         }),
         this.invokeSoloCommand('solo mirror-node destroy', 'mirror-node destroy', (): string[] => {
-          const argv: string[] = this.newArgv();
-          argv.push(
-            'mirror-node',
-            'destroy',
-            this.optionFromFlag(flags.clusterRef),
-            config.clusterRef,
-            this.optionFromFlag(flags.deployment),
-            config.deployment,
-            this.optionFromFlag(flags.quiet),
-            this.optionFromFlag(flags.force),
-            this.optionFromFlag(flags.devMode),
-          );
-          return this.argvPushGlobalFlags(argv);
+          return ArgumentsBuilder.initialize('mirror-node destroy')
+            .setCommandFlags(MirrorNodeCommand.DESTROY_FLAGS_LIST)
+            .setArg(flags.clusterRef, config.clusterRef)
+            .setArg(flags.deployment, config.deployment)
+            .setForce()
+            .build();
         }),
         this.invokeSoloCommand('solo relay destroy', 'relay destroy', (): string[] => {
-          const argv: string[] = this.newArgv();
-          argv.push(
-            'relay',
-            'destroy',
-            this.optionFromFlag(flags.clusterRef),
-            config.clusterRef,
-            this.optionFromFlag(flags.deployment),
-            config.deployment,
-            this.optionFromFlag(flags.nodeAliasesUnparsed),
-            'node1',
-            this.optionFromFlag(flags.quiet),
-          );
-          return this.argvPushGlobalFlags(argv);
+          return ArgumentsBuilder.initialize('relay destroy')
+            .setCommandFlags(RelayCommand.DESTROY_FLAGS_LIST)
+            .setArg(flags.clusterRef, config.clusterRef)
+            .setArg(flags.deployment, config.deployment)
+            .setArg(flags.nodeAliasesUnparsed, 'node1')
+            .build();
         }),
         this.invokeSoloCommand('solo network destroy', 'network destroy', (): string[] => {
-          const argv: string[] = this.newArgv();
-          argv.push(
-            'network',
-            'destroy',
-            this.optionFromFlag(flags.deployment),
-            config.deployment,
-            this.optionFromFlag(flags.quiet),
-            this.optionFromFlag(flags.force),
-            this.optionFromFlag(flags.deletePvcs),
-            this.optionFromFlag(flags.deleteSecrets),
-            this.optionFromFlag(flags.enableTimeout),
-          );
-          return this.argvPushGlobalFlags(argv);
+          return ArgumentsBuilder.initialize('network destroy')
+            .setCommandFlags(NetworkCommand.DESTROY_FLAGS_LIST)
+            .setArg(flags.deployment, config.deployment)
+            .setArg(flags.deleteSecrets)
+            .setArg(flags.deletePvcs)
+            .setArg(flags.enableTimeout)
+            .setForce()
+            .build();
         }),
         this.invokeSoloCommand('solo cluster-ref reset', 'cluster-ref reset', (): string[] => {
-          const argv: string[] = this.newArgv();
-          argv.push(
-            'cluster-ref',
-            'reset',
-            this.optionFromFlag(flags.clusterRef),
-            config.clusterRef,
-            this.optionFromFlag(flags.quiet),
-            this.optionFromFlag(flags.force),
-          );
-          return this.argvPushGlobalFlags(argv);
+          return ArgumentsBuilder.initialize('cluster-ref reset')
+            .setCommandFlags(clusterFlags.RESET_FLAGS)
+            .setArg(flags.clusterRef, config.clusterRef)
+            .setForce()
+            .build();
         }),
         {
           title: 'Delete cache folder',

@@ -34,6 +34,7 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Duration} from '../core/time/duration.js';
 import {Version} from '../business/utils/version.js';
+import {CommandFlags} from '../types/flag-types.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -97,7 +98,7 @@ export class RelayCommand extends BaseCommand {
 
   private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
 
-  private static readonly DEPLOY_FLAGS_LIST = {
+  public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [
       flags.chainId,
@@ -118,7 +119,7 @@ export class RelayCommand extends BaseCommand {
     ],
   };
 
-  private static readonly DESTROY_FLAGS_LIST = {
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.clusterRef],
     optional: [flags.chartDirectory, flags.nodeAliasesUnparsed, flags.quiet, flags.devMode],
   };

@@ -28,6 +28,9 @@ import {InjectTokens} from '../../src/core/dependency-injection/inject-tokens.js
 import {Argv} from '../helpers/argv-wrapper.js';
 import {type SoloListrTaskWrapper} from '../../src/types/index.js';
 import {type Pod} from '../../src/integration/kube/resources/pod/pod.js';
+import {main} from '../../src/index.js';
+import {TestArgumentsBuilder} from '../helpers/test-arguments-builder.js';
+import * as nodeFlags from '../../src/commands/node/flags.js';
 
 export function endToEndNodeKeyRefreshTest(testName: string, mode: string, releaseTag = HEDERA_PLATFORM_VERSION_TAG) {
   const namespace = NamespaceName.of(testName);
@@ -46,7 +49,7 @@ export function endToEndNodeKeyRefreshTest(testName: string, mode: string, relea
     const defaultTimeout = Duration.ofMinutes(2).toMillis();
 
     const {
-      opts: {accountManager, k8Factory, remoteConfig, logger, commandInvoker},
+      opts: {accountManager, k8Factory, remoteConfig, logger},
       cmd: {nodeCmd},
     } = bootstrapResp;
 
@@ -96,12 +99,13 @@ export function endToEndNodeKeyRefreshTest(testName: string, mode: string, relea
           if (mode === 'kill') {
             await k8Factory.default().pods().readByReference(PodReference.of(namespace, podName)).killPod();
           } else if (mode === 'stop') {
-            await commandInvoker.invoke({
-              argv: argv,
-              command: NodeCommand.COMMAND_NAME,
-              subcommand: 'stop',
-              callback: async argv => nodeCmd.handlers.stop(argv),
-            });
+            await main(
+              TestArgumentsBuilder.initializeFromArgvMapping(
+                `${NodeCommand.COMMAND_NAME} stop`,
+                nodeFlags.STOP_FLAGS,
+                argv,
+              ).build(),
+            );
 
             await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
           } else {
@@ -140,12 +144,13 @@ export function endToEndNodeKeyRefreshTest(testName: string, mode: string, relea
       function nodeRefreshShouldSucceed(nodeAlias: NodeAlias, nodeCmd: NodeCommand, argv: Argv) {
         it(`${nodeAlias} refresh should succeed`, async () => {
           try {
-            await commandInvoker.invoke({
-              argv: argv,
-              command: NodeCommand.COMMAND_NAME,
-              subcommand: 'refresh',
-              callback: async argv => nodeCmd.handlers.refresh(argv),
-            });
+            await main(
+              TestArgumentsBuilder.initializeFromArgvMapping(
+                `${NodeCommand.COMMAND_NAME} refresh`,
+                nodeFlags.REFRESH_FLAGS,
+                argv,
+              ).build(),
+            );
           } catch (error) {
             logger.showUserError(error);
             expect.fail();

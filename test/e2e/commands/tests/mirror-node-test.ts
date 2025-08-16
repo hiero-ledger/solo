@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {BaseCommandTest} from './base-command-test.js';
 import {type ClusterReferenceName, type DeploymentName, type ExtendedNetServer} from '../../../../src/types/index.js';
 import {Flags} from '../../../../src/commands/flags.js';
 import {main} from '../../../../src/index.js';
@@ -20,33 +19,29 @@ import {type BaseTestOptions} from './base-test-options.js';
 import * as constants from '../../../../src/core/constants.js';
 import fs from 'node:fs';
 import {ShellRunner} from '../../../../src/core/shell-runner.js';
+import {TestArgumentsBuilder} from '../../../helpers/test-arguments-builder.js';
+import {MirrorNodeCommand} from '../../../../src/commands/mirror-node.js';
 
-export class MirrorNodeTest extends BaseCommandTest {
+export class MirrorNodeTest {
   private static soloMirrorNodeDeployArgv(
     testName: string,
     deployment: DeploymentName,
     clusterReference: ClusterReferenceName,
     pinger: boolean,
-  ): string[] {
-    const {newArgv, argvPushGlobalFlags, optionFromFlag} = MirrorNodeTest;
-
-    const argv: string[] = newArgv();
-    argv.push(
-      'mirror-node',
-      'deploy',
-      optionFromFlag(Flags.deployment),
-      deployment,
-      optionFromFlag(Flags.clusterRef),
-      clusterReference,
-      optionFromFlag(Flags.enableIngress),
-    );
+  ): TestArgumentsBuilder {
+    const testArgumentsBuilder: TestArgumentsBuilder = TestArgumentsBuilder.initialize('mirror-node deploy', testName)
+      .setCommandFlags(MirrorNodeCommand.DEPLOY_FLAGS_LIST)
+      .setArg(Flags.deployment, deployment)
+      .setArg(Flags.clusterRef, clusterReference)
+      .setArg(Flags.enableIngress)
+      .setTestCacheDirectory()
+      .setChartDirectory();
 
     if (pinger) {
-      argv.push(optionFromFlag(Flags.pinger));
+      testArgumentsBuilder.setArg(Flags.pinger);
     }
 
-    argvPushGlobalFlags(argv, testName, true, true);
-    return argv;
+    return testArgumentsBuilder;
   }
 
   private static async forwardRestServicePort(
@@ -225,7 +220,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, verifyPingerStatus} = MirrorNodeTest;
 
     it(`${testName}: mirror node deploy`, async (): Promise<void> => {
-      await main(soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger));
+      await main(soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger).build());
       await verifyMirrorNodeDeployWasSuccessful(
         contexts,
         namespace,
@@ -261,27 +256,30 @@ export class MirrorNodeTest extends BaseCommandTest {
       consensusNodesCount,
       pinger,
     } = options;
-    const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, verifyPingerStatus, optionFromFlag} =
-      MirrorNodeTest;
+    const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, verifyPingerStatus} = MirrorNodeTest;
 
     it(`${testName}: mirror node deploy with external database`, async (): Promise<void> => {
-      const argv = soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger);
-
-      // Add external database flags
-      argv.push(
-        optionFromFlag(Flags.enableIngress),
-        optionFromFlag(Flags.useExternalDatabase),
-        optionFromFlag(Flags.externalDatabaseHost),
-        this.postgresHostFqdn,
-        optionFromFlag(Flags.externalDatabaseOwnerUsername),
-        this.postgresUsername,
-        optionFromFlag(Flags.externalDatabaseOwnerPassword),
-        this.postgresPassword,
-        optionFromFlag(Flags.externalDatabaseReadonlyUsername),
-        this.postgresReadonlyUsername,
-        optionFromFlag(Flags.externalDatabaseReadonlyPassword),
-        this.postgresReadonlyPassword,
+      const baseArguments: TestArgumentsBuilder = soloMirrorNodeDeployArgv(
+        testName,
+        deployment,
+        clusterReferenceNameArray[1],
+        pinger,
       );
+
+      const argv: string[] = TestArgumentsBuilder.initializeFromExisting(
+        'mirror-node deploy',
+        testName,
+        baseArguments.flagArguments,
+      )
+        .setCommandFlags(MirrorNodeCommand.DEPLOY_FLAGS_LIST)
+        .setArg(Flags.enableIngress)
+        .setArg(Flags.useExternalDatabase)
+        .setArg(Flags.externalDatabaseHost, this.postgresHostFqdn)
+        .setArg(Flags.externalDatabaseOwnerUsername, this.postgresUsername)
+        .setArg(Flags.externalDatabaseOwnerPassword, this.postgresPassword)
+        .setArg(Flags.externalDatabaseReadonlyUsername, this.postgresReadonlyUsername)
+        .setArg(Flags.externalDatabaseReadonlyPassword, this.postgresReadonlyPassword)
+        .build();
 
       await main(argv);
       await verifyMirrorNodeDeployWasSuccessful(
