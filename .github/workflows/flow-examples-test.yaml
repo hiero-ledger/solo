@@ -144,9 +144,6 @@ jobs:
           version: 3.39.2
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install Dependencies
-        run: npm install
-
       - name: Build Application
         run: task build
 
