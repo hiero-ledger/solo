@@ -1,0 +1,144 @@
+##
+# Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+name: "Test Examples"
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  generate_matrix:
+    name: Generate Test Matrix
+    runs-on: hiero-solo-linux-medium
+    outputs:
+      matrix: ${{ steps.set_matrix.outputs.matrix }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Generate Matrix
+        id: set_matrix
+        run: |
+          # Read the JSON file and convert it to a compact format
+          JSON_CONTENT=$(cat .github/workflows/support/examples-test-matrix.json | jq -c .)
+          echo "Generated matrix: $JSON_CONTENT"
+          
+          # Set the output variable 'matrix' with the JSON content
+          echo "matrix=$JSON_CONTENT" >> $GITHUB_OUTPUT
+
+  test-examples:
+    name: Test Example (${{ matrix.example.name }})
+    runs-on: hiero-solo-linux-large
+    needs:
+      - generate_matrix
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        example: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Setup Node
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
+        with:
+          node-version: 18
+          cache: npm
+
+      - name: Setup Task
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Application
+        run: task build
+
+      - name: Install Kubectl
+        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # pinned to v4.0.0
+        with:
+          version: 'v1.27.3'
+        id: install
+
+      - name: Run Example Test - ${{ matrix.example.name }}
+        timeout-minutes: 45
+        working-directory: examples/${{ matrix.example.directory }}
+        run: |
+          echo "Running example test in directory: ${{ matrix.example.directory }}"
+          echo "Current directory: $(pwd)"
+          
+          # Check if Taskfile.yml exists
+          if [ ! -f "Taskfile.yml" ]; then
+            echo "Warning: No Taskfile.yml found in ${{ matrix.example.directory }}"
+            exit 1
+          fi
+          
+          # Run the example
+          echo "Starting task..."
+          task
+          
+          echo "Task completed successfully"
+
+      - name: Cleanup Example - ${{ matrix.example.name }}
+        if: always()
+        timeout-minutes: 10
+        working-directory: examples/${{ matrix.example.directory }}
+        run: |
+          echo "Cleaning up example in directory: ${{ matrix.example.directory }}"
+          
+          # Check if Taskfile.yml exists and has destroy task
+          if [ -f "Taskfile.yml" ] && grep -q "destroy:" Taskfile.yml; then
+            echo "Running task destroy..."
+            task destroy || echo "Destroy task failed or not available, continuing..."
+          else
+            echo "No destroy task found in Taskfile.yml, skipping cleanup"
+          fi
+
+      - name: Upload Logs to GitHub
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: solo-logs-${{ matrix.example.directory }}
+          path: ~/.solo/logs/*
+          if-no-files-found: ignore
