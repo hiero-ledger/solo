@@ -18,13 +18,37 @@ name: "Test Examples"
 
 on:
   workflow_dispatch:
+    inputs:
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "20.19.3"
   workflow_call:
+    inputs:
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "20.19.3"  
   pull_request:
+    inputs:
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "20.19.3"  
     types:
       - opened
       - reopened
       - synchronize
   push:
+    inputs:
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "20.19.3"  
     branches:
       - 02480-D-lauch-migration 
 defaults:
@@ -80,10 +104,9 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Setup Node
-        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 18
-          cache: npm
+          node-version: ${{ inputs.node-version }}
 
       - name: Setup Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
