@@ -49,16 +49,16 @@ tasks:
           {{ .SOLO_COMMAND }} init --dev
 
       - cmd: |
-          # Solo cluster-ref connect
-          {{ .SOLO_COMMAND }} cluster-ref connect --cluster-ref {{ .SOLO_CLUSTER_REF }} --context kind-{{.SOLO_CLUSTER_NAME}} --dev
+          # Solo cluster-ref config connect
+          {{ .SOLO_COMMAND }} cluster-ref config connect --cluster-ref {{ .SOLO_CLUSTER_REF }} --context kind-{{.SOLO_CLUSTER_NAME}} --dev
 
       - cmd: |
-          # Solo deployment create
-          {{ .SOLO_COMMAND }} deployment create -n {{ .SOLO_NAMESPACE }} --deployment {{ .SOLO_DEPLOYMENT }} --dev
+          # Solo deployment config create
+          {{ .SOLO_COMMAND }} deployment config create -n {{ .SOLO_NAMESPACE }} --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
       - cmd: |
-          # Solo deployment add-cluster
-          {{ .SOLO_COMMAND }} deployment add-cluster --deployment {{ .SOLO_DEPLOYMENT }} --cluster-ref {{ .SOLO_CLUSTER_REF }} \
+          # Solo deployment cluster attach
+          {{ .SOLO_COMMAND }} deployment cluster attach --deployment {{ .SOLO_DEPLOYMENT }} --cluster-ref {{ .SOLO_CLUSTER_REF }} \
           --num-consensus-nodes 2 --dev
 
       - cmd: |
@@ -71,45 +71,45 @@ tasks:
           echo "contracts.evm.ethTransaction.zeroHapiFees.enabled=false" >> {{ .APPLICATION_PROPERTIES }}
 
       - cmd: |
-          # Solo node keys
-          {{ .SOLO_COMMAND }} node keys --gossip-keys --tls-keys --deployment {{ .SOLO_DEPLOYMENT }} --dev
+          # Solo keys consensus generate
+          {{ .SOLO_COMMAND }} keys consensus generate --gossip-keys --tls-keys --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
       - cmd: |
-          # Solo cluster-ref setup
-          {{ .SOLO_COMMAND }} cluster-ref setup -s {{ .SOLO_CLUSTER_SETUP_NAMESPACE }} --dev
+          # Solo cluster-ref config setup
+          {{ .SOLO_COMMAND }} cluster-ref config setup -s {{ .SOLO_CLUSTER_SETUP_NAMESPACE }} --dev
 
       - cmd: |
-          # Solo network deploy
-          {{ .SOLO_COMMAND }} network deploy --deployment {{ .SOLO_DEPLOYMENT }} --release-tag {{ .CN_VERSION }} \
+          # Solo consensus network deploy
+          {{ .SOLO_COMMAND }} consensus network deploy --deployment {{ .SOLO_DEPLOYMENT }} --release-tag {{ .CN_VERSION }} \
           --pvcs {{.APPLICATION_PROPERTIES_FLAG}} --dev
 
       - cmd: |
-          # Solo node setup
-          {{ .SOLO_COMMAND }} node setup --deployment {{ .SOLO_DEPLOYMENT }} --release-tag {{ .CN_VERSION }} \
+          # Solo consensus node setup
+          {{ .SOLO_COMMAND }} consensus node setup --deployment {{ .SOLO_DEPLOYMENT }} --release-tag {{ .CN_VERSION }} \
           {{.LOCAL_BUILD_FLAG}} --dev
 
       - cmd: |
-          # Solo node start
-          {{ .SOLO_COMMAND }} node start --deployment {{ .SOLO_DEPLOYMENT }} --dev
+          # Solo consensus node start
+          {{ .SOLO_COMMAND }} consensus node start --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
       - cmd: |
-          # Solo mirror-node deploy
-          {{ .SOLO_COMMAND }} mirror-node deploy --deployment {{ .SOLO_DEPLOYMENT }} \
+          # Solo mirror node add
+          {{ .SOLO_COMMAND }} mirror node add --deployment {{ .SOLO_DEPLOYMENT }} \
           --cluster-ref {{ .SOLO_CLUSTER_REF }} --enable-ingress --dev
 
       - cmd: |
-          # Solo explorer deploy
-          {{ .SOLO_COMMAND }} explorer deploy --deployment {{ .SOLO_DEPLOYMENT }} --cluster-ref {{ .SOLO_CLUSTER_REF }} \
+          # Solo explorer node add
+          {{ .SOLO_COMMAND }} explorer node add --deployment {{ .SOLO_DEPLOYMENT }} --cluster-ref {{ .SOLO_CLUSTER_REF }} \
           --dev
 
       - cmd: |
-          # Solo relay deploy
-          {{ .SOLO_COMMAND }} relay deploy --node-aliases node1 --deployment {{ .SOLO_DEPLOYMENT }} \
+          # Solo relay node deploy
+          {{ .SOLO_COMMAND }} relay node deploy --node-aliases node1 --deployment {{ .SOLO_DEPLOYMENT }} \
           --cluster-ref {{ .SOLO_CLUSTER_REF }} --dev
 
       - cmd: |
-          # Solo node update-prepare
-          {{ .SOLO_COMMAND }} node update-prepare --deployment {{ .SOLO_DEPLOYMENT }} --node-alias node2 \
+          # Solo consensus dev-node-update prepare
+          {{ .SOLO_COMMAND }} consensus dev-node-update prepare --deployment {{ .SOLO_DEPLOYMENT }} --node-alias node2 \
           --release-tag {{ .CN_VERSION }} --output-dir {{ .PREPARE_OUTPUT_DIR }} --dev --new-account-number 0.0.5
 
       - cmd: |
@@ -120,15 +120,15 @@ tasks:
 
       - cmd: |
           # Prepare Upgrade
-          {{ .SOLO_COMMAND }} node prepare-upgrade --deployment {{ .SOLO_DEPLOYMENT }} --skip-node-alias node2 --dev 
+          {{ .SOLO_COMMAND }} consensus dev-freeze prepare-upgrade --deployment {{ .SOLO_DEPLOYMENT }} --skip-node-alias node2 --dev 
 
       - cmd: |
           # Freeze Upgrade
-          {{ .SOLO_COMMAND }} node freeze-upgrade --deployment {{ .SOLO_DEPLOYMENT }} --skip-node-alias node2 --dev 
+          {{ .SOLO_COMMAND }} consensus dev-freeze freeze-upgrade --deployment {{ .SOLO_DEPLOYMENT }} --skip-node-alias node2 --dev 
 
       - cmd: |
-          # Solo node update-execute
-          {{ .SOLO_COMMAND }} node update-execute --deployment {{ .SOLO_DEPLOYMENT }} --input-dir {{ .PREPARE_OUTPUT_DIR }} \
+          # Solo consensus dev-node-update execute
+          {{ .SOLO_COMMAND }} consensus dev-node-update execute --deployment {{ .SOLO_DEPLOYMENT }} --input-dir {{ .PREPARE_OUTPUT_DIR }} \
           {{ .LOCAL_BUILD_FLAG }} --dev
 
       - cmd: |
@@ -152,25 +152,25 @@ tasks:
     dir: ../..
     cmds:
       - cmd: |
-          # Solo node stop
-          {{ .SOLO_COMMAND }} node stop --deployment {{ .SOLO_DEPLOYMENT }} --dev
+          # Solo consensus node stop
+          {{ .SOLO_COMMAND }} consensus node stop --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
       - cmd: |
-          # Solo relay destroy
-          {{ .SOLO_COMMAND }} relay destroy --deployment {{ .SOLO_DEPLOYMENT }} --node-aliases node1 --dev \
+          # Solo relay node destroy
+          {{ .SOLO_COMMAND }} relay node destroy --deployment {{ .SOLO_DEPLOYMENT }} --node-aliases node1 --dev \
           --cluster-ref {{ .SOLO_CLUSTER_REF }}
 
       - cmd: |
-          # Solo explorer destroy
-          {{ .SOLO_COMMAND }} explorer destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev
+          # Solo explorer node destroy
+          {{ .SOLO_COMMAND }} explorer node destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev
 
       - cmd: |
-          # Solo mirror-node destroy
-          {{ .SOLO_COMMAND }} mirror-node destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev
+          # Solo mirror node destroy
+          {{ .SOLO_COMMAND }} mirror node destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev
 
       - cmd: |
-          # Solo network destroy
-          {{ .SOLO_COMMAND }} network destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev --delete-pvcs --delete-secrets -q
+          # Solo consensus network destroy
+          {{ .SOLO_COMMAND }} consensus network destroy --deployment {{ .SOLO_DEPLOYMENT }} --force --dev --delete-pvcs --delete-secrets -q
 
       - cmd: |
           # Delete Kind cluster

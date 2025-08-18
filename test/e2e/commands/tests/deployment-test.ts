@@ -11,6 +11,7 @@ import {type ConsensusNodeStateSchema} from '../../../../src/data/schema/model/r
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
+import {DeploymentCommandDefinition} from '../../../../src/commands/command-definitions/deployment-command-definition.js';
 
 export class DeploymentTest extends BaseCommandTest {
   private static soloDeploymentCreateArgv(
@@ -24,8 +25,9 @@ export class DeploymentTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      'deployment',
-      'create',
+      DeploymentCommandDefinition.COMMAND_NAME,
+      DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+      DeploymentCommandDefinition.CONFIG_CREATE,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.namespace),
@@ -43,11 +45,11 @@ export class DeploymentTest extends BaseCommandTest {
     const {testName, testLogger, deployment, namespace, realm, shard} = options;
     const {soloDeploymentCreateArgv} = DeploymentTest;
 
-    it(`${testName}: solo deployment create`, async (): Promise<void> => {
-      testLogger.info(`${testName}: beginning solo deployment create`);
+    it(`${testName}: solo deployment config create`, async (): Promise<void> => {
+      testLogger.info(`${testName}: beginning solo deployment config create`);
       await main(soloDeploymentCreateArgv(testName, deployment, namespace, realm, shard));
       // TODO check that the deployment was created
-      testLogger.info(`${testName}: finished solo deployment create`);
+      testLogger.info(`${testName}: finished solo deployment config create`);
     });
   }
 
@@ -61,8 +63,9 @@ export class DeploymentTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      'deployment',
-      'add-cluster',
+      DeploymentCommandDefinition.COMMAND_NAME,
+      DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_NAME,
+      DeploymentCommandDefinition.CLUSTER_ATTACH,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.clusterRef),
@@ -78,8 +81,8 @@ export class DeploymentTest extends BaseCommandTest {
     const {testName, testLogger, deployment, clusterReferenceNameArray, consensusNodesCount} = options;
     const {soloDeploymentAddClusterArgv} = DeploymentTest;
 
-    it(`${testName}: solo deployment add-cluster`, async (): Promise<void> => {
-      testLogger.info(`${testName}: beginning solo deployment add-cluster`);
+    it(`${testName}: solo deployment cluster attach`, async (): Promise<void> => {
+      testLogger.info(`${testName}: beginning solo deployment cluster attach`);
       for (const element of clusterReferenceNameArray) {
         await main(soloDeploymentAddClusterArgv(testName, deployment, element, 1));
       }
@@ -93,7 +96,7 @@ export class DeploymentTest extends BaseCommandTest {
       for (const [index, element] of clusterReferenceNameArray.entries()) {
         expect(consensusNodes[index].metadata.cluster).to.equal(element);
       }
-      testLogger.info(`${testName}: finished solo deployment add-cluster`);
+      testLogger.info(`${testName}: finished solo deployment cluster attach`);
     });
   }
 }

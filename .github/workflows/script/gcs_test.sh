@@ -118,7 +118,7 @@ SOLO_DEPLOYMENT=solo-e2e
 kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 
 if [ "${storageType}" == "minio_only" ]; then
-  cd examples
+  cd scripts
   SOLO_DEPLOYMENT=solo-deployment
   SOLO_DEPLOYMENT=solo-deployment task default-with-mirror
   cd -
@@ -128,31 +128,31 @@ else
   echo "script_dir: ${script_dir}"
   # Use custom kind config file to expose ports used by explorer ingress controller NodePort configuration
   kind create cluster -n "${SOLO_CLUSTER_NAME}" --config "${script_dir}"/kind-config.yaml
-  npm run solo-test -- init
-  npm run solo-test -- cluster-ref setup \
+  npm run solo-test -- init --dev
+  npm run solo-test -- cluster-ref config setup \
     -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
-  npm run solo-test -- cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+  npm run solo-test -- cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
 
-  npm run solo-test -- deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+  npm run solo-test -- deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
 
-  npm run solo-test -- deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
+  npm run solo-test -- deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
 
-  npm run solo-test -- node keys --gossip-keys --tls-keys -i node1 --deployment "${SOLO_DEPLOYMENT}"
+  npm run solo-test -- keys consensus generate --gossip-keys --tls-keys -i node1 --deployment "${SOLO_DEPLOYMENT}"
 
-  npm run solo-test -- network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1 \
+  npm run solo-test -- consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1 \
     --storage-type "${storageType}" \
     "${STORAGE_OPTIONS[@]}"
 
-  npm run solo-test -- node setup -i node1 --deployment "${SOLO_DEPLOYMENT}"
-  npm run solo-test -- node start -i node1 --deployment "${SOLO_DEPLOYMENT}"
-  npm run solo-test -- mirror-node deploy  --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --cluster-ref kind-${SOLO_CLUSTER_NAME} \
+  npm run solo-test -- consensus node setup -i node1 --deployment "${SOLO_DEPLOYMENT}"
+  npm run solo-test -- consensus node start -i node1 --deployment "${SOLO_DEPLOYMENT}"
+  npm run solo-test -- mirror node add  --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --cluster-ref kind-${SOLO_CLUSTER_NAME} \
     --storage-type "${storageType}" \
     "${MIRROR_STORAGE_OPTIONS[@]}" \
     --ingress-controller-value-file "${script_dir}"/mirror-ingress-controller-values.yaml \
     --enable-ingress --domain-name localhost \
     --pinger
 
-  npm run solo-test -- explorer deploy -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" \
+  npm run solo-test -- explorer node add -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" \
     --cluster-ref kind-${SOLO_CLUSTER_NAME} --tls-cluster-issuer-type self-signed --enable-explorer-tls \
     --ingress-controller-value-file "${script_dir}"/explorer-ingress-controller-values.yaml \
     --enable-ingress --domain-name localhost
@@ -176,9 +176,9 @@ fi
 
 grpcurl -plaintext -d '{"file_id": {"fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes
 
-node examples/create-topic.js
+node scripts/create-topic.js
 
-npm run solo-test -- node stop -i node1 --deployment "${SOLO_DEPLOYMENT}"
+npm run solo-test -- consensus node stop -i node1 --deployment "${SOLO_DEPLOYMENT}"
 
 if [ "${storageType}" == "aws_only" ] || [ "${storageType}" == "gcs_only" ]; then
   echo "Waiting for backup uploader to run"
@@ -196,7 +196,7 @@ if [ "${storageType}" == "aws_only" ] || [ "${storageType}" == "gcs_only" ]; the
   fi
 fi
 
-npm run solo-test -- network destroy --deployment "${SOLO_DEPLOYMENT}" --force -q
+npm run solo-test -- consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force -q
 
 echo "-----------------------------------------"
 echo "Solo test finished successfully"

@@ -20,7 +20,7 @@ kubectl delete namespace ${SOLO_NAMESPACE}
 solo init -n $SOLO_NAMESPACE -i node1,node2,node3 -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 ```
 
-then, you can jump to section 3 with the `solo network deploy...` steps.
+then, you can jump to section 3 with the `solo consensus network deploy...` steps.
 
 NOTE: if you continuously are having issues, delete the cluster and start over:
 
@@ -151,7 +151,7 @@ solo init -n $SOLO_NAMESPACE -i node1,node2,node3 -s "${SOLO_CLUSTER_SETUP_NAMES
 You need to create the gossip and TLS keys for your network nodes.
 
 ```bash
-solo node keys --gossip-keys --tls-keys
+solo keys consensus generate --gossip-keys --tls-keys
 ```
 
 #### Checkpoint
@@ -245,7 +245,7 @@ onboard
 
 ```bash
 # pvcs (Persistent Volume Claims are needed to do the Node Add to retain data when pods are brought down)
-solo network deploy --pvcs --prometheus-svc-monitor
+solo consensus network deploy --pvcs --prometheus-svc-monitor
 ```
 
 #### Checkpoint
@@ -263,7 +263,7 @@ In k9s type: `:pods` to switch back to the pods screen
 ### 3.3a (Option 1) Setup consensus nodes with platform version
 
 ```bash
-solo node setup
+solo consensus node setup
 ```
 
 #### Checkpoint
@@ -275,7 +275,7 @@ solo node setup
 ```bash
 # make sure your build path is relative or fully qualified where `hedera-services` is pointing to the root 
 # directory of the folder containing your hashgraph/hedera-services repo
-solo node setup --local-build-path ../hedera-services/hedera-node/data
+solo consensus node setup --local-build-path ../hedera-services/hedera-node/data
 ```
 
 #### Checkpoint
@@ -285,7 +285,7 @@ solo node setup --local-build-path ../hedera-services/hedera-node/data
 ### 3.4. Start Hedera consensus nodes
 
 ```bash
-solo node start
+solo consensus node start
 ```
 
 #### Checkpoint
@@ -297,7 +297,7 @@ solo node start
 ### 3.5 Deploy mirror node components
 
 ```bash
-solo mirror-node deploy
+solo mirror node add
 ```
 
 #### Checkpoint
@@ -313,7 +313,7 @@ Watch your `k9s` terminal and ensure status of all pods (with prefix `fullstack-
 Here we are deploying a single relay pointing to all three nodes. If needed you may deploy more relays by specifying the node IDs using the `-i` switch, but for this workshop demo purpose just one is enough.
 
 ```bash
-solo relay deploy -i node1,node2,node3
+solo relay node add -i node1,node2,node3
 ```
 
 #### Checkpoint
@@ -353,8 +353,8 @@ NOTE: click Transactions and then Dashboards and the URL will update from mainne
 ### 4.2 Create some transaction data to view in Hedera Explorer
 
 ```bash
-solo account create
-solo account create
+solo ledger account create
+solo ledger account create
 ```
 
 #### Checkpoint
@@ -370,7 +370,7 @@ View Hedera Explorer in your browser and click transactions: <http://localhost:8
 ### 5.1 (Option 1) Run Solo Node Add
 
 ```bash
-solo node add --gossip-keys --tls-keys
+solo consensus node add --gossip-keys --tls-keys
 ```
 
 #### Checkpoint
@@ -405,7 +405,7 @@ In IntelliJ Ultimate set a breakpoint, example `java/com/hedera/node/app/Service
 ### 5.4 (Option 2) Run Solo Node Add with Debugger Attached
 
 ```bash
-solo node add --debug-nodeid node4 --gossip-keys --tls-keys
+solo consensus node add --debug-nodeid node4 --gossip-keys --tls-keys
 ```
 
 When you see the message `Please attach JVM debugger now`

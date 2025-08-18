@@ -10,6 +10,12 @@ To get the address book from the ledger, this requires a port forward to be setu
 
 > \[!NOTE]
 > Due to file size, the Yahcli.jar file is stored with Git LFS (Large File Storage).  You will need to install Git LFS prior to cloning this repository to automatically download the Yahcli.jar file. For instructions on how to install see: <https://docs.github.com/en/repositories/working-with-files/managing-large-files/installing-git-large-file-storage>
+> 
+> After cloning the repository, navigate to this directory and run the following command to pull the Yahcli.jar file:
+> ```bash
+> git lfs install
+> git lfs pull
+> ```
 
 ```bash
 # try and detect if the port forward is already setup
@@ -20,10 +26,21 @@ ps -ef | grep 50211 | grep -v grep
 kubectl port-forward -n "${SOLO_NAMESPACE}" pod/network-node1-0 50211:50211
 ```
 
-To get the address book from the ledger, run the following command:
+Navigate to the `examples/address-book` directory in the Solo repository:
 
 ```bash
 cd <solo-root>/examples/address-book
+```
+
+If you don't already have a running Solo network, you can start one by running the following command:
+
+```bash
+task start
+```
+
+To get the address book from the ledger, run the following command:
+
+```bash
 task get:ledger:addressbook
 ```
 
@@ -52,10 +69,16 @@ NOTE: Mirror Node may not pick up the changes automatically, it might require ru
 
 ```bash
 cd <solo-root>
-npm run solo -- account create
-npm run solo -- account create
-npm run solo -- account create
-npm run solo -- account create
-npm run solo -- account create
-npm run solo -- account update -n solo-e2e --account-id 0.0.1004 --hbar-amount 78910 
+npm run solo -- ledger account create
+npm run solo -- ledger account create
+npm run solo -- ledger account create
+npm run solo -- ledger account create
+npm run solo -- ledger account create
+npm run solo -- ledger account update -n solo-e2e --account-id 0.0.1004 --hbar-amount 78910 
+```
+
+Stop the Solo network when you are done:
+
+```bash
+task destroy
 ```

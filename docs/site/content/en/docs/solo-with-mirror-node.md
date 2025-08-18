@@ -20,16 +20,16 @@ rm -Rf ~/.solo
 kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
 solo init
-solo cluster-ref setup --cluster-setup-namespace "${SOLO_CLUSTER_SETUP_NAMESPACE}"
-solo cluster-ref connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
-solo deployment create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 2
-solo node keys --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2
-solo network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
-solo node setup     --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
-solo node start     --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
-solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --enable-ingress
-solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} 
+solo cluster-ref config setup --cluster-setup-namespace "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+solo cluster-ref config connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+solo deployment config create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 2
+solo keys consensus generate --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2
+solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
+solo consensus node setup     --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
+solo consensus node start     --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
+solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --enable-ingress
+solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME}
 
 ```
 
@@ -40,8 +40,8 @@ Or you can use Task tool to deploy Solo network with Mirror Node with a single c
 Next, you can try to create a few accounts with Solo and see the transactions in the Explorer.
 
 ```bash
-solo account create --deployment solo-deployment  --hbar-amount 100
-solo account create --deployment solo-deployment  --hbar-amount 100
+solo ledger account create --deployment solo-deployment --hbar-amount 100
+solo ledger account create --deployment solo-deployment --hbar-amount 100
 ```
 
 Or you can use Hedera JavaScript SDK examples to create topic, submit message and subscribe to the topic.

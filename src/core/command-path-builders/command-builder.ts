@@ -3,16 +3,17 @@
 import {SoloError} from '../errors/solo-error.js';
 import {type AnyYargs, type ArgvStruct} from '../../types/aliases.js';
 import {type SoloLogger} from '../logging/solo-logger.js';
-import {type BaseCommand} from '../../commands/base.js';
 import {type CommandDefinition} from '../../types/index.js';
+import {type CommandFlags} from '../../types/flag-types.js';
+import {Flags as flags} from '../../commands/flags.js';
 
 export class Subcommand {
   public constructor(
     public readonly name: string,
     public readonly description: string,
-    public readonly commandHandlerClass: BaseCommand,
+    public readonly commandHandlerClass: any,
     public readonly commandHandler: (argv: ArgvStruct) => Promise<boolean>,
-    public readonly builder?: (yargs: AnyYargs) => void,
+    public readonly flags: CommandFlags,
   ) {}
 }
 
@@ -66,7 +67,7 @@ export class CommandBuilder {
                 const handlerDefinition: CommandDefinition = {
                   command: subcommand.name,
                   desc: subcommand.description,
-                  handler: async argv => {
+                  handler: async (argv): Promise<void> => {
                     const commandPath: string = `${commandName} ${commandGroup.name} ${subcommand.name}`;
 
                     logger.info(`==== Running '${commandPath}' ===`);
@@ -85,8 +86,11 @@ export class CommandBuilder {
                   },
                 };
 
-                if (subcommand.builder) {
-                  handlerDefinition.builder = subcommand.builder;
+                if (subcommand.flags) {
+                  handlerDefinition.builder = (y: AnyYargs): void => {
+                    flags.setRequiredCommandFlags(y, ...subcommand.flags.required);
+                    flags.setOptionalCommandFlags(y, ...subcommand.flags.optional);
+                  };
                 }
 
                 yargs.command(handlerDefinition);

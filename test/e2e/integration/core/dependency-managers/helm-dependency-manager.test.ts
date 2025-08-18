@@ -25,18 +25,18 @@ describe('HelmDependencyManager', () => {
 
   it('should return helm version', () => {
     const helmDependencyManager = new HelmDependencyManager(undefined, undefined, temporaryDirectory);
-    expect(helmDependencyManager.getHelmVersion()).to.equal(version.HELM_VERSION);
+    expect(helmDependencyManager.getRequiredVersion()).to.equal(version.HELM_VERSION);
   });
 
   it('should be able to check when helm not installed', () => {
     const helmDependencyManager = new HelmDependencyManager(undefined, undefined, temporaryDirectory);
-    expect(helmDependencyManager.isInstalled()).not.to.be.ok;
+    expect(helmDependencyManager.isInstalledLocally()).not.to.be.ok;
   });
 
   it('should be able to check when helm is installed', () => {
     const helmDependencyManager = new HelmDependencyManager(undefined, undefined, temporaryDirectory);
-    fs.writeFileSync(helmDependencyManager.getHelmPath(), '');
-    expect(helmDependencyManager.isInstalled()).to.be.ok;
+    fs.writeFileSync(helmDependencyManager.getExecutablePath(), '');
+    expect(helmDependencyManager.isInstalledLocally()).to.be.ok;
   });
 
   describe('Helm Installation Tests', () => {
@@ -57,11 +57,11 @@ describe('HelmDependencyManager', () => {
         fs.rmSync(temporaryDirectory, {recursive: true});
       }
 
-      helmDependencyManager.uninstall();
-      expect(helmDependencyManager.isInstalled()).not.to.be.ok;
+      helmDependencyManager.uninstallLocal();
+      expect(helmDependencyManager.isInstalledLocally()).not.to.be.ok;
 
       expect(await helmDependencyManager.install(getTestCacheDirectory())).to.be.true;
-      expect(helmDependencyManager.isInstalled()).to.be.ok;
+      expect(helmDependencyManager.isInstalledLocally()).to.be.ok;
 
       fs.rmSync(temporaryDirectory, {recursive: true});
     });
@@ -79,7 +79,7 @@ describe('HelmDependencyManager', () => {
         process.platform,
         process.arch,
       );
-      helmDependencyManager.uninstall();
+      helmDependencyManager.uninstallLocal();
       runStub = sinon.stub(helmDependencyManager, 'run');
     });
 
@@ -97,12 +97,13 @@ describe('HelmDependencyManager', () => {
       runStub.withArgs('which helm').resolves([globalHelmPath]);
       runStub.withArgs(`${globalHelmPath} version --short`).resolves([`${version.HELM_VERSION}+gabcdef`]);
 
+      // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
       const result = await helmDependencyManager.isInstalledGloballyAndMeetsRequirements();
       expect(result).to.be.true;
 
       expect(await helmDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(fs.existsSync(PathEx.join(temporaryDirectory, 'helm'))).to.be.ok;
-      expect(helmDependencyManager.getHelmPath()).to.equal(PathEx.join(temporaryDirectory, 'helm'));
+      expect(helmDependencyManager.getExecutablePath()).to.equal(PathEx.join(temporaryDirectory, 'helm'));
 
       // Clean up dummy global helm binary
       fs.rmSync(globalHelmPath);
@@ -113,13 +114,13 @@ describe('HelmDependencyManager', () => {
       runStub.withArgs('which helm').resolves(['/usr/local/bin/helm']);
       runStub.withArgs('/usr/local/bin/helm version --short').resolves(['v0.1.0+gabcdef']);
       runStub.withArgs(`${PathEx.join(temporaryDirectory, 'helm')} version --short`).resolves(['v0.1.0+gabcdef']);
-
-      const result = await helmDependencyManager.isInstalledGloballyAndMeetsRequirements();
+      // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
+      const result: boolean = await helmDependencyManager.isInstalledGloballyAndMeetsRequirements();
       expect(result).to.be.false;
 
       expect(await helmDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(fs.existsSync(PathEx.join(temporaryDirectory, 'helm'))).to.be.ok;
-      expect(helmDependencyManager.getHelmPath()).to.equal(PathEx.join(temporaryDirectory, 'helm'));
+      expect(helmDependencyManager.getExecutablePath()).to.equal(PathEx.join(temporaryDirectory, 'helm'));
     });
   });
 });

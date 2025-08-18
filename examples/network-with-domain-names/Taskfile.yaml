@@ -1,42 +1,111 @@
 version: 3
-includes:
-  main:
-    taskfile: ../../Taskfile.yml
-    flatten: true
 vars:
   use_port_forwards: "true"
 
   # Provide the domain names here
-  node1_domain_name: "node1"
-  mirror_node_domain_name: "mirror-node"
-  explorer_domain_name: "explorer"
-  relay_domain_name: "relay"
-env:
+  NODE_IDENTIFIERS: "node1"
+  NODE1_DOMAIN_NAME: "node1"
+  MIRROR_NODE_DOMAIN_NAME: "mirror-node"
+  EXPLORER_DOMAIN_NAME: "explorer"
+  RELAY_DOMAIN_NAME: "relay"
   SOLO_NETWORK_SIZE: "1"
-
-  # Comment out to don't use domain name
-  NETWORK_DEPLOY_EXTRA_FLAGS: '--domain-names node1={{ .node1_domain_name }}'
-  NODE_SETUP_EXTRA_FLAGS: '--domain-names node1={{ .node1_domain_name }}'
-  MIRROR_NODE_DEPLOY_EXTRA_FLAGS: '--domain-name {{ .mirror_node_domain_name }}'
-  EXPLORER_DEPLOY_EXTRA_FLAGS: '--domain-name {{ .explorer_domain_name }}'
-  RELAY_NODE_DEPLOY_EXTRA_FLAGS: '--domain-name {{ .relay_domain_name }}'
-
-  SOLO_NAMESPACE: solo-e2e
-  SOLO_DEPLOYMENT: solo-deployment
-  HEDERA_SERVICES_ROOT: "/Users/user/source/hiero-consensus-node"
-  ENABLE_EXPLORER_TLS_FLAG: "--enable-explorer-tls"
-  TLS_CLUSTER_ISSUER_TYPE_FLAG: "--tls-cluster-issuer-type acme-staging"
-  ENABLE_EXPLORER_INGRESS: "--enable-ingress"
-  ENABLE_MIRROR_INGRESS: "--enable-ingress"
-  EXPLORER_NAME_SPACE: "explorer-name-space"
-  EXPLORER_DEPLOYMENT: "explorer-deployment"
-  EXPLORER_CLUSTER_CONTEXT: "kind-solo-cluster"
+  DEPLOYMENT: "deployment-network-with-domain-names"
+  NAMESPACE: "namespace-network-with-domain-names"
+  CLUSTER_NAME: "solo-cluster"
+  CONTEXT: "kind-solo-cluster"
+  CLUSTER_REFERENCE: "kind-solo-cluster"
 
 tasks:
-  test-domain-name:
-    desc: setups the network and tests it
-    deps:
-      - task: "init"
+  default:
+    desc: Run a full standalone Solo network with block node, mirror node, and relay
     cmds:
-      - task: "default-with-relay"
-      - ( cd ../sdk-network-connection && npm i && node solo-network-connection.js )
+      # Install Solo CLI
+      - cmd: npm i @hashgraph/solo@latest
+
+      # Create Kind cluster
+      - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
+
+      # Wait for control plane
+      - cmd: sleep 10 # wait for control plane to come up
+
+      # Set kubectl context
+      - cmd: kubectl config set-context {{ .CONTEXT }}
+
+      # Solo init
+      - cmd: npx solo init
+
+      # Solo cluster-ref config connect
+      - cmd: npx solo cluster-ref config connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
+
+      # Solo deployment config create
+      - cmd: npx solo deployment config create --deployment {{ .DEPLOYMENT }} --namespace {{ .NAMESPACE }}
+
+      # Solo deployment cluster attach
+      - cmd: |
+          npx solo deployment cluster attach --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
+
+      # Solo cluster-ref config setup
+      - cmd: npx solo cluster-ref config setup --cluster-ref {{ .CLUSTER_REFERENCE }}
+
+      # Solo node keys
+      - cmd: |
+          npx solo keys consensus generate --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
+          --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      # Solo network deploy with domain name
+      - cmd: |
+          npx solo consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
+          --domain-names node1={{ .NODE1_DOMAIN_NAME }}
+
+      # Solo node setup with domain name
+      - cmd: |
+          npx solo consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }} \
+          --domain-names node1={{ .NODE1_DOMAIN_NAME }}
+
+      # Solo node start
+      - cmd: npx solo consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      # Solo mirror node add with domain name
+      - cmd: |
+          npx solo mirror node add --deployment {{ .DEPLOYMENT }} --pinger \
+          --domain-name {{ .MIRROR_NODE_DOMAIN_NAME }} --enable-ingress
+
+      # Solo relay node add with domain name
+      - cmd: |
+          npx solo relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }} \
+          --domain-name {{ .RELAY_DOMAIN_NAME }}
+
+      # Solo explorer node add with domain name
+      - cmd: |
+          npx solo explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          --domain-name {{ .EXPLORER_DOMAIN_NAME }} --enable-explorer-tls --tls-cluster-issuer-type acme-staging \
+          --enable-ingress --namespace {{ .NAMESPACE }} --mirrorNamespace ${NAMESPACE}
+
+      # Get explorer service name
+      - cmd: |
+          explorer_svc="$(kubectl get svc -l app.kubernetes.io/component=hiero-explorer -n ${NAMESPACE} \
+          --output json | jq -r '.items[].metadata.name')"
+
+      # Run SDK network connection test
+      - cmd: ( cd ./sdk-network-connection && npm i && node solo-network-connection.js )
+  destroy:
+    desc: Destroy the Solo network with block node
+    cmds:
+      # solo mirror node destroy
+      - cmd: npx solo mirror node destroy --deployment {{ .DEPLOYMENT }} --force
+
+      # solo relay node destroy
+      - cmd: npx solo relay node destroy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      # solo explorer node destroy
+      - cmd: npx solo explorer node destroy --deployment {{ .DEPLOYMENT }}
+
+      # solo consensus node stop
+      - cmd: npx solo consensus node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      # solo consensus network destroy
+      - cmd: npx solo consensus network destroy --deployment {{ .DEPLOYMENT }} --force
+
+      # Delete Kind cluster
+      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
