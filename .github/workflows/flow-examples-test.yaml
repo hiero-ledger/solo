@@ -32,23 +32,11 @@ on:
         required: false
         default: "20.19.3"  
   pull_request:
-    inputs:
-      node-version:
-        description: "NodeJS Version:"
-        type: string
-        required: false
-        default: "20.19.3"  
     types:
       - opened
       - reopened
       - synchronize
   push:
-    inputs:
-      node-version:
-        description: "NodeJS Version:"
-        type: string
-        required: false
-        default: "20.19.3"  
     branches:
       - 02480-D-lauch-migration 
 defaults:
@@ -106,7 +94,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: ${{ inputs.node-version }}
+          node-version: ${{ inputs.node-version || '20.19.3' }}
+          cache: npm
 
       - name: Install Kubectl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # pinned to v4.0.0
