@@ -27,7 +27,7 @@ import {
   PrivateKey,
   type TransactionReceipt,
   type TransactionResponse,
-} from '@hashgraph/sdk';
+} from '@hiero-ledger/sdk';
 import {type BaseTestOptions} from './base-test-options.js';
 
 export class NodeTest extends BaseCommandTest {

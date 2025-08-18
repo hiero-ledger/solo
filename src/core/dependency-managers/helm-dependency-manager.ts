@@ -1,26 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import fs from 'node:fs';
-import * as util from 'node:util';
-import {MissingArgumentError} from '../errors/missing-argument-error.js';
-import * as helpers from '../helpers.js';
 import * as constants from '../constants.js';
-import {type PackageDownloader} from '../package-downloader.js';
-import {type Zippy} from '../zippy.js';
-import {Templates} from '../templates.js';
 import * as version from '../../../version.js';
-import {ShellRunner} from '../shell-runner.js';
-import * as semver from 'semver';
-import {OS_WIN32, OS_WINDOWS} from '../constants.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../dependency-injection/container-helper.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
+import {BaseDependencyManager} from './base-dependency-manager.js';
+import {Zippy} from '../zippy.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {PackageDownloader} from '../package-downloader.js';
+import util from 'node:util';
+import path from 'node:path';
+import fs from 'node:fs';
+import {SoloError} from '../errors/solo-error.js';
 
-// constants required by HelmDependencyManager
-const HELM_RELEASE_BASE_URL = 'https://get.helm.sh';
-const HELM_ARTIFACT_TEMPLATE = 'helm-%s-%s-%s.%s';
+const HELM_RELEASE_BASE_URL: string = 'https://get.helm.sh';
+const HELM_ARTIFACT_TEMPLATE: string = 'helm-%s-%s-%s.%s';
 
+// Helm uses different file extensions based on OS
 const HELM_ARTIFACT_EXT: Map<string, string> = new Map()
   .set(constants.OS_DARWIN, 'tar.gz')
   .set(constants.OS_LINUX, 'tar.gz')
@@ -30,168 +27,99 @@ const HELM_ARTIFACT_EXT: Map<string, string> = new Map()
  * Helm dependency manager installs or uninstalls helm client at SOLO_HOME_DIR/bin directory
  */
 @injectable()
-export class HelmDependencyManager extends ShellRunner {
-  private readonly osPlatform: string;
-  private readonly osArch: string;
-  private localHelmPath: string;
-  private globalHelmPath: string;
-  private readonly artifactName: string;
-  private readonly helmURL: string;
-  private readonly checksumURL: string;
-  private cachedGlobalExecutablePath: string;
-
-  constructor(
-    @inject(InjectTokens.PackageDownloader) private readonly downloader?: PackageDownloader,
+export class HelmDependencyManager extends BaseDependencyManager {
+  public constructor(
+    @inject(InjectTokens.PackageDownloader) downloader?: PackageDownloader,
     @inject(InjectTokens.Zippy) private readonly zippy?: Zippy,
-    @inject(InjectTokens.HelmInstallationDir) private readonly installationDirectory?: string,
+    @inject(InjectTokens.HelmInstallationDir) installationDirectory?: string,
     @inject(InjectTokens.OsPlatform) osPlatform?: NodeJS.Platform,
     @inject(InjectTokens.OsArch) osArch?: string,
-    @inject(InjectTokens.HelmVersion) private readonly helmVersion?: string,
+    @inject(InjectTokens.HelmVersion) helmVersion?: string,
   ) {
-    super();
-    this.installationDirectory = patchInject(
+    // Patch injected values to handle undefined values
+    installationDirectory = patchInject(
       installationDirectory,
       InjectTokens.HelmInstallationDir,
-      this.constructor.name,
+      HelmDependencyManager.name,
     );
-    this.osPlatform = patchInject(osPlatform, InjectTokens.OsPlatform, this.constructor.name);
-    this.osArch = patchInject(osArch, InjectTokens.OsArch, this.constructor.name);
-    this.helmVersion = patchInject(helmVersion, InjectTokens.HelmVersion, this.constructor.name);
+    osPlatform = patchInject(osPlatform, InjectTokens.OsPlatform, HelmDependencyManager.name);
+    osArch = patchInject(osArch, InjectTokens.OsArch, HelmDependencyManager.name);
+    helmVersion = patchInject(helmVersion, InjectTokens.HelmVersion, HelmDependencyManager.name);
+    downloader = patchInject(downloader, InjectTokens.PackageDownloader, HelmDependencyManager.name);
 
-    if (!installationDirectory) {
-      throw new MissingArgumentError('installation directory is required');
-    }
-
-    this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
-    this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
-    this.installationDirectory = installationDirectory;
-    // Node.js uses 'win32' for windows in package.json os field, but helm uses 'windows'
-    this.osPlatform = osPlatform === OS_WIN32 ? OS_WINDOWS : osPlatform;
-    this.osArch = ['x64', 'x86-64'].includes(osArch) ? 'amd64' : osArch;
-    this.localHelmPath = Templates.installationPath(constants.HELM, this.osPlatform, this.installationDirectory);
-
-    const fileExtension = HELM_ARTIFACT_EXT.get(this.osPlatform);
-    this.artifactName = util.format(
-      HELM_ARTIFACT_TEMPLATE,
-      this.helmVersion,
-      this.osPlatform,
-      this.osArch,
-      fileExtension,
+    // Call the base constructor with the Helm-specific parameters
+    super(
+      downloader,
+      installationDirectory,
+      osPlatform,
+      osArch,
+      helmVersion || version.HELM_VERSION,
+      constants.HELM,
+      HELM_RELEASE_BASE_URL,
     );
-    this.helmURL = `${HELM_RELEASE_BASE_URL}/${this.artifactName}`;
-    this.checksumURL = `${HELM_RELEASE_BASE_URL}/${this.artifactName}.sha256sum`;
-  }
 
-  getHelmPath() {
-    return this.localHelmPath;
-  }
-
-  isInstalled() {
-    return fs.existsSync(this.localHelmPath);
+    this.zippy = patchInject(zippy, InjectTokens.Zippy, HelmDependencyManager.name);
   }
 
   /**
-   * Uninstall helm from solo bin folder
+   * Get the Helm artifact name based on version, OS, and architecture
    */
-  uninstall() {
-    if (this.isInstalled()) {
-      fs.rmSync(this.localHelmPath);
-    }
+  protected getArtifactName(): string {
+    const fileExtension: string = HELM_ARTIFACT_EXT.get(this.osPlatform) || 'tar.gz';
+    return util.format(HELM_ARTIFACT_TEMPLATE, this.getRequiredVersion(), this.osPlatform, this.osArch, fileExtension);
   }
 
-  async isInstalledGloballyAndMeetsRequirements(): Promise<boolean> {
-    const path: false | string = await this.getGlobalExecutablePath();
-    if (path && (await this.installationMeetsRequirements(path))) {
-      this.globalHelmPath = path;
-      return true;
-    }
-    return false;
-  }
-
-  async getGlobalExecutablePath(): Promise<false | string> {
-    try {
-      if (this.cachedGlobalExecutablePath) {
-        return this.cachedGlobalExecutablePath;
-      }
-      const cmd: string = this.osPlatform === constants.OS_WINDOWS ? 'where' : 'which';
-      const path: string[] = await this.run(`${cmd} ${constants.HELM}`);
-      if (path.length === 0) {
-        return false;
-      }
-      this.cachedGlobalExecutablePath = path[0];
-      return path[0];
-    } catch {
-      return false;
-    }
-  }
-
-  public async install(temporaryDirectory: string = helpers.getTemporaryDirectory()): Promise<boolean> {
-    let helmSource: string;
-    let extractedDirectory: string;
-    if (await this.isInstalledGloballyAndMeetsRequirements()) {
-      // Copy global helm to local installation directory
-      if (!fs.existsSync(this.installationDirectory)) {
-        fs.mkdirSync(this.installationDirectory);
-      }
-      this.uninstall();
-      this.localHelmPath = Templates.installationPath(constants.HELM, this.osPlatform, this.installationDirectory);
-      fs.cpSync(this.globalHelmPath, this.localHelmPath);
-      return this.isInstalled();
-    }
-
-    extractedDirectory = PathEx.join(temporaryDirectory, 'extracted-helm');
-    helmSource = PathEx.join(extractedDirectory, `${this.osPlatform}-${this.osArch}`, constants.HELM);
-
-    const packageFile = await this.downloader.fetchPackage(this.helmURL, this.checksumURL, temporaryDirectory);
+  /**
+   * Process the downloaded Helm package by extracting it and finding the executable
+   */
+  protected async processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string> {
+    // Extract the archive
     if (this.osPlatform === constants.OS_WINDOWS) {
-      this.zippy.unzip(packageFile, extractedDirectory);
-      // append .exe for windows
-      helmSource = PathEx.join(extractedDirectory, `${this.osPlatform}-${this.osArch}`, `${constants.HELM}.exe`);
+      this.zippy!.unzip(packageFilePath, temporaryDirectory);
     } else {
-      this.zippy.untar(packageFile, extractedDirectory);
+      this.zippy!.untar(packageFilePath, temporaryDirectory);
     }
 
-    if (!fs.existsSync(this.installationDirectory)) {
-      fs.mkdirSync(this.installationDirectory);
+    // Find the Helm executable inside the extracted directory
+    const helmExecutablePath: string = path.join(
+      temporaryDirectory,
+      `${this.osPlatform}-${this.osArch}`,
+      this.osPlatform === constants.OS_WINDOWS ? `${constants.HELM}.exe` : constants.HELM,
+    );
+
+    // Ensure the extracted file exists
+    if (!fs.existsSync(helmExecutablePath)) {
+      const executablePath: string = PathEx.join(
+        temporaryDirectory,
+        this.osPlatform === constants.OS_WINDOWS ? `${constants.HELM}.exe` : constants.HELM,
+      );
+
+      if (!fs.existsSync(executablePath)) {
+        throw new Error(`Helm executable not found in extracted archive: ${executablePath}`);
+      }
+
+      return executablePath;
     }
 
-    // install new helm
-    this.uninstall();
-    this.localHelmPath = Templates.installationPath(constants.HELM, this.osPlatform, this.installationDirectory);
-    fs.cpSync(helmSource, this.localHelmPath);
-
-    if (fs.existsSync(extractedDirectory)) {
-      fs.rmSync(extractedDirectory, {recursive: true});
-    }
-
-    return this.isInstalled();
+    return helmExecutablePath;
   }
 
-  async installationMeetsRequirements(path: string): Promise<boolean> {
+  public async getVersion(executablePath: string): Promise<string> {
     try {
-      const output: string[] = await this.run(`${path} version --short`);
+      const output: string[] = await this.run(`${executablePath} version --short`);
       const parts: string[] = output[0].split('+');
       this.logger.debug(`Found ${constants.HELM}:${parts[0]}`);
-      return semver.gte(parts[0], version.HELM_VERSION);
-    } catch (error: Error | any) {
-      this.logger.error(`Failed to check global helm version: ${error.message}`);
+      return parts[0];
+    } catch (error: any) {
+      throw new SoloError('Failed to check helm version', error);
     }
-    return false;
   }
 
-  async checkVersion(shouldInstall = true) {
-    if (!this.isInstalled()) {
-      if (shouldInstall) {
-        await this.install();
-      } else {
-        return false;
-      }
-    }
-
-    return this.installationMeetsRequirements(this.localHelmPath);
+  protected getDownloadURL(): string {
+    return `${this.downloadBaseUrl}/${this.artifactName}`;
   }
 
-  getHelmVersion() {
-    return version.HELM_VERSION;
+  protected getChecksumURL(): string {
+    return `${this.downloadURL}.sha256sum`;
   }
 }

@@ -2,7 +2,6 @@
 
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
-import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
@@ -161,11 +160,10 @@ export class ExplorerCommand extends BaseCommand {
   };
 
   private static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
-    required: [],
+    required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.cacheDir,
       flags.chartDirectory,
-      flags.clusterRef,
       flags.enableIngress,
       flags.ingressControllerValueFile,
       flags.enableExplorerTls,
@@ -174,7 +172,6 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerVersion,
       flags.mirrorNamespace,
       flags.namespace,
-      flags.deployment,
       flags.profileFile,
       flags.profileName,
       flags.quiet,
@@ -189,7 +186,7 @@ export class ExplorerCommand extends BaseCommand {
 
   private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.devMode],
   };
 
   private async prepareHederaExplorerValuesArg(
@@ -697,7 +694,7 @@ export class ExplorerCommand extends BaseCommand {
     const self = this;
     let lease: Lock;
 
-    const tasks = new Listr<ExplorerDestroyContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -790,15 +787,22 @@ export class ExplorerCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      'explorer destroy',
     );
 
-    try {
-      await tasks.run();
-      self.logger.debug('explorer destruction has completed');
-    } catch (error) {
-      throw new SoloError(`Error destroy explorer: ${error.message}`, error);
-    } finally {
-      await lease?.release();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError(`Error destroy explorer: ${error.message}`, error);
+      } finally {
+        await lease?.release();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease?.release();
+      });
     }
 
     return true;

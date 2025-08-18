@@ -2,7 +2,6 @@
 
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
-import {Listr} from 'listr2';
 import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
@@ -61,6 +60,7 @@ import {Version} from '../business/utils/version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {SoloKubeSecret} from '../integration/kube/resources/secret/secrets.js';
 import {Duration} from '../core/time/duration.js';
+// Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
   isChartInstalled: boolean;
@@ -170,9 +170,9 @@ export class MirrorNodeCommand extends BaseCommand {
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
-  private static readonly UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
+  public static readonly UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
 
-  private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
+  public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.cacheDir,
@@ -234,9 +234,9 @@ export class MirrorNodeCommand extends BaseCommand {
     ],
   };
 
-  private static readonly DESTROY_FLAGS_LIST = {
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.devMode],
   };
 
   private async prepareValuesArg(config: MirrorNodeDeployConfigClass | MirrorNodeUpgradeConfigClass): Promise<string> {
@@ -1117,7 +1117,7 @@ export class MirrorNodeCommand extends BaseCommand {
     const self = this;
     let lease: Lock;
 
-    const tasks = new Listr<MirrorNodeDestroyContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -1199,6 +1199,23 @@ export class MirrorNodeCommand extends BaseCommand {
         {
           title: 'Uninstall mirror ingress controller',
           task: async context_ => {
+            await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .ingressClasses()
+              .delete(constants.MIRROR_INGRESS_CLASS_NAME);
+
+            if (
+              await this.k8Factory
+                .getK8(context_.config.clusterContext)
+                .configMaps()
+                .exists(context_.config.namespace, 'ingress-controller-leader-' + constants.MIRROR_INGRESS_CLASS_NAME)
+            ) {
+              await this.k8Factory
+                .getK8(context_.config.clusterContext)
+                .configMaps()
+                .delete(context_.config.namespace, 'ingress-controller-leader-' + constants.MIRROR_INGRESS_CLASS_NAME);
+            }
+
             await this.chartManager.uninstall(
               context_.config.namespace,
               constants.INGRESS_CONTROLLER_RELEASE_NAME,
@@ -1225,24 +1242,24 @@ export class MirrorNodeCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      'mirror-node destroy',
     );
 
-    try {
-      await tasks.run();
-      self.logger.debug('mirror node destruction has completed');
-    } catch (error) {
-      throw new SoloError(`Error destroying mirror node: ${error.message}`, error);
-    } finally {
+    if (tasks.isRoot()) {
       try {
-        await lease.release();
+        await tasks.run();
       } catch (error) {
-        self.logger.error(`Error releasing lease: ${error.message}`, error);
+        throw new SoloError(`Error destroying mirror node: ${error.message}`, error);
+      } finally {
+        await this.accountManager?.close().catch();
+        await lease?.release();
       }
-      try {
-        await self.accountManager.close();
-      } catch (error) {
-        self.logger.error(`Error closing account manager: ${error.message}`, error);
-      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await self.accountManager?.close().catch();
+        await lease?.release();
+      });
     }
 
     return true;

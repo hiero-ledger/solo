@@ -7,7 +7,7 @@ import {IllegalArgumentError} from './errors/illegal-argument-error.js';
 import {MissingArgumentError} from './errors/missing-argument-error.js';
 import {SoloError} from './errors/solo-error.js';
 import * as constants from './constants.js';
-import {type AccountId} from '@hashgraph/sdk';
+import {type AccountId} from '@hiero-ledger/sdk';
 import {type IP, type NodeAlias, type NodeAliases, type NodeId} from '../types/aliases.js';
 import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {GrpcProxyTlsEnums} from './enumerations.js';
@@ -159,7 +159,8 @@ export class Templates {
   ) {
     switch (dep) {
       case constants.HELM:
-      case constants.KIND: {
+      case constants.KIND:
+      case constants.KUBECTL: {
         if (osPlatform === constants.OS_WINDOWS) {
           return PathEx.join(installationDirectory, `${dep}.exe`);
         }

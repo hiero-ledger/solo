@@ -2,7 +2,7 @@
 
 import {Templates} from '../../core/templates.js';
 import * as constants from '../../core/constants.js';
-import {AccountId, PrivateKey} from '@hashgraph/sdk';
+import {AccountId, PrivateKey} from '@hiero-ledger/sdk';
 import {SoloError} from '../../core/errors/solo-error.js';
 import * as helpers from '../../core/helpers.js';
 import {checkNamespace} from '../../core/helpers.js';

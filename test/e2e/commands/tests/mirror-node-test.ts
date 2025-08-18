@@ -177,11 +177,21 @@ export class MirrorNodeTest extends BaseCommandTest {
     const portForwarder: ExtendedNetServer = await MirrorNodeTest.forwardRestServicePort(contexts, namespace);
     try {
       const transactionsEndpoint: string = 'http://localhost:5551/api/v1/transactions';
-      const firstResponse = await fetch(transactionsEndpoint);
+      // force to fetch new data instead of using cache
+      const fetchOptions = {
+        cache: 'no-cache' as RequestCache,
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      };
+
+      const firstResponse = await fetch(transactionsEndpoint, fetchOptions);
       const firstData = await firstResponse.json();
       console.log(`firstData = ${JSON.stringify(firstData, null, 2)}`);
       await sleep(Duration.ofSeconds(15));
-      const secondResponse = await fetch(transactionsEndpoint);
+      const secondResponse = await fetch(transactionsEndpoint, fetchOptions);
       const secondData = await secondResponse.json();
       console.log(`secondData = ${JSON.stringify(secondData, null, 2)}`);
       expect(firstData.transactions).to.not.be.undefined;
@@ -322,7 +332,7 @@ export class MirrorNodeTest extends BaseCommandTest {
           constants.PODS_READY_DELAY,
         );
 
-      const initScriptPath: string = 'examples/external-database-test/scripts/init.sh';
+      const initScriptPath: string = 'scripts/external-database/init.sh';
 
       // check if initScriptPath exist, otherwise throw error
       if (!fs.existsSync(initScriptPath)) {

@@ -47,7 +47,7 @@ function check_port_forward ()
   # run background task for few minutes
   for i in {1..20}
   do
-    echo "Check port forward i = $i out of 20" >> port-forward.log
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - Check port forward i = $i out of 20" >> port-forward.log
     ps -ef |grep port-forward >> port-forward.log
     sleep 10
   done &
@@ -99,7 +99,7 @@ function start_sdk_test ()
     log_and_exit $result
   fi
   result=0
-  node examples/create-topic.js || result=$?
+  node scripts/create-topic.js || result=$?
   cd -
   if [[ $result -ne 0 ]]; then
     echo "JavaScript SDK test failed with exit code $result"
