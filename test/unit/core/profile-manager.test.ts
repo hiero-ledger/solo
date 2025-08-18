@@ -215,7 +215,7 @@ describe('ProfileManager', () => {
         expect(valuesYaml.hedera.configMaps.applicationEnv).to.equal(fileContents);
       });
 
-      it(`should determine mirror-node chart values [profile = ${input.profileName}]`, async () => {
+      it(`should determine mirror node chart values [profile = ${input.profileName}]`, async () => {
         configManager.setFlag(flags.profileFile, input.profileFile);
         configManager.setFlag(flags.cacheDir, getTestCacheDirectory('ProfileManager'));
         configManager.setFlag(flags.releaseTag, version.HEDERA_PLATFORM_VERSION);

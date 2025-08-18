@@ -8,7 +8,7 @@ import {type ConfigManager} from '../../../src/core/config-manager.js';
 import {K8Client} from '../../../src/integration/kube/k8-client/k8-client.js';
 import {BaseCommand} from '../../../src/commands/base.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
-import sinon from 'sinon';
+import sinon, {type SinonStub, type SinonStubbedInstance} from 'sinon';
 import {container} from 'tsyringe-neo';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {resetForTest} from '../../test-container.js';
@@ -21,6 +21,7 @@ import {type HelmClient} from '../../../src/integration/helm/helm-client.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../../../src/business/runtime-state/api/remote-config-runtime-state-api.js';
 import {RemoteConfigRuntimeState} from '../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
+import {type CommandFlag} from '../../../src/types/flag-types.js';
 
 describe('BaseCommand', () => {
   let helm: HelmClient;
@@ -75,14 +76,14 @@ describe('BaseCommand', () => {
       await expect(baseCmd.run('echo')).to.eventually.not.be.null;
     });
     it('getConfig tracks property usage', () => {
-      const flagsList = [flags.releaseTag, flags.tlsClusterIssuerType, flags.valuesFile];
-      const argv = Argv.initializeEmpty();
+      const flagsList: CommandFlag[] = [flags.releaseTag, flags.tlsClusterIssuerType, flags.valuesFile];
+      const argv: Argv = Argv.initializeEmpty();
       argv.setArg(flags.releaseTag, 'releaseTag1');
       argv.setArg(flags.tlsClusterIssuerType, 'type2');
       argv.setArg(flags.valuesFile, 'file3');
       configManager.update(argv.build());
 
-      const extraVariables = ['var1', 'var2'];
+      const extraVariables: string[] = ['var1', 'var2'];
 
       interface newClassInstance {
         releaseTag: string;
@@ -93,8 +94,8 @@ describe('BaseCommand', () => {
         getUnusedConfigs: () => string[];
       }
 
-      const NEW_CLASS1_NAME = 'newClassInstance1';
-      const newClassInstance1 = baseCmd.configManager.getConfig(
+      const NEW_CLASS1_NAME: string = 'newClassInstance1';
+      const newClassInstance1: newClassInstance = baseCmd.configManager.getConfig(
         NEW_CLASS1_NAME,
         flagsList,
         extraVariables,
@@ -106,8 +107,8 @@ describe('BaseCommand', () => {
       expect(newClassInstance1.var2).to.equal('');
       expect(baseCmd.configManager.getUnusedConfigs(NEW_CLASS1_NAME)).to.deep.equal([]);
 
-      const NEW_CLASS2_NAME = 'newClassInstance2';
-      const newClassInstance2 = baseCmd.configManager.getConfig(
+      const NEW_CLASS2_NAME: string = 'newClassInstance2';
+      const newClassInstance2: newClassInstance = baseCmd.configManager.getConfig(
         NEW_CLASS2_NAME,
         flagsList,
         extraVariables,
@@ -122,8 +123,8 @@ describe('BaseCommand', () => {
         flags.valuesFile.constName,
       ]);
 
-      const NEW_CLASS3_NAME = 'newClassInstance3';
-      const newClassInstance3 = baseCmd.configManager.getConfig(
+      const NEW_CLASS3_NAME: string = 'newClassInstance3';
+      const newClassInstance3: newClassInstance = baseCmd.configManager.getConfig(
         NEW_CLASS3_NAME,
         flagsList,
         extraVariables,
@@ -137,25 +138,29 @@ describe('BaseCommand', () => {
         'var2',
       ]);
 
-      const newClassInstance4 = baseCmd.configManager.getConfig('newClassInstance4', []) as newClassInstance;
+      const newClassInstance4: newClassInstance = baseCmd.configManager.getConfig(
+        'newClassInstance4',
+        [],
+      ) as newClassInstance;
       expect(newClassInstance4.getUnusedConfigs()).to.deep.equal([]);
     });
   });
 
   describe('get consensus nodes', () => {
     before(() => {
-      const testLogger = sinon.stub();
-      const helm = sinon.stub();
-      const chartManager = sinon.stub();
-      const configManager = sinon.stub();
-      const depManager = sinon.stub();
-      const localConfig = sinon.stub() as unknown as LocalConfigRuntimeState;
+      const testLogger: SinonStub = sinon.stub();
+      const helm: SinonStub = sinon.stub();
+      const chartManager: SinonStub = sinon.stub();
+      const configManager: SinonStub = sinon.stub();
+      const depManager: SinonStub = sinon.stub();
+      const localConfig: LocalConfigRuntimeState = sinon.stub() as unknown as LocalConfigRuntimeState;
 
       // @ts-expect-error - TS2540: to mock
       localConfig.clusterRefs = sandbox.stub().returns({cluster: 'context1', cluster2: 'context2'});
-      const remoteConfig = sinon.createStubInstance(RemoteConfigRuntimeState);
+      const remoteConfig: SinonStubbedInstance<RemoteConfigRuntimeState> =
+        sinon.createStubInstance(RemoteConfigRuntimeState);
 
-      const mockConsensusNodes = [
+      const mockConsensusNodes: ConsensusNode[] = [
         new ConsensusNode(
           'name' as NodeAlias,
           0,

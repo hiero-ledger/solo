@@ -183,7 +183,7 @@ cli: # in order to support requirement R9
       platformReleaseTag: v0.49.0
       namespace: solo-e2e
       #...
-  - command: [solo network deploy -t v0.49.0 -i node0,node1,node3]
+  - command: [solo consensus network deploy -t v0.49.0 -i node0,node1,node3]
     executedAt: 2024-04-22T11:23:32Z
     executedBy: xxx@swirldslabs.com  
     flags: # a snapshot of the flags

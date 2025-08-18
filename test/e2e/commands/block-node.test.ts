@@ -13,7 +13,7 @@ import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
-import {BlockNodeCommand} from '../../../src/commands/block-node.js';
+import {type BlockNodeCommand} from '../../../src/commands/block-node.js';
 import {ComponentTypes} from '../../../src/core/config/remote/enumerations/component-types.js';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
@@ -25,6 +25,7 @@ import * as SemVer from 'semver';
 import {type ArgvStruct} from '../../../src/types/aliases.js';
 import {type BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
 import {TEST_LOCAL_BLOCK_NODE_VERSION} from '../../../version-test.js';
+import {BlockCommandDefinition} from '../../../src/commands/command-definitions/block-command-definition.js';
 
 // eslint-disable-next-line @typescript-eslint/typedef
 const execAsync = promisify(exec);
@@ -98,9 +99,9 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
       try {
         await commandInvoker.invoke({
           argv: argvClone,
-          command: BlockNodeCommand.COMMAND_NAME,
-          subcommand: 'node add',
-          // @ts-expect-error to access private property
+          command: BlockCommandDefinition.COMMAND_NAME,
+          subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
+          action: BlockCommandDefinition.NODE_ADD,
           callback: async (argv: ArgvStruct): Promise<boolean> => blockNodeCommand.add(argv),
         });
 
@@ -115,9 +116,9 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
 
       await commandInvoker.invoke({
         argv: argv,
-        command: BlockNodeCommand.COMMAND_NAME,
-        subcommand: 'node add',
-        // @ts-expect-error to access private property
+        command: BlockCommandDefinition.COMMAND_NAME,
+        subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: BlockCommandDefinition.NODE_ADD,
         callback: async (argv: {_: string[]} & Record<string, any>): Promise<boolean> => blockNodeCommand.add(argv),
       });
 
@@ -157,9 +158,9 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
 
       await commandInvoker.invoke({
         argv: argv,
-        command: BlockNodeCommand.COMMAND_NAME,
-        subcommand: 'node destroy',
-        // @ts-expect-error to access private property
+        command: BlockCommandDefinition.COMMAND_NAME,
+        subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: BlockCommandDefinition.NODE_DESTROY,
         callback: async (argv: {_: string[]} & Record<string, any>): Promise<boolean> => blockNodeCommand.destroy(argv),
       });
 

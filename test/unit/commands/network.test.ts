@@ -231,7 +231,6 @@ describe('NetworkCommand unit tests', () => {
         // @ts-expect-error - TS2341: to mock
         networkCommand.getBlockNodes = sinon.stub().returns([]);
 
-        // @ts-expect-error - TS2341: to access private property
         await networkCommand.deploy(argv.build());
 
         expect(options.chartManager.upgrade.args[0][0].name).to.equal('solo-e2e');
@@ -257,7 +256,6 @@ describe('NetworkCommand unit tests', () => {
         // @ts-expect-error - TS2341: to mock
         networkCommand.getBlockNodes = sinon.stub().returns([]);
 
-        // @ts-expect-error - TS2341: to access private property
         await networkCommand.deploy(argv.build());
         expect(options.chartManager.upgrade.args[0][0].name).to.equal('solo-e2e');
         expect(options.chartManager.upgrade.args[0][1]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
