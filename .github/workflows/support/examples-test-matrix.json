@@ -2,6 +2,6 @@
   {
     "name": "Node Create Transaction",
     "directory": "node-create-transaction",
-    "local-java-build": false
+    "local-java-build": true
   }
 ]
