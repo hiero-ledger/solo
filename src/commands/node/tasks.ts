@@ -1354,7 +1354,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public setGrpcWebEndpoint(): SoloListrTask<NodeStartContext> {
+  public setGrpcWebEndpoint(nodeAliasesProperty: string): SoloListrTask<NodeStartContext> {
     return {
       title: 'set gRPC Web endpoint',
       skip: (): boolean => {
@@ -1371,7 +1371,7 @@ export class NodeCommandTasks {
           context_.config.deployment,
         );
 
-        for (const nodeAlias of context_.config.nodeAliases) {
+        for (const nodeAlias of context_.config[nodeAliasesProperty]) {
           const networkNodeService: NetworkNodeServices = serviceMap.get(nodeAlias);
 
           const cluster: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
@@ -1957,6 +1957,7 @@ export class NodeCommandTasks {
         };
         config.nodeAlias = lastNodeAlias as NodeAlias;
         config.allNodeAliases.push(lastNodeAlias as NodeAlias);
+        config.newNodeAliases = [lastNodeAlias as NodeAlias];
       },
     };
   }
@@ -2715,10 +2716,6 @@ export class NodeCommandTasks {
             .setGossipCaCertificate(context_.signingCertDer)
             .setCertificateHash(context_.tlsCertHash)
             .setAdminKey(context_.adminKey.publicKey);
-
-          if (config.grpcWebProxyEndpoint) {
-            nodeCreateTx = nodeCreateTx.setGrpcWebProxyEndpoint(config.grpcWebProxyEndpoint);
-          }
 
           nodeCreateTx = nodeCreateTx.freezeWith(config.nodeClient);
           const signedTx = await nodeCreateTx.sign(context_.adminKey);

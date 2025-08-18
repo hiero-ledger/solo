@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type NodeAlias, type NodeAliases} from '../../../types/aliases.js';
-import {type PrivateKey, type ServiceEndpoint} from '@hashgraph/sdk';
+import {type PrivateKey} from '@hashgraph/sdk';
 import {type CheckedNodesConfigClass, type NodeCommonConfigWithNodeAlias} from './node-common-config-class.js';
 import {type Client} from '@hashgraph/sdk';
 import {type ClusterReferenceName} from '../../../types/index.js';
@@ -19,11 +19,11 @@ export interface NodeAddConfigClass extends NodeCommonConfigWithNodeAlias, Check
   generateTlsKeys: boolean;
   gossipEndpoints: string;
   grpcEndpoints: string;
-  grpcWebProxyEndpoint: ServiceEndpoint;
   localBuildPath: string;
   releaseTag: string;
   adminKey: PrivateKey;
   allNodeAliases: NodeAliases;
+  newNodeAliases: NodeAliases;
   curDate: Date;
   freezeAdminPrivateKey: string;
   keysDir: string;

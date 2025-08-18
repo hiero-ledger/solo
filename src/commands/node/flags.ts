@@ -152,7 +152,6 @@ const COMMON_ADD_OPTIONAL_FLAGS = [
   flags.generateGossipKeys,
   flags.generateTlsKeys,
   flags.releaseTag,
-  flags.grpcWebProxyEndpoint,
 ];
 
 export const DELETE_FLAGS = {

@@ -1446,28 +1446,6 @@ export class Flags {
     },
   };
 
-  public static readonly grpcWebProxyEndpoint: CommandFlag = {
-    constName: 'grpcWebProxyEndpoint',
-    name: 'grpc-web-proxy-endpoint',
-    definition: {
-      describe: 'gRPC Web Proxy endpoint',
-      type: 'string',
-    },
-    prompt: async function promptNewNodeAlias(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: string,
-    ): Promise<string> {
-      return await Flags.promptText(
-        task,
-        input,
-        Flags.grpcWebProxyEndpoint.definition.defaultValue as string,
-        'Enter the gRPC Web Proxy endpoint: ',
-        null,
-        Flags.grpcWebProxyEndpoint.name,
-      );
-    },
-  };
-
   public static readonly skipNodeAlias: CommandFlag = {
     constName: 'skipNodeAlias',
     name: 'skip-node-alias',
@@ -2579,7 +2557,6 @@ export class Flags {
     Flags.grpcTlsKeyPath,
     Flags.grpcWebTlsCertificatePath,
     Flags.grpcWebTlsKeyPath,
-    Flags.grpcWebProxyEndpoint,
     Flags.haproxyIps,
     Flags.ingressControllerValueFile,
     Flags.explorerTlsHostName,
