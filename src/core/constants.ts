@@ -8,7 +8,7 @@ import {ContainerName} from '../integration/kube/resources/container/container-n
 import {PathEx} from '../business/utils/path-ex.js';
 import {PrivateKey} from '@hiero-ledger/sdk';
 
-function getEnvironmentVariable(environmentVariableName: string): string {
+export function getEnvironmentVariable(environmentVariableName: string): string {
   if (process.env[environmentVariableName]) {
     console.log(`>> environment variable '${environmentVariableName}' exists, using its value`);
     return process.env[environmentVariableName];
