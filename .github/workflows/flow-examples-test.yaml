@@ -24,7 +24,9 @@ on:
       - opened
       - reopened
       - synchronize
-
+  push:
+    branches:
+      - 02480-D-lauch-migration 
 defaults:
   run:
     shell: bash
