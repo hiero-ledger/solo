@@ -31,7 +31,8 @@ echo "::endgroup::"
 
 echo "::group::Launch solo using released Solo version ${releaseTag}"
 
-export CONSENSUS_NODE_VERSION=v0.62.10
+export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+echo "Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
 solo init
 solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
 solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
