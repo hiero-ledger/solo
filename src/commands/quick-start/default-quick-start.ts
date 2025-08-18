@@ -648,7 +648,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           (): string[] => {
             const argv: string[] = this.newArgv();
             argv.push(
-              ...ConsensusCommandDefinition.NETWORK_DESTROY.split(' '),
+              ...ConsensusCommandDefinition.DESTROY_COMMAND.split(' '),
               this.optionFromFlag(flags.deployment),
               config.deployment,
               this.optionFromFlag(flags.quiet),
