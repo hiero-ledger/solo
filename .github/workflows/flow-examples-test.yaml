@@ -134,7 +134,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Hedera code locally
-        if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
+        if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
         run: |
           if [ -z "${{ inputs.consensus-node-version }}" ]; then
               export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
