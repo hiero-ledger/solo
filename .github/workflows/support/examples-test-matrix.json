@@ -1,38 +1,6 @@
 [
   {
-    "name": "Address Book",
-    "directory": "address-book"
-  },
-  {
-    "name": "Custom Network Config",
-    "directory": "custom-network-config"
-  },
-  {
-    "name": "External Database Test",
-    "directory": "external-database-test"
-  },
-  {
-    "name": "Network with Block Node",
-    "directory": "network-with-block-node"
-  },
-  {
-    "name": "Network with Domain Names",
-    "directory": "network-with-domain-names"
-  },
-  {
     "name": "Node Create Transaction",
     "directory": "node-create-transaction"
-  },
-  {
-    "name": "Node Delete Transaction",
-    "directory": "node-delete-transaction"
-  },
-  {
-    "name": "Node Update Transaction",
-    "directory": "node-update-transaction"
-  },
-  {
-    "name": "Running Solo Inside Cluster",
-    "directory": "running-solo-inside-cluster"
   }
 ]
