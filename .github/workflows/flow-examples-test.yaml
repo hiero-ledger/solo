@@ -118,12 +118,6 @@ jobs:
       - name: Build Application
         run: task build
 
-      - name: Install Kubectl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # pinned to v4.0.0
-        with:
-          version: 'v1.27.3'
-        id: install
-
       - name: Run Example Test - ${{ matrix.example.name }}
         timeout-minutes: 45
         working-directory: examples/${{ matrix.example.directory }}
