@@ -17,7 +17,7 @@ import {type BlockNodeCommand} from '../../../src/commands/block-node.js';
 import {ComponentTypes} from '../../../src/core/config/remote/enumerations/component-types.js';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
-import {type ClusterReferenceName, type ExtendedNetServer} from '../../../src/types/index.js';
+import {type ClusterReferenceName} from '../../../src/types/index.js';
 import {exec} from 'node:child_process';
 import {promisify} from 'node:util';
 import * as constants from '../../../src/core/constants.js';
@@ -136,7 +136,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
         .list(namespace, [`app.kubernetes.io/instance=${constants.BLOCK_NODE_RELEASE_NAME}-0`])
         .then((pods: Pod[]): Pod => pods[0]);
 
-      const srv: ExtendedNetServer = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
+      const srv: number = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
       const commandOptions: {cwd: string} = {cwd: './test/data'};
 
       // Make script executable

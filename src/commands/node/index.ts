@@ -12,8 +12,6 @@ import {inject, injectable} from 'tsyringe-neo';
  */
 @injectable()
 export class NodeCommand extends BaseCommand {
-  public _portForwards: any;
-
   public constructor(
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
     @inject(InjectTokens.NodeCommandHandlers) public readonly handlers?: NodeCommandHandlers,
@@ -22,7 +20,6 @@ export class NodeCommand extends BaseCommand {
 
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
     this.handlers = patchInject(handlers, InjectTokens.NodeCommandHandlers, this.constructor.name);
-    this._portForwards = [];
   }
 
   /**
@@ -32,14 +29,6 @@ export class NodeCommand extends BaseCommand {
    */
   public async close(): Promise<void> {
     await this.accountManager.close();
-    if (this._portForwards) {
-      for (const srv of this._portForwards) {
-        // pass null to readByReference because it isn't needed for stopPortForward()
-        await this.k8Factory.default().pods().readByReference(null).stopPortForward(srv);
-      }
-    }
-
-    this._portForwards = [];
   }
 
   public getUnusedConfigs(configName: string): string[] {

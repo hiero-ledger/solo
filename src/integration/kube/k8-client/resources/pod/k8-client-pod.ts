@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type Pod} from '../../../resources/pod/pod.js';
-import {type ExtendedNetServer} from '../../../../../types/index.js';
 import {PortUtilities} from '../../../../../business/utils/port-utilities.js';
 import {PodReference} from '../../../resources/pod/pod-reference.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
@@ -13,7 +12,6 @@ import {container} from 'tsyringe-neo';
 import {
   type KubeConfig,
   type CoreV1Api,
-  PortForward,
   V1Pod,
   V1Container,
   V1ExecAction,
@@ -23,7 +21,6 @@ import {
 } from '@kubernetes/client-node';
 import {type Pods} from '../../../resources/pod/pods.js';
 import * as constants from '../../../../../core/constants.js';
-import net from 'node:net';
 import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
 import {NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {ContainerName} from '../../../resources/container/container-name.js';
@@ -96,24 +93,11 @@ export class K8ClientPod implements Pod {
    * Forward a local port to a port on the pod
    * @param localPort The local port to forward from
    * @param podPort The pod port to forward to
-   * @param detach Whether to run the port forwarding in detached mode
    * @param reuse - if true, reuse the port number from previous port forward operation
    * @returns Promise resolving to the port forwarder server when not detached,
    *          or the port number (which may differ from localPort if it was in use) when detached
    */
-  public async portForward(localPort: number, podPort: number, detach: true, reuse?: boolean): Promise<number>;
-  public async portForward(
-    localPort: number,
-    podPort: number,
-    detach?: false,
-    reuse?: boolean,
-  ): Promise<ExtendedNetServer>;
-  public async portForward(
-    localPort: number,
-    podPort: number,
-    detach: boolean = false,
-    reuse: boolean = false,
-  ): Promise<ExtendedNetServer | number> {
+  public async portForward(localPort: number, podPort: number, reuse?: boolean): Promise<number> {
     let availablePort: number = localPort;
 
     try {
@@ -213,110 +197,91 @@ export class K8ClientPod implements Pod {
         `Creating port-forwarder for ${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${availablePort}`,
       );
 
-      // if detach is true, start a port-forwarder in detached mode
-      if (detach) {
-        this.logger.warn(
-          'Port-forwarding in detached mode has to be manually stopped or will stop when the Kubernetes pod it ',
-          'is connected to terminates.',
-        );
-        await new ShellRunner().run(
-          `kubectl port-forward -n ${this.podReference.namespace.name} pods/${this.podReference.name} ${availablePort}:${podPort}`,
-          [],
-          false,
-          true,
-        );
-        return availablePort;
-      }
-
-      const ns: NamespaceName = this.podReference.namespace;
-      const forwarder: PortForward = new PortForward(this.kubeConfig, false);
-
-      this.logger.debug(
-        `Creating socket for port-forward for ${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${localPort}`,
+      this.logger.warn(
+        'Port-forwarding in detached mode has to be manually stopped or will stop when the Kubernetes pod it ',
+        'is connected to terminates.',
       );
-      const server: ExtendedNetServer = (await net.createServer((socket): void => {
-        forwarder.portForward(ns.name, this.podReference.name.toString(), [podPort], socket, undefined, socket, 3);
-      })) as ExtendedNetServer;
+      const cmd: string = `kubectl port-forward -n ${this.podReference.namespace.name} --context ${this.kubeConfig.currentContext} pods/${this.podReference.name} ${availablePort}:${podPort}`;
+      const result = await new ShellRunner().run(cmd, [], true, true);
 
-      // add info for logging
-      server.info = `${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${availablePort}`;
-      server.localPort = availablePort;
-      this.logger.debug(`Starting port-forwarder [${server.info}]`);
-      return server.listen(availablePort, constants.LOCAL_HOST);
+      return availablePort;
     } catch (error) {
       const message: string = `failed to start port-forwarder [${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${availablePort}]: ${error.message}`;
       throw new SoloError(message, error);
     }
   }
 
-  public async stopPortForward(
-    server: ExtendedNetServer,
-    maxAttempts: number = 20,
-    timeout: number = 500,
-  ): Promise<void> {
-    if (!server) {
+  public async stopPortForward(port: number): Promise<void> {
+    if (!port) {
       return;
     }
 
-    this.logger.debug(`Stopping port-forwarder [${server.info}]`);
+    this.logger.showUser(chalk.yellow(`Stopping port-forwarder for port [${port}]`));
 
-    // try to close the websocket server
-    await new Promise<void>((resolve, reject): void => {
-      server.close((error): void => {
-        if (error) {
-          if (error.message?.includes('Server is not running')) {
-            this.logger.debug(`Server not running, port-forwarder [${server.info}]`);
-            resolve();
-          } else {
-            this.logger.debug(`Failed to stop port-forwarder [${server.info}]: ${error.message}`, error);
-            reject(error);
-          }
-        } else {
-          this.logger.debug(`Stopped port-forwarder [${server.info}]`);
-          resolve();
-        }
-      });
-    });
-
-    // test to see if the port has been closed or if it is still open
-    let attempts: number = 0;
-    while (attempts < maxAttempts) {
-      let hasError: number = 0;
-      attempts++;
-
+    try {
+      // Use ps -ef | grep "port-forward" | grep ${port}: to find kubectl port-forward processes using the specified port
+      const shellCommand: string[] = ['ps', '-ef', '|', 'grep', 'port-forward', '|', 'grep', `${port}:`];
+      const shellRunner: ShellRunner = new ShellRunner();
+      let result: string[];
       try {
-        const isPortOpen: unknown = await new Promise((resolve): void => {
-          const testServer: net.Server = net
-            .createServer()
-            .once('error', (error): void => {
-              if (error) {
-                resolve(false);
-              }
-            })
-            .once('listening', (): void => {
-              testServer
-                .once('close', (): void => {
-                  hasError++;
-                  if (hasError > 1) {
-                    resolve(false);
-                  } else {
-                    resolve(true);
-                  }
-                })
-                .close();
-            })
-            .listen(server.localPort, '0.0.0.0');
-        });
-        if (isPortOpen) {
-          return;
-        }
-      } catch {
+        result = await shellRunner.run(shellCommand.join(' '), [], true, false);
+      } catch (error) {
+        this.logger.error(`Failed to execute shell command: ${shellCommand.join(' ')}`);
+        this.logger.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+        throw new SoloError(
+          `Shell command execution failed: ${shellCommand.join(' ')}. Error: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      this.logger.debug(`ps -ef port-forward command result is ${result}`);
+
+      // if length of result is 0 then could not find port forward running for this port
+      if (!result || result.length === 0) {
+        this.logger.debug(`No port-forward processes found for port ${port}`);
         return;
       }
-      await sleep(Duration.ofMillis(timeout));
-    }
-    if (attempts >= maxAttempts) {
-      throw new SoloError(`failed to stop port-forwarder [${server.info}]`);
+
+      // Extract PIDs and kill the processes
+      for (const processLine of result) {
+        // Process line format: UID PID PPID C STIME TTY TIME CMD
+        // Split by whitespace and get the PID (second column)
+        const parts = processLine.trim().split(/\s+/);
+        if (parts.length >= 2) {
+          const pid = parts[1];
+
+          // Validate that PID is a number
+          if (/^\d+$/.test(pid)) {
+            this.logger.debug(`Killing port-forward process PID: ${pid}`);
+
+            try {
+              // Try SIGTERM first (graceful shutdown)
+              await shellRunner.run(`kill -TERM ${pid}`, [], false, false);
+
+              this.logger.debug(`Successfully sent SIGTERM to PID: ${pid}`);
+
+              // Wait a moment for graceful shutdown
+              await new Promise(resolve => setTimeout(resolve, 1000));
+
+              // Check if process is still running
+              const checkResult = await shellRunner.run(`ps -p ${pid}`, [], false, false);
+
+              // If process still exists, use SIGKILL
+              if (checkResult.length > 1) {
+                // ps header + process line
+                this.logger.debug(`Process ${pid} still running, sending SIGKILL`);
+                await shellRunner.run(`kill -KILL ${pid}`, [], false, false);
+              }
+            } catch (killError) {
+              this.logger.warn(`Failed to kill process ${pid}: ${killError.message}`);
+            }
+          }
+        }
+      }
+
+      this.logger.debug(`Finished stopping port-forwarder for port [${port}]`);
+    } catch (error) {
+      const errorMessage: string = `Error stopping port-forwarder for port ${port}: ${error.message}`;
+      this.logger.error(errorMessage);
+      throw new SoloError(errorMessage, error);
     }
   }
 
