@@ -676,7 +676,6 @@ export class MirrorNodeCommand extends BaseCommand {
         }
 
         let podReference: PodReference;
-
         for (const pod of pods) {
           if (pod.podReference.name.name.startsWith('mirror-ingress-controller')) {
             podReference = pod.podReference;
@@ -684,17 +683,19 @@ export class MirrorNodeCommand extends BaseCommand {
           }
         }
 
-        await this.k8Factory
-          .getK8(config.clusterContext)
-          .pods()
-          .readByReference(podReference)
-          .portForward(constants.MIRROR_NODE_PORT, 80, true);
+        const clusterReference: ClusterReferenceName = config.clusterReference;
 
-        this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+        await this.remoteConfig.configuration.components.managePortForward(
+          clusterReference,
+          podReference,
+          80, // Pod port
+          constants.MIRROR_NODE_PORT, // Local port
+          this.k8Factory.getK8(config.clusterContext),
+          this.logger,
+          ComponentTypes.MirrorNode,
 
-        this.logger.addMessageGroupMessage(
-          constants.PORT_FORWARDING_MESSAGE_GROUP,
-          `Mirror Node port forward enabled on localhost:${constants.MIRROR_NODE_PORT}`,
+          'Mirror ingress controller',
+          config.isChartInstalled, // Reuse existing port if chart is already installed
         );
       },
     };

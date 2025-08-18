@@ -68,6 +68,7 @@ interface ExplorerDeployConfigClass {
   domainName: Optional<string>;
   forcePortForward: Optional<boolean>;
   soloChartVersion: string;
+  isChartInstalled: boolean;
 }
 
 interface ExplorerDeployContext {
@@ -103,6 +104,7 @@ interface ExplorerUpgradeConfigClass {
   valuesArg: string;
   forcePortForward: Optional<boolean>;
   domainName: string;
+  isChartInstalled: boolean;
 
   soloChartVersion: string;
   chartDirectory: string;
@@ -333,29 +335,30 @@ export class ExplorerCommand extends BaseCommand {
 
   private enablePortForwardTask(): SoloListrTask<AnyListrContext> {
     return {
-      title: 'Enable port forwarding',
+      title: 'Enable port forwarding for explorer',
       skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => !config.forcePortForward,
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
         const pods: Pod[] = await this.k8Factory
           .getK8(config.clusterContext)
           .pods()
           .list(config.namespace, ['app.kubernetes.io/instance=hiero-explorer']);
-
         if (pods.length === 0) {
           throw new SoloError('No Hiero Explorer pod found');
         }
-
         const podReference: PodReference = pods[0].podReference;
+        const clusterReference: ClusterReferenceName = config.clusterRef;
 
-        await this.k8Factory
-          .getK8(config.clusterContext)
-          .pods()
-          .readByReference(podReference)
-          .portForward(constants.EXPLORER_PORT, constants.EXPLORER_PORT, true);
-        this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-        this.logger.addMessageGroupMessage(
-          constants.PORT_FORWARDING_MESSAGE_GROUP,
-          `Explorer port forward enabled on http://localhost:${constants.EXPLORER_PORT}`,
+        await this.remoteConfig.configuration.components.managePortForward(
+          clusterReference,
+          podReference,
+          constants.EXPLORER_PORT, // Pod port
+          constants.EXPLORER_PORT, // Local port
+          this.k8Factory.getK8(config.clusterContext),
+          this.logger,
+          ComponentTypes.Explorers,
+
+          'Explorer',
+          config.isChartInstalled, // Reuse existing port if chart is already installed
         );
       },
     };
@@ -560,6 +563,16 @@ export class ExplorerCommand extends BaseCommand {
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
+        {
+          title: 'Check chart is installed',
+          task: async ({config}): Promise<void> => {
+            config.isChartInstalled = await this.chartManager.isChartInstalled(
+              config.namespace,
+              constants.EXPLORER_RELEASE_NAME,
+              config.clusterContext,
+            );
+          },
+        },
         this.loadRemoteConfigTask(argv),
         this.installCertManagerTask(),
         this.handleExplorerChartTask('install'),
@@ -647,13 +660,13 @@ export class ExplorerCommand extends BaseCommand {
         {
           title: 'Check chart is installed',
           task: async ({config}): Promise<void> => {
-            const isChartInstalled: boolean = await this.chartManager.isChartInstalled(
+            config.isChartInstalled = await this.chartManager.isChartInstalled(
               config.namespace,
               constants.EXPLORER_RELEASE_NAME,
               config.clusterContext,
             );
 
-            if (!isChartInstalled) {
+            if (!config.isChartInstalled) {
               throw new SoloError('Explorer node is not deployed');
             }
           },

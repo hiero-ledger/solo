@@ -380,24 +380,24 @@ export class RelayCommand extends BaseCommand {
           .getK8(config.context)
           .pods()
           .list(config.namespace, ['app.kubernetes.io/name=relay']);
-
         if (pods.length === 0) {
           throw new SoloError('No Relay pod found');
         }
-
         const podReference: PodReference = pods[0].podReference;
+        const clusterReference: string =
+          (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
+          this.k8Factory.default().clusters().readCurrent();
 
-        await this.k8Factory
-          .getK8(config.context)
-          .pods()
-          .readByReference(podReference)
-          .portForward(constants.JSON_RPC_RELAY_PORT, constants.JSON_RPC_RELAY_PORT, true);
-
-        this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-
-        this.logger.addMessageGroupMessage(
-          constants.PORT_FORWARDING_MESSAGE_GROUP,
-          `JSON RPC Relay forward enabled on localhost:${constants.JSON_RPC_RELAY_PORT}`,
+        await this.remoteConfig.configuration.components.managePortForward(
+          clusterReference,
+          podReference,
+          constants.JSON_RPC_RELAY_PORT, // Pod port
+          constants.JSON_RPC_RELAY_PORT, // Local port
+          this.k8Factory.getK8(config.context),
+          this.logger,
+          ComponentTypes.RelayNodes,
+          'JSON RPC Relay',
+          config.isChartInstalled, // Reuse existing port if chart is already installed
         );
       },
     };
