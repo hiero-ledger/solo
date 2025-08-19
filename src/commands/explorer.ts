@@ -478,7 +478,7 @@ export class ExplorerCommand extends BaseCommand {
     };
   }
 
-  private async deploy(argv: ArgvStruct): Promise<boolean> {
+  public async add(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
     const tasks = this.taskList.newTaskList(
@@ -570,7 +570,7 @@ export class ExplorerCommand extends BaseCommand {
     return true;
   }
 
-  private async upgrade(argv: ArgvStruct): Promise<boolean> {
+  public async upgrade(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
     const tasks = this.taskList.newTaskList(
@@ -640,7 +640,7 @@ export class ExplorerCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      ExplorerCommand.DEPLOY_COMMAND,
+      'explorer node upgrade',
     );
 
     if (tasks.isRoot()) {

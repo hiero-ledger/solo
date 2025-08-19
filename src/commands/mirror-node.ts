@@ -162,11 +162,11 @@ export class MirrorNodeCommand extends BaseCommand {
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME = 'mirror-node';
+  public static readonly COMMAND_NAME: string = 'mirror-node';
 
-  private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
+  private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
-  private static readonly UPGRADE_CONFIGS_NAME = 'upgradeConfigs';
+  private static readonly UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.clusterRef],
@@ -716,7 +716,7 @@ export class MirrorNodeCommand extends BaseCommand {
     };
   }
 
-  private async deploy(argv: ArgvStruct): Promise<boolean> {
+  public async add(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
     const tasks = this.taskList.newTaskList(
@@ -907,9 +907,9 @@ export class MirrorNodeCommand extends BaseCommand {
     if (tasks.isRoot()) {
       try {
         await tasks.run();
-        this.logger.debug('mirror node upgrade has completed');
+        this.logger.debug('mirror node add has completed');
       } catch (error) {
-        throw new SoloError(`Error upgrading mirror node: ${error.message}`, error);
+        throw new SoloError(`Error adding mirror node: ${error.message}`, error);
       } finally {
         await lease.release();
         await this.accountManager.close();
@@ -1068,7 +1068,7 @@ export class MirrorNodeCommand extends BaseCommand {
               }
 
               if (missingFlags.length > 0) {
-                const errorMessage =
+                const errorMessage: string =
                   'There are missing values that need to be provided when' +
                   `${chalk.cyan(`--${flags.useExternalDatabase.name}`)} is provided: `;
 
@@ -1112,15 +1112,15 @@ export class MirrorNodeCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      'mirror node add',
+      'mirror node upgrade',
     );
 
     if (tasks.isRoot()) {
       try {
         await tasks.run();
-        this.logger.debug('mirror node add has completed');
+        this.logger.debug('mirror node upgrade has completed');
       } catch (error) {
-        throw new SoloError(`Error adding mirror node: ${error.message}`, error);
+        throw new SoloError(`Error upgrading mirror node: ${error.message}`, error);
       } finally {
         await lease.release();
         await this.accountManager.close();

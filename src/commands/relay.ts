@@ -130,7 +130,7 @@ export class RelayCommand extends BaseCommand {
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
-  private static readonly UPGRADE_CONFIGS_NAME = 'deployConfigs';
+  private static readonly UPGRADE_CONFIGS_NAME: string = 'deployConfigs';
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
@@ -443,8 +443,7 @@ export class RelayCommand extends BaseCommand {
     };
   }
 
-  private async deploy(argv: ArgvStruct) {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+  public async add(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
     const tasks = this.taskList.newTaskList(
@@ -461,14 +460,7 @@ export class RelayCommand extends BaseCommand {
 
             this.configManager.update(argv);
 
-            flags.disablePrompts([
-              flags.operatorId,
-              flags.operatorKey,
-              flags.clusterRef,
-              flags.profileFile,
-              flags.profileName,
-              flags.forcePortForward,
-            ]);
+            flags.disablePrompts(RelayCommand.DEPLOY_FLAGS_LIST.optional);
 
             const allFlags = [...RelayCommand.DEPLOY_FLAGS_LIST.required, ...RelayCommand.DEPLOY_FLAGS_LIST.optional];
             await this.configManager.executePrompt(task, allFlags);
@@ -502,7 +494,7 @@ export class RelayCommand extends BaseCommand {
         },
         {
           title: 'Check chart is installed',
-          task: async ({config}): Promise<void> => {
+          task: async ({config}: RelayDeployContext): Promise<void> => {
             config.isChartInstalled = await this.chartManager.isChartInstalled(
               config.namespace,
               config.releaseName,
@@ -609,7 +601,7 @@ export class RelayCommand extends BaseCommand {
         },
         {
           title: 'Check chart is installed',
-          task: async ({config}): Promise<void> => {
+          task: async ({config}: RelayUpgradeContext): Promise<void> => {
             config.isChartInstalled = await this.chartManager.isChartInstalled(
               config.namespace,
               config.releaseName,
@@ -640,7 +632,7 @@ export class RelayCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      RelayCommand.DEPLOY_COMMAND,
+      'relay node upgrade',
     );
 
     if (tasks.isRoot()) {
@@ -649,9 +641,7 @@ export class RelayCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error upgrading relay: ${error.message}`, error);
       } finally {
-        if (lease) {
-          await lease.release();
-        }
+        await lease?.release();
         await this.accountManager.close();
       }
     } else {
@@ -664,7 +654,7 @@ export class RelayCommand extends BaseCommand {
     return true;
   }
 
-  public async destroy(argv: ArgvStruct): Promise<void> {
+  public async destroy(argv: ArgvStruct): Promise<boolean> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
     let lease: Lock;

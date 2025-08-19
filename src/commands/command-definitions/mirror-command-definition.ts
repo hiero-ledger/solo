@@ -31,12 +31,16 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
 
   public static readonly NODE_ADD = 'add';
   public static readonly NODE_DESTROY = 'destroy';
+  public static readonly NODE_UPGRADE = 'upgrade';
 
   public static readonly ADD_COMMAND =
     `${MirrorCommandDefinition.COMMAND_NAME} ${MirrorCommandDefinition.NODE_SUBCOMMAND_NAME} ${MirrorCommandDefinition.NODE_ADD}` as const;
 
   public static readonly DESTROY_COMMAND =
     `${MirrorCommandDefinition.COMMAND_NAME} ${MirrorCommandDefinition.NODE_SUBCOMMAND_NAME} ${MirrorCommandDefinition.NODE_DESTROY}` as const;
+
+  public static readonly UPGRADE_COMMAND =
+    `${MirrorCommandDefinition.COMMAND_NAME} ${MirrorCommandDefinition.NODE_SUBCOMMAND_NAME} ${MirrorCommandDefinition.NODE_UPGRADE}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(MirrorCommandDefinition.COMMAND_NAME, MirrorCommandDefinition.DESCRIPTION, this.logger)
@@ -61,6 +65,15 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
               this.mirrorNodeCommand,
               this.mirrorNodeCommand.destroy,
               MirrorNodeCommand.DESTROY_FLAGS_LIST,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              MirrorCommandDefinition.NODE_UPGRADE,
+              'Upgrades the specified node from the deployment.',
+              this.mirrorNodeCommand,
+              this.mirrorNodeCommand.upgrade,
+              MirrorNodeCommand.UPGRADE_FLAGS_LIST,
             ),
           ),
       )
