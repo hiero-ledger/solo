@@ -21,7 +21,7 @@
   },
   {
     "name": "Network with Domain Names",
-    "directory": "network-with-domain-names",
+    "directory": "network-with-domain-names/sdk-network-connection",
     "local-java-build": false
   },
   {

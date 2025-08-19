@@ -38,7 +38,7 @@ tasks:
 
       # Solo deployment cluster attach
       - cmd: |
-          solo deployment cluster attach --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          npx solo deployment cluster attach --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
           --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
 
       # Solo cluster-ref config setup

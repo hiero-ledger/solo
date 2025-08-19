@@ -34,7 +34,7 @@ tasks:
 
       # Solo deployment cluster attach
       - cmd: |
-          solo deployment cluster attach --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          npx solo deployment cluster attach --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
           --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
 
       # Solo cluster-ref config setup
@@ -42,12 +42,12 @@ tasks:
 
       # Solo node keys
       - cmd: |
-          solo keys consensus generate --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
+          npx solo keys consensus generate --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
           --node-aliases {{ .NODE_IDENTIFIERS }}
 
       # Solo network deploy
       - cmd: |
-          solo consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
+          npx solo consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
           --values-file {{ .USER_WORKING_DIR }}/init-containers-values.yaml \
           --settings-txt {{ .USER_WORKING_DIR }}/settings.txt \
           --log4j2-xml {{ .USER_WORKING_DIR }}/log4j2.xml \
@@ -67,7 +67,7 @@ tasks:
 
       # Solo explorer node add
       - cmd: |
-          solo explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          npx solo explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
           --enable-explorer-tls --tls-cluster-issuer-type acme-staging \
           --enable-ingress \
           -n {{ .EXPLORER_NAME_SPACE }} --deployment {{ .EXPLORER_DEPLOYMENT }} \

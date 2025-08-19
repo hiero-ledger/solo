@@ -103,8 +103,8 @@ tasks:
           --dev
 
       - cmd: |
-          # Solo relay node deploy
-          {{ .SOLO_COMMAND }} relay node deploy --node-aliases node1 --deployment {{ .SOLO_DEPLOYMENT }} \
+          # Solo relay node add
+          {{ .SOLO_COMMAND }} relay node add --node-aliases node1 --deployment {{ .SOLO_DEPLOYMENT }} \
           --cluster-ref {{ .SOLO_CLUSTER_REF }} --dev
 
       - cmd: |
