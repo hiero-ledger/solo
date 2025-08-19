@@ -10,6 +10,11 @@
     "local-java-build": false
   },
   {
+    "name": "External Database Test",
+    "directory": "external-database-test",
+    "local-java-build": false
+  },
+  {
     "name": "Network with Block Node",
     "directory": "network-with-block-node",
     "local-java-build": false
@@ -33,10 +38,5 @@
     "name": "Node Update Transaction",
     "directory": "node-update-transaction",
     "local-java-build": true
-  },
-  {
-    "name": "Running Solo Inside Cluster",
-    "directory": "running-solo-inside-cluster",
-    "local-java-build": false
   }
 ]

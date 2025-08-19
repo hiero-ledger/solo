@@ -24,13 +24,23 @@ on:
         type: string
         required: false
         default: "20.19.3"
+      released-or-latest:
+        description: "Use released or latest version"
+        type: boolean
+        required: false
+        default: false
   workflow_call:
     inputs:
       node-version:
         description: "NodeJS Version:"
         type: string
         required: false
-        default: "20.19.3"  
+        default: "20.19.3"
+      released-or-latest:
+        description: "Use released or latest version"
+        type: boolean
+        required: false
+        default: false  
   pull_request:
     types:
       - opened
@@ -171,6 +181,10 @@ jobs:
           echo "Running example test in directory: ${{ matrix.example.directory }}"
           echo "Current directory: $(pwd)"
           
+          # Export environment variables for Taskfile
+          export USE_RELEASED_VERSION="${{ inputs.released-or-latest || 'false' }}"
+          echo "USE_RELEASED_VERSION: $USE_RELEASED_VERSION"
+          
           # Check if Taskfile.yml exists
           if [ ! -f "Taskfile.yml" ]; then
             echo "Warning: No Taskfile.yml found in ${{ matrix.example.directory }}"
@@ -189,6 +203,9 @@ jobs:
         working-directory: examples/${{ matrix.example.directory }}
         run: |
           echo "Cleaning up example in directory: ${{ matrix.example.directory }}"
+          
+          # Export environment variables for cleanup task
+          export USE_RELEASED_VERSION="${{ inputs.released-or-latest || 'false' }}"
           
           # Check if Taskfile.yml exists and has destroy task
           if [ -f "Taskfile.yml" ] && grep -q "destroy:" Taskfile.yml; then
