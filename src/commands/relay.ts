@@ -573,15 +573,15 @@ export class RelayCommand extends BaseCommand {
             flags.disablePrompts(RelayCommand.UPGRADE_FLAGS_LIST.optional);
 
             const allFlags: CommandFlag[] = [
-              ...RelayCommand.DEPLOY_FLAGS_LIST.required,
-              ...RelayCommand.DEPLOY_FLAGS_LIST.optional,
+              ...RelayCommand.UPGRADE_FLAGS_LIST.required,
+              ...RelayCommand.UPGRADE_FLAGS_LIST.optional,
             ];
 
             await this.configManager.executePrompt(task, allFlags);
 
             // prompt if inputs are empty and set it in the context
             context_.config = this.configManager.getConfig(
-              RelayCommand.DEPLOY_CONFIGS_NAME,
+              RelayCommand.UPGRADE_CONFIGS_NAME,
               allFlags,
             ) as RelayUpgradeConfigClass;
 

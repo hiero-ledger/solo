@@ -165,6 +165,7 @@ export class MirrorNodeCommand extends BaseCommand {
   public static readonly COMMAND_NAME = 'mirror-node';
 
   private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
+
   private static readonly UPGRADE_CONFIGS_NAME = 'upgradeConfigs';
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
