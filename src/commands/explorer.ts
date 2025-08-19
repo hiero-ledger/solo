@@ -14,13 +14,12 @@ import {
 import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner, sleep} from '../core/helpers.js';
 import {
   type ClusterReferenceName,
-  type CommandDefinition,
   type Context,
   type Optional,
   type SoloListr,

@@ -18,13 +18,12 @@ import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
-import {AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
+import {AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as fs from 'node:fs';
 import {
   type ClusterReferenceName,
-  type CommandDefinition,
   type DeploymentName,
   type Optional,
   type Realm,

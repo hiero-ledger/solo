@@ -12,7 +12,6 @@ import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {
   type AnyListrContext,
-  type AnyYargs,
   type ArgvStruct,
   type NodeAlias,
   type NodeAliases,
@@ -22,7 +21,6 @@ import {ListrLock} from '../core/lock/listr-lock.js';
 import * as Base64 from 'js-base64';
 import {
   type ClusterReferenceName,
-  type CommandDefinition,
   type DeploymentName,
   type Optional,
   type SoloListr,
