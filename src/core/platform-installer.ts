@@ -16,7 +16,6 @@ import chalk from 'chalk';
 
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type NodeAlias} from '../types/aliases.js';
-import {Duration} from './time/duration.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
@@ -26,7 +25,6 @@ import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {PathEx} from '../business/utils/path-ex.js';
-import {sleep} from './helpers.js';
 
 /** PlatformInstaller install platform code in the root-container of a network pod */
 @injectable()
