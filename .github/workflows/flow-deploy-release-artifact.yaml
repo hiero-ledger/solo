@@ -87,11 +87,25 @@ jobs:
           echo "version=${TRIMMED_VERSION}" >> $GITHUB_OUTPUT
           echo "version=${TRIMMED_VERSION}"
 
+  publish-docker-image:
+    name: Publish / Docker Image
+    runs-on: hiero-solo-linux-medium
+    needs: prepare-release
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/zxc-release-solo-docker-container.yaml
+    with:
+      dry-run-enabled: ${{ github.event.inputs.dry-run-enabled != 'true' }}
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   create-github-release:
     name: Github / Release
     runs-on: hiero-solo-linux-medium
     needs:
       - prepare-release
+      - publish-docker-image
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
