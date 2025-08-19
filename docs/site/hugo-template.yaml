@@ -28,15 +28,15 @@ module:
     - source: build/
       target: content/examples
       includeFiles:
-        - address-book-example.md
-        - custom-network-config-example.md
-        - external-database-test-example.md
-        - network-with-block-node-example.md
-        - network-with-domain-names-example.md
-        - node-create-transaction-example.md
-        - node-delete-transaction-example.md
-        - node-update-transaction-example.md
-        - running-solo-inside-cluster-example.md
+        - address-book.md
+        - custom-network-config.md
+        - external-database-test.md
+        - network-with-block-node.md
+        - network-with-domain-names.md
+        - node-create-transaction.md
+        - node-delete-transaction.md
+        - node-update-transaction.md
+        - running-solo-inside-cluster.md
     - source: ../../images
       target: content/docs/readme/images
     - source: content/en
