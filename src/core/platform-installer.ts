@@ -115,7 +115,7 @@ export class PlatformInstaller {
 
       const container = k8Containers.readByRef(containerReference);
 
-      await container.execContainer('fsync'); // ensure the script is synced to disk
+      await container.execContainer('sync'); // ensure all writes are flushed before executing the script
       await container.execContainer(`chmod +x ${extractScript}`);
       await container.execContainer(`chown root:root ${extractScript}`);
       await container.execContainer([extractScript, tag]);
