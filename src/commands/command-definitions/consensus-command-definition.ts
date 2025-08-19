@@ -10,6 +10,7 @@ import {NetworkCommand} from '../network.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import * as NodeFlags from '../node/flags.js';
+import {PREPARE_UPGRADE_FLAGS} from '../node/flags.js';
 
 @injectable()
 export class ConsensusCommandDefinition extends BaseCommandDefinition {
@@ -412,7 +413,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 'Prepare the network for a Freeze Upgrade operation',
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.prepareUpgrade,
-                NodeFlags.DEFAULT_FLAGS,
+                NodeFlags.PREPARE_UPGRADE_FLAGS,
               ),
             )
             .addSubcommand(

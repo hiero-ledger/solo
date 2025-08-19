@@ -18,6 +18,8 @@ tasks:
       # Create .task-tmp directory (for pod)
       - cmd: mkdir -p {{.TASKFILE_DIR}}/.task-tmp
 
+      - cmd: sudo apt-get update && sudo apt-get install -y gettext-base
+
       # Render Ubuntu privileged pod manifest
       - cmd: envsubst < {{.TASKFILE_DIR}}/templates/ubuntu-privileged-pod.yaml.tmpl > {{.TASKFILE_DIR}}/.task-tmp/ubuntu-privileged-pod.yaml
 
