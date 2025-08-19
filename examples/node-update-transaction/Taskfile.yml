@@ -124,7 +124,7 @@ tasks:
 
       - cmd: |
           # Freeze Upgrade
-          {{ .SOLO_COMMAND }} consensus dev-freeze freeze-upgrade --deployment {{ .SOLO_DEPLOYMENT }} --skip-node-alias node2 --dev 
+          {{ .SOLO_COMMAND }} consensus dev-freeze freeze-upgrade --deployment {{ .SOLO_DEPLOYMENT }} --dev 
 
       - cmd: |
           # Solo consensus dev-node-update execute

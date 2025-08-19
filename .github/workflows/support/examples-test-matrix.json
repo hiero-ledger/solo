@@ -10,18 +10,13 @@
     "local-java-build": false
   },
   {
-    "name": "External Database Test",
-    "directory": "external-database-test",
-    "local-java-build": false
-  },
-  {
     "name": "Network with Block Node",
     "directory": "network-with-block-node",
     "local-java-build": false
   },
   {
     "name": "Network with Domain Names",
-    "directory": "network-with-domain-names/sdk-network-connection",
+    "directory": "network-with-domain-names",
     "local-java-build": false
   },
   {

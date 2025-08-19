@@ -60,7 +60,7 @@ tasks:
       - cmd: npx solo consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
       # Solo mirror node add
-      - cmd: npx solo mirror node add --deployment {{ .DEPLOYMENT }} --pinger --enable-ingress
+      - cmd: npx solo mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} --pinger --enable-ingress
 
       # Solo relay node add
       - cmd: npx solo relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
