@@ -5,9 +5,9 @@ This example demonstrates how to use the node add-prepare/prepare-upgrade/freeze
 ## What It Does
 
 * Stands up a network with two existing nodes
-* Runs `solo node delete-prepare` to get artifacts needed for the SDK NodeDeleteTransaction
+* Runs `solo consensus dev-node-delete prepare` to get artifacts needed for the SDK NodeDeleteTransaction
 * Runs a JavaScript program using the Hiero SDK JS code to run a NodeDeleteTransaction
-* Runs `solo node prepare-upgrade` and `solo node freeze-upgrade` to put the network into a freeze state
+* Runs `solo consensus dev-freeze prepare-upgrade` and `solo consensus dev-freeze freeze-upgrade` to put the network into a freeze state
 * Runs `solo node delete-execute` to configure the network to stop using the deleted node, then restarts the network to come out of the freeze and run with the new configurations
 * Contains the destroy commands to bring down the network if desired
 

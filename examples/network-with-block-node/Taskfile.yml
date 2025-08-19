@@ -30,19 +30,19 @@ tasks:
       # Solo init
       - cmd: npx solo init
 
-      # Solo cluster-ref connect
-      - cmd: npx solo cluster-ref connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
+      # Solo cluster-ref config connect
+      - cmd: npx solo cluster-ref config connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
 
-      # Solo deployment create
-      - cmd: npx solo deployment create --deployment {{ .DEPLOYMENT }} --namespace {{ .NAMESPACE }}
+      # Solo deployment config create
+      - cmd: npx solo deployment config create --deployment {{ .DEPLOYMENT }} --namespace {{ .NAMESPACE }}
 
-      # Solo deployment add-cluster
+      # Solo deployment cluster attach
       - cmd: |
-          solo deployment add-cluster --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          solo deployment cluster attach --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
           --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
 
-      # Solo cluster-ref setup
-      - cmd: npx solo cluster-ref setup --cluster-ref {{ .CLUSTER_REFERENCE }}
+      # Solo cluster-ref config setup
+      - cmd: npx solo cluster-ref config setup --cluster-ref {{ .CLUSTER_REFERENCE }}
 
       # Solo block node add
       - cmd: |
@@ -51,43 +51,43 @@ tasks:
 
       # Solo node keys
       - cmd: |
-          npx solo node keys --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
+          npx solo keys consensus generate --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
           --node-aliases {{ .NODE_IDENTIFIERS }}
 
       # Solo network deploy
-      - cmd: npx solo network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }}
+      - cmd: npx solo consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }}
 
       # Solo node setup
-      - cmd: npx solo node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
+      - cmd: npx solo consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
 
       # Solo node start
-      - cmd: npx solo node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      - cmd: npx solo consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
-      # Solo mirror-node deploy
-      - cmd: npx solo mirror-node deploy --deployment {{ .DEPLOYMENT }} --pinger
+      # Solo mirror node add
+      - cmd: npx solo mirror node add --deployment {{ .DEPLOYMENT }} --pinger
 
-      # Solo relay deploy
-      - cmd: npx solo relay deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      # Solo relay node add
+      - cmd: npx solo relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
-      # Solo explorer deploy
-      - cmd: npx solo explorer deploy --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }}
+      # Solo explorer node add
+      - cmd: npx solo explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }}
   destroy:
     desc: Destroy the Solo network with block node
     cmds:
-      # Solo node stop
-      - cmd: npx solo node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      # solo consensus node stop
+      - cmd: npx solo consensus node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
-      # Solo mirror-node destroy
-      - cmd: npx solo mirror-node destroy --deployment {{ .DEPLOYMENT }} --force
+      # solo mirror node destroy
+      - cmd: npx solo mirror node destroy --deployment {{ .DEPLOYMENT }} --force
 
-      # Solo relay destroy
-      - cmd: npx solo relay destroy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      # solo relay node destroy
+      - cmd: npx solo relay node destroy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
-      # Solo explorer destroy
-      - cmd: npx solo explorer destroy --deployment {{ .DEPLOYMENT }}
+      # solo explorer node destroy
+      - cmd: npx solo explorer node destroy --deployment {{ .DEPLOYMENT }}
 
-      # Solo network destroy
-      - cmd: npx solo network destroy --deployment {{ .DEPLOYMENT }} --force
+      # solo consensus network destroy
+      - cmd: npx solo consensus network destroy --deployment {{ .DEPLOYMENT }} --force
 
       # Delete Kind cluster
       - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}

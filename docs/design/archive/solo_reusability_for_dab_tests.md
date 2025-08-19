@@ -53,9 +53,9 @@ We have the following work almost complete for Node Add to be more reusable: <ht
 * Stake new node
 * Trigger stake weight calculate
 
-The intention was that the SDK team could use `solo node add-prepare` with some flags to do all of the K8s work as well as generate some output files that they can use when executing the NodeCreateTransaction.  They could then run `solo node add-execute` to apply all of the changes to K8s and then restart the network.
+The intention was that the SDK team could use `solo consensus dev-node-add prepare` with some flags to do all of the K8s work as well as generate some output files that they can use when executing the NodeCreateTransaction.  They could then run `solo consensus dev-node-add execute` to apply all of the changes to K8s and then restart the network.
 
-We created a Node Delete and Node Update issue similar to the one that is addressed in Node Add, but without a description.
+We created a Node Destroy and Node Update issue similar to the one that is addressed in Node Add, but without a description.
 
 ## update
 

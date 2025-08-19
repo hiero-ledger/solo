@@ -24,7 +24,7 @@ import {type NodeStartConfigClass} from './config-interfaces/node-start-config-c
 import {type NodeKeysConfigClass} from './config-interfaces/node-keys-config-class.js';
 import {type NodeRefreshConfigClass} from './config-interfaces/node-refresh-config-class.js';
 import {type NodeLogsConfigClass} from './config-interfaces/node-logs-config-class.js';
-import {type NodeDeleteConfigClass} from './config-interfaces/node-delete-config-class.js';
+import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
 import {type NodeUpdateConfigClass} from './config-interfaces/node-update-config-class.js';
 import {type NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-class.js';
 import {type NodeDownloadGeneratedFilesConfigClass} from './config-interfaces/node-download-generated-files-config-class.js';
@@ -33,7 +33,7 @@ import {type SoloListrTaskWrapper} from '../../types/index.js';
 import {type NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
 import {type NodeDownloadGeneratedFilesContext} from './config-interfaces/node-download-generated-files-context.js';
 import {type NodeUpdateContext} from './config-interfaces/node-update-context.js';
-import {type NodeDeleteContext} from './config-interfaces/node-delete-context.js';
+import {type NodeDestroyContext} from './config-interfaces/node-destroy-context.js';
 import {type NodeAddContext} from './config-interfaces/node-add-context.js';
 import {type NodeLogsContext} from './config-interfaces/node-logs-context.js';
 import {type NodeStatesConfigClass} from './config-interfaces/node-states-config-class.js';
@@ -58,7 +58,7 @@ import {Version} from '../../business/utils/version.js';
 const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
 const DOWNLOAD_GENERATED_FILES_CONFIGS_NAME = 'downloadGeneratedFilesConfig';
 const ADD_CONFIGS_NAME = 'addConfigs';
-const DELETE_CONFIGS_NAME = 'deleteConfigs';
+const DESTROY_CONFIGS_NAME = 'destroyConfigs';
 const UPDATE_CONFIGS_NAME = 'updateConfigs';
 const UPGRADE_CONFIGS_NAME = 'upgradeConfigs';
 const REFRESH_CONFIGS_NAME = 'refreshConfigs';
@@ -289,13 +289,13 @@ export class NodeCommandConfigs {
     return context_.config;
   }
 
-  public async deleteConfigBuilder(
+  public async destroyConfigBuilder(
     argv: ArgvStruct,
-    context_: NodeDeleteContext,
-    task: SoloListrTaskWrapper<NodeDeleteContext>,
+    context_: NodeDestroyContext,
+    task: SoloListrTaskWrapper<NodeDestroyContext>,
     shouldLoadNodeClient: boolean = true,
-  ): Promise<NodeDeleteConfigClass> {
-    context_.config = this.configManager.getConfig(DELETE_CONFIGS_NAME, argv.flags, [
+  ): Promise<NodeDestroyConfigClass> {
+    context_.config = this.configManager.getConfig(DESTROY_CONFIGS_NAME, argv.flags, [
       'adminKey',
       'allNodeAliases',
       'existingNodeAliases',
@@ -310,7 +310,7 @@ export class NodeCommandConfigs {
       'namespace',
       'consensusNodes',
       'contexts',
-    ]) as NodeDeleteConfigClass;
+    ]) as NodeDestroyConfigClass;
 
     context_.config.curDate = new Date();
     context_.config.existingNodeAliases = [];

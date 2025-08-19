@@ -6,7 +6,7 @@
 
 Such a “`solo` deployed” Hedera network can be leveraged to perform any testing that otherwise would not be possible or cost-effective to do on production networks like Testnet or Mainnet. Swirlds Labs is planning to use `solo` to deploy huge numbers of test networks on-demand using `solo` for internal testing and release process improvement. We anticipate `solo` can also empower external entities to do the same.
 
-It is also easy to tear-down and create a new network on-demand using `solo` as it leverages Kubernetes cluster. For a long running network deployment, `solo` can also be used to add new nodes and refresh existing nodes with new/previous software versions. Note that here “node refresh” operation is not node ‘upgrade’ (more on ‘upgrade’ later)
+It is also easy to tear-down and create a new network on-demand using `solo` as it leverages Kubernetes cluster. For a long running network deployment, `solo` can also be used to add new nodes and refresh existing nodes with new/previous software versions. Note that here “consensus node refresh” operation is not node ‘upgrade’ (more on ‘upgrade’ later)
 
 `solo` will soon enable node upgrade process similar to Mainnet/Testnet with the help of `solo-operator` which is a custom Kubernetes operator running inside the cluster to support various functionalities. `solo-operator` is still under development and is not ready yet. We anticipate the first release of `solo-operator` in Q3 2024.
 
@@ -70,7 +70,7 @@ Our official docs site: <https://solo.hiero.org/>
 
   * Deploy/Destroy/Add/Refresh consensus node including proxies and uploaders (record-stream, event-stream etc.)
   * Create/Top-up/Update accounts
-  * Deploy/Destroy mirror-node components including explorer
+  * Deploy/Destroy mirror node components including explorer
   * Deploy/Destroy one or more json-rpc-relays
   * Connect Telemetry (Grafana, Prometheus, Tempo etc.)
 * **What’s on deck  (As of May 2024)**

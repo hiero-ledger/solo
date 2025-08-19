@@ -1542,7 +1542,7 @@ export class Flags {
     constName: 'persistentVolumeClaims',
     name: 'pvcs',
     definition: {
-      describe: 'Enable persistent volume claims to store data outside the pod, required for node add',
+      describe: 'Enable persistent volume claims to store data outside the pod, required for consensus node add',
       defaultValue: false,
       type: 'boolean',
     },

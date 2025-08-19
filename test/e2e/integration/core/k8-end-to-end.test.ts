@@ -11,7 +11,6 @@ import path from 'node:path';
 import {v4 as uuid4} from 'uuid';
 import {SoloError} from '../../../../src/core/errors/solo-error.js';
 import * as constants from '../../../../src/core/constants.js';
-import {Templates} from '../../../../src/core/templates.js';
 import {type ConfigManager} from '../../../../src/core/config-manager.js';
 import {Flags as flags} from '../../../../src/commands/flags.js';
 import crypto from 'node:crypto';
@@ -77,6 +76,8 @@ describe('K8', () => {
 
       const serviceReference: ServiceReference = ServiceReference.of(testNamespace, ServiceName.of(serviceName));
       await k8Factory.default().services().create(serviceReference, {app: 'svc-test'}, 80, 80);
+      // wait 10 seconds for the pod up and running
+      await new Promise(resolve => setTimeout(resolve, 10_000));
     } catch (error) {
       console.log(`${error}, ${error.stack}`);
       throw error;
@@ -204,7 +205,6 @@ describe('K8', () => {
   });
 
   it('should be able to port forward gossip port', done => {
-    const podName = Templates.renderNetworkPodName('node1');
     const localPort = +constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT;
     try {
       const podReference: PodReference = PodReference.of(testNamespace, podName);
@@ -213,7 +213,9 @@ describe('K8', () => {
         .pods()
         .readByReference(podReference)
         .portForward(localPort, +constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT)
-        .then(server => {
+        .then(async server => {
+          // sleep for 5 seconds to allow the port forward to start
+          await new Promise(resolve => setTimeout(resolve, 5000));
           expect(server).not.to.be.null;
 
           // client

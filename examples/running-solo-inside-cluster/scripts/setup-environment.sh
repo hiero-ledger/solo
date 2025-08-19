@@ -59,11 +59,11 @@ kubectl config use-context kind-${SOLO_CLUSTER_NAME}
 
 # Run solo test commands using npx
 npx solo init
-npx solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
-npx solo deployment create --deployment ${SOLO_DEPLOYMENT} --namespace ${SOLO_NAMESPACE}
-npx solo deployment add-cluster --deployment ${SOLO_DEPLOYMENT} --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
-npx solo cluster-ref setup --cluster-ref kind-${SOLO_CLUSTER_NAME}
-npx solo node keys --gossip-keys --tls-keys --deployment ${SOLO_DEPLOYMENT}
-npx solo network deploy --deployment ${SOLO_DEPLOYMENT}
-npx solo node setup --deployment ${SOLO_DEPLOYMENT} -i node1
-npx solo node start --deployment ${SOLO_DEPLOYMENT} -i node1
+npx solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+npx solo deployment config create --deployment ${SOLO_DEPLOYMENT} --namespace ${SOLO_NAMESPACE}
+npx solo deployment cluster attach --deployment ${SOLO_DEPLOYMENT} --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
+npx solo cluster-ref config setup --cluster-ref kind-${SOLO_CLUSTER_NAME}
+npx solo keys consensus generate --gossip-keys --tls-keys --deployment ${SOLO_DEPLOYMENT}
+npx solo consensus network deploy --deployment ${SOLO_DEPLOYMENT}
+npx solo consensus node setup --deployment ${SOLO_DEPLOYMENT} -i node1
+npx solo consensus node start --deployment ${SOLO_DEPLOYMENT} -i node1

@@ -264,7 +264,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     const portForwardPortNumber: number = await k8Client
       .pods()
       .readByReference(podReference)
-      .portForward(localPort, podPort, true, reuse);
+      .portForward(localPort, podPort, reuse);
 
     logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
     logger.addMessageGroupMessage(

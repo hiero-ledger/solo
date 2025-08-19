@@ -11,7 +11,7 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {
-  AnyListrContext,
+  type AnyListrContext,
   type AnyYargs,
   type ArgvStruct,
   type NodeAlias,
@@ -42,7 +42,7 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Duration} from '../core/time/duration.js';
 import {Version} from '../business/utils/version.js';
-import {CommandFlag, CommandFlags} from '../types/flag-types.js';
+import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -117,8 +117,6 @@ interface RelayUpgradeContext {
 
 @injectable()
 export class RelayCommand extends BaseCommand {
-  public static readonly DEPLOY_COMMAND = 'relay deploy';
-
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
@@ -130,13 +128,11 @@ export class RelayCommand extends BaseCommand {
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME = 'relay';
-
-  private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
+  private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
   private static readonly UPGRADE_CONFIGS_NAME = 'deployConfigs';
 
-  private static readonly DEPLOY_FLAGS_LIST = {
+  public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [
       flags.chainId,
@@ -178,7 +174,7 @@ export class RelayCommand extends BaseCommand {
     ],
   };
 
-  private static readonly DESTROY_FLAGS_LIST = {
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.clusterRef],
     optional: [flags.chartDirectory, flags.nodeAliasesUnparsed, flags.quiet, flags.devMode],
   };
@@ -533,7 +529,7 @@ export class RelayCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      RelayCommand.DEPLOY_COMMAND,
+      'relay node add',
     );
 
     if (tasks.isRoot()) {
@@ -543,7 +539,7 @@ export class RelayCommand extends BaseCommand {
         throw new SoloError(`Error deploying relay: ${error.message}`, error);
       } finally {
         if (lease) {
-          await lease.release();
+          await lease?.release();
         }
         await this.accountManager.close();
       }
@@ -660,7 +656,7 @@ export class RelayCommand extends BaseCommand {
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease.release();
+        await lease?.release();
         await this.accountManager.close();
       });
     }
@@ -668,7 +664,7 @@ export class RelayCommand extends BaseCommand {
     return true;
   }
 
-  private async destroy(argv: ArgvStruct) {
+  public async destroy(argv: ArgvStruct): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
     let lease: Lock;
@@ -739,7 +735,7 @@ export class RelayCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      'relay destroy',
+      'relay node destroy',
     );
 
     if (tasks.isRoot()) {
@@ -757,74 +753,6 @@ export class RelayCommand extends BaseCommand {
     }
 
     return true;
-  }
-
-  public getCommandDefinition(): CommandDefinition {
-    const self: this = this;
-    return {
-      command: RelayCommand.COMMAND_NAME,
-      desc: 'Manage JSON RPC relays in solo network',
-      builder: (yargs: AnyYargs) => {
-        return yargs
-          .command({
-            command: 'deploy',
-            desc: 'Deploy a JSON RPC relay',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...RelayCommand.DEPLOY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...RelayCommand.DEPLOY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'relay deploy' ===");
-
-              await self.deploy(argv).then(r => {
-                self.logger.info('==== Finished running `relay deploy`====');
-                if (!r) {
-                  throw new SoloError('Error deploying relay, expected return value to be true');
-                }
-              });
-            },
-          })
-          .command({
-            command: 'destroy',
-            desc: 'Destroy JSON RPC relay',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...RelayCommand.DESTROY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...RelayCommand.DESTROY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'relay destroy' ===");
-
-              await self.destroy(argv).then(r => {
-                self.logger.info('==== Finished running `relay destroy`====');
-
-                if (!r) {
-                  throw new SoloError('Error destroying relay, expected return value to be true');
-                }
-              });
-            },
-          })
-          .command({
-            command: 'upgrade',
-            desc: 'Upgrade JSON RPC relay',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...RelayCommand.UPGRADE_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...RelayCommand.UPGRADE_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'relay upgrade' ===");
-
-              await self.upgrade(argv).then(r => {
-                self.logger.info('==== Finished running `relay upgrade`====');
-
-                if (!r) {
-                  throw new SoloError('Error upgrading relay, expected return value to be true');
-                }
-              });
-            },
-          })
-          .demandCommand(1, 'Select a relay command');
-      },
-    };
   }
 
   /** Adds the relay component to remote config. */
