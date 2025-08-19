@@ -9,7 +9,7 @@ import {BlockCommandDefinition} from './command-definitions/block-command-defini
 import {ClusterReferenceCommandDefinition} from './command-definitions/cluster-reference-command-definition.js';
 import {ConsensusCommandDefinition} from './command-definitions/consensus-command-definition.js';
 import {MirrorCommandDefinition} from './command-definitions/mirror-command-definition.js';
-import {QuickStartCommandDefinition} from './command-definitions/quick-start-command-definition.js';
+import {OneShotCommandDefinition} from './command-definitions/one-shot-command-definition.js';
 import {LedgerCommandDefinition} from './command-definitions/ledger-command-definition.js';
 import {KeysCommandDefinition} from './command-definitions/keys-command-definition.js';
 import {ExplorerCommandDefinition} from './command-definitions/explorer-command-definition.js';
@@ -34,7 +34,7 @@ export class Commands {
     @inject(InjectTokens.LedgerCommandDefinition) private readonly ledger?: LedgerCommandDefinition,
     @inject(InjectTokens.MirrorCommandDefinition) private readonly mirror?: MirrorCommandDefinition,
     @inject(InjectTokens.RelayCommandDefinition) private readonly relay?: RelayCommandDefinition,
-    @inject(InjectTokens.QuickStartCommandDefinition) private readonly quickStart?: QuickStartCommandDefinition,
+    @inject(InjectTokens.OneShotCommandDefinition) private readonly oneShot?: OneShotCommandDefinition,
   ) {
     this.init = patchInject(init, InjectTokens.InitCommand, this.constructor.name);
     this.block = patchInject(block, InjectTokens.BlockCommandDefinition, this.constructor.name);
@@ -45,7 +45,7 @@ export class Commands {
     this.keys = patchInject(keys, InjectTokens.KeysCommandDefinition, this.constructor.name);
     this.ledger = patchInject(ledger, InjectTokens.LedgerCommandDefinition, this.constructor.name);
     this.mirror = patchInject(mirror, InjectTokens.MirrorCommandDefinition, this.constructor.name);
-    this.quickStart = patchInject(quickStart, InjectTokens.QuickStartCommandDefinition, this.constructor.name);
+    this.oneShot = patchInject(oneShot, InjectTokens.OneShotCommandDefinition, this.constructor.name);
   }
 
   public getCommandDefinitions(): CommandDefinition[] {
@@ -60,7 +60,7 @@ export class Commands {
       this.ledger.getCommandDefinition(),
       this.mirror.getCommandDefinition(),
       this.relay.getCommandDefinition(),
-      this.quickStart.getCommandDefinition(),
+      this.oneShot.getCommandDefinition(),
     ];
   }
 }

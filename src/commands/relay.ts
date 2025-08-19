@@ -440,7 +440,7 @@ export class RelayCommand extends BaseCommand {
           },
           skip: context_ => !context_.config.forcePortForward,
         },
-        // TODO only show this if we are not running in quick-start mode
+        // TODO only show this if we are not running in one-shot mode
         // {
         //   title: 'Show user messages',
         //   task: (): void => {
