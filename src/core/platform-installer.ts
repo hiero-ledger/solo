@@ -110,8 +110,8 @@ export class PlatformInstaller {
       const sourcePath = PathEx.joinWithRealPath(constants.RESOURCES_DIR, scriptName); // script source path
       await this.copyFiles(podReference, [sourcePath], constants.HEDERA_USER_HOME_DIR, undefined, context);
 
-      // wait a few seconds before calling the script to avoid "No such file" error
-      await sleep(Duration.ofSeconds(2));
+      // wait for files to exist before calling the script to avoid "No such file" error
+      await this.waitForFiles(podReference, [sourcePath], constants.HEDERA_USER_HOME_DIR, undefined, context);
 
       const extractScript = `${constants.HEDERA_USER_HOME_DIR}/${scriptName}`; // inside the container
       const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
@@ -181,6 +181,58 @@ export class PlatformInstaller {
       return copiedFiles;
     } catch (error) {
       throw new SoloError(`failed to copy files to pod '${podReference.name}': ${error.message}`, error);
+    }
+  }
+
+  /**
+   * Wait for files to appear in the container
+   * @param podReference - pod reference
+   * @param fileNames - list of file names to wait for
+   * @param directory - directory where the files should appear
+   * @param [container] - name of the container
+   * @param [context] - k8s context
+   */
+  async waitForFiles(
+    podReference: PodReference,
+    fileNames: string[],
+    directory: string,
+    container = constants.ROOT_CONTAINER,
+    context?: string,
+  ) {
+    // if empty fileNames, throw an error
+    if (!fileNames || fileNames.length === 0) {
+      throw new MissingArgumentError('fileNames is required and cannot be empty');
+    }
+
+    const timeoutMS: number = 20_000; // 20 seconds timeout
+    const startTime: number = Date.now();
+    try {
+      while (true) {
+        const containerReference: ContainerReference = ContainerReference.of(podReference, container);
+        const k8Containers = this.k8Factory.getK8(context).containers();
+
+        // map file names to existence flags
+        const fileExistenceMap: Record<string, boolean> = {};
+        for (const fileName of fileNames) {
+          if (fileName && fileName.trim() !== '') {
+            const filePath: string = PathEx.join(directory, fileName);
+            fileExistenceMap[fileName] = await k8Containers.readByRef(containerReference).hasFile(filePath);
+          }
+        }
+
+        // check if all files exist is set to true
+        if (Object.values(fileExistenceMap).every(Boolean)) {
+          return; // all files exist, exit the loop
+        }
+
+        // Check timeout
+        if (Date.now() - startTime > timeoutMS) {
+          throw new SoloError('Wait time exceeds timeout.');
+        }
+        await sleep(Duration.ofSeconds(1)); // wait before checking again
+      }
+    } catch (error) {
+      throw new SoloError(`failed to wait for files in pod '${podReference.name}': ${error.message}`, error);
     }
   }
 
