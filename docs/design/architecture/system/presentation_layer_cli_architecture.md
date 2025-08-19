@@ -590,9 +590,9 @@ operations associated with each resource.
 
 | Operation Name | Command Syntax | Description                                                                 |
 |----------------|----------------|-----------------------------------------------------------------------------|
-| **Info**       | `info`         | Displays details of the quick start configuration.                          |
-| **Deploy**     | `deploy`       | Deploys all required components for the selected quick start configuration. |
-| **Destroy**    | `destroy`      | Removes the deployed resources for the selected quick start configuration.  |
+| **Info**       | `info`         | Displays details of the one shot configuration.                             |
+| **Deploy**     | `deploy`       | Deploys all required components for the selected one shot configuration. |
+| **Destroy**    | `destroy`      | Removes the deployed resources for the selected one shot configuration.  |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -602,9 +602,9 @@ operations associated with each resource.
 
 | Operation Name | Command Syntax | Description                                                                 |
 |----------------|----------------|-----------------------------------------------------------------------------|
-| **Info**       | `info`         | Displays details of the quick start configuration.                          |
-| **Deploy**     | `deploy`       | Deploys all required components for the selected quick start configuration. |
-| **Destroy**    | `destroy`      | Removes the deployed resources for the selected quick start configuration.  |
+| **Info**       | `info`         | Displays details of the one shot configuration.                          |
+| **Deploy**     | `deploy`       | Deploys all required components for the selected one shot configuration. |
+| **Destroy**    | `destroy`      | Removes the deployed resources for the selected one shot configuration.  |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -614,9 +614,9 @@ operations associated with each resource.
 
 | Operation Name | Command Syntax | Description                                                                 |
 |----------------|----------------|-----------------------------------------------------------------------------|
-| **Info**       | `info`         | Displays details of the quick start configuration.                          |
-| **Deploy**     | `deploy`       | Deploys all required components for the selected quick start configuration. |
-| **Destroy**    | `destroy`      | Removes the deployed resources for the selected quick start configuration.  |
+| **Info**       | `info`         | Displays details of the one shot configuration.                          |
+| **Deploy**     | `deploy`       | Deploys all required components for the selected one shot configuration. |
+| **Destroy**    | `destroy`      | Removes the deployed resources for the selected one shot configuration.  |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
