@@ -28,9 +28,9 @@
     "local-java-build": false
   },
   {
-    "name": "Quick Start Single",
-    "test-script": "test-e2e-quick-start-single",
-    "coverage-subdirectory": "e2e-quick-start-single",
+    "name": "One Shot Single",
+    "test-script": "test-e2e-one-shot-single",
+    "coverage-subdirectory": "e2e-one-shot-single",
     "coverage-report-name": "E2E_Quick_Start_Single_Tests_Coverage_Report",
     "local-java-build": false
   },

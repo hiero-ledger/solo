@@ -19,7 +19,7 @@ tasks:
       - cmd: kubectl config set-context {{ .CONTEXT }}
 
       # "Solo init"
-      - cmd: npx solo quick-start single deploy
+      - cmd: npx solo one-shot single deploy
 
   get:ledger:addressbook:
     silent: true

@@ -174,18 +174,18 @@ kubectl config use-context <context-name>
 
 {{< /details >}}<br/>
 
-## Quick Start Deployment
+## One Shot Deployment
 
 For a simple setup with a single node with a mirror node, explorer, and JSON RPC relay, you can follow these quick steps. This is ideal for testing and development purposes.
 
 ```bash
-solo quick-start single deploy
+solo one-shot single deploy
 ```
 
 When you're finished, you can tear down your Solo network just as easily:
 
 ```bash
-solo quick-start single destroy
+solo one-shot single destroy
 ```
 
 ## Step-by-Step Solo Network Deployment

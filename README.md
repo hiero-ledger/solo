@@ -1,4 +1,4 @@
-> 📝 Solo has a new quick-start command!  check it out: [Solo User Guide](https://solo.hiero.org/v0.41.0/docs/step-by-step-guide/#quick-start-deployment), [Solo CLI Commands](https://solo.hiero.org/v0.41.0/docs/solo-commands/#quick-start-single)
+> 📝 Solo has a new one-shot command!  check it out: [Solo User Guide](https://solo.hiero.org/v0.41.0/docs/step-by-step-guide/#one-shot-deployment), [Solo CLI Commands](https://solo.hiero.org/v0.41.0/docs/solo-commands/#one-shot-single)
 
 # Solo
 
