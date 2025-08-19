@@ -952,10 +952,10 @@ export class MirrorNodeCommand extends BaseCommand {
               task,
             );
 
-            context_.config = this.configManager.getConfig(
-              MirrorNodeCommand.UPGRADE_CONFIGS_NAME,
-              allFlags,
-            ) as MirrorNodeUpgradeConfigClass;
+            context_.config = this.configManager.getConfig(MirrorNodeCommand.UPGRADE_CONFIGS_NAME, allFlags, [
+              'valuesArg',
+              'namespace',
+            ]) as MirrorNodeUpgradeConfigClass;
 
             context_.config.namespace = namespace;
 
