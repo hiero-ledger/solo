@@ -99,3 +99,20 @@ minio-server:
 deployment:
   podAnnotations: {}
   podLabels: {}
+  nodeSelector:
+    solo.hashgraph.io/role: "consensus-node"
+    solo.hashgraph.io/owner: "alex.kuzmin"
+    solo.hashgraph.io/network-id: "4"
+  tolerations:
+    - key: "solo.hashgraph.io/role"
+      operator: "Equal"
+      value: "consensus-node"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Equal"
+      value: "alex.kuzmin"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Equal"
+      value: "4"
+      effect: "NoSchedule"

@@ -45,6 +45,14 @@ tasks:
           npx solo keys consensus generate --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
           --node-aliases {{ .NODE_IDENTIFIERS }}
 
+      # Label the node to be consistent with init-containers-values.yaml
+      - cmd: |
+          NODE_NAME=$(kubectl get nodes --no-headers | awk '{print $1}')
+          echo "Node name is: $NODE_NAME"
+          kubectl label node "$NODE_NAME" solo.hashgraph.io/network-id=4
+          kubectl label node "$NODE_NAME" solo.hashgraph.io/owner=alex.kuzmin
+          kubectl label node "$NODE_NAME" solo.hashgraph.io/role=consensus-node
+
       # Solo network deploy
       - cmd: |
           npx solo consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
