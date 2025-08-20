@@ -52,7 +52,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
         ).addSubcommand(
           new Subcommand(
             LedgerCommandDefinition.SYSTEM_INIT,
-            'Rekeys system accounts and stake consensus nodes.',
+            'Re-keys ledger system accounts and consensus node admin keys with uniquely generated ED25519 private keys and will stake consensus nodes.',
             this.accountCommand,
             this.accountCommand.init,
             AccountCommand.INIT_FLAGS_LIST,
