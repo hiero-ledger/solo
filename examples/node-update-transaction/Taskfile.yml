@@ -12,13 +12,27 @@ vars:
   PREPARE_OUTPUT_DIR: "{{ .TEMPORARY_DIR }}/prepare-output"
   APPLICATION_PROPERTIES: "{{ .TEMPORARY_DIR }}/application.properties"
   APPLICATION_PROPERTIES_FLAG: "--application-properties {{.APPLICATION_PROPERTIES}}"
-  SOLO_COMMAND: "npm run solo --" # use this if running with solo source repository
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx solo"
+      else
+        echo "npm run solo --"
+      fi
   # SOLO_COMMAND: "solo" # use this if running with installed version of Solo
 tasks:
   default:
     desc: Run a full standalone Solo network with mirror node, relay and prepare for node operations
     dir: ../..
     cmds:
+      # Install Solo CLI
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Skipping npm install - using development version"
+          fi
+
       - cmd: |
           # Clean up any existing Kind clusters
           for cluster in $(kind get clusters); do
@@ -41,7 +55,7 @@ tasks:
             which solo
           else
             task build
-            npm run solo -- --version
+            {{ .SOLO_COMMAND }} --version
           fi
 
       - cmd: |

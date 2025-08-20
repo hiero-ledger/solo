@@ -3,6 +3,14 @@ env:
   SOLO_DEPLOYMENT: "nested-cluster-deployment"
   SOLO_NAMESPACE: "nested-cluster-namespace"
   SOLO_CLUSTER_NAME: "nested-cluster-cluster"
+vars:
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx solo"
+      else
+        echo "npm run solo --"
+      fi
 tasks:
   default:
     cmds:

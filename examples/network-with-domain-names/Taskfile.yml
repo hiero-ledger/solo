@@ -13,6 +13,13 @@ vars:
   NAMESPACE: "namespace-network-with-domain-names"
   CLUSTER_NAME: "solo-cluster"
   CONTEXT: "kind-solo-cluster"
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx solo"
+      else
+        echo "npm run solo --"
+      fi
   CLUSTER_REFERENCE: "kind-solo-cluster"
 
 tasks:
@@ -20,7 +27,12 @@ tasks:
     desc: Run a full standalone Solo network with block node, mirror node, and relay
     cmds:
       # Install Solo CLI
-      - cmd: npm i @hashgraph/solo@latest
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Skipping npm install - using development version"
+          fi
 
       # Create Kind cluster
       - cmd: kind create cluster -n {{ .CLUSTER_NAME }}

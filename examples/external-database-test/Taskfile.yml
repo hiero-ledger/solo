@@ -13,6 +13,13 @@ vars:
   CONTEXT: "kind-external-database-example-cluster"
   CLUSTER_REF: "kind-external-database-example-cluster"
   DEPLOYMENT: "external-database-example-deployment"
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx solo"
+      else
+        echo "npm run solo --"
+      fi
   NETWORK_SIZE: "1"
   NAMESPACE: "external-database-example-namespace"
   SOLO_CLUSTER_RELEASE_NAME: "external-database-example-cluster-setup"
@@ -22,6 +29,14 @@ tasks:
   default:
     desc: create the cluster, solo init, solo cluster-ref create, solo keys consensus generate, solo consensus network deploy
     cmds:
+      # Install Solo CLI
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Skipping npm install - using development version"
+          fi
+
       # Create Kind cluster"
       - cmd: kind create cluster -n "{{ .CLUSTER_NAME }}"
 
@@ -35,31 +50,31 @@ tasks:
       - cmd: npm i @hashgraph/solo@latest
 
       # Solo init"
-      - cmd: npx solo init
+      - cmd: {{ .SOLO_COMMAND }} init
 
       # Solo cluster-ref config setup"
-      - cmd: npx solo cluster-ref config setup --quiet-mode --dev
+      - cmd: {{ .SOLO_COMMAND }} cluster-ref config setup --quiet-mode --dev
 
       # Solo cluster-ref config connect"
-      - cmd: npx solo cluster-ref config connect --cluster-ref {{ .CLUSTER_REF }} --context {{ .CONTEXT }}
+      - cmd: {{ .SOLO_COMMAND }} cluster-ref config connect --cluster-ref {{ .CLUSTER_REF }} --context {{ .CONTEXT }}
 
       # Solo deployment config create"
-      - cmd: npx solo deployment config create --namespace {{ .NAMESPACE }} --deployment {{ .DEPLOYMENT }} --realm 0 --shard 0
+      - cmd: {{ .SOLO_COMMAND }} deployment config create --namespace {{ .NAMESPACE }} --deployment {{ .DEPLOYMENT }} --realm 0 --shard 0
 
       # Solo deployment cluster attach"
-      - cmd: npx solo deployment cluster attach --cluster-ref {{ .CLUSTER_REF }} --deployment {{ .DEPLOYMENT }} --num-consensus-nodes {{ .NETWORK_SIZE }}
+      - cmd: {{ .SOLO_COMMAND }} deployment cluster attach --cluster-ref {{ .CLUSTER_REF }} --deployment {{ .DEPLOYMENT }} --num-consensus-nodes {{ .NETWORK_SIZE }}
 
       # Solo node keys"
-      - cmd: npx solo keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
+      - cmd: {{ .SOLO_COMMAND }} keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
 
       # Solo network deploy"
-      - cmd: npx solo consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
+      - cmd: {{ .SOLO_COMMAND }} consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
 
       # Solo node setup"
-      - cmd: npx solo consensus node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
+      - cmd: {{ .SOLO_COMMAND }} consensus node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
 
       # Solo node start"
-      - cmd: npx solo consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
+      - cmd: {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
 
       # Install PostgreSQL using Helm"
       - cmd: |
@@ -93,7 +108,7 @@ tasks:
 
       # Solo mirror node add"
       - cmd: |
-          npx solo mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }} --use-external-database \
+          {{ .SOLO_COMMAND }} mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }} --use-external-database \
           --enable-ingress --external-database-host {{ .POSTGRES_HOST_FQDN }} \
           --external-database-owner-username {{ .POSTGRES_USERNAME }} --external-database-owner-password {{ .POSTGRES_PASSWORD }} \
           --external-database-read-username {{ .POSTGRES_READONLY_USERNAME }} \
@@ -102,7 +117,7 @@ tasks:
 
       # Solo explorer node add"
       - cmd: |
-          npx solo explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }} --mirrorNamespace {{ .NAMESPACE }} \
+          {{ .SOLO_COMMAND }} explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }} --mirrorNamespace {{ .NAMESPACE }} \
           --enable-explorer-tls --tls-cluster-issuer-type acme-staging --enable-ingress -q --dev
 
       # Copy database-seeding-query.sql to database pod"
@@ -117,7 +132,7 @@ tasks:
           -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }}
 
       # Solo relay node add"
-      - cmd: npx solo relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
+      - cmd: {{ .SOLO_COMMAND }} relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
       # Run solo smoke test"
       - cmd: |
           cd ../../

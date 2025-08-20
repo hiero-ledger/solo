@@ -2,12 +2,24 @@ version: 3
 vars:
   CLUSTER_NAME: "address-book-example-cluster"
   CONTEXT: "kind-address-book-example-cluster"
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx solo"
+      else
+        echo "npm run solo --"
+      fi
 tasks:
   default:
     desc: Quick start a Solo network
     cmds:
       # "Install Solo CLI"
-      - cmd: npm i @hashgraph/solo@latest
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Skipping npm install - using development version"
+          fi
 
       # "Create Kind cluster"
       - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
@@ -19,7 +31,7 @@ tasks:
       - cmd: kubectl config set-context {{ .CONTEXT }}
 
       # "Solo init"
-      - cmd: npx solo quick-start single deploy
+      - cmd: {{ .SOLO_COMMAND }} quick-start single deploy
 
   get:ledger:addressbook:
     silent: true
