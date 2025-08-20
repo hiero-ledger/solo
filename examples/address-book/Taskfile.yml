@@ -1,7 +1,6 @@
 version: 3
-vars:
-  CLUSTER_NAME: "address-book-example-cluster"
-  CONTEXT: "kind-address-book-example-cluster"
+
+env:
   SOLO_COMMAND:
     sh: |
       if [ "${USE_RELEASED_VERSION}" = "true" ]; then
@@ -9,6 +8,11 @@ vars:
       else
         echo "npm run solo --"
       fi
+
+vars:
+  CLUSTER_NAME: "address-book-example-cluster"
+  CONTEXT: "kind-address-book-example-cluster"
+
 tasks:
   default:
     desc: Quick start a Solo network
@@ -31,7 +35,7 @@ tasks:
       - cmd: kubectl config set-context {{ .CONTEXT }}
 
       # "Solo init"
-      - cmd: {{ .SOLO_COMMAND }} quick-start single deploy
+      - cmd: $SOLO_COMMAND quick-start single deploy
 
   get:ledger:addressbook:
     silent: true
