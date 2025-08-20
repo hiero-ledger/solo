@@ -22,7 +22,7 @@ import {
   PrivateKey,
   Status,
   TransferTransaction,
-} from '@hashgraph/sdk';
+} from '@hiero-ledger/sdk';
 import {MissingArgumentError} from './errors/missing-argument-error.js';
 import {ResourceNotFoundError} from './errors/resource-not-found-error.js';
 import {SoloError} from './errors/solo-error.js';
@@ -31,7 +31,7 @@ import {type NetworkNodeServices} from './network-node-services.js';
 
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
-import {type AccountIdWithKeyPairObject, Context, type ExtendedNetServer} from '../types/index.js';
+import {type AccountIdWithKeyPairObject, Context} from '../types/index.js';
 import {type NodeAlias, type NodeAliases, type SdkNetworkEndpoint} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {entityId, getExternalAddress, isNumeric, sleep} from './helpers.js';
@@ -62,7 +62,7 @@ const REJECTED: string = 'rejected';
 
 @injectable()
 export class AccountManager {
-  private _portForwards: ExtendedNetServer[];
+  private _portForwards: number[];
   private _forcePortForward: boolean = false;
   public _nodeClient: Client | null;
 
@@ -360,38 +360,10 @@ export class AccountManager {
         await this._nodeClient.ping(AccountId.fromString(operatorId));
       }
 
-      // start a background pinger to keep the node client alive, Hashgraph SDK JS has a 90-second keep alive time, and
-      // 5-second keep alive timeout
-      this.startIntervalPinger(operatorId);
-
       return this._nodeClient;
     } catch (error) {
       throw new SoloError(`failed to setup node client: ${error.message}`, error);
     }
-  }
-
-  /**
-   * pings the node client at a set interval, can throw an exception if the ping fails
-   * @param operatorId
-   */
-  private startIntervalPinger(operatorId: string): void {
-    const interval: number = constants.NODE_CLIENT_PING_INTERVAL;
-    const intervalId = setInterval(async (): Promise<void> => {
-      if (this._nodeClient || !this._nodeClient?.isClientShutDown) {
-        this.logger.debug('node client has been closed, clearing node client ping interval');
-        clearInterval(intervalId);
-      } else {
-        try {
-          this.logger.debug(`pinging node client at an interval of ${Duration.ofMillis(interval).seconds} seconds`);
-          if (!constants.SKIP_NODE_PING) {
-            await this._nodeClient.ping(AccountId.fromString(operatorId));
-          }
-        } catch (error) {
-          const message: string = `failed to ping node client while running the interval pinger: ${error.message}`;
-          throw new SoloError(message, error);
-        }
-      }
-    }, interval);
   }
 
   private async configureNodeAccess(
@@ -427,16 +399,15 @@ export class AccountManager {
       const targetPort: number = localPort;
 
       if (this._portForwards.length < totalNodes) {
-        this._portForwards.push(
-          await this.k8Factory
-            .getK8(networkNodeService.context)
-            .pods()
-            .readByReference(PodReference.of(networkNodeService.namespace, networkNodeService.haProxyPodName))
-            .portForward(localPort, port),
-        );
+        const portForward: number = await this.k8Factory
+          .getK8(networkNodeService.context)
+          .pods()
+          .readByReference(PodReference.of(networkNodeService.namespace, networkNodeService.haProxyPodName))
+          .portForward(localPort, port);
+        this._portForwards.push(portForward);
+        this.logger.debug(`using local host port forward: ${host}:${portForward}`);
       }
 
-      this.logger.debug(`using local host port forward: ${host}:${targetPort}`);
       object[`${host}:${targetPort}`] = accountId;
 
       await this.testNodeClientConnection(object, accountId);

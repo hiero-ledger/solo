@@ -2,7 +2,6 @@
 
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
-import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
@@ -15,17 +14,11 @@ import {
 import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
-import {
-  type ClusterReferenceName,
-  type CommandDefinition,
-  type Context,
-  type Optional,
-  type SoloListrTask,
-} from '../types/index.js';
+import {type ClusterReferenceName, type Context, type Optional, type SoloListrTask} from '../types/index.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterChecks} from '../core/cluster-checks.js';
@@ -37,6 +30,7 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {Lock} from '../core/lock/lock.js';
+import {CommandFlags} from '../types/flag-types.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Version} from '../business/utils/version.js';
@@ -83,8 +77,6 @@ interface ExplorerDestroyContext {
 
 @injectable()
 export class ExplorerCommand extends BaseCommand {
-  public static readonly DEPLOY_COMMAND = 'explorer deploy';
-
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
@@ -96,11 +88,9 @@ export class ExplorerCommand extends BaseCommand {
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME = 'explorer';
+  private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
-  private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
-
-  private static readonly DEPLOY_FLAGS_LIST = {
+  public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.cacheDir,
@@ -125,14 +115,11 @@ export class ExplorerCommand extends BaseCommand {
     ],
   };
 
-  private static readonly DESTROY_FLAGS_LIST = {
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.devMode],
   };
 
-  /**
-   * @param config - the configuration object
-   */
   private async prepareHederaExplorerValuesArg(config: ExplorerDeployConfigClass): Promise<string> {
     let valuesArgument: string = '';
 
@@ -183,9 +170,6 @@ export class ExplorerCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  /**
-   * @param config - the configuration object
-   */
   private async prepareCertManagerChartValuesArg(config: ExplorerDeployConfigClass): Promise<string> {
     const {tlsClusterIssuerType, namespace} = config;
 
@@ -214,7 +198,7 @@ export class ExplorerCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private async prepareValuesArg(config: ExplorerDeployConfigClass) {
+  private async prepareValuesArg(config: ExplorerDeployConfigClass): Promise<string> {
     let valuesArgument = '';
     if (config.valuesFile) {
       valuesArgument += prepareValuesFiles(config.valuesFile);
@@ -222,7 +206,7 @@ export class ExplorerCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private async deploy(argv: ArgvStruct): Promise<boolean> {
+  public async add(argv: ArgvStruct): Promise<boolean> {
     const self = this;
     let lease: Lock;
 
@@ -262,6 +246,9 @@ export class ExplorerCommand extends BaseCommand {
             ]) as ExplorerDeployConfigClass;
 
             context_.config.valuesArg += await self.prepareValuesArg(context_.config);
+            context_.config.clusterReference =
+              (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
+              this.k8Factory.default().clusters().readCurrent();
             context_.config.clusterContext = context_.config.clusterRef
               ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString()
               : this.k8Factory.default().contexts().readCurrent();
@@ -344,7 +331,6 @@ export class ExplorerCommand extends BaseCommand {
           },
           skip: context_ => !context_.config.enableExplorerTls,
         },
-
         {
           title: 'Install explorer',
           task: async context_ => {
@@ -452,7 +438,7 @@ export class ExplorerCommand extends BaseCommand {
         },
         this.addMirrorNodeExplorerComponents(),
         {
-          title: 'Enable port forwarding',
+          title: 'Enable port forwarding for explorer',
           skip: context_ => !context_.config.forcePortForward,
           task: async context_ => {
             const pods: Pod[] = await this.k8Factory
@@ -463,16 +449,19 @@ export class ExplorerCommand extends BaseCommand {
               throw new SoloError('No Hiero Explorer pod found');
             }
             const podReference: PodReference = pods[0].podReference;
+            const clusterReference: ClusterReferenceName = context_.config.clusterReference;
 
-            await this.k8Factory
-              .getK8(context_.config.clusterContext)
-              .pods()
-              .readByReference(podReference)
-              .portForward(constants.EXPLORER_PORT, constants.EXPLORER_PORT, true);
-            this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-            this.logger.addMessageGroupMessage(
-              constants.PORT_FORWARDING_MESSAGE_GROUP,
-              `Explorer port forward enabled on http://localhost:${constants.EXPLORER_PORT}`,
+            await this.remoteConfig.configuration.components.managePortForward(
+              clusterReference,
+              podReference,
+              constants.EXPLORER_PORT, // Pod port
+              constants.EXPLORER_PORT, // Local port
+              this.k8Factory.getK8(context_.config.clusterContext),
+              this.logger,
+              ComponentTypes.Explorers,
+
+              'Explorer',
+              context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             );
           },
         },
@@ -489,7 +478,7 @@ export class ExplorerCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      ExplorerCommand.DEPLOY_COMMAND,
+      'explorer node add',
     );
 
     if (tasks.isRoot()) {
@@ -499,22 +488,22 @@ export class ExplorerCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error deploying explorer: ${error.message}`, error);
       } finally {
-        await lease.release();
+        await lease?.release();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease.release();
+        await lease?.release();
       });
     }
 
     return true;
   }
 
-  private async destroy(argv: ArgvStruct): Promise<boolean> {
+  public async destroy(argv: ArgvStruct): Promise<boolean> {
     const self = this;
     let lease: Lock;
 
-    const tasks = new Listr<ExplorerDestroyContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -545,7 +534,7 @@ export class ExplorerCommand extends BaseCommand {
               throw new SoloError('Aborting Explorer Destroy, no cluster reference could be found');
             }
 
-            const clusterContext: Context = self.localConfig.configuration.clusterRefs
+            const clusterContext: Context = this.localConfig.configuration.clusterRefs
               .get(clusterReference)
               ?.toString();
 
@@ -586,7 +575,7 @@ export class ExplorerCommand extends BaseCommand {
               context_.config.namespace,
               constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME,
             );
-            // delete ingress class if found one
+            // destroy ingress class if found one
             const existingIngressClasses = await self.k8Factory
               .getK8(context_.config.clusterContext)
               .ingressClasses()
@@ -607,76 +596,25 @@ export class ExplorerCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      'explorer node destroy',
     );
 
-    try {
-      await tasks.run();
-      self.logger.debug('explorer destruction has completed');
-    } catch (error) {
-      throw new SoloError(`Error destroy explorer: ${error.message}`, error);
-    } finally {
-      await lease.release();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError(`Error destroy explorer: ${error.message}`, error);
+      } finally {
+        await lease?.release();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease?.release();
+      });
     }
 
     return true;
-  }
-
-  public getCommandDefinition(): CommandDefinition {
-    const self: this = this;
-    return {
-      command: ExplorerCommand.COMMAND_NAME,
-      desc: 'Manage Explorer in solo network',
-      builder: (yargs: AnyYargs) => {
-        return yargs
-          .command({
-            command: 'deploy',
-            desc: 'Deploy explorer',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...ExplorerCommand.DEPLOY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...ExplorerCommand.DEPLOY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running explorer deploy' ===");
-
-              await self
-                .deploy(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running explorer deploy`====');
-                  if (!r) {
-                    throw new Error('Explorer deployment failed, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Explorer deployment failed: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'destroy',
-            desc: 'Destroy explorer',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...ExplorerCommand.DESTROY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...ExplorerCommand.DESTROY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info('==== Running explorer destroy ===');
-
-              await self
-                .destroy(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running explorer destroy ====');
-                  if (!r) {
-                    throw new SoloError('Explorer destruction failed, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Explorer destruction failed: ${error.message}`, error);
-                });
-            },
-          })
-          .demandCommand(1, 'Select a explorer command');
-      },
-    };
   }
 
   private loadRemoteConfigTask(argv: ArgvStruct): SoloListrTask<AnyListrContext> {

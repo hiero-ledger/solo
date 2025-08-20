@@ -1,0 +1,198 @@
+// SPDX-License-Identifier: Apache-2.0
+
+import fs from 'node:fs';
+import * as helpers from '../helpers.js';
+import * as constants from '../constants.js';
+import {type PackageDownloader} from '../package-downloader.js';
+import {Templates} from '../templates.js';
+import {ShellRunner} from '../shell-runner.js';
+import * as semver from 'semver';
+import {OS_WIN32, OS_WINDOWS} from '../constants.js';
+import {MissingArgumentError} from '../errors/missing-argument-error.js';
+import {SoloError} from '../errors/solo-error.js';
+
+/**
+ * Base class for dependency managers that download and manage CLI tools
+ * Common functionality for downloading, checking versions, and managing executables
+ */
+export abstract class BaseDependencyManager extends ShellRunner {
+  protected readonly osPlatform: string;
+  protected readonly osArch: string;
+  protected localExecutablePath: string;
+  protected globalExecutablePath: string = '';
+  protected readonly artifactName: string;
+  protected readonly downloadURL: string;
+  protected readonly checksumURL: string;
+
+  protected constructor(
+    protected readonly downloader: PackageDownloader,
+    protected readonly installationDirectory: string,
+    osPlatform: NodeJS.Platform,
+    osArch: string,
+    protected readonly requiredVersion: string,
+    protected readonly executableName: string,
+    protected readonly downloadBaseUrl: string,
+  ) {
+    super();
+
+    if (!installationDirectory) {
+      throw new MissingArgumentError('installation directory is required');
+    }
+
+    // Node.js uses 'win32' for windows but many tools use 'windows'
+    this.osPlatform = osPlatform === OS_WIN32 ? OS_WINDOWS : (osPlatform as string);
+
+    // Normalize architecture naming - many tools use 'amd64' instead of 'x64'
+    this.osArch = ['x64', 'x86-64'].includes(osArch as string) ? 'amd64' : (osArch as string);
+
+    // Set the path to the local installation
+    this.localExecutablePath = Templates.installationPath(executableName, this.osPlatform, installationDirectory);
+
+    // Set artifact name and URLs - these will be overridden by child classes
+    this.artifactName = this.getArtifactName();
+    this.downloadURL = this.getDownloadURL();
+    this.checksumURL = this.getChecksumURL();
+  }
+
+  /**
+   * Child classes must implement this to generate the correct artifact name
+   * based on version, platform, and architecture
+   */
+  protected abstract getArtifactName(): string;
+
+  /**
+   * Get the download URL for the executable
+   */
+  protected abstract getDownloadURL(): string;
+
+  /**
+   * Get the checksum URL for the executable
+   */
+  protected abstract getChecksumURL(): string;
+
+  public abstract getVersion(executablePath: string): Promise<string>;
+
+  /**
+   * Handle any post-download processing before copying to destination
+   * Child classes can override this for custom extraction or processing
+   */
+  protected abstract processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string>;
+
+  /**
+   * Get the path to the executable (global or local)
+   */
+  public getExecutablePath(): string {
+    return this.localExecutablePath;
+  }
+
+  /**
+   * Find the global executable using 'which' or 'where' command
+   */
+  private async getGlobalExecutablePath(): Promise<false | string> {
+    try {
+      if (this.globalExecutablePath) {
+        return this.globalExecutablePath;
+      }
+      const cmd: string = this.osPlatform === constants.OS_WINDOWS ? 'where' : 'which';
+      const path: string[] = await this.run(`${cmd} ${this.executableName}`);
+      if (path.length === 0) {
+        return false;
+      }
+      this.globalExecutablePath = path[0];
+      return path[0];
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Check if the given installation meets version requirements
+   */
+  public async installationMeetsRequirements(path: string): Promise<boolean> {
+    const version: string = await this.getVersion(path);
+    return semver.gte(version, this.getRequiredVersion());
+  }
+
+  /**
+   * Check if the tool is installed globally and meets requirements
+   */
+  private async isInstalledGloballyAndMeetsRequirements(): Promise<boolean> {
+    const path: false | string = await this.getGlobalExecutablePath();
+    return path && (await this.installationMeetsRequirements(path));
+  }
+  /**
+   * Check if the tool is installed locally and meets requirements
+   */
+  private async isInstalledLocallyAndMeetsRequirements(): Promise<boolean> {
+    return this.isInstalledLocally() && (await this.installationMeetsRequirements(this.localExecutablePath));
+  }
+
+  /**
+   * Check if the tool is installed locally
+   */
+  public isInstalledLocally(): boolean {
+    return fs.existsSync(this.localExecutablePath);
+  }
+
+  /**
+   * Uninstall the local version
+   */
+  public uninstallLocal(): void {
+    if (this.isInstalledLocally()) {
+      fs.rmSync(this.localExecutablePath);
+    }
+  }
+
+  /**
+   * Install the tool
+   */
+  public async install(temporaryDirectory: string = helpers.getTemporaryDirectory()): Promise<boolean> {
+    // Check if it is already installed locally
+    if (await this.isInstalledLocallyAndMeetsRequirements()) {
+      this.logger.debug(
+        `${this.executableName} is installed at ${this.installationDirectory} and meets version requirements.`,
+      );
+      return true;
+    }
+
+    // If it is installed globally and meets requirements, copy it to the local path
+    if (await this.isInstalledGloballyAndMeetsRequirements()) {
+      this.logger.debug(`${this.executableName} is installed at globally and meets version requirements.`);
+      fs.cpSync(this.globalExecutablePath, this.localExecutablePath);
+      this.logger.debug(`Copied ${this.executableName} executable to ${this.installationDirectory}`);
+      return true;
+    }
+
+    // If not installed, download and install
+    this.logger.debug(`Downloading and installing ${this.executableName} executable...`);
+    const packageFile: string = await this.downloader!.fetchPackage(
+      this.downloadURL,
+      this.checksumURL,
+      temporaryDirectory,
+    );
+    const processedFile: string = await this.processDownloadedPackage(packageFile, temporaryDirectory);
+
+    if (!fs.existsSync(this.installationDirectory!)) {
+      fs.mkdirSync(this.installationDirectory!, {recursive: true});
+    }
+
+    // In case there is an existing local installation, which did not meet the requirements - remove it
+    this.uninstallLocal();
+
+    try {
+      fs.cpSync(processedFile, this.localExecutablePath);
+      fs.chmodSync(this.localExecutablePath, 0o755);
+    } catch (error: Error | any) {
+      throw new SoloError(`Failed to install ${this.executableName}: ${error.message}`);
+    }
+
+    return this.isInstalledLocally();
+  }
+
+  /**
+   * Get the tool's required version
+   */
+  public getRequiredVersion(): string {
+    return this.requiredVersion as string;
+  }
+}

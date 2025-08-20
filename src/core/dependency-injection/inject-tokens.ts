@@ -12,8 +12,10 @@ export class InjectTokens {
   public static OsArch: symbol = Symbol.for('OsArch');
   public static HelmInstallationDir: symbol = Symbol.for('HelmInstallationDir');
   public static KindInstallationDir: symbol = Symbol.for('KindInstallationDir');
+  public static KubectlInstallationDir: symbol = Symbol.for('KubectlInstallationDir');
   public static HelmVersion: symbol = Symbol.for('HelmVersion');
   public static KindVersion: symbol = Symbol.for('KindVersion');
+  public static KubectlVersion: symbol = Symbol.for('KubectlVersion');
   public static SystemAccounts: symbol = Symbol.for('SystemAccounts');
   public static CacheDir: symbol = Symbol.for('CacheDir');
   public static LockRenewalService: symbol = Symbol.for('LockRenewalService');
@@ -27,6 +29,7 @@ export class InjectTokens {
   public static HelmExecutionBuilder: symbol = Symbol.for('HelmExecutionBuilder');
   public static HelmDependencyManager: symbol = Symbol.for('HelmDependencyManager');
   public static KindDependencyManager: symbol = Symbol.for('KindDependencyManager');
+  public static KubectlDependencyManager: symbol = Symbol.for('KubectlDependencyManager');
   public static ChartManager: symbol = Symbol.for('ChartManager');
   public static ConfigManager: symbol = Symbol.for('ConfigManager');
   public static AccountManager: symbol = Symbol.for('AccountManager');
@@ -67,4 +70,16 @@ export class InjectTokens {
   public static QuickStartCommand: symbol = Symbol.for('QuickStartCommand');
   public static TaskList: symbol = Symbol.for('TaskList');
   public static Commands: symbol = Symbol.for('Commands');
+
+  // Command Definitions
+  public static BlockCommandDefinition: symbol = Symbol.for('BlockCommandDefinition');
+  public static ClusterReferenceCommandDefinition: symbol = Symbol.for('ClusterReferenceCommandDefinition');
+  public static ConsensusCommandDefinition: symbol = Symbol.for('ConsensusCommandDefinition');
+  public static DeploymentCommandDefinition: symbol = Symbol.for('DeploymentCommandDefinition');
+  public static ExplorerCommandDefinition: symbol = Symbol.for('ExplorerCommandDefinition');
+  public static KeysCommandDefinition: symbol = Symbol.for('KeysCommandDefinition');
+  public static LedgerCommandDefinition: symbol = Symbol.for('LedgerCommandDefinition');
+  public static MirrorCommandDefinition: symbol = Symbol.for('MirrorCommandDefinition');
+  public static RelayCommandDefinition: symbol = Symbol.for('RelayCommandDefinition');
+  public static QuickStartCommandDefinition: symbol = Symbol.for('QuickStartCommandDefinition');
 }

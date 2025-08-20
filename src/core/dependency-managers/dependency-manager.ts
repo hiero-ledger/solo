@@ -9,14 +9,19 @@ import * as constants from '../constants.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {type SoloListrTask} from '../../types/index.js';
 import {KindDependencyManager} from './kind-dependency-manager.js';
+import {KubectlDependencyManager} from './kubectl-dependency-manager.js';
 
 @injectable()
 export class DependencyManager extends ShellRunner {
-  private readonly dependancyManagerMap: Map<string, HelmDependencyManager | KindDependencyManager>;
+  private readonly dependancyManagerMap: Map<
+    string,
+    HelmDependencyManager | KindDependencyManager | KubectlDependencyManager
+  >;
 
   public constructor(
     @inject(InjectTokens.HelmDependencyManager) helmDepManager?: HelmDependencyManager,
     @inject(InjectTokens.KindDependencyManager) kindDepManager?: KindDependencyManager,
+    @inject(InjectTokens.KubectlDependencyManager) kubectlDependencyManager?: KubectlDependencyManager,
   ) {
     super();
     this.dependancyManagerMap = new Map();
@@ -31,20 +36,26 @@ export class DependencyManager extends ShellRunner {
     } else {
       this.dependancyManagerMap.set(constants.KIND, container.resolve(KindDependencyManager));
     }
+
+    if (kubectlDependencyManager) {
+      this.dependancyManagerMap.set(constants.KUBECTL, kubectlDependencyManager);
+    } else {
+      this.dependancyManagerMap.set(constants.KUBECTL, container.resolve(KubectlDependencyManager));
+    }
   }
 
   /**
    * Check if the required dependency is installed or not
    * @param dep - is the name of the program
-   * @param [shouldInstall] - Whether or not install the dependency if not installed
    */
-  public async checkDependency(dep: string, shouldInstall: boolean = true): Promise<boolean> {
+  public async checkDependency(dep: string): Promise<boolean> {
     this.logger.debug(`Checking for dependency: ${dep}`);
 
     let status: boolean = false;
-    const manager: HelmDependencyManager | KindDependencyManager = this.dependancyManagerMap.get(dep);
+    const manager: HelmDependencyManager | KindDependencyManager | KubectlDependencyManager =
+      this.dependancyManagerMap.get(dep);
     if (manager) {
-      status = await manager.checkVersion(shouldInstall);
+      status = await manager.install();
     }
 
     if (!status) {
