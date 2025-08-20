@@ -12,16 +12,16 @@ import { dirname, resolve } from 'path';
 // -----------------------------------------------------------------------------
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-process.chdir(resolve(__dirname, "..")); // same as "cd .." from script
+process.chdir(resolve(__dirname, "../../../")); // same as "cd .." from script
 
-const TARGET_DIR = "docs/site/content/en";
-const TARGET_DIR_DOCS = `${TARGET_DIR}/docs`;
-const TEMPLATE_DIR = `${TARGET_DIR}/templates`;
+const TARGET_DIR = 'docs/site/content/en';
+const TARGET_DIR_DOCS = 'docs/site/content/en/docs';
+const TEMPLATE_DIR = 'docs/site/content/en/templates';
 const TARGET_FILE = `${TARGET_DIR_DOCS}/step-by-step-guide.md`;
 const TEMPLATE_FILE = `${TEMPLATE_DIR}/step-by-step-guide.template.md`;
 const TEMPLATE_EXAMPLES_FILE = `${TEMPLATE_DIR}/examples-index.template.md`;
-const BUILD_DIR = "docs/site/build";
-const EXAMPLES_DIR = "examples";
+const BUILD_DIR = 'docs/site/build';
+const EXAMPLES_DIR = 'examples';
 
 void async function main () {
   mkdirSync(BUILD_DIR, { recursive: true });
@@ -187,64 +187,55 @@ void async function main () {
 // -----------------------------------------------------------------------------
 
 /**
- * Run a shell command synchronously and stream its output to the console,
- * while also returning the full captured output.
- *
- * @param {string} cmd - The command to execute.
- * @param {import("child_process").SpawnOptions} [opts={}] - Options for `spawn`.
- * @returns {Promise<string>} - The trimmed standard output of the command.
- * @throws {Error} - If the command exits with a non-zero status.
+ * Run a shell command, preserving colors for interactive Solo CLI commands,
+ * otherwise using normal spawn for safety.
+ * @returns {Promise<string>} - The output of the command.
  */
 async function run(cmd, opts = {}) {
-  console.log(`\x1b[36m> ${cmd}\x1b[0m`);
-  const [command, ...args] = cmd.split(" ");
+  console.log(`\x1b[92m> ${cmd}\x1b[0m`);
 
-  return await new Promise((resolve, reject) => {
+  // Normal spawn for non-interactive commands
+  const [command, ...args] = cmd.split(' ');
+  return new Promise((resolve, reject) => {
+    const env = { ...process.env };
+    if (!env.PATH) env.PATH = '/usr/local/bin:/usr/bin:/bin';
+
     const child = spawn(command, args, {
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ['inherit', 'pipe', 'pipe'],
       shell: true,
+      env,
       ...opts,
     });
 
-    let output = "";
-
-    child.stdout.on("data", (data) => {
+    let output = '';
+    child.stdout.on('data', (data) => {
       const text = data.toString();
-      process.stdout.write(text); // colors from CLI preserved
-      output += text.replace(/\r/g, "");
+      process.stdout.write(text);
+      output += text.replace(/\r/g, '');
     });
-
-    child.stderr.on("data", (data) => {
+    child.stderr.on('data', (data) => {
       const text = data.toString();
       process.stderr.write(text);
-      output += text.replace(/\r/g, "");
+      output += text.replace(/\r/g, '');
     });
 
-    child.on("close", (code) => {
-      if (code === 0) {
-        resolve(output.trim());
-      } else {
-        reject(new Error(`Command failed: ${cmd} (exit code ${code})`));
-      }
+    child.on('close', (code) => {
+      if (code === 0) resolve(output.trim());
+      else reject(new Error(`Command failed: ${cmd} (exit code ${code})`));
     });
   });
 }
 
 /**
- * Run a shell command, stream its output, save it to a file,
- * and export it as an environment variable.
- *
- * @param {string} cmd - The command to execute.
- * @param {string} key - The environment variable name to assign the command's output to.
- * @param {string} logFile - The file path to write the command output to.
- * @returns {Promise<string>} - The trimmed standard output of the command.
+ * Run a command, capture output, save to log file, and export env var.
  */
 async function runAndSave(cmd, key, logFile) {
   const output = await run(cmd);
-  writeFileSync(logFile, output + "\n");
+  writeFileSync(logFile, output + '\n');
   process.env[key] = output;
   return output;
 }
+
 /**
  * Perform variable substitution in a template string, replacing `$VAR` with its value.
  *
