@@ -106,6 +106,7 @@ echo "::group::Upgrade Consensus Node"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade consensus node"
 ps -ef |grep port-forward
 # Upgrade to latest version
+# HEDERA_PLATFORM_VERSION is no longer a hardcoded value in version.ts,
 export CONSENSUS_NODE_VERSION=$(grep "HEDERA_PLATFORM_VERSION" version.ts | sed -E "s/.*'([^']+)';/\1/")
 echo "Upgrade to Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
 npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q

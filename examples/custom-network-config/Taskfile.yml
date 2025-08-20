@@ -67,7 +67,7 @@ tasks:
 
       # Solo explorer node add
       - cmd: |
-          npx solo explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          npx solo explorer node add --deployment {{ .DEPLOYMENT }} \
           --enable-explorer-tls --tls-cluster-issuer-type acme-staging \
           --enable-ingress \
           -n {{ .EXPLORER_NAME_SPACE }} --deployment {{ .EXPLORER_DEPLOYMENT }} \
