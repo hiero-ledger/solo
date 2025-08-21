@@ -35,7 +35,6 @@ tasks:
             npm i @hashgraph/solo@latest
           else
             echo "Skipping npm install - using development version"
-            task build
           fi
 
       - cmd: |

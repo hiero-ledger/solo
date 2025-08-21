@@ -3,33 +3,14 @@ env:
   SOLO_DEPLOYMENT: "nested-cluster-deployment"
   SOLO_NAMESPACE: "nested-cluster-namespace"
   SOLO_CLUSTER_NAME: "nested-cluster-cluster"
-vars:
-  SOLO_COMMAND:
-    sh: |
-      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
-        echo "npx solo"
-      else
-        echo "npm run solo --"
-      fi
 tasks:
   default:
     cmds:
-      # Install Solo CLI
-      - cmd: |
-          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
-            npm i @hashgraph/solo@latest
-          else
-            echo "Skipping npm install - using development version"
-            task build
-          fi
-
       # Create .task-tmp directory
       - cmd: mkdir -p {{.TASKFILE_DIR}}/.task-tmp
 
       # Create .task-tmp directory (redundant)
       - cmd: mkdir -p {{.TASKFILE_DIR}}/.task-tmp
-
-      - cmd: sudo apt-get update && sudo apt-get install -y gettext-base
 
       # Render ServiceAccount manifest
       - cmd: envsubst < {{.TASKFILE_DIR}}/templates/sa-admin.yaml.tmpl > {{.TASKFILE_DIR}}/.task-tmp/sa-admin.yaml
