@@ -35,6 +35,7 @@ tasks:
             npm i @hashgraph/solo@latest
           else
             echo "Skipping npm install - using development version"
+            task build
           fi
 
       - cmd: |
@@ -50,17 +51,6 @@ tasks:
       - cmd: |
           # Create Kind cluster
           kind create cluster -n {{ .SOLO_CLUSTER_NAME }}
-
-      - cmd: |
-          # Install Solo
-          if [[ "$SOLO_COMMAND" == "solo" ]];then
-            npm install -g @hashgraph/solo
-            solo --version
-            which solo
-          else
-            task build
-            $SOLO_COMMAND --version
-          fi
 
       - cmd: |
           # Solo init

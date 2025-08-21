@@ -21,6 +21,14 @@ tasks:
   default:
     desc: Run a full standalone Solo network with block node, mirror node, and relay
     cmds:
+      # Install Solo CLI
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Skipping npm install - using development version"
+            task build
+          fi
 
       # Create Kind cluster
       - cmd: kind create cluster -n {{ .CLUSTER_NAME }}

@@ -34,7 +34,6 @@ async function main() {
   const prepareOutput = JSON.parse(prepareOutputString.toString());
   // console.log(`${logPrefix} ${JSON.stringify(prepareOutput)}`);
   const transformedPrepareOutput = prepareOutputParser(prepareOutput);
-  console.log(`${logPrefix} newAccountNumber: ${transformedPrepareOutput.newAccountNumber}`);
   try {
     const nodeUpdateTx = new NodeUpdateTransaction()
       .setNodeId(new Long(nodeIdFromNodeAlias('node2')))

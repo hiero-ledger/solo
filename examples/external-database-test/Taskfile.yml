@@ -39,6 +39,7 @@ tasks:
             npm i @hashgraph/solo@latest
           else
             echo "Skipping npm install - using development version"
+            task build
           fi
 
       # Create Kind cluster"
@@ -49,9 +50,6 @@ tasks:
 
       # Set kubectl context"
       - cmd: kubectl config set-context {{ .CONTEXT }}
-
-      # Install Solo CLI"
-      - cmd: npm i @hashgraph/solo@latest
 
       # Solo init"
       - cmd: $SOLO_COMMAND init
