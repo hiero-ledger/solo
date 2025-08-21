@@ -18,10 +18,6 @@ void async function main() {
     process.exit(1);
   }
 
-  console.log(kleur.cyan("ℹ Installing gettext-base (apt-get)"));
-  await run("sudo apt-get update");
-  await run("sudo apt-get install -y gettext-base");
-
   console.log(kleur.cyan("ℹ Running npm install"));
   await run("npm install");
 
