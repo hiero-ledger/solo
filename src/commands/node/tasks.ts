@@ -2717,15 +2717,15 @@ export class NodeCommandTasks {
         const config: NodeAddConfigClass = context_.config;
 
         try {
-          let nodeCreateTx = new NodeCreateTransaction()
+          const nodeCreateTx = new NodeCreateTransaction()
             .setAccountId(context_.newNode.accountId)
             .setGossipEndpoints(context_.gossipEndpoints)
             .setServiceEndpoints(context_.grpcServiceEndpoints)
             .setGossipCaCertificate(context_.signingCertDer)
             .setCertificateHash(context_.tlsCertHash)
-            .setAdminKey(context_.adminKey.publicKey);
+            .setAdminKey(context_.adminKey.publicKey)
+            .freezeWith(config.nodeClient);
 
-          nodeCreateTx = nodeCreateTx.freezeWith(config.nodeClient);
           const signedTx = await nodeCreateTx.sign(context_.adminKey);
           const txResp = await signedTx.execute(config.nodeClient);
           const nodeCreateReceipt = await txResp.getReceipt(config.nodeClient);
