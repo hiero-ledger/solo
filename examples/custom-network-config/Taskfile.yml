@@ -86,7 +86,7 @@ tasks:
           $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} \
           --enable-explorer-tls --tls-cluster-issuer-type acme-staging \
           --enable-ingress \
-          -n {{ .EXPLORER_NAME_SPACE }} --deployment {{ .EXPLORER_DEPLOYMENT }} \
+          -n {{ .EXPLORER_NAME_SPACE }} \
           --cluster-ref {{ .CLUSTER_REFERENCE }}
   destroy:
     desc: Destroy the Solo network with block node
