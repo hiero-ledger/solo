@@ -122,15 +122,15 @@ tasks:
       - src/**/*.ts
       - version.ts
       - solo.ts
-      - docs/site/generate_help.sh
+      - docs/site/
     generates:
       - docs/site/content/en/docs/solo-commands.md
     cmds:
       - printf "\r::group::Generating CLI help documentation\n"
       - rm -f docs/site/content/en/docs/solo-commands.md
-      - chmod 755 docs/site/generate_help.sh
+      - (cd docs/site/ && npm install)
       - task: "build:solo"
-      - docs/site/generate_help.sh
+      - (cd docs/site/ && node scripts/generateHelp.js)
       - printf "\r::endgroup::--------------\n"
 
   build:guide:
