@@ -28,7 +28,7 @@ on:
         description: "Use released or latest version"
         type: boolean
         required: false
-        default: false
+        default: true
   workflow_call:
     inputs:
       node-version:
@@ -40,7 +40,7 @@ on:
         description: "Use released or latest version"
         type: boolean
         required: false
-        default: false  
+        default: true
   pull_request:
     types:
       - opened
@@ -48,7 +48,7 @@ on:
       - synchronize
   push:
     branches:
-      - 02480-D-lauch-migration 
+      - 02480-D-lauch-migration
 defaults:
   run:
     shell: bash
