@@ -48,7 +48,7 @@ on:
       - synchronize
   push:
     branches:
-      - 02480-D-lauch-migration
+      - 02473-D-examle-workflow
 defaults:
   run:
     shell: bash
