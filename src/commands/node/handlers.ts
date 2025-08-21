@@ -151,6 +151,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkAllNodeProxiesAreActive(),
       this.tasks.stakeNewNode(),
       this.tasks.triggerStakeWeightCalculate<NodeAddContext>(NodeSubcommandType.ADD),
+      this.tasks.loadAdminKey(),
       this.tasks.setGrpcWebEndpoint('newNodeAliases'),
       this.tasks.finalize(),
     ];

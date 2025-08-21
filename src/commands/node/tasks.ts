@@ -1391,7 +1391,7 @@ export class NodeCommandTasks {
 
           const grpcProxyPort: number = +networkNodeService.envoyProxyGrpcWebPort;
 
-          const client = await this.accountManager.loadNodeClient(
+          const nodeClient: Client = await this.accountManager.loadNodeClient(
             namespace,
             this.remoteConfig.getClusterRefs(),
             context_.config.deployment,
@@ -1401,13 +1401,16 @@ export class NodeCommandTasks {
             .setDomainName(grpcProxyAddress)
             .setPort(grpcProxyPort);
 
-          const updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
+          let updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
             .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
-            .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint);
+            .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint)
+            .freezeWith(nodeClient);
 
-          const updateTransactionResponse: TransactionResponse = await updateTransaction.execute(client);
-
-          const updateTransactionReceipt: TransactionReceipt = await updateTransactionResponse.getReceipt(client);
+          if (context_.config.adminKey) {
+            updateTransaction = await updateTransaction.sign(context_.config.adminKey);
+          }
+          const transactionResponse: TransactionResponse = await updateTransaction.execute(nodeClient);
+          const updateTransactionReceipt: TransactionReceipt = await transactionResponse.getReceipt(nodeClient);
 
           if (updateTransactionReceipt.status !== Status.Success) {
             throw new SoloError('Failed to set gRPC web proxy endpoint');
