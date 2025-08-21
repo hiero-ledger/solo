@@ -12,10 +12,6 @@ process.chdir(projectRoot);
 
 const OUTPUT_FILE = path.join(projectRoot, "docs/site/content/en/docs/solo-commands.md");
 
-function write(line = "") {
-  fs.appendFileSync(OUTPUT_FILE, line + "\n");
-}
-
 /**
  * @returns {Promise<string[]>}
  */
@@ -80,50 +76,57 @@ async function getThirdLevelCommands(cmd, subcmd) {
 }
 
 void async function main() {
+  let doc = "";
 
-  // Initialize output file
-  fs.writeFileSync(OUTPUT_FILE, "");
-  write("---");
-  write('title: "Solo CLI Commands"');
-  write("weight: 40");
-  write("description: >");
-  write("    This document provides a comprehensive reference for the Solo CLI commands, including their options and usage.");
-  write("---");
-  write("");
-  write("# Solo Command Reference");
-  write("");
-  write("## Table of Contents");
-  write("\n* [Root Help Output](#root-help-output)");
+  // Header/front matter
+  doc += `---\n`;
+  doc += `title: "Solo CLI Commands"\n`;
+  doc += `weight: 40\n`;
+  doc += `description: >\n`;
+  doc += `    This document provides a comprehensive reference for the Solo CLI commands, including their options and usage.\n`;
+  doc += `---\n\n`;
+  doc += `# Solo Command Reference\n\n`;
+  doc += `## Table of Contents\n`;
+  doc += `\n* [Root Help Output](#root-help-output)\n`;
 
   // Top-level commands
   const commands = await getTopLevelCommands();
-
   console.log(commands);
 
   // Build Table of Contents
-  await Promise.all(commands.map(async (cmd) => {
-    console.log(`#1 Processing command: ${cmd}`);
-    write(`\n* [${cmd}](#${cmd})`);
+  const toc = await Promise.all(
+    commands.map(async (cmd) => {
+      console.log(`#1 Processing command: ${cmd}`);
+      let entry = `\n* [${cmd}](#${cmd})`;
 
-    const subcommands = await getSubcommands(cmd);
+      const subcommands = await getSubcommands(cmd);
 
-    await Promise.all(subcommands.map(async (subcmd) => {
-      console.log(`#1 Processing subcommand: ${cmd} ${subcmd}`);
-      write(`\n  * [${cmd} ${subcmd}](#${cmd}-${subcmd})`);
+      const subEntries = await Promise.all(
+        subcommands.map(async (subcmd) => {
+          console.log(`#1 Processing subcommand: ${cmd} ${subcmd}`);
+          let sub = `\n  * [${cmd} ${subcmd}](#${cmd}-${subcmd})`;
 
-      const thirdLevel = await getThirdLevelCommands(cmd, subcmd);
+          const thirdLevel = await getThirdLevelCommands(cmd, subcmd);
 
-      thirdLevel.forEach((t) => {
-        write(`\n    * [${cmd} ${subcmd} ${t}](#${cmd}-${subcmd}-${t})`);
-      });
-    }));
-  }));
+          const thirdEntries = thirdLevel.map(
+            (t) => `\n    * [${cmd} ${subcmd} ${t}](#${cmd}-${subcmd}-${t})`
+          );
+
+          return sub + thirdEntries.join("");
+        })
+      );
+
+      return entry + subEntries.join("");
+    })
+  );
+
+  doc += toc.join("");
 
   // Root help output
-  write("\n## Root Help Output\n");
-  write("```");
-  await run(`npm run solo-test -- --help >> ${OUTPUT_FILE}`);
-  write("```");
+  doc += `\n\n## Root Help Output\n\n`;
+  doc += "```\n";
+  doc += await runCapture(`npm run solo-test -- --help`);
+  doc += "\n```\n";
 
   // Detailed sections
   const detailedSections = await Promise.all(
@@ -146,8 +149,6 @@ void async function main() {
 
           const thirdLevel = await getThirdLevelCommands(cmd, subcmd);
 
-          console.log({thirdLevel});
-
           const thirdSections = await Promise.all(
             thirdLevel.map(async (t) => {
               console.log(`#3 Processing third-level command: ${cmd} ${subcmd} ${t}`);
@@ -168,10 +169,10 @@ void async function main() {
     })
   );
 
-  // Now write sequentially to preserve correct ordering
-  for (const section of detailedSections) {
-    write(section);
-  }
+  doc += detailedSections.join("");
+
+  // Write all at once
+  fs.writeFileSync(OUTPUT_FILE, doc, "utf-8");
 
   console.log(`Documentation saved to ${OUTPUT_FILE}`);
 }();
