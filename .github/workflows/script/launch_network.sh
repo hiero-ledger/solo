@@ -47,7 +47,6 @@ solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
 solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q
 solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q
-solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 echo "::endgroup::"
 
