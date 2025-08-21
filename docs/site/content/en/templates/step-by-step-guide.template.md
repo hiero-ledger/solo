@@ -26,7 +26,7 @@ Before we begin, let's ensure your system meets the requirements and has all the
 
 First, check that your computer meets these minimum specifications:
 
-* **Memory**: At least 8GB of RAM (16GB recommended for smoother performance)
+* **Memory**: At least 12GB of RAM (16GB recommended for smoother performance)
 * **CPU**: Minimum 4 cores (8 cores recommended)
 * **Storage**: At least 20GB of free disk space
 * **Operating System**: macOS, Linux, or Windows with WSL2
