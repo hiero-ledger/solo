@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import path from 'node:path';
 import { fileURLToPath } from "node:url";
-import { runCapture, run } from "./utilities.js";
+import { runCapture, run } from "./utilities.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "../../../");
@@ -98,23 +98,26 @@ void async function main() {
   // Top-level commands
   const commands = await getTopLevelCommands();
 
+  console.log(commands);
+
   // Build Table of Contents
-  for (const cmd of commands) {
+  await Promise.all(commands.map(async (cmd) => {
     console.log(`#1 Processing command: ${cmd}`);
     write(`\n* [${cmd}](#${cmd})`);
 
     const subcommands = await getSubcommands(cmd);
 
-    for (const subcmd of subcommands) {
+    await Promise.all(subcommands.map(async (subcmd) => {
       console.log(`#1 Processing subcommand: ${cmd} ${subcmd}`);
       write(`\n  * [${cmd} ${subcmd}](#${cmd}-${subcmd})`);
 
       const thirdLevel = await getThirdLevelCommands(cmd, subcmd);
-      for (const t of thirdLevel) {
+
+      thirdLevel.forEach((t) => {
         write(`\n    * [${cmd} ${subcmd} ${t}](#${cmd}-${subcmd}-${t})`);
-      }
-    }
-  }
+      });
+    }));
+  }));
 
   // Root help output
   write("\n## Root Help Output\n");
@@ -123,30 +126,51 @@ void async function main() {
   write("```");
 
   // Detailed sections
-  for (const cmd of commands) {
-    console.log(`#2 Processing command: ${cmd}`);
-    write(`\n## ${cmd}\n`);
-    write("```");
-    await run(`npm run solo-test -- ${cmd} --help >> ${OUTPUT_FILE}`);
-    write("```");
+  const detailedSections = await Promise.all(
+    commands.map(async (cmd) => {
+      console.log(`#2 Processing command: ${cmd}`);
 
-    const subcommands = await getSubcommands(cmd);
-    for (const subcmd of subcommands) {
-      console.log(`#2 Processing subcommand: ${cmd} ${subcmd}`);
-      write(`\n### ${cmd} ${subcmd}\n`);
-      write("```");
-      await run(`npm run solo-test -- ${cmd} ${subcmd} --help >> ${OUTPUT_FILE}`);
-      write("```");
+      let section = `\n## ${cmd}\n\n\`\`\`\n`;
+      section += await runCapture(`npm run solo-test -- ${cmd} --help`);
+      section += `\n\`\`\`\n`;
 
-      const thirdLevel = await getThirdLevelCommands(cmd, subcmd);
-      for (const t of thirdLevel) {
-        console.log(`#3 Processing third-level command: ${cmd} ${subcmd} ${t}`);
-        write(`\n#### ${cmd} ${subcmd} ${t}\n`);
-        write("```");
-        await run(`npm run solo-test -- ${cmd} ${subcmd} ${t} --help >> ${OUTPUT_FILE}`);
-        write("```");
-      }
-    }
+      const subcommands = await getSubcommands(cmd);
+
+      const subSections = await Promise.all(
+        subcommands.map(async (subcmd) => {
+          console.log(`#2 Processing subcommand: ${cmd} ${subcmd}`);
+
+          let subSection = `\n### ${cmd} ${subcmd}\n\n\`\`\`\n`;
+          subSection += await runCapture(`npm run solo-test -- ${cmd} ${subcmd} --help`);
+          subSection += `\n\`\`\`\n`;
+
+          const thirdLevel = await getThirdLevelCommands(cmd, subcmd);
+
+          console.log({thirdLevel});
+
+          const thirdSections = await Promise.all(
+            thirdLevel.map(async (t) => {
+              console.log(`#3 Processing third-level command: ${cmd} ${subcmd} ${t}`);
+
+              let third = `\n#### ${cmd} ${subcmd} ${t}\n\n\`\`\`\n`;
+              third += await runCapture(`npm run solo-test -- ${cmd} ${subcmd} ${t} --help`);
+              third += `\n\`\`\`\n`;
+
+              return third;
+            })
+          );
+
+          return subSection + thirdSections.join("");
+        })
+      );
+
+      return section + subSections.join("");
+    })
+  );
+
+  // Now write sequentially to preserve correct ordering
+  for (const section of detailedSections) {
+    write(section);
   }
 
   console.log(`Documentation saved to ${OUTPUT_FILE}`);

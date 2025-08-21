@@ -3,7 +3,7 @@
 
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
-import { green } from 'kleur';
+import kleur from 'kleur';
 
 /**
  * Run a shell command, preserving colors for interactive Solo CLI commands,
@@ -11,7 +11,7 @@ import { green } from 'kleur';
  * @returns {Promise<string>} - The output of the command.
  */
 export async function run(cmd, opts = {}) {
-  console.log(green(cmd));
+  console.log(kleur.green(cmd));
 
   // Normal spawn for non-interactive commands
   const [command, ...args] = cmd.split(' ');

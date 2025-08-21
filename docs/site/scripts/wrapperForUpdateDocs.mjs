@@ -3,9 +3,9 @@
 
 import path from 'path';
 import { fileURLToPath } from "url";
-import { run } from "./utilities.js";
-import { cyan, red } from 'kleur';
-import { update } from './updateDocs';
+import { run } from "./utilities.mjs";
+import kleur from 'kleur';
+import { update } from './updateDocs.mjs';
 
 void async function main() {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -14,24 +14,24 @@ void async function main() {
 
   const version = process.argv[2];
   if (!version) {
-    console.error(red("❌ Error: version argument is required"));
+    console.error(kleur.red("❌ Error: version argument is required"));
     process.exit(1);
   }
 
-  console.log(cyan("ℹ Installing gettext-base (apt-get)"));
+  console.log(kleur.cyan("ℹ Installing gettext-base (apt-get)"));
   await run("sudo apt-get update");
   await run("sudo apt-get install -y gettext-base");
 
-  console.log(cyan("ℹ Running npm install"));
+  console.log(kleur.cyan("ℹ Running npm install"));
   await run("npm install");
 
-  console.log(cyan(`ℹ Setting version to ${version}`));
+  console.log(kleur.cyan(`ℹ Setting version to ${version}`));
   await run(`npm version ${version} -f --no-git-tag-version --allow-same-version`);
 
-  console.log(cyan("ℹ Running task build"));
+  console.log(kleur.cyan("ℹ Running task build"));
   await run("task build");
 
-  console.log(cyan("ℹ Installing and linking @hashgraph/solo"));
+  console.log(kleur.cyan("ℹ Installing and linking @hashgraph/solo"));
   await run("npm install -g @hashgraph/solo");
   await run("npm link");
 
@@ -40,7 +40,7 @@ void async function main() {
   await run("node -p -e 'Boolean(process.stdout.isTTY)'");
 
 
-  console.log(cyan("ℹ Running updateDocs"));
+  console.log(kleur.cyan("ℹ Running updateDocs"));
   await update();
 
   // print the generated file
