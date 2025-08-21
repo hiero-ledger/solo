@@ -36,7 +36,7 @@ import {
   Timestamp,
   TransactionReceipt,
   TransactionResponse,
-} from '@hashgraph/sdk';
+} from '@hiero-ledger/sdk';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {MissingArgumentError} from '../../core/errors/missing-argument-error.js';
 import path from 'node:path';
@@ -94,14 +94,14 @@ import {type K8} from '../../integration/kube/k8.js';
 import {Base64} from 'js-base64';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {BaseCommand} from '../base.js';
-import {HEDERA_PLATFORM_VERSION} from '../../../version.js';
+import {HEDERA_PLATFORM_VERSION, MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS} from '../../../version.js';
 import {ShellRunner} from '../../core/shell-runner.js';
 import {PathEx} from '../../business/utils/path-ex.js';
-import {type NodeDeleteConfigClass} from './config-interfaces/node-delete-config-class.js';
+import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
 import {type NodeRefreshConfigClass} from './config-interfaces/node-refresh-config-class.js';
 import {type NodeUpdateConfigClass} from './config-interfaces/node-update-config-class.js';
 import {type NodeAddContext} from './config-interfaces/node-add-context.js';
-import {type NodeDeleteContext} from './config-interfaces/node-delete-context.js';
+import {type NodeDestroyContext} from './config-interfaces/node-destroy-context.js';
 import {type NodeUpdateContext} from './config-interfaces/node-update-context.js';
 import {type NodeStatesContext} from './config-interfaces/node-states-context.js';
 import {NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
@@ -702,7 +702,7 @@ export class NodeCommandTasks {
           const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
 
           const context = helpers.extractContextFromConsensusNodes(
-            (context_ as NodeUpdateContext | NodeDeleteContext).config.nodeAlias,
+            (context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias,
             context_.config.consensusNodes,
           );
 
@@ -722,15 +722,15 @@ export class NodeCommandTasks {
     };
   }
 
-  public loadAdminKey(): SoloListrTask<NodeUpdateContext | NodeUpgradeContext | NodeDeleteContext> {
+  public loadAdminKey(): SoloListrTask<NodeUpdateContext | NodeUpgradeContext | NodeDestroyContext> {
     return {
       title: 'Load node admin key',
       task: async context_ => {
         const config = context_.config;
-        if ((context_ as NodeUpdateContext | NodeDeleteContext).config.nodeAlias) {
+        if ((context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias) {
           try {
             const context = helpers.extractContextFromConsensusNodes(
-              (context_ as NodeUpdateContext | NodeDeleteContext).config.nodeAlias,
+              (context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias,
               context_.config.consensusNodes,
             );
 
@@ -740,7 +740,7 @@ export class NodeCommandTasks {
               .secrets()
               .read(
                 config.namespace,
-                Templates.renderNodeAdminKeyName((context_ as NodeUpdateContext | NodeDeleteContext).config.nodeAlias),
+                Templates.renderNodeAdminKeyName((context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias),
               );
             const privateKey = Base64.decode(keyFromK8.data.privateKey);
             config.adminKey = PrivateKey.fromStringED25519(privateKey);
@@ -756,7 +756,7 @@ export class NodeCommandTasks {
   }
 
   public checkExistingNodesStakedAmount(): SoloListrTask<
-    NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeUpgradeContext
+    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
   > {
     const self = this;
     return {
@@ -777,7 +777,7 @@ export class NodeCommandTasks {
   }
 
   public sendPrepareUpgradeTransaction(): SoloListrTask<
-    NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeUpgradeContext
+    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
   > {
     const self = this;
     return {
@@ -820,7 +820,7 @@ export class NodeCommandTasks {
   }
 
   public sendFreezeUpgradeTransaction(): SoloListrTask<
-    NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeUpgradeContext
+    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
   > {
     const self = this;
     return {
@@ -903,7 +903,7 @@ export class NodeCommandTasks {
 
   /** Download generated config files and key files from the network node */
   public downloadNodeGeneratedFiles(): SoloListrTask<
-    NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeDownloadGeneratedFilesContext
+    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeDownloadGeneratedFilesContext
   > {
     const self = this;
     return {
@@ -953,20 +953,19 @@ export class NodeCommandTasks {
             .copyFrom(`${keyDirectory}/${signedKeyFile.name}`, `${config.keysDir}`);
         }
 
-        if (
-          await k8
-            .containers()
-            .readByRef(containerReference)
-            .hasFile(`${constants.HEDERA_HAPI_PATH}/data/upgrade/current/application.properties`)
-        ) {
-          await k8
-            .containers()
-            .readByRef(containerReference)
-            .copyFrom(
-              `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/application.properties`,
-              `${config.stagingDir}/templates`,
-            );
-        }
+        const applicationPropertiesSourceDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`;
+        await ((await k8.containers().readByRef(containerReference).hasFile(applicationPropertiesSourceDirectory))
+          ? k8
+              .containers()
+              .readByRef(containerReference)
+              .copyFrom(applicationPropertiesSourceDirectory, `${config.stagingDir}/templates`)
+          : k8
+              .containers()
+              .readByRef(containerReference)
+              .copyFrom(
+                `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`,
+                `${config.stagingDir}/templates`,
+              ));
       },
     };
   }
@@ -1183,7 +1182,7 @@ export class NodeCommandTasks {
   public fetchPlatformSoftware(
     aliasesField: string,
   ): SoloListrTask<
-    NodeUpgradeContext | NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext | NodeSetupContext
+    NodeUpgradeContext | NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeRefreshContext | NodeSetupContext
   > {
     const self = this;
     return {
@@ -1224,7 +1223,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public populateServiceMap(): SoloListrTask<NodeAddContext | NodeDeleteContext> {
+  public populateServiceMap(): SoloListrTask<NodeAddContext | NodeDestroyContext> {
     return {
       title: 'Populate serviceMap',
       task: async context_ => {
@@ -1248,13 +1247,13 @@ export class NodeCommandTasks {
   public setupNetworkNodes(
     nodeAliasesProperty: string,
     isGenesis: boolean,
-  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext> {
+  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeRefreshContext> {
     return {
       title: 'Setup network nodes',
       task: async (
         context_,
         task,
-      ): Promise<SoloListr<NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext>> => {
+      ): Promise<SoloListr<NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeRefreshContext>> => {
         // @ts-expect-error: all fields are not present in every task's context
         if (!context_.config.nodeAliases || context_.config.nodeAliases.length === 0) {
           // @ts-expect-error: all fields are not present in every task's context
@@ -1277,7 +1276,7 @@ export class NodeCommandTasks {
           );
         }
 
-        // TODO: during `node add` ctx.config.nodeAliases is empty, since ctx.config.nodeAliasesUnparsed is empty
+        // TODO: during `consensus node add` ctx.config.nodeAliases is empty, since ctx.config.nodeAliasesUnparsed is empty
         await this.generateNodeOverridesJson(
           context_.config.namespace,
           // @ts-expect-error: all fields are not present in every task's context
@@ -1287,7 +1286,7 @@ export class NodeCommandTasks {
         );
 
         const consensusNodes: ConsensusNode[] = context_.config.consensusNodes;
-        const subTasks: SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeRefreshContext>[] =
+        const subTasks: SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeRefreshContext>[] =
           [];
 
         for (const nodeAlias of context_.config[nodeAliasesProperty]) {
@@ -1296,7 +1295,7 @@ export class NodeCommandTasks {
 
           subTasks.push({
             title: `Node: ${chalk.yellow(nodeAlias)}`,
-            // @ts-expect-error: all fields are not present in every task's context
+            // @ts-expect-error not all contexts have field
             task: () => this.platformInstaller.taskSetup(podReference, context_.config.stagingDir, isGenesis, context),
           });
         }
@@ -1358,9 +1357,14 @@ export class NodeCommandTasks {
   public setGrpcWebEndpoint(): SoloListrTask<NodeStartContext> {
     return {
       title: 'set gRPC Web endpoint',
-      skip: (): boolean => {
+      skip: (context_): boolean => {
+        // skip setting the gRPC Web endpoint if we are not running a Consensus Node
+        if (context_.config.app !== constants.HEDERA_APP_NAME) {
+          return true;
+        }
+
         const currentVersion: SemVer = this.remoteConfig.configuration.versions.consensusNode;
-        const versionRequirement: SemVer = new SemVer('0.63.0');
+        const versionRequirement: SemVer = new SemVer(MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS);
         return lt(currentVersion, versionRequirement);
       },
       task: async (context_): Promise<void> => {
@@ -1455,13 +1459,10 @@ export class NodeCommandTasks {
       deploymentName,
     );
 
-    let adminPublicKeys = [];
-    if (this.configManager.getFlag(flags.adminPublicKeys)) {
-      adminPublicKeys = splitFlagInput(this.configManager.getFlag(flags.adminPublicKeys));
-    } else {
-      // set adminPublicKeys as array of constants.GENESIS_KEY with the same size consensus nodes
-      adminPublicKeys = Array.from({length: consensusNodes.length}).fill(constants.GENESIS_KEY);
-    }
+    let adminPublicKeys: string[] = [];
+    adminPublicKeys = this.configManager.getFlag(flags.adminPublicKeys)
+      ? splitFlagInput(this.configManager.getFlag(flags.adminPublicKeys))
+      : (Array.from({length: consensusNodes.length}).fill(constants.GENESIS_PUBLIC_KEY.toString()) as string[]);
     const genesisNetworkData = await GenesisNetworkDataConstructor.initialize(
       consensusNodes,
       this.keyManager,
@@ -1577,7 +1578,7 @@ export class NodeCommandTasks {
 
   public enablePortForwarding(enablePortForwardHaProxy: boolean = false) {
     return {
-      title: 'Enable port forwarding',
+      title: 'Enable port forwarding for debug port and/or GRPC port',
       task: async context_ => {
         const nodeAlias: NodeAlias = context_.config.debugNodeAlias || 'node1';
         const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
@@ -1604,15 +1605,19 @@ export class NodeCommandTasks {
             throw new SoloError(`No HAProxy pod found for node alias: ${nodeAlias}`);
           }
           const podReference: PodReference = pods[0].podReference;
-          await this.k8Factory
-            .getK8(context)
-            .pods()
-            .readByReference(podReference)
-            .portForward(constants.GRPC_PORT, constants.GRPC_PORT, true);
-          this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-          this.logger.addMessageGroupMessage(
-            constants.PORT_FORWARDING_MESSAGE_GROUP,
-            `Consensus Node gRPC port forward enabled on localhost:${constants.GRPC_PORT}`,
+          const nodeId: number = Templates.nodeIdFromNodeAlias(nodeAlias);
+          await this.remoteConfig.configuration.components.managePortForward(
+            undefined,
+            podReference,
+            constants.GRPC_PORT, // Pod port
+            constants.GRPC_PORT, // Local port
+            this.k8Factory.getK8(context_.config.clusterContext),
+            this.logger,
+            ComponentTypes.ConsensusNode,
+
+            'Consensus Node gRPC',
+            context_.config.isChartInstalled, // Reuse existing port if chart is already installed
+            nodeId,
           );
         }
       },
@@ -1658,7 +1663,7 @@ export class NodeCommandTasks {
   }
 
   public checkAllNodeProxiesAreActive(): SoloListrTask<
-    NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeUpgradeContext
+    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
   > {
     return {
       title: 'Check all node proxies are ACTIVE',
@@ -1699,7 +1704,7 @@ export class NodeCommandTasks {
             }
             break;
           }
-          case NodeSubcommandType.DELETE: {
+          case NodeSubcommandType.DESTROY: {
             if (config.nodeAlias) {
               accountMap.delete(config.nodeAlias);
               skipNodeAlias = config.nodeAlias;
@@ -1781,11 +1786,11 @@ export class NodeCommandTasks {
 
   public stopNodes(
     nodeAliasesProperty: string,
-  ): SoloListrTask<NodeStopContext | NodeFreezeContext | NodeDeleteContext> {
+  ): SoloListrTask<NodeStopContext | NodeFreezeContext | NodeDestroyContext> {
     return {
       title: 'Stopping nodes',
       task: async (context_, task) => {
-        const subTasks: SoloListrTask<NodeStopContext | NodeFreezeContext | NodeDeleteContext>[] = [];
+        const subTasks: SoloListrTask<NodeStopContext | NodeFreezeContext | NodeDestroyContext>[] = [];
 
         if (!(context_.config as CheckedNodesConfigClass).skipStop) {
           await this.accountManager.close();
@@ -1864,10 +1869,10 @@ export class NodeCommandTasks {
   }
 
   public getNodeLogsAndConfigs(): SoloListrTask<
-    NodeUpdateContext | NodeAddContext | NodeDeleteContext | NodeUpgradeContext
+    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
   > {
     return {
-      title: 'Get node logs and configs',
+      title: 'Get consensus node logs and configs',
       task: async context_ => {
         await container
           .resolve<NetworkNodes>(NetworkNodes)
@@ -2030,7 +2035,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public refreshNodeList(): SoloListrTask<NodeDeleteContext> {
+  public refreshNodeList(): SoloListrTask<NodeDestroyContext> {
     return {
       title: 'Refresh node alias list',
       task: context_ => {
@@ -2146,7 +2151,7 @@ export class NodeCommandTasks {
 
   public copyNodeKeysToSecrets(
     nodeListOverride?: string,
-  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDeleteContext> {
+  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext> {
     return {
       title: 'Copy node keys to secrets',
       task: (context_, task) => {
@@ -2169,7 +2174,7 @@ export class NodeCommandTasks {
     title: string,
     transactionType: NodeSubcommandType,
     skip: SkipCheck | boolean = false,
-  ): SoloListrTask<NodeDeleteContext | NodeAddContext | NodeUpdateContext> {
+  ): SoloListrTask<NodeDestroyContext | NodeAddContext | NodeUpdateContext> {
     const self = this;
     return {
       title,
@@ -2229,8 +2234,8 @@ export class NodeCommandTasks {
             );
             break;
           }
-          case NodeSubcommandType.DELETE: {
-            this.prepareValuesArgForNodeDelete(
+          case NodeSubcommandType.DESTROY: {
+            this.prepareValuesArgForNodeDestroy(
               consensusNodes,
               valuesArgumentMap,
               config.nodeAlias,
@@ -2264,7 +2269,7 @@ export class NodeCommandTasks {
         if (profileValuesFile) {
           const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMap(
             clusterReferences,
-            undefined, // do not trigger of adding default value file for chart upgrade due to node add or delete
+            undefined, // do not trigger of adding default value file for chart upgrade due to consensus node add or destroy
             profileValuesFile,
             (config as any).valuesFile,
           );
@@ -2420,7 +2425,7 @@ export class NodeCommandTasks {
    * - Remove the specified node
    * - Keeps the rest the same
    */
-  private prepareValuesArgForNodeDelete(
+  private prepareValuesArgForNodeDestroy(
     consensusNodes: ConsensusNode[],
     valuesArgumentMap: Record<ClusterReferenceName, string>,
     nodeAlias: NodeAlias,
@@ -2458,7 +2463,7 @@ export class NodeCommandTasks {
     argv: ArgvStruct,
     targetFile: string,
     parser: (context_: AnyListrContext) => AnyObject,
-  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDeleteContext> {
+  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext> {
     return {
       title: 'Save context data',
       task: context_ => {
@@ -2498,7 +2503,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public killNodes(): SoloListrTask<NodeDeleteContext | NodeAddContext> {
+  public killNodes(): SoloListrTask<NodeDestroyContext | NodeAddContext> {
     return {
       title: 'Kill nodes',
       task: async context_ => {
@@ -2550,12 +2555,12 @@ export class NodeCommandTasks {
     };
   }
 
-  public checkNodePodsAreRunning(): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDeleteContext> {
+  public checkNodePodsAreRunning(): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext> {
     return {
       title: 'Check node pods are running',
       task: (context_, task) => {
         const config = context_.config;
-        const subTasks: SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDeleteContext>[] = [];
+        const subTasks: SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext>[] = [];
 
         for (const nodeAlias of config.allNodeAliases) {
           const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
@@ -2675,11 +2680,11 @@ export class NodeCommandTasks {
     };
   }
 
-  public sendNodeDeleteTransaction(): SoloListrTask<NodeDeleteContext> {
+  public sendNodeDeleteTransaction(): SoloListrTask<NodeDestroyContext> {
     return {
       title: 'Send node delete transaction',
       task: async context_ => {
-        const config: NodeDeleteConfigClass = context_.config;
+        const config: NodeDestroyConfigClass = context_.config;
 
         try {
           const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
@@ -2691,9 +2696,9 @@ export class NodeCommandTasks {
 
           const signedTx = await nodeDeleteTx.sign(config.adminKey);
           const txResp = await signedTx.execute(config.nodeClient);
-          const nodeUpdateReceipt = await txResp.getReceipt(config.nodeClient);
+          const nodeDeleteReceipt = await txResp.getReceipt(config.nodeClient);
 
-          this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
+          this.logger.debug(`NodeDeleteReceipt: ${nodeDeleteReceipt.toString()}`);
         } catch (error) {
           throw new SoloError(`Error deleting node from network: ${error.message}`, error);
         }

@@ -1,83 +1,127 @@
 version: 3
-includes:
-  main:
-    taskfile: ../Taskfile.examples.yml
-    flatten: true
 vars:
-  use_port_forwards: "true"
-  postgres_username: "postgres"
-  postgres_password: "XXXXXXXX"
-
-  postgres_readonly_username: "readonlyuser"
-  postgres_readonly_password: "XXXXXXXX"
-
-  postgres_mirror_node_database_name: "mirror_node"
-
-  postgres_name: "my-postgresql"
-  postgres_database_namespace: "database"
-  postgres_container_name: "{{.postgres_name}}-0"
-  postgres_host_fqdn: "{{.postgres_name}}.database.svc.cluster.local"
-  postgres_container_fdqn: "{{.postgres_container_name}}.database.svc.cluster.local"
-env:
-  SOLO_NETWORK_SIZE: "1"
-  SOLO_DEPLOYMENT: "solo-deployment"
-  SOLO_NAMESPACE: "solo"
-  SOLO_CLUSTER_NAME: "solo-e2e"
-  MIRROR_NODE_DEPLOY_EXTRA_FLAGS: |
-    --use-external-database 
-    --enable-ingress
-    --external-database-host {{.postgres_host_fqdn}} 
-    --external-database-owner-username {{.postgres_username}} 
-    --external-database-owner-password {{.postgres_password}}
-    --external-database-read-username {{.postgres_readonly_username}}
-    --external-database-read-password {{.postgres_readonly_password}}
-
-  SOLO_CLUSTER_SETUP_NAMESPACE: solo-setup
-  SOLO_CLUSTER_RELEASE_NAME: solo-cluster-setup
-  MIRROR_RELEASE_NAME: mirror
-  HEDERA_SERVICES_ROOT: "/Users/user/source/hiero-consensus-node"
-  ENABLE_EXPLORER_TLS_FLAG: "--enable-explorer-tls"
-  TLS_CLUSTER_ISSUER_TYPE_FLAG: "--tls-cluster-issuer-type acme-staging"
-  ENABLE_EXPLORER_INGRESS: "--enable-ingress"
-  ENABLE_MIRROR_INGRESS: "--enable-ingress"
-  EXPLORER_NAME_SPACE: "explorer-name-space"
-  EXPLORER_DEPLOYMENT: ""
-  EXPLORER_CLUSTER_CONTEXT: "kind-solo-cluster"
+  POSTGRES_USERNAME: "postgres"
+  POSTGRES_PASSWORD: "XXXXXXXX"
+  POSTGRES_READONLY_USERNAME: "readonlyuser"
+  POSTGRES_READONLY_PASSWORD: "XXXXXXXX"
+  POSTGRES_MIRROR_NODE_DATABASE_NAME: "mirror_node"
+  POSTGRES_NAME: "my-postgresql"
+  POSTGRES_DATABASE_NAMESPACE: "database"
+  POSTGRES_CONTAINER_NAME: "{{ .POSTGRES_NAME }}-0"
+  POSTGRES_HOST_FQDN: "{{ .POSTGRES_NAME }}.database.svc.cluster.local"
+  CLUSTER_NAME: "external-database-example-cluster"
+  CONTEXT: "kind-external-database-example-cluster"
+  CLUSTER_REF: "kind-external-database-example-cluster"
+  DEPLOYMENT: "external-database-example-deployment"
+  NETWORK_SIZE: "1"
+  NAMESPACE: "external-database-example-namespace"
+  SOLO_CLUSTER_RELEASE_NAME: "external-database-example-cluster-setup"
+  NODE_ALIASES: "node1"
+  SOLO_USER_DIR: "{{ default (printf \"%s/.solo\" (env \"HOME\")) }}"
 tasks:
-  install:external-database:
-    desc: create the cluster, solo init, solo cluster-ref create, solo node keys, solo network deploy
-    deps:
-      - task: "init"
+  default:
+    desc: create the cluster, solo init, solo cluster-ref create, solo keys consensus generate, solo consensus network deploy
     cmds:
-      - task: "cluster:create"
-      - task: "solo:init"
-      - task: "solo:cluster:setup"
-      - task: "solo:cluster-ref:connect"
-      - task: "solo:deployment:create"
-      - task: "solo:deployment:add-cluster"
-      - task: "solo:keys"
-      - task: "solo:network:deploy"
-      - task: "solo:node:setup"
-      - task: "solo:node:start"
-      - task: "solo:external-database"
-      - task: "solo:mirror-node"
-      - task: "solo:explorer"
-      - name: "Copy database-seeding-query.sql inside the database pod"
-        cmd: |
-          kubectl cp {{.HOME}}/.solo/cache/database-seeding-query.sql {{.postgres_container_name}}:/tmp/database-seeding-query.sql \
-          -n {{.postgres_database_namespace}}
-      - name: "Execute the database-seeding–query.sql against the database"
-        cmd: |
-          kubectl exec -it {{.postgres_container_name}} -n {{.postgres_database_namespace}} -- env PGPASSWORD={{.postgres_password}} psql -U {{.postgres_username}} \
-            -f /tmp/database-seeding-query.sql \
-            -d {{.postgres_mirror_node_database_name}}
-      - task: "solo:relay"
-      - name: "Run smoke test"
-        cmd: (cd ../../ && ./.github/workflows/script/solo_smoke_test.sh)
+      # Create Kind cluster"
+      - cmd: kind create cluster -n "{{ .CLUSTER_NAME }}"
 
-  destroy:external-database:
-    desc: destroy relay, mirror-node, and network
-    deps:
-      - task: "init"
+      # Wait for control plane"
+      - cmd: sleep 10 # wait for control plane to come up
+
+      # Set kubectl context"
+      - cmd: kubectl config set-context {{ .CONTEXT }}
+
+      # Install Solo CLI"
+      - cmd: npm i @hashgraph/solo@latest
+
+      # Solo init"
+      - cmd: npx solo init
+
+      # Solo cluster-ref config setup"
+      - cmd: npx solo cluster-ref config setup --quiet-mode --dev
+
+      # Solo cluster-ref config connect"
+      - cmd: npx solo cluster-ref config connect --cluster-ref {{ .CLUSTER_REF }} --context {{ .CONTEXT }}
+
+      # Solo deployment config create"
+      - cmd: npx solo deployment config create --namespace {{ .NAMESPACE }} --deployment {{ .DEPLOYMENT }} --realm 0 --shard 0
+
+      # Solo deployment cluster attach"
+      - cmd: npx solo deployment cluster attach --cluster-ref {{ .CLUSTER_REF }} --deployment {{ .DEPLOYMENT }} --num-consensus-nodes {{ .NETWORK_SIZE }}
+
+      # Solo node keys"
+      - cmd: npx solo keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
+
+      # Solo network deploy"
+      - cmd: npx solo consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
+
+      # Solo node setup"
+      - cmd: npx solo consensus node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
+
+      # Solo node start"
+      - cmd: npx solo consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
+
+      # Install PostgreSQL using Helm"
+      - cmd: |
+          {{ .SOLO_USER_DIR }}/bin/helm install {{ .POSTGRES_NAME }} https://charts.bitnami.com/bitnami/postgresql-12.1.2.tgz \
+          --set image.tag=16.4.0 \
+          --namespace {{ .POSTGRES_DATABASE_NAMESPACE }} --create-namespace \
+          --set global.postgresql.auth.postgresPassword={{ .POSTGRES_PASSWORD }} \
+          --set primary.persistence.enabled=false --set secondary.enabled=false
+
+      # Wait for PostgreSQL pod to be ready"
+      - cmd: |
+          kubectl wait --for=condition=ready pod/{{.POSTGRES_CONTAINER_NAME}} \
+          -n {{ .POSTGRES_DATABASE_NAMESPACE }} --timeout=160s
+
+      # Copy init.sql inside the database pod"
+      - cmd: |
+          kubectl cp {{ .TASKFILE_DIR }}/scripts/init.sh \
+          {{ .POSTGRES_CONTAINER_NAME }}:/tmp/init.sh \
+          -n {{ .POSTGRES_DATABASE_NAMESPACE }}
+
+      # Make init.sh executable"
+      - cmd: |
+          kubectl exec -it {{ .POSTGRES_CONTAINER_NAME }} \
+          -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- chmod +x /tmp/init.sh
+
+      # Execute init.sh inside the database pod"
+      - cmd: |
+          kubectl exec -it {{ .POSTGRES_CONTAINER_NAME }} \
+          -n {{ .POSTGRES_DATABASE_NAMESPACE }} \
+          -- /bin/bash /tmp/init.sh "{{ .POSTGRES_USERNAME }}" "{{ .POSTGRES_READONLY_USERNAME }}" "{{ .POSTGRES_READONLY_PASSWORD }}"
+
+      # Solo mirror node add"
+      - cmd: |
+          npx solo mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }} --use-external-database \
+          --enable-ingress --external-database-host {{ .POSTGRES_HOST_FQDN }} \
+          --external-database-owner-username {{ .POSTGRES_USERNAME }} --external-database-owner-password {{ .POSTGRES_PASSWORD }} \
+          --external-database-read-username {{ .POSTGRES_READONLY_USERNAME }} \
+          --external-database-read-password {{ .POSTGRES_READONLY_PASSWORD }} \
+          --enable-ingress --pinger -q --dev
+
+      # Solo explorer node add"
+      - cmd: |
+          npx solo explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }} --mirrorNamespace {{ .NAMESPACE }} \
+          --enable-explorer-tls --tls-cluster-issuer-type acme-staging --enable-ingress -q --dev
+
+      # Copy database-seeding-query.sql to database pod"
+      - cmd: |
+          kubectl cp {{.HOME}}/.solo/cache/database-seeding-query.sql \
+          {{ .POSTGRES_CONTAINER_NAME }}:/tmp/database-seeding-query.sql -n {{ .POSTGRES_DATABASE_NAMESPACE }}
+
+      # Seed database with database-seeding-query.sql"
+      - cmd: |
+          kubectl exec -it {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
+          env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} -f /tmp/database-seeding-query.sql \
+          -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }}
+
+      # Solo relay node add"
+      - cmd: npx solo relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
+      # Run solo smoke test"
+      - cmd: (cd ../../ && SOLO_DEPLOYMENT="{{ .DEPLOYMENT }}" ./.github/workflows/script/solo_smoke_test.sh)
+  destroy:
+    desc: destroy example cluster
     cmds:
-      - task: "cluster:destroy"
+      # Delete Kind cluster"
+      - cmd: kind delete cluster --name "{{ .CLUSTER_NAME }}"

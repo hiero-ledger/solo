@@ -1,10 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Flags as flags} from '../flags.js';
+import {type CommandFlag} from '../../types/flag-types.js';
 
 export const DEFAULT_FLAGS = {
   required: [flags.deployment],
   optional: [flags.quiet, flags.devMode, flags.cacheDir, flags.releaseTag],
+};
+
+const PREPARE_UPGRADE_FLAGS_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment];
+const PREPARE_UPGRADE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
+  flags.cacheDir,
+  flags.devMode,
+  flags.quiet,
+  flags.skipNodeAlias,
+];
+export const PREPARE_UPGRADE_FLAGS: {optional: CommandFlag[]; required: CommandFlag[]} = {
+  required: PREPARE_UPGRADE_FLAGS_REQUIRED_FLAGS,
+  optional: PREPARE_UPGRADE_FLAGS_OPTIONAL_FLAGS,
 };
 
 const COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS = [flags.deployment];
@@ -96,9 +109,9 @@ export const UPDATE_EXECUTE_FLAGS = {
   optional: [...COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS],
 };
 
-const COMMON_DELETE_REQUIRED_FLAGS = [flags.deployment, flags.nodeAlias];
+const COMMON_DESTROY_REQUIRED_FLAGS = [flags.deployment, flags.nodeAlias];
 
-const COMMON_DELETE_OPTIONAL_FLAGS = [
+const COMMON_DESTROY_OPTIONAL_FLAGS = [
   flags.cacheDir,
   flags.app,
   flags.chainId,
@@ -114,7 +127,7 @@ const COMMON_DELETE_OPTIONAL_FLAGS = [
   flags.releaseTag,
 ];
 
-const COMMON_ADD_REQUIRED_FLAGS = [flags.deployment];
+const COMMON_ADD_REQUIRED_FLAGS = [flags.deployment, flags.clusterRef];
 
 const COMMON_ADD_OPTIONAL_FLAGS = [
   flags.app,
@@ -139,27 +152,26 @@ const COMMON_ADD_OPTIONAL_FLAGS = [
   flags.generateGossipKeys,
   flags.generateTlsKeys,
   flags.releaseTag,
-  flags.clusterRef,
 ];
 
-export const DELETE_FLAGS = {
-  required: [...COMMON_DELETE_REQUIRED_FLAGS],
-  optional: [...COMMON_DELETE_OPTIONAL_FLAGS],
+export const DESTROY_FLAGS = {
+  required: [...COMMON_DESTROY_REQUIRED_FLAGS],
+  optional: [...COMMON_DESTROY_OPTIONAL_FLAGS],
 };
 
-export const DELETE_PREPARE_FLAGS = {
-  required: [...COMMON_DELETE_REQUIRED_FLAGS, flags.outputDir],
-  optional: [...COMMON_DELETE_OPTIONAL_FLAGS],
+export const DESTROY_PREPARE_FLAGS = {
+  required: [...COMMON_DESTROY_REQUIRED_FLAGS, flags.outputDir],
+  optional: [...COMMON_DESTROY_OPTIONAL_FLAGS],
 };
 
-export const DELETE_SUBMIT_TRANSACTIONS_FLAGS = {
-  required: [...COMMON_DELETE_REQUIRED_FLAGS, flags.inputDir],
-  optional: [...COMMON_DELETE_OPTIONAL_FLAGS],
+export const DESTROY_SUBMIT_TRANSACTIONS_FLAGS = {
+  required: [...COMMON_DESTROY_REQUIRED_FLAGS, flags.inputDir],
+  optional: [...COMMON_DESTROY_OPTIONAL_FLAGS],
 };
 
-export const DELETE_EXECUTE_FLAGS = {
-  required: [...COMMON_DELETE_REQUIRED_FLAGS, flags.inputDir],
-  optional: [...COMMON_DELETE_OPTIONAL_FLAGS],
+export const DESTROY_EXECUTE_FLAGS = {
+  required: [...COMMON_DESTROY_REQUIRED_FLAGS, flags.inputDir],
+  optional: [...COMMON_DESTROY_OPTIONAL_FLAGS],
 };
 
 export const ADD_FLAGS = {
@@ -189,7 +201,7 @@ export const LOGS_FLAGS = {
 
 export const STATES_FLAGS = {
   required: [flags.deployment, flags.nodeAliasesUnparsed],
-  optional: [flags.quiet],
+  optional: [flags.clusterRef, flags.quiet],
 };
 
 export const REFRESH_FLAGS = {
@@ -233,7 +245,6 @@ export const FREEZE_FLAGS = {
 export const START_FLAGS = {
   required: [flags.deployment],
   optional: [
-    flags.releaseTag,
     flags.app,
     flags.quiet,
     flags.nodeAliasesUnparsed,

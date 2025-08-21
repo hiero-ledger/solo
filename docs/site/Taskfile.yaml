@@ -37,11 +37,7 @@ tasks:
   build:clean:
     desc: "Clean then build the documentation site"
     cmds:
-      - task: "check-doc-dir"
       - task: "clean"
-      - task: "install"
-      - task: "mutate:readme"
-      - task: "mutate:dev"
       - task: "build"
 
   build:
@@ -51,6 +47,15 @@ tasks:
       - task: "install"
       - task: "mutate:readme"
       - task: "mutate:dev"
+      - task: "mutate:address-book-example"
+      - task: "mutate:custom-network-config-example"
+      - task: "mutate:external-database-test-example"
+      - task: "mutate:network-with-block-node-example"
+      - task: "mutate:network-with-domain-names-example"
+      - task: "mutate:node-create-example"
+      - task: "mutate:node-delete-example"
+      - task: "mutate:node-update-example"
+      - task: "mutate:running-solo-inside-cluster-example"
       - task: "build:all"
 
   check-doc-dir:
@@ -137,6 +142,7 @@ tasks:
       - version.ts
       - solo.ts
       - docs/site/content/en/templates/step-by-step-guide.template.md
+      - docs/site/content/en/templates/example-index.template.md
       - docs/site/update_md.sh
       - docs/site/wrapper_for_update_md.sh
     generates:

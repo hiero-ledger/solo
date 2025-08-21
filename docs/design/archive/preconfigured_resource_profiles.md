@@ -19,14 +19,14 @@ confirm that the recommended profiles can achieve the desired TPS.
 A user could deploy three nodes with preconfigured `large` profile as below:
 
 ```shell
-solo network deploy -i node0, node1, node2 --profile large
+solo consensus network deploy -i node0, node1, node2 --profile large
 ```
 
 User would also be able to specify custom settings using a profile file (e.g. `custom-spec.yaml`) as
 below
 
 ```shell
-solo network deploy -i node0, node1, node2 --profile-file custom-spec.yaml --profile large
+solo consensus network deploy -i node0, node1, node2 --profile-file custom-spec.yaml --profile large
 ```
 
 An example of `custom-spec.yaml` is in `solo` repository `/resources/profiles/custom-spec.yaml`:

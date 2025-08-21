@@ -82,7 +82,7 @@ tasks:
           --ignore 'test/e2e/commands/external-*.ts'
           --ignore 'test/e2e/commands/quick-start-single.test.ts'
           --ignore 'test/e2e/commands/separate-node-add.test.ts' 
-          --ignore 'test/e2e/commands/separate-node-delete.test.ts' 
+          --ignore 'test/e2e/commands/separate-node-destroy.test.ts' 
           --ignore 'test/e2e/commands/separate-node-update.test.ts' 
           --ignore 'test/e2e/commands/separate-node-upgrade.test.ts' 
         {{ .reporter_options_prefix }}-e2e-standard.xml --timeout 30000"
@@ -150,19 +150,19 @@ tasks:
         {{ .mocha_bin }} 'test/e2e/commands/separate-node-update.test.ts'
         {{ .reporter_options_prefix }}-e2e-node-update-separate.xml"
 
-  test-e2e-node-delete:
+  test-e2e-node-destroy:
     cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Delete Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-delete'
-        {{ .mocha_bin }} 'test/e2e/commands/node-delete.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-delete.xml"
+      - "{{ .test_prefix }}=\"Mocha E2E Node Destroy Tests\"
+        {{ .reporter_prefix }}='coverage/e2e-node-destroy'
+        {{ .mocha_bin }} 'test/e2e/commands/node-destroy.test.ts'
+        {{ .reporter_options_prefix }}-e2e-node-destroy.xml"
 
-  test-e2e-node-delete-separate:
+  test-e2e-node-destroy-separate:
     cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Delete - Separate commands Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-delete-separate'
-        {{ .mocha_bin }} 'test/e2e/commands/separate-node-delete.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-delete-separate.xml"
+      - "{{ .test_prefix }}=\"Mocha E2E Node Destroy - Separate commands Tests\"
+        {{ .reporter_prefix }}='coverage/e2e-node-destroy-separate'
+        {{ .mocha_bin }} 'test/e2e/commands/separate-node-destroy.test.ts'
+        {{ .reporter_options_prefix }}-e2e-node-destroy-separate.xml"
 
   test-e2e-node-upgrade:
     cmds:
@@ -212,12 +212,8 @@ tasks:
           export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
         fi
         cd examples/external-database-test
-        SOLO_CLUSTER_NAME=solo-task-test-external-database task install:external-database
-        task destroy:external-database
-
-  test-update-markdown:
-    cmd: |
-      docs/site/wrapper_for_update_md.sh
+        task default
+        task destroy
 
   test-e2e-quick-start-single:
     cmds:
@@ -225,3 +221,21 @@ tasks:
         {{ .reporter_prefix }}='coverage/e2e-quick-start-single'
         {{ .mocha_bin }} 'test/e2e/commands/quick-start-single.test.ts' 
         {{ .reporter_options_prefix }}-e2e-quick-start-single.xml"
+
+  test-example-node-create-transaction:
+    dir: examples/node-create-transaction
+    cmds:
+      - task
+      - task destroy
+
+  test-example-node-update-transaction:
+    dir: examples/node-update-transaction
+    cmds:
+      - task
+      - task destroy
+
+  test-example-node-delete-transaction:
+    dir: examples/node-delete-transaction
+    cmds:
+      - task
+      - task destroy

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Flags as flags} from '../../src/commands/flags.js';
-import {getTestCacheDirectory, getTestCluster} from '../test-utility.js';
 import {K8Client} from '../../src/integration/kube/k8-client/k8-client.js';
+import * as helpers from '../../src/core/helpers.js';
+import {getTestCacheDirectory, getTestCluster} from '../test-utility.js';
 import {type NamespaceName} from '../../src/types/namespace/namespace-name.js';
 import {type CommandFlag} from '../../src/types/flag-types.js';
-import {type ArgvStruct} from '../../src/types/aliases.js';
-import * as helpers from '../../src/core/helpers.js';
+import {type ArgvStruct, type NodeAliases} from '../../src/types/aliases.js';
 import {type CloneTrait} from '../../src/types/traits/clone-trait.js';
 
 export class Argv implements CloneTrait<Argv> {
@@ -16,6 +16,7 @@ export class Argv implements CloneTrait<Argv> {
 
   private command?: string;
   private subcommand?: string;
+  private action?: string;
 
   private constructor() {}
 
@@ -23,18 +24,19 @@ export class Argv implements CloneTrait<Argv> {
     this.args[flag.name] = value;
   }
 
-  public getArg<T>(flag: CommandFlag): T {
+  public getArg<T = string>(flag: CommandFlag): T {
     return this.args[flag.name];
   }
 
-  public setCommand(command: string, subcommand?: string): void {
+  public setCommand(command: string, subcommand: string, action: string): void {
     this.command = command;
     this.subcommand = subcommand;
+    this.action = action;
   }
 
   public build(): ArgvStruct {
     if (this.getArg<string>(flags.nodeAliasesUnparsed)?.split(',')?.length) {
-      const nodeAliases = helpers.parseNodeAliases(this.getArg(flags.nodeAliasesUnparsed));
+      const nodeAliases: NodeAliases = helpers.parseNodeAliases(this.getArg(flags.nodeAliasesUnparsed));
       this.setArg(flags.numberOfConsensusNodes, nodeAliases.length);
     }
 
@@ -42,19 +44,18 @@ export class Argv implements CloneTrait<Argv> {
 
     const _: string[] = [this.command];
     if (this.subcommand) {
-      if (this.subcommand.includes(' ')) {
-        _.push(...this.subcommand.split(' '));
-      } else {
-        _.push(this.subcommand);
-      }
+      _.push(this.subcommand);
+    }
+    if (this.action) {
+      _.push(this.action);
     }
     rawArguments._ = _;
 
     return rawArguments;
   }
 
-  public clone() {
-    const cloned = new Argv();
+  public clone(): Argv {
+    const cloned: Argv = new Argv();
     cloned.args = structuredClone(this.args);
     cloned.cacheDir = this.cacheDir;
     cloned.deployment = this.deployment;
@@ -66,17 +67,16 @@ export class Argv implements CloneTrait<Argv> {
   }
 
   /** Get argv with defaults */
-  public static getDefaultArgv(namespace: NamespaceName) {
-    const argv = new Argv();
+  public static getDefaultArgv(namespace: NamespaceName): Argv {
+    const argv: Argv = new Argv();
 
     for (const f of flags.allFlags) {
       argv.setArg(f, f.definition.defaultValue);
     }
 
-    const currentDeployment =
-      argv.getArg<string>(flags.deployment) ||
-      `${namespace?.name || argv.getArg<NamespaceName>(flags.namespace)}-deployment`;
-    const cacheDirectory = getTestCacheDirectory();
+    const currentDeployment: string =
+      argv.getArg(flags.deployment) || `${namespace?.name || argv.getArg<NamespaceName>(flags.namespace)}-deployment`;
+    const cacheDirectory: string = getTestCacheDirectory();
     argv.cacheDir = cacheDirectory;
     argv.setArg(flags.cacheDir, cacheDirectory);
     argv.deployment = currentDeployment;

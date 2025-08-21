@@ -2,7 +2,6 @@
 
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
-import {Listr} from 'listr2';
 import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
@@ -19,24 +18,18 @@ import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
-import {type AnyYargs, type ArgvStruct} from '../types/aliases.js';
-import {PodName} from '../integration/kube/resources/pod/pod-name.js';
+import {type ArgvStruct} from '../types/aliases.js';
+import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as fs from 'node:fs';
-import {
-  type ClusterReferenceName,
-  type CommandDefinition,
-  type DeploymentName,
-  type Optional,
-  type SoloListrTask,
-} from '../types/index.js';
+import {type ClusterReferenceName, type DeploymentName, type Optional, type SoloListrTask} from '../types/index.js';
 import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import chalk from 'chalk';
-import {type CommandFlag} from '../types/flag-types.js';
+import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {KeyManager} from '../core/key-manager.js';
@@ -54,6 +47,7 @@ import {Base64} from 'js-base64';
 import {Lock} from '../core/lock/lock.js';
 import {Version} from '../business/utils/version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
+// Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
   isChartInstalled: boolean;
@@ -107,8 +101,6 @@ interface MirrorNodeDestroyContext {
 
 @injectable()
 export class MirrorNodeCommand extends BaseCommand {
-  public static readonly DEPLOY_COMMAND: string = 'mirror-node deploy';
-
   public constructor(
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
     @inject(InjectTokens.ProfileManager) private readonly profileManager?: ProfileManager,
@@ -120,17 +112,13 @@ export class MirrorNodeCommand extends BaseCommand {
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME = 'mirror-node';
+  private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
-  private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
-
-  private static readonly DEPLOY_FLAGS_LIST = {
-    required: [],
+  public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.cacheDir,
       flags.chartDirectory,
-      flags.clusterRef,
-      flags.deployment,
       flags.enableIngress,
       flags.ingressControllerValueFile,
       flags.mirrorStaticIp,
@@ -158,6 +146,11 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.domainName,
       flags.forcePortForward,
     ],
+  };
+
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.devMode],
   };
 
   private async prepareValuesArg(config: MirrorNodeDeployConfigClass): Promise<string> {
@@ -356,7 +349,7 @@ export class MirrorNodeCommand extends BaseCommand {
     }
   }
 
-  private async deploy(argv: ArgvStruct): Promise<boolean> {
+  public async add(argv: ArgvStruct): Promise<boolean> {
     const self = this;
     let lease: Lock;
 
@@ -613,6 +606,10 @@ export class MirrorNodeCommand extends BaseCommand {
                 labels: ['app.kubernetes.io/component=monitor', 'app.kubernetes.io/name=monitor'],
               },
               {
+                title: 'Check Web3',
+                labels: ['app.kubernetes.io/component=web3', 'app.kubernetes.io/name=web3'],
+              },
+              {
                 title: 'Check Importer',
                 labels: ['app.kubernetes.io/component=importer', 'app.kubernetes.io/name=importer'],
               },
@@ -769,7 +766,7 @@ export class MirrorNodeCommand extends BaseCommand {
         },
         this.addMirrorNodeComponents(),
         {
-          title: 'Enable port forwarding',
+          title: 'Enable port forwarding for mirror ingress controller',
           skip: context_ => !context_.config.forcePortForward || !context_.config.enableIngress,
           task: async context_ => {
             const pods: Pod[] = await this.k8Factory
@@ -787,15 +784,19 @@ export class MirrorNodeCommand extends BaseCommand {
               }
             }
 
-            await this.k8Factory
-              .getK8(context_.config.clusterContext)
-              .pods()
-              .readByReference(podReference)
-              .portForward(constants.MIRROR_NODE_PORT, 80, true);
-            this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-            this.logger.addMessageGroupMessage(
-              constants.PORT_FORWARDING_MESSAGE_GROUP,
-              `Mirror Node port forward enabled on localhost:${constants.MIRROR_NODE_PORT}`,
+            const clusterReference: ClusterReferenceName = context_.config.clusterReference;
+
+            await this.remoteConfig.configuration.components.managePortForward(
+              clusterReference,
+              podReference,
+              80, // Pod port
+              constants.MIRROR_NODE_PORT, // Local port
+              this.k8Factory.getK8(context_.config.clusterContext),
+              this.logger,
+              ComponentTypes.MirrorNode,
+
+              'Mirror ingress controller',
+              context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             );
           },
         },
@@ -812,22 +813,22 @@ export class MirrorNodeCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      MirrorNodeCommand.DEPLOY_COMMAND,
+      'mirror node add',
     );
 
     if (tasks.isRoot()) {
       try {
         await tasks.run();
-        self.logger.debug('mirror node deployment has completed');
+        self.logger.debug('mirror node add has completed');
       } catch (error) {
-        throw new SoloError(`Error deploying mirror node: ${error.message}`, error);
+        throw new SoloError(`Error adding mirror node: ${error.message}`, error);
       } finally {
-        await lease.release();
+        await lease?.release();
         await self.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease.release();
+        await lease?.release();
         await self.accountManager.close();
       });
     }
@@ -843,11 +844,11 @@ export class MirrorNodeCommand extends BaseCommand {
     return semver.lt(version, '0.130.0') ? 'hedera' : 'hiero';
   }
 
-  private async destroy(argv: ArgvStruct): Promise<boolean> {
+  public async destroy(argv: ArgvStruct): Promise<boolean> {
     const self = this;
     let lease: Lock;
 
-    const tasks = new Listr<MirrorNodeDestroyContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -859,7 +860,7 @@ export class MirrorNodeCommand extends BaseCommand {
             if (!argv.force) {
               const confirmResult = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
                 default: false,
-                message: 'Are you sure you would like to destroy the mirror-node components?',
+                message: 'Are you sure you would like to destroy the mirror node components?',
               });
 
               if (!confirmResult) {
@@ -870,8 +871,7 @@ export class MirrorNodeCommand extends BaseCommand {
             self.configManager.update(argv);
             const namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
             const clusterReference: ClusterReferenceName =
-              (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
-              this.k8Factory.default().clusters().readCurrent();
+              this.configManager.getFlag(flags.clusterRef) ?? self.remoteConfig.getClusterRefs().keys().next().value;
 
             const clusterContext = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
 
@@ -930,6 +930,23 @@ export class MirrorNodeCommand extends BaseCommand {
         {
           title: 'Uninstall mirror ingress controller',
           task: async context_ => {
+            await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .ingressClasses()
+              .delete(constants.MIRROR_INGRESS_CLASS_NAME);
+
+            if (
+              await this.k8Factory
+                .getK8(context_.config.clusterContext)
+                .configMaps()
+                .exists(context_.config.namespace, 'ingress-controller-leader-' + constants.MIRROR_INGRESS_CLASS_NAME)
+            ) {
+              await this.k8Factory
+                .getK8(context_.config.clusterContext)
+                .configMaps()
+                .delete(context_.config.namespace, 'ingress-controller-leader-' + constants.MIRROR_INGRESS_CLASS_NAME);
+            }
+
             await this.chartManager.uninstall(
               context_.config.namespace,
               constants.INGRESS_CONTROLLER_RELEASE_NAME,
@@ -956,90 +973,27 @@ export class MirrorNodeCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      'mirror node destroy',
     );
 
-    try {
-      await tasks.run();
-      self.logger.debug('mirror node destruction has completed');
-    } catch (error) {
-      throw new SoloError(`Error destroying mirror node: ${error.message}`, error);
-    } finally {
+    if (tasks.isRoot()) {
       try {
-        await lease.release();
+        await tasks.run();
       } catch (error) {
-        self.logger.error(`Error releasing lease: ${error.message}`, error);
+        throw new SoloError(`Error destroying mirror node: ${error.message}`, error);
+      } finally {
+        await this.accountManager?.close().catch();
+        await lease?.release();
       }
-      try {
-        await self.accountManager.close();
-      } catch (error) {
-        self.logger.error(`Error closing account manager: ${error.message}`, error);
-      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await self.accountManager?.close().catch();
+        await lease?.release();
+      });
     }
 
     return true;
-  }
-
-  public getCommandDefinition(): CommandDefinition {
-    const self: this = this;
-    return {
-      command: MirrorNodeCommand.COMMAND_NAME,
-      desc: 'Manage Hedera Mirror Node in solo network',
-      builder: yargs => {
-        return yargs
-          .command({
-            command: 'deploy',
-            desc: 'Deploy mirror-node and its components',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...MirrorNodeCommand.DEPLOY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...MirrorNodeCommand.DEPLOY_FLAGS_LIST.optional);
-            },
-            handler: async argv => {
-              self.logger.info("==== Running 'mirror-node deploy' ===");
-
-              await self
-                .deploy(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running `mirror-node deploy`====');
-                  if (!r) {
-                    throw new SoloError('Error deploying mirror node, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error deploying mirror node: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'destroy',
-            desc: 'Destroy mirror-node components and database',
-            builder: y =>
-              flags.setOptionalCommandFlags(
-                y,
-                flags.chartDirectory,
-                flags.clusterRef,
-                flags.force,
-                flags.quiet,
-                flags.deployment,
-              ),
-            handler: async argv => {
-              self.logger.info("==== Running 'mirror-node destroy' ===");
-
-              await self
-                .destroy(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running `mirror-node destroy`====');
-                  if (!r) {
-                    throw new SoloError('Error destroying mirror node, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error destroying mirror node: ${error.message}`, error);
-                });
-            },
-          })
-          .demandCommand(1, 'Select a mirror-node command');
-      },
-    };
   }
 
   /** Removes the mirror node components from remote config. */

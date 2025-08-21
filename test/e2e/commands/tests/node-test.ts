@@ -27,8 +27,10 @@ import {
   PrivateKey,
   type TransactionReceipt,
   type TransactionResponse,
-} from '@hashgraph/sdk';
+} from '@hiero-ledger/sdk';
 import {type BaseTestOptions} from './base-test-options.js';
+import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
+import {KeysCommandDefinition} from '../../../../src/commands/command-definitions/keys-command-definition.js';
 
 export class NodeTest extends BaseCommandTest {
   private static soloNodeKeysArgv(testName: string, deployment: DeploymentName): string[] {
@@ -36,8 +38,9 @@ export class NodeTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      'node',
-      'keys',
+      KeysCommandDefinition.COMMAND_NAME,
+      KeysCommandDefinition.CONSENSUS_SUBCOMMAND_NAME,
+      KeysCommandDefinition.CONSENSUS_GENERATE,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.generateGossipKeys),
@@ -52,14 +55,14 @@ export class NodeTest extends BaseCommandTest {
     const {testName, testLogger, deployment, testCacheDirectory} = options;
     const {soloNodeKeysArgv} = NodeTest;
 
-    it(`${testName}: node keys`, async (): Promise<void> => {
-      testLogger.info(`${testName}: beginning node keys command`);
+    it(`${testName}: keys consensus generate`, async (): Promise<void> => {
+      testLogger.info(`${testName}: beginning keys consensus generate command`);
       await main(soloNodeKeysArgv(testName, deployment));
       const node1Key: Buffer = fs.readFileSync(
         PathEx.joinWithRealPath(testCacheDirectory, 'keys', 's-private-node1.pem'),
       );
       expect(node1Key).to.not.be.null;
-      testLogger.info(`${testName}: finished node keys command`);
+      testLogger.info(`${testName}: finished keys consensus generate command`);
     });
   }
 
@@ -73,7 +76,13 @@ export class NodeTest extends BaseCommandTest {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
 
     const argv: string[] = newArgv();
-    argv.push('node', 'setup', optionFromFlag(Flags.deployment), deployment);
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SETUP,
+      optionFromFlag(Flags.deployment),
+      deployment,
+    );
     if (enableLocalBuildPathTesting) {
       argv.push(
         optionFromFlag(Flags.localBuildPath),
@@ -98,7 +107,7 @@ export class NodeTest extends BaseCommandTest {
     } = options;
     const {soloNodeSetupArgv} = NodeTest;
 
-    it(`${testName}: node setup`, async (): Promise<void> => {
+    it(`${testName}: consensus node setup`, async (): Promise<void> => {
       await main(
         soloNodeSetupArgv(testName, deployment, enableLocalBuildPathTesting, localBuildPath, localBuildReleaseTag),
       );
@@ -139,7 +148,13 @@ export class NodeTest extends BaseCommandTest {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
 
     const argv: string[] = newArgv();
-    argv.push('node', 'start', optionFromFlag(Flags.deployment), deployment);
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_START,
+      optionFromFlag(Flags.deployment),
+      deployment,
+    );
     argvPushGlobalFlags(argv, testName);
     return argv;
   }
@@ -188,7 +203,7 @@ export class NodeTest extends BaseCommandTest {
     const {testName, deployment, namespace, contexts, createdAccountIds, clusterReferences} = options;
     const {soloNodeStartArgv, verifyAccountCreateWasSuccessful} = NodeTest;
 
-    it(`${testName}: node start`, async (): Promise<void> => {
+    it(`${testName}: consensus node start`, async (): Promise<void> => {
       await main(soloNodeStartArgv(testName, deployment));
       for (const context_ of contexts) {
         const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);

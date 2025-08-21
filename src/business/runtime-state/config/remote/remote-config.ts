@@ -14,7 +14,7 @@ export class RemoteConfig implements Facade<RemoteConfigSchema> {
   private readonly _components: ComponentsDataWrapperApi;
   private readonly _schemaVersion: number;
   private readonly _metadata: Readonly<RemoteConfigMetadataSchema>;
-  private readonly _versions: Readonly<ApplicationVersionsSchema>;
+  private readonly _versions: ApplicationVersionsSchema;
   private readonly _clusters: Readonly<ClusterSchema>[];
   private readonly _state: Readonly<DeploymentStateSchema>;
   private readonly _history: Readonly<DeploymentHistorySchema>;
@@ -40,7 +40,7 @@ export class RemoteConfig implements Facade<RemoteConfigSchema> {
     return this._metadata;
   }
 
-  public get versions(): Readonly<ApplicationVersionsSchema> {
+  public get versions(): ApplicationVersionsSchema {
     return this._versions;
   }
 

@@ -8,6 +8,10 @@ import {type DeploymentPhase} from '../../../data/schema/model/remote/deployment
 import {type ClusterReferenceName, type ComponentId} from '../../../types/index.js';
 import {type ComponentsDataWrapperApi} from './api/components-data-wrapper-api.js';
 import {type DeploymentStateSchema} from '../../../data/schema/model/remote/deployment-state-schema.js';
+import {type PodReference} from '../../../integration/kube/resources/pod/pod-reference.js';
+import {type K8} from '../../../integration/kube/k8.js';
+import {type SoloLogger} from '../../logging/solo-logger.js';
+import * as constants from '../../constants.js';
 
 export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   public constructor(public state: DeploymentStateSchema) {}
@@ -15,7 +19,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   /* -------- Modifiers -------- */
 
   /** Used to add new component to their respective group. */
-  public addNewComponent(component: BaseStateSchema, type: ComponentTypes): void {
+  public addNewComponent(component: BaseStateSchema, type: ComponentTypes, isReplace?: boolean): void {
     const componentId: ComponentId = component.metadata.id;
 
     if (typeof componentId !== 'number' || componentId < 0) {
@@ -27,7 +31,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     }
 
     const addComponentCallback: (components: BaseStateSchema[]) => void = (components): void => {
-      if (this.checkComponentExists(components, component)) {
+      if (this.checkComponentExists(components, component) && !isReplace) {
         throw new SoloError('Component exists', undefined, component);
       }
       components[componentId] = component;
@@ -82,6 +86,18 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     this.applyCallbackToComponentGroup(type, getComponentCallback, componentId);
 
     return component;
+  }
+
+  public getComponentByType<T extends BaseStateSchema>(type: ComponentTypes): T[] {
+    let components: T[] = [];
+
+    const getComponentsByTypeCallback: (comps: BaseStateSchema[]) => void = (comps): void => {
+      components = comps as T[];
+    };
+
+    this.applyCallbackToComponentGroup(type, getComponentsByTypeCallback);
+
+    return components;
   }
 
   public getComponentsByClusterReference<T extends BaseStateSchema>(
@@ -190,5 +206,85 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     this.applyCallbackToComponentGroup(componentType, calculateNewComponentIndexCallback);
 
     return newComponentId;
+  }
+
+  /**
+   * Manages port forwarding for a component, checking if it's already enabled and persisting configuration
+   * @param clusterReference The cluster reference to forward to
+   * @param podReference The pod reference to forward to
+   * @param podPort The port on the pod to forward from
+   * @param localPort The local port to forward to (starting port if not available)
+   * @param k8Client The Kubernetes client to use for port forwarding
+   * @param logger Logger for messages
+   * @param componentType The component type for persistence
+   * @param label Label for the port forward
+   * @param reuse Whether to reuse existing port forward if available
+   * @param nodeId Optional node ID for finding component when cluster reference is not available
+   * @returns The local port number that was used for port forwarding
+   */
+  public async managePortForward(
+    clusterReference: ClusterReferenceName,
+    podReference: PodReference,
+    podPort: number,
+    localPort: number,
+    k8Client: K8,
+    logger: SoloLogger,
+    componentType: ComponentTypes,
+    label: string,
+    reuse: boolean = false,
+    nodeId?: number,
+  ): Promise<number> {
+    // found component by cluster reference or nodeId
+    let component: BaseStateSchema;
+    if (clusterReference) {
+      const schemeComponents: BaseStateSchema[] = this.getComponentsByClusterReference<BaseStateSchema>(
+        componentType,
+        clusterReference,
+      );
+      component = schemeComponents[0];
+    } else {
+      component = this.getComponentById<BaseStateSchema>(componentType, nodeId);
+    }
+
+    if (component === undefined) {
+      // it is possible we are upgrading a chart and previous version has no clusterReference save in configMap
+      // so we will not be able to find component by clusterReference
+      reuse = true;
+      logger.showUser(`Port forward config not found for previous installed ${label}, reusing existing port forward`);
+    } else if (component.metadata.portForwardConfigs) {
+      for (const portForwardConfig of component.metadata.portForwardConfigs) {
+        if (portForwardConfig.podPort === podPort) {
+          logger.showUser(`${label} Port forward already enabled at ${portForwardConfig.localPort}`);
+          return portForwardConfig.localPort;
+        }
+      }
+    }
+
+    // Enable port forwarding
+    const portForwardPortNumber: number = await k8Client
+      .pods()
+      .readByReference(podReference)
+      .portForward(localPort, podPort, reuse);
+
+    logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+    logger.addMessageGroupMessage(
+      constants.PORT_FORWARDING_MESSAGE_GROUP,
+      `${label} port forward enabled on localhost:${portForwardPortNumber}`,
+    );
+
+    if (component !== undefined) {
+      if (component.metadata.portForwardConfigs === undefined) {
+        component.metadata.portForwardConfigs = [];
+      }
+
+      logger.info(`add port localPort=${portForwardPortNumber}, podPort=${podPort}`);
+      // Save port forward config to component
+      component.metadata.portForwardConfigs.push({
+        podPort,
+        localPort: portForwardPortNumber,
+      });
+    }
+
+    return portForwardPortNumber;
   }
 }

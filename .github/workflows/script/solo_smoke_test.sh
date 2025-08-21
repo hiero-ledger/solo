@@ -47,7 +47,7 @@ function check_port_forward ()
   # run background task for few minutes
   for i in {1..20}
   do
-    echo "Check port forward i = $i out of 20" >> port-forward.log
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - Check port forward i = $i out of 20" >> port-forward.log
     ps -ef |grep port-forward >> port-forward.log
     sleep 10
   done &
@@ -59,7 +59,7 @@ function start_background_transactions ()
   # generate accounts as background traffic for two minutes
   # so record stream files can be kept pushing to mirror node
   cd solo
-  npm run solo-test -- account create --deployment "${SOLO_DEPLOYMENT}" --create-amount 1000 > /dev/null 2>&1 &
+  npm run solo-test -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --create-amount 1000 > /dev/null 2>&1 &
   cd -
 }
 
@@ -72,6 +72,13 @@ function start_contract_test ()
   result=0
   npm run hh:test || result=$?
   cd -
+
+  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    echo "Test local network connection using nc"
+    sudo apt-get update && sudo apt-get install -y netcat-traditional
+    nc -zv 127.0.0.1 50211
+  fi
+
   if [[ $result -ne 0 ]]; then
     echo "Smart contract test failed with exit code $result"
     log_and_exit $result
@@ -92,7 +99,7 @@ function start_sdk_test ()
     log_and_exit $result
   fi
   result=0
-  node examples/create-topic.js || result=$?
+  node scripts/create-topic.js || result=$?
   cd -
   if [[ $result -ne 0 ]]; then
     echo "JavaScript SDK test failed with exit code $result"
@@ -159,6 +166,11 @@ function log_and_exit()
   cat relay.log || true
   echo "------- END RELAY DUMP -------"
 
+  echo "------- BEGIN MIRROR REST DUMP -------"
+  kubectl get services -n "${SOLO_NAMESPACE}" --output=name | grep rest | grep -v '\-restjava' | xargs -IREST kubectl logs -n "${SOLO_NAMESPACE}" REST > rest.log || true
+  cat rest.log || true
+  echo "------- END MIRROR REST DUMP -------"
+
   echo "------- Last port-forward check -------" >> port-forward.log
   ps -ef |grep port-forward >> port-forward.log
 
@@ -193,7 +205,6 @@ fi
 create_test_account "${SOLO_DEPLOYMENT}"
 clone_smart_contract_repo
 setup_smart_contract_test
-start_background_transactions
 check_port_forward
 start_contract_test
 start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"

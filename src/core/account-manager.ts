@@ -22,7 +22,7 @@ import {
   PrivateKey,
   Status,
   TransferTransaction,
-} from '@hashgraph/sdk';
+} from '@hiero-ledger/sdk';
 import {MissingArgumentError} from './errors/missing-argument-error.js';
 import {ResourceNotFoundError} from './errors/resource-not-found-error.js';
 import {SoloError} from './errors/solo-error.js';
@@ -31,7 +31,7 @@ import {type NetworkNodeServices} from './network-node-services.js';
 
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
-import {type AccountIdWithKeyPairObject, Context, type ExtendedNetServer} from '../types/index.js';
+import {type AccountIdWithKeyPairObject, Context} from '../types/index.js';
 import {type NodeAlias, type NodeAliases, type SdkNetworkEndpoint} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {entityId, getExternalAddress, isNumeric, sleep} from './helpers.js';
@@ -62,7 +62,7 @@ const REJECTED: string = 'rejected';
 
 @injectable()
 export class AccountManager {
-  private _portForwards: ExtendedNetServer[];
+  private _portForwards: number[];
   private _forcePortForward: boolean = false;
   public _nodeClient: Client | null;
 
@@ -360,38 +360,10 @@ export class AccountManager {
         await this._nodeClient.ping(AccountId.fromString(operatorId));
       }
 
-      // start a background pinger to keep the node client alive, Hashgraph SDK JS has a 90-second keep alive time, and
-      // 5-second keep alive timeout
-      this.startIntervalPinger(operatorId);
-
       return this._nodeClient;
     } catch (error) {
       throw new SoloError(`failed to setup node client: ${error.message}`, error);
     }
-  }
-
-  /**
-   * pings the node client at a set interval, can throw an exception if the ping fails
-   * @param operatorId
-   */
-  private startIntervalPinger(operatorId: string): void {
-    const interval: number = constants.NODE_CLIENT_PING_INTERVAL;
-    const intervalId = setInterval(async (): Promise<void> => {
-      if (this._nodeClient || !this._nodeClient?.isClientShutDown) {
-        this.logger.debug('node client has been closed, clearing node client ping interval');
-        clearInterval(intervalId);
-      } else {
-        try {
-          this.logger.debug(`pinging node client at an interval of ${Duration.ofMillis(interval).seconds} seconds`);
-          if (!constants.SKIP_NODE_PING) {
-            await this._nodeClient.ping(AccountId.fromString(operatorId));
-          }
-        } catch (error) {
-          const message: string = `failed to ping node client while running the interval pinger: ${error.message}`;
-          throw new SoloError(message, error);
-        }
-      }
-    }, interval);
   }
 
   private async configureNodeAccess(
@@ -427,16 +399,15 @@ export class AccountManager {
       const targetPort: number = localPort;
 
       if (this._portForwards.length < totalNodes) {
-        this._portForwards.push(
-          await this.k8Factory
-            .getK8(networkNodeService.context)
-            .pods()
-            .readByReference(PodReference.of(networkNodeService.namespace, networkNodeService.haProxyPodName))
-            .portForward(localPort, port),
-        );
+        const portForward: number = await this.k8Factory
+          .getK8(networkNodeService.context)
+          .pods()
+          .readByReference(PodReference.of(networkNodeService.namespace, networkNodeService.haProxyPodName))
+          .portForward(localPort, port);
+        this._portForwards.push(portForward);
+        this.logger.debug(`using local host port forward: ${host}:${portForward}`);
       }
 
-      this.logger.debug(`using local host port forward: ${host}:${targetPort}`);
       object[`${host}:${targetPort}`] = accountId;
 
       await this.testNodeClientConnection(object, accountId);
@@ -741,6 +712,9 @@ export class AccountManager {
     try {
       keys = await this.getAccountKeys(accountId);
     } catch (error) {
+      if (error instanceof MissingArgumentError) {
+        throw error;
+      }
       this.logger.error(
         `failed to get keys for accountId ${accountId.toString()}, e: ${error.toString()}\n  ${error.stack}`,
       );
@@ -759,7 +733,7 @@ export class AccountManager {
       };
     }
 
-    if (constants.OPERATOR_PUBLIC_KEY !== keys[0].toString()) {
+    if (constants.GENESIS_PUBLIC_KEY.toString() !== keys[0].toString()) {
       this.logger.debug(`account ${accountId.toString()} can be skipped since it does not have a genesis key`);
       return {
         status: REJECTED,
@@ -771,34 +745,10 @@ export class AccountManager {
     this.logger.debug(`updating account ${accountId.toString()} since it is using the genesis key`);
 
     const newPrivateKey: PrivateKey = PrivateKey.generateED25519();
-    const data: {privateKey: string; publicKey: string} = {
-      privateKey: Base64.encode(newPrivateKey.toString()),
-      publicKey: Base64.encode(newPrivateKey.publicKey.toString()),
-    };
-
     try {
-      const contexts: Context[] = this.remoteConfig.getContexts();
-      for (const context of contexts) {
-        const secretName: string = Templates.renderAccountKeySecretName(accountId);
-        const secretLabels: {'solo.hedera.com/account-id': string} =
-          Templates.renderAccountKeySecretLabelObject(accountId);
-        const secretType: SecretType.OPAQUE = SecretType.OPAQUE;
-
-        const createdOrUpdated: boolean = await (updateSecrets
-          ? this.k8Factory.getK8(context).secrets().replace(namespace, secretName, secretType, data, secretLabels)
-          : this.k8Factory.getK8(context).secrets().create(namespace, secretName, secretType, data, secretLabels));
-
-        if (!createdOrUpdated) {
-          this.logger.error(`failed to create secret for accountId ${accountId.toString()}`);
-          return {
-            status: REJECTED,
-            reason: REASON_FAILED_TO_CREATE_K8S_S_KEY,
-            value: accountId.toString(),
-          };
-        }
-      }
+      await this.createOrReplaceAccountKeySecret(newPrivateKey, accountId, updateSecrets, namespace);
     } catch (error) {
-      this.logger.error(`failed to create secret for accountId ${accountId.toString()}, e: ${error.toString()}`);
+      this.logger.error(error.message, error);
       return {
         status: REJECTED,
         reason: REASON_FAILED_TO_CREATE_K8S_S_KEY,
@@ -828,6 +778,48 @@ export class AccountManager {
       status: FULFILLED,
       value: accountId.toString(),
     };
+  }
+
+  /**
+   * creates or replaces the Kubernetes secret for the account key
+   * @param privateKey - the private key to store in the secret
+   * @param accountId - the account id for which to create the secret
+   * @param updateSecrets - whether to replace the secret if it exists
+   * @param namespace - the namespace in which to create the secret
+   */
+  public async createOrReplaceAccountKeySecret(
+    privateKey: PrivateKey,
+    accountId: AccountId,
+    updateSecrets: boolean,
+    namespace: NamespaceName,
+  ): Promise<void> {
+    const data: {privateKey: string; publicKey: string} = {
+      privateKey: Base64.encode(privateKey.toString()),
+      publicKey: Base64.encode(privateKey.publicKey.toString()),
+    };
+
+    try {
+      const contexts: Context[] = this.remoteConfig.getContexts();
+      for (const context of contexts) {
+        const secretName: string = Templates.renderAccountKeySecretName(accountId);
+        const secretLabels: {'solo.hedera.com/account-id': string} =
+          Templates.renderAccountKeySecretLabelObject(accountId);
+        const secretType: SecretType.OPAQUE = SecretType.OPAQUE;
+
+        const createdOrUpdated: boolean = await (updateSecrets
+          ? this.k8Factory.getK8(context).secrets().replace(namespace, secretName, secretType, data, secretLabels)
+          : this.k8Factory.getK8(context).secrets().create(namespace, secretName, secretType, data, secretLabels));
+
+        if (!createdOrUpdated) {
+          throw new SoloError(`failed to create secret for accountId ${accountId.toString()}`);
+        }
+      }
+    } catch (error) {
+      throw new SoloError(
+        `failed to create secret for accountId ${accountId.toString()}, e: ${error.toString()}`,
+        error,
+      );
+    }
   }
 
   /**

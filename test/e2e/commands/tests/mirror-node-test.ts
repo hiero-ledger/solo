@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {BaseCommandTest} from './base-command-test.js';
-import {type ClusterReferenceName, type DeploymentName, type ExtendedNetServer} from '../../../../src/types/index.js';
+import {type ClusterReferenceName, type DeploymentName} from '../../../../src/types/index.js';
 import {Flags} from '../../../../src/commands/flags.js';
 import {main} from '../../../../src/index.js';
 import {Duration} from '../../../../src/core/time/duration.js';
@@ -16,6 +16,7 @@ import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
+import {MirrorCommandDefinition} from '../../../../src/commands/command-definitions/mirror-command-definition.js';
 
 import * as constants from '../../../../src/core/constants.js';
 import fs from 'node:fs';
@@ -32,8 +33,9 @@ export class MirrorNodeTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      'mirror-node',
-      'deploy',
+      MirrorCommandDefinition.COMMAND_NAME,
+      MirrorCommandDefinition.NODE_SUBCOMMAND_NAME,
+      MirrorCommandDefinition.NODE_ADD,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.clusterRef),
@@ -49,10 +51,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     return argv;
   }
 
-  private static async forwardRestServicePort(
-    contexts: string[],
-    namespace: NamespaceName,
-  ): Promise<ExtendedNetServer> {
+  private static async forwardRestServicePort(contexts: string[], namespace: NamespaceName): Promise<number> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
     const lastContext: string = contexts?.length ? contexts[contexts?.length - 1] : undefined;
     const k8: K8 = k8Factory.getK8(lastContext);
@@ -65,7 +64,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       ]);
     expect(mirrorNodeRestPods).to.have.lengthOf(1);
 
-    const portForwarder: ExtendedNetServer = await k8
+    const portForwarder: number = await k8
       .pods()
       .readByReference(mirrorNodeRestPods[0].podReference)
       .portForward(5551, 5551);
@@ -73,7 +72,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     return portForwarder;
   }
 
-  private static async stopPortForward(contexts: string[], portForwarder: ExtendedNetServer): Promise<void> {
+  private static async stopPortForward(contexts: string[], portForwarder: number): Promise<void> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
     const k8: K8 = k8Factory.getK8(contexts[contexts.length]);
     // eslint-disable-next-line unicorn/no-null
@@ -87,7 +86,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     createdAccountIds: string[],
     consensusNodesCount: number,
   ): Promise<void> {
-    const portForwarder: ExtendedNetServer = await MirrorNodeTest.forwardRestServicePort(contexts, namespace);
+    const portForwarder: number = await MirrorNodeTest.forwardRestServicePort(contexts, namespace);
     try {
       const queryUrl: string = 'http://localhost:5551/api/v1/network/nodes';
 
@@ -174,14 +173,26 @@ export class MirrorNodeTest extends BaseCommandTest {
     namespace: NamespaceName,
     pingerIsEnabled: boolean,
   ): Promise<void> {
-    const portForwarder: ExtendedNetServer = await MirrorNodeTest.forwardRestServicePort(contexts, namespace);
+    const portForwarder: number = await MirrorNodeTest.forwardRestServicePort(contexts, namespace);
     try {
       const transactionsEndpoint: string = 'http://localhost:5551/api/v1/transactions';
-      const firstResponse = await fetch(transactionsEndpoint);
+      // force to fetch new data instead of using cache
+      const fetchOptions = {
+        cache: 'no-cache' as RequestCache,
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      };
+
+      const firstResponse = await fetch(transactionsEndpoint, fetchOptions);
       const firstData = await firstResponse.json();
-      await sleep(Duration.ofSeconds(10));
-      const secondResponse = await fetch(transactionsEndpoint);
+      console.log(`firstData = ${JSON.stringify(firstData, null, 2)}`);
+      await sleep(Duration.ofSeconds(15));
+      const secondResponse = await fetch(transactionsEndpoint, fetchOptions);
       const secondData = await secondResponse.json();
+      console.log(`secondData = ${JSON.stringify(secondData, null, 2)}`);
       expect(firstData.transactions).to.not.be.undefined;
       expect(firstData.transactions.length).to.be.gt(0);
       expect(secondData.transactions).to.not.be.undefined;
@@ -198,7 +209,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     }
   }
 
-  public static deploy(options: BaseTestOptions): void {
+  public static add(options: BaseTestOptions): void {
     const {
       testName,
       testLogger,
@@ -212,7 +223,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     } = options;
     const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, verifyPingerStatus} = MirrorNodeTest;
 
-    it(`${testName}: mirror node deploy`, async (): Promise<void> => {
+    it(`${testName}: mirror node add`, async (): Promise<void> => {
       await main(soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger));
       await verifyMirrorNodeDeployWasSuccessful(
         contexts,
@@ -320,7 +331,7 @@ export class MirrorNodeTest extends BaseCommandTest {
           constants.PODS_READY_DELAY,
         );
 
-      const initScriptPath: string = 'examples/external-database-test/scripts/init.sh';
+      const initScriptPath: string = 'scripts/external-database/init.sh';
 
       // check if initScriptPath exist, otherwise throw error
       if (!fs.existsSync(initScriptPath)) {

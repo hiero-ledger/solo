@@ -116,8 +116,11 @@ export class Flags {
    *
    */
   public static setRequiredCommandFlags(y: AnyYargs, ...commandFlags: CommandFlag[]) {
+    // Check if help is being requested to avoid enforcing required flags
+    const isHelpRequested = process.argv.includes('--help') || process.argv.includes('-h');
+
     for (const flag of commandFlags) {
-      y.option(flag.name, {...flag.definition, demandOption: true});
+      y.option(flag.name, {...flag.definition, demandOption: !isHelpRequested});
     }
   }
 
@@ -129,8 +132,7 @@ export class Flags {
    */
   public static setOptionalCommandFlags(y: AnyYargs, ...commandFlags: CommandFlag[]) {
     for (const flag of commandFlags) {
-      let defaultValue = flag.definition.defaultValue === '' ? undefined : flag.definition.defaultValue;
-      defaultValue = defaultValue && flag.definition.dataMask ? flag.definition.dataMask : defaultValue;
+      const defaultValue = flag.definition.defaultValue === '' ? undefined : flag.definition.defaultValue;
       y.option(flag.name, {
         ...flag.definition,
         default: defaultValue,
@@ -1447,6 +1449,28 @@ export class Flags {
     },
   };
 
+  public static readonly skipNodeAlias: CommandFlag = {
+    constName: 'skipNodeAlias',
+    name: 'skip-node-alias',
+    definition: {
+      describe: 'The node alias to skip, because of a NodeUpdateTransaction or it is down (e.g. node99)',
+      type: 'string',
+    },
+    prompt: async function promptNewNodeAlias(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: string,
+    ): Promise<string> {
+      return await Flags.promptText(
+        task,
+        input,
+        Flags.skipNodeAlias.definition.defaultValue as string,
+        'Enter the node alias to skip: ',
+        null,
+        Flags.skipNodeAlias.name,
+      );
+    },
+  };
+
   public static readonly gossipEndpoints: CommandFlag = {
     constName: 'gossipEndpoints',
     name: 'gossip-endpoints',
@@ -1518,7 +1542,7 @@ export class Flags {
     constName: 'persistentVolumeClaims',
     name: 'pvcs',
     definition: {
-      describe: 'Enable persistent volume claims to store data outside the pod, required for node add',
+      describe: 'Enable persistent volume claims to store data outside the pod, required for consensus node add',
       defaultValue: false,
       type: 'boolean',
     },
@@ -1649,26 +1673,6 @@ export class Flags {
         'Would you like to choose mirror node version? ',
         null,
         Flags.mirrorNodeVersion.name,
-      );
-    },
-  };
-
-  public static readonly blockNodeVersion: CommandFlag = {
-    constName: 'blockNodeVersion',
-    name: 'block-node-version',
-    definition: {
-      describe: 'Block nodes chart version',
-      defaultValue: version.BLOCK_NODE_VERSION,
-      type: 'string',
-    },
-    prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: boolean): Promise<boolean> {
-      return await Flags.promptToggle(
-        task,
-        input,
-        Flags.blockNodeVersion.definition.defaultValue as boolean,
-        'Would you like to choose mirror node version? ',
-        null,
-        Flags.blockNodeVersion.name,
       );
     },
   };
@@ -2637,10 +2641,10 @@ export class Flags {
     Flags.domainName,
     Flags.domainNames,
     Flags.blockNodeChartVersion,
-    Flags.blockNodeVersion,
     Flags.realm,
     Flags.shard,
     Flags.username,
+    Flags.skipNodeAlias,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

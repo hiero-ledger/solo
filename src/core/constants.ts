@@ -6,18 +6,27 @@ import {fileURLToPath} from 'node:url';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {PrivateKey} from '@hiero-ledger/sdk';
 
+export function getEnvironmentVariable(environmentVariableName: string): string {
+  if (process.env[environmentVariableName]) {
+    console.log(`>> environment variable '${environmentVariableName}' exists, using its value`);
+    return process.env[environmentVariableName];
+  }
+  return undefined;
+}
 export const ROOT_DIR = PathEx.joinWithRealPath(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 // -------------------- solo related constants ---------------------------------------------------------------------
-export const SOLO_HOME_DIR = process.env.SOLO_HOME || PathEx.join(process.env.HOME as string, '.solo');
+export const SOLO_HOME_DIR = getEnvironmentVariable('SOLO_HOME') || PathEx.join(process.env.HOME as string, '.solo');
 export const SOLO_LOGS_DIR = PathEx.join(SOLO_HOME_DIR, 'logs');
-export const SOLO_CACHE_DIR = process.env.SOLO_CACHE_DIR || PathEx.join(SOLO_HOME_DIR, 'cache');
+export const SOLO_CACHE_DIR = getEnvironmentVariable('SOLO_CACHE_DIR') || PathEx.join(SOLO_HOME_DIR, 'cache');
 export const SOLO_VALUES_DIR = PathEx.join(SOLO_CACHE_DIR, 'values-files');
 export const DEFAULT_NAMESPACE = NamespaceName.of('default');
 export const DEFAULT_CERT_MANAGER_NAMESPACE = NamespaceName.of('cert-manager');
 export const HELM = 'helm';
 export const KIND = 'kind';
+export const KUBECTL = 'kubectl';
 export const RESOURCES_DIR = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
 
 export const ROOT_CONTAINER = ContainerName.of('root-container');
@@ -25,14 +34,14 @@ export const SOLO_REMOTE_CONFIGMAP_NAME = 'solo-remote-config';
 export const SOLO_REMOTE_CONFIGMAP_LABELS = {'solo.hedera.com/type': 'remote-config'};
 export const SOLO_REMOTE_CONFIG_MAX_COMMAND_IN_HISTORY = 50;
 export const SOLO_REMOTE_CONFIGMAP_LABEL_SELECTOR = 'solo.hedera.com/type=remote-config';
-export const NODE_COPY_CONCURRENT = Number(process.env.NODE_COPY_CONCURRENT) || 4;
-export const SKIP_NODE_PING = Boolean(process.env.SKIP_NODE_PING) || false;
-export const DEFAULT_LOCK_ACQUIRE_ATTEMPTS = +process.env.SOLO_LEASE_ACQUIRE_ATTEMPTS || 10;
-export const DEFAULT_LEASE_DURATION = +process.env.SOLO_LEASE_DURATION || 20;
+export const NODE_COPY_CONCURRENT = Number(getEnvironmentVariable('NODE_COPY_CONCURRENT')) || 4;
+export const SKIP_NODE_PING = Boolean(getEnvironmentVariable('SKIP_NODE_PING')) || false;
+export const DEFAULT_LOCK_ACQUIRE_ATTEMPTS = +getEnvironmentVariable('SOLO_LEASE_ACQUIRE_ATTEMPTS') || 10;
+export const DEFAULT_LEASE_DURATION = +getEnvironmentVariable('SOLO_LEASE_DURATION') || 20;
 
 export const SOLO_USER_AGENT_HEADER = 'Solo-User-Agent';
 // --------------- Hedera network and node related constants --------------------------------------------------------------------
-export const HEDERA_CHAIN_ID = process.env.SOLO_CHAIN_ID || '298';
+export const HEDERA_CHAIN_ID = getEnvironmentVariable('SOLO_CHAIN_ID') || '298';
 export const HEDERA_HGCAPP_DIR = '/opt/hgcapp';
 export const HEDERA_SERVICES_PATH = `${HEDERA_HGCAPP_DIR}/services-hedera`;
 export const HEDERA_HAPI_PATH = `${HEDERA_SERVICES_PATH}/HapiApp2.0`;
@@ -41,9 +50,9 @@ export const HEDERA_DATA_LIB_DIR = 'data/lib';
 export const HEDERA_USER_HOME_DIR = '/home/hedera';
 export const HEDERA_APP_NAME = 'HederaNode.jar';
 export const HEDERA_BUILDS_URL = 'https://builds.hedera.com';
-export const HEDERA_NODE_INTERNAL_GOSSIP_PORT = process.env.SOLO_NODE_INTERNAL_GOSSIP_PORT || '50111';
-export const HEDERA_NODE_EXTERNAL_GOSSIP_PORT = process.env.SOLO_NODE_EXTERNAL_GOSSIP_PORT || '50111';
-export const HEDERA_NODE_DEFAULT_STAKE_AMOUNT = +process.env.SOLO_NODE_DEFAULT_STAKE_AMOUNT || 500;
+export const HEDERA_NODE_INTERNAL_GOSSIP_PORT = getEnvironmentVariable('SOLO_NODE_INTERNAL_GOSSIP_PORT') || '50111';
+export const HEDERA_NODE_EXTERNAL_GOSSIP_PORT = getEnvironmentVariable('SOLO_NODE_EXTERNAL_GOSSIP_PORT') || '50111';
+export const HEDERA_NODE_DEFAULT_STAKE_AMOUNT = +getEnvironmentVariable('SOLO_NODE_DEFAULT_STAKE_AMOUNT') || 500;
 
 export const HEDERA_NODE_SIDECARS = [
   'recordStreamUploader',
@@ -67,16 +76,17 @@ export const SOLO_DEPLOYMENT_CHART = 'solo-deployment';
 export const SOLO_CERT_MANAGER_CHART = 'solo-cert-manager';
 
 export const JSON_RPC_RELAY_CHART_URL =
-  process.env.JSON_RPC_RELAY_CHART_URL ?? 'https://hiero-ledger.github.io/hiero-json-rpc-relay/charts';
+  getEnvironmentVariable('JSON_RPC_RELAY_CHART_URL') ?? 'https://hiero-ledger.github.io/hiero-json-rpc-relay/charts';
 export const JSON_RPC_RELAY_CHART = 'hedera-json-rpc';
 
 export const MIRROR_NODE_CHART_URL =
-  process.env.MIRROR_NODE_CHART_URL ?? 'https://hashgraph.github.io/hedera-mirror-node/charts';
+  getEnvironmentVariable('MIRROR_NODE_CHART_URL') ?? 'https://hashgraph.github.io/hedera-mirror-node/charts';
 export const MIRROR_NODE_CHART = 'hedera-mirror';
 export const MIRROR_NODE_RELEASE_NAME = 'mirror';
 
 export const EXPLORER_CHART_URL =
-  process.env.EXPLORER_CHART_URL ?? 'oci://ghcr.io/hiero-ledger/hiero-mirror-node-explorer/hiero-explorer-chart';
+  getEnvironmentVariable('EXPLORER_CHART_URL') ??
+  'oci://ghcr.io/hiero-ledger/hiero-mirror-node-explorer/hiero-explorer-chart';
 export const EXPLORER_RELEASE_NAME = 'hiero-explorer';
 export const SOLO_RELAY_LABEL = 'app=hedera-json-rpc';
 export const SOLO_EXPLORER_LABEL = 'app.kubernetes.io/component=hiero-explorer';
@@ -84,14 +94,15 @@ export const OLD_SOLO_EXPLORER_LABEL = 'app.kubernetes.io/component=hedera-explo
 
 // TODO: remove after migrated to resources/solo-config.yaml
 export const INGRESS_CONTROLLER_CHART_URL =
-  process.env.INGRESS_CONTROLLER_CHART_URL ?? 'https://haproxy-ingress.github.io/charts';
+  getEnvironmentVariable('INGRESS_CONTROLLER_CHART_URL') ?? 'https://haproxy-ingress.github.io/charts';
 // TODO: remove after migrated to resources/solo-config.yaml
 export const INGRESS_CONTROLLER_RELEASE_NAME = 'haproxy-ingress';
 export const EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME = 'explorer-haproxy-ingress';
 // TODO: remove after migrated to resources/solo-config.yaml
 export const INGRESS_CONTROLLER_PREFIX = 'haproxy-ingress.github.io/controller/';
 
-export const BLOCK_NODE_CHART_URL = process.env.BLOCK_NODE_CHART_URL ?? 'oci://ghcr.io/hiero-ledger/hiero-block-node';
+export const BLOCK_NODE_CHART_URL =
+  getEnvironmentVariable('BLOCK_NODE_CHART_URL') ?? 'oci://ghcr.io/hiero-ledger/hiero-block-node';
 export const BLOCK_NODE_CHART = 'block-node-helm-chart';
 export const BLOCK_NODE_RELEASE_NAME = 'block-node';
 export const BLOCK_NODE_CONTAINER_NAME: ContainerName = ContainerName.of('block-node-helm-chart');
@@ -113,21 +124,22 @@ export const MIRROR_INGRESS_CONTROLLER = 'mirror-ingress-controller';
 export const EXPLORER_INGRESS_CLASS_NAME = 'explorer-ingress-class';
 export const EXPLORER_INGRESS_CONTROLLER = 'explorer-ingress-controller';
 // ------------------- Hedera Account related ---------------------------------------------------------------------------------
-export const DEFAULT_OPERATOR_ID_NUMBER = process.env.SOLO_OPERATOR_ID || 2;
+export const DEFAULT_OPERATOR_ID_NUMBER = getEnvironmentVariable('SOLO_OPERATOR_ID') || 2;
 export const OPERATOR_KEY =
-  process.env.SOLO_OPERATOR_KEY ||
+  getEnvironmentVariable('SOLO_OPERATOR_KEY') ||
   '302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137';
 export const OPERATOR_PUBLIC_KEY =
-  process.env.SOLO_OPERATOR_PUBLIC_KEY ||
+  getEnvironmentVariable('SOLO_OPERATOR_PUBLIC_KEY') ||
   '302a300506032b65700321000aa8e21064c61eab86e2a9c164565b4e7a9a4146106e0a6cd03a8c395a110e92';
 
-export const DEFAULT_FREEZE_ID_NUMBER = +process.env.FREEZE_ADMIN_ACCOUNT || 58;
+export const DEFAULT_FREEZE_ID_NUMBER = +getEnvironmentVariable('FREEZE_ADMIN_ACCOUNT') || 58;
 export const DEFAULT_TREASURY_ID_NUMBER = 2;
-export const DEFAULT_START_ID_NUMBER = +process.env.DEFAULT_START_ID_NUMBER || 3;
+export const DEFAULT_START_ID_NUMBER = +getEnvironmentVariable('DEFAULT_START_ID_NUMBER') || 3;
 
 export const GENESIS_KEY =
-  process.env.GENESIS_KEY ||
+  getEnvironmentVariable('GENESIS_KEY') ||
   '302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137';
+export const GENESIS_PUBLIC_KEY = PrivateKey.fromStringED25519(GENESIS_KEY).publicKey;
 export const SYSTEM_ACCOUNTS = [
   [3, 100],
   [200, 349],
@@ -136,8 +148,8 @@ export const SYSTEM_ACCOUNTS = [
 ]; // do account 0.0.2 last and outside the loop
 export const SHORTER_SYSTEM_ACCOUNTS = [[3, 60]];
 export const TREASURY_ACCOUNT = 2;
-export const LOCAL_NODE_START_PORT = +process.env.LOCAL_NODE_START_PORT || 30_212;
-export const ACCOUNT_UPDATE_BATCH_SIZE = +process.env.ACCOUNT_UPDATE_BATCH_SIZE || 10;
+export const LOCAL_NODE_START_PORT = +getEnvironmentVariable('LOCAL_NODE_START_PORT') || 30_212;
+export const ACCOUNT_UPDATE_BATCH_SIZE = +getEnvironmentVariable('ACCOUNT_UPDATE_BATCH_SIZE') || 10;
 
 export const POD_PHASE_RUNNING = 'Running';
 
@@ -213,13 +225,13 @@ export const DEFAULT_PROFILE_FILE = PathEx.join('profiles', 'custom-spec.yaml');
 export const STANDARD_DATAMASK = '***';
 
 // ------ Hedera SDK Related ------
-export const NODE_CLIENT_MAX_ATTEMPTS = +process.env.NODE_CLIENT_MAX_ATTEMPTS || 600;
-export const NODE_CLIENT_MIN_BACKOFF = +process.env.NODE_CLIENT_MIN_BACKOFF || 1000;
-export const NODE_CLIENT_MAX_BACKOFF = +process.env.NODE_CLIENT_MAX_BACKOFF || 1000;
-export const NODE_CLIENT_REQUEST_TIMEOUT = +process.env.NODE_CLIENT_REQUEST_TIMEOUT || 600_000;
-export const NODE_CLIENT_PING_INTERVAL = +process.env.NODE_CLIENT_PING_INTERVAL || 30_000;
-export const NODE_CLIENT_SDK_PING_MAX_RETRIES = +process.env.NODE_CLIENT_PING_MAX_RETRIES || 5;
-export const NODE_CLIENT_SDK_PING_RETRY_INTERVAL = +process.env.NODE_CLIENT_PING_RETRY_INTERVAL || 10_000;
+export const NODE_CLIENT_MAX_ATTEMPTS = +getEnvironmentVariable('NODE_CLIENT_MAX_ATTEMPTS') || 600;
+export const NODE_CLIENT_MIN_BACKOFF = +getEnvironmentVariable('NODE_CLIENT_MIN_BACKOFF') || 1000;
+export const NODE_CLIENT_MAX_BACKOFF = +getEnvironmentVariable('NODE_CLIENT_MAX_BACKOFF') || 1000;
+export const NODE_CLIENT_REQUEST_TIMEOUT = +getEnvironmentVariable('NODE_CLIENT_REQUEST_TIMEOUT') || 600_000;
+export const NODE_CLIENT_SDK_PING_MAX_RETRIES = +getEnvironmentVariable('NODE_CLIENT_SDK_PING_MAX_RETRIES') || 5;
+export const NODE_CLIENT_SDK_PING_RETRY_INTERVAL =
+  +getEnvironmentVariable('NODE_CLIENT_SDK_PING_RETRY_INTERVAL') || 10_000;
 
 // ---- New Node Related ----
 export const ENDPOINT_TYPE_IP = 'IP';
@@ -233,38 +245,43 @@ export const UPGRADE_FILE_CHUNK_SIZE = 1024 * 5; // 5Kb
 
 export const JVM_DEBUG_PORT = 5005;
 
-export const PODS_RUNNING_MAX_ATTEMPTS = +process.env.PODS_RUNNING_MAX_ATTEMPTS || 60 * 15;
-export const PODS_RUNNING_DELAY = +process.env.PODS_RUNNING_DELAY || 1000;
-export const NETWORK_NODE_ACTIVE_MAX_ATTEMPTS = +process.env.NETWORK_NODE_ACTIVE_MAX_ATTEMPTS || 300;
-export const NETWORK_NODE_ACTIVE_DELAY = +process.env.NETWORK_NODE_ACTIVE_DELAY || 1000;
-export const NETWORK_NODE_ACTIVE_TIMEOUT = +process.env.NETWORK_NODE_ACTIVE_TIMEOUT || 1000;
-export const NETWORK_PROXY_MAX_ATTEMPTS = +process.env.NETWORK_PROXY_MAX_ATTEMPTS || 300;
-export const NETWORK_PROXY_DELAY = +process.env.NETWORK_PROXY_DELAY || 2000;
-export const PODS_READY_MAX_ATTEMPTS = +process.env.PODS_READY_MAX_ATTEMPTS || 300;
-export const PODS_READY_DELAY = +process.env.PODS_READY_DELAY || 2000;
-export const RELAY_PODS_RUNNING_MAX_ATTEMPTS = +process.env.RELAY_PODS_RUNNING_MAX_ATTEMPTS || 900;
-export const RELAY_PODS_RUNNING_DELAY = +process.env.RELAY_PODS_RUNNING_DELAY || 1000;
-export const RELAY_PODS_READY_MAX_ATTEMPTS = +process.env.RELAY_PODS_READY_MAX_ATTEMPTS || 100;
-export const RELAY_PODS_READY_DELAY = +process.env.RELAY_PODS_READY_DELAY || 1000;
-export const BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS: number = +process.env.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS || 900;
-export const BLOCK_NODE_PODS_RUNNING_DELAY: number = +process.env.BLOCK_NODE_PODS_RUNNING_DELAY || 1000;
-export const BLOCK_NODE_ACTIVE_MAX_ATTEMPTS: number = +process.env.NETWORK_NODE_ACTIVE_MAX_ATTEMPTS || 100;
-export const BLOCK_NODE_ACTIVE_DELAY: number = +process.env.NETWORK_NODE_ACTIVE_DELAY || 1000;
-export const BLOCK_NODE_ACTIVE_TIMEOUT: number = +process.env.NETWORK_NODE_ACTIVE_TIMEOUT || 1000;
-export const BLOCK_NODE_PORT: number = +process.env.BLOCK_NODE_PORT || 8080;
-export const BLOCK_ITEM_BATCH_SIZE: number = +process.env.BLOCK_ITEM_BATCH_SIZE || 256;
+export const PODS_RUNNING_MAX_ATTEMPTS = +getEnvironmentVariable('PODS_RUNNING_MAX_ATTEMPTS') || 60 * 15;
+export const PODS_RUNNING_DELAY = +getEnvironmentVariable('PODS_RUNNING_DELAY') || 1000;
+export const NETWORK_NODE_ACTIVE_MAX_ATTEMPTS = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_MAX_ATTEMPTS') || 300;
+export const NETWORK_NODE_ACTIVE_DELAY = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_DELAY') || 1000;
+export const NETWORK_NODE_ACTIVE_TIMEOUT = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_TIMEOUT') || 1000;
+export const NETWORK_PROXY_MAX_ATTEMPTS = +getEnvironmentVariable('NETWORK_PROXY_MAX_ATTEMPTS') || 300;
+export const NETWORK_PROXY_DELAY = +getEnvironmentVariable('NETWORK_PROXY_DELAY') || 2000;
+export const PODS_READY_MAX_ATTEMPTS = +getEnvironmentVariable('PODS_READY_MAX_ATTEMPTS') || 300;
+export const PODS_READY_DELAY = +getEnvironmentVariable('PODS_READY_DELAY') || 2000;
+export const RELAY_PODS_RUNNING_MAX_ATTEMPTS = +getEnvironmentVariable('RELAY_PODS_RUNNING_MAX_ATTEMPTS') || 900;
+export const RELAY_PODS_RUNNING_DELAY = +getEnvironmentVariable('RELAY_PODS_RUNNING_DELAY') || 1000;
+export const RELAY_PODS_READY_MAX_ATTEMPTS = +getEnvironmentVariable('RELAY_PODS_READY_MAX_ATTEMPTS') || 100;
+export const RELAY_PODS_READY_DELAY = +getEnvironmentVariable('RELAY_PODS_READY_DELAY') || 1000;
+export const BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS') || 900;
+export const BLOCK_NODE_PODS_RUNNING_DELAY: number = +getEnvironmentVariable('BLOCK_NODE_PODS_RUNNING_DELAY') || 1000;
+export const BLOCK_NODE_ACTIVE_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('NETWORK_NODE_ACTIVE_MAX_ATTEMPTS') || 100;
+export const BLOCK_NODE_ACTIVE_DELAY: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_DELAY') || 1000;
+export const BLOCK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_TIMEOUT') || 1000;
+
+export const BLOCK_NODE_PORT: number = +getEnvironmentVariable('BLOCK_NODE_PORT') || 40_840;
+export const BLOCK_NODE_PORT_LEGACY: number = +getEnvironmentVariable('BLOCK_NODE_PORT_LEGACY') || 8080;
+
+export const BLOCK_ITEM_BATCH_SIZE: number = +getEnvironmentVariable('BLOCK_ITEM_BATCH_SIZE') || 256;
 
 export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
-export const GRPC_PORT: number = +process.env.GRPC_PORT || 50_211;
-export const JSON_RPC_RELAY_PORT: number = +process.env.JSON_RPC_RELAY_PORT || 7546;
-export const EXPLORER_PORT: number = +process.env.EXPLORER_PORT || 8080;
-export const MIRROR_NODE_PORT: number = +process.env.MIRROR_NODE_PORT || 8081;
-export const LOCAL_BUILD_COPY_RETRY = +process.env.LOCAL_BUILD_COPY_RETRY || 3;
+export const GRPC_PORT: number = +getEnvironmentVariable('GRPC_PORT') || 50_211;
+export const JSON_RPC_RELAY_PORT: number = +getEnvironmentVariable('JSON_RPC_RELAY_PORT') || 7546;
+export const EXPLORER_PORT: number = +getEnvironmentVariable('EXPLORER_PORT') || 8080;
+export const MIRROR_NODE_PORT: number = +getEnvironmentVariable('MIRROR_NODE_PORT') || 8081;
+export const LOCAL_BUILD_COPY_RETRY = +getEnvironmentVariable('LOCAL_BUILD_COPY_RETRY') || 3;
 
-export const LOAD_BALANCER_CHECK_DELAY_SECS = +process.env.LOAD_BALANCER_CHECK_DELAY_SECS || 5;
-export const LOAD_BALANCER_CHECK_MAX_ATTEMPTS = +process.env.LOAD_BALANCER_CHECK_MAX_ATTEMPTS || 60;
+export const LOAD_BALANCER_CHECK_DELAY_SECS = +getEnvironmentVariable('LOAD_BALANCER_CHECK_DELAY_SECS') || 5;
+export const LOAD_BALANCER_CHECK_MAX_ATTEMPTS = +getEnvironmentVariable('LOAD_BALANCER_CHECK_MAX_ATTEMPTS') || 60;
 
-export const NETWORK_DESTROY_WAIT_TIMEOUT = +process.env.NETWORK_DESTROY_WAIT_TIMEOUT || 120;
+export const NETWORK_DESTROY_WAIT_TIMEOUT = +getEnvironmentVariable('NETWORK_DESTROY_WAIT_TIMEOUT') || 120;
 
 export const DEFAULT_LOCAL_CONFIG_FILE = 'local-config.yaml';
 export const NODE_OVERRIDE_FILE = 'node-overrides.yaml';

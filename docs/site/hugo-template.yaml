@@ -25,6 +25,18 @@ module:
     - source: build/
       target: content/development
       includeFiles: DEV.md
+    - source: build/
+      target: content/examples
+      includeFiles:
+        - address-book.md
+        - custom-network-config.md
+        - external-database-test.md
+        - network-with-block-node.md
+        - network-with-domain-names.md
+        - node-create-transaction.md
+        - node-delete-transaction.md
+        - node-update-transaction.md
+        - running-solo-inside-cluster.md
     - source: ../../images
       target: content/docs/readme/images
     - source: content/en

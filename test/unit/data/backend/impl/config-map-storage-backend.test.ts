@@ -75,7 +75,7 @@ describe('ConfigMapStorageBackend', (): void => {
 
   describe('readBytes', (): void => {
     it('should return Buffer for existing key', async (): Promise<void> => {
-      const buf: Buffer<ArrayBuffer> = await backend.readBytes('foo');
+      const buf: Buffer<ArrayBufferLike> = await backend.readBytes('foo');
       expect(buf.toString('utf8')).to.equal('bar');
     });
     it('should throw if key not found', async (): Promise<void> => {

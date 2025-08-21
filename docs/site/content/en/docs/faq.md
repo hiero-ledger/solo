@@ -14,13 +14,19 @@ More documentation can be found here:
 - [Solo User Guide](step-by-step-guide/#quick-start-deployment)
 - [Solo CLI Commands](solo-commands/#quick-start-single)
 
+# How cain I tear down a Solo network in a single command?
+
+You can run `npx @hashgraph/solo:@latest quick-start single destroy`
+
 ### How can I avoid using genesis keys ?
 
-You can run `solo account init` anytime after `solo node start`
+You can run `solo ledger system init` anytime after `solo consensus node start`
 
 ### Where can I find the default account keys ?
 
-It is the well known default genesis key [Link](https://github.com/hiero-ledger/hiero-consensus-node/blob/develop/hedera-node/data/onboard/GenesisPrivKey.txt)
+The default genesis key is `302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137`
+It is the key for default operator account `0.0.2` of the consensus network.
+It is defined in Hiero source code [Link](https://github.com/hiero-ledger/hiero-consensus-node/blob/develop/hedera-node/data/onboard/GenesisPrivKey.txt)
 
 ### How do I get the key for an account?
 
@@ -28,7 +34,7 @@ Use the following command to get account balance and private key of the account 
 
 ```bash
 # get account info of 0.0.1007 and also show the private key
-solo account get --account-id 0.0.1007 --deployment solo-deployment  --private-key
+solo ledger account info --account-id 0.0.1007 --deployment solo-deployment  --private-key
 ```
 
 The output would be similar to the following:

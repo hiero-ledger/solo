@@ -29,11 +29,11 @@ Developer can use one of the following three commands to quickly deploy a standa
 task
 
 # Option 2) deploy the network with two nodes, and a Mirror Node
-cd examples
+cd scripts
 task default-with-mirror
 
 # Option 3) deploy the network with two nodes, a Mirror Node, and a JSON RPC Relay
-cd examples
+cd scripts
 task default-with-relay
 ```
 

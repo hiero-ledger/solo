@@ -18,7 +18,7 @@ grpcurl -plaintext \
   -import-path "$PROTO_DIR" \
   -proto "$PROTO_DIR/block_access_service.proto" \
   -d '{"retrieveLatest": true}' \
-  localhost:8080 \
+  localhost:40840 \
   org.hiero.block.api.BlockAccessService/getBlock
 RC=$?
 

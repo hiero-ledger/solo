@@ -4,7 +4,12 @@ import {container, type DependencyContainer} from 'tsyringe-neo';
 import {type SoloLogger} from '../logging/solo-logger.js';
 import {PackageDownloader} from '../package-downloader.js';
 import {Zippy} from '../zippy.js';
-import {DependencyManager, HelmDependencyManager} from '../dependency-managers/index.js';
+import {
+  DependencyManager,
+  HelmDependencyManager,
+  KindDependencyManager,
+  KubectlDependencyManager,
+} from '../dependency-managers/index.js';
 import * as constants from '../constants.js';
 import {ChartManager} from '../chart-manager.js';
 import {ConfigManager} from '../config-manager.js';
@@ -62,7 +67,16 @@ import {BeanFactorySupplier} from './bean-factory-supplier.js';
 import {DefaultQuickStartCommand} from '../../commands/quick-start/default-quick-start.js';
 import {DefaultTaskList} from '../task-list/default-task-list.js';
 import {Commands} from '../../commands/commands.js';
-import {KindDependencyManager} from '../dependency-managers/kind-dependency-manager.js';
+import {BlockCommandDefinition} from '../../commands/command-definitions/block-command-definition.js';
+import {ClusterReferenceCommandDefinition} from '../../commands/command-definitions/cluster-reference-command-definition.js';
+import {ConsensusCommandDefinition} from '../../commands/command-definitions/consensus-command-definition.js';
+import {DeploymentCommandDefinition} from '../../commands/command-definitions/deployment-command-definition.js';
+import {ExplorerCommandDefinition} from '../../commands/command-definitions/explorer-command-definition.js';
+import {KeysCommandDefinition} from '../../commands/command-definitions/keys-command-definition.js';
+import {LedgerCommandDefinition} from '../../commands/command-definitions/ledger-command-definition.js';
+import {MirrorCommandDefinition} from '../../commands/command-definitions/mirror-command-definition.js';
+import {QuickStartCommandDefinition} from '../../commands/command-definitions/quick-start-command-definition.js';
+import {RelayCommandDefinition} from '../../commands/command-definitions/relay-command-definition.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -99,6 +113,7 @@ export class Container {
       new SingletonContainer(InjectTokens.HelmExecutionBuilder, HelmExecutionBuilder),
       new SingletonContainer(InjectTokens.HelmDependencyManager, HelmDependencyManager),
       new SingletonContainer(InjectTokens.KindDependencyManager, KindDependencyManager),
+      new SingletonContainer(InjectTokens.KubectlDependencyManager, KubectlDependencyManager),
       new SingletonContainer(InjectTokens.ChartManager, ChartManager),
       new SingletonContainer(InjectTokens.ConfigManager, ConfigManager),
       new SingletonContainer(InjectTokens.AccountManager, AccountManager),
@@ -137,6 +152,18 @@ export class Container {
       new SingletonContainer(InjectTokens.QuickStartCommand, DefaultQuickStartCommand),
       new SingletonContainer(InjectTokens.TaskList, DefaultTaskList),
       new SingletonContainer(InjectTokens.Commands, Commands),
+
+      // Command Definitions
+      new SingletonContainer(InjectTokens.BlockCommandDefinition, BlockCommandDefinition),
+      new SingletonContainer(InjectTokens.ClusterReferenceCommandDefinition, ClusterReferenceCommandDefinition),
+      new SingletonContainer(InjectTokens.ConsensusCommandDefinition, ConsensusCommandDefinition),
+      new SingletonContainer(InjectTokens.DeploymentCommandDefinition, DeploymentCommandDefinition),
+      new SingletonContainer(InjectTokens.ExplorerCommandDefinition, ExplorerCommandDefinition),
+      new SingletonContainer(InjectTokens.KeysCommandDefinition, KeysCommandDefinition),
+      new SingletonContainer(InjectTokens.LedgerCommandDefinition, LedgerCommandDefinition),
+      new SingletonContainer(InjectTokens.MirrorCommandDefinition, MirrorCommandDefinition),
+      new SingletonContainer(InjectTokens.RelayCommandDefinition, RelayCommandDefinition),
+      new SingletonContainer(InjectTokens.QuickStartCommandDefinition, QuickStartCommandDefinition),
     ];
   }
 
@@ -154,8 +181,10 @@ export class Container {
       new ValueContainer(InjectTokens.OsArch, os.arch()),
       new ValueContainer(InjectTokens.HelmInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.KindInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
+      new ValueContainer(InjectTokens.KubectlInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.HelmVersion, version.HELM_VERSION),
       new ValueContainer(InjectTokens.KindVersion, version.KIND_VERSION),
+      new ValueContainer(InjectTokens.KubectlVersion, version.KUBECTL_VERSION),
       new ValueContainer(InjectTokens.SystemAccounts, constants.SYSTEM_ACCOUNTS),
       new ValueContainer(InjectTokens.CacheDir, cacheDirectory),
       new ValueContainer(InjectTokens.LocalConfigFileName, constants.DEFAULT_LOCAL_CONFIG_FILE),
