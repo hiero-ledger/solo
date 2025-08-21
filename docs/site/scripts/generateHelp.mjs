@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from 'node:path';
 import { fileURLToPath } from "node:url";
 import { runCapture, run } from "./utilities.mjs";
+import kleur from 'kleur';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "../../../");
@@ -91,19 +92,18 @@ void async function main() {
 
   // Top-level commands
   const commands = await getTopLevelCommands();
-  console.log(commands);
 
   // Build Table of Contents
   const toc = await Promise.all(
     commands.map(async (cmd) => {
-      console.log(`#1 Processing command: ${cmd}`);
+      console.log(`#1 Processing command: ${kleur.green(cmd)}`);
       let entry = `\n* [${cmd}](#${cmd})`;
 
       const subcommands = await getSubcommands(cmd);
 
       const subEntries = await Promise.all(
         subcommands.map(async (subcmd) => {
-          console.log(`#1 Processing subcommand: ${cmd} ${subcmd}`);
+          console.log(`#1 Processing subcommand: ${kleur.green(cmd)} ${kleur.cyan(subcmd)}`);
           let sub = `\n  * [${cmd} ${subcmd}](#${cmd}-${subcmd})`;
 
           const thirdLevel = await getThirdLevelCommands(cmd, subcmd);
@@ -131,7 +131,7 @@ void async function main() {
   // Detailed sections
   const detailedSections = await Promise.all(
     commands.map(async (cmd) => {
-      console.log(`#2 Processing command: ${cmd}`);
+      console.log(`#2 Processing command: ${kleur.green(cmd)}`);
 
       let section = `\n## ${cmd}\n\n\`\`\`\n`;
       section += await runCapture(`npm run solo-test -- ${cmd} --help`);
@@ -141,7 +141,7 @@ void async function main() {
 
       const subSections = await Promise.all(
         subcommands.map(async (subcmd) => {
-          console.log(`#2 Processing subcommand: ${cmd} ${subcmd}`);
+          console.log(`#2 Processing subcommand: ${kleur.green(cmd)} ${kleur.cyan(subcmd)}`);
 
           let subSection = `\n### ${cmd} ${subcmd}\n\n\`\`\`\n`;
           subSection += await runCapture(`npm run solo-test -- ${cmd} ${subcmd} --help`);
@@ -151,7 +151,7 @@ void async function main() {
 
           const thirdSections = await Promise.all(
             thirdLevel.map(async (t) => {
-              console.log(`#3 Processing third-level command: ${cmd} ${subcmd} ${t}`);
+              console.log(`#3 Processing third-level command: ${kleur.green(cmd)} ${kleur.cyan(subcmd)} ${kleur.yellow(t)}`);
 
               let third = `\n#### ${cmd} ${subcmd} ${t}\n\n\`\`\`\n`;
               third += await runCapture(`npm run solo-test -- ${cmd} ${subcmd} ${t} --help`);
