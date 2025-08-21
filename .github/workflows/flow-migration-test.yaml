@@ -39,6 +39,8 @@ jobs:
     runs-on: hiero-solo-linux-large
     strategy:
       fail-fast: false
+      matrix:
+        release-tag: ["0.41.0"]
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -75,14 +77,7 @@ jobs:
           version: 'v1.27.3'
         id: install
 
-      - name: Get Latest Version
-        id: get-version
-        run: |
-          LATEST_VERSION=$(curl -s https://registry.npmjs.org/@hashgraph/solo/latest | jq -r '.version')
-          echo "Latest Version: ${LATEST_VERSION}"
-          echo "version=${LATEST_VERSION}" >> $GITHUB_OUTPUT
-
-      - name: Launch Network with Prior Release ${{ steps.get-version.outputs.version }}
+      - name: Launch Network with Prior Release ${{ matrix.release-tag }}
         timeout-minutes: 60
         run: |
           echo "Install yq..."
@@ -92,9 +87,9 @@ jobs:
   
           npm install
           task build
-          timeout --kill-after=1s --preserve-status 55m bash -c '.github/workflows/script/launch_network.sh ${{ steps.get-version.outputs.version }}' || RC=$? || true
+          timeout --kill-after=1s --preserve-status 55m bash -c '.github/workflows/script/launch_network.sh ${{ matrix.release-tag }}' || RC=$? || true
           if [[ "$RC" != "0" ]]; then
-            echo "Failed to launch network with release version ${{ steps.get-version.outputs.version }}"
+            echo "Failed to launch network with release version ${{ matrix.release-tag }}"
             exit $RC
           fi
 
