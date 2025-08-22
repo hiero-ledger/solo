@@ -128,9 +128,9 @@ tasks:
     cmds:
       - printf "\r::group::Generating CLI help documentation\n"
       - rm -f docs/site/content/en/docs/solo-commands.md
-      - (cd docs/site/ && npm install)
+      - (cd docs/site/ && pwd && npm install)
       - task: "build:solo"
-      - (cd docs/site/ && node scripts/generateHelp.js)
+      - (cd docs/site/ && pwd && node scripts/generateHelp.mjs)
       - printf "\r::endgroup::--------------\n"
 
   build:guide:
@@ -156,8 +156,8 @@ tasks:
           echo "Running wrapperForUpdateDocs.sh in CI mode"
           node docs/site/scripts/wrapperForUpdateDocs.mjs
         else
-          echo "Running updateDocs.mjs.sh in local mode"
-          node docs/site/scripts/updateDocs.mjs
+          echo "Running executeUpdateDocs.mjs.sh in local mode"
+          node docs/site/scripts/executeUpdateDocs.mjs
         fi
       - printf "\r::endgroup::--------------\n"
 

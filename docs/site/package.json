@@ -16,7 +16,7 @@
   },
   "spelling": "cSpell:ignore docsy hugo htmltest precheck postbuild rtlcss -",
   "scripts": {
-    "update-docs": "node scripts/updateDocs.mjs"
+
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
