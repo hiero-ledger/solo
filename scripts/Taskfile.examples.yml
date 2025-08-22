@@ -26,26 +26,38 @@ tasks:
       - |
         if [ "{{.UPLOAD_TO_RELEASE}}" == "true" ]; then
           echo "Starting upload of zipped examples..."
-          
-          # Determine which release to use
+        
+          # Determine which release tag to use
           if [ "{{.RELEASE_TAG}}" != "" ]; then
             echo "Using specified release tag: {{.RELEASE_TAG}}"
-            RELEASE_ID=$(gh release view {{.RELEASE_TAG}} --json id -q .id)
+            RELEASE_TAG="{{.RELEASE_TAG}}"
           else
-            echo "Using latest release"
-            RELEASE_ID=$(gh release list --limit 1 --json id -q '.[0].id')
+            echo "No release tag specified, finding latest release..."
+            RELEASE_TAG=$(gh release list --limit 1 --json tagName -q '.[0].tagName')
+            echo "Using latest release tag: $RELEASE_TAG"
           fi
-          
-          echo "Uploading to release ID: $RELEASE_ID"
-          
-           Upload each zip file to the release
+        
+          if [ -z "$RELEASE_TAG" ]; then
+            echo "ERROR: Could not determine release tag. Please specify RELEASE_TAG parameter."
+            exit 1
+          fi
+        
+          echo "Uploading to release tag: $RELEASE_TAG"
+        
+           # Upload each zip file to the release
            for zip in solo-examples/*.zip; do
              name=$(basename "$zip")
-             echo "Uploading $zip as $name..."
-             gh release upload --clobber "$RELEASE_ID" "$zip"
-             echo "Finished uploading $name."
+             echo "Uploading $zip as $name to release $RELEASE_TAG..."
+             echo "Command: gh release upload --clobber \"$RELEASE_TAG\" \"$zip\""
+             gh release upload --clobber "$RELEASE_TAG" "$zip"
+             UPLOAD_STATUS=$?
+             if [ $UPLOAD_STATUS -eq 0 ]; then
+               echo "✅ Successfully uploaded $name to release $RELEASE_TAG"
+             else
+               echo "❌ Failed to upload $name to release $RELEASE_TAG (exit code: $UPLOAD_STATUS)"
+             fi
            done
-          
+        
           echo "All zipped examples uploaded."
         else
           echo "Skipping upload to release. Files are available in solo-examples directory."
