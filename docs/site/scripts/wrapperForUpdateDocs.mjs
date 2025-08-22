@@ -13,16 +13,14 @@ void async function main() {
   process.chdir(projectRoot);
 
   const version = process.argv[2];
-  if (!version) {
-    console.error(kleur.red("❌ Error: version argument is required"));
-    process.exit(1);
+  console.log(`VERSION=${version ?? ""}`);
+
+  if (version) {
+    await run(`npm version ${version} -f --no-git-tag-version --allow-same-version`);
   }
 
   console.log(kleur.cyan("ℹ Running npm install"));
   await run("npm install");
-
-  console.log(kleur.cyan(`ℹ Setting version to ${version}`));
-  await run(`npm version ${version} -f --no-git-tag-version --allow-same-version`);
 
   console.log(kleur.cyan("ℹ Running task build"));
   await run("task build");
@@ -34,7 +32,6 @@ void async function main() {
   await run("which solo");
   await run("solo --version");
   await run("node -p -e 'Boolean(process.stdout.isTTY)'");
-
 
   console.log(kleur.cyan("ℹ Running updateDocs"));
   await update();

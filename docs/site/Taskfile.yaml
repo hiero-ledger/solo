@@ -143,23 +143,21 @@ tasks:
       - solo.ts
       - docs/site/content/en/templates/step-by-step-guide.template.md
       - docs/site/content/en/templates/example-index.template.md
-      - docs/site/update_md.sh
-      - docs/site/wrapper_for_update_md.sh
+      - docs/site/
     generates:
       - docs/site/content/en/step-by-step-guide.md
     cmds:
       - printf "\r::group::Building the Step-by-Step Guide\n"
       - rm -f docs/site/content/en/step-by-step-guide.md
-      - chmod 755 docs/site/update_md.sh
-      - chmod 755 docs/site/wrapper_for_update_md.sh
+      - (cd docs/site/ && npm install)
       - task: "build:solo"
       - |
         if [[ "${SOLO_CI}" == "true" ]]; then
-          echo "Running wrapper_for_update_md.sh in CI mode"
-          docs/site/wrapper_for_update_md.sh
+          echo "Running wrapperForUpdateDocs.sh in CI mode"
+          node docs/site/scripts/wrapperForUpdateDocs.mjs
         else
-          echo "Running update_md.sh in local mode"
-          docs/site/update_md.sh
+          echo "Running updateDocs.mjs.sh in local mode"
+          node docs/site/scripts/updateDocs.mjs
         fi
       - printf "\r::endgroup::--------------\n"
 
