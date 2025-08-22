@@ -9,7 +9,6 @@ import {SOLO_LOGS_DIR} from '../../../src/core/constants.js';
 import {expect} from 'chai';
 import {AccountBalanceQuery, AccountCreateTransaction, Hbar, HbarUnit, PrivateKey} from '@hiero-ledger/sdk';
 import {Duration} from '../../../src/core/time/duration.js';
-import {AccountCommand} from '../../../src/commands/account.js';
 import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../../../version-test.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';
@@ -17,8 +16,9 @@ import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {type DeploymentName} from '../../../src/types/index.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
-import {NodeCommand} from '../../../src/commands/node/index.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
+import {LedgerCommandDefinition} from '../../../src/commands/command-definitions/ledger-command-definition.js';
+import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 
 const namespace = NamespaceName.of('local-hedera-app');
 const argv = Argv.getDefaultArgv(namespace);
@@ -73,18 +73,20 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       // create more transactions to save more round of states
       await commandInvoker.invoke({
         argv: argv,
-        command: AccountCommand.COMMAND_NAME,
-        subcommand: 'create',
-        callback: async argv => accountCmd.create(argv),
+        command: LedgerCommandDefinition.COMMAND_NAME,
+        subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+        action: LedgerCommandDefinition.ACCOUNT_CREATE,
+        callback: async (argv): Promise<boolean> => accountCmd.create(argv),
       });
 
       await sleep(Duration.ofMillis(3));
 
       await commandInvoker.invoke({
         argv: argv,
-        command: AccountCommand.COMMAND_NAME,
-        subcommand: 'create',
-        callback: async argv => accountCmd.create(argv),
+        command: LedgerCommandDefinition.COMMAND_NAME,
+        subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+        action: LedgerCommandDefinition.ACCOUNT_CREATE,
+        callback: async (argv): Promise<boolean> => accountCmd.create(argv),
       });
 
       await sleep(Duration.ofMillis(3));
@@ -92,25 +94,28 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       // stop network and save the state
       await commandInvoker.invoke({
         argv: argv,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: 'stop',
-        callback: async argv => nodeCmd.handlers.stop(argv),
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_STOP,
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.stop(argv),
       });
 
       await commandInvoker.invoke({
         argv: argv,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: 'states',
-        callback: async argv => nodeCmd.handlers.states(argv),
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.STATE_DOWNLOAD,
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.states(argv),
       });
 
       argv.setArg(flags.stateFile, PathEx.joinWithRealPath(SOLO_LOGS_DIR, namespace.name, 'network-node1-0-state.zip'));
 
       await commandInvoker.invoke({
         argv: argv,
-        command: NodeCommand.COMMAND_NAME,
-        subcommand: 'start',
-        callback: async argv => nodeCmd.handlers.start(argv),
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_START,
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.start(argv),
       });
 
       // check balance of accountInfo.accountId

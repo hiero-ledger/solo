@@ -11,12 +11,11 @@ import * as helpers from '../core/helpers.js';
 import {entityId} from '../core/helpers.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {type AccountId, AccountInfo, HbarUnit, Long, NodeUpdateTransaction, PrivateKey} from '@hiero-ledger/sdk';
-import {type AnyYargs, type ArgvStruct, type NodeAliases} from '../types/aliases.js';
+import {type ArgvStruct, type NodeAliases} from '../types/aliases.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {
   type ClusterReferenceName,
-  type CommandDefinition,
   type DeploymentName,
   type Realm,
   type Shard,
@@ -28,6 +27,7 @@ import {Base64} from 'js-base64';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {CommandFlags} from '../types/flag-types.js';
 
 interface UpdateAccountConfig {
   accountId: string;
@@ -66,14 +66,12 @@ export class AccountCommand extends BaseCommand {
     this.systemAccounts = patchInject(systemAccounts, InjectTokens.SystemAccounts, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME = 'account';
-
-  private static INIT_FLAGS_LIST = {
+  public static INIT_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.deployment, flags.nodeAliasesUnparsed, flags.clusterRef],
   };
 
-  private static CREATE_FLAGS_LIST = {
+  public static CREATE_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [
       flags.amount,
@@ -87,12 +85,12 @@ export class AccountCommand extends BaseCommand {
     ],
   };
 
-  private static UPDATE_FLAGS_LIST = {
+  public static UPDATE_FLAGS_LIST: CommandFlags = {
     required: [flags.accountId, flags.deployment],
     optional: [flags.amount, flags.ecdsaPrivateKey, flags.ed25519PrivateKey, flags.clusterRef],
   };
 
-  private static GET_FLAGS_LIST = {
+  public static GET_FLAGS_LIST: CommandFlags = {
     required: [flags.accountId, flags.deployment],
     optional: [flags.privateKey, flags.clusterRef],
   };
@@ -741,110 +739,6 @@ export class AccountCommand extends BaseCommand {
     }
 
     return true;
-  }
-
-  public getCommandDefinition(): CommandDefinition {
-    const self: this = this;
-    return {
-      command: AccountCommand.COMMAND_NAME,
-      desc: 'Manage Hedera accounts in solo network',
-      builder: (yargs: AnyYargs) => {
-        return yargs
-          .command({
-            command: 'init',
-            desc: 'Initialize system accounts with new keys',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...AccountCommand.INIT_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...AccountCommand.INIT_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'account init' ===");
-
-              await self
-                .init(argv)
-                .then(r => {
-                  self.logger.info("==== Finished running 'account init' ===");
-                  if (!r) {
-                    throw new SoloError('Error running init, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error running init: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'create',
-            desc: 'Creates a new account with a new key and stores the key in the Kubernetes secrets, if you supply no key one will be generated for you, otherwise you may supply either a ECDSA or ED25519 private key',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...AccountCommand.CREATE_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...AccountCommand.CREATE_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'account create' ===");
-
-              await self
-                .create(argv)
-                .then(r => {
-                  self.logger.info("==== Finished running 'account create' ===");
-                  if (!r) {
-                    throw new SoloError('Error running create, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error running create: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'update',
-            desc: 'Updates an existing account with the provided info, if you want to update the private key, you can supply either ECDSA or ED25519 but not both\n',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...AccountCommand.UPDATE_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...AccountCommand.UPDATE_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'account update' ===");
-
-              await self
-                .update(argv)
-                .then(r => {
-                  self.logger.info("==== Finished running 'account update' ===");
-                  if (!r) {
-                    throw new SoloError('Error running update, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error running update: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'get',
-            desc: 'Gets the account info including the current amount of HBAR',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...AccountCommand.GET_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...AccountCommand.GET_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'account get' ===");
-
-              await self
-                .get(argv)
-                .then(r => {
-                  self.logger.info("==== Finished running 'account get' ===");
-                  if (!r) {
-                    throw new SoloError('Error running get, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error running get: ${error.message}`, error);
-                });
-            },
-          })
-          .demandCommand(1, 'Select an account command');
-      },
-    };
   }
 
   public close(): Promise<void> {

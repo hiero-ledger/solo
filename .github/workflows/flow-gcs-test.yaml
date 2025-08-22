@@ -109,7 +109,7 @@ jobs:
 
       - name: Setup Helm
         if: steps.check.outputs.run == 'true'
-        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         with:
           version: "v3.12.3" # helm version
 
@@ -156,7 +156,7 @@ jobs:
           .github/workflows/script/gcs_test.sh || RC=$? || true
           if [[ "${RC}" != "0" ]]; then
             echo "GCS test failed with exit code ${RC}"
-            npm run solo-test -- node logs --deployment solo-e2e -q --dev || true
+            npm run solo-test -- consensus diagnostics all --deployment solo-e2e -q --dev || true
             exit ${RC}
           fi
 

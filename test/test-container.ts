@@ -11,12 +11,12 @@ import {InjectTokens} from '../src/core/dependency-injection/inject-tokens.js';
 import {SingletonContainer} from '../src/core/dependency-injection/singleton-container.js';
 import {ValueContainer} from '../src/core/dependency-injection/value-container.js';
 
-const CACHE_DIRECTORY = PathEx.join('test', 'data', 'tmp');
+const CACHE_DIRECTORY: string = PathEx.join('test', 'data', 'tmp');
 
 export function resetTestContainer(
   cacheDirectory: string = CACHE_DIRECTORY,
   containerOverrides: InstanceOverrides = new Map<symbol, ValueContainer | SingletonContainer>(),
-) {
+): void {
   // Register test-specific containers
   if (!containerOverrides.get(InjectTokens.CommandInvoker)) {
     containerOverrides.set(
@@ -48,15 +48,15 @@ export function resetForTest(
   cacheDirectory: string = CACHE_DIRECTORY,
   resetLocalConfig: boolean = true,
   containerOverrides?: InstanceOverrides,
-) {
+): void {
   if (resetLocalConfig) {
-    const localConfigFile = DEFAULT_LOCAL_CONFIG_FILE;
+    const localConfigFile: string = DEFAULT_LOCAL_CONFIG_FILE;
     if (!fs.existsSync(CACHE_DIRECTORY)) {
       fs.mkdirSync(CACHE_DIRECTORY, {recursive: true});
     }
 
-    const localConfigData = fs.readFileSync(PathEx.joinWithRealPath('test', 'data', localConfigFile), 'utf8');
-    const parsedData = yaml.parse(localConfigData);
+    const localConfigData: string = fs.readFileSync(PathEx.joinWithRealPath('test', 'data', localConfigFile), 'utf8');
+    const parsedData: object = yaml.parse(localConfigData);
     fs.writeFileSync(PathEx.join(CACHE_DIRECTORY, localConfigFile), yaml.stringify(parsedData));
   }
   // need to init the container prior to using K8Client for dependency injection to work
