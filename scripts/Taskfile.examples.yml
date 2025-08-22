@@ -1,0 +1,62 @@
+version: '3'
+# This Taskfile archives example directories and optionally uploads them to a GitHub release.
+# It can be used in CI/CD pipelines or run locally.
+# Example usage:
+# task -t scripts/Taskfile.examples.yml create-example-asset-archives UPLOAD_TO_RELEASE=false RELEASE_TAG=v0.43.0 CLEAN_UP=false
+
+tasks:
+  create-example-asset-archives:
+    desc: Zip and upload example assets for release
+    cmds:
+      - echo "Copying examples to solo-examples directory..."
+      - rm -rf solo-examples
+      - mkdir -p solo-examples
+      - cp -r ../examples/* solo-examples/
+      - echo "Examples copied to solo-examples."
+      - |
+        echo "Starting to zip example directories..."
+        for dir in solo-examples/*/ ; do
+          name=$(basename "$dir")
+          zip_name="example-${name}.zip"
+          echo "Zipping $dir to solo-examples/${zip_name}..."
+          zip -r "solo-examples/${zip_name}" "$dir"
+          echo "Finished zipping $dir."
+        done
+        echo "All example directories zipped."
+      - |
+        if [ "{{.UPLOAD_TO_RELEASE}}" == "true" ]; then
+          echo "Starting upload of zipped examples..."
+          
+          # Determine which release to use
+          if [ "{{.RELEASE_TAG}}" != "" ]; then
+            echo "Using specified release tag: {{.RELEASE_TAG}}"
+            RELEASE_ID=$(gh release view {{.RELEASE_TAG}} --json id -q .id)
+          else
+            echo "Using latest release"
+            RELEASE_ID=$(gh release list --limit 1 --json id -q '.[0].id')
+          fi
+          
+          echo "Uploading to release ID: $RELEASE_ID"
+          
+           Upload each zip file to the release
+           for zip in solo-examples/*.zip; do
+             name=$(basename "$zip")
+             echo "Uploading $zip as $name..."
+             gh release upload --clobber "$RELEASE_ID" "$zip"
+             echo "Finished uploading $name."
+           done
+          
+          echo "All zipped examples uploaded."
+        else
+          echo "Skipping upload to release. Files are available in solo-examples directory."
+        fi
+      - |
+        if [ "{{.CLEAN_UP}}" == "true" ]; then
+          echo "Removing solo-examples directory..."
+          rm -rf solo-examples
+          echo "solo-examples directory removed."
+        fi
+    vars:
+      UPLOAD_TO_RELEASE: '{{.UPLOAD_TO_RELEASE | default "false"}}'
+      RELEASE_TAG: '{{.RELEASE_TAG | default ""}}'
+      CLEAN_UP: '{{.CLEAN_UP | default "true"}}'
