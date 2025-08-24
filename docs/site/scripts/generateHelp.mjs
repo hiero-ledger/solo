@@ -175,4 +175,5 @@ void async function main() {
   fs.writeFileSync(OUTPUT_FILE, doc, "utf-8");
 
   console.log(`Documentation saved to ${OUTPUT_FILE}`);
+  process.exit(0);
 }();
