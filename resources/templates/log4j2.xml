@@ -229,6 +229,10 @@
       <AppenderRef ref="Console"/>
       <AppenderRef ref="RollingFile"/>
     </Logger>
+    <Logger name="com.hedera.node.app.blocks.impl.streaming" level="DEBUG" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="RollingFile"/>
+    </Logger>
     <Logger name="com.hedera.services.sigs" level="error" additivity="false">
       <AppenderRef ref="Console"/>
       <AppenderRef ref="RollingFile"/>

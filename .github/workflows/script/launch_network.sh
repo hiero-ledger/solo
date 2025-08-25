@@ -31,7 +31,7 @@ echo "::endgroup::"
 
 echo "::group::Launch solo using released Solo version ${releaseTag}"
 
-export CONSENSUS_NODE_VERSION=v0.62.10
+export CONSENSUS_NODE_VERSION=v0.64.3
 solo init
 solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
 solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
