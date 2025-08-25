@@ -14,7 +14,7 @@ import {
 } from '../../test-utility.js';
 import * as version from '../../../version.js';
 import {sleep} from '../../../src/core/helpers.js';
-import {RelayCommand} from '../../../src/commands/relay.js';
+import {type RelayCommand} from '../../../src/commands/relay.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';
@@ -23,6 +23,7 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type ArgvStruct} from '../../../src/types/aliases.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
+import {RelayCommandDefinition} from '../../../src/commands/command-definitions/relay-command-definition.js';
 
 const testName: string = 'relay-cmd-e2e';
 const namespace: NamespaceName = NamespaceName.of(testName);
@@ -54,7 +55,7 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
     });
 
     afterEach(async (): Promise<void> => {
-      // wait for k8s to finish destroying containers from relay destroy
+      // wait for k8s to finish destroying containers from relay node destroy
       await sleep(Duration.ofMillis(5));
     });
 
@@ -67,8 +68,8 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
     each(['node1', 'node1,node2']).describe(
       'relay and deploy and destroy for each',
       async (relayNodes: string): Promise<void> => {
-        it(`relay deploy and destroy should work with ${relayNodes}`, async function (): Promise<void> {
-          testLogger.info(`#### Running relay deploy for: ${relayNodes} ####`);
+        it(`relay node add and destroy should work with ${relayNodes}`, async function (): Promise<void> {
+          testLogger.info(`#### Running relay node add for: ${relayNodes} ####`);
           this.timeout(Duration.ofMinutes(5).toMillis());
 
           argv.setArg(flags.nodeAliasesUnparsed, relayNodes);
@@ -76,10 +77,10 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
           try {
             await commandInvoker.invoke({
               argv: argv,
-              command: RelayCommand.COMMAND_NAME,
-              subcommand: 'deploy',
-              // @ts-expect-error to access private property
-              callback: async (argv: ArgvStruct): Promise<boolean> => relayCommand.deploy(argv),
+              command: RelayCommandDefinition.COMMAND_NAME,
+              subcommand: RelayCommandDefinition.NODE_SUBCOMMAND_NAME,
+              action: RelayCommandDefinition.NODE_ADD,
+              callback: async (argv: ArgvStruct): Promise<boolean> => relayCommand.add(argv),
             });
           } catch (error) {
             logger.showUserError(error);
@@ -87,35 +88,20 @@ endToEndTestSuite(testName, argv, {}, (bootstrapResp: BootstrapResponse): void =
           }
           await sleep(Duration.ofMillis(500));
 
-          testLogger.info(`#### Running relay upgrade for: ${relayNodes} ####`);
-
+          testLogger.info(`#### Running relay node destroy for: ${relayNodes} ####`);
           try {
             await commandInvoker.invoke({
               argv: argv,
-              command: RelayCommand.COMMAND_NAME,
-              subcommand: 'upgrade',
-              callback: async (argv: ArgvStruct): Promise<boolean> => relayCommand.upgrade(argv),
-            });
-          } catch (error) {
-            logger.showUserError(error);
-            expect.fail();
-          }
-          await sleep(Duration.ofMillis(500));
-
-          testLogger.info(`#### Running relay destroy for: ${relayNodes} ####`);
-          try {
-            await commandInvoker.invoke({
-              argv: argv,
-              command: RelayCommand.COMMAND_NAME,
-              subcommand: 'destroy',
-              // @ts-expect-error to access private modifier
+              command: RelayCommandDefinition.COMMAND_NAME,
+              subcommand: RelayCommandDefinition.NODE_SUBCOMMAND_NAME,
+              action: RelayCommandDefinition.NODE_DESTROY,
               callback: async (argv: ArgvStruct): Promise<boolean> => relayCommand.destroy(argv),
             });
           } catch (error) {
             logger.showUserError(error);
             expect.fail();
           }
-          testLogger.info(`#### Finished relay deploy and destroy for: ${relayNodes} ####`);
+          testLogger.info(`#### Finished relay node add and destroy for: ${relayNodes} ####`);
         });
       },
     );

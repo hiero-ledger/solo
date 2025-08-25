@@ -229,7 +229,6 @@ export const NODE_CLIENT_MAX_ATTEMPTS = +getEnvironmentVariable('NODE_CLIENT_MAX
 export const NODE_CLIENT_MIN_BACKOFF = +getEnvironmentVariable('NODE_CLIENT_MIN_BACKOFF') || 1000;
 export const NODE_CLIENT_MAX_BACKOFF = +getEnvironmentVariable('NODE_CLIENT_MAX_BACKOFF') || 1000;
 export const NODE_CLIENT_REQUEST_TIMEOUT = +getEnvironmentVariable('NODE_CLIENT_REQUEST_TIMEOUT') || 600_000;
-export const NODE_CLIENT_PING_INTERVAL = +getEnvironmentVariable('NODE_CLIENT_PING_INTERVAL') || 30_000;
 export const NODE_CLIENT_SDK_PING_MAX_RETRIES = +getEnvironmentVariable('NODE_CLIENT_SDK_PING_MAX_RETRIES') || 5;
 export const NODE_CLIENT_SDK_PING_RETRY_INTERVAL =
   +getEnvironmentVariable('NODE_CLIENT_SDK_PING_RETRY_INTERVAL') || 10_000;

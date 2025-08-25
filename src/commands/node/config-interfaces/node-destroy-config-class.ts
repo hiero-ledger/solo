@@ -6,7 +6,7 @@ import {type CheckedNodesConfigClass, type NodeCommonConfigWithNodeAlias} from '
 import {type Client} from '@hiero-ledger/sdk';
 import {type ConsensusNode} from '../../../core/model/consensus-node.js';
 
-export interface NodeDeleteConfigClass extends NodeCommonConfigWithNodeAlias, CheckedNodesConfigClass {
+export interface NodeDestroyConfigClass extends NodeCommonConfigWithNodeAlias, CheckedNodesConfigClass {
   app: string;
   cacheDir: string;
   chartDirectory: string;

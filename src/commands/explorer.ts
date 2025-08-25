@@ -14,13 +14,12 @@ import {
 import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner, sleep} from '../core/helpers.js';
 import {
   type ClusterReferenceName,
-  type CommandDefinition,
   type Context,
   type Optional,
   type SoloListr,
@@ -37,13 +36,13 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {Lock} from '../core/lock/lock.js';
+import {CommandFlags} from '../types/flag-types.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Version} from '../business/utils/version.js';
-import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
-import {Duration} from '../core/time/duration.js';
-import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
+import {CommandFlag} from '../types/flag-types.js';
+import {Duration} from '../core/time/duration.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -65,14 +64,45 @@ interface ExplorerDeployConfigClass {
   valuesArg: string;
   clusterSetupNamespace: NamespaceName;
   getUnusedConfigs: () => string[];
+  soloChartVersion: string;
   domainName: Optional<string>;
   forcePortForward: Optional<boolean>;
-  soloChartVersion: string;
   isChartInstalled: boolean;
 }
 
 interface ExplorerDeployContext {
   config: ExplorerDeployConfigClass;
+  addressBook: string;
+}
+
+interface ExplorerUpgradeConfigClass {
+  cacheDir: string;
+  chartDirectory: string;
+  clusterRef: ClusterReferenceName;
+  clusterContext: string;
+  enableIngress: boolean;
+  enableExplorerTls: boolean;
+  ingressControllerValueFile: string;
+  explorerTlsHostName: string;
+  explorerStaticIp: string | '';
+  explorerVersion: string;
+  mirrorNamespace: NamespaceName;
+  namespace: NamespaceName;
+  profileFile: string;
+  profileName: string;
+  tlsClusterIssuerType: string;
+  valuesFile: string;
+  valuesArg: string;
+  clusterSetupNamespace: NamespaceName;
+  getUnusedConfigs: () => string[];
+  soloChartVersion: string;
+  domainName: Optional<string>;
+  forcePortForward: Optional<boolean>;
+  isChartInstalled: boolean;
+}
+
+interface ExplorerUpgradeContext {
+  config: ExplorerUpgradeConfigClass;
   addressBook: string;
 }
 
@@ -85,40 +115,8 @@ interface ExplorerDestroyContext {
   };
 }
 
-interface ExplorerUpgradeConfigClass {
-  cacheDir: string;
-  clusterRef: ClusterReferenceName;
-  clusterContext: string;
-  enableIngress: boolean;
-  ingressControllerValueFile: string;
-  explorerTlsHostName: string;
-  explorerStaticIp: string | '';
-  explorerVersion: string;
-  mirrorNamespace: NamespaceName;
-  namespace: NamespaceName;
-  profileFile: string;
-  profileName: string;
-  tlsClusterIssuerType: string;
-  clusterSetupNamespace: NamespaceName;
-  valuesFile: string;
-  valuesArg: string;
-  forcePortForward: Optional<boolean>;
-  domainName: string;
-  isChartInstalled: boolean;
-
-  soloChartVersion: string;
-  chartDirectory: string;
-  enableExplorerTls: boolean;
-}
-
-interface ExplorerUpgradeContext {
-  config: ExplorerUpgradeConfigClass;
-}
-
 @injectable()
 export class ExplorerCommand extends BaseCommand {
-  public static readonly DEPLOY_COMMAND: string = 'explorer deploy';
-
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
@@ -130,13 +128,13 @@ export class ExplorerCommand extends BaseCommand {
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME: string = 'explorer';
+  public static readonly COMMAND_NAME = 'explorer';
 
-  private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
+  private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
 
-  private static readonly UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
+  private static readonly UPGRADE_CONFIGS_NAME = 'upgradeConfigs';
 
-  private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
+  public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.cacheDir,
@@ -161,7 +159,7 @@ export class ExplorerCommand extends BaseCommand {
     ],
   };
 
-  private static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
+  public static readonly UPGRADE_FLAGS_LIST = {
     required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.cacheDir,
@@ -186,14 +184,12 @@ export class ExplorerCommand extends BaseCommand {
     ],
   };
 
-  private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.devMode],
   };
 
-  private async prepareHederaExplorerValuesArg(
-    config: ExplorerDeployConfigClass | ExplorerUpgradeConfigClass,
-  ): Promise<string> {
+  private async prepareHederaExplorerValuesArg(config: ExplorerDeployConfigClass): Promise<string> {
     let valuesArgument: string = '';
 
     const profileName: string = this.configManager.getFlag<string>(flags.profileName) as string;
@@ -243,12 +239,10 @@ export class ExplorerCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private async prepareCertManagerChartValuesArg(
-    config: ExplorerDeployConfigClass | ExplorerUpgradeConfigClass,
-  ): Promise<string> {
+  private async prepareCertManagerChartValuesArg(config: ExplorerDeployConfigClass): Promise<string> {
     const {tlsClusterIssuerType, namespace} = config;
 
-    let valuesArgument: string = '';
+    let valuesArgument = '';
 
     if (!['acme-staging', 'acme-prod', 'self-signed'].includes(tlsClusterIssuerType)) {
       throw new Error(
@@ -273,95 +267,12 @@ export class ExplorerCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private async prepareValuesArg(config: ExplorerDeployConfigClass | ExplorerUpgradeConfigClass): Promise<string> {
+  private async prepareValuesArg(config: ExplorerDeployConfigClass): Promise<string> {
     let valuesArgument: string = '';
     if (config.valuesFile) {
       valuesArgument += prepareValuesFiles(config.valuesFile);
     }
     return valuesArgument;
-  }
-
-  private async prepareExplorerIngressControllerArg(
-    config: ExplorerDeployConfigClass | ExplorerUpgradeConfigClass,
-  ): Promise<string> {
-    let explorerIngressControllerValuesArgument: string = '';
-
-    if (config.explorerStaticIp !== '') {
-      explorerIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${config.explorerStaticIp}`;
-    }
-    explorerIngressControllerValuesArgument += ` --set fullnameOverride=${EXPLORER_INGRESS_CONTROLLER}`;
-    explorerIngressControllerValuesArgument += ` --set controller.ingressClass=${constants.EXPLORER_INGRESS_CLASS_NAME}`;
-    explorerIngressControllerValuesArgument += ` --set controller.extraArgs.controller-class=${constants.EXPLORER_INGRESS_CONTROLLER}`;
-
-    if (config.tlsClusterIssuerType === 'self-signed') {
-      explorerIngressControllerValuesArgument += prepareValuesFiles(config.ingressControllerValueFile);
-    }
-
-    return explorerIngressControllerValuesArgument;
-  }
-
-  /**
-   * patch explorer ingress to use h1 protocol,
-   * haproxy ingress controller default backend protocol is h2
-   * to support grpc over http/2
-   */
-  private async patchExplorerIngress(config: ExplorerDeployConfigClass | ExplorerUpgradeConfigClass): Promise<void> {
-    await this.k8Factory
-      .getK8(config.clusterContext)
-      .ingresses()
-      .update(config.namespace, constants.EXPLORER_RELEASE_NAME, {
-        metadata: {
-          annotations: {
-            'haproxy-ingress.github.io/backend-protocol': 'h1',
-          },
-        },
-      });
-
-    const ingressClasses: IngressClass[] = await this.k8Factory.getK8(config.clusterContext).ingressClasses().list();
-
-    const explorerIngressClassExists: boolean = ingressClasses.some(
-      (ingress): boolean => ingress.name === constants.EXPLORER_INGRESS_CLASS_NAME,
-    );
-
-    if (explorerIngressClassExists) {
-      return;
-    }
-
-    await this.k8Factory
-      .getK8(config.clusterContext)
-      .ingressClasses()
-      .create(constants.EXPLORER_INGRESS_CLASS_NAME, INGRESS_CONTROLLER_PREFIX + EXPLORER_INGRESS_CONTROLLER);
-  }
-
-  private enablePortForwardTask(): SoloListrTask<AnyListrContext> {
-    return {
-      title: 'Enable port forwarding for explorer',
-      skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => !config.forcePortForward,
-      task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
-        const pods: Pod[] = await this.k8Factory
-          .getK8(config.clusterContext)
-          .pods()
-          .list(config.namespace, ['app.kubernetes.io/instance=hiero-explorer']);
-        if (pods.length === 0) {
-          throw new SoloError('No Hiero Explorer pod found');
-        }
-        const podReference: PodReference = pods[0].podReference;
-        const clusterReference: ClusterReferenceName = config.clusterRef;
-
-        await this.remoteConfig.configuration.components.managePortForward(
-          clusterReference,
-          podReference,
-          constants.EXPLORER_PORT, // Pod port
-          constants.EXPLORER_PORT, // Local port
-          this.k8Factory.getK8(config.clusterContext),
-          this.logger,
-          ComponentTypes.Explorers,
-
-          'Explorer',
-          config.isChartInstalled, // Reuse existing port if chart is already installed
-        );
-      },
-    };
   }
 
   private installCertManagerTask(): SoloListrTask<AnyListrContext> {
@@ -396,7 +307,6 @@ export class ExplorerCommand extends BaseCommand {
             '  --set cert-manager.installCRDs=true',
             config.clusterContext,
           );
-
           showVersionBanner(this.logger, constants.SOLO_CERT_MANAGER_CHART, soloChartVersion);
         }
 
@@ -412,7 +322,7 @@ export class ExplorerCommand extends BaseCommand {
           );
 
         // sleep for a few seconds to allow cert-manager to be ready
-        await sleep(Duration.ofSeconds(10));
+        sleep(Duration.ofSeconds(10));
 
         await this.chartManager.upgrade(
           NamespaceName.of(constants.CERT_MANAGER_NAME_SPACE),
@@ -428,58 +338,73 @@ export class ExplorerCommand extends BaseCommand {
     };
   }
 
-  private handleExplorerChartTask(helmOperation: 'install' | 'upgrade'): SoloListrTask<AnyListrContext> {
+  private installExplorerTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Install explorer',
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
-        config.valuesArg = helmOperation === 'install' ? '--install ' : '';
-        config.valuesArg += await this.prepareValuesArg(config);
-        config.valuesArg += prepareValuesFiles(constants.EXPLORER_VALUES_FILE);
-        config.valuesArg += await this.prepareHederaExplorerValuesArg(config);
+        let exploreValuesArgument: string = prepareValuesFiles(constants.EXPLORER_VALUES_FILE);
+        exploreValuesArgument += await this.prepareHederaExplorerValuesArg(config);
 
         config.explorerVersion = Version.getValidSemanticVersion(config.explorerVersion, false, 'Explorer version');
 
-        await this.chartManager.upgrade(
+        await this.chartManager.install(
           config.namespace,
           constants.EXPLORER_RELEASE_NAME,
           '',
           EXPLORER_CHART_URL,
           config.explorerVersion,
-          config.valuesArg,
+          exploreValuesArgument,
           config.clusterContext,
         );
-
         showVersionBanner(this.logger, constants.EXPLORER_RELEASE_NAME, config.explorerVersion);
       },
     };
   }
 
-  private handleExplorerIngressChartTask(helmOperation: 'install' | 'upgrade'): SoloListrTask<AnyListrContext> {
+  private installExplorerIngressControllerTask(): SoloListrTask<AnyListrContext> {
     return {
-      title: 'Handle explorer ingress controller',
+      title: 'Install explorer ingress controller',
       skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => !config.enableIngress,
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
-        let valuesArguments: string = helmOperation === 'install' ? '--install ' : '';
-        valuesArguments += await this.prepareExplorerIngressControllerArg(config);
+        let explorerIngressControllerValuesArgument: string = '';
 
-        await this.chartManager.upgrade(
+        if (config.explorerStaticIp !== '') {
+          explorerIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${config.explorerStaticIp}`;
+        }
+        explorerIngressControllerValuesArgument += ` --set fullnameOverride=${EXPLORER_INGRESS_CONTROLLER}`;
+        explorerIngressControllerValuesArgument += ` --set controller.ingressClass=${constants.EXPLORER_INGRESS_CLASS_NAME}`;
+        explorerIngressControllerValuesArgument += ` --set controller.extraArgs.controller-class=${constants.EXPLORER_INGRESS_CONTROLLER}`;
+        if (config.tlsClusterIssuerType === 'self-signed') {
+          explorerIngressControllerValuesArgument += prepareValuesFiles(config.ingressControllerValueFile);
+        }
+
+        await this.chartManager.install(
           config.namespace,
           constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME,
           constants.INGRESS_CONTROLLER_RELEASE_NAME,
           constants.INGRESS_CONTROLLER_RELEASE_NAME,
           INGRESS_CONTROLLER_VERSION,
-          valuesArguments,
+          explorerIngressControllerValuesArgument,
           config.clusterContext,
         );
-
         showVersionBanner(this.logger, constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME, INGRESS_CONTROLLER_VERSION);
 
-        await this.patchExplorerIngress(config);
-
-        if (helmOperation === 'upgrade') {
-          // wait after upgrade
-          await sleep(Duration.ofSeconds(20));
-        }
+        // patch explorer ingress to use h1 protocol, haproxy ingress controller default backend protocol is h2
+        // to support grpc over http/2
+        await this.k8Factory
+          .getK8(config.clusterContext)
+          .ingresses()
+          .update(config.namespace, constants.EXPLORER_RELEASE_NAME, {
+            metadata: {
+              annotations: {
+                'haproxy-ingress.github.io/backend-protocol': 'h1',
+              },
+            },
+          });
+        await this.k8Factory
+          .getK8(config.clusterContext)
+          .ingressClasses()
+          .create(constants.EXPLORER_INGRESS_CLASS_NAME, INGRESS_CONTROLLER_PREFIX + EXPLORER_INGRESS_CONTROLLER);
       },
     };
   }
@@ -501,9 +426,10 @@ export class ExplorerCommand extends BaseCommand {
     };
   }
 
-  private checkExplorerIngressPodIsReadyTask(): SoloListrTask<AnyListrContext> {
+  private checkExplorerIngressControllerPodIsReadyTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Check haproxy ingress controller pod is ready',
+      skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => !config.enableIngress,
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
         await this.k8Factory
           .getK8(config.clusterContext)
@@ -518,14 +444,43 @@ export class ExplorerCommand extends BaseCommand {
             constants.PODS_READY_DELAY,
           );
       },
-      skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => !config.enableIngress,
     };
   }
 
-  private async deploy(argv: ArgvStruct): Promise<boolean> {
+  private enablePortForwardingTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Enable port forwarding for explorer',
+      skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => !config.forcePortForward,
+      task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
+        const pods: Pod[] = await this.k8Factory
+          .getK8(config.clusterContext)
+          .pods()
+          .list(config.namespace, ['app.kubernetes.io/instance=hiero-explorer']);
+        if (pods.length === 0) {
+          throw new SoloError('No Hiero Explorer pod found');
+        }
+        const podReference: PodReference = pods[0].podReference;
+        const clusterReference: ClusterReferenceName = config.clusterRef;
+
+        await this.remoteConfig.configuration.components.managePortForward(
+          clusterReference,
+          podReference,
+          constants.EXPLORER_PORT, // Pod port
+          constants.EXPLORER_PORT, // Local port
+          this.k8Factory.getK8(config.clusterContext),
+          this.logger,
+          ComponentTypes.Explorers,
+          'Explorer',
+          config.isChartInstalled, // Reuse existing port if chart is already installed
+        );
+      },
+    };
+  }
+
+  public async add(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
-    const tasks: SoloListr<ExplorerDeployContext> = this.taskList.newTaskList<ExplorerDeployContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -536,20 +491,23 @@ export class ExplorerCommand extends BaseCommand {
 
             this.configManager.update(argv);
 
+            // disable the prompts that we don't want to prompt the user for
             flags.disablePrompts(ExplorerCommand.DEPLOY_FLAGS_LIST.optional);
 
             const allFlags: CommandFlag[] = [
               ...ExplorerCommand.DEPLOY_FLAGS_LIST.optional,
               ...ExplorerCommand.DEPLOY_FLAGS_LIST.required,
             ];
-
             await this.configManager.executePrompt(task, allFlags);
 
             context_.config = this.configManager.getConfig(
-              ExplorerCommand.UPGRADE_CONFIGS_NAME,
+              ExplorerCommand.DEPLOY_CONFIGS_NAME,
               allFlags,
             ) as ExplorerDeployConfigClass;
 
+            context_.config.valuesArg += await this.prepareValuesArg(context_.config);
+            context_.config.clusterReference =
+              this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
             context_.config.clusterContext = context_.config.clusterRef
               ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString()
               : this.k8Factory.default().contexts().readCurrent();
@@ -560,27 +518,23 @@ export class ExplorerCommand extends BaseCommand {
               throw new SoloError(`namespace ${context_.config.namespace} does not exist`);
             }
 
-            return ListrLock.newAcquireLockTask(lease, task);
-          },
-        },
-        {
-          title: 'Check chart is installed',
-          task: async ({config}): Promise<void> => {
-            config.isChartInstalled = await this.chartManager.isChartInstalled(
-              config.namespace,
+            context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
+              context_.config.namespace,
               constants.EXPLORER_RELEASE_NAME,
-              config.clusterContext,
+              context_.config.clusterContext,
             );
+
+            return ListrLock.newAcquireLockTask(lease, task);
           },
         },
         this.loadRemoteConfigTask(argv),
         this.installCertManagerTask(),
-        this.handleExplorerChartTask('install'),
-        this.handleExplorerIngressChartTask('install'),
+        this.installExplorerTask(),
+        this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
-        this.checkExplorerIngressPodIsReadyTask(),
+        this.checkExplorerIngressControllerPodIsReadyTask(),
         this.addMirrorNodeExplorerComponents(),
-        this.enablePortForwardTask(),
+        this.enablePortForwardingTask(),
         // TODO only show this if we are not running in quick-start mode
         // {
         //   title: 'Show user messages',
@@ -594,7 +548,7 @@ export class ExplorerCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      ExplorerCommand.DEPLOY_COMMAND,
+      'explorer node add',
     );
 
     if (tasks.isRoot()) {
@@ -618,92 +572,99 @@ export class ExplorerCommand extends BaseCommand {
   public async upgrade(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
-    const tasks: SoloListr<ExplorerUpgradeContext> = this.taskList.newTaskList<ExplorerUpgradeContext>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
-          task: async (context_: ExplorerUpgradeContext, task): Promise<SoloListr<AnyListrContext>> => {
+          task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
             await this.localConfig.load();
             await this.remoteConfig.loadAndValidate(argv);
             lease = await this.leaseManager.create();
 
             this.configManager.update(argv);
 
+            // disable the prompts that we don't want to prompt the user for
             flags.disablePrompts(ExplorerCommand.UPGRADE_FLAGS_LIST.optional);
 
             const allFlags: CommandFlag[] = [
               ...ExplorerCommand.UPGRADE_FLAGS_LIST.optional,
               ...ExplorerCommand.UPGRADE_FLAGS_LIST.required,
             ];
-
             await this.configManager.executePrompt(task, allFlags);
 
-            const config: ExplorerUpgradeConfigClass = this.configManager.getConfig(
-              ExplorerCommand.DEPLOY_CONFIGS_NAME,
+            context_.config = this.configManager.getConfig(
+              ExplorerCommand.UPGRADE_CONFIGS_NAME,
               allFlags,
             ) as ExplorerUpgradeConfigClass;
 
-            context_.config = config;
+            context_.config.valuesArg += await this.prepareValuesArg(context_.config);
 
-            config.clusterContext = config.clusterRef
-              ? this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString()
+            context_.config.clusterReference =
+              this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
+
+            context_.config.clusterContext = context_.config.clusterRef
+              ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString()
               : this.k8Factory.default().contexts().readCurrent();
 
-            if (!(await this.k8Factory.getK8(config.clusterContext).namespaces().has(config.namespace))) {
-              throw new SoloError(`namespace ${config.namespace} does not exist`);
+            if (
+              !(await this.k8Factory.getK8(context_.config.clusterContext).namespaces().has(context_.config.namespace))
+            ) {
+              throw new SoloError(`namespace ${context_.config.namespace} does not exist`);
+            }
+
+            context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
+              context_.config.namespace,
+              constants.EXPLORER_RELEASE_NAME,
+              context_.config.clusterContext,
+            );
+
+            if (!context_.config.isChartInstalled) {
+              throw new SoloError(`Explorer is not installed in namespace: ${context_.config.namespace?.name}.`);
             }
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
+        this.loadRemoteConfigTask(argv),
         this.installCertManagerTask(),
-        {
-          title: 'Check chart is installed',
-          task: async ({config}): Promise<void> => {
-            config.isChartInstalled = await this.chartManager.isChartInstalled(
-              config.namespace,
-              constants.EXPLORER_RELEASE_NAME,
-              config.clusterContext,
-            );
-
-            if (!config.isChartInstalled) {
-              throw new SoloError('Explorer node is not deployed');
-            }
-          },
-        },
-        this.handleExplorerChartTask('upgrade'),
-        this.handleExplorerIngressChartTask('upgrade'),
+        this.installExplorerTask(),
+        this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
-        this.checkExplorerIngressPodIsReadyTask(),
-        this.enablePortForwardTask(),
+        this.checkExplorerIngressControllerPodIsReadyTask(),
+        this.addMirrorNodeExplorerComponents(),
+        this.enablePortForwardingTask(),
       ],
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      'explorer upgrade',
+      'explorer node upgrade',
     );
 
     if (tasks.isRoot()) {
       try {
         await tasks.run();
-        this.logger.debug('explorer upgrade has completed');
+        this.logger.debug('explorer upgrading has completed');
       } catch (error) {
         throw new SoloError(`Error upgrading explorer: ${error.message}`, error);
       } finally {
-        await lease?.release();
+        if (lease) {
+          await lease.release();
+        }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease?.release();
+        if (lease) {
+          await lease.release();
+        }
       });
     }
 
     return true;
   }
 
-  private async destroy(argv: ArgvStruct): Promise<boolean> {
+  public async destroy(argv: ArgvStruct): Promise<boolean> {
     const self = this;
     let lease: Lock;
 
@@ -738,7 +699,7 @@ export class ExplorerCommand extends BaseCommand {
               throw new SoloError('Aborting Explorer Destroy, no cluster reference could be found');
             }
 
-            const clusterContext: Context = self.localConfig.configuration.clusterRefs
+            const clusterContext: Context = this.localConfig.configuration.clusterRefs
               .get(clusterReference)
               ?.toString();
 
@@ -779,7 +740,7 @@ export class ExplorerCommand extends BaseCommand {
               context_.config.namespace,
               constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME,
             );
-            // delete ingress class if found one
+            // destroy ingress class if found one
             const existingIngressClasses = await self.k8Factory
               .getK8(context_.config.clusterContext)
               .ingressClasses()
@@ -801,7 +762,7 @@ export class ExplorerCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      'explorer destroy',
+      'explorer node destroy',
     );
 
     if (tasks.isRoot()) {
@@ -819,87 +780,6 @@ export class ExplorerCommand extends BaseCommand {
     }
 
     return true;
-  }
-
-  public getCommandDefinition(): CommandDefinition {
-    const self: this = this;
-    return {
-      command: ExplorerCommand.COMMAND_NAME,
-      desc: 'Manage Explorer in solo network',
-      builder: (yargs: AnyYargs) => {
-        return yargs
-          .command({
-            command: 'deploy',
-            desc: 'Deploy explorer',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...ExplorerCommand.DEPLOY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...ExplorerCommand.DEPLOY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running explorer deploy' ===");
-
-              await self
-                .deploy(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running explorer deploy`====');
-                  if (!r) {
-                    throw new Error('Explorer deployment failed, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Explorer deployment failed: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'upgrade',
-            desc: 'Upgrade explorer',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...ExplorerCommand.UPGRADE_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...ExplorerCommand.UPGRADE_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running explorer upgrade' ===");
-
-              await self
-                .upgrade(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running explorer upgrade`====');
-                  if (!r) {
-                    throw new Error('Explorer upgrade failed, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Explorer upgrade failed: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'destroy',
-            desc: 'Destroy explorer',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...ExplorerCommand.DESTROY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...ExplorerCommand.DESTROY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info('==== Running explorer destroy ===');
-
-              await self
-                .destroy(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running explorer destroy ====');
-                  if (!r) {
-                    throw new SoloError('Explorer destruction failed, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Explorer destruction failed: ${error.message}`, error);
-                });
-            },
-          })
-          .demandCommand(1, 'Select a explorer command');
-      },
-    };
   }
 
   private loadRemoteConfigTask(argv: ArgvStruct): SoloListrTask<AnyListrContext> {

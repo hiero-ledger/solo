@@ -8,17 +8,10 @@ import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {
-  type AnyListrContext,
-  type AnyYargs,
-  type ArgvStruct,
-  type NodeAlias,
-  type NodeAliases,
-} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct, type NodeAlias, type NodeAliases} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {
   type ClusterReferenceName,
-  type CommandDefinition,
   type ComponentId,
   type DeploymentName,
   type Optional,
@@ -33,7 +26,6 @@ import {ContainerReference} from '../integration/kube/resources/container/contai
 import {Duration} from '../core/time/duration.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import chalk from 'chalk';
-import {CommandBuilder, CommandGroup, Subcommand} from '../core/command-path-builders/command-builder.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
@@ -109,15 +101,13 @@ export class BlockNodeCommand extends BaseCommand {
     super();
   }
 
-  public static readonly COMMAND_NAME: string = 'block';
-
   private static readonly ADD_CONFIGS_NAME: string = 'addConfigs';
 
   private static readonly DESTROY_CONFIGS_NAME: string = 'destroyConfigs';
 
   private static readonly UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
 
-  private static readonly ADD_FLAGS_LIST: CommandFlags = {
+  public static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.blockNodeChartVersion,
@@ -132,12 +122,12 @@ export class BlockNodeCommand extends BaseCommand {
     ],
   };
 
-  private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.clusterRef],
     optional: [flags.chartDirectory, flags.devMode, flags.force, flags.quiet],
   };
 
-  private static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
+  public static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.clusterRef],
     optional: [flags.chartDirectory, flags.devMode, flags.force, flags.quiet, flags.upgradeVersion],
   };
@@ -186,7 +176,7 @@ export class BlockNodeCommand extends BaseCommand {
     );
   }
 
-  private async add(argv: ArgvStruct): Promise<boolean> {
+  public async add(argv: ArgvStruct): Promise<boolean> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
     let lease: Lock;
@@ -366,13 +356,13 @@ export class BlockNodeCommand extends BaseCommand {
     } catch (error) {
       throw new SoloError(`Error deploying block node: ${error.message}`, error);
     } finally {
-      await lease.release();
+      await lease?.release();
     }
 
     return true;
   }
 
-  private async destroy(argv: ArgvStruct): Promise<boolean> {
+  public async destroy(argv: ArgvStruct): Promise<boolean> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
     let lease: Lock;
@@ -470,13 +460,13 @@ export class BlockNodeCommand extends BaseCommand {
     } catch (error) {
       throw new SoloError(`Error destroying block node: ${error.message}`, error);
     } finally {
-      await lease.release();
+      await lease?.release();
     }
 
     return true;
   }
 
-  private async upgrade(argv: ArgvStruct): Promise<boolean> {
+  public async upgrade(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
     const tasks: Listr<BlockNodeUpgradeContext> = new Listr<BlockNodeUpgradeContext>(
@@ -575,7 +565,7 @@ export class BlockNodeCommand extends BaseCommand {
     } catch (error) {
       throw new SoloError(`Error upgrading block node: ${error.message}`, error);
     } finally {
-      await lease.release();
+      await lease?.release();
     }
 
     return true;
@@ -735,36 +725,6 @@ export class BlockNodeCommand extends BaseCommand {
         displayHealthcheckCallback(attempt, maxAttempts, 'green', 'success');
       },
     };
-  }
-
-  public getCommandDefinition(): CommandDefinition {
-    return new CommandBuilder(
-      BlockNodeCommand.COMMAND_NAME,
-      'Manage block related components in solo network',
-      this.logger,
-    )
-      .addCommandGroup(
-        new CommandGroup('node', 'Manage block nodes in solo network')
-          .addSubcommand(
-            new Subcommand('add', 'Add block node', this, this.add, (y: AnyYargs): void => {
-              flags.setRequiredCommandFlags(y, ...BlockNodeCommand.ADD_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...BlockNodeCommand.ADD_FLAGS_LIST.optional);
-            }),
-          )
-          .addSubcommand(
-            new Subcommand('destroy', 'destroy block node', this, this.destroy, (y: AnyYargs): void => {
-              flags.setRequiredCommandFlags(y, ...BlockNodeCommand.DESTROY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...BlockNodeCommand.DESTROY_FLAGS_LIST.optional);
-            }),
-          )
-          .addSubcommand(
-            new Subcommand('upgrade', 'upgrade block node', this, this.upgrade, (y: AnyYargs): void => {
-              flags.setRequiredCommandFlags(y, ...BlockNodeCommand.UPGRADE_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...BlockNodeCommand.UPGRADE_FLAGS_LIST.optional);
-            }),
-          ),
-      )
-      .build();
   }
 
   public async close(): Promise<void> {} // no-op

@@ -24,7 +24,6 @@ import {type ProfileManager} from '../core/profile-manager.js';
 import {type CertificateManager} from '../core/certificate-manager.js';
 import {
   type AnyListrContext,
-  type AnyYargs,
   type ArgvStruct,
   type IP,
   type NodeAlias,
@@ -37,7 +36,6 @@ import {
   type ClusterReferenceName,
   type ClusterReferences,
   type NamespaceNameAsString,
-  type CommandDefinition,
   type Context,
   type DeploymentName,
   type Realm,
@@ -155,7 +153,6 @@ export interface NetworkDestroyContext {
 @injectable()
 export class NetworkCommand extends BaseCommand {
   private profileValuesFile?: Record<ClusterReferenceName, string>;
-  public static DEPLOY_COMMAND: string = 'network deploy';
 
   public constructor(
     @inject(InjectTokens.CertificateManager) private readonly certificateManager: CertificateManager,
@@ -175,12 +172,12 @@ export class NetworkCommand extends BaseCommand {
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
-  private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [flags.deletePvcs, flags.deleteSecrets, flags.enableTimeout, flags.force, flags.quiet],
   };
 
-  private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
+  public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [
       flags.apiPermissionProperties,
@@ -232,8 +229,6 @@ export class NetworkCommand extends BaseCommand {
       flags.domainNames,
     ],
   };
-
-  public static readonly COMMAND_NAME: string = 'network';
 
   private waitForNetworkPods(): SoloListrTask<NetworkDeployContext> {
     return {
@@ -859,7 +854,7 @@ export class NetworkCommand extends BaseCommand {
   }
 
   /** Run helm install and deploy network components */
-  private async deploy(argv: ArgvStruct): Promise<boolean> {
+  public async deploy(argv: ArgvStruct): Promise<boolean> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
     let lease: Lock;
@@ -901,7 +896,7 @@ export class NetworkCommand extends BaseCommand {
               );
               if (!isChartInstalled) {
                 throw new SoloError(
-                  `Chart ${constants.SOLO_CLUSTER_SETUP_CHART} is not installed for cluster: ${context}. Run 'solo cluster-ref setup'`,
+                  `Chart ${constants.SOLO_CLUSTER_SETUP_CHART} is not installed for cluster: ${context}. Run 'solo cluster-ref config setup'`,
                 );
               }
             }
@@ -1229,7 +1224,7 @@ export class NetworkCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      NetworkCommand.DEPLOY_COMMAND,
+      'consensus network deploy',
     );
 
     if (tasks.isRoot()) {
@@ -1239,19 +1234,19 @@ export class NetworkCommand extends BaseCommand {
         throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
       } finally {
         if (lease) {
-          await lease.release();
+          await lease?.release();
         }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease.release();
+        await lease?.release();
       });
     }
 
     return true;
   }
 
-  private async destroy(argv: ArgvStruct): Promise<boolean> {
+  public async destroy(argv: ArgvStruct): Promise<boolean> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
     let lease: Lock;
@@ -1313,7 +1308,7 @@ export class NetworkCommand extends BaseCommand {
           task: async (context_, task): Promise<void> => {
             if (context_.config.enableTimeout) {
               const timeoutId: NodeJS.Timeout = setTimeout(async () => {
-                const message: string = `\n\nUnable to finish network destroy in ${constants.NETWORK_DESTROY_WAIT_TIMEOUT} seconds\n\n`;
+                const message: string = `\n\nUnable to finish consensus network destroy in ${constants.NETWORK_DESTROY_WAIT_TIMEOUT} seconds\n\n`;
                 this.logger.error(message);
                 this.logger.showUser(chalk.red(message));
                 networkDestroySuccess = false;
@@ -1345,7 +1340,7 @@ export class NetworkCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      'network destroy',
+      'consensus network destroy',
     );
 
     if (tasks.isRoot()) {
@@ -1364,66 +1359,6 @@ export class NetworkCommand extends BaseCommand {
     }
 
     return networkDestroySuccess;
-  }
-
-  public getCommandDefinition(): CommandDefinition {
-    const self: this = this;
-    return {
-      command: NetworkCommand.COMMAND_NAME,
-      desc: 'Manage solo network deployment',
-      builder: (yargs: AnyYargs): AnyYargs => {
-        return yargs
-          .command({
-            command: 'deploy',
-            desc: "Deploy solo network.  Requires the chart `solo-cluster-setup` to have been installed in the cluster.  If it hasn't the following command can be ran: `solo cluster-ref setup`",
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...NetworkCommand.DEPLOY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...NetworkCommand.DEPLOY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct): Promise<void> => {
-              self.logger.info("==== Running 'network deploy' ===");
-
-              await self
-                .deploy(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running `network deploy`====');
-
-                  if (!r) {
-                    throw new SoloError('Error deploying network, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error deploying network: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'destroy',
-            desc: 'Destroy solo network. If both --delete-pvcs and --delete-secrets are set to true, the namespace will be deleted.',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...NetworkCommand.DESTROY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...NetworkCommand.DESTROY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct): Promise<void> => {
-              self.logger.info("==== Running 'network destroy' ===");
-
-              await self
-                .destroy(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running `network destroy`====');
-
-                  if (!r) {
-                    throw new SoloError('Error destroying network, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error destroying network: ${error.message}`, error);
-                });
-            },
-          })
-          .demandCommand(1, 'Select a chart command');
-      },
-    };
   }
 
   /** Adds the consensus node, envoy and haproxy components to remote config.  */
@@ -1455,7 +1390,9 @@ export class NetworkCommand extends BaseCommand {
             );
           }
         }
-
+        if (context_.config.releaseTag) {
+          this.remoteConfig.configuration.versions.consensusNode = new SemVer(context_.config.releaseTag);
+        }
         await this.remoteConfig.persist();
       },
     };

@@ -11,7 +11,7 @@ import {type HelmClient} from '../integration/helm/helm-client.js';
 import {type LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import * as constants from '../core/constants.js';
 import fs from 'node:fs';
-import {type ClusterReferenceName, type ClusterReferences, type SoloListrTask} from '../types/index.js';
+import {type ClusterReferenceName, type ClusterReferences} from '../types/index.js';
 import {Flags} from './flags.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {inject} from 'tsyringe-neo';
@@ -20,9 +20,6 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {type TaskList} from '../core/task-list/task-list.js';
 import {ListrContext, ListrRendererValue} from 'listr2';
-import {type AnyListrContext} from '../types/aliases.js';
-import {Duration} from '../core/time/duration.js';
-import {sleep} from '../core/helpers.js';
 
 export abstract class BaseCommand extends ShellRunner {
   public constructor(
@@ -121,15 +118,6 @@ export abstract class BaseCommand extends ShellRunner {
     }
 
     return valuesFiles;
-  }
-
-  protected sleep(title: string, duration: Duration): SoloListrTask<AnyListrContext> {
-    return {
-      title,
-      task: async (): Promise<void> => {
-        await sleep(duration);
-      },
-    };
   }
 
   /**
