@@ -209,7 +209,8 @@ tasks:
   test-external-database:
     cmd: |
         if [ -z "$CONSENSUS_NODE_VERSION" ]; then
-          export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
+          export CONSENSUS_NODE_VERSION=$(tr -d '\n' < "version.ts" | grep -oE "HEDERA_PLATFORM_VERSION.*?'(v[0-9.]+(-rc[0-9]+)?)'" | grep -oE "v[0-9.]+(-rc[0-9]+)?")
+          echo "extracted CONSENSUS_NODE_VERSION: $CONSENSUS_NODE_VERSION"
         fi
         cd examples/external-database-test
         task default
