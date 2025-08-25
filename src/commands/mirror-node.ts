@@ -910,12 +910,12 @@ export class MirrorNodeCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error adding mirror node: ${error.message}`, error);
       } finally {
-        await lease.release();
+        await lease?.release();
         await this.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease.release();
+        await lease?.release();
         await this.accountManager.close();
       });
     }

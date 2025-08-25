@@ -128,11 +128,9 @@ export class ExplorerCommand extends BaseCommand {
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME = 'explorer';
+  private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
-  private static readonly DEPLOY_CONFIGS_NAME = 'deployConfigs';
-
-  private static readonly UPGRADE_CONFIGS_NAME = 'upgradeConfigs';
+  private static readonly UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.clusterRef],
@@ -649,15 +647,11 @@ export class ExplorerCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error upgrading explorer: ${error.message}`, error);
       } finally {
-        if (lease) {
-          await lease.release();
-        }
+        await lease?.release();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        if (lease) {
-          await lease.release();
-        }
+        await lease?.release();
       });
     }
 
