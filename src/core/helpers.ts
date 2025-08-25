@@ -8,7 +8,7 @@ import {SoloError} from './errors/solo-error.js';
 import * as semver from 'semver';
 import {Templates} from './templates.js';
 import * as constants from './constants.js';
-import {PrivateKey, ServiceEndpoint, type Long} from '@hashgraph/sdk';
+import {PrivateKey, ServiceEndpoint, type Long} from '@hiero-ledger/sdk';
 import {type NodeAlias, type NodeAliases} from '../types/aliases.js';
 import {type CommandFlag} from '../types/flag-types.js';
 import {type SoloLogger} from './logging/solo-logger.js';

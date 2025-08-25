@@ -16,7 +16,6 @@ import chalk from 'chalk';
 
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type NodeAlias} from '../types/aliases.js';
-import {Duration} from './time/duration.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
@@ -26,7 +25,6 @@ import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {PathEx} from '../business/utils/path-ex.js';
-import {sleep} from './helpers.js';
 
 /** PlatformInstaller install platform code in the root-container of a network pod */
 @injectable()
@@ -110,9 +108,6 @@ export class PlatformInstaller {
       const sourcePath = PathEx.joinWithRealPath(constants.RESOURCES_DIR, scriptName); // script source path
       await this.copyFiles(podReference, [sourcePath], constants.HEDERA_USER_HOME_DIR, undefined, context);
 
-      // wait a few seconds before calling the script to avoid "No such file" error
-      await sleep(Duration.ofSeconds(2));
-
       const extractScript = `${constants.HEDERA_USER_HOME_DIR}/${scriptName}`; // inside the container
       const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
 
@@ -120,6 +115,7 @@ export class PlatformInstaller {
 
       const container = k8Containers.readByRef(containerReference);
 
+      await container.execContainer('sync'); // ensure all writes are flushed before executing the script
       await container.execContainer(`chmod +x ${extractScript}`);
       await container.execContainer(`chown root:root ${extractScript}`);
       await container.execContainer([extractScript, tag]);
@@ -371,7 +367,7 @@ export class PlatformInstaller {
    * Copy configuration files to the network consensus node pod
    * @param stagingDirectory - staging directory path
    * @param podReference - pod reference
-   * @param isGenesis - true if this is `solo node setup` and we are at genesis
+   * @param isGenesis - true if this is `solo consensus node setup` and we are at genesis
    * @param context
    */
   private async copyConfigurationFiles(

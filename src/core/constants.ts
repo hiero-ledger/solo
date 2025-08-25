@@ -6,9 +6,9 @@ import {fileURLToPath} from 'node:url';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {PathEx} from '../business/utils/path-ex.js';
-import {PrivateKey} from '@hashgraph/sdk';
+import {PrivateKey} from '@hiero-ledger/sdk';
 
-function getEnvironmentVariable(environmentVariableName: string): string {
+export function getEnvironmentVariable(environmentVariableName: string): string {
   if (process.env[environmentVariableName]) {
     console.log(`>> environment variable '${environmentVariableName}' exists, using its value`);
     return process.env[environmentVariableName];
@@ -26,6 +26,7 @@ export const DEFAULT_NAMESPACE = NamespaceName.of('default');
 export const DEFAULT_CERT_MANAGER_NAMESPACE = NamespaceName.of('cert-manager');
 export const HELM = 'helm';
 export const KIND = 'kind';
+export const KUBECTL = 'kubectl';
 export const RESOURCES_DIR = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
 
 export const ROOT_CONTAINER = ContainerName.of('root-container');
@@ -77,7 +78,6 @@ export const SOLO_CERT_MANAGER_CHART = 'solo-cert-manager';
 export const JSON_RPC_RELAY_CHART_URL =
   getEnvironmentVariable('JSON_RPC_RELAY_CHART_URL') ?? 'https://hiero-ledger.github.io/hiero-json-rpc-relay/charts';
 export const JSON_RPC_RELAY_CHART = 'hedera-json-rpc';
-export const JSON_RPC_RELAY_RELEASE_NAME: string = 'relay';
 
 export const MIRROR_NODE_CHART_URL =
   getEnvironmentVariable('MIRROR_NODE_CHART_URL') ?? 'https://hashgraph.github.io/hedera-mirror-node/charts';
@@ -229,7 +229,6 @@ export const NODE_CLIENT_MAX_ATTEMPTS = +getEnvironmentVariable('NODE_CLIENT_MAX
 export const NODE_CLIENT_MIN_BACKOFF = +getEnvironmentVariable('NODE_CLIENT_MIN_BACKOFF') || 1000;
 export const NODE_CLIENT_MAX_BACKOFF = +getEnvironmentVariable('NODE_CLIENT_MAX_BACKOFF') || 1000;
 export const NODE_CLIENT_REQUEST_TIMEOUT = +getEnvironmentVariable('NODE_CLIENT_REQUEST_TIMEOUT') || 600_000;
-export const NODE_CLIENT_PING_INTERVAL = +getEnvironmentVariable('NODE_CLIENT_PING_INTERVAL') || 30_000;
 export const NODE_CLIENT_SDK_PING_MAX_RETRIES = +getEnvironmentVariable('NODE_CLIENT_SDK_PING_MAX_RETRIES') || 5;
 export const NODE_CLIENT_SDK_PING_RETRY_INTERVAL =
   +getEnvironmentVariable('NODE_CLIENT_SDK_PING_RETRY_INTERVAL') || 10_000;

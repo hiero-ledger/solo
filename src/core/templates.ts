@@ -7,13 +7,13 @@ import {IllegalArgumentError} from './errors/illegal-argument-error.js';
 import {MissingArgumentError} from './errors/missing-argument-error.js';
 import {SoloError} from './errors/solo-error.js';
 import * as constants from './constants.js';
-import {type AccountId} from '@hashgraph/sdk';
+import {type AccountId} from '@hiero-ledger/sdk';
 import {type IP, type NodeAlias, type NodeAliases, type NodeId} from '../types/aliases.js';
 import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {GrpcProxyTlsEnums} from './enumerations.js';
 import {HEDERA_PLATFORM_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
-import {type ClusterReferenceName, type ComponentId, type NamespaceNameAsString} from './../types/index.js';
+import {type ClusterReferenceName, type NamespaceNameAsString} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 
 export class Templates {
@@ -35,9 +35,9 @@ export class Templates {
 
   public static renderNodeAliasesFromCount(count: number, existingNodesCount: number): NodeAliases {
     const nodeAliases: NodeAliases = [];
-    let nodeNumber: number = existingNodesCount + 1;
+    let nodeNumber = existingNodesCount + 1;
 
-    for (let index: number = 1; index <= count; index++) {
+    for (let index = 0; index < count; index++) {
       nodeAliases.push(Templates.renderNodeAliasFromNumber(nodeNumber));
       nodeNumber++;
     }
@@ -159,7 +159,8 @@ export class Templates {
   ) {
     switch (dep) {
       case constants.HELM:
-      case constants.KIND: {
+      case constants.KIND:
+      case constants.KUBECTL: {
         if (osPlatform === constants.OS_WINDOWS) {
           return PathEx.join(installationDirectory, `${dep}.exe`);
         }
@@ -189,18 +190,6 @@ export class Templates {
     }
 
     throw new SoloError(`Can't get node id from node ${nodeAlias}`);
-  }
-
-  public static renderComponentIdFromNodeId(nodeId: NodeId): ComponentId {
-    return nodeId + 1;
-  }
-
-  public static renderComponentIdFromNodeAlias(nodeAlias: NodeAlias): ComponentId {
-    return this.nodeIdFromNodeAlias(nodeAlias) + 1;
-  }
-
-  public static renderNodeIdFromComponentId(componentId: ComponentId): NodeId {
-    return componentId - 1;
   }
 
   public static renderGossipKeySecretName(nodeAlias: NodeAlias): string {
@@ -332,49 +321,5 @@ export class Templates {
     dnsBaseDomain: string,
   ): string {
     return `${serviceName}.${namespace}.svc.${dnsBaseDomain}`;
-  }
-
-  // Component Label Selectors
-
-  public static renderRelayLabels(id: ComponentId, legacyReleaseName?: string): string[] {
-    return legacyReleaseName
-      ? ['app.kubernetes.io/name=relay']
-      : [`app.kubernetes.io/instance=${constants.JSON_RPC_RELAY_RELEASE_NAME}-${id}`];
-  }
-
-  public static renderHaProxyLabels(id: ComponentId): string[] {
-    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(id);
-    return [`app=haproxy-${nodeAlias}`, 'solo.hedera.com/type=haproxy'];
-  }
-
-  public static renderMirrorNodeLabels(id: ComponentId, legacyReleaseName?: string): string[] {
-    const releaseName: string = legacyReleaseName ?? `${constants.MIRROR_NODE_RELEASE_NAME}-${id}`;
-
-    return [
-      'app.kubernetes.io/name=importer',
-      'app.kubernetes.io/component=importer',
-      `app.kubernetes.io/instance=${releaseName}`,
-    ];
-  }
-
-  public static renderEnvoyProxyLabels(id: ComponentId): string[] {
-    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(id);
-    return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=envoy-proxy'];
-  }
-
-  public static renderExplorerLabels(id: ComponentId, legacyReleaseName?: string): string[] {
-    const releaseName: string = legacyReleaseName ?? `${constants.EXPLORER_RELEASE_NAME}-${id}`;
-
-    return [`app.kubernetes.io/instance=${releaseName}`];
-  }
-
-  public static renderConsensusNodeLabels(id: ComponentId): string[] {
-    return [`app=network-${Templates.renderNodeAliasFromNumber(id)}`];
-  }
-
-  public static renderBlockNodeLabels(id: ComponentId, legacyReleaseName?: string): string[] {
-    const releaseName: string = legacyReleaseName ?? `${constants.BLOCK_NODE_RELEASE_NAME}-${id}`;
-
-    return [`app.kubernetes.io/name=${releaseName}`];
   }
 }

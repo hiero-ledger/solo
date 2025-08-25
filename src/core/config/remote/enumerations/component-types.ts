@@ -9,6 +9,6 @@ export enum ComponentTypes {
   HaProxy = 'haProxies',
   EnvoyProxy = 'envoyProxies',
   MirrorNode = 'mirrorNodes',
-  Explorer = 'explorers',
+  Explorers = 'explorers',
   RelayNodes = 'relayNodes',
 }

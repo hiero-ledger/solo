@@ -47,7 +47,7 @@ export class CommandHandler {
       } finally {
         const promises = [];
         if (lease) {
-          promises.push(lease.release());
+          promises.push(lease?.release());
         }
         promises.push(this.accountManager.close());
         await Promise.all(promises);
@@ -56,7 +56,7 @@ export class CommandHandler {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
         const promises = [];
         if (lease) {
-          promises.push(lease.release());
+          promises.push(lease?.release());
         }
         promises.push(this.accountManager.close());
         await Promise.all(promises);

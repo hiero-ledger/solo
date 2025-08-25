@@ -108,25 +108,13 @@ export class ChartManager {
     return true;
   }
 
-  public async isChartInstalled(
-    namespaceName: NamespaceName,
-    chartReleaseName: string,
-    kubeContext?: string,
-  ): Promise<boolean> {
+  async isChartInstalled(namespaceName: NamespaceName, chartReleaseName: string, kubeContext?: string) {
     this.logger.debug(
       `> checking if chart is installed [ chart: ${chartReleaseName}, namespace: ${namespaceName}, kubeContext: ${kubeContext} ]`,
     );
-    const charts: string[] = await this.getInstalledCharts(namespaceName, kubeContext);
+    const charts = await this.getInstalledCharts(namespaceName, kubeContext);
 
-    let match: boolean = false;
-    for (const chart of charts) {
-      if (chart.split(' ')[0] === chartReleaseName) {
-        match = true;
-        break;
-      }
-    }
-
-    return match;
+    return charts.some(item => item.startsWith(chartReleaseName));
   }
 
   async uninstall(namespaceName: NamespaceName, chartReleaseName: string, kubeContext?: string) {

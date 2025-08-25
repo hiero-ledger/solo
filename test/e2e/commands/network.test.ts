@@ -14,16 +14,16 @@ import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {PodName} from '../../../src/integration/kube/resources/pod/pod-name.js';
 import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
-import {NodeCommand} from '../../../src/commands/node/index.js';
 import {InitCommand} from '../../../src/commands/init/init.js';
-import {ClusterCommand} from '../../../src/commands/cluster/index.js';
-import {DeploymentCommand} from '../../../src/commands/deployment.js';
-import {NetworkCommand} from '../../../src/commands/network.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import os from 'node:os';
 import {container} from 'tsyringe-neo';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
+import {ClusterReferenceCommandDefinition} from '../../../src/commands/command-definitions/cluster-reference-command-definition.js';
+import {DeploymentCommandDefinition} from '../../../src/commands/command-definitions/deployment-command-definition.js';
+import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
+import {KeysCommandDefinition} from '../../../src/commands/command-definitions/keys-command-definition.js';
 
 describe('NetworkCommand', function networkCommand() {
   this.bail(true);
@@ -78,37 +78,40 @@ describe('NetworkCommand', function networkCommand() {
     this.timeout(Duration.ofMinutes(1).toMillis());
     await k8Factory.default().namespaces().delete(namespace);
 
+    // @ts-expect-error: TODO: Remove once the init command is removed
     await commandInvoker.invoke({
       argv: argv,
       command: InitCommand.COMMAND_NAME,
-      subcommand: 'init',
-      callback: async argv => initCmd.init(argv),
+      callback: async (argv): Promise<boolean> => initCmd.init(argv),
     });
 
     await commandInvoker.invoke({
       argv: argv,
-      command: ClusterCommand.COMMAND_NAME,
-      subcommand: 'setup',
-      callback: async argv => clusterCmd.handlers.setup(argv),
+      command: ClusterReferenceCommandDefinition.COMMAND_NAME,
+      subcommand: ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+      action: ClusterReferenceCommandDefinition.CONFIG_SETUP,
+      callback: async (argv): Promise<boolean> => clusterCmd.handlers.setup(argv),
     });
 
     await commandInvoker.invoke({
       argv: argv,
-      command: ClusterCommand.COMMAND_NAME,
-      subcommand: 'connect',
-      callback: async argv => clusterCmd.handlers.connect(argv),
+      command: ClusterReferenceCommandDefinition.COMMAND_NAME,
+      subcommand: ClusterReferenceCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+      action: ClusterReferenceCommandDefinition.CONFIG_CONNECT,
+      callback: async (argv): Promise<boolean> => clusterCmd.handlers.connect(argv),
     });
 
     fs.mkdirSync(applicationEnvironmentParentDirectory, {recursive: true});
     fs.writeFileSync(applicationEnvironmentFilePath, applicationEnvironmentFileContents);
   });
 
-  it('deployment create should succeed', async () => {
+  it('deployment config create should succeed', async () => {
     await commandInvoker.invoke({
       argv: argv,
-      command: DeploymentCommand.COMMAND_NAME,
-      subcommand: 'create',
-      callback: async argv => deploymentCmd.create(argv),
+      command: DeploymentCommandDefinition.COMMAND_NAME,
+      subcommand: DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME,
+      action: DeploymentCommandDefinition.CONFIG_CREATE,
+      callback: async (argv): Promise<boolean> => deploymentCmd.create(argv),
     });
 
     argv.setArg(flags.nodeAliasesUnparsed, undefined);
@@ -116,12 +119,13 @@ describe('NetworkCommand', function networkCommand() {
     configManager.update(argv.build());
   });
 
-  it('cluster-ref add-cluster should succeed', async () => {
+  it('cluster-ref config attach should succeed', async () => {
     await commandInvoker.invoke({
       argv: argv,
-      command: DeploymentCommand.COMMAND_NAME,
-      subcommand: 'add-cluster',
-      callback: async argv => deploymentCmd.addCluster(argv),
+      command: DeploymentCommandDefinition.COMMAND_NAME,
+      subcommand: DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_NAME,
+      action: DeploymentCommandDefinition.CLUSTER_ATTACH,
+      callback: async (argv): Promise<boolean> => deploymentCmd.addCluster(argv),
     });
 
     argv.setArg(flags.nodeAliasesUnparsed, undefined);
@@ -132,19 +136,20 @@ describe('NetworkCommand', function networkCommand() {
   it('keys should be generated', async () => {
     await commandInvoker.invoke({
       argv: argv,
-      command: NodeCommand.COMMAND_NAME,
-      subcommand: 'keys',
-      callback: async argv => nodeCmd.handlers.keys(argv),
+      command: KeysCommandDefinition.COMMAND_NAME,
+      subcommand: KeysCommandDefinition.CONSENSUS_SUBCOMMAND_NAME,
+      action: KeysCommandDefinition.CONSENSUS_GENERATE,
+      callback: async (argv): Promise<boolean> => nodeCmd.handlers.keys(argv),
     });
   });
 
-  it('network deploy command should succeed', async () => {
+  it('consensus network deploy command should succeed', async () => {
     await commandInvoker.invoke({
       argv: argv,
-      command: NetworkCommand.COMMAND_NAME,
-      subcommand: 'deploy',
-      // @ts-expect-error - to access private method
-      callback: async argv => networkCmd.deploy(argv),
+      command: ConsensusCommandDefinition.COMMAND_NAME,
+      subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+      action: ConsensusCommandDefinition.NETWORK_DEPLOY,
+      callback: async (argv): Promise<boolean> => networkCmd.deploy(argv),
     });
 
     // check pod names should match expected values
@@ -168,7 +173,7 @@ describe('NetworkCommand', function networkCommand() {
     }
   });
 
-  it('network destroy should success', async () => {
+  it('consensus network destroy should success', async () => {
     argv.setArg(flags.deletePvcs, true);
     argv.setArg(flags.deleteSecrets, true);
     argv.setArg(flags.force, true);
@@ -177,10 +182,10 @@ describe('NetworkCommand', function networkCommand() {
     try {
       await commandInvoker.invoke({
         argv: argv,
-        command: NetworkCommand.COMMAND_NAME,
-        subcommand: 'destroy',
-        // @ts-expect-error - to access private method
-        callback: async argv => networkCmd.destroy(argv),
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NETWORK_DESTROY,
+        callback: async (argv): Promise<boolean> => networkCmd.destroy(argv),
       });
 
       while ((await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node'])).length > 0) {

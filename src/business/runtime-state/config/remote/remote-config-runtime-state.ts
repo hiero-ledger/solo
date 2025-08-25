@@ -23,7 +23,7 @@ import {
   type NamespaceNameAsString,
   Optional,
 } from '../../../../types/index.js';
-import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases, NodeId} from '../../../../types/aliases.js';
+import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases} from '../../../../types/aliases.js';
 import {NamespaceName} from '../../../../types/namespace/namespace-name.js';
 import {ComponentStateMetadataSchema} from '../../../../data/schema/model/remote/state/component-state-metadata-schema.js';
 import {Templates} from '../../../../core/templates.js';
@@ -50,7 +50,6 @@ import {ConsensusNodeStateSchema} from '../../../../data/schema/model/remote/sta
 import {UserIdentitySchema} from '../../../../data/schema/model/common/user-identity-schema.js';
 import {Deployment} from '../local/deployment.js';
 import {RemoteConfig} from './remote-config.js';
-import {ComponentIdsSchema} from '../../../../data/schema/model/remote/state/component-ids-schema.js';
 import * as helpers from '../../../../core/helpers.js';
 
 enum RuntimeStatePhase {
@@ -191,7 +190,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       (nodeAlias: NodeAlias): ConsensusNodeStateSchema => {
         return new ConsensusNodeStateSchema(
           new ComponentStateMetadataSchema(
-            Templates.renderComponentIdFromNodeAlias(nodeAlias),
+            Templates.nodeIdFromNodeAlias(nodeAlias),
             namespace.name,
             clusterReference,
             DeploymentPhase.REQUESTED,
@@ -213,11 +212,11 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     );
 
     const remoteConfig: RemoteConfigSchema = new RemoteConfigSchema(
-      2,
+      1,
       new RemoteConfigMetadataSchema(new Date(), userIdentity),
       new ApplicationVersionsSchema(cliVersion),
       [cluster],
-      new DeploymentStateSchema(ledgerPhase, new ComponentIdsSchema(nodeAliases.length + 1), consensusNodeStates),
+      new DeploymentStateSchema(ledgerPhase, consensusNodeStates),
       new DeploymentHistorySchema([command], command),
     );
 
@@ -262,7 +261,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     for (const nodeAlias of nodeAliases) {
       this.configuration.components.addNewComponent(
         componentFactory.createNewConsensusNodeComponent(
-          Templates.renderComponentIdFromNodeAlias(nodeAlias),
+          Templates.nodeIdFromNodeAlias(nodeAlias),
           clusterReference,
           namespace,
           DeploymentPhase.REQUESTED,
@@ -376,16 +375,17 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   private populateVersionsInMetadata(argv: AnyObject, remoteConfig: RemoteConfigSchema): void {
     const command: string = argv._[0];
     const subcommand: string = argv._[1];
+    const action: string = argv._[2];
 
     const isCommandUsingSoloChartVersionFlag: boolean =
-      (command === 'network' && subcommand === 'deploy') ||
-      (command === 'network' && subcommand === 'refresh') ||
-      (command === 'node' && subcommand === 'update') ||
-      (command === 'node' && subcommand === 'update-execute') ||
-      (command === 'node' && subcommand === 'add') ||
-      (command === 'node' && subcommand === 'add-execute') ||
-      (command === 'node' && subcommand === 'delete') ||
-      (command === 'node' && subcommand === 'delete-execute');
+      (command === 'consensus' && subcommand === 'network' && action === 'deploy') ||
+      (command === 'consensus' && subcommand === 'network' && action === 'refresh') ||
+      (command === 'consensus' && subcommand === 'node' && action === 'update') ||
+      (command === 'consensus' && subcommand === 'dev-node-update' && action === 'execute') ||
+      (command === 'consensus' && subcommand === 'node' && action === 'add') ||
+      (command === 'consensus' && subcommand === 'dev-node-add' && action === 'execute') ||
+      (command === 'consensus' && subcommand === 'node' && action === 'destroy') ||
+      (command === 'consensus' && subcommand === 'dev-node-destroy' && action === 'execute');
 
     // TBD how to update remoteConfig.versions.cli
 
@@ -396,8 +396,9 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     }
 
     const isCommandUsingReleaseTagVersionFlag: boolean =
-      (command === 'node' && subcommand !== 'keys' && subcommand !== 'logs' && subcommand !== 'states') ||
-      (command === 'network' && subcommand === 'deploy');
+      (subcommand === 'node' && action !== 'all' && action !== 'states' && action !== 'download') ||
+      (subcommand === 'network' && action === 'deploy') ||
+      command !== 'keys';
 
     if (argv[flags.releaseTag.name]) {
       remoteConfig.versions.consensusNode = new SemVer(argv[flags.releaseTag.name]);
@@ -407,19 +408,19 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
     if (argv[flags.mirrorNodeVersion.name]) {
       remoteConfig.versions.mirrorNodeChart = new SemVer(argv[flags.mirrorNodeVersion.name]);
-    } else if (command === 'mirror-node' && subcommand === 'deploy') {
+    } else if (command === 'mirror' && subcommand === 'node' && action === 'add') {
       remoteConfig.versions.mirrorNodeChart = new SemVer(flags.mirrorNodeVersion.definition.defaultValue as string);
     }
 
     if (argv[flags.explorerVersion.name]) {
       remoteConfig.versions.explorerChart = new SemVer(argv[flags.explorerVersion.name]);
-    } else if (command === 'explorer' && subcommand === 'deploy') {
+    } else if (command === 'explorer' && subcommand === 'node' && action === 'add') {
       remoteConfig.versions.explorerChart = new SemVer(flags.explorerVersion.definition.defaultValue as string);
     }
 
     if (argv[flags.relayReleaseTag.name]) {
       remoteConfig.versions.jsonRpcRelayChart = new SemVer(argv[flags.relayReleaseTag.name]);
-    } else if (command === 'relay' && subcommand === 'deploy') {
+    } else if (command === 'relay' && subcommand === 'node' && action === 'add') {
       remoteConfig.versions.jsonRpcRelayChart = new SemVer(flags.relayReleaseTag.definition.defaultValue as string);
     }
   }
@@ -495,33 +496,43 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
     const consensusNodes: ConsensusNode[] = [];
 
-    for (const node of Object.values(this.configuration.state.consensusNodes)) {
-      const cluster: ClusterSchema = this.configuration.clusters.find(
-        (cluster: ClusterSchema): boolean => cluster.name === node.metadata.cluster,
-      );
-      const context: Context = this.localConfig.configuration.clusterRefs.get(node.metadata.cluster)?.toString();
-      const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(node.metadata.id);
-      const nodeId: NodeId = Templates.renderNodeIdFromComponentId(node.metadata.id);
+    let cluster: ClusterSchema;
+    let context: Context;
+    let nodeAlias: NodeAlias;
 
-      consensusNodes.push(
-        new ConsensusNode(
-          nodeAlias,
-          nodeId,
-          node.metadata.namespace,
-          node.metadata.cluster,
-          context,
-          cluster.dnsBaseDomain,
-          cluster.dnsConsensusNodePattern,
-          Templates.renderConsensusNodeFullyQualifiedDomainName(
+    for (const node of Object.values(this.configuration.state.consensusNodes)) {
+      try {
+        cluster = this.configuration.clusters.find(
+          (cluster: ClusterSchema): boolean => cluster.name === node.metadata.cluster,
+        );
+        context = this.localConfig.configuration.clusterRefs.get(node.metadata.cluster)?.toString();
+        nodeAlias = Templates.renderNodeAliasFromNumber(node.metadata.id + 1);
+
+        consensusNodes.push(
+          new ConsensusNode(
             nodeAlias,
-            nodeId,
+            node.metadata.id,
             node.metadata.namespace,
             node.metadata.cluster,
+            context,
             cluster.dnsBaseDomain,
             cluster.dnsConsensusNodePattern,
+            Templates.renderConsensusNodeFullyQualifiedDomainName(
+              nodeAlias,
+              node.metadata.id,
+              node.metadata.namespace,
+              node.metadata.cluster,
+              cluster.dnsBaseDomain,
+              cluster.dnsConsensusNodePattern,
+            ),
           ),
-        ),
-      );
+        );
+      } catch (error) {
+        throw new SoloError(
+          `Error getting consensus nodes: ${error.message}, for: [context: ${context}], [nodeAlias: ${nodeAlias}], [node: ${JSON.stringify(node)}], [cluster: ${JSON.stringify(cluster)}]`,
+          error,
+        );
+      }
     }
 
     // return the consensus nodes

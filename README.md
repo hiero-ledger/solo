@@ -33,7 +33,7 @@ An opinionated CLI tool to deploy and manage standalone test networks.
 
 ### Hardware Requirements
 
-To run a three-node network, you will need to set up Docker Desktop with at least 8GB of memory and 4 CPUs.
+To run a one-node network, you will need to set up Docker Desktop with at least 12GB of memory and 4 CPUs.
 
 ![alt text](images/docker-desktop.png)
 

@@ -15,7 +15,7 @@ import {
 import {QuickStartSingleDeployContext} from '../../commands/quick-start/quick-start-single-deploy-context.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {patchInject} from '../dependency-injection/container-helper.js';
-import {AnyListrContext} from '../../types/aliases.js';
+import {QuickStartSingleDestroyContext} from '../../commands/quick-start/quick-start-single-destroy-context.js';
 
 @injectable()
 export class DefaultTaskList<
@@ -49,26 +49,56 @@ export class DefaultTaskList<
     return new Listr<QuickStartSingleDeployContext, Renderer, FallbackRenderer>(task, options, parentTask);
   }
 
+  public newQuickStartSingleDestroyTaskList(
+    task:
+      | ListrTask<
+          QuickStartSingleDestroyContext,
+          ListrGetRendererClassFromValue<Renderer>,
+          ListrGetRendererClassFromValue<FallbackRenderer>
+        >
+      | ListrTask<
+          QuickStartSingleDestroyContext,
+          ListrGetRendererClassFromValue<Renderer>,
+          ListrGetRendererClassFromValue<FallbackRenderer>
+        >[],
+    options?: ListrBaseClassOptions<QuickStartSingleDestroyContext, Renderer, FallbackRenderer>,
+    parentTask?: ListrTaskObject<
+      any,
+      ListrGetRendererClassFromValue<Renderer>,
+      ListrGetRendererClassFromValue<FallbackRenderer>
+    >,
+  ): Listr<QuickStartSingleDestroyContext, Renderer, FallbackRenderer> {
+    return new Listr<QuickStartSingleDestroyContext, Renderer, FallbackRenderer>(task, options, parentTask);
+  }
+
   public parentTaskListMap: Map<string, TaskNodeType> = new Map();
 
-  public newTaskList<T = AnyListrContext>(
+  public newTaskList(
     task:
-      | ListrTask<T, ListrGetRendererClassFromValue<Renderer>, ListrGetRendererClassFromValue<FallbackRenderer>>
-      | ListrTask<T, ListrGetRendererClassFromValue<Renderer>, ListrGetRendererClassFromValue<FallbackRenderer>>[],
-    options?: ListrBaseClassOptions<T, Renderer, FallbackRenderer>,
+      | ListrTask<
+          ListrContext,
+          ListrGetRendererClassFromValue<Renderer>,
+          ListrGetRendererClassFromValue<FallbackRenderer>
+        >
+      | ListrTask<
+          ListrContext,
+          ListrGetRendererClassFromValue<Renderer>,
+          ListrGetRendererClassFromValue<FallbackRenderer>
+        >[],
+    options?: ListrBaseClassOptions<ListrContext, Renderer, FallbackRenderer>,
     parentTask?: ListrTaskObject<
-      T,
+      ListrContext,
       ListrGetRendererClassFromValue<Renderer>,
       ListrGetRendererClassFromValue<FallbackRenderer>
     >,
     commandName?: string,
-  ): Listr<T, Renderer, FallbackRenderer> {
+  ): Listr<ListrContext, Renderer, FallbackRenderer> {
     if (this.parentTaskListMap.has(commandName)) {
       const parentTaskList: TaskNodeType = this.parentTaskListMap.get(commandName);
       parentTaskList.children = parentTaskList.taskListWrapper.newListr(task, options);
-      return parentTaskList.children as Listr<T, Renderer, FallbackRenderer>;
+      return parentTaskList.children as Listr<ListrContext, Renderer, FallbackRenderer>;
     }
-    return new Listr<T, Renderer, FallbackRenderer>(task, options, parentTask);
+    return new Listr<ListrContext, Renderer, FallbackRenderer>(task, options, parentTask);
   }
 
   private trailingCloseFunctions: Array<() => Promise<void>> = [];

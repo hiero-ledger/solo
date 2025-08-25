@@ -43,6 +43,116 @@ tasks:
         EOF
       - cat DEV.md >> docs/site/build/DEV.md
 
+  mutate:address-book-example:
+    desc: "Mutate the examples/address-book/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/address-book/README.md
+    generates:
+      - docs/site/build/address-book.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/address-book.md << 'EOF'
+        ---
+        title: "Address Book Example"
+        weight: 1
+        description: >
+          Example of how to use Yahcli to read/update ledger and mirror node address book
+        type: docs
+        ---
+        EOF
+      - cat examples/address-book/README.md >> docs/site/build/address-book.md
+
+  mutate:custom-network-config-example:
+    desc: "Mutate the examples/custom-network-config/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/custom-network-config/README.md
+    generates:
+      - docs/site/build/custom-network-config.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/custom-network-config.md << 'EOF'
+        ---
+        title: "Custom Network Config Example"
+        weight: 1
+        description: >
+          Example of how to create and manage a custom Solo deployment and configure it with custom settings
+        type: docs
+        ---
+        EOF
+      - cat examples/custom-network-config/README.md >> docs/site/build/custom-network-config.md
+
+  mutate:external-database-test-example:
+    desc: "Mutate the examples/external-database-test/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/external-database-test/README.md
+    generates:
+      - docs/site/build/external-database-test.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/external-database-test.md << 'EOF'
+        ---
+        title: "Network with an External PostgreSQL Database Example"
+        weight: 1
+        description: >
+          example of how to deploy a Solo network with an external PostgreSQL database
+        type: docs
+        ---
+        EOF
+      - cat examples/external-database-test/README.md >> docs/site/build/external-database-test.md
+
+  mutate:network-with-block-node-example:
+    desc: "Mutate the examples/network-with-block-node/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/network-with-block-node/README.md
+    generates:
+      - docs/site/build/network-with-block-node.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/network-with-block-node.md << 'EOF'
+        ---
+        title: "Network with Block Node Example"
+        weight: 1
+        description: >
+          Example of how to create and manage a custom Solo deployment and configure it with custom settings
+        type: docs
+        ---
+        EOF
+      - cat examples/network-with-block-node/README.md >> docs/site/build/network-with-block-node.md
+
+  mutate:network-with-domain-names-example:
+    desc: "Mutate the examples/network-with-domain-names/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/network-with-domain-names/README.md
+    generates:
+      - docs/site/build/network-with-domain-names.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/network-with-domain-names.md << 'EOF'
+        ---
+        title: "Network With Domain Names Example"
+        weight: 1
+        description: >
+          Example of how to deploy a Solo network with custom domain names
+        type: docs
+        ---
+        EOF
+      - cat examples/network-with-domain-names/README.md >> docs/site/build/network-with-domain-names.md
+
   mutate:node-create-example:
     desc: "Mutate the examples/node-create-transaction/README.md file to add front-matter"
     dir: ../..
@@ -50,11 +160,11 @@ tasks:
     sources:
       - examples/node-create-transaction/README.md
     generates:
-      - docs/site/build/node-create-transaction-example.md
+      - docs/site/build/node-create-transaction.md
     cmds:
       - |
         mkdir -p docs/site/build
-        cat > docs/site/build/node-create-transaction-example.md << 'EOF'
+        cat > docs/site/build/node-create-transaction.md << 'EOF'
         ---
         title: "Node Create Transaction Example"
         weight: 1
@@ -63,7 +173,7 @@ tasks:
         type: docs
         ---
         EOF
-      - cat examples/node-create-transaction/README.md >> docs/site/build/node-create-transaction-example.md
+      - cat examples/node-create-transaction/README.md >> docs/site/build/node-create-transaction.md
 
 
   mutate:node-delete-example:
@@ -73,11 +183,11 @@ tasks:
     sources:
       - examples/node-delete-transaction/README.md
     generates:
-      - docs/site/build/node-delete-transaction-example.md
+      - docs/site/build/node-delete-transaction.md
     cmds:
       - |
         mkdir -p docs/site/build
-        cat > docs/site/build/node-delete-transaction-example.md << 'EOF'
+        cat > docs/site/build/node-delete-transaction.md << 'EOF'
         ---
         title: "Node Delete Transaction Example"
         weight: 10
@@ -86,7 +196,7 @@ tasks:
         type: docs
         ---
         EOF
-      - cat examples/node-delete-transaction/README.md >> docs/site/build/node-delete-transaction-example.md
+      - cat examples/node-delete-transaction/README.md >> docs/site/build/node-delete-transaction.md
 
   mutate:node-update-example:
     desc: "Mutate the examples/node-update-transaction/README.md file to add front-matter"
@@ -95,11 +205,11 @@ tasks:
     sources:
       - examples/node-update-transaction/README.md
     generates:
-      - docs/site/build/node-update-transaction-example.md
+      - docs/site/build/node-update-transaction.md
     cmds:
       - |
         mkdir -p docs/site/build
-        cat > docs/site/build/node-update-transaction-example.md << 'EOF'
+        cat > docs/site/build/node-update-transaction.md << 'EOF'
         ---
         title: "Node Update Transaction Example"
         weight: 20
@@ -108,4 +218,26 @@ tasks:
         type: docs
         ---
         EOF
-      - cat examples/node-update-transaction/README.md >> docs/site/build/node-update-transaction-example.md
+      - cat examples/node-update-transaction/README.md >> docs/site/build/node-update-transaction.md
+
+  mutate:running-solo-inside-cluster-example:
+    desc: "Mutate the examples/running-solo-inside-cluster/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/running-solo-inside-cluster/README.md
+    generates:
+      - docs/site/build/running-solo-inside-cluster.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/running-solo-inside-cluster.md << 'EOF'
+        ---
+        title: "Solo Inside a Cluster Example"
+        weight: 1
+        description: >
+          Example of how to deploy a Solo network within a Kubernetes cluster
+        type: docs
+        ---
+        EOF
+      - cat examples/running-solo-inside-cluster/README.md >> docs/site/build/running-solo-inside-cluster.md

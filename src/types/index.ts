@@ -5,7 +5,7 @@ import type net from 'node:net';
 import type * as WebSocket from 'ws';
 import type crypto from 'node:crypto';
 import {type ListrTask, type ListrTaskWrapper} from 'listr2';
-import {type PublicKey} from '@hashgraph/sdk';
+import {type PublicKey} from '@hiero-ledger/sdk';
 import {type AnyYargs, type ArgvStruct, type JsonString} from './aliases.js';
 import {type Listr} from 'listr2';
 
@@ -122,6 +122,11 @@ export interface GossipEndpoint {
   nodeId: number;
   hostname: string;
   port: number;
+}
+
+export interface portForwardConfig {
+  localPort: number;
+  podPort: number;
 }
 
 export interface CommandDefinition {

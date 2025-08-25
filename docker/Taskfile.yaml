@@ -1,0 +1,38 @@
+version: 3
+output: prefixed
+silent: false
+
+vars:
+  DOCKER_IMAGE_NAME: hashgraph/solo
+  DOCKERFILE_PATH: "{{.TASKFILE_DIR}}/Dockerfile"
+
+tasks:
+  default:
+    desc: "List all available tasks"
+    cmds:
+      - task --list
+
+  build:solo:
+    desc: "Build Solo from source"
+    dir: "{{.TASKFILE_DIR}}/.."
+    cmds:
+      - rm -Rf dist
+      - npx tsc
+      - node {{.TASKFILE_DIR}}/../resources/post-build-script.js
+
+  build:docker:
+    desc: "Build the Docker image"
+    deps:
+      - build:solo
+    dir: "{{.TASKFILE_DIR}}/.."
+    cmds:
+      - docker build -f {{.DOCKERFILE_PATH}} -t {{.DOCKER_IMAGE_NAME}}:$(echo -n "v$(node -p "require('./package.json').version")") -t {{.DOCKER_IMAGE_NAME}}:latest ..
+      - echo "Docker image built successfully:"
+      - echo "  - {{.DOCKER_IMAGE_NAME}}:$(echo -n \"v$(node -p \"require('./package.json').version\")\")"
+      - echo "  - {{.DOCKER_IMAGE_NAME}}:latest"
+
+  build-all:
+    desc: "Build Solo and then build the Docker image"
+    cmds:
+      - task: build:solo
+      - task: build:docker

@@ -65,6 +65,7 @@ describe('PackageDownloader', () => {
         // remove the file to reduce disk usage
         fs.rmSync(temporaryDirectory, {recursive: true});
       } catch (error) {
+        console.error(error);
         throw error;
       }
     });

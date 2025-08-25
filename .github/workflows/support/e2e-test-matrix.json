@@ -49,10 +49,10 @@
     "local-java-build": true
   },
   {
-    "name": "Node Delete",
-    "test-script": "test-e2e-node-delete",
-    "coverage-subdirectory": "e2e-node-delete",
-    "coverage-report-name": "E2E_Node_Delete_Tests_Coverage_Report",
+    "name": "Node Destroy",
+    "test-script": "test-e2e-node-destroy",
+    "coverage-subdirectory": "e2e-node-destroy",
+    "coverage-report-name": "E2E_Node_Destroy_Tests_Coverage_Report",
     "local-java-build": false
   },
   {
@@ -119,10 +119,10 @@
     "local-java-build": false
   },
   {
-    "name": "Node Delete - Separate commands",
-    "test-script": "test-e2e-node-delete-separate",
-    "coverage-subdirectory": "e2e-node-delete-separate",
-    "coverage-report-name": "E2E_Node_Delete_Separate_Commands_Tests_Coverage_Report",
+    "name": "Node Destroy - Separate commands",
+    "test-script": "test-e2e-node-destroy-separate",
+    "coverage-subdirectory": "e2e-node-destroy-separate",
+    "coverage-report-name": "E2E_Node_Destroy_Separate_Commands_Tests_Coverage_Report",
     "local-java-build": false
   },
   {
@@ -137,13 +137,6 @@
     "test-script": "test-e2e-node-upgrade-separate",
     "coverage-subdirectory": "e2e-node-upgrade-separate",
     "coverage-report-name": "E2E_Node_Upgrade_Separate_Commands_Tests_Coverage_Report",
-    "local-java-build": false
-  },
-  {
-    "name": "Update markdown",
-    "test-script": "test-update-markdown",
-    "coverage-subdirectory": "update-markdown",
-    "coverage-report-name": "Update_Markdown",
     "local-java-build": false
   }
 ]

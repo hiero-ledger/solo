@@ -109,9 +109,9 @@ export const UPDATE_EXECUTE_FLAGS = {
   optional: [...COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS],
 };
 
-const COMMON_DELETE_REQUIRED_FLAGS = [flags.deployment, flags.nodeAlias];
+const COMMON_DESTROY_REQUIRED_FLAGS = [flags.deployment, flags.nodeAlias];
 
-const COMMON_DELETE_OPTIONAL_FLAGS = [
+const COMMON_DESTROY_OPTIONAL_FLAGS = [
   flags.cacheDir,
   flags.app,
   flags.chainId,
@@ -154,24 +154,24 @@ const COMMON_ADD_OPTIONAL_FLAGS = [
   flags.releaseTag,
 ];
 
-export const DELETE_FLAGS = {
-  required: [...COMMON_DELETE_REQUIRED_FLAGS],
-  optional: [...COMMON_DELETE_OPTIONAL_FLAGS],
+export const DESTROY_FLAGS = {
+  required: [...COMMON_DESTROY_REQUIRED_FLAGS],
+  optional: [...COMMON_DESTROY_OPTIONAL_FLAGS],
 };
 
-export const DELETE_PREPARE_FLAGS = {
-  required: [...COMMON_DELETE_REQUIRED_FLAGS, flags.outputDir],
-  optional: [...COMMON_DELETE_OPTIONAL_FLAGS],
+export const DESTROY_PREPARE_FLAGS = {
+  required: [...COMMON_DESTROY_REQUIRED_FLAGS, flags.outputDir],
+  optional: [...COMMON_DESTROY_OPTIONAL_FLAGS],
 };
 
-export const DELETE_SUBMIT_TRANSACTIONS_FLAGS = {
-  required: [...COMMON_DELETE_REQUIRED_FLAGS, flags.inputDir],
-  optional: [...COMMON_DELETE_OPTIONAL_FLAGS],
+export const DESTROY_SUBMIT_TRANSACTIONS_FLAGS = {
+  required: [...COMMON_DESTROY_REQUIRED_FLAGS, flags.inputDir],
+  optional: [...COMMON_DESTROY_OPTIONAL_FLAGS],
 };
 
-export const DELETE_EXECUTE_FLAGS = {
-  required: [...COMMON_DELETE_REQUIRED_FLAGS, flags.inputDir],
-  optional: [...COMMON_DELETE_OPTIONAL_FLAGS],
+export const DESTROY_EXECUTE_FLAGS = {
+  required: [...COMMON_DESTROY_REQUIRED_FLAGS, flags.inputDir],
+  optional: [...COMMON_DESTROY_OPTIONAL_FLAGS],
 };
 
 export const ADD_FLAGS = {
@@ -245,7 +245,6 @@ export const FREEZE_FLAGS = {
 export const START_FLAGS = {
   required: [flags.deployment],
   optional: [
-    flags.releaseTag,
     flags.app,
     flags.quiet,
     flags.nodeAliasesUnparsed,

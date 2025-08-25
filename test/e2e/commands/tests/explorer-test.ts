@@ -17,7 +17,7 @@ import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
-import {Templates} from '../../../../src/core/templates.js';
+import {ExplorerCommandDefinition} from '../../../../src/commands/command-definitions/explorer-command-definition.js';
 
 export class ExplorerTest extends BaseCommandTest {
   private static soloExplorerDeployArgv(
@@ -29,8 +29,9 @@ export class ExplorerTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      'explorer',
-      'deploy',
+      ExplorerCommandDefinition.COMMAND_NAME,
+      ExplorerCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ExplorerCommandDefinition.NODE_ADD,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.clusterRef),
@@ -48,7 +49,13 @@ export class ExplorerTest extends BaseCommandTest {
   ): Promise<void> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
     const k8: K8 = k8Factory.getK8(contexts[1]);
-    const explorerPods: Pod[] = await k8.pods().list(namespace, Templates.renderExplorerLabels(1));
+    const explorerPods: Pod[] = await k8
+      .pods()
+      .list(namespace, [
+        'app.kubernetes.io/instance=hiero-explorer',
+        'app.kubernetes.io/name=hiero-explorer-chart',
+        'app.kubernetes.io/component=hiero-explorer',
+      ]);
     expect(explorerPods).to.have.lengthOf(1);
     try {
       await sleep(Duration.ofSeconds(2));
@@ -97,12 +104,12 @@ export class ExplorerTest extends BaseCommandTest {
     }
   }
 
-  public static deploy(options: BaseTestOptions): void {
+  public static add(options: BaseTestOptions): void {
     const {testName, deployment, namespace, contexts, clusterReferenceNameArray, testLogger, createdAccountIds} =
       options;
     const {soloExplorerDeployArgv, verifyExplorerDeployWasSuccessful} = ExplorerTest;
 
-    it(`${testName}: explorer deploy`, async (): Promise<void> => {
+    it(`${testName}: explorer node add`, async (): Promise<void> => {
       await main(soloExplorerDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
     }).timeout(Duration.ofMinutes(5).toMillis());
   }

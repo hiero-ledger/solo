@@ -5,13 +5,7 @@ import {VersionRange} from '../../../../../business/utils/version-range.js';
 import {Version} from '../../../../../business/utils/version.js';
 
 import {IllegalArgumentError} from '../../../../../business/errors/illegal-argument-error.js';
-import {type RemoteConfigStructure} from '../../../model/remote/interfaces/remote-config-structure.js';
-import {ComponentIdsSchema} from '../../../model/remote/state/component-ids-schema.js';
-import {type DeploymentStateStructure} from '../../../model/remote/interfaces/deployment-state-structure.js';
-import {type NodeAlias, type NodeId} from '../../../../../types/aliases.js';
-import {Templates} from '../../../../../core/templates.js';
-import {type BaseStateSchema} from '../../../model/remote/state/base-state-schema.js';
-import {type RelayNodeStateSchema} from '../../../model/remote/state/relay-node-state-schema.js';
+import {InvalidSchemaVersionError} from '../../api/invalid-schema-version-error.js';
 
 export class RemoteConfigV2Migration implements SchemaMigration {
   public get range(): VersionRange<number> {
@@ -22,60 +16,60 @@ export class RemoteConfigV2Migration implements SchemaMigration {
     return new Version(2);
   }
 
-  public async migrate(source: object): Promise<object> {
+  public migrate(source: object): Promise<object> {
     if (!source) {
       // We should never pass null or undefined to this method, if this happens we should throw an error
       throw new IllegalArgumentError('source must not be null or undefined');
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const clone: RemoteConfigStructure = structuredClone(source) as any as RemoteConfigStructure;
-    const state: DeploymentStateStructure = clone.state;
+    const clone: any = structuredClone(source);
 
-    const componentIds: ComponentIdsSchema = new ComponentIdsSchema();
-
-    componentIds.consensusNodes = (state?.consensusNodes?.length || 0) + 1;
-    componentIds.envoyProxies = (state?.envoyProxies?.length || 0) + 1;
-    componentIds.mirrorNodes = (state?.mirrorNodes?.length || 0) + 1;
-    componentIds.explorers = (state?.explorers?.length || 0) + 1;
-    componentIds.haProxies = (state?.haProxies?.length || 0) + 1;
-    componentIds.blockNodes = (state?.blockNodes?.length || 0) + 1;
-    componentIds.relayNodes = (state?.relayNodes?.length || 0) + 1;
-
-    clone.state.componentIds = componentIds;
-
-    // eslint-disable-next-line unicorn/consistent-function-scoping
-    function incrementComponentIds(components: BaseStateSchema[]): void {
-      for (const component of components) {
-        component.metadata.id++;
-      }
+    if (clone.schemaVersion && clone.schemaVersion !== 1) {
+      throw new InvalidSchemaVersionError(clone.schemaVersion, 1);
     }
 
-    incrementComponentIds(clone.state.consensusNodes);
-    incrementComponentIds(clone.state.envoyProxies);
-    incrementComponentIds(clone.state.mirrorNodes);
-    incrementComponentIds(clone.state.explorers);
-    incrementComponentIds(clone.state.haProxies);
-    incrementComponentIds(clone.state.blockNodes);
-    incrementComponentIds(clone.state.relayNodes);
+    // Update metadata with lastUpdated information
+    if (!clone.metadata) {
+      clone.metadata = {};
+    }
 
-    for (const component of clone.state.relayNodes) {
-      if ((component as any)?.metadata?.consensusNodeIds) {
-        if (typeof (component as any)?.metadata?.consensusNodeIds?.[0] === 'string') {
-          (component as RelayNodeStateSchema).consensusNodeIds = (component as any).metadata.consensusNodeIds.map(
-            (nodeAlias: NodeAlias): NodeId => Templates.nodeIdFromNodeAlias(nodeAlias),
-          );
-        } else if (typeof (component as any)?.metadata?.consensusNodeIds?.[0] === 'number') {
-          (component as RelayNodeStateSchema).consensusNodeIds = (component as any).metadata.consensusNodeIds;
-        }
+    clone.metadata = {
+      ...clone.metadata,
+      lastUpdatedAt: new Date(),
+      lastUpdatedBy: {
+        name: 'system',
+        hostname: 'migration',
+      },
+    };
 
-        delete (component as any).metadata.consensusNodeIds;
+    // Add portForwardConfigs to each component state metadata if it doesn't exist
+    const initializePortForwardConfigs = (componentArray: any[]) => {
+      if (!componentArray) {
+        return;
       }
+
+      for (const component of componentArray) {
+        if (component.metadata && !component.metadata.portForwardConfigs) {
+          component.metadata.portForwardConfigs = [];
+        }
+      }
+    };
+
+    // Initialize portForwardConfigs for all component types
+    if (clone.state) {
+      initializePortForwardConfigs(clone.state.consensusNodes);
+      initializePortForwardConfigs(clone.state.blockNodes);
+      initializePortForwardConfigs(clone.state.mirrorNodes);
+      initializePortForwardConfigs(clone.state.relayNodes);
+      initializePortForwardConfigs(clone.state.haProxies);
+      initializePortForwardConfigs(clone.state.envoyProxies);
+      initializePortForwardConfigs(clone.state.explorers);
     }
 
     // Set the schema version to the new version
     clone.schemaVersion = this.version.value;
 
-    return clone;
+    return Promise.resolve(clone);
   }
 }

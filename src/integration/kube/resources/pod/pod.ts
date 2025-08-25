@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type ExtendedNetServer} from '../../../../types/index.js';
 import {type PodReference} from './pod-reference.js';
 import {type ContainerName} from '../container/container-name.js';
 import {type PodCondition} from './pod-condition.js';
@@ -64,16 +63,15 @@ export interface Pod {
    * -> localhost:localPort -> port-forward-tunnel -> kubernetes-pod:targetPort
    * @param localPort - the local port to forward to
    * @param podPort - the port on the pod to forward from
-   * @param detach - if true, the port forward will run in the background and return immediately
-   * @returns an instance of ExtendedNetServer
+   * @param reuse - if true, reuse the port number from previous port forward operation
+   * @returns Promise resolving to the port forwarder server when not detached,
+   *          or the port number (which may differ from localPort if it was in use) when detached
    */
-  portForward(localPort: number, podPort: number, detach?: boolean): Promise<ExtendedNetServer>;
+  portForward(localPort: number, podPort: number, reuse?: boolean): Promise<number>;
 
   /**
    * Stop the port forward
    * @param server - an instance of server returned by portForward method
-   * @param [maxAttempts] - the maximum number of attempts to check if the server is stopped
-   * @param [timeout] - the delay between checks in milliseconds
    */
-  stopPortForward(server: ExtendedNetServer, maxAttempts?: number, timeout?: number): Promise<void>;
+  stopPortForward(server: number): Promise<void>;
 }

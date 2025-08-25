@@ -14,10 +14,13 @@ class MockKindExecution {
   private mockProcess: EventEmitter;
 
   constructor(command: string[], workingDirectory: string, environmentVariables: Record<string, string>) {
+    // eslint-disable-next-line unicorn/prefer-event-target
     this.mockProcess = new EventEmitter();
     // @ts-expect-error TS2339: Property stdout does not exist on type EventEmitter<DefaultEventMap>
+    // eslint-disable-next-line unicorn/prefer-event-target
     this.mockProcess.stdout = new EventEmitter();
     // @ts-expect-error TS2339: Property stderr does not exist on type EventEmitter<DefaultEventMap>
+    // eslint-disable-next-line unicorn/prefer-event-target
     this.mockProcess.stderr = new EventEmitter();
     // @ts-expect-error TS2339: Property stdin does not exist on type EventEmitter<DefaultEventMap>
     this.mockProcess.stdin = {
@@ -205,6 +208,7 @@ describe('KindExecution', () => {
 
     it('should parse successful response into the specified class', async () => {
       const allPassing = await Promise.all([
+        // eslint-disable-next-line no-async-promise-executor
         new Promise<boolean>(async (resolve, reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestResponse is not assignable to parameter of type
@@ -216,6 +220,7 @@ describe('KindExecution', () => {
             resolve(false);
           }
         }),
+        // eslint-disable-next-line no-async-promise-executor
         new Promise<boolean>(async resolve => {
           execution.emitStdout('test response');
           execution.emitExit(0);
@@ -228,6 +233,7 @@ describe('KindExecution', () => {
 
     it('should reject if the process exits with error', async () => {
       const allPassing = await Promise.all([
+        // eslint-disable-next-line no-async-promise-executor
         new Promise<boolean>(async (resolve, reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestResponse is not assignable to parameter of type
@@ -238,6 +244,7 @@ describe('KindExecution', () => {
             resolve(false);
           }
         }),
+        // eslint-disable-next-line no-async-promise-executor
         new Promise<boolean>(async resolve => {
           execution.emitStderr('error output');
           execution.emitExit(1);
@@ -257,6 +264,7 @@ describe('KindExecution', () => {
       }
 
       const allPassing = await Promise.all([
+        // eslint-disable-next-line no-async-promise-executor
         new Promise<boolean>(async (resolve, reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof FailingClass is not assignable to parameter of type
@@ -267,6 +275,7 @@ describe('KindExecution', () => {
             resolve(false);
           }
         }),
+        // eslint-disable-next-line no-async-promise-executor
         new Promise<boolean>(async resolve => {
           execution.emitStdout('some output');
           execution.emitExit(0);
@@ -291,6 +300,7 @@ describe('KindExecution', () => {
 
     it('should parse successful response into a list of the specified class', async () => {
       const allPassing = await Promise.all([
+        // eslint-disable-next-line no-async-promise-executor
         new Promise<boolean>(async (resolve, reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestItem is not assignable to parameter of type
@@ -305,6 +315,7 @@ describe('KindExecution', () => {
             resolve(false);
           }
         }),
+        // eslint-disable-next-line no-async-promise-executor
         new Promise<boolean>(async resolve => {
           execution.emitStdout('item1\nitem2\nitem3');
           execution.emitExit(0);
@@ -317,6 +328,7 @@ describe('KindExecution', () => {
 
     it('should handle empty output', async () => {
       const allPassing = await Promise.all([
+        // eslint-disable-next-line no-async-promise-executor
         new Promise<boolean>(async (resolve, reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestItem is not assignable to parameter of type
@@ -327,6 +339,7 @@ describe('KindExecution', () => {
             resolve(false);
           }
         }),
+        // eslint-disable-next-line no-async-promise-executor
         new Promise<boolean>(async resolve => {
           execution.emitStdout('');
           execution.emitExit(0);
@@ -345,6 +358,7 @@ describe('KindExecution', () => {
       }
 
       const allPassing = await Promise.all([
+        // eslint-disable-next-line no-async-promise-executor
         new Promise<boolean>(async (resolve, reject) => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof FailingItem is not assignable to parameter of type
@@ -356,6 +370,7 @@ describe('KindExecution', () => {
             resolve(false);
           }
         }),
+        // eslint-disable-next-line no-async-promise-executor
         new Promise<boolean>(async resolve => {
           execution.emitStdout('item1\nitem2');
           execution.emitExit(0);

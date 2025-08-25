@@ -3,6 +3,8 @@ includes:
   tests:
     taskfile: ./Taskfile.tests.yml
     flatten: true
+  docker:
+    taskfile: ./docker/Taskfile.yaml
 vars:
   cross_env: npx cross-env
   mocha_bin: npx mocha
@@ -36,7 +38,7 @@ tasks:
   check:
     cmds:
       - npx remark . --quiet --frail
-      - npx eslint . | tee eslint.log && npx tsx lint-formatter.ts eslint.log
+      - set -o pipefail && npx eslint . | tee eslint.log && npx tsx lint-formatter.ts eslint.log
       - npx tsc
       - npx madge --circular {{.TASKFILE_DIR}}/src/*
       - npx typedoc --emit none

@@ -116,8 +116,11 @@ export class Flags {
    *
    */
   public static setRequiredCommandFlags(y: AnyYargs, ...commandFlags: CommandFlag[]) {
+    // Check if help is being requested to avoid enforcing required flags
+    const isHelpRequested = process.argv.includes('--help') || process.argv.includes('-h');
+
     for (const flag of commandFlags) {
-      y.option(flag.name, {...flag.definition, demandOption: true});
+      y.option(flag.name, {...flag.definition, demandOption: !isHelpRequested});
     }
   }
 
@@ -421,17 +424,6 @@ export class Flags {
         Flags.deployPrometheusStack.name,
       );
     },
-  };
-
-  public static readonly redeploy: CommandFlag = {
-    constName: 'redeploy',
-    name: 'redeploy',
-    definition: {
-      describe: 'Redeploy the specified component',
-      defaultValue: false,
-      type: 'boolean',
-    },
-    prompt: undefined,
   };
 
   public static readonly enablePrometheusSvcMonitor: CommandFlag = {
@@ -756,38 +748,6 @@ export class Flags {
         'How many replica do you want? ',
         null,
         Flags.replicaCount.name,
-      );
-    },
-  };
-
-  public static readonly id: CommandFlag = {
-    constName: 'id',
-    name: 'id',
-    definition: {
-      describe: 'The numeric identifier for the component',
-      type: 'number',
-    },
-    prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<number> {
-      return await Flags.prompt('number', task, input, undefined, 'Enter component id: ', null, Flags.id.name);
-    },
-  };
-
-  public static readonly mirrorNodeId: CommandFlag = {
-    constName: 'mirrorNodeId',
-    name: 'mirror-node-id',
-    definition: {
-      describe: 'The id of the mirror node which to connect',
-      type: 'number',
-    },
-    prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<number> {
-      return await Flags.prompt(
-        'number',
-        task,
-        input,
-        undefined,
-        'Enter mirror node id: ',
-        null,
-        Flags.mirrorNodeId.name,
       );
     },
   };
@@ -1582,7 +1542,7 @@ export class Flags {
     constName: 'persistentVolumeClaims',
     name: 'pvcs',
     definition: {
-      describe: 'Enable persistent volume claims to store data outside the pod, required for node add',
+      describe: 'Enable persistent volume claims to store data outside the pod, required for consensus node add',
       defaultValue: false,
       type: 'boolean',
     },
@@ -2685,9 +2645,6 @@ export class Flags {
     Flags.shard,
     Flags.username,
     Flags.skipNodeAlias,
-    Flags.id,
-    Flags.mirrorNodeId,
-    Flags.redeploy,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

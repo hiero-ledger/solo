@@ -2,7 +2,6 @@
 
 import {type NamespaceName} from '../../../../types/namespace/namespace-name.js';
 import {type SecretType} from './secret-type.js';
-import {type Secret} from './secret.js';
 
 export interface Secrets {
   /**
@@ -38,7 +37,16 @@ export interface Secrets {
     labels?: Record<string, string>,
   ): Promise<boolean>;
 
-  read(namespace: NamespaceName, name: string): Promise<Secret>;
+  read(
+    namespace: NamespaceName,
+    name: string,
+  ): Promise<{
+    data: Record<string, string>;
+    name: string;
+    namespace: string;
+    type: string;
+    labels: Record<string, string>;
+  }>;
 
   /**
    * Delete a secret from the namespace
@@ -54,7 +62,18 @@ export interface Secrets {
    * @param labels - list of labels
    * @returns the list of secrets that match the labels
    */
-  list(namespace: NamespaceName, labels?: string[]): Promise<Array<Secret>>;
+  list(
+    namespace: NamespaceName,
+    labels?: string[],
+  ): Promise<
+    Array<{
+      data: Record<string, string>;
+      name: string;
+      namespace: string;
+      type: string;
+      labels: Record<string, string>;
+    }>
+  >;
 
   exists(namespace: NamespaceName, name: string): Promise<boolean>;
 }

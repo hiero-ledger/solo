@@ -3,7 +3,6 @@
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import chalk from 'chalk';
-import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import {BaseCommand} from './base.js';
@@ -25,18 +24,18 @@ import {type ProfileManager} from '../core/profile-manager.js';
 import {type CertificateManager} from '../core/certificate-manager.js';
 import {
   type AnyListrContext,
-  type AnyYargs,
   type ArgvStruct,
   type IP,
   type NodeAlias,
   type NodeAliases,
+  type NodeId,
 } from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {v4 as uuidv4} from 'uuid';
 import {
   type ClusterReferenceName,
   type ClusterReferences,
-  type CommandDefinition,
+  type NamespaceNameAsString,
   type Context,
   type DeploymentName,
   type Realm,
@@ -45,7 +44,6 @@ import {
   type SoloListr,
   type SoloListrTask,
   type SoloListrTaskWrapper,
-  type ComponentId,
 } from '../types/index.js';
 import {Base64} from 'js-base64';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
@@ -66,6 +64,7 @@ import {ContainerReference} from '../integration/kube/resources/container/contai
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
 import {Deployment} from '../business/runtime-state/config/local/deployment.js';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
@@ -74,7 +73,6 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {Version} from '../business/utils/version.js';
-import {Secret} from '../integration/kube/resources/secret/secret.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -155,13 +153,13 @@ export interface NetworkDestroyContext {
 @injectable()
 export class NetworkCommand extends BaseCommand {
   private profileValuesFile?: Record<ClusterReferenceName, string>;
-  public static DEPLOY_COMMAND: string = 'network deploy';
 
   public constructor(
     @inject(InjectTokens.CertificateManager) private readonly certificateManager: CertificateManager,
     @inject(InjectTokens.KeyManager) private readonly keyManager: KeyManager,
     @inject(InjectTokens.PlatformInstaller) private readonly platformInstaller: PlatformInstaller,
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
+    @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
   ) {
     super();
 
@@ -169,16 +167,17 @@ export class NetworkCommand extends BaseCommand {
     this.keyManager = patchInject(keyManager, InjectTokens.KeyManager, this.constructor.name);
     this.platformInstaller = patchInject(platformInstaller, InjectTokens.PlatformInstaller, this.constructor.name);
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
+    this.componentFactory = patchInject(componentFactory, InjectTokens.ComponentFactory, this.constructor.name);
   }
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
-  private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [flags.deletePvcs, flags.deleteSecrets, flags.enableTimeout, flags.force, flags.quiet],
   };
 
-  private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
+  public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [
       flags.apiPermissionProperties,
@@ -230,8 +229,6 @@ export class NetworkCommand extends BaseCommand {
       flags.domainNames,
     ],
   };
-
-  public static readonly COMMAND_NAME: string = 'network';
 
   private waitForNetworkPods(): SoloListrTask<NetworkDeployContext> {
     return {
@@ -837,7 +834,13 @@ export class NetworkCommand extends BaseCommand {
       await Promise.all(
         context_.config.contexts.map(async context => {
           // Fetch all Secrets inside the namespace using the context
-          const secrets: Secret[] = await this.k8Factory.getK8(context).secrets().list(context_.config.namespace);
+          const secrets: {
+            data: Record<string, string>;
+            name: string;
+            namespace: NamespaceNameAsString;
+            type: string;
+            labels: Record<string, string>;
+          }[] = await this.k8Factory.getK8(context).secrets().list(context_.config.namespace);
 
           // Delete all if found
           return Promise.all(
@@ -851,7 +854,7 @@ export class NetworkCommand extends BaseCommand {
   }
 
   /** Run helm install and deploy network components */
-  private async deploy(argv: ArgvStruct): Promise<boolean> {
+  public async deploy(argv: ArgvStruct): Promise<boolean> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
     let lease: Lock;
@@ -893,7 +896,7 @@ export class NetworkCommand extends BaseCommand {
               );
               if (!isChartInstalled) {
                 throw new SoloError(
-                  `Chart ${constants.SOLO_CLUSTER_SETUP_CHART} is not installed for cluster: ${context}. Run 'solo cluster-ref setup'`,
+                  `Chart ${constants.SOLO_CLUSTER_SETUP_CHART} is not installed for cluster: ${context}. Run 'solo cluster-ref config setup'`,
                 );
               }
             }
@@ -1184,7 +1187,7 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Copy block-nodes.json',
           skip: (context_): boolean => context_.config.blockNodeComponents.length === 0,
-          task: async (context_): Promise<void> => {
+          task: async (context_, task): Promise<void> => {
             const config: NetworkDeployConfigClass = context_.config;
 
             const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'block-nodes.json');
@@ -1221,7 +1224,7 @@ export class NetworkCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      NetworkCommand.DEPLOY_COMMAND,
+      'consensus network deploy',
     );
 
     if (tasks.isRoot()) {
@@ -1231,25 +1234,26 @@ export class NetworkCommand extends BaseCommand {
         throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
       } finally {
         if (lease) {
-          await lease.release();
+          await lease?.release();
         }
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease.release();
+        await lease?.release();
       });
     }
 
     return true;
   }
 
-  private async destroy(argv: ArgvStruct): Promise<boolean> {
+  public async destroy(argv: ArgvStruct): Promise<boolean> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
     let lease: Lock;
 
     let networkDestroySuccess: boolean = true;
-    const tasks: Listr<NetworkDestroyContext> = new Listr<NetworkDestroyContext>(
+
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -1275,7 +1279,7 @@ export class NetworkCommand extends BaseCommand {
             context_.config = {
               deletePvcs: this.configManager.getFlag<boolean>(flags.deletePvcs) as boolean,
               deleteSecrets: this.configManager.getFlag<boolean>(flags.deleteSecrets) as boolean,
-              deployment: this.configManager.getFlag<string>(flags.deployment) as string,
+              deployment: this.configManager.getFlag(flags.deployment),
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
               enableTimeout: this.configManager.getFlag<boolean>(flags.enableTimeout) as boolean,
               force: this.configManager.getFlag<boolean>(flags.force) as boolean,
@@ -1304,7 +1308,7 @@ export class NetworkCommand extends BaseCommand {
           task: async (context_, task): Promise<void> => {
             if (context_.config.enableTimeout) {
               const timeoutId: NodeJS.Timeout = setTimeout(async () => {
-                const message: string = `\n\nUnable to finish network destroy in ${constants.NETWORK_DESTROY_WAIT_TIMEOUT} seconds\n\n`;
+                const message: string = `\n\nUnable to finish consensus network destroy in ${constants.NETWORK_DESTROY_WAIT_TIMEOUT} seconds\n\n`;
                 this.logger.error(message);
                 this.logger.showUser(chalk.red(message));
                 networkDestroySuccess = false;
@@ -1335,78 +1339,26 @@ export class NetworkCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      'consensus network destroy',
     );
 
-    try {
-      await tasks.run();
-    } catch (error) {
-      throw new SoloError('Error destroying network', error);
-    } finally {
-      // If the namespace is deleted, the lease can't be released
-      await lease.release().catch();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError('Error destroying network', error);
+      } finally {
+        // If the namespace is deleted, the lease can't be released
+        await lease?.release().catch();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease?.release();
+      });
     }
 
     return networkDestroySuccess;
-  }
-
-  public getCommandDefinition(): CommandDefinition {
-    const self: this = this;
-    return {
-      command: NetworkCommand.COMMAND_NAME,
-      desc: 'Manage solo network deployment',
-      builder: (yargs: AnyYargs): AnyYargs => {
-        return yargs
-          .command({
-            command: 'deploy',
-            desc: "Deploy solo network.  Requires the chart `solo-cluster-setup` to have been installed in the cluster.  If it hasn't the following command can be ran: `solo cluster-ref setup`",
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...NetworkCommand.DEPLOY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...NetworkCommand.DEPLOY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct): Promise<void> => {
-              self.logger.info("==== Running 'network deploy' ===");
-
-              await self
-                .deploy(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running `network deploy`====');
-
-                  if (!r) {
-                    throw new SoloError('Error deploying network, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error deploying network: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'destroy',
-            desc: 'Destroy solo network. If both --delete-pvcs and --delete-secrets are set to true, the namespace will be deleted.',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...NetworkCommand.DESTROY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...NetworkCommand.DESTROY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct): Promise<void> => {
-              self.logger.info("==== Running 'network destroy' ===");
-
-              await self
-                .destroy(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running `network destroy`====');
-
-                  if (!r) {
-                    throw new SoloError('Error destroying network, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error destroying network: ${error.message}`, error);
-                });
-            },
-          })
-          .demandCommand(1, 'Select a chart command');
-      },
-    };
   }
 
   /** Adds the consensus node, envoy and haproxy components to remote config.  */
@@ -1418,10 +1370,10 @@ export class NetworkCommand extends BaseCommand {
         const {namespace} = context_.config;
 
         for (const consensusNode of context_.config.consensusNodes) {
-          const componentId: ComponentId = Templates.renderComponentIdFromNodeAlias(consensusNode.name);
+          const nodeId: NodeId = Templates.nodeIdFromNodeAlias(consensusNode.name);
           const clusterReference: ClusterReferenceName = consensusNode.cluster;
 
-          this.remoteConfig.configuration.components.changeNodePhase(componentId, DeploymentPhase.REQUESTED);
+          this.remoteConfig.configuration.components.changeNodePhase(nodeId, DeploymentPhase.REQUESTED);
 
           if (context_.config.isUpgrade) {
             this.logger.info('Do not add envoy and haproxy components again during upgrade');
@@ -1438,7 +1390,9 @@ export class NetworkCommand extends BaseCommand {
             );
           }
         }
-
+        if (context_.config.releaseTag) {
+          this.remoteConfig.configuration.versions.consensusNode = new SemVer(context_.config.releaseTag);
+        }
         await this.remoteConfig.persist();
       },
     };

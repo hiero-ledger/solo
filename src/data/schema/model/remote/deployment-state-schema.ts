@@ -6,64 +6,56 @@ import {type LedgerPhase} from './ledger-phase.js';
 import {Transformations} from '../utils/transformations.js';
 import {RelayNodeStateSchema} from './state/relay-node-state-schema.js';
 import {MirrorNodeStateSchema} from './state/mirror-node-state-schema.js';
-import {HaProxyStateSchema} from './state/ha-proxy-state-schema.js';
+import {HAProxyStateSchema} from './state/haproxy-state-schema.js';
 import {EnvoyProxyStateSchema} from './state/envoy-proxy-state-schema.js';
 import {ExplorerStateSchema} from './state/explorer-state-schema.js';
 import {BlockNodeStateSchema} from './state/block-node-state-schema.js';
-import {ComponentIdsSchema} from './state/component-ids-schema.js';
-import {DeploymentStateStructure} from './interfaces/deployment-state-structure.js';
 
 @Exclude()
-export class DeploymentStateSchema implements DeploymentStateStructure {
+export class DeploymentStateSchema {
   @Expose()
   @Transform(Transformations.LedgerPhase)
   public ledgerPhase: LedgerPhase;
 
   @Expose()
-  @Type((): typeof ComponentIdsSchema => ComponentIdsSchema)
-  public componentIds: ComponentIdsSchema;
-
-  @Expose()
-  @Type((): typeof ConsensusNodeStateSchema => ConsensusNodeStateSchema)
+  @Type(() => ConsensusNodeStateSchema)
   public consensusNodes: ConsensusNodeStateSchema[];
 
   @Expose()
-  @Type((): typeof BlockNodeStateSchema => BlockNodeStateSchema)
+  @Type(() => BlockNodeStateSchema)
   public blockNodes: BlockNodeStateSchema[];
 
   @Expose()
-  @Type((): typeof MirrorNodeStateSchema => MirrorNodeStateSchema)
+  @Type(() => MirrorNodeStateSchema)
   public mirrorNodes: MirrorNodeStateSchema[];
 
   @Expose()
-  @Type((): typeof RelayNodeStateSchema => RelayNodeStateSchema)
+  @Type(() => RelayNodeStateSchema)
   public relayNodes: RelayNodeStateSchema[];
 
   @Expose()
-  @Type((): typeof HaProxyStateSchema => HaProxyStateSchema)
-  public haProxies: HaProxyStateSchema[];
+  @Type(() => HAProxyStateSchema)
+  public haProxies: HAProxyStateSchema[];
 
   @Expose()
-  @Type((): typeof EnvoyProxyStateSchema => EnvoyProxyStateSchema)
+  @Type(() => EnvoyProxyStateSchema)
   public envoyProxies: EnvoyProxyStateSchema[];
 
   @Expose()
-  @Type((): typeof ExplorerStateSchema => ExplorerStateSchema)
+  @Type(() => ExplorerStateSchema)
   public explorers: ExplorerStateSchema[];
 
   public constructor(
     ledgerPhase?: LedgerPhase,
-    componentIds?: ComponentIdsSchema,
     consensusNodes?: ConsensusNodeStateSchema[],
     blockNodes?: BlockNodeStateSchema[],
     mirrorNodes?: MirrorNodeStateSchema[],
     relayNodes?: RelayNodeStateSchema[],
-    haProxies?: HaProxyStateSchema[],
+    haProxies?: HAProxyStateSchema[],
     envoyProxies?: EnvoyProxyStateSchema[],
     explorers?: ExplorerStateSchema[],
   ) {
     this.ledgerPhase = ledgerPhase;
-    this.componentIds = componentIds || new ComponentIdsSchema();
     this.consensusNodes = consensusNodes || [];
     this.blockNodes = blockNodes || [];
     this.mirrorNodes = mirrorNodes || [];

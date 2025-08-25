@@ -1,27 +1,94 @@
 version: 3
-includes:
-  main:
-    taskfile: ../Taskfile.examples.yml
-    flatten: true
-env:
-  SOLO_NETWORK_SIZE: 10
-  SOLO_NAMESPACE: solo-alex-kuzmin-n4
-  SOLO_DEPLOYMENT: solo-deployment-alex-kuzmin-n4
-  # SOLO_CHART_VERSION: 0.39.0
-  # CONSENSUS_NODE_VERSION: v0.58.0
-  VALUES_FLAG: "--values-file {{.USER_WORKING_DIR}}/init-containers-values.yaml"
-  SETTINGS_FLAG: "--settings-txt {{.USER_WORKING_DIR}}/settings.txt"
-  SOLO_HOME: "/Users/user/.solo-alex-kuzmin-n4"
-  LOG4J2_FLAG: "--log4j2-xml {{.USER_WORKING_DIR}}/log4j2.xml"
-  APPLICATION_PROPERTIES_FLAG: "--application-properties {{.USER_WORKING_DIR}}/application.properties"
-  # HEDERA_SERVICES_ROOT: "/Users/user/source/hiero-consensus-node"
-  # LOCAL_BUILD_FLAG: "--local-build-path {{.HEDERA_SERVICES_ROOT}}/hedera-node/data"
+vars:
+  NODE_IDENTIFIERS: "node1,node2,node3"
+  SOLO_NETWORK_SIZE: "3"
+  DEPLOYMENT: "deployment-network-with-custom-config"
+  NAMESPACE: "namespace-network-with-custom-config"
+  CLUSTER_NAME: "network-with-custom-config-cluster"
+  CONTEXT: "kind-network-with-custom-config-cluster"
+  CLUSTER_REFERENCE: "kind-network-with-custom-config-cluster"
+tasks:
+  default:
+    desc: Run a full standalone Solo network with block node, mirror node, and relay
+    cmds:
+      # Install Solo CLI
+      - cmd: npm i @hashgraph/solo@latest
 
-  HEDERA_SERVICES_ROOT: "/Users/user/source/hiero-consensus-node"
-  ENABLE_EXPLORER_TLS_FLAG: "--enable-explorer-tls"
-  TLS_CLUSTER_ISSUER_TYPE_FLAG: "--tls-cluster-issuer-type acme-staging"
-  ENABLE_EXPLORER_INGRESS: "--enable-ingress"
-  ENABLE_MIRROR_INGRESS: "--enable-ingress"
-  EXPLORER_NAME_SPACE: "explorer-name-space"
-  EXPLORER_DEPLOYMENT: "explorer-deployment"
-  EXPLORER_CLUSTER_CONTEXT: "kind-solo-cluster"
+      # Create Kind cluster
+      - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
+
+      # Wait for control plane
+      - cmd: sleep 10 # wait for control plane to come up
+
+      # Set kubectl context
+      - cmd: kubectl config set-context {{ .CONTEXT }}
+
+      # Solo init
+      - cmd: npx solo init
+
+      # Solo cluster-ref config connect
+      - cmd: npx solo cluster-ref config connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
+
+      # Solo deployment config create
+      - cmd: npx solo deployment config create --deployment {{ .DEPLOYMENT }} --namespace {{ .NAMESPACE }}
+
+      # Solo deployment cluster attach
+      - cmd: |
+          solo deployment cluster attach --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
+
+      # Solo cluster-ref config setup
+      - cmd: npx solo cluster-ref config setup --cluster-ref {{ .CLUSTER_REFERENCE }}
+
+      # Solo node keys
+      - cmd: |
+          solo keys consensus generate --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
+          --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      # Solo network deploy
+      - cmd: |
+          solo consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
+          --values-file {{ .USER_WORKING_DIR }}/init-containers-values.yaml \
+          --settings-txt {{ .USER_WORKING_DIR }}/settings.txt \
+          --log4j2-xml {{ .USER_WORKING_DIR }}/log4j2.xml \
+          --application-properties {{ .USER_WORKING_DIR }}/application.properties
+
+      # Solo node setup
+      - cmd: npx solo consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
+
+      # Solo node start
+      - cmd: npx solo consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      # Solo mirror node add
+      - cmd: npx solo mirror node add --deployment {{ .DEPLOYMENT }} --pinger --enable-ingress
+
+      # Solo relay node add
+      - cmd: npx solo relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      # Solo explorer node add
+      - cmd: |
+          solo explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          --enable-explorer-tls --tls-cluster-issuer-type acme-staging \
+          --enable-ingress \
+          -n {{ .EXPLORER_NAME_SPACE }} --deployment {{ .EXPLORER_DEPLOYMENT }} \
+          --cluster-ref {{ .CLUSTER_REFERENCE }}
+  destroy:
+    desc: Destroy the Solo network with block node
+    cmds:
+      # solo consensus node stop
+      - cmd: npx solo consensus node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      # solo mirror node destroy
+      - cmd: npx solo mirror node destroy --deployment {{ .DEPLOYMENT }} --force
+
+      # solo relay node destroy
+      - cmd: npx solo relay node destroy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      # solo explorer node destroy
+      - cmd: npx solo explorer node destroy --deployment {{ .DEPLOYMENT }}
+
+      # solo consensus network destroy
+      - cmd: npx solo consensus network destroy --deployment {{ .DEPLOYMENT }} --force
+
+      # Delete Kind cluster
+      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
