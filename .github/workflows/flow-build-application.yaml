@@ -79,12 +79,20 @@ jobs:
   unit-tests:
     name: Unit Tests
     uses: ./.github/workflows/zxc-unit-test.yaml
-    if: ${{ github.event_name == 'push' || github.event.inputs.enable-unit-tests == 'true' }}
     needs:
-      - generate_matrix
       - code-style
+    if: ${{ !(github.event_name == 'workflow_dispatch' && !github.event.inputs.enable-unit-tests) }}
     with:
       custom-job-label: Standard
+
+  build-docker-image:
+    name: Build / Docker Image (Dry Run)
+    needs: unit-tests
+    uses: ./.github/workflows/zxc-release-solo-docker-container.yaml
+    with:
+      dry-run-enabled: true
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   e2e-tests:
     name: E2E Tests (${{ matrix.e2e-test-type.name }})

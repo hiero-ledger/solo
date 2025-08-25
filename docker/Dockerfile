@@ -85,13 +85,13 @@ RUN set -eux; \
 FROM node:20.18.0-alpine
 
 # Install required system packages
-RUN apk add --no-cache python3 jq git
+RUN apk add --no-cache python3 jq git openjdk17-jre
 
 # Copy external tools from installer stage
-COPY --from=installer ./kind /usr/local/bin/kind
-COPY --from=installer ./docker/docker /usr/local/bin/docker
-COPY --from=installer ./kubectl /usr/local/bin/kubectl
-COPY --from=installer ./linux-*/helm /usr/local/bin/helm
+COPY --from=installer /kind /usr/local/bin/kind
+COPY --from=installer /docker/docker /usr/local/bin/docker
+COPY --from=installer /kubectl /usr/local/bin/kubectl
+COPY --from=installer /linux-*/helm /usr/local/bin/helm
 
 # Set working directory
 WORKDIR /app
@@ -117,6 +117,9 @@ RUN npm install -g hashgraph-solo-*.tgz
 ENV SOLO_CLUSTER_NAME=solo-cluster
 ENV SOLO_NAMESPACE=solo
 ENV SOLO_DEPLOYMENT=solo-deployment
+
+# Expose ports
+EXPOSE 5600 5678 8080
 
 # Create a startup script for quick-start
 RUN echo '#!/bin/sh' > /usr/local/bin/solo-quick-start.sh && \
