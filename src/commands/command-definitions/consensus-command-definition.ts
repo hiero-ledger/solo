@@ -412,7 +412,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 'Prepare the network for a Freeze Upgrade operation',
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.prepareUpgrade,
-                NodeFlags.DEFAULT_FLAGS,
+                NodeFlags.PREPARE_UPGRADE_FLAGS,
               ),
             )
             .addSubcommand(
@@ -421,7 +421,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 'Performs a Freeze Upgrade operation with on the network after it has been prepared with prepare-upgrade',
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.freezeUpgrade,
-                NodeFlags.DEFAULT_FLAGS,
+                NodeFlags.PREPARE_UPGRADE_FLAGS,
               ),
             ),
         )
