@@ -154,10 +154,10 @@ tasks:
       - task: "build:solo"
       - |
         if [[ "${SOLO_CI}" == "true" ]]; then
-          echo "Running wrapperForUpdateDocs.sh in CI mode"
+          echo "Running wrapperForUpdateDocs.mjs in CI mode"
           node docs/site/scripts/wrapperForUpdateDocs.mjs
         else
-          echo "Running executeUpdateDocs.mjs.sh in local mode"
+          echo "Running executeUpdateDocs.mjs.mjs in local mode"
           node docs/site/scripts/executeUpdateDocs.mjs
         fi
       - printf "\r::endgroup::--------------\n"

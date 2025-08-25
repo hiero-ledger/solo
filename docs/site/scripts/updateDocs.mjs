@@ -45,31 +45,31 @@ export async function update () {
   await runAndSave(`solo init`, 'SOLO_INIT_OUTPUT', `${BUILD_DIR}/init.log`);
 
   await runAndSave(
-    `solo cluster-ref connect --cluster-ref kind-${process.env.SOLO_CLUSTER_NAME} --context kind-${process.env.SOLO_CLUSTER_NAME}`,
+    `solo cluster-ref config connect --cluster-ref kind-${process.env.SOLO_CLUSTER_NAME} --context kind-${process.env.SOLO_CLUSTER_NAME}`,
     'SOLO_CLUSTER_REF_CONNECT_OUTPUT',
     `${BUILD_DIR}/cluster-ref-connect.log`,
   );
 
   await runAndSave(
-    `solo deployment create -n ${process.env.SOLO_NAMESPACE} --deployment ${process.env.SOLO_DEPLOYMENT}`,
+    `solo deployment config create -n ${process.env.SOLO_NAMESPACE} --deployment ${process.env.SOLO_DEPLOYMENT}`,
     'SOLO_DEPLOYMENT_CREATE_OUTPUT',
     `${BUILD_DIR}/deployment-create.log`,
   );
 
   await runAndSave(
-    `solo deployment add-cluster --deployment ${process.env.SOLO_DEPLOYMENT} --cluster-ref kind-${process.env.SOLO_CLUSTER_NAME} --num-consensus-nodes 1`,
+    `solo deployment cluster attach --deployment ${process.env.SOLO_DEPLOYMENT} --cluster-ref kind-${process.env.SOLO_CLUSTER_NAME} --num-consensus-nodes 1`,
     'SOLO_DEPLOYMENT_ADD_CLUSTER_OUTPUT',
-    `${BUILD_DIR}/deployment-add-cluster.log`,
+    `${BUILD_DIR}/deployment-attach.log`,
   );
 
   await runAndSave(
-    `solo node keys --gossip-keys --tls-keys --deployment ${process.env.SOLO_DEPLOYMENT}`,
+    `solo keys consensus generate --gossip-keys --tls-keys --deployment ${process.env.SOLO_DEPLOYMENT}`,
     'SOLO_NODE_KEY_PEM_OUTPUT',
     `${BUILD_DIR}/keys.log`,
   );
 
   await runAndSave(
-    `solo cluster-ref setup -s ${process.env.SOLO_CLUSTER_SETUP_NAMESPACE}`,
+    `solo cluster-ref config setup -s ${process.env.SOLO_CLUSTER_SETUP_NAMESPACE}`,
     'SOLO_CLUSTER_SETUP_OUTPUT',
     `${BUILD_DIR}/cluster-setup.log`,
   );
@@ -81,55 +81,55 @@ export async function update () {
   );
 
   await runAndSave(
-    `solo network deploy --deployment ${process.env.SOLO_DEPLOYMENT} ${CONSENSUS_NODE_FLAG}`,
+    `solo consensus network deploy --deployment ${process.env.SOLO_DEPLOYMENT} ${CONSENSUS_NODE_FLAG}`,
     'SOLO_NETWORK_DEPLOY_OUTPUT',
     `${BUILD_DIR}/network-deploy.log`,
   );
 
   await runAndSave(
-    `solo node setup --deployment ${process.env.SOLO_DEPLOYMENT} ${CONSENSUS_NODE_FLAG}`,
+    `solo consensus node setup --deployment ${process.env.SOLO_DEPLOYMENT} ${CONSENSUS_NODE_FLAG}`,
     'SOLO_NODE_SETUP_OUTPUT',
     `${BUILD_DIR}/node-setup.log`,
   );
 
   await runAndSave(
-    `solo node start --deployment ${process.env.SOLO_DEPLOYMENT}`,
+    `solo consensus node start --deployment ${process.env.SOLO_DEPLOYMENT}`,
     'SOLO_NODE_START_OUTPUT',
     `${BUILD_DIR}/node-start.log`,
   );
 
   await runAndSave(
-    `solo mirror-node deploy --deployment ${process.env.SOLO_DEPLOYMENT} --cluster-ref kind-${process.env.SOLO_CLUSTER_NAME} --enable-ingress -q`,
+    `solo mirror node add --deployment ${process.env.SOLO_DEPLOYMENT} --cluster-ref kind-${process.env.SOLO_CLUSTER_NAME} --enable-ingress -q`,
     'SOLO_MIRROR_NODE_DEPLOY_OUTPUT',
-    `${BUILD_DIR}/mirror-node-deploy.log`,
+    `${BUILD_DIR}/mirror-node-add.log`,
   );
 
   await runAndSave(
-    `solo explorer deploy --deployment ${process.env.SOLO_DEPLOYMENT} --cluster-ref kind-${process.env.SOLO_CLUSTER_NAME} -q`,
+    `solo explorer node add --deployment ${process.env.SOLO_DEPLOYMENT} --cluster-ref kind-${process.env.SOLO_CLUSTER_NAME} -q`,
     'SOLO_EXPLORER_DEPLOY_OUTPUT',
-    `${BUILD_DIR}/explorer-deploy.log`,
+    `${BUILD_DIR}/explorer-add.log`,
   );
 
   await runAndSave(
-    `solo relay deploy -i node1 --deployment ${process.env.SOLO_DEPLOYMENT} --cluster-ref kind-${process.env.SOLO_CLUSTER_NAME}`,
+    `solo relay node add -i node1 --deployment ${process.env.SOLO_DEPLOYMENT} --cluster-ref kind-${process.env.SOLO_CLUSTER_NAME}`,
     'SOLO_RELAY_DEPLOY_OUTPUT',
-    `${BUILD_DIR}/relay-deploy.log`,
+    `${BUILD_DIR}/relay-add.log`,
   );
 
   await runAndSave(
-    `solo relay destroy -i node1 --deployment ${process.env.SOLO_DEPLOYMENT} --cluster-ref kind-${process.env.SOLO_CLUSTER_NAME}`,
+    `solo relay node destroy -i node1 --deployment ${process.env.SOLO_DEPLOYMENT} --cluster-ref kind-${process.env.SOLO_CLUSTER_NAME}`,
     'SOLO_RELAY_DESTROY_OUTPUT',
     `${BUILD_DIR}/relay-destroy.log`,
   );
 
   await runAndSave(
-    `solo mirror-node destroy --deployment ${process.env.SOLO_DEPLOYMENT} --force -q`,
+    `solo mirror node destroy --deployment ${process.env.SOLO_DEPLOYMENT} --force -q`,
     'SOLO_MIRROR_NODE_DESTROY_OUTPUT',
     `${BUILD_DIR}/mirror-node-destroy.log`,
   );
 
   await runAndSave(
-    `solo explorer destroy --deployment ${process.env.SOLO_DEPLOYMENT} --force -q`,
+    `solo explorer node destroy --deployment ${process.env.SOLO_DEPLOYMENT} --force -q`,
     'SOLO_EXPLORER_DESTROY_OUTPUT',
     `${BUILD_DIR}/explorer-destroy.log`,
   );
@@ -141,7 +141,7 @@ export async function update () {
   );
 
   await runAndSave(
-    `solo network destroy --deployment ${process.env.SOLO_DEPLOYMENT} --force -q`,
+    `solo consensus network destroy --deployment ${process.env.SOLO_DEPLOYMENT} --force -q`,
     'SOLO_NETWORK_DESTROY_OUTPUT',
     `${BUILD_DIR}/network-destroy.log`,
   );
