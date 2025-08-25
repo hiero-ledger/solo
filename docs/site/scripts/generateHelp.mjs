@@ -93,34 +93,26 @@ void async function main() {
   // Top-level commands
   const commands = await getTopLevelCommands();
 
-  // Build Table of Contents
-  const toc = await Promise.all(
-    commands.map(async (cmd) => {
-      console.log(`#1 Processing command: ${kleur.green(cmd)}`);
-      let entry = `\n* [${cmd}](#${cmd})`;
+  // Build Table of Contents sequentially
+  for (const cmd of commands) {
+    console.log(`#1 Processing command: ${kleur.green(cmd)}`);
+    let entry = `\n* [${cmd}](#${cmd})`;
 
-      const subcommands = await getSubcommands(cmd);
+    const subcommands = await getSubcommands(cmd);
+    for (const subcmd of subcommands) {
+      console.log(`#1 Processing subcommand: ${kleur.green(cmd)} ${kleur.cyan(subcmd)}`);
+      let sub = `\n  * [${cmd} ${subcmd}](#${cmd}-${subcmd})`;
 
-      const subEntries = await Promise.all(
-        subcommands.map(async (subcmd) => {
-          console.log(`#1 Processing subcommand: ${kleur.green(cmd)} ${kleur.cyan(subcmd)}`);
-          let sub = `\n  * [${cmd} ${subcmd}](#${cmd}-${subcmd})`;
+      const thirdLevel = await getThirdLevelCommands(cmd, subcmd);
+      for (const t of thirdLevel) {
+        sub += `\n    * [${cmd} ${subcmd} ${t}](#${cmd}-${subcmd}-${t})`;
+      }
 
-          const thirdLevel = await getThirdLevelCommands(cmd, subcmd);
+      entry += sub;
+    }
 
-          const thirdEntries = thirdLevel.map(
-            (t) => `\n    * [${cmd} ${subcmd} ${t}](#${cmd}-${subcmd}-${t})`
-          );
-
-          return sub + thirdEntries.join("");
-        })
-      );
-
-      return entry + subEntries.join("");
-    })
-  );
-
-  doc += toc.join("");
+    doc += entry;
+  }
 
   // Root help output
   doc += `\n\n## Root Help Output\n\n`;
@@ -128,48 +120,38 @@ void async function main() {
   doc += await runCapture(`npm run solo-test -- --help`);
   doc += "\n```\n";
 
-  // Detailed sections
-  const detailedSections = await Promise.all(
-    commands.map(async (cmd) => {
-      console.log(`#2 Processing command: ${kleur.green(cmd)}`);
+  // Detailed sections sequentially
+  for (const cmd of commands) {
+    console.log(`#2 Processing command: ${kleur.green(cmd)}`);
 
-      let section = `\n## ${cmd}\n\n\`\`\`\n`;
-      section += await runCapture(`npm run solo-test -- ${cmd} --help`);
-      section += `\n\`\`\`\n`;
+    let section = `\n## ${cmd}\n\n\`\`\`\n`;
+    section += await runCapture(`npm run solo-test -- ${cmd} --help`);
+    section += `\n\`\`\`\n`;
 
-      const subcommands = await getSubcommands(cmd);
+    const subcommands = await getSubcommands(cmd);
+    for (const subcmd of subcommands) {
+      console.log(`#2 Processing subcommand: ${kleur.green(cmd)} ${kleur.cyan(subcmd)}`);
 
-      const subSections = await Promise.all(
-        subcommands.map(async (subcmd) => {
-          console.log(`#2 Processing subcommand: ${kleur.green(cmd)} ${kleur.cyan(subcmd)}`);
+      let subSection = `\n### ${cmd} ${subcmd}\n\n\`\`\`\n`;
+      subSection += await runCapture(`npm run solo-test -- ${cmd} ${subcmd} --help`);
+      subSection += `\n\`\`\`\n`;
 
-          let subSection = `\n### ${cmd} ${subcmd}\n\n\`\`\`\n`;
-          subSection += await runCapture(`npm run solo-test -- ${cmd} ${subcmd} --help`);
-          subSection += `\n\`\`\`\n`;
+      const thirdLevel = await getThirdLevelCommands(cmd, subcmd);
+      for (const t of thirdLevel) {
+        console.log(`#3 Processing third-level command: ${kleur.green(cmd)} ${kleur.cyan(subcmd)} ${kleur.yellow(t)}`);
 
-          const thirdLevel = await getThirdLevelCommands(cmd, subcmd);
+        let third = `\n#### ${cmd} ${subcmd} ${t}\n\n\`\`\`\n`;
+        third += await runCapture(`npm run solo-test -- ${cmd} ${subcmd} ${t} --help`);
+        third += `\n\`\`\`\n`;
 
-          const thirdSections = await Promise.all(
-            thirdLevel.map(async (t) => {
-              console.log(`#3 Processing third-level command: ${kleur.green(cmd)} ${kleur.cyan(subcmd)} ${kleur.yellow(t)}`);
+        subSection += third;
+      }
 
-              let third = `\n#### ${cmd} ${subcmd} ${t}\n\n\`\`\`\n`;
-              third += await runCapture(`npm run solo-test -- ${cmd} ${subcmd} ${t} --help`);
-              third += `\n\`\`\`\n`;
+      section += subSection;
+    }
 
-              return third;
-            })
-          );
-
-          return subSection + thirdSections.join("");
-        })
-      );
-
-      return section + subSections.join("");
-    })
-  );
-
-  doc += detailedSections.join("");
+    doc += section;
+  }
 
   // Write all at once
   fs.writeFileSync(OUTPUT_FILE, doc, "utf-8");
