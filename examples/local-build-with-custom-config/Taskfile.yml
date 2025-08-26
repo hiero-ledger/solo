@@ -93,11 +93,11 @@ tasks:
           --values-file {{ .USER_WORKING_DIR }}/init-containers-values.yaml \
           --settings-txt {{ .USER_WORKING_DIR }}/settings.txt \
           --log4j2-xml {{ .USER_WORKING_DIR }}/log4j2.xml \
-          --release-tag {{ .CN_VERSION }} {{.LOCAL_BUILD_FLAG}} \          
+          --release-tag {{ .CN_VERSION }}           
           --application-properties {{ .USER_WORKING_DIR }}/application.properties
 
       # Solo node setup
-      - cmd: $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
+      - cmd: $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }} {{.LOCAL_BUILD_FLAG}}
 
       # Solo node start
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
