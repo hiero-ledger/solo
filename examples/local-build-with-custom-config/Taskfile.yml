@@ -30,7 +30,7 @@ vars:
   BLOCK_NODE_VALUE_FILE_FLAG: "--values-file {{ .USER_WORKING_DIR }}/block-node-values.yaml"
   MIRROR_NODE_VALUE_FILE_FLAG: "--values-file {{ .USER_WORKING_DIR }}/mirror-node-values.yaml"
   RELAY_NODE_VALUE_FILE_FLAG: "--values-file {{ .USER_WORKING_DIR }}/relay-node-values.yaml"
-  EXPLORER_NODE_VALUE_FILE_FLAG: "--values-file {{ .USER_WORKING_DIR }}/hiero-explorer-node-values.yaml"
+  EXPLORER_NODE_VALUE_FILE_FLAG: "--values-file {{ .USER_WORKING_DIR }}/hiero-explorer-values.yaml"
 tasks:
   default:
     desc: Run a full standalone Solo network with local built consensus node and block node, mirror node, and relay
