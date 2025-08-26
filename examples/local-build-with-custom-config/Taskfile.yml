@@ -93,7 +93,7 @@ tasks:
           --values-file {{ .USER_WORKING_DIR }}/init-containers-values.yaml \
           --settings-txt {{ .USER_WORKING_DIR }}/settings.txt \
           --log4j2-xml {{ .USER_WORKING_DIR }}/log4j2.xml \
-          --release-tag {{ .CN_VERSION }}           
+          --release-tag {{ .CN_VERSION }} \
           --application-properties {{ .USER_WORKING_DIR }}/application.properties
 
       # Solo node setup
