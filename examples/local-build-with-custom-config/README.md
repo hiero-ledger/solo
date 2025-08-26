@@ -1,19 +1,49 @@
-# Custom Network Config Example
+# Local Build with Custom Config Example
 
-This example demonstrates how to create and manage a custom Hiero Hashgraph Solo deployment and configure it with custom settings.
+This example demonstrates how to create and manage a custom Hiero Hashgraph Solo deployment using locally built consensus nodes with custom configuration settings.
 
 ## What It Does
+- **Uses local consensus node builds** from a specified build path for development and testing
+- **Provides configurable Helm chart versions** for Block Node, Mirror Node, Explorer, and Relay components
+- **Supports custom values files** for each component (Block Node, Mirror Node, Explorer, Relay)
+- **Includes custom application.properties** and other configuration files
+- **Automates the complete deployment workflow** with decision tree logic based on consensus node release tags
 - **Defines a custom network topology** (number of nodes, namespaces, deployments, etc.)
-- **Provides a Taskfile** for automating cluster creation, deployment, key management, and network operations
-- **Supports local development and testing** of Hedera network features
-- **Can be extended** to include mirror nodes, explorers, and relays
+
+## Configuration Options
+
+### Consensus Node Configuration
+- **Local Build Path**: `CN_LOCAL_BUILD_PATH` - Path to locally built consensus node artifacts
+- **Release Tag**: `CN_VERSION` - Consensus node version for decision tree logic
+- **Local Build Flag**: Automatically applied to use local builds instead of released versions
+
+### Component Version Control
+- **Block Node**: `BLOCK_NODE_RELEASE_TAG` - Helm chart version (e.g., "v0.63.9")
+- **Mirror Node**: `MIRROR_NODE_VERSION_FLAG` - Version flag (e.g., "--mirror-node-version v0.136.1")
+- **Relay**: `RELAY_RELEASE_FLAG` - Release flag (e.g., "--relay-release 0.70.1")
+- **Explorer**: `EXPLORER_VERSION_FLAG` - Version flag (e.g., "--explorer-version 25.0.0")
+
+### Custom Values Files
+Each component can use custom Helm values files:
+- **Block Node**: `block-node-values.yaml`
+- **Mirror Node**: `mirror-node-values.yaml`
+- **Relay**: `relay-node-values.yaml`
+- **Explorer**: `hiero-explorer-node-values.yaml`
 
 ## How to Use
 1. **Install dependencies:**
    - Make sure you have [Task](https://taskfile.dev/), [Node.js](https://nodejs.org/), [npm](https://www.npmjs.com/), [kubectl](https://kubernetes.io/docs/tasks/tools/), and [kind](https://kind.sigs.k8s.io/) installed.
-2. **Customize your network:**
-   - Edit `Taskfile.yml` to set the desired network size, namespaces, and other parameters.
-3. **Run the default workflow:**
+
+2. **Prepare local consensus node build:**
+   - Build the consensus node locally or ensure the build path (`CN_LOCAL_BUILD_PATH`) points to valid artifacts
+   - Default path: `../hiero-consensus-node/hedera-node/data`
+
+3. **Customize your configuration:**
+   - Edit `Taskfile.yml` to adjust network size, component versions, and paths
+   - Modify values files (`*-values.yaml`) for component-specific customizations
+   - Update `application.properties` for consensus node configuration
+
+4. **Run the default workflow:**
    - From this directory, run:
      ```sh
      task
@@ -22,24 +52,19 @@ This example demonstrates how to create and manage a custom Hiero Hashgraph Solo
      - Install the Solo CLI
      - Create a Kind cluster
      - Set the kubectl context
-     - Initialize Solo
-     - Connect and set up the cluster reference
-     - Create and configure the deployment
-     - Add the cluster to the deployment
-     - Generate node keys
-     - Deploy the network with custom configuration files
-     - Set up and start nodes
-     - Deploy mirror node, relay, and explorer
-4. **Destroy the network:**
+     - Initialize Solo and configure cluster reference
+     - Add block node with specified release tag
+     - Generate consensus node keys
+     - Deploy the network with local build and custom configuration
+     - Set up and start consensus nodes using local builds
+     - Deploy mirror node, relay, and explorer with custom versions and values
+
+5. **Destroy the network:**
    - Run:
      ```sh
      task destroy
      ```
-   - This will:
-     - Stop all nodes
-     - Destroy mirror node, relay, and explorer
-     - Destroy the Solo network
-     - Delete the Kind cluster
+   - This will clean up all deployed components and delete the Kind cluster
 
 ## Files
 - `Taskfile.yml` — All automation tasks and configuration
