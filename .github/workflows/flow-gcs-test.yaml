@@ -59,19 +59,19 @@ jobs:
 
       - name: Checkout Code
         if: steps.check.outputs.run == 'true'
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Authenticate to Google Cloud
         if: steps.check.outputs.run == 'true'
         id: google-auth
-        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        uses: step-security/google-github-auth@190f7ef9b7a34cc0dfd0c11f0e327365f70071d6 # v2.1.12
         with:
           workload_identity_provider: "projects/652966097426/locations/global/workloadIdentityPools/solo-bucket-dev-pool/providers/gh-provider"
           service_account: "solo-bucket-reader-writer@solo-bucket-dev.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
         if: steps.check.outputs.run == 'true'
-        uses: google-github-actions/setup-gcloud@6a7c903a70c8625ed6700fa299f5ddb4ca6022e9 # v2.1.5
+        uses: google-github-actions/setup-gcloud@cb1e50a9932213ecece00a606661ae9ca44f3397 # v2.2.0
 
       - name: Get Current Job Log URL
         if: steps.check.outputs.run == 'true'
@@ -109,7 +109,7 @@ jobs:
 
       - name: Setup Helm
         if: steps.check.outputs.run == 'true'
-        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         with:
           version: "v3.12.3" # helm version
 
@@ -156,7 +156,7 @@ jobs:
           .github/workflows/script/gcs_test.sh || RC=$? || true
           if [[ "${RC}" != "0" ]]; then
             echo "GCS test failed with exit code ${RC}"
-            npm run solo-test -- node logs --deployment solo-e2e -q --dev || true
+            npm run solo-test -- consensus diagnostics all --deployment solo-e2e -q --dev || true
             exit ${RC}
           fi
 

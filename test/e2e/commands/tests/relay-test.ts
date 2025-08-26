@@ -14,6 +14,7 @@ import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
 import {Templates} from '../../../../src/core/templates.js';
+import {RelayCommandDefinition} from '../../../../src/commands/command-definitions/relay-command-definition.js';
 
 export class RelayTest extends BaseCommandTest {
   private static soloRelayDeployArgv(
@@ -25,8 +26,9 @@ export class RelayTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      'relay',
-      'deploy',
+      RelayCommandDefinition.COMMAND_NAME,
+      RelayCommandDefinition.NODE_SUBCOMMAND_NAME,
+      RelayCommandDefinition.NODE_ADD,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.nodeAliasesUnparsed),
@@ -47,7 +49,7 @@ export class RelayTest extends BaseCommandTest {
     const {testName, deployment, namespace, contexts, clusterReferenceNameArray, testLogger} = options;
     const {soloRelayDeployArgv, verifyRelayDeployWasSuccessful} = RelayTest;
 
-    it(`${testName}: JSON-RPC relay deploy`, async (): Promise<void> => {
+    it(`${testName}: JSON-RPC relay node add`, async (): Promise<void> => {
       await main(soloRelayDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
       await verifyRelayDeployWasSuccessful(contexts, namespace);
     }).timeout(Duration.ofMinutes(5).toMillis());

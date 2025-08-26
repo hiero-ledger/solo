@@ -2,14 +2,13 @@
 
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
-import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner, sleep} from '../core/helpers.js';
@@ -91,8 +90,6 @@ interface ExplorerDestroyContext {
 
 @injectable()
 export class ExplorerCommand extends BaseCommand {
-  public static readonly DEPLOY_COMMAND = 'explorer deploy';
-
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
@@ -103,11 +100,9 @@ export class ExplorerCommand extends BaseCommand {
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME: string = 'explorer';
-
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
-  private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
+  public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.cacheDir,
@@ -133,14 +128,11 @@ export class ExplorerCommand extends BaseCommand {
     ],
   };
 
-  private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.id],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.devMode],
   };
 
-  /**
-   * @param config - the configuration object
-   */
   private async prepareHederaExplorerValuesArg(config: ExplorerDeployConfigClass): Promise<string> {
     let valuesArgument: string = '';
 
@@ -187,9 +179,6 @@ export class ExplorerCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  /**
-   * @param config - the configuration object
-   */
   private async prepareCertManagerChartValuesArg(config: ExplorerDeployConfigClass): Promise<string> {
     const {tlsClusterIssuerType, namespace} = config;
 
@@ -240,7 +229,7 @@ export class ExplorerCommand extends BaseCommand {
     return `${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}-${id}`;
   }
 
-  private async deploy(argv: ArgvStruct): Promise<boolean> {
+  public async add(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
     const tasks = this.taskList.newTaskList<ExplorerDeployContext>(
@@ -270,6 +259,14 @@ export class ExplorerCommand extends BaseCommand {
             ) as ExplorerDeployConfigClass;
 
             context_.config = config;
+
+            config.valuesArg += await this.prepareValuesArg(context_.config);
+            config.clusterRef =
+              this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
+
+            config.clusterContext = context_.config.clusterRef
+              ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString()
+              : this.k8Factory.default().contexts().readCurrent();
 
             if (!config.clusterRef) {
               config.clusterRef = this.k8Factory.default().clusters().readCurrent();
@@ -493,7 +490,7 @@ export class ExplorerCommand extends BaseCommand {
         },
         this.addMirrorNodeExplorerComponents(),
         {
-          title: 'Enable port forwarding',
+          title: 'Enable port forwarding for explorer',
           skip: context_ => !context_.config.forcePortForward,
           task: async context_ => {
             const config: ExplorerDeployConfigClass = context_.config;
@@ -507,15 +504,16 @@ export class ExplorerCommand extends BaseCommand {
             }
             const podReference: PodReference = pods[0].podReference;
 
-            await this.k8Factory
-              .getK8(config.clusterContext)
-              .pods()
-              .readByReference(podReference)
-              .portForward(constants.EXPLORER_PORT, constants.EXPLORER_PORT, true);
-            this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-            this.logger.addMessageGroupMessage(
-              constants.PORT_FORWARDING_MESSAGE_GROUP,
-              `Explorer port forward enabled on http://localhost:${constants.EXPLORER_PORT}`,
+            await this.remoteConfig.configuration.components.managePortForward(
+              config.clusterRef,
+              podReference,
+              constants.EXPLORER_PORT, // Pod port
+              constants.EXPLORER_PORT, // Local port
+              this.k8Factory.getK8(context_.config.clusterContext),
+              this.logger,
+              ComponentTypes.Explorers,
+              'Explorer',
+              config.isChartInstalled, // Reuse existing port if chart is already installed
             );
           },
         },
@@ -532,7 +530,7 @@ export class ExplorerCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      ExplorerCommand.DEPLOY_COMMAND,
+      'explorer node add',
     );
 
     if (tasks.isRoot()) {
@@ -542,21 +540,21 @@ export class ExplorerCommand extends BaseCommand {
       } catch (error) {
         throw new SoloError(`Error deploying explorer: ${error.message}`, error);
       } finally {
-        await lease.release();
+        await lease?.release();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease.release();
+        await lease?.release();
       });
     }
 
     return true;
   }
 
-  private async destroy(argv: ArgvStruct): Promise<boolean> {
+  public async destroy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
-    const tasks: Listr<ExplorerDestroyContext> = new Listr<ExplorerDestroyContext>(
+    const tasks: SoloListr<ExplorerDestroyContext> = this.taskList.newTaskList<ExplorerDestroyContext>(
       [
         {
           title: 'Initialize',
@@ -659,7 +657,7 @@ export class ExplorerCommand extends BaseCommand {
           title: 'Uninstall explorer ingress controller',
           task: async (context_): Promise<void> => {
             await this.chartManager.uninstall(context_.config.namespace, context_.config.ingressReleaseName);
-            // delete ingress class if found one
+            // destroy ingress class if found one
             const existingIngressClasses: IngressClass[] = await this.k8Factory
               .getK8(context_.config.clusterContext)
               .ingressClasses()
@@ -680,76 +678,25 @@ export class ExplorerCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      'explorer node destroy',
     );
 
-    try {
-      await tasks.run();
-      this.logger.debug('explorer destruction has completed');
-    } catch (error) {
-      throw new SoloError(`Error destroy explorer: ${error.message}`, error);
-    } finally {
-      await lease.release();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError(`Error destroy explorer: ${error.message}`, error);
+      } finally {
+        await lease?.release();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease?.release();
+      });
     }
 
     return true;
-  }
-
-  public getCommandDefinition(): CommandDefinition {
-    const self: this = this;
-    return {
-      command: ExplorerCommand.COMMAND_NAME,
-      desc: 'Manage Explorer in solo network',
-      builder: (yargs: AnyYargs): AnyYargs => {
-        return yargs
-          .command({
-            command: 'deploy',
-            desc: 'Deploy explorer',
-            builder: (y: AnyYargs): void => {
-              flags.setRequiredCommandFlags(y, ...ExplorerCommand.DEPLOY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...ExplorerCommand.DEPLOY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct): Promise<void> => {
-              self.logger.info("==== Running explorer deploy' ===");
-
-              await self
-                .deploy(argv)
-                .then((r): void => {
-                  self.logger.info('==== Finished running explorer deploy`====');
-                  if (!r) {
-                    throw new Error('Explorer deployment failed, expected return value to be true');
-                  }
-                })
-                .catch((error): never => {
-                  throw new SoloError(`Explorer deployment failed: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'destroy',
-            desc: 'Destroy explorer',
-            builder: (y: AnyYargs): void => {
-              flags.setRequiredCommandFlags(y, ...ExplorerCommand.DESTROY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...ExplorerCommand.DESTROY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct): Promise<void> => {
-              self.logger.info('==== Running explorer destroy ===');
-
-              await self
-                .destroy(argv)
-                .then((r): void => {
-                  self.logger.info('==== Finished running explorer destroy ====');
-                  if (!r) {
-                    throw new SoloError('Explorer destruction failed, expected return value to be true');
-                  }
-                })
-                .catch((error): never => {
-                  throw new SoloError(`Explorer destruction failed: ${error.message}`, error);
-                });
-            },
-          })
-          .demandCommand(1, 'Select a explorer command');
-      },
-    };
   }
 
   private loadRemoteConfigTask(argv: ArgvStruct): SoloListrTask<AnyListrContext> {
@@ -766,8 +713,8 @@ export class ExplorerCommand extends BaseCommand {
     return {
       title: 'Remove explorer from remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
-      task: async (context_): Promise<void> => {
-        this.remoteConfig.configuration.components.removeComponent(context_.config.id, ComponentTypes.Explorer);
+      task: async ({config}): Promise<void> => {
+        this.remoteConfig.configuration.components.removeComponent(config.id, ComponentTypes.Explorer);
 
         await this.remoteConfig.persist();
       },

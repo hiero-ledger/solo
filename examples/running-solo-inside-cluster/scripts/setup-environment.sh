@@ -33,13 +33,8 @@ https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/a
 apt update
 apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-# Clone solo repo and checkout branch
-git clone https://github.com/hiero-ledger/solo.git
-cd solo
-git checkout 2103-add-support-for-loading-the-k8s-context-from-cluster
-
-# Install npm dependencies
-npm install
+# Install @hashgraph/solo locally for npx usage
+npm install @hashgraph/solo
 
 # Extract in-cluster credentials
 export TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
@@ -62,13 +57,13 @@ kubectl config set-context kind-${SOLO_CLUSTER_NAME} \
 
 kubectl config use-context kind-${SOLO_CLUSTER_NAME}
 
-# Run solo test commands
-npm run solo-test -- init
-npm run solo-test -- cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
-npm run solo-test -- deployment create --deployment ${SOLO_DEPLOYMENT} --namespace ${SOLO_NAMESPACE}
-npm run solo-test -- deployment add-cluster --deployment ${SOLO_DEPLOYMENT} --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
-npm run solo-test -- cluster-ref setup --cluster-ref kind-${SOLO_CLUSTER_NAME}
-npm run solo-test -- node keys --gossip-keys --tls-keys --deployment ${SOLO_DEPLOYMENT}
-npm run solo-test -- network deploy --deployment ${SOLO_DEPLOYMENT}
-npm run solo-test -- node setup --deployment ${SOLO_DEPLOYMENT} -i node1
-npm run solo-test -- node start --deployment ${SOLO_DEPLOYMENT} -i node1
+# Run solo test commands using npx
+npx solo init
+npx solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+npx solo deployment config create --deployment ${SOLO_DEPLOYMENT} --namespace ${SOLO_NAMESPACE}
+npx solo deployment cluster attach --deployment ${SOLO_DEPLOYMENT} --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
+npx solo cluster-ref config setup --cluster-ref kind-${SOLO_CLUSTER_NAME}
+npx solo keys consensus generate --gossip-keys --tls-keys --deployment ${SOLO_DEPLOYMENT}
+npx solo consensus network deploy --deployment ${SOLO_DEPLOYMENT}
+npx solo consensus node setup --deployment ${SOLO_DEPLOYMENT} -i node1
+npx solo consensus node start --deployment ${SOLO_DEPLOYMENT} -i node1

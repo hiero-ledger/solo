@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import * as helpers from '../core/helpers.js';
@@ -95,8 +94,6 @@ interface RelayDeployContext {
 
 @injectable()
 export class RelayCommand extends BaseCommand {
-  public static readonly DEPLOY_COMMAND = 'relay deploy';
-
   public constructor(
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
@@ -107,11 +104,9 @@ export class RelayCommand extends BaseCommand {
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME: string = 'relay';
-
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
-  private static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
+  public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [
       flags.chainId,
@@ -132,9 +127,9 @@ export class RelayCommand extends BaseCommand {
     ],
   };
 
-  private static readonly DESTROY_FLAGS_LIST: CommandFlags = {
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.clusterRef],
-    optional: [flags.chartDirectory, flags.nodeAliasesUnparsed, flags.quiet, flags.id],
+    optional: [flags.chartDirectory, flags.nodeAliasesUnparsed, flags.quiet, flags.devMode, flags.id],
   };
 
   private async prepareValuesArgForRelay({
@@ -292,7 +287,7 @@ export class RelayCommand extends BaseCommand {
     return releaseName;
   }
 
-  private async deploy(argv: ArgvStruct): Promise<boolean> {
+  public async add(argv: ArgvStruct) {
     let lease: Lock;
 
     const tasks: SoloListr<RelayDeployContext> = this.taskList.newTaskList<RelayDeployContext>(
@@ -437,7 +432,7 @@ export class RelayCommand extends BaseCommand {
         },
         this.addRelayComponent(),
         {
-          title: 'Enable port forwarding',
+          title: 'Enable port forwarding for relay node',
           task: async ({config}): Promise<void> => {
             const pods: Pod[] = await this.k8Factory
               .getK8(config.context)
@@ -449,17 +444,20 @@ export class RelayCommand extends BaseCommand {
             }
 
             const podReference: PodReference = pods[0].podReference;
+            const clusterReference: string =
+              (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
+              this.k8Factory.default().clusters().readCurrent();
 
-            await this.k8Factory
-              .getK8(config.context)
-              .pods()
-              .readByReference(podReference)
-              .portForward(constants.JSON_RPC_RELAY_PORT, constants.JSON_RPC_RELAY_PORT, true);
-
-            this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
-            this.logger.addMessageGroupMessage(
-              constants.PORT_FORWARDING_MESSAGE_GROUP,
-              `JSON RPC Relay forward enabled on localhost:${constants.JSON_RPC_RELAY_PORT}`,
+            await this.remoteConfig.configuration.components.managePortForward(
+              clusterReference,
+              podReference,
+              constants.JSON_RPC_RELAY_PORT, // Pod port
+              constants.JSON_RPC_RELAY_PORT, // Local port
+              this.k8Factory.getK8(config.context),
+              this.logger,
+              ComponentTypes.RelayNodes,
+              'JSON RPC Relay',
+              config.isChartInstalled, // Reuse existing port if chart is already installed
             );
           },
           skip: ({config}): boolean => !config.forcePortForward,
@@ -477,7 +475,7 @@ export class RelayCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      RelayCommand.DEPLOY_COMMAND,
+      'relay node add',
     );
 
     if (tasks.isRoot()) {
@@ -487,13 +485,13 @@ export class RelayCommand extends BaseCommand {
         throw new SoloError(`Error deploying relay: ${error.message}`, error);
       } finally {
         if (lease) {
-          await lease.release();
+          await lease?.release();
         }
         await this.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
-        await lease.release();
+        await lease?.release();
         await this.accountManager.close();
       });
     }
@@ -501,10 +499,10 @@ export class RelayCommand extends BaseCommand {
     return true;
   }
 
-  private async destroy(argv: ArgvStruct): Promise<boolean> {
+  public async destroy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
-    const tasks: Listr<RelayDestroyContext> = new Listr(
+    const tasks: SoloListr<RelayDestroyContext> = this.taskList.newTaskList< RelayDestroyContext>(
       [
         {
           title: 'Initialize',
@@ -618,68 +616,25 @@ export class RelayCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      'relay node destroy',
     );
 
-    try {
-      await tasks.run();
-    } catch (error) {
-      throw new SoloError('Error uninstalling relays', error);
-    } finally {
-      if (lease) {
-        await lease.release();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError('Error uninstalling relays', error);
+      } finally {
+        await lease?.release();
       }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease?.release();
+      });
     }
 
     return true;
-  }
-
-  public getCommandDefinition(): CommandDefinition {
-    const self: this = this;
-    return {
-      command: RelayCommand.COMMAND_NAME,
-      desc: 'Manage JSON RPC relays in solo network',
-      builder: (yargs: AnyYargs): AnyYargs => {
-        return yargs
-          .command({
-            command: 'deploy',
-            desc: 'Deploy a JSON RPC relay',
-            builder: (y: AnyYargs): void => {
-              flags.setRequiredCommandFlags(y, ...RelayCommand.DEPLOY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...RelayCommand.DEPLOY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct): Promise<void> => {
-              self.logger.info("==== Running 'relay deploy' ===");
-
-              await self.deploy(argv).then((r: boolean): void => {
-                self.logger.info('==== Finished running `relay deploy`====');
-                if (!r) {
-                  throw new SoloError('Error deploying relay, expected return value to be true');
-                }
-              });
-            },
-          })
-          .command({
-            command: 'destroy',
-            desc: 'Destroy JSON RPC relay',
-            builder: (y: AnyYargs): void => {
-              flags.setRequiredCommandFlags(y, ...RelayCommand.DESTROY_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...RelayCommand.DESTROY_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct): Promise<void> => {
-              self.logger.info("==== Running 'relay destroy' ===");
-
-              await self.destroy(argv).then((r: boolean): void => {
-                self.logger.info('==== Finished running `relay destroy`====');
-
-                if (!r) {
-                  throw new SoloError('Error destroying relay, expected return value to be true');
-                }
-              });
-            },
-          })
-          .demandCommand(1, 'Select a relay command');
-      },
-    };
   }
 
   /** Adds the relay component to remote config. */
@@ -695,7 +650,7 @@ export class RelayCommand extends BaseCommand {
         );
 
         this.remoteConfig.configuration.components.addNewComponent(
-          this.componentFactory.createNewRelayComponent(clusterRef, namespace, nodeIds),
+          this.componentFactory.createNewRelayComponent(clusterReference, namespace, nodeIds),
           ComponentTypes.RelayNodes,
         );
 

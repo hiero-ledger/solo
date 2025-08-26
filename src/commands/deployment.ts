@@ -30,6 +30,7 @@ import {DeploymentStates} from '../core/config/remote/enumerations/deployment-st
 import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
 import {StringFacade} from '../business/runtime-state/facade/string-facade.js';
 import {Deployment} from '../business/runtime-state/config/local/deployment.js';
+import {CommandFlags} from '../types/flag-types.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -56,28 +57,25 @@ export interface DeploymentAddClusterContext {
 
 @injectable()
 export class DeploymentCommand extends BaseCommand {
-  public static readonly CREATE_COMMAND: string = 'deployment create';
-  public static readonly ADD_COMMAND: string = 'deployment add-cluster';
-
-  public constructor(@inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks) {
+  public constructor(
+    @inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks,
+  ) {
     super();
 
     this.tasks = patchInject(tasks, InjectTokens.ClusterCommandTasks, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME = 'deployment';
-
-  private static CREATE_FLAGS_LIST = {
+  public static CREATE_FLAGS_LIST: CommandFlags = {
     required: [flags.namespace, flags.deployment],
     optional: [flags.quiet, flags.realm, flags.shard],
   };
 
-  private static DELETE_FLAGS_LIST = {
+  public static DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [flags.quiet],
   };
 
-  private static ADD_CLUSTER_FLAGS_LIST = {
+  public static ADD_CLUSTER_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.clusterRef],
     optional: [
       flags.quiet,
@@ -88,7 +86,7 @@ export class DeploymentCommand extends BaseCommand {
     ],
   };
 
-  private static LIST_DEPLOYMENTS_FLAGS_LIST = {
+  public static LIST_DEPLOYMENTS_FLAGS_LIST: CommandFlags = {
     required: [flags.clusterRef],
     optional: [flags.quiet],
   };
@@ -165,7 +163,7 @@ export class DeploymentCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      DeploymentCommand.CREATE_COMMAND,
+      'deployment config create',
     );
 
     if (tasks.isRoot()) {
@@ -292,7 +290,7 @@ export class DeploymentCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      DeploymentCommand.ADD_COMMAND,
+      'deployment cluster attach',
     );
 
     if (tasks.isRoot()) {
@@ -306,7 +304,7 @@ export class DeploymentCommand extends BaseCommand {
     return true;
   }
 
-  private async list(argv: ArgvStruct): Promise<boolean> {
+  public async list(argv: ArgvStruct): Promise<boolean> {
     const self = this;
 
     interface Config {
@@ -371,118 +369,10 @@ export class DeploymentCommand extends BaseCommand {
     return true;
   }
 
-  public getCommandDefinition(): CommandDefinition {
-    const self: this = this;
-    return {
-      command: DeploymentCommand.COMMAND_NAME,
-      desc: 'Manage solo network deployment',
-      builder: (yargs: AnyYargs) => {
-        return yargs
-          .command({
-            command: 'create',
-            desc: 'Creates a solo deployment',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...DeploymentCommand.CREATE_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...DeploymentCommand.CREATE_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'deployment create' ===");
-
-              await self
-                .create(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running `deployment create`====');
-
-                  if (!r) {
-                    throw new SoloError('Error creating deployment, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error creating deployment: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'delete',
-            desc: 'Deletes a solo deployment',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...DeploymentCommand.DELETE_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...DeploymentCommand.DELETE_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'deployment delete' ===");
-
-              await self
-                .delete(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running `deployment delete`====');
-
-                  if (!r) {
-                    throw new SoloError('Error deleting deployment, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error deleting deployment: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'list',
-            desc: 'List solo deployments inside a cluster',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...DeploymentCommand.LIST_DEPLOYMENTS_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...DeploymentCommand.LIST_DEPLOYMENTS_FLAGS_LIST.optional);
-            },
-            handler: async argv => {
-              self.logger.info("==== Running 'deployment list' ===");
-
-              await self
-                .list(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running `deployment list`====');
-
-                  if (!r) {
-                    throw new SoloError('Error listing deployments, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  throw new SoloError(`Error listing deployments: ${error.message}`, error);
-                });
-            },
-          })
-          .command({
-            command: 'add-cluster',
-            desc: 'Adds cluster to solo deployments',
-            builder: (y: AnyYargs) => {
-              flags.setRequiredCommandFlags(y, ...DeploymentCommand.ADD_CLUSTER_FLAGS_LIST.required);
-              flags.setOptionalCommandFlags(y, ...DeploymentCommand.ADD_CLUSTER_FLAGS_LIST.optional);
-            },
-            handler: async (argv: ArgvStruct) => {
-              self.logger.info("==== Running 'deployment add-cluster' ===");
-
-              await self
-                .addCluster(argv)
-                .then(r => {
-                  self.logger.info('==== Finished running `deployment add-cluster`====');
-                  if (!r) {
-                    throw new SoloError('Error adding cluster deployment, expected return value to be true');
-                  }
-                })
-                .catch(error => {
-                  self.logger.showUserError(error);
-                  throw new SoloError(`Error adding cluster deployment: ${error.message}`, error);
-                });
-            },
-          })
-          .demandCommand(1, 'Select a chart command');
-      },
-    };
-  }
-
   public async close(): Promise<void> {} // no-op
 
   /**
-   * Initializes and populates the config and context for 'deployment add-cluster'
+   * Initializes and populates the config and context for 'deployment cluster attach'
    */
   public initializeClusterAddConfig(argv: ArgvStruct): SoloListrTask<DeploymentAddClusterContext> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
@@ -490,7 +380,7 @@ export class DeploymentCommand extends BaseCommand {
 
     return {
       title: 'Initialize',
-      task: async (context_, task) => {
+      task: async (context_, task): Promise<void> => {
         await self.localConfig.load();
 
         this.configManager.update(argv);

@@ -13,11 +13,11 @@ import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
-import {BlockNodeCommand} from '../../../src/commands/block-node.js';
+import {type BlockNodeCommand} from '../../../src/commands/block-node.js';
 import {ComponentTypes} from '../../../src/core/config/remote/enumerations/component-types.js';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
-import {type ClusterReferenceName, type ExtendedNetServer} from '../../../src/types/index.js';
+import {type ClusterReferenceName} from '../../../src/types/index.js';
 import {exec} from 'node:child_process';
 import {promisify} from 'node:util';
 import * as SemVer from 'semver';
@@ -26,6 +26,7 @@ import {type BlockNodeStateSchema} from '../../../src/data/schema/model/remote/s
 import {TEST_LOCAL_BLOCK_NODE_VERSION} from '../../../version-test.js';
 import {Templates} from '../../../src/core/templates.js';
 import * as constants from '../../../src/core/constants.js';
+import {BlockCommandDefinition} from '../../../src/commands/command-definitions/block-command-definition.js';
 
 // eslint-disable-next-line @typescript-eslint/typedef
 const execAsync = promisify(exec);
@@ -99,9 +100,9 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
       try {
         await commandInvoker.invoke({
           argv: argvClone,
-          command: BlockNodeCommand.COMMAND_NAME,
-          subcommand: 'node add',
-          // @ts-expect-error to access private property
+          command: BlockCommandDefinition.COMMAND_NAME,
+          subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
+          action: BlockCommandDefinition.NODE_ADD,
           callback: async (argv: ArgvStruct): Promise<boolean> => blockNodeCommand.add(argv),
         });
 
@@ -116,9 +117,9 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
 
       await commandInvoker.invoke({
         argv: argv,
-        command: BlockNodeCommand.COMMAND_NAME,
-        subcommand: 'node add',
-        // @ts-expect-error to access private property
+        command: BlockCommandDefinition.COMMAND_NAME,
+        subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: BlockCommandDefinition.NODE_ADD,
         callback: async (argv: {_: string[]} & Record<string, any>): Promise<boolean> => blockNodeCommand.add(argv),
       });
 
@@ -136,7 +137,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
         .list(namespace, Templates.renderBlockNodeLabels(1))
         .then((pods: Pod[]): Pod => pods[0]);
 
-      const srv: ExtendedNetServer = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
+      const srv: number = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
       const commandOptions: {cwd: string} = {cwd: './test/data'};
 
       // Make script executable
@@ -158,9 +159,9 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
 
       await commandInvoker.invoke({
         argv: argv,
-        command: BlockNodeCommand.COMMAND_NAME,
-        subcommand: 'node destroy',
-        // @ts-expect-error to access private property
+        command: BlockCommandDefinition.COMMAND_NAME,
+        subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: BlockCommandDefinition.NODE_DESTROY,
         callback: async (argv: {_: string[]} & Record<string, any>): Promise<boolean> => blockNodeCommand.destroy(argv),
       });
 

@@ -15,14 +15,13 @@ import {
   Status,
   TopicCreateTransaction,
   TopicMessageSubmitTransaction,
-} from '@hashgraph/sdk';
+} from '@hiero-ledger/sdk';
 import * as constants from '../../../src/core/constants.js';
 import * as version from '../../../version.js';
 import {endToEndTestSuite, getTestCluster, getTestLogger, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
 import {AccountCommand} from '../../../src/commands/account.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import {Duration} from '../../../src/core/time/duration.js';
-import {NodeCommand} from '../../../src/commands/node/index.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
@@ -37,6 +36,8 @@ import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
+import {LedgerCommandDefinition} from '../../../src/commands/command-definitions/ledger-command-definition.js';
+import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 
 const defaultTimeout = Duration.ofSeconds(20).toMillis();
 
@@ -105,13 +106,14 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
       }
     });
 
-    describe('account init command', () => {
+    describe('ledger system init command', () => {
       it('should succeed with init command', async () => {
         await commandInvoker.invoke({
           argv: argv,
-          command: AccountCommand.COMMAND_NAME,
-          subcommand: 'init',
-          callback: async argv => accountCmd.init(argv),
+          command: LedgerCommandDefinition.COMMAND_NAME,
+          subcommand: LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
+          action: LedgerCommandDefinition.SYSTEM_INIT,
+          callback: async (argv): Promise<boolean> => accountCmd.init(argv),
         });
       }).timeout(Duration.ofMinutes(8).toMillis());
 
@@ -171,7 +173,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
       });
     });
 
-    describe('account create/update command', () => {
+    describe('ledger account create/update command', () => {
       let accountId1: string, accountId2: string;
 
       it('should create account with no options', async () => {
@@ -180,9 +182,10 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
           await commandInvoker.invoke({
             argv: argv,
-            command: AccountCommand.COMMAND_NAME,
-            subcommand: 'create',
-            callback: async argv => accountCmd.create(argv),
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_CREATE,
+            callback: async (argv): Promise<boolean> => accountCmd.create(argv),
           });
 
           // @ts-expect-error - TS2341: to access private property
@@ -209,9 +212,10 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
           await commandInvoker.invoke({
             argv: argv,
-            command: AccountCommand.COMMAND_NAME,
-            subcommand: 'create',
-            callback: async argv => accountCmd.create(argv),
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_CREATE,
+            callback: async (argv): Promise<boolean> => accountCmd.create(argv),
           });
 
           // @ts-expect-error - TS2341: to access private property
@@ -235,9 +239,10 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
           await commandInvoker.invoke({
             argv: argv,
-            command: AccountCommand.COMMAND_NAME,
-            subcommand: 'update',
-            callback: async argv => accountCmd.update(argv),
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_UPDATE,
+            callback: async (argv): Promise<boolean> => accountCmd.update(argv),
           });
 
           // @ts-expect-error - TS2341: to access private property
@@ -261,9 +266,10 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
           await commandInvoker.invoke({
             argv: argv,
-            command: AccountCommand.COMMAND_NAME,
-            subcommand: 'update',
-            callback: async argv => accountCmd.update(argv),
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_UPDATE,
+            callback: async (argv): Promise<boolean> => accountCmd.update(argv),
           });
 
           // @ts-expect-error - TS2341: to access private property
@@ -285,9 +291,10 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
           await commandInvoker.invoke({
             argv: argv,
-            command: AccountCommand.COMMAND_NAME,
-            subcommand: 'get',
-            callback: async argv => accountCmd.get(argv),
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_INFO,
+            callback: async (argv): Promise<boolean> => accountCmd.get(argv),
           });
 
           // @ts-expect-error - TS2341: to access private property
@@ -309,9 +316,10 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
           await commandInvoker.invoke({
             argv: argv,
-            command: AccountCommand.COMMAND_NAME,
-            subcommand: 'get',
-            callback: async argv => accountCmd.get(argv),
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_INFO,
+            callback: async (argv): Promise<boolean> => accountCmd.get(argv),
           });
 
           // @ts-expect-error - TS2341: to access private property
@@ -336,9 +344,10 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
           await commandInvoker.invoke({
             argv: argv,
-            command: AccountCommand.COMMAND_NAME,
-            subcommand: 'create',
-            callback: async argv => accountCmd.create(argv),
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.ACCOUNT_CREATE,
+            callback: async (argv): Promise<boolean> => accountCmd.create(argv),
           });
 
           // @ts-expect-error - TS2341: to access private property
@@ -450,7 +459,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
           // using label `app=envoy-proxy-node1` to find Envoy proxy pod
           const envoyProxyPod = await k8Factory.default().pods().list(namespace, ['app=envoy-proxy-node1']);
           // enable portfroward of Envoy proxy pod
-          const portForward = await k8Factory
+          const portNumber = await k8Factory
             .default()
             .pods()
             .readByReference(envoyProxyPod[0].podReference)
@@ -477,8 +486,8 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
 
           expect(submitReceipt.status).to.deep.equal(Status.Success);
 
-          // disable portForward
-          portForward.close();
+          // stop port forwarding
+          await k8Factory.default().pods().readByReference(envoyProxyPod[0].podReference).stopPortForward(portNumber);
         } catch (error) {
           testLogger.showUserError(error);
         }
@@ -489,16 +498,18 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
         try {
           await commandInvoker.invoke({
             argv: argv,
-            command: NodeCommand.COMMAND_NAME,
-            subcommand: 'freeze',
-            callback: async argv => nodeCmd.handlers.freeze(argv),
+            command: ConsensusCommandDefinition.COMMAND_NAME,
+            subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+            action: ConsensusCommandDefinition.NETWORK_FREEZE,
+            callback: async (argv): Promise<boolean> => nodeCmd.handlers.freeze(argv),
           });
 
           await commandInvoker.invoke({
             argv: argv,
-            command: NodeCommand.COMMAND_NAME,
-            subcommand: 'restart',
-            callback: async argv => nodeCmd.handlers.restart(argv),
+            command: ConsensusCommandDefinition.COMMAND_NAME,
+            subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+            action: ConsensusCommandDefinition.NODE_RESTART,
+            callback: async (argv): Promise<boolean> => nodeCmd.handlers.restart(argv),
           });
         } catch (error) {
           testLogger.showUserError(error);

@@ -8,7 +8,7 @@ import {ComponentTypes} from './enumerations/component-types.js';
 import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
 import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {type NodeId} from '../../../types/aliases.js';
-import {type ClusterReferenceName, type ComponentId} from '../../../types/index.js';
+import {type ClusterReferenceName, type ComponentId, portForwardConfig} from '../../../types/index.js';
 import {type RemoteConfigRuntimeStateApi} from '../../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {type ComponentFactoryApi} from './api/component-factory-api.js';
 import {ComponentStateMetadataSchema} from '../../../data/schema/model/remote/state/component-state-metadata-schema.js';
@@ -77,12 +77,14 @@ export class ComponentFactory implements ComponentFactoryApi {
     clusterReference: ClusterReferenceName,
     namespace: NamespaceName,
     phase: DeploymentPhase.REQUESTED | DeploymentPhase.STARTED,
+    portForwardConfigs?: portForwardConfig[],
   ): ConsensusNodeStateSchema {
     const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(
       id,
       namespace.name,
       clusterReference,
       phase,
+      portForwardConfigs,
     );
 
     return new ConsensusNodeStateSchema(metadata);
@@ -92,6 +94,7 @@ export class ComponentFactory implements ComponentFactoryApi {
     nodeIds: NodeId[],
     clusterReference: ClusterReferenceName,
     namespace: NamespaceName,
+    portForwardConfigs?: portForwardConfig[],
   ): ConsensusNodeStateSchema[] {
     return nodeIds.map(
       (nodeId: NodeId): ConsensusNodeStateSchema =>
@@ -100,6 +103,7 @@ export class ComponentFactory implements ComponentFactoryApi {
           clusterReference,
           namespace,
           DeploymentPhase.REQUESTED,
+          portForwardConfigs,
         ),
     );
   }

@@ -42,7 +42,7 @@ describe('LeaseRenewalService', async () => {
     expect(lease.scheduleId).to.not.be.null;
     expect(await renewalService.isScheduled(lease.scheduleId)).to.be.true;
 
-    await lease.release();
+    await lease?.release();
     expect(lease.scheduleId).to.be.null;
     expect(await renewalService.isScheduled(lease.scheduleId)).to.be.false;
   });
@@ -75,7 +75,7 @@ describe('LeaseRenewalService', async () => {
     const renewTime = new Date(remoteObject?.renewTime).valueOf();
     expect(renewTime).to.be.greaterThan(acquireTime);
 
-    await lease.release();
+    await lease?.release();
     expect(await renewalService.isScheduled(lease.scheduleId)).to.be.false;
     expect(lease.scheduleId).to.be.null;
   });
@@ -107,7 +107,7 @@ describe('LeaseRenewalService', async () => {
     expect(remoteObject).to.not.be.null;
     expect(remoteObject?.renewTime).to.be.undefined;
 
-    await lease.release();
+    await lease?.release();
     expect(await renewalService.isScheduled(lease.scheduleId)).to.be.false;
     // expect(lease.scheduleId).to.be.null
   });

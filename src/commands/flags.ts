@@ -116,8 +116,11 @@ export class Flags {
    *
    */
   public static setRequiredCommandFlags(y: AnyYargs, ...commandFlags: CommandFlag[]) {
+    // Check if help is being requested to avoid enforcing required flags
+    const isHelpRequested = process.argv.includes('--help') || process.argv.includes('-h');
+
     for (const flag of commandFlags) {
-      y.option(flag.name, {...flag.definition, demandOption: true});
+      y.option(flag.name, {...flag.definition, demandOption: !isHelpRequested});
     }
   }
 
@@ -1582,7 +1585,7 @@ export class Flags {
     constName: 'persistentVolumeClaims',
     name: 'pvcs',
     definition: {
-      describe: 'Enable persistent volume claims to store data outside the pod, required for node add',
+      describe: 'Enable persistent volume claims to store data outside the pod, required for consensus node add',
       defaultValue: false,
       type: 'boolean',
     },

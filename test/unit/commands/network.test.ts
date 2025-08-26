@@ -204,6 +204,7 @@ describe('NetworkCommand unit tests', () => {
 
       options.remoteConfig.configuration = {
         components: {changeNodePhase: sinon.stub(), getNewComponentId: sinon.stub(), addNewComponent: sinon.stub()},
+        versions: {consensusNode: '0.0.0'},
       };
 
       await options.localConfig.load();
@@ -268,7 +269,6 @@ describe('NetworkCommand unit tests', () => {
           createNewHaProxyComponent: sinon.stub(),
         };
 
-        // @ts-expect-error - TS2341: to access private property
         await networkCommand.deploy(argv.build());
         expect(options.chartManager.upgrade.args[0][0].name).to.equal('solo-e2e');
         expect(options.chartManager.upgrade.args[0][1]).to.equal(constants.SOLO_DEPLOYMENT_CHART);

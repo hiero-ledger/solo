@@ -131,25 +131,30 @@ flags may be specified at any level of the command hierarchy.
 
 ### Final Vision
 
-| Group       | Resource                | Operation(s)                                                                                                                    |
-|-------------|-------------------------|---------------------------------------------------------------------------------------------------------------------------------|
-| block       | node                    | < list | info | logs | add | upgrade | destroy >                                                       |
-| cluster-ref | config                  | < list | info | connect | disconnect >                                                                           |
-| consensus   | network                 | < info | deploy | freeze | upgrade | destroy >                                                              |
-| consensus   | node                    | < list | info | logs | add | update | destroy | start | stop | restart | refresh > |
-| consensus   | state                   | < list | download | upload >                                                                                          |
-| consensus   | diagnostic              | < logs | configs | all >                                                                                              |
-| deployment  | config                  | < list | info | create | delete | import >                                                                  |
-| deployment  | cluster                 | < list | info | attach | detach >                                                                                |
-| deployment  | state                   | < info | destroy >                                                                                                         |
-| explorer    | node                    | < list | info | logs | add | upgrade | destroy >                                                       |
-| keys        | consensus               | < generate >                                                                                                                    |
-| ledger      | system                  | < init | accounts-rekey | staking-setup >                                                                             |
-| ledger      | account                 | < list | info | create | update | delete | import >                                                    |
-| ledger      | crypto                  | < transfer | balance >                                                                                                     |
-| mirror      | node                    | < list | info | logs | add | upgrade | destroy >                                                       |
-| relay       | node                    | < list | info | logs | add | upgrade | destroy >                                                       |
-| quick-start | < single | multi > | < info | deploy | destroy >                                                                                           |
+| Group       | Resource               | Operation(s)                                                                                                           |
+|-------------|------------------------|------------------------------------------------------------------------------------------------------------------------|
+| block       | node                   | < list &amp; info &amp; logs &amp; add &amp; upgrade &amp; destroy >                                                   |
+| cluster-ref | config                 | < list &amp; info &amp; connect &amp; disconnect >                                                                     |
+| consensus   | network                | < info &amp; deploy &amp; freeze &amp; upgrade &amp; destroy >                                                         |
+| consensus   | node                   | < list &amp; info &amp; logs &amp; add &amp; update &amp; destroy &amp; start &amp; stop &amp; restart &amp; refresh > |
+| consensus   | state                  | < list &amp; download &amp; upload >                                                                                   |
+| consensus   | diagnostic             | < logs &amp; configs &amp; all >                                                                                       |
+| consensus   | dev-node-add           | < prepare &amp; submit-transactions &amp; execute >                                                                    |
+| consensus   | dev-node-update        | < prepare &amp; submit-transactions &amp; execute >                                                                    |
+| consensus   | dev-node-upgrade       | < prepare &amp; submit-transactions &amp; execute >                                                                    |
+| consensus   | dev-node-delete        | < prepare &amp; submit-transactions &amp; execute >                                                                    |
+| consensus   | dev-freeze             | < prepare-upgrade &amp; freeze-upgrade >                                                                               |
+| deployment  | config                 | < list &amp; info &amp; create &amp; delete &amp; import >                                                             |
+| deployment  | cluster                | < list &amp; info &amp; attach &amp; detach >                                                                          |
+| deployment  | state                  | < info &amp; destroy >                                                                                                 |
+| explorer    | node                   | < list &amp; info &amp; logs &amp; add &amp; upgrade &amp; destroy >                                                   |
+| keys        | consensus              | < generate >                                                                                                           |
+| ledger      | system                 | < init &amp; accounts-rekey &amp; staking-setup >                                                                      |
+| ledger      | account                | < list &amp; info &amp; create &amp; update &amp; delete &amp; import >                                                |
+| ledger      | crypto                 | < transfer &amp; balance >                                                                                             |
+| mirror      | node                   | < list &amp; info &amp; logs &amp; add &amp; upgrade &amp; destroy >                                                   |
+| relay       | node                   | < list &amp; info &amp; logs &amp; add &amp; upgrade &amp; destroy >                                                   |
+| quick-start | < single &amp; multi > | < info &amp; deploy &amp; destroy >                                                                                    |
 
 #### Example Commands
 
@@ -381,13 +386,13 @@ operations associated with each resource.
 
 #### Network
 
-| Operation Name | Command Syntax | Description |
-|----------------|----------------|-------------|
+| Operation Name | Command Syntax | Description                                                               |
+|----------------|----------------|---------------------------------------------------------------------------|
 | **Info**       | `info`         | Displays overall status and health information for the consensus network. |
-| **Deploy**     | `deploy`       | Installs and configures all consensus nodes for the deployment. |
-| **Freeze**     | `freeze`       | Initiates a network freeze for scheduled maintenance or upgrades. |
-| **Upgrade**    | `upgrade`      | Upgrades the software version running on all consensus nodes. |
-| **Destroy**    | `destroy`      | Removes all consensus network components from the deployment. |
+| **Deploy**     | `deploy`       | Installs and configures all consensus nodes for the deployment.           |
+| **Freeze**     | `freeze`       | Initiates a network freeze for scheduled maintenance or upgrades.         |
+| **Upgrade**    | `upgrade`      | Upgrades the software version running on all consensus nodes.             |
+| **Destroy**    | `destroy`      | Removes all consensus network components from the deployment.             |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -395,18 +400,18 @@ operations associated with each resource.
 
 #### Node
 
-| Operation Name | Command Syntax | Description |
-|----------------|----------------|-------------|
-| **List**       | `list`         | Lists all configured consensus nodes in the deployment. |
+| Operation Name | Command Syntax | Description                                                    |
+|----------------|----------------|----------------------------------------------------------------|
+| **List**       | `list`         | Lists all configured consensus nodes in the deployment.        |
 | **Info**       | `info`         | Displays detailed information about a specific consensus node. |
-| **Logs**       | `logs`         | Shows logs for the specified consensus node. |
-| **Add**        | `add`          | Adds and configures a new consensus node to the deployment. |
-| **Update**     | `update`       | Updates the configuration of an existing consensus node. |
-| **Destroy**    | `destroy`      | Removes the specified consensus node from the deployment. |
-| **Start**      | `start`        | Starts the consensus node service. |
-| **Stop**       | `stop`         | Stops the consensus node service. |
-| **Restart**    | `restart`      | Restarts the consensus node service. |
-| **Refresh**    | `refresh`      | Refreshes the node configuration and restarts services. |
+| **Logs**       | `logs`         | Shows logs for the specified consensus node.                   |
+| **Add**        | `add`          | Adds and configures a new consensus node to the deployment.    |
+| **Update**     | `update`       | Updates the configuration of an existing consensus node.       |
+| **Destroy**    | `destroy`      | Removes the specified consensus node from the deployment.      |
+| **Start**      | `start`        | Starts the consensus node service.                             |
+| **Stop**       | `stop`         | Stops the consensus node service.                              |
+| **Restart**    | `restart`      | Restarts the consensus node service.                           |
+| **Refresh**    | `refresh`      | Refreshes the node configuration and restarts services.        |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -414,11 +419,11 @@ operations associated with each resource.
 
 #### State
 
-| Operation Name | Command Syntax | Description |
-|----------------|----------------|-------------|
+| Operation Name | Command Syntax | Description                                         |
+|----------------|----------------|-----------------------------------------------------|
 | **List**       | `list`         | Lists available state backups from consensus nodes. |
-| **Download**   | `download`     | Downloads a signed state from a consensus node. |
-| **Upload**     | `upload`       | Uploads a signed state to a consensus node. |
+| **Download**   | `download`     | Downloads a signed state from a consensus node.     |
+| **Upload**     | `upload`       | Uploads a signed state to a consensus node.         |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -426,10 +431,10 @@ operations associated with each resource.
 
 #### Diagnostic
 
-| Operation Name | Command Syntax | Description |
-|----------------|----------------|-------------|
-| **Logs**       | `logs`         | Collects logs from consensus nodes in the deployment. |
-| **Configs**    | `configs`      | Collects configuration files from consensus nodes. |
+| Operation Name | Command Syntax | Description                                                                |
+|----------------|----------------|----------------------------------------------------------------------------|
+| **Logs**       | `logs`         | Collects logs from consensus nodes in the deployment.                      |
+| **Configs**    | `configs`      | Collects configuration files from consensus nodes.                         |
 | **All**        | `all`          | Captures logs, configs, and diagnostic artifacts from all consensus nodes. |
 
 <p align="right">
@@ -440,11 +445,11 @@ operations associated with each resource.
 
 #### Cluster
 
-| Operation Name | Command Syntax | Description |
-|----------------|----------------|-------------|
-| **List**       | `list`         | Lists clusters associated with a deployment. |
-| **Info**       | `info`         | Shows detailed information about a cluster. |
-| **Attach**     | `attach`       | Attaches a cluster reference to a deployment. |
+| Operation Name | Command Syntax | Description                                     |
+|----------------|----------------|-------------------------------------------------|
+| **List**       | `list`         | Lists clusters associated with a deployment.    |
+| **Info**       | `info`         | Shows detailed information about a cluster.     |
+| **Attach**     | `attach`       | Attaches a cluster reference to a deployment.   |
 | **Detach**     | `detach`       | Detaches a cluster reference from a deployment. |
 
 <p align="right">
@@ -453,13 +458,13 @@ operations associated with each resource.
 
 #### Config
 
-| Operation Name | Command Syntax | Description |
-|----------------|----------------|-------------|
-| **List**       | `list`         | Lists all local deployment configurations. |
+| Operation Name | Command Syntax | Description                                                 |
+|----------------|----------------|-------------------------------------------------------------|
+| **List**       | `list`         | Lists all local deployment configurations.                  |
 | **Info**       | `info`         | Displays metadata and state information about a deployment. |
-| **Create**     | `create`       | Creates a new local deployment configuration. |
-| **Delete**     | `delete`       | Removes a local deployment configuration. |
-| **Import**     | `import`       | Imports deployment config from a file. |
+| **Create**     | `create`       | Creates a new local deployment configuration.               |
+| **Delete**     | `delete`       | Removes a local deployment configuration.                   |
+| **Import**     | `import`       | Imports deployment config from a file.                      |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -467,9 +472,9 @@ operations associated with each resource.
 
 #### State
 
-| Operation Name | Command Syntax | Description |
-|----------------|----------------|-------------|
-| **Info**       | `info`         | Shows the live state of a deployment across all clusters. |
+| Operation Name | Command Syntax | Description                                                        |
+|----------------|----------------|--------------------------------------------------------------------|
+| **Info**       | `info`         | Shows the live state of a deployment across all clusters.          |
 | **Destroy**    | `destroy`      | Removes all components of a deployment including remote resources. |
 
 <p align="right">
@@ -480,14 +485,14 @@ operations associated with each resource.
 
 #### Node
 
-| Operation Name | Command Syntax | Description |
-|----------------|----------------|-------------|
-| **List**       | `list`         | Lists all nodes of the given type in the deployment. |
+| Operation Name | Command Syntax | Description                                              |
+|----------------|----------------|----------------------------------------------------------|
+| **List**       | `list`         | Lists all nodes of the given type in the deployment.     |
 | **Info**       | `info`         | Shows detailed information for a specific node instance. |
-| **Logs**       | `logs`         | Displays logs from the specified node instance. |
-| **Add**        | `add`          | Adds and configures a new node instance. |
-| **Upgrade**    | `upgrade`      | Upgrades the node software to a new version. |
-| **Destroy**    | `destroy`      | Deletes the specified node from the deployment. |
+| **Logs**       | `logs`         | Displays logs from the specified node instance.          |
+| **Add**        | `add`          | Adds and configures a new node instance.                 |
+| **Upgrade**    | `upgrade`      | Upgrades the node software to a new version.             |
+| **Destroy**    | `destroy`      | Deletes the specified node from the deployment.          |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -497,8 +502,8 @@ operations associated with each resource.
 
 #### Consensus
 
-| Operation Name | Command Syntax | Description |
-|----------------|----------------|-------------|
+| Operation Name | Command Syntax | Description                                                   |
+|----------------|----------------|---------------------------------------------------------------|
 | **Generate**   | `generate`     | Generates TLS keys required for consensus node communication. |
 
 <p align="right">
@@ -509,11 +514,11 @@ operations associated with each resource.
 
 #### System
 
-| Operation Name     | Command Syntax   | Description |
-|--------------------|------------------|-------------|
-| **Init**           | `init`           | Rekeys system accounts and stake consensus nodes. |
+| Operation Name     | Command Syntax   | Description                                        |
+|--------------------|------------------|----------------------------------------------------|
+| **Init**           | `init`           | Rekeys system accounts and stake consensus nodes.  |
 | **Accounts Rekey** | `accounts-rekey` | Rekeys system accounts using newly generated keys. |
-| **Staking Setup**  | `staking-setup`  | Stake consensus nodes. |
+| **Staking Setup**  | `staking-setup`  | Stake consensus nodes.                             |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -521,14 +526,14 @@ operations associated with each resource.
 
 #### Account
 
-| Operation Name | Command Syntax | Description |
-|----------------|----------------|-------------|
-| **List**       | `list`         | Lists all ledger accounts. |
+| Operation Name | Command Syntax | Description                                  |
+|----------------|----------------|----------------------------------------------|
+| **List**       | `list`         | Lists all ledger accounts.                   |
 | **Info**       | `info`         | Displays information for a specific account. |
-| **Create**     | `create`       | Creates a new ledger account. |
-| **Update**     | `update`       | Updates an existing ledger account. |
-| **Delete**     | `delete`       | Deletes a ledger account. |
-| **Import**     | `import`       | Imports account configuration from a file. |
+| **Create**     | `create`       | Creates a new ledger account.                |
+| **Update**     | `update`       | Updates an existing ledger account.          |
+| **Delete**     | `delete`       | Deletes a ledger account.                    |
+| **Import**     | `import`       | Imports account configuration from a file.   |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -536,9 +541,9 @@ operations associated with each resource.
 
 #### Crypto
 
-| Operation Name | Command Syntax | Description |
-|----------------|----------------|-------------|
-| **Transfer**   | `transfer`     | Transfers HBAR between accounts. |
+| Operation Name | Command Syntax | Description                              |
+|----------------|----------------|------------------------------------------|
+| **Transfer**   | `transfer`     | Transfers HBAR between accounts.         |
 | **Balance**    | `balance`      | Displays the HBAR balance of an account. |
 
 <p align="right">
@@ -549,14 +554,14 @@ operations associated with each resource.
 
 #### Node
 
-| Operation Name | Command Syntax | Description |
-|----------------|----------------|-------------|
-| **List**       | `list`         | Lists all nodes of the given type in the deployment. |
+| Operation Name | Command Syntax | Description                                              |
+|----------------|----------------|----------------------------------------------------------|
+| **List**       | `list`         | Lists all nodes of the given type in the deployment.     |
 | **Info**       | `info`         | Shows detailed information for a specific node instance. |
-| **Logs**       | `logs`         | Displays logs from the specified node instance. |
-| **Add**        | `add`          | Adds and configures a new node instance. |
-| **Upgrade**    | `upgrade`      | Upgrades the node software to a new version. |
-| **Destroy**    | `destroy`      |  Deletes the specified node from the deployment. |
+| **Logs**       | `logs`         | Displays logs from the specified node instance.          |
+| **Add**        | `add`          | Adds and configures a new node instance.                 |
+| **Upgrade**    | `upgrade`      | Upgrades the node software to a new version.             |
+| **Destroy**    | `destroy`      | Deletes the specified node from the deployment.          |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -566,14 +571,14 @@ operations associated with each resource.
 
 #### Node
 
-| Operation Name | Command Syntax | Description |
-|----------------|----------------|-------------|
-| **List**       | `list`         | Lists all nodes of the given type in the deployment. |
+| Operation Name | Command Syntax | Description                                              |
+|----------------|----------------|----------------------------------------------------------|
+| **List**       | `list`         | Lists all nodes of the given type in the deployment.     |
 | **Info**       | `info`         | Shows detailed information for a specific node instance. |
-| **Logs**       | `logs`         | Displays logs from the specified node instance. |
-| **Add**        | `add`          | Adds and configures a new node instance. |
-| **Upgrade**    | `upgrade`      | Upgrades the node software to a new version. |
-| **Destroy**    | `destroy`      | Deletes the specified node from the deployment. |
+| **Logs**       | `logs`         | Displays logs from the specified node instance.          |
+| **Add**        | `add`          | Adds and configures a new node instance.                 |
+| **Upgrade**    | `upgrade`      | Upgrades the node software to a new version.             |
+| **Destroy**    | `destroy`      | Deletes the specified node from the deployment.          |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -583,11 +588,11 @@ operations associated with each resource.
 
 #### EVM
 
-| Operation Name | Command Syntax | Description |
-|----------------|----------------|-------------|
-| **Info**       | `info`         | Displays details of the quick start configuration.            |
-| **Deploy**     | `deploy`       | Deploys all required components for the selected quick start configuration.            |
-| **Destroy**    | `destroy`      | Removes the deployed resources for the selected quick start configuration.            |
+| Operation Name | Command Syntax | Description                                                                 |
+|----------------|----------------|-----------------------------------------------------------------------------|
+| **Info**       | `info`         | Displays details of the quick start configuration.                          |
+| **Deploy**     | `deploy`       | Deploys all required components for the selected quick start configuration. |
+| **Destroy**    | `destroy`      | Removes the deployed resources for the selected quick start configuration.  |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -595,11 +600,11 @@ operations associated with each resource.
 
 #### Single
 
-| Operation Name | Command Syntax | Description |
-|----------------|----------------|-------------|
-| **Info**       | `info`         | Displays details of the quick start configuration. |
+| Operation Name | Command Syntax | Description                                                                 |
+|----------------|----------------|-----------------------------------------------------------------------------|
+| **Info**       | `info`         | Displays details of the quick start configuration.                          |
 | **Deploy**     | `deploy`       | Deploys all required components for the selected quick start configuration. |
-| **Destroy**    | `destroy`      | Removes the deployed resources for the selected quick start configuration. |
+| **Destroy**    | `destroy`      | Removes the deployed resources for the selected quick start configuration.  |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -607,11 +612,11 @@ operations associated with each resource.
 
 #### Multi
 
-| Operation Name | Command Syntax | Description |
-|----------------|----------------|-------------|
-| **Info**       | `info`         | Displays details of the quick start configuration. |
+| Operation Name | Command Syntax | Description                                                                 |
+|----------------|----------------|-----------------------------------------------------------------------------|
+| **Info**       | `info`         | Displays details of the quick start configuration.                          |
 | **Deploy**     | `deploy`       | Deploys all required components for the selected quick start configuration. |
-| **Destroy**    | `destroy`      | Removes the deployed resources for the selected quick start configuration. |
+| **Destroy**    | `destroy`      | Removes the deployed resources for the selected quick start configuration.  |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -775,9 +780,10 @@ solo cluster-ref config info --cluster-ref <name>
 
 ###### Flags
 
-| Flag            | Type   | Required | Valid Values                                  | Default Value | Description                                                                                               |\
+| Flag | Type | Required | Valid Values | Default Value | Description |\
 |-----------------|--------|----------|-----------------------------------------------|---------------|-----------------------------------------------------------------------------------------------------------|
-| `--cluster-ref` | string | Yes      | Any string matching the regex: `[a-z0-9\-_]+` |               | The name of an existing cluster reference which was created via the "cluster-ref config connect" command. |
+| `--cluster-ref` | string | Yes | Any string matching the regex: `[a-z0-9\-_]+` | | The name of an existing cluster
+reference which was created via the "cluster-ref config connect" command. |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
