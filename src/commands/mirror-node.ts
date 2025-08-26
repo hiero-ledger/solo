@@ -13,14 +13,13 @@ import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
-import {type AnyListrContext, type AnyYargs, type ArgvStruct} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import * as fs from 'node:fs';
 import {
   type ClusterReferenceName,
   type ClusterReferences,
-  type CommandDefinition,
   type ComponentId,
   type Context,
   type DeploymentName,
@@ -1108,11 +1107,7 @@ export class MirrorNodeCommand extends BaseCommand {
       id = this.remoteConfig.configuration.components.state.mirrorNodes[0]?.metadata?.id;
     }
 
-    const isLegacyChartInstalled: boolean = await this.checkIfLegacyChartIsInstalled(
-      id,
-      namespace,
-      context,
-    );
+    const isLegacyChartInstalled: boolean = await this.checkIfLegacyChartIsInstalled(id, namespace, context);
 
     if (isLegacyChartInstalled) {
       return {

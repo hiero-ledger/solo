@@ -9,7 +9,6 @@ import chalk from 'chalk';
 import {type ClusterCommandTasks} from './cluster/tasks.js';
 import {
   type ClusterReferenceName,
-  type CommandDefinition,
   type Context,
   type DeploymentName,
   type NamespaceNameAsString,
@@ -22,7 +21,7 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterChecks} from '../core/cluster-checks.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
-import {type AnyYargs, type ArgvStruct, type NodeAliases} from '../types/aliases.js';
+import {type ArgvStruct, type NodeAliases} from '../types/aliases.js';
 import {Templates} from '../core/templates.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
@@ -57,9 +56,7 @@ export interface DeploymentAddClusterContext {
 
 @injectable()
 export class DeploymentCommand extends BaseCommand {
-  public constructor(
-    @inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks,
-  ) {
+  public constructor(@inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks) {
     super();
 
     this.tasks = patchInject(tasks, InjectTokens.ClusterCommandTasks, this.constructor.name);
