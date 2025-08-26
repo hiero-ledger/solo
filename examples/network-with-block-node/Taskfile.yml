@@ -10,8 +10,8 @@ vars:
   DEPLOYMENT: "deployment-network-with-block-node"
   NAMESPACE: "namespace-network-with-block-node"
   CLUSTER_NAME: "solo-cluster"
-  CONTEXT: "kind-solo-e2e-c1"
-  CLUSTER_REFERENCE: "kind-solo-e2e-c1"
+  CONTEXT: "kind-solo-cluster"
+  CLUSTER_REFERENCE: "kind-solo-cluster"
 tasks:
   default:
     desc: Run a full standalone Solo network with block node, mirror node, and relay
