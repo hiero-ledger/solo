@@ -17,16 +17,16 @@ tasks:
     desc: Run a full standalone Solo network with block node, mirror node, and relay
     cmds:
       # Install Solo CLI
-#      - cmd: npm i @hashgraph/solo@latest
+      - cmd: npm i @hashgraph/solo@latest
 
       # Create Kind cluster
-#      - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
+      - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
 
       # Wait for control plane
-#      - cmd: sleep 10 # wait for control plane to come up
+      - cmd: sleep 10 # wait for control plane to come up
 
       # Set kubectl context
-#      - cmd: kubectl config set-context {{ .CONTEXT }}
+      - cmd: kubectl config set-context {{ .CONTEXT }}
 
       # Solo init
       - cmd: npm run solo -- init
