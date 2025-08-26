@@ -213,7 +213,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     );
 
     const remoteConfig: RemoteConfigSchema = new RemoteConfigSchema(
-      2,
+      3,
       new RemoteConfigMetadataSchema(new Date(), userIdentity),
       new ApplicationVersionsSchema(cliVersion),
       [cluster],
