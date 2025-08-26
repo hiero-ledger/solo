@@ -13,6 +13,7 @@ import {ListrLock} from '../core/lock/listr-lock.js';
 import {
   type ClusterReferenceName,
   type ComponentId,
+  Context,
   type DeploymentName,
   type Optional,
   type SoloListrTask,
@@ -36,6 +37,7 @@ import {K8} from '../integration/kube/k8.js';
 import {BLOCK_NODE_IMAGE_NAME} from '../core/constants.js';
 import {Version} from '../business/utils/version.js';
 import {MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT} from '../../version.js';
+import {config} from 'chai';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -172,9 +174,15 @@ export class BlockNodeCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private getReleaseName(id?: number): string {
-    if (!id) {
-      id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.BlockNode);
+  private getReleaseName(): string {
+    return this.renderReleaseName(
+      this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.BlockNode),
+    );
+  }
+
+  private renderReleaseName(id: ComponentId): string {
+    if (typeof id !== 'number') {
+      throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
     }
     return `${constants.BLOCK_NODE_RELEASE_NAME}-${id}`;
   }
@@ -222,15 +230,10 @@ export class BlockNodeCommand extends BaseCommand {
               );
             }
 
-            config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
-
+            config.namespace = await this.getNamespace(task);
             config.nodeAliases = this.remoteConfig.getConsensusNodes().map((node): NodeAlias => node.name);
-
-            if (!config.clusterRef) {
-              config.clusterRef = this.k8Factory.default().clusters().readCurrent();
-            }
-
-            config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
+            config.clusterRef = this.getClusterReference();
+            config.context = this.getClusterContext(config.clusterRef);
 
             const currentBlockNodeVersion: SemVer = new SemVer(config.chartVersion);
             if (
@@ -408,43 +411,22 @@ export class BlockNodeCommand extends BaseCommand {
 
             context_.config = config;
 
-            config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+            config.namespace = await this.getNamespace(task);
+            config.clusterRef = this.getClusterReference();
+            config.context = this.getClusterContext(config.clusterRef);
 
-            if (!config.clusterRef) {
-              config.clusterRef = this.k8Factory.default().clusters().readCurrent();
-            }
+            const {id, releaseName, isChartInstalled, isLegacyChartInstalled} = await this.inferDestroyData(
+              config.id,
+              config.namespace,
+              config.context,
+            );
 
-            config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
+            config.id = id;
+            config.releaseName = releaseName;
+            config.isChartInstalled = isChartInstalled;
+            config.isLegacyChartInstalled = isLegacyChartInstalled;
 
-            // Use fallback if id not provided
-            if (typeof config.id !== 'number') {
-              if (this.remoteConfig.configuration.components.state.blockNodes.length === 0) {
-                throw new SoloError('Block node not found in remote config');
-              }
-
-              config.id = this.remoteConfig.configuration.components.state.blockNodes[0].metadata.id;
-            }
-
-            config.isLegacyChartInstalled =
-              config.id <= 1
-                ? await this.chartManager.isChartInstalled(
-                    config.namespace,
-                    `${constants.BLOCK_NODE_RELEASE_NAME}-0`,
-                    config.context,
-                  )
-                : false;
-
-            if (config.isLegacyChartInstalled) {
-              config.isChartInstalled = true;
-              config.releaseName = `${constants.BLOCK_NODE_RELEASE_NAME}-0`;
-            } else {
-              config.releaseName = this.getReleaseName(config.id);
-              config.isChartInstalled = await this.chartManager.isChartInstalled(
-                config.namespace,
-                config.releaseName,
-                config.context,
-              );
-            }
+            await this.throwIfNamespaceIsMissing(config.context, config.namespace);
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
@@ -529,7 +511,7 @@ export class BlockNodeCommand extends BaseCommand {
 
             config.releaseName = config.isLegacyChartInstalled
               ? `${constants.BLOCK_NODE_RELEASE_NAME}-0`
-              : this.getReleaseName(config.id);
+              : this.renderReleaseName(config.id);
 
             config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
 
@@ -748,4 +730,57 @@ export class BlockNodeCommand extends BaseCommand {
   }
 
   public async close(): Promise<void> {} // no-op
+
+  private inferBlockNodeId(id: Optional<ComponentId>): ComponentId {
+    if (typeof id === 'number') {
+      return id;
+    }
+
+    if (this.remoteConfig.configuration.components.state.blockNodes.length === 0) {
+      throw new SoloError('Block node not found in remote config');
+    }
+
+    return this.remoteConfig.configuration.components.state.blockNodes[0].metadata.id;
+  }
+
+  private async checkIfLegacyChartIsInstalled(
+    id: ComponentId,
+    namespace: NamespaceName,
+    context: Context,
+  ): Promise<boolean> {
+    return id <= 1
+      ? await this.chartManager.isChartInstalled(namespace, `${constants.BLOCK_NODE_RELEASE_NAME}-0`, context)
+      : false;
+  }
+
+  private async inferDestroyData(
+    id: ComponentId,
+    namespace: NamespaceName,
+    context: Context,
+  ): Promise<{
+    id: ComponentId;
+    releaseName: string;
+    isChartInstalled: boolean;
+    isLegacyChartInstalled: boolean;
+  }> {
+    id = this.inferBlockNodeId(id);
+    const isLegacyChartInstalled: boolean = await this.checkIfLegacyChartIsInstalled(id, namespace, context);
+
+    if (isLegacyChartInstalled) {
+      return {
+        id,
+        releaseName: `${constants.BLOCK_NODE_RELEASE_NAME}-0`,
+        isChartInstalled: true,
+        isLegacyChartInstalled,
+      };
+    }
+
+    const releaseName: string = this.renderReleaseName(id);
+    return {
+      id,
+      releaseName,
+      isChartInstalled: await this.chartManager.isChartInstalled(namespace, releaseName, context),
+      isLegacyChartInstalled,
+    };
+  }
 }

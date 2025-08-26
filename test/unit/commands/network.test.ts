@@ -237,7 +237,6 @@ describe('NetworkCommand unit tests', () => {
           createNewHaProxyComponent: sinon.stub(),
         };
 
-        // @ts-expect-error - TS2341: to access private property
         await networkCommand.deploy(argv.build());
 
         expect(options.chartManager.upgrade.args[0][0].name).to.equal('solo-e2e');

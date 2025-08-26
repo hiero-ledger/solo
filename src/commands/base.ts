@@ -11,8 +11,8 @@ import {type HelmClient} from '../integration/helm/helm-client.js';
 import {type LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import * as constants from '../core/constants.js';
 import fs from 'node:fs';
-import {type ClusterReferenceName, type ClusterReferences} from '../types/index.js';
-import {Flags} from './flags.js';
+import {type ClusterReferenceName, type ClusterReferences, Context, SoloListrTaskWrapper} from '../types/index.js';
+import {Flags as flags, Flags} from './flags.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {inject} from 'tsyringe-neo';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
@@ -21,6 +21,9 @@ import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/re
 import {type TaskList} from '../core/task-list/task-list.js';
 import {ListrContext, ListrRendererValue} from 'listr2';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
+import {AnyListrContext} from '../types/aliases.js';
+import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 
 export abstract class BaseCommand extends ShellRunner {
   public constructor(
@@ -233,12 +236,23 @@ export abstract class BaseCommand extends ShellRunner {
     return directories;
   }
 
-  public setupHomeDirectoryTask() {
-    return {
-      tile: 'Setup home directory',
-      task: async () => {
-        this.setupHomeDirectory();
-      },
-    };
+  protected getClusterReference(): ClusterReferenceName {
+    return this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
+  }
+
+  protected getClusterContext(clusterReference: ClusterReferenceName): Context {
+    return clusterReference
+      ? this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString()
+      : this.k8Factory.default().contexts().readCurrent();
+  }
+
+  protected getNamespace(task: SoloListrTaskWrapper<AnyListrContext>): Promise<NamespaceName> {
+    return resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+  }
+
+  protected async throwIfNamespaceIsMissing(context: Context, namespace: NamespaceName): Promise<void> {
+    if (!(await this.k8Factory.getK8(context).namespaces().has(namespace))) {
+      throw new SoloError(`namespace ${namespace} does not exist`);
+    }
   }
 }

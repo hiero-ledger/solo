@@ -14,14 +14,12 @@ import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner, sleep} from '../core/helpers.js';
 import {
   type ClusterReferenceName,
-  type CommandDefinition,
   type ComponentId,
   type Context,
   type Optional,
   type SoloListr,
   type SoloListrTask,
 } from '../types/index.js';
-import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterChecks} from '../core/cluster-checks.js';
 import {inject, injectable} from 'tsyringe-neo';
@@ -215,16 +213,28 @@ export class ExplorerCommand extends BaseCommand {
     return valuesArgument;
   }
 
-  private getReleaseName(id?: ComponentId): string {
-    if (!id) {
-      id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.Explorer);
+  private getReleaseName(): string {
+    return this.renderReleaseName(
+      this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.Explorer),
+    );
+  }
+
+  private getIngressReleaseName(): string {
+    return this.renderIngressReleaseName(
+      this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.Explorer),
+    );
+  }
+
+  private renderReleaseName(id: ComponentId): string {
+    if (typeof id !== 'number') {
+      throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
     }
     return `${constants.EXPLORER_RELEASE_NAME}-${id}`;
   }
 
-  private getIngressReleaseName(id?: ComponentId): string {
-    if (!id) {
-      id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.Explorer);
+  private renderIngressReleaseName(id: ComponentId): string {
+    if (typeof id !== 'number') {
+      throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
     }
     return `${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}-${id}`;
   }
@@ -232,7 +242,7 @@ export class ExplorerCommand extends BaseCommand {
   public async add(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
-    const tasks = this.taskList.newTaskList<ExplorerDeployContext>(
+    const tasks: SoloListr<ExplorerDeployContext> = this.taskList.newTaskList<ExplorerDeployContext>(
       [
         {
           title: 'Initialize',
@@ -260,42 +270,16 @@ export class ExplorerCommand extends BaseCommand {
 
             context_.config = config;
 
-            config.valuesArg += await this.prepareValuesArg(context_.config);
-            config.clusterRef =
-              this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
-
-            config.clusterContext = context_.config.clusterRef
-              ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString()
-              : this.k8Factory.default().contexts().readCurrent();
-
-            if (!config.clusterRef) {
-              config.clusterRef = this.k8Factory.default().clusters().readCurrent();
-            }
-
-            config.clusterContext = this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString();
+            config.valuesArg = await this.prepareValuesArg(context_.config);
+            config.clusterRef = this.getClusterReference();
+            config.clusterContext = this.getClusterContext(config.clusterRef);
+            config.releaseName = this.getReleaseName();
+            config.ingressReleaseName = this.getIngressReleaseName();
+            this.inferMirrorNodeId(config);
 
             if (!config.mirrorNamespace) {
               config.mirrorNamespace = config.namespace;
             }
-
-            config.releaseName = this.getReleaseName();
-            config.ingressReleaseName = this.getIngressReleaseName();
-
-            if (typeof config.mirrorNodeId !== 'number') {
-              config.mirrorNodeId =
-                this.remoteConfig.getNamespace().name === config.mirrorNamespace.name
-                  ? this.remoteConfig.configuration.components.state.mirrorNodes[0].metadata.id
-                  : 1;
-            }
-
-            config.isMirrorNodeLegacyChartInstalled =
-              config.mirrorNodeId === 1
-                ? await this.chartManager.isChartInstalled(
-                    config.namespace,
-                    constants.MIRROR_NODE_RELEASE_NAME,
-                    config.clusterContext,
-                  )
-                : false;
 
             config.newExplorerComponent = this.componentFactory.createNewExplorerComponent(
               config.clusterRef,
@@ -304,9 +288,7 @@ export class ExplorerCommand extends BaseCommand {
 
             config.valuesArg += await this.prepareValuesArg(config);
 
-            if (!(await this.k8Factory.getK8(config.clusterContext).namespaces().has(config.namespace))) {
-              throw new SoloError(`namespace ${config.namespace} does not exist`);
-            }
+            await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
@@ -511,9 +493,9 @@ export class ExplorerCommand extends BaseCommand {
               constants.EXPLORER_PORT, // Local port
               this.k8Factory.getK8(context_.config.clusterContext),
               this.logger,
-              ComponentTypes.Explorers,
+              ComponentTypes.Explorer,
               'Explorer',
-              config.isChartInstalled, // Reuse existing port if chart is already installed
+              false, // config.isChartInstalled, // Reuse existing port if chart is already installed
             );
           },
         },
@@ -574,54 +556,19 @@ export class ExplorerCommand extends BaseCommand {
             }
 
             this.configManager.update(argv);
-            const namespace: NamespaceName = await resolveNamespaceFromDeployment(
-              this.localConfig,
-              this.configManager,
-              task,
-            );
 
-            const clusterReference: ClusterReferenceName = this.configManager.hasFlag(flags.clusterRef)
-              ? this.configManager.getFlag(flags.clusterRef)
-              : this.remoteConfig.getClusterRefs().keys().next().value;
+            const namespace: NamespaceName = await this.getNamespace(task);
+
+            const clusterReference: ClusterReferenceName = this.getClusterReference();
 
             if (!clusterReference) {
               throw new SoloError('Aborting Explorer Destroy, no cluster reference could be found');
             }
 
-            const clusterContext: Context = this.localConfig.configuration.clusterRefs
-              .get(clusterReference)
-              ?.toString();
+            const clusterContext: Context = this.getClusterContext(clusterReference);
 
-            let id: ComponentId = this.configManager.getFlag(flags.id);
-            let releaseName: string;
-            let ingressReleaseName: string;
-            let isChartInstalled: boolean;
-
-            if (typeof id === 'number') {
-              releaseName = this.getReleaseName(id);
-              ingressReleaseName = this.getIngressReleaseName(id);
-            } else {
-              id = this.remoteConfig.configuration.components.state.explorers[0]?.metadata?.id;
-              releaseName = this.getReleaseName(id);
-              ingressReleaseName = this.getIngressReleaseName(id);
-            }
-
-            const isLegacyChartInstalled: boolean =
-              id === 1
-                ? await this.chartManager.isChartInstalled(
-                    namespace,
-                    constants.MIRROR_NODE_RELEASE_NAME,
-                    clusterContext,
-                  )
-                : false;
-
-            if (isLegacyChartInstalled) {
-              isChartInstalled = true;
-              releaseName = constants.EXPLORER_RELEASE_NAME;
-              ingressReleaseName = constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME;
-            } else {
-              isChartInstalled = await this.chartManager.isChartInstalled(namespace, releaseName, clusterContext);
-            }
+            const {id, releaseName, ingressReleaseName, isChartInstalled, isLegacyChartInstalled} =
+              await this.inferDestroyData(namespace, clusterReference);
 
             context_.config = {
               namespace,
@@ -634,9 +581,7 @@ export class ExplorerCommand extends BaseCommand {
               isLegacyChartInstalled,
             };
 
-            if (!(await this.k8Factory.getK8(context_.config.clusterContext).namespaces().has(namespace))) {
-              throw new SoloError(`namespace ${namespace.name} does not exist`);
-            }
+            await this.throwIfNamespaceIsMissing(clusterContext, namespace);
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
@@ -738,4 +683,61 @@ export class ExplorerCommand extends BaseCommand {
   }
 
   public async close(): Promise<void> {} // no-op
+
+  private inferMirrorNodeId(config: ExplorerDeployConfigClass): void {
+    if (typeof config.mirrorNodeId !== 'number') {
+      config.mirrorNodeId =
+        this.remoteConfig.getNamespace().name === config.mirrorNamespace.name
+          ? this.remoteConfig.configuration.components.state.mirrorNodes[0].metadata.id
+          : 1;
+    }
+  }
+
+  private async checkIfLegacyChartIsInstalled(
+    id: ComponentId,
+    namespace: NamespaceName,
+    context: Context,
+  ): Promise<boolean> {
+    return id === 1
+      ? await this.chartManager.isChartInstalled(namespace, constants.EXPLORER_RELEASE_NAME, context)
+      : false;
+  }
+
+  private async inferDestroyData(
+    namespace: NamespaceName,
+    context: Context,
+  ): Promise<{
+    id: ComponentId;
+    releaseName: string;
+    ingressReleaseName: string;
+    isChartInstalled: boolean;
+    isLegacyChartInstalled: boolean;
+  }> {
+    let id: ComponentId = this.configManager.getFlag(flags.id);
+
+    if (typeof id === 'number') {
+      id = this.remoteConfig.configuration.components.state.explorers[0]?.metadata?.id;
+    }
+
+    const isLegacyChartInstalled: boolean = await this.checkIfLegacyChartIsInstalled(id, namespace, context);
+
+    if (isLegacyChartInstalled) {
+      return {
+        id,
+        releaseName: constants.EXPLORER_RELEASE_NAME,
+        isChartInstalled: true,
+        ingressReleaseName: constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME,
+        isLegacyChartInstalled,
+      };
+    }
+
+    const releaseName: string = this.renderReleaseName(id);
+    return {
+      id,
+      releaseName,
+      ingressReleaseName: this.renderIngressReleaseName(id),
+      isChartInstalled: await this.chartManager.isChartInstalled(namespace, releaseName, context),
+      isLegacyChartInstalled,
+    };
+  }
 }

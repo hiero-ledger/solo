@@ -12,7 +12,6 @@ import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {
   type AnyListrContext,
-  type AnyYargs,
   type ArgvStruct,
   type NodeAlias,
   type NodeAliases,
@@ -22,7 +21,7 @@ import {ListrLock} from '../core/lock/listr-lock.js';
 import * as Base64 from 'js-base64';
 import {
   type ClusterReferenceName,
-  type CommandDefinition,
+  ComponentId,
   type Context,
   type DeploymentName,
   type Optional,
@@ -272,9 +271,15 @@ export class RelayCommand extends BaseCommand {
     return JSON.stringify(networkIds);
   }
 
-  private getReleaseName(id?: number): string {
-    if (!id) {
-      id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.RelayNodes);
+  private getReleaseName(): string {
+    return this.renderReleaseName(
+      this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.RelayNodes),
+    );
+  }
+
+  private renderReleaseName(id: ComponentId): string {
+    if (typeof id !== 'number') {
+      throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
     }
     return `${constants.JSON_RPC_RELAY_RELEASE_NAME}-${id}`;
   }
@@ -287,7 +292,7 @@ export class RelayCommand extends BaseCommand {
     return releaseName;
   }
 
-  public async add(argv: ArgvStruct) {
+  public async add(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
     const tasks: SoloListr<RelayDeployContext> = this.taskList.newTaskList<RelayDeployContext>(
@@ -321,22 +326,16 @@ export class RelayCommand extends BaseCommand {
 
             context_.config = config;
 
-            config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+            config.namespace = await this.getNamespace(task);
+
             config.nodeAliases = helpers.parseNodeAliases(
               config.nodeAliasesUnparsed,
               this.remoteConfig.getConsensusNodes(),
               this.configManager,
             );
 
-            if (!config.clusterRef) {
-              config.clusterRef = this.k8Factory.default().clusters().readCurrent();
-            }
-
-            const context: Context = this.remoteConfig.getClusterRefs()[config.clusterRef];
-            if (context) {
-              config.context = context;
-            }
-
+            config.clusterRef = this.getClusterReference();
+            config.context = this.getClusterContext(config.clusterRef);
             config.releaseName = this.getReleaseName();
 
             const nodeIds: NodeId[] = config.nodeAliases.map((nodeAlias: NodeAlias): number =>
@@ -502,7 +501,7 @@ export class RelayCommand extends BaseCommand {
   public async destroy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
-    const tasks: SoloListr<RelayDestroyContext> = this.taskList.newTaskList< RelayDestroyContext>(
+    const tasks: SoloListr<RelayDestroyContext> = this.taskList.newTaskList<RelayDestroyContext>(
       [
         {
           title: 'Initialize',
@@ -523,59 +522,12 @@ export class RelayCommand extends BaseCommand {
 
             await this.configManager.executePrompt(task, allFlags);
 
-            const clusterReference: ClusterReferenceName =
-              this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
+            const clusterReference: ClusterReferenceName = this.getClusterReference();
+            const context: Context = this.getClusterContext(clusterReference);
+            const namespace: NamespaceName = await this.getNamespace(task);
 
-            let context: Context = this.configManager.getFlag(flags.context);
-
-            if (clusterReference && !context) {
-              context = this.remoteConfig.getClusterRefs()[clusterReference];
-            }
-
-            let id: number = this.configManager.getFlag(flags.id);
-            let nodeAliases: NodeAliases = helpers.parseNodeAliases(
-              this.configManager.getFlag(flags.nodeAliasesUnparsed),
-              this.remoteConfig.getConsensusNodes(),
-              this.configManager,
-            );
-
-            if (typeof id !== 'number') {
-              if (this.remoteConfig.configuration.components.state.relayNodes.length === 0) {
-                throw new SoloError('Relay node not found');
-              }
-
-              id = this.remoteConfig.configuration.components.state.relayNodes[0].metadata.id;
-            }
-
-            const namespace: NamespaceName = await resolveNamespaceFromDeployment(
-              this.localConfig,
-              this.configManager,
-              task,
-            );
-            let isLegacyChartInstalled: boolean = false;
-            let isChartInstalled: boolean;
-
-            if (id === 1) {
-              nodeAliases = this.remoteConfig.configuration.components
-                .getComponentById<RelayNodeStateSchema>(ComponentTypes.RelayNodes, id)
-                ?.consensusNodeIds.map((nodeId: NodeId): NodeAlias => Templates.renderNodeAliasFromNumber(nodeId + 1));
-
-              isLegacyChartInstalled = await this.chartManager.isChartInstalled(
-                namespace,
-                this.prepareLegacyReleaseName(nodeAliases),
-                context,
-              );
-            }
-
-            let releaseName: string;
-
-            if (isLegacyChartInstalled) {
-              isChartInstalled = true;
-              releaseName = this.prepareLegacyReleaseName(nodeAliases);
-            } else {
-              releaseName = this.getReleaseName(id);
-              isChartInstalled = await this.chartManager.isChartInstalled(namespace, releaseName, context);
-            }
+            const {id, isLegacyChartInstalled, isChartInstalled, releaseName, nodeAliases} =
+              await this.inferDestroyData(namespace, context);
 
             const config: RelayDestroyConfigClass = {
               chartDirectory: this.configManager.getFlag(flags.chartDirectory),
@@ -650,7 +602,7 @@ export class RelayCommand extends BaseCommand {
         );
 
         this.remoteConfig.configuration.components.addNewComponent(
-          this.componentFactory.createNewRelayComponent(clusterReference, namespace, nodeIds),
+          this.componentFactory.createNewRelayComponent(clusterRef, namespace, nodeIds),
           ComponentTypes.RelayNodes,
         );
 
@@ -673,4 +625,67 @@ export class RelayCommand extends BaseCommand {
   }
 
   public async close(): Promise<void> {} // no-op
+
+  private async checkIfLegacyChartIsInstalled(
+    id: ComponentId,
+    namespace: NamespaceName,
+    context: Context,
+    nodeAliases: NodeAliases,
+  ): Promise<boolean> {
+    return id <= 1
+      ? await this.chartManager.isChartInstalled(namespace, this.prepareLegacyReleaseName(nodeAliases), context)
+      : false;
+  }
+
+  private async inferDestroyData(
+    namespace: NamespaceName,
+    context: Context,
+  ): Promise<{
+    id: ComponentId;
+    nodeAliases: NodeAliases;
+    releaseName: string;
+    isChartInstalled: boolean;
+    isLegacyChartInstalled: boolean;
+  }> {
+    let id: number = this.configManager.getFlag(flags.id);
+    if (typeof id !== 'number') {
+      if (this.remoteConfig.configuration.components.state.relayNodes.length === 0) {
+        throw new SoloError('Relay node not found');
+      }
+
+      id = this.remoteConfig.configuration.components.state.relayNodes[0].metadata.id;
+    }
+
+    const nodeAliases: NodeAliases = helpers.parseNodeAliases(
+      this.configManager.getFlag(flags.nodeAliasesUnparsed),
+      this.remoteConfig.getConsensusNodes(),
+      this.configManager,
+    );
+
+    const isLegacyChartInstalled: boolean = await this.checkIfLegacyChartIsInstalled(
+      id,
+      namespace,
+      context,
+      nodeAliases,
+    );
+
+    if (isLegacyChartInstalled) {
+      return {
+        id,
+        nodeAliases,
+        releaseName: this.prepareLegacyReleaseName(nodeAliases),
+        isChartInstalled: true,
+        isLegacyChartInstalled,
+      };
+    }
+
+    const releaseName: string = this.renderReleaseName(id);
+    return {
+      id,
+      nodeAliases,
+      releaseName,
+      isChartInstalled: await this.chartManager.isChartInstalled(namespace, releaseName, context),
+      isLegacyChartInstalled,
+    };
+  }
 }

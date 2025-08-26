@@ -53,6 +53,7 @@ import * as semver from 'semver';
 import {Base64} from 'js-base64';
 import {Version} from '../business/utils/version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
+import {Secret} from '../integration/kube/resources/secret/secret.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -160,7 +161,6 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.externalDatabaseReadonlyUsername,
       flags.externalDatabaseReadonlyPassword,
       flags.domainName,
-      flags.id,
       flags.forcePortForward,
     ],
   };
@@ -370,16 +370,28 @@ export class MirrorNodeCommand extends BaseCommand {
     }
   }
 
-  private getReleaseName(id?: ComponentId): string {
+  private getReleaseName(): string {
+    return this.renderReleaseName(
+      this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.MirrorNode),
+    );
+  }
+
+  private getIngressReleaseName(): string {
+    return this.renderIngressReleaseName(
+      this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.MirrorNode),
+    );
+  }
+
+  private renderReleaseName(id: ComponentId): string {
     if (typeof id !== 'number') {
-      id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.MirrorNode);
+      throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
     }
     return `${constants.MIRROR_NODE_RELEASE_NAME}-${id}`;
   }
 
-  private getIngressReleaseName(id?: ComponentId): string {
+  private renderIngressReleaseName(id: ComponentId): string {
     if (typeof id !== 'number') {
-      id = this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.MirrorNode);
+      throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
     }
     return `${constants.INGRESS_CONTROLLER_RELEASE_NAME}-${id}`;
   }
@@ -406,12 +418,6 @@ export class MirrorNodeCommand extends BaseCommand {
 
             await this.configManager.executePrompt(task, allFlags);
 
-            const namespace: NamespaceName = await resolveNamespaceFromDeployment(
-              this.localConfig,
-              this.configManager,
-              task,
-            );
-
             const config: MirrorNodeDeployConfigClass = this.configManager.getConfig(
               MirrorNodeCommand.DEPLOY_CONFIGS_NAME,
               allFlags,
@@ -420,25 +426,17 @@ export class MirrorNodeCommand extends BaseCommand {
 
             context_.config = config;
 
-            config.namespace = namespace;
-
-            config.clusterReference =
-              this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
-
-            // Initialize
-            config.valuesArg = '';
+            config.namespace = await this.getNamespace(task);
+            config.clusterReference = this.getClusterReference();
+            config.clusterContext = this.getClusterContext(config.clusterReference);
 
             // predefined values first
-            config.valuesArg += semver.lt(config.mirrorNodeVersion, '0.130.0')
+            config.valuesArg = semver.lt(config.mirrorNodeVersion, '0.130.0')
               ? helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA)
               : helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
 
             // user defined values later to override predefined values
             config.valuesArg += await this.prepareValuesArg(config);
-
-            config.clusterContext = config.clusterReference
-              ? this.localConfig.configuration.clusterRefs.get(config.clusterReference)?.toString()
-              : this.k8Factory.default().contexts().readCurrent();
 
             const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
 
@@ -454,8 +452,8 @@ export class MirrorNodeCommand extends BaseCommand {
               config.namespace,
             );
 
-            config.releaseName = this.getReleaseName(config.newMirrorNodeComponent.metadata.id);
-            config.ingressReleaseName = this.getIngressReleaseName(config.newMirrorNodeComponent.metadata.id);
+            config.releaseName = this.getReleaseName();
+            config.ingressReleaseName = this.getIngressReleaseName();
 
             const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
             const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
@@ -485,7 +483,7 @@ export class MirrorNodeCommand extends BaseCommand {
                     task,
                   );
 
-                  const secrets = await this.k8Factory
+                  const secrets: Secret[] = await this.k8Factory
                     .getK8(config.clusterContext)
                     .secrets()
                     .list(namespace, [`solo.hedera.com/account-id=${operatorId}`]);
@@ -549,9 +547,7 @@ export class MirrorNodeCommand extends BaseCommand {
               }
             }
 
-            if (!(await this.k8Factory.getK8(config.clusterContext).namespaces().has(config.namespace))) {
-              throw new SoloError(`namespace ${config.namespace} does not exist`);
-            }
+            await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
@@ -918,54 +914,14 @@ export class MirrorNodeCommand extends BaseCommand {
 
             this.configManager.update(argv);
 
-            const namespace: NamespaceName = await resolveNamespaceFromDeployment(
-              this.localConfig,
-              this.configManager,
-              task,
-            );
+            const namespace: NamespaceName = await this.getNamespace(task);
+            const clusterReference: ClusterReferenceName = this.getClusterReference();
+            const clusterContext: Context = this.getClusterContext(clusterReference);
 
-            const clusterReference: ClusterReferenceName =
-              this.configManager.getFlag(flags.clusterRef) ?? this.remoteConfig.getClusterRefs().keys().next().value;
+            await this.throwIfNamespaceIsMissing(clusterContext, namespace);
 
-            const clusterContext: Context = this.localConfig.configuration.clusterRefs
-              .get(clusterReference)
-              ?.toString();
-
-            if (!(await this.k8Factory.getK8(clusterContext).namespaces().has(namespace))) {
-              throw new SoloError(`namespace ${namespace} does not exist`);
-            }
-
-            let id: ComponentId = this.configManager.getFlag(flags.id);
-            let releaseName: string;
-            let ingressReleaseName: string;
-            let isChartInstalled: boolean;
-            let isLegacyChartInstalled: boolean = false;
-
-            if (typeof id !== 'number') {
-              if (this.remoteConfig.configuration.components.state.mirrorNodes.length === 0) {
-                throw new SoloError('Mirror node not found in remove config');
-              }
-
-              id = this.remoteConfig.configuration.components.state.mirrorNodes[0]?.metadata?.id;
-            }
-
-            if (id === 1) {
-              isLegacyChartInstalled = await this.chartManager.isChartInstalled(
-                namespace,
-                constants.MIRROR_NODE_RELEASE_NAME,
-                clusterContext,
-              );
-            }
-
-            if (isLegacyChartInstalled) {
-              isChartInstalled = true;
-              releaseName = constants.MIRROR_NODE_RELEASE_NAME;
-              ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
-            } else {
-              releaseName = this.getReleaseName(id);
-              ingressReleaseName = this.getIngressReleaseName(id);
-              isChartInstalled = await this.chartManager.isChartInstalled(namespace, releaseName, clusterContext);
-            }
+            const {id, releaseName, isChartInstalled, ingressReleaseName, isLegacyChartInstalled} =
+              await this.inferDestroyData(namespace, clusterContext);
 
             context_.config = {
               clusterContext,
@@ -1042,7 +998,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
             await this.chartManager.uninstall(
               context_.config.namespace,
-              this.getIngressReleaseName(context_.config.id),
+              context_.config.ingressReleaseName,
               context_.config.clusterContext,
             );
             // delete ingress class if found one
@@ -1121,4 +1077,61 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   public async close(): Promise<void> {} // no-op
+
+  private async checkIfLegacyChartIsInstalled(
+    id: ComponentId,
+    namespace: NamespaceName,
+    context: Context,
+  ): Promise<boolean> {
+    return id === 1
+      ? await this.chartManager.isChartInstalled(namespace, constants.MIRROR_NODE_RELEASE_NAME, context)
+      : false;
+  }
+
+  private async inferDestroyData(
+    namespace: NamespaceName,
+    context: Context,
+  ): Promise<{
+    id: ComponentId;
+    releaseName: string;
+    isChartInstalled: boolean;
+    ingressReleaseName: string;
+    isLegacyChartInstalled: boolean;
+  }> {
+    let id: ComponentId = this.configManager.getFlag(flags.id);
+
+    if (typeof id !== 'number') {
+      if (this.remoteConfig.configuration.components.state.mirrorNodes.length === 0) {
+        throw new SoloError('Mirror node not found in remove config');
+      }
+
+      id = this.remoteConfig.configuration.components.state.mirrorNodes[0]?.metadata?.id;
+    }
+
+    const isLegacyChartInstalled: boolean = await this.checkIfLegacyChartIsInstalled(
+      id,
+      namespace,
+      context,
+    );
+
+    if (isLegacyChartInstalled) {
+      return {
+        id,
+        releaseName: constants.MIRROR_NODE_RELEASE_NAME,
+        isChartInstalled: true,
+        ingressReleaseName: constants.INGRESS_CONTROLLER_RELEASE_NAME,
+        isLegacyChartInstalled,
+      };
+    }
+
+    const releaseName: string = this.renderReleaseName(id);
+    const ingressReleaseName: string = this.renderIngressReleaseName(id);
+    return {
+      id,
+      releaseName,
+      isChartInstalled: await this.chartManager.isChartInstalled(namespace, releaseName, context),
+      ingressReleaseName,
+      isLegacyChartInstalled,
+    };
+  }
 }
