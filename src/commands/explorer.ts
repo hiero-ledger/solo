@@ -686,10 +686,7 @@ export class ExplorerCommand extends BaseCommand {
 
   private inferMirrorNodeId(config: ExplorerDeployConfigClass): void {
     if (typeof config.mirrorNodeId !== 'number') {
-      config.mirrorNodeId =
-        this.remoteConfig.getNamespace().name === config.mirrorNamespace.name
-          ? this.remoteConfig.configuration.components.state.mirrorNodes[0].metadata.id
-          : 1;
+      config.mirrorNodeId = this.remoteConfig.configuration.components.state.mirrorNodes[0].metadata.id ?? 1;
     }
   }
 

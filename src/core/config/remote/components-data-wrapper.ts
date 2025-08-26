@@ -14,6 +14,7 @@ import {type PodReference} from '../../../integration/kube/resources/pod/pod-ref
 import {type K8} from '../../../integration/kube/k8.js';
 import {type SoloLogger} from '../../logging/solo-logger.js';
 import * as constants from '../../constants.js';
+import {Templates} from '../../templates.js';
 
 export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   public constructor(public state: DeploymentStateSchema) {}
@@ -239,7 +240,8 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
       );
       component = schemeComponents[0];
     } else {
-      component = this.getComponentById<BaseStateSchema>(componentType, nodeId);
+      const componentId: ComponentId = Templates.renderComponentIdFromNodeId(nodeId);
+      component = this.getComponentById<BaseStateSchema>(componentType, componentId);
     }
 
     if (component === undefined) {

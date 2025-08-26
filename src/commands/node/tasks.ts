@@ -1614,7 +1614,6 @@ export class NodeCommandTasks {
             this.k8Factory.getK8(context_.config.clusterContext),
             this.logger,
             ComponentTypes.ConsensusNode,
-
             'Consensus Node gRPC',
             context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             nodeId,
