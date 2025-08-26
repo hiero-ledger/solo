@@ -558,13 +558,7 @@ export class ExplorerCommand extends BaseCommand {
             this.configManager.update(argv);
 
             const namespace: NamespaceName = await this.getNamespace(task);
-
             const clusterReference: ClusterReferenceName = this.getClusterReference();
-
-            if (!clusterReference) {
-              throw new SoloError('Aborting Explorer Destroy, no cluster reference could be found');
-            }
-
             const clusterContext: Context = this.getClusterContext(clusterReference);
 
             const {id, releaseName, ingressReleaseName, isChartInstalled, isLegacyChartInstalled} =
@@ -712,8 +706,12 @@ export class ExplorerCommand extends BaseCommand {
   }> {
     let id: ComponentId = this.configManager.getFlag(flags.id);
 
-    if (typeof id === 'number') {
-      id = this.remoteConfig.configuration.components.state.explorers[0]?.metadata?.id;
+    if (typeof id !== 'number') {
+      if (!this.remoteConfig.configuration.components.state.explorers[0]) {
+        throw new SoloError('No explorer component found in remote config');
+      }
+
+      id = this.remoteConfig.configuration.components.state.explorers[0].metadata.id;
     }
 
     const isLegacyChartInstalled: boolean = await this.checkIfLegacyChartIsInstalled(id, namespace, context);

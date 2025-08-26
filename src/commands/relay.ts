@@ -126,8 +126,8 @@ export class RelayCommand extends BaseCommand {
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment, flags.clusterRef],
-    optional: [flags.chartDirectory, flags.nodeAliasesUnparsed, flags.quiet, flags.devMode, flags.id],
+    required: [flags.deployment],
+    optional: [flags.chartDirectory, flags.nodeAliasesUnparsed, flags.quiet, flags.devMode, flags.id, flags.clusterRef],
   };
 
   private async prepareValuesArgForRelay({
@@ -649,7 +649,7 @@ export class RelayCommand extends BaseCommand {
     let id: number = this.configManager.getFlag(flags.id);
     if (typeof id !== 'number') {
       if (this.remoteConfig.configuration.components.state.relayNodes.length === 0) {
-        throw new SoloError('Relay node not found');
+        throw new SoloError('Relay node not found in remote config');
       }
 
       id = this.remoteConfig.configuration.components.state.relayNodes[0].metadata.id;

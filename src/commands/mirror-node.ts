@@ -1104,7 +1104,7 @@ export class MirrorNodeCommand extends BaseCommand {
         throw new SoloError('Mirror node not found in remove config');
       }
 
-      id = this.remoteConfig.configuration.components.state.mirrorNodes[0]?.metadata?.id;
+      id = this.remoteConfig.configuration.components.state.mirrorNodes[0].metadata.id;
     }
 
     const isLegacyChartInstalled: boolean = await this.checkIfLegacyChartIsInstalled(id, namespace, context);
