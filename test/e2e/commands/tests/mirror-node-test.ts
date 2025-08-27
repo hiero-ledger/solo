@@ -295,7 +295,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       const mirrorNodePods: Pod[] = await k8
         .pods()
         .list(namespace, [
-          'app.kubernetes.io/instance=mirror',
+          'app.kubernetes.io/instance=mirror-1',
           'app.kubernetes.io/name=grpc',
           'app.kubernetes.io/component=grpc',
         ]);
