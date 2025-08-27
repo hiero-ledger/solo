@@ -17,7 +17,6 @@ import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
 import {MirrorCommandDefinition} from '../../../../src/commands/command-definitions/mirror-command-definition.js';
-import {Templates} from '../../../../src/core/templates.js';
 
 import * as constants from '../../../../src/core/constants.js';
 import fs from 'node:fs';
