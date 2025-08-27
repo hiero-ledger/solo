@@ -192,10 +192,6 @@ export class RelayCommand extends BaseCommand {
       valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${operatorKey}`;
     } else {
       try {
-        const namespace: NamespaceName = NamespaceName.of(
-          this.localConfig.configuration.deploymentByName(deployment).namespace,
-        );
-
         const secrets: Secret[] = await this.k8Factory
           .getK8(context)
           .secrets()

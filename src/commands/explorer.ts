@@ -270,9 +270,9 @@ export class ExplorerCommand extends BaseCommand {
 
             context_.config = config;
 
-            config.valuesArg = await this.prepareValuesArg(context_.config);
             config.clusterRef = this.getClusterReference();
             config.clusterContext = this.getClusterContext(config.clusterRef);
+
             config.releaseName = this.getReleaseName();
             config.ingressReleaseName = this.getIngressReleaseName();
             this.inferMirrorNodeId(config);
@@ -286,6 +286,7 @@ export class ExplorerCommand extends BaseCommand {
               config.namespace,
             );
 
+            config.valuesArg = await this.prepareValuesArg(context_.config);
             config.valuesArg += await this.prepareValuesArg(config);
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);

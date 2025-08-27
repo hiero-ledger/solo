@@ -426,17 +426,6 @@ export class Flags {
     },
   };
 
-  public static readonly redeploy: CommandFlag = {
-    constName: 'redeploy',
-    name: 'redeploy',
-    definition: {
-      describe: 'Redeploy the specified component',
-      defaultValue: false,
-      type: 'boolean',
-    },
-    prompt: undefined,
-  };
-
   public static readonly enablePrometheusSvcMonitor: CommandFlag = {
     constName: 'enablePrometheusSvcMonitor',
     name: 'prometheus-svc-monitor',
@@ -2690,7 +2679,6 @@ export class Flags {
     Flags.skipNodeAlias,
     Flags.id,
     Flags.mirrorNodeId,
-    Flags.redeploy,
   ];
 
   /** Resets the definition.disablePrompt for all flags */
