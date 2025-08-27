@@ -110,8 +110,8 @@ export class RelayCommand extends BaseCommand {
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment, flags.clusterRef],
-    optional: [flags.chartDirectory, flags.nodeAliasesUnparsed, flags.quiet, flags.devMode],
+    required: [flags.deployment],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.nodeAliasesUnparsed, flags.quiet, flags.devMode],
   };
 
   private async prepareValuesArgForRelay(
@@ -509,7 +509,9 @@ export class RelayCommand extends BaseCommand {
                 this.remoteConfig.getConsensusNodes(),
                 this.configManager,
               ),
-              clusterRef: self.configManager.getFlag(flags.clusterRef),
+              clusterRef:
+                (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
+                this.k8Factory.default().clusters().readCurrent(),
             } as RelayDestroyConfigClass;
 
             if (context_.config.clusterRef) {
