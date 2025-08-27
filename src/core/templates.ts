@@ -374,8 +374,12 @@ export class Templates {
   }
 
   public static renderBlockNodeLabels(id: ComponentId, legacyReleaseName?: string): string[] {
-    const releaseName: string = legacyReleaseName ?? `${constants.BLOCK_NODE_RELEASE_NAME}-${id}`;
+    const releaseName: string = legacyReleaseName ?? Templates.renderBlockNodeName(id);
 
     return [`app.kubernetes.io/name=${releaseName}`];
+  }
+
+  public static renderBlockNodeName(id: ComponentId): string {
+    return `${constants.BLOCK_NODE_RELEASE_NAME}-${id}`;
   }
 }

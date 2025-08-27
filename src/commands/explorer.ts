@@ -287,7 +287,6 @@ export class ExplorerCommand extends BaseCommand {
             );
 
             config.valuesArg = await this.prepareValuesArg(context_.config);
-            config.valuesArg += await this.prepareValuesArg(config);
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
 
