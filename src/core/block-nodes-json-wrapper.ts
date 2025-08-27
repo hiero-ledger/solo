@@ -8,9 +8,6 @@ import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js'
 import {type ApplicationVersionsSchema} from '../data/schema/model/common/application-versions-schema.js';
 import {lt} from 'semver';
 import * as versions from '../../version.js';
-import {type ChartManager} from './chart-manager.js';
-import {NamespaceName} from '../types/namespace/namespace-name.js';
-import {type LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 
 interface BlockNodeConnectionData {
   address: string;
