@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: service-discovery
+  namespace: solo-e2e
+  labels:
+    app: prometheus
+spec:
+  selector:
+    matchExpressions:
+      - key: solo.hedera.com/prometheus-endpoint
+        operator: In
+        values:
+          - active
+  namespaceSelector:
+    matchNames:
+      - solo-e2e
+  endpoints:
+    - port: prometheus
+      interval: 15s
+

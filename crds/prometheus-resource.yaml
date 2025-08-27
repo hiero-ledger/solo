@@ -1,0 +1,34 @@
+apiVersion: monitoring.solo.hedera.com/v1
+kind: Prometheus
+metadata:
+  name: prometheus
+  namespace: solo-674de1ca
+spec:
+  serviceAccountName: prometheus
+  serviceMonitorSelector:
+    matchLabels:
+      app: prometheus
+  resources:
+    requests:
+      memory: 400Mi
+  enableAdminAPI: true
+  retention: 24h
+  storage:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 10Gi
+  ruleSelector: {}
+  securityContext:
+    fsGroup: 2000
+    runAsNonRoot: true
+    runAsUser: 1000
+  serviceMonitorNamespaceSelector:
+    matchNames:
+      - solo-674de1ca
+  serviceMonitorSelector:
+    matchLabels: {}
+  version: v2.46.0
+
