@@ -116,7 +116,7 @@
     "tsx": "^4.20.4",
     "typedoc": "^0.28.10",
     "typescript": "^5.9.2",
-    "typescript-eslint": "^8.40.0"
+    "typescript-eslint": "^8.41.0"
   },
   "repository": {
     "type": "git",
