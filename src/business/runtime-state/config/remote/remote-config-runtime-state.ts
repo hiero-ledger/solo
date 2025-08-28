@@ -23,7 +23,7 @@ import {
   type NamespaceNameAsString,
   Optional,
 } from '../../../../types/index.js';
-import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases, NodeId} from '../../../../types/aliases.js';
+import {type AnyObject, type ArgvStruct, type NodeAlias, type NodeAliases, type NodeId} from '../../../../types/aliases.js';
 import {NamespaceName} from '../../../../types/namespace/namespace-name.js';
 import {ComponentStateMetadataSchema} from '../../../../data/schema/model/remote/state/component-state-metadata-schema.js';
 import {Templates} from '../../../../core/templates.js';

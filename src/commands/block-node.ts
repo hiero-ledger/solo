@@ -7,12 +7,13 @@ import {checkDockerImageExists, showVersionBanner, sleep} from '../core/helpers.
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
+import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {type AnyListrContext, type ArgvStruct, type NodeAlias, type NodeAliases} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {
   type ClusterReferenceName,
   type ComponentId,
-  Context,
+  type Context,
   type DeploymentName,
   type Optional,
   type SoloListrTask,
