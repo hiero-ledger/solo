@@ -208,11 +208,9 @@ export class BlockNodeCommand extends BaseCommand {
 
             context_.config = config;
 
-            const consensusNodeVersion: string = this.remoteConfig.configuration.versions.consensusNode.toString();
+            let consensusNodeVersion: string = this.remoteConfig.configuration.versions.consensusNode.toString();
             if (consensusNodeVersion === '0.0.0') {
-              throw new SoloError(
-                'Did not detect consensus node version in remote configuration, please deploy consensus node first',
-              );
+              consensusNodeVersion = config.releaseTag;
             }
             if (
               lt(
