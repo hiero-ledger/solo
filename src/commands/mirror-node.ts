@@ -47,6 +47,7 @@ import {Base64} from 'js-base64';
 import {Lock} from '../core/lock/lock.js';
 import {Version} from '../business/utils/version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
+import {SemVer} from 'semver';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -1040,7 +1041,7 @@ export class MirrorNodeCommand extends BaseCommand {
           this.componentFactory.createNewMirrorNodeComponent(clusterReference, namespace),
           ComponentTypes.MirrorNode,
         );
-
+        this.remoteConfig.configuration.versions.mirrorNodeChart = new SemVer(context_.config.mirrorNodeVersion);
         await this.remoteConfig.persist();
       },
     };

@@ -373,56 +373,9 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   private populateVersionsInMetadata(argv: AnyObject, remoteConfig: RemoteConfigSchema): void {
-    const command: string = argv._[0];
-    const subcommand: string = argv._[1];
-    const action: string = argv._[2];
-
-    const isCommandUsingSoloChartVersionFlag: boolean =
-      (command === 'consensus' && subcommand === 'network' && action === 'deploy') ||
-      (command === 'consensus' && subcommand === 'network' && action === 'refresh') ||
-      (command === 'consensus' && subcommand === 'node' && action === 'update') ||
-      (command === 'consensus' && subcommand === 'dev-node-update' && action === 'execute') ||
-      (command === 'consensus' && subcommand === 'node' && action === 'add') ||
-      (command === 'consensus' && subcommand === 'dev-node-add' && action === 'execute') ||
-      (command === 'consensus' && subcommand === 'node' && action === 'destroy') ||
-      (command === 'consensus' && subcommand === 'dev-node-destroy' && action === 'execute');
-
-    // TBD how to update remoteConfig.versions.cli
-
-    if (argv[flags.soloChartVersion.name]) {
-      remoteConfig.versions.chart = new SemVer(argv[flags.soloChartVersion.name]);
-    } else if (isCommandUsingSoloChartVersionFlag) {
-      remoteConfig.versions.chart = new SemVer(flags.soloChartVersion.definition.defaultValue as string);
-    }
-
-    const isCommandUsingReleaseTagVersionFlag: boolean =
-      (subcommand === 'node' && action !== 'all' && action !== 'states' && action !== 'download') ||
-      (subcommand === 'network' && action === 'deploy') ||
-      command !== 'keys';
-
-    if (argv[flags.releaseTag.name]) {
-      remoteConfig.versions.consensusNode = new SemVer(argv[flags.releaseTag.name]);
-    } else if (isCommandUsingReleaseTagVersionFlag) {
-      remoteConfig.versions.consensusNode = new SemVer(flags.releaseTag.definition.defaultValue as string);
-    }
-
-    if (argv[flags.mirrorNodeVersion.name]) {
-      remoteConfig.versions.mirrorNodeChart = new SemVer(argv[flags.mirrorNodeVersion.name]);
-    } else if (command === 'mirror' && subcommand === 'node' && action === 'add') {
-      remoteConfig.versions.mirrorNodeChart = new SemVer(flags.mirrorNodeVersion.definition.defaultValue as string);
-    }
-
-    if (argv[flags.explorerVersion.name]) {
-      remoteConfig.versions.explorerChart = new SemVer(argv[flags.explorerVersion.name]);
-    } else if (command === 'explorer' && subcommand === 'node' && action === 'add') {
-      remoteConfig.versions.explorerChart = new SemVer(flags.explorerVersion.definition.defaultValue as string);
-    }
-
-    if (argv[flags.relayReleaseTag.name]) {
-      remoteConfig.versions.jsonRpcRelayChart = new SemVer(argv[flags.relayReleaseTag.name]);
-    } else if (command === 'relay' && subcommand === 'node' && action === 'add') {
-      remoteConfig.versions.jsonRpcRelayChart = new SemVer(flags.relayReleaseTag.definition.defaultValue as string);
-    }
+    remoteConfig.versions.chart = argv[flags.soloChartVersion.name]
+      ? new SemVer(argv[flags.soloChartVersion.name])
+      : new SemVer(flags.soloChartVersion.definition.defaultValue as string);
   }
 
   public async deleteComponents(): Promise<void> {

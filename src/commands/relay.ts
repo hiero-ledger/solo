@@ -29,6 +29,7 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Duration} from '../core/time/duration.js';
 import {Version} from '../business/utils/version.js';
+import {SemVer} from 'semver';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -584,7 +585,7 @@ export class RelayCommand extends BaseCommand {
           this.componentFactory.createNewRelayComponent(clusterReference, namespace, nodeIds),
           ComponentTypes.RelayNodes,
         );
-
+        this.remoteConfig.configuration.versions.jsonRpcRelayChart = new SemVer(context_.config.relayReleaseTag);
         await this.remoteConfig.persist();
       },
     };

@@ -1202,6 +1202,9 @@ export class NodeCommandTasks {
           }
           releaseTag = context_.config.upgradeVersion;
         }
+
+        context_.config.releaseTag = releaseTag;
+
         return localBuildPath === ''
           ? self._fetchPlatformSoftware(
               context_.config[aliasesField],
@@ -1340,6 +1343,10 @@ export class NodeCommandTasks {
             .readByRef(rootContainer);
 
           await container.execContainer('chmod 777 /opt/hgcapp/services-hedera/HapiApp2.0/data');
+
+          // save consensus node version in remote config
+          this.remoteConfig.configuration.versions.consensusNode = new SemVer(context_.config.releaseTag);
+          await this.remoteConfig.persist();
         }
       },
     };

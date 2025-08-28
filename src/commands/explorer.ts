@@ -35,6 +35,7 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Version} from '../business/utils/version.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
+import {SemVer} from 'semver';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -664,7 +665,7 @@ export class ExplorerCommand extends BaseCommand {
           this.componentFactory.createNewExplorerComponent(clusterRef, namespace),
           ComponentTypes.Explorers,
         );
-
+        this.remoteConfig.configuration.versions.explorerChart = new SemVer(context_.config.explorerVersion);
         await this.remoteConfig.persist();
       },
     };

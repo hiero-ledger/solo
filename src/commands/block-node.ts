@@ -48,7 +48,6 @@ interface BlockNodeDeployConfigClass {
   enableIngress: boolean;
   quiet: boolean;
   valuesFile: Optional<string>;
-  releaseTag: string;
   imageTag: Optional<string>;
   namespace: NamespaceName;
   nodeAliases: NodeAliases; // from remote config
@@ -117,7 +116,6 @@ export class BlockNodeCommand extends BaseCommand {
       flags.enableIngress,
       flags.quiet,
       flags.valuesFile,
-      flags.releaseTag,
       flags.imageTag,
     ],
   };
@@ -208,9 +206,10 @@ export class BlockNodeCommand extends BaseCommand {
 
             context_.config = config;
 
+            const consensusNodeVersion: string = this.remoteConfig.configuration.versions.consensusNode.toString();
             if (
               lt(
-                new SemVer(config.releaseTag),
+                new SemVer(consensusNodeVersion),
                 new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE),
               )
             ) {
@@ -221,7 +220,10 @@ export class BlockNodeCommand extends BaseCommand {
 
             const currentBlockNodeVersion: SemVer = new SemVer(config.chartVersion);
             if (
-              lt(new SemVer(config.releaseTag), new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE)) &&
+              lt(
+                new SemVer(consensusNodeVersion),
+                new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE),
+              ) &&
               gte(currentBlockNodeVersion, MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)
             ) {
               throw new SoloError(
