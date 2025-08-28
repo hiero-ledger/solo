@@ -189,6 +189,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.domainName,
       flags.mirrorNodeId,
       flags.forcePortForward,
+      flags.id,
     ],
   };
 
@@ -616,7 +617,7 @@ export class ExplorerCommand extends BaseCommand {
   public async upgrade(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
-    const tasks = this.taskList.newTaskList(
+    const tasks: SoloListr<ExplorerUpgradeContext> = this.taskList.newTaskList<ExplorerUpgradeContext>(
       [
         {
           title: 'Initialize',
@@ -637,7 +638,7 @@ export class ExplorerCommand extends BaseCommand {
             await this.configManager.executePrompt(task, allFlags);
 
             const config: ExplorerUpgradeConfigClass = this.configManager.getConfig(
-              ExplorerCommand.DEPLOY_CONFIGS_NAME,
+              ExplorerCommand.UPGRADE_CONFIGS_NAME,
               allFlags,
               [],
             ) as ExplorerUpgradeConfigClass;
