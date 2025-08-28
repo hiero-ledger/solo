@@ -46,7 +46,7 @@ tasks:
 
       # Solo block node add
       - cmd: |
-          npx solo block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .BLOCK_NODE_RELEASE_TAG }} \
+          npx solo block node add --deployment {{ .DEPLOYMENT }} 
           --cluster-ref {{ .CLUSTER_REFERENCE }}
 
       # Solo node keys
