@@ -104,6 +104,7 @@ interface ExplorerUpgradeConfigClass {
   forcePortForward: Optional<boolean>;
   id: ComponentId;
   isChartInstalled: boolean;
+  isLegacyChartInstalled: boolean;
 }
 
 interface ExplorerUpgradeContext {
@@ -648,15 +649,18 @@ export class ExplorerCommand extends BaseCommand {
             config.clusterRef = this.getClusterReference();
             config.clusterContext = this.getClusterContext(config.clusterRef);
 
-            config.releaseName = this.getReleaseName();
-            config.ingressReleaseName = this.getIngressReleaseName();
-            this.inferMirrorNodeId(config);
+            const {id, releaseName, ingressReleaseName, isChartInstalled, isLegacyChartInstalled} =
+              await this.inferDestroyData(config.namespace, config.clusterRef);
+
+            config.id = id;
+            config.releaseName = releaseName;
+            config.ingressReleaseName = ingressReleaseName;
+            config.isChartInstalled = isChartInstalled;
+            config.isLegacyChartInstalled = isLegacyChartInstalled;
 
             if (!config.mirrorNamespace) {
               config.mirrorNamespace = config.namespace;
             }
-
-            config.id = this.inferExplorerId();
 
             config.valuesArg = await this.prepareValuesArg(context_.config);
 

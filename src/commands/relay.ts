@@ -114,6 +114,7 @@ interface RelayUpgradeConfigClass {
   id: ComponentId;
   forcePortForward: Optional<boolean>;
   cacheDir: Optional<string>;
+  isLegacyChartInstalled: boolean;
 }
 
 interface RelayUpgradeContext {
@@ -617,24 +618,17 @@ export class RelayCommand extends BaseCommand {
 
             config.clusterRef = this.getClusterReference();
             config.context = this.getClusterContext(config.clusterRef);
-            config.releaseName = this.getReleaseName();
-            config.id = this.inferRelayId();
+
+            const {id, isLegacyChartInstalled, isChartInstalled, releaseName, nodeAliases} =
+              await this.inferDestroyData(config.namespace, config.context);
+
+            config.id = id;
+            config.isLegacyChartInstalled = isLegacyChartInstalled;
+            config.isChartInstalled = isChartInstalled;
+            config.releaseName = releaseName;
+            config.nodeAliases = nodeAliases;
 
             return ListrLock.newAcquireLockTask(lease, task);
-          },
-        },
-        {
-          title: 'Check chart is installed',
-          task: async ({config}: RelayUpgradeContext): Promise<void> => {
-            config.isChartInstalled = await this.chartManager.isChartInstalled(
-              config.namespace,
-              config.releaseName,
-              config.context,
-            );
-
-            if (!config.isChartInstalled) {
-              throw new SoloError(`Relay is not installed in namespace: ${config.namespace?.name}.`);
-            }
           },
         },
         this.prepareChartValuesTask(),

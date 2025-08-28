@@ -798,6 +798,22 @@ export class MirrorNodeCommand extends BaseCommand {
             config.clusterReference = this.getClusterReference();
             config.clusterContext = this.getClusterContext(config.clusterReference);
 
+            config.newMirrorNodeComponent = this.componentFactory.createNewMirrorNodeComponent(
+              config.clusterReference,
+              config.namespace,
+            );
+
+            config.id = config.newMirrorNodeComponent.metadata.id;
+
+            config.releaseName = this.getReleaseName();
+            config.ingressReleaseName = this.getIngressReleaseName();
+
+            config.isChartInstalled = await this.chartManager.isChartInstalled(
+              config.namespace,
+              config.releaseName,
+              constants.MIRROR_NODE_RELEASE_NAME,
+            );
+
             // predefined values first
             config.valuesArg = semver.lt(config.mirrorNodeVersion, '0.130.0')
               ? helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA)
@@ -814,16 +830,6 @@ export class MirrorNodeCommand extends BaseCommand {
               deploymentName,
               this.configManager.getFlag<boolean>(flags.forcePortForward),
             );
-
-            config.newMirrorNodeComponent = this.componentFactory.createNewMirrorNodeComponent(
-              config.clusterReference,
-              config.namespace,
-            );
-
-            config.id = config.newMirrorNodeComponent.metadata.id;
-
-            config.releaseName = this.getReleaseName();
-            config.ingressReleaseName = this.getIngressReleaseName();
 
             const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
             const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
@@ -999,6 +1005,15 @@ export class MirrorNodeCommand extends BaseCommand {
             config.clusterReference = this.getClusterReference();
             config.clusterContext = this.getClusterContext(config.clusterReference);
 
+            const {id, releaseName, isChartInstalled, ingressReleaseName, isLegacyChartInstalled} =
+              await this.inferDestroyData(config.namespace, config.clusterContext);
+
+            config.id = id;
+            config.releaseName = releaseName;
+            config.isChartInstalled = isChartInstalled;
+            config.ingressReleaseName = ingressReleaseName;
+            config.isLegacyChartInstalled = isLegacyChartInstalled;
+
             // predefined values first
             config.valuesArg = semver.lt(config.mirrorNodeVersion, '0.130.0')
               ? helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA)
@@ -1015,11 +1030,6 @@ export class MirrorNodeCommand extends BaseCommand {
               deploymentName,
               this.configManager.getFlag<boolean>(flags.forcePortForward),
             );
-
-            config.id = this.inferMirrorNodeId();
-
-            config.releaseName = this.getReleaseName();
-            config.ingressReleaseName = this.getIngressReleaseName();
 
             const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
             const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
