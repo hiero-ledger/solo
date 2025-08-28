@@ -232,7 +232,7 @@ export class BlockNodeCommand extends BaseCommand {
               gte(currentBlockNodeVersion, MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)
             ) {
               throw new SoloError(
-                `Hedera platform version less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} ` +
+                `Current platform version is ${consensusNodeVersion}, Hedera platform version less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} ` +
                   `are not supported for block node version ${MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT.version}`,
               );
             }
