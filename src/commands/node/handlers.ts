@@ -10,7 +10,7 @@ import {type Lock} from '../../core/lock/lock.js';
 import {LeaseWrapper, type NodeCommandTasks} from './tasks.js';
 import {NodeSubcommandType} from '../../core/enumerations.js';
 import {NodeHelper} from './helper.js';
-import {type ArgvStruct, type NodeAlias, type NodeAliases, type NodeId} from '../../types/aliases.js';
+import {type ArgvStruct, type NodeAlias, type NodeAliases} from '../../types/aliases.js';
 import chalk from 'chalk';
 import {type ComponentId, type Optional, type SoloListr, type SoloListrTask} from '../../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
