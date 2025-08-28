@@ -26,6 +26,7 @@ import {type ArgvStruct} from '../../../src/types/aliases.js';
 import {type BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
 import {TEST_LOCAL_BLOCK_NODE_VERSION} from '../../../version-test.js';
 import {BlockCommandDefinition} from '../../../src/commands/command-definitions/block-command-definition.js';
+import {MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} from '../../../version.js';
 
 // eslint-disable-next-line @typescript-eslint/typedef
 const execAsync = promisify(exec);
@@ -94,8 +95,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
 
     it(`Should fail with versions less than ${version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE}`, async (): Promise<void> => {
       const argvClone: Argv = argv.clone();
-      argvClone.setArg(flags.releaseTag, 'v0.61.0');
-
+      remoteConfig.updateComponentVersion(ComponentTypes.ConsensusNode, new SemVer.SemVer('v0.61.0'));
       try {
         await commandInvoker.invoke({
           argv: argvClone,
@@ -108,6 +108,11 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
         expect.fail();
       } catch (error) {
         expect(error.message).to.include('Hedera platform versions less than');
+      } finally {
+        remoteConfig.updateComponentVersion(
+          ComponentTypes.ConsensusNode,
+          new SemVer.SemVer(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE),
+        );
       }
     });
 
