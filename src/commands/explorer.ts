@@ -68,6 +68,7 @@ interface ExplorerDeployConfigClass {
   id: ComponentId;
   forcePortForward: Optional<boolean>;
   isChartInstalled: boolean;
+  isLegacyChartInstalled: false;
 }
 
 interface ExplorerDeployContext {
@@ -431,7 +432,7 @@ export class ExplorerCommand extends BaseCommand {
           .pods()
           .waitForReadyStatus(
             config.namespace,
-            Templates.renderExplorerLabels(config.id),
+            Templates.renderExplorerLabels(config.id, config.isLegacyChartInstalled ? config.releaseName : undefined),
             constants.PODS_READY_MAX_ATTEMPTS,
             constants.PODS_READY_DELAY,
           );
@@ -468,7 +469,10 @@ export class ExplorerCommand extends BaseCommand {
         const pods: Pod[] = await this.k8Factory
           .getK8(config.clusterContext)
           .pods()
-          .list(config.namespace, Templates.renderExplorerLabels(config.id));
+          .list(
+            config.namespace,
+            Templates.renderExplorerLabels(config.id, config.isLegacyChartInstalled ? config.releaseName : undefined),
+          );
 
         if (pods.length === 0) {
           throw new SoloError('No Hiero Explorer pod found');
@@ -545,6 +549,8 @@ export class ExplorerCommand extends BaseCommand {
               allFlags,
               [],
             ) as ExplorerDeployConfigClass;
+
+            config.isLegacyChartInstalled = false;
 
             context_.config = config;
 

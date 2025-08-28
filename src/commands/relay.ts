@@ -85,6 +85,7 @@ interface RelayDeployConfigClass {
   id: ComponentId;
   forcePortForward: Optional<boolean>;
   cacheDir: Optional<string>;
+  isLegacyChartInstalled: false;
 }
 
 interface RelayDeployContext {
@@ -401,7 +402,7 @@ export class RelayCommand extends BaseCommand {
             .pods()
             .waitForRunningPhase(
               config.namespace,
-              Templates.renderRelayLabels(config.id),
+              Templates.renderRelayLabels(config.id, config.isLegacyChartInstalled ? config.releaseName : undefined),
               constants.RELAY_PODS_RUNNING_MAX_ATTEMPTS,
               constants.RELAY_PODS_RUNNING_DELAY,
             );
@@ -443,7 +444,10 @@ export class RelayCommand extends BaseCommand {
         const pods: Pod[] = await this.k8Factory
           .getK8(config.context)
           .pods()
-          .list(config.namespace, Templates.renderRelayLabels(config.id));
+          .list(
+            config.namespace,
+            Templates.renderRelayLabels(config.id, config.isLegacyChartInstalled ? config.releaseName : undefined),
+          );
 
         if (pods.length === 0) {
           throw new SoloError('No Relay pod found');
@@ -502,6 +506,8 @@ export class RelayCommand extends BaseCommand {
             ) as RelayDeployConfigClass;
 
             context_.config = config;
+
+            config.isLegacyChartInstalled = false;
 
             config.namespace = await this.getNamespace(task);
 
