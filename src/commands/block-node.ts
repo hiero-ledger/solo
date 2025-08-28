@@ -48,6 +48,7 @@ interface BlockNodeDeployConfigClass {
   enableIngress: boolean;
   quiet: boolean;
   valuesFile: Optional<string>;
+  releaseTag: string;
   imageTag: Optional<string>;
   namespace: NamespaceName;
   nodeAliases: NodeAliases; // from remote config
@@ -116,6 +117,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.enableIngress,
       flags.quiet,
       flags.valuesFile,
+      flags.releaseTag,
       flags.imageTag,
     ],
   };
@@ -207,6 +209,11 @@ export class BlockNodeCommand extends BaseCommand {
             context_.config = config;
 
             const consensusNodeVersion: string = this.remoteConfig.configuration.versions.consensusNode.toString();
+            if (consensusNodeVersion === '0.0.0') {
+              throw new SoloError(
+                'Did not detect consensus node version in remote configuration, please deploy consensus node first',
+              );
+            }
             if (
               lt(
                 new SemVer(consensusNodeVersion),
@@ -214,7 +221,7 @@ export class BlockNodeCommand extends BaseCommand {
               )
             ) {
               throw new SoloError(
-                `Hedera platform versions less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE} are not supported`,
+                `Current version is ${consensusNodeVersion}, Hedera platform versions less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE} are not supported`,
               );
             }
 
