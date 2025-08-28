@@ -585,7 +585,10 @@ export class RelayCommand extends BaseCommand {
           this.componentFactory.createNewRelayComponent(clusterReference, namespace, nodeIds),
           ComponentTypes.RelayNodes,
         );
-        this.remoteConfig.configuration.versions.jsonRpcRelayChart = new SemVer(context_.config.relayReleaseTag);
+        this.remoteConfig.updateComponentVersion(
+          ComponentTypes.RelayNodes,
+          new SemVer(context_.config.relayReleaseTag),
+        );
         await this.remoteConfig.persist();
       },
     };

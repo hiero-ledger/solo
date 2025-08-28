@@ -617,8 +617,8 @@ export class BlockNodeCommand extends BaseCommand {
       imageTag = typeof tag === 'string' ? new SemVer(tag) : tag;
     }
 
-    this.remoteConfig.configuration.versions.blockNodeChart =
-      imageTag && lt(blockNodeVersion, imageTag) ? imageTag : blockNodeVersion;
+    const finalVersion = imageTag && lt(blockNodeVersion, imageTag) ? imageTag : blockNodeVersion;
+    this.remoteConfig.updateComponentVersion(ComponentTypes.BlockNode, finalVersion);
 
     await this.remoteConfig.persist();
   }

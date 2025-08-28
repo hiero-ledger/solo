@@ -665,7 +665,7 @@ export class ExplorerCommand extends BaseCommand {
           this.componentFactory.createNewExplorerComponent(clusterRef, namespace),
           ComponentTypes.Explorers,
         );
-        this.remoteConfig.configuration.versions.explorerChart = new SemVer(context_.config.explorerVersion);
+        this.remoteConfig.updateComponentVersion(ComponentTypes.Explorers, new SemVer(context_.config.explorerVersion));
         await this.remoteConfig.persist();
       },
     };

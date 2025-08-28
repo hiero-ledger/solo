@@ -1345,7 +1345,10 @@ export class NodeCommandTasks {
           await container.execContainer('chmod 777 /opt/hgcapp/services-hedera/HapiApp2.0/data');
 
           // save consensus node version in remote config
-          this.remoteConfig.configuration.versions.consensusNode = new SemVer(context_.config.releaseTag);
+          this.remoteConfig.updateComponentVersion(
+            ComponentTypes.ConsensusNode,
+            new SemVer(context_.config.releaseTag),
+          );
           await this.remoteConfig.persist();
         }
       },

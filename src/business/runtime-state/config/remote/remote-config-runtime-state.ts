@@ -8,7 +8,7 @@ import {RemoteConfigSource} from '../../../../data/configuration/impl/remote-con
 import {YamlConfigMapStorageBackend} from '../../../../data/backend/impl/yaml-config-map-storage-backend.js';
 import {type ConfigMap} from '../../../../integration/kube/resources/config-map/config-map.js';
 import {LedgerPhase} from '../../../../data/schema/model/remote/ledger-phase.js';
-import {SemVer} from 'semver';
+import {eq, SemVer} from 'semver';
 import {ComponentsDataWrapperApi} from '../../../../core/config/remote/api/components-data-wrapper-api.js';
 import {InjectTokens} from '../../../../core/dependency-injection/inject-tokens.js';
 import {type K8Factory} from '../../../../integration/kube/k8-factory.js';
@@ -376,6 +376,59 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     remoteConfig.versions.chart = argv[flags.soloChartVersion.name]
       ? new SemVer(argv[flags.soloChartVersion.name])
       : new SemVer(flags.soloChartVersion.definition.defaultValue as string);
+
+    const componentTypes = [
+      ComponentTypes.BlockNode,
+      ComponentTypes.RelayNodes,
+      ComponentTypes.MirrorNode,
+      ComponentTypes.Explorers,
+      ComponentTypes.ConsensusNode,
+    ];
+
+    const defaultVersion = new SemVer(flags.soloChartVersion.definition.defaultValue as string);
+
+    for (const componentType of componentTypes) {
+      const version: SemVer = this.getComponentVersion(componentType);
+      if (eq(version, new SemVer('0.0.0'))) {
+        switch (componentType) {
+          case ComponentTypes.BlockNode: {
+            this.updateComponentVersion(
+              componentType,
+              new SemVer(flags.blockNodeChartVersion.definition.defaultValue as string),
+            );
+            break;
+          }
+          case ComponentTypes.RelayNodes: {
+            this.updateComponentVersion(
+              componentType,
+              new SemVer(flags.relayReleaseTag.definition.defaultValue as string),
+            );
+            break;
+          }
+          case ComponentTypes.MirrorNode: {
+            this.updateComponentVersion(
+              componentType,
+              new SemVer(flags.mirrorNodeVersion.definition.defaultValue as string),
+            );
+            break;
+          }
+          case ComponentTypes.Explorers: {
+            this.updateComponentVersion(
+              componentType,
+              new SemVer(flags.explorerVersion.definition.defaultValue as string),
+            );
+            break;
+          }
+          case ComponentTypes.ConsensusNode: {
+            this.updateComponentVersion(componentType, new SemVer(flags.releaseTag.definition.defaultValue as string));
+            break;
+          }
+          default: {
+            throw new SoloError(`Unsupported component type: ${componentType}`);
+          }
+        }
+      }
+    }
   }
 
   public async deleteComponents(): Promise<void> {
@@ -534,5 +587,56 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
   public extractContextFromConsensusNodes(nodeAlias: NodeAlias): Optional<string> {
     return helpers.extractContextFromConsensusNodes(nodeAlias, this.getConsensusNodes());
+  }
+
+  public updateComponentVersion(type: ComponentTypes, version: SemVer): void {
+    switch (type) {
+      case ComponentTypes.ConsensusNode: {
+        this.configuration.versions.consensusNode = version;
+        break;
+      }
+      case ComponentTypes.MirrorNode: {
+        this.configuration.versions.mirrorNodeChart = version;
+        break;
+      }
+      case ComponentTypes.Explorers: {
+        this.configuration.versions.explorerChart = version;
+        break;
+      }
+      case ComponentTypes.RelayNodes: {
+        this.configuration.versions.jsonRpcRelayChart = version;
+        break;
+      }
+      case ComponentTypes.BlockNode: {
+        this.configuration.versions.blockNodeChart = version;
+        break;
+      }
+      default: {
+        throw new SoloError(`Unsupported component type: ${type}`);
+      }
+    }
+  }
+
+  public getComponentVersion(type: ComponentTypes): SemVer {
+    switch (type) {
+      case ComponentTypes.ConsensusNode: {
+        return this.configuration.versions.consensusNode;
+      }
+      case ComponentTypes.MirrorNode: {
+        return this.configuration.versions.mirrorNodeChart;
+      }
+      case ComponentTypes.Explorers: {
+        return this.configuration.versions.explorerChart;
+      }
+      case ComponentTypes.RelayNodes: {
+        return this.configuration.versions.jsonRpcRelayChart;
+      }
+      case ComponentTypes.BlockNode: {
+        return this.configuration.versions.blockNodeChart;
+      }
+      default: {
+        throw new SoloError(`Unsupported component type: ${type}`);
+      }
+    }
   }
 }
