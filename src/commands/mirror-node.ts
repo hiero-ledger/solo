@@ -431,8 +431,6 @@ export class MirrorNodeCommand extends BaseCommand {
             }
 
             if (context_.config.pinger) {
-              context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=5`;
-
               const operatorId: string =
                 context_.config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
               context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
