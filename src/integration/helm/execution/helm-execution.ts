@@ -160,7 +160,12 @@ export class HelmExecution {
     if (exitCode !== 0) {
       const stdOut = this.standardOutput();
       const stdError = this.standardError();
-      throw new HelmExecutionException(exitCode, `Helm command failed with exit code ${exitCode}. Command: '${this.commandLine}'. Error: ${stdError}`, stdOut, stdError);
+      throw new HelmExecutionException(
+        exitCode,
+        `Helm command failed with exit code ${exitCode}. Command: '${this.commandLine}'. Error: ${stdError}`,
+        stdOut,
+        stdError,
+      );
     }
     if (responseClass === undefined) {
       return null;
@@ -209,7 +214,12 @@ export class HelmExecution {
     if (exitCode !== 0) {
       const stdOut = this.standardOutput();
       const stdError = this.standardError();
-      throw new HelmExecutionException(exitCode, `Helm command failed with exit code ${exitCode}. Command: '${this.commandLine}'. Error: ${stdError}`, stdOut, stdError);
+      throw new HelmExecutionException(
+        exitCode,
+        `Helm command failed with exit code ${exitCode}. Command: '${this.commandLine}'. Error: ${stdError}`,
+        stdOut,
+        stdError,
+      );
     }
 
     const output = this.standardOutput();
@@ -247,7 +257,12 @@ export class HelmExecution {
     if (exitCode !== 0) {
       const stdOut = await this.standardOutput();
       const stdError = await this.standardError();
-      throw new HelmExecutionException(exitCode, `Helm command failed with exit code ${exitCode}. Command: '${this.commandLine}'. Error: ${stdError}`, stdOut, stdError);
+      throw new HelmExecutionException(
+        exitCode,
+        `Helm command failed with exit code ${exitCode}. Command: '${this.commandLine}'. Error: ${stdError}`,
+        stdOut,
+        stdError,
+      );
     }
   }
 }
