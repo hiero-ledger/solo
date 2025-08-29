@@ -382,4 +382,8 @@ export class Templates {
   public static renderBlockNodeName(id: ComponentId): string {
     return `${constants.BLOCK_NODE_RELEASE_NAME}-${id}`;
   }
+
+  public static renderMirrorNodeName(id: ComponentId): string {
+    return `${constants.MIRROR_NODE_RELEASE_NAME}-${id}`;
+  }
 }

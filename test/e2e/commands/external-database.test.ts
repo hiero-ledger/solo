@@ -91,7 +91,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             export SOLO_NAMESPACE=${namespace.name}; \
             export SOLO_CACHE_DIR=${testCacheDirectory}; \
             export SOLO_DEPLOYMENT=${testName}-deployment; \
-            export MIRROR_RELEASE_NAME=mirror-1; \
+            export MIRROR_RELEASE_NAME=mirror; \
             .github/workflows/script/solo_smoke_test.sh`;
 
         // running the script and show its output in real time for easy to debug

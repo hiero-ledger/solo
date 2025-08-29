@@ -266,6 +266,8 @@ export class MirrorNodeTest extends BaseCommandTest {
     it(`${testName}: mirror node deploy with external database`, async (): Promise<void> => {
       const argv = soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger);
 
+      process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME = 'true';
+
       // Add external database flags
       argv.push(
         optionFromFlag(Flags.enableIngress),

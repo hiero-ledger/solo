@@ -53,6 +53,7 @@ import {Base64} from 'js-base64';
 import {Version} from '../business/utils/version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
+import {USE_MIRROR_NODE_LEGACY_RELEASE_NAME} from '../core/constants.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -497,7 +498,7 @@ export class MirrorNodeCommand extends BaseCommand {
               task: async (context_): Promise<void> => {
                 const config: MirrorNodeDeployConfigClass = context_.config;
 
-                let mirrorIngressControllerValuesArgument: string = '';
+                let mirrorIngressControllerValuesArgument: string = ' --install ';
 
                 if (config.mirrorStaticIp !== '') {
                   mirrorIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${context_.config.mirrorStaticIp}`;
@@ -508,7 +509,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
                 mirrorIngressControllerValuesArgument += prepareValuesFiles(config.ingressControllerValueFile);
 
-                await this.chartManager.install(
+                await this.chartManager.upgrade(
                   config.namespace,
                   config.ingressReleaseName,
                   constants.INGRESS_CONTROLLER_RELEASE_NAME,
@@ -805,13 +806,18 @@ export class MirrorNodeCommand extends BaseCommand {
 
             config.id = config.newMirrorNodeComponent.metadata.id;
 
-            config.releaseName = this.getReleaseName();
-            config.ingressReleaseName = this.getIngressReleaseName();
+            if (USE_MIRROR_NODE_LEGACY_RELEASE_NAME) {
+              config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
+              config.ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
+            } else {
+              config.releaseName = this.getReleaseName();
+              config.ingressReleaseName = this.getIngressReleaseName();
+            }
 
             config.isChartInstalled = await this.chartManager.isChartInstalled(
               config.namespace,
               config.releaseName,
-              constants.MIRROR_NODE_RELEASE_NAME,
+              config.clusterContext,
             );
 
             // predefined values first
@@ -956,7 +962,6 @@ export class MirrorNodeCommand extends BaseCommand {
         await tasks.run();
         this.logger.debug('mirror node add has completed');
       } catch (error) {
-        console.error(error);
         throw new SoloError(`Error adding mirror node: ${error.message}`, error);
       } finally {
         await lease?.release();
@@ -1014,6 +1019,11 @@ export class MirrorNodeCommand extends BaseCommand {
             config.isChartInstalled = isChartInstalled;
             config.ingressReleaseName = ingressReleaseName;
             config.isLegacyChartInstalled = isLegacyChartInstalled;
+
+            if (USE_MIRROR_NODE_LEGACY_RELEASE_NAME) {
+              config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
+              config.ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
+            }
 
             // predefined values first
             config.valuesArg = semver.lt(config.mirrorNodeVersion, '0.130.0')

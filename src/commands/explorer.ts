@@ -37,6 +37,8 @@ import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Version} from '../business/utils/version.js';
 import {Duration} from '../core/time/duration.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
+import {K8} from '../integration/kube/k8.js';
+import {boolean} from 'yargs';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -69,6 +71,7 @@ interface ExplorerDeployConfigClass {
   forcePortForward: Optional<boolean>;
   isChartInstalled: boolean;
   isLegacyChartInstalled: false;
+  mirrorNodeReleaseName: string;
 }
 
 interface ExplorerDeployContext {
@@ -106,6 +109,7 @@ interface ExplorerUpgradeConfigClass {
   id: ComponentId;
   isChartInstalled: boolean;
   isLegacyChartInstalled: boolean;
+  mirrorNodeReleaseName: string;
 }
 
 interface ExplorerUpgradeContext {
@@ -220,9 +224,8 @@ export class ExplorerCommand extends BaseCommand {
       valuesArgument += ` --set ingressClassName=${config.ingressReleaseName}`;
     }
     valuesArgument += ` --set fullnameOverride=${config.releaseName}`;
-    const mirrorNodeReleaseName: string = `${constants.MIRROR_NODE_RELEASE_NAME}-${config.mirrorNodeId}`;
 
-    valuesArgument += ` --set proxyPass./api="http://${mirrorNodeReleaseName}-rest.${config.mirrorNamespace}.svc.cluster.local" `;
+    valuesArgument += ` --set proxyPass./api="http://${config.mirrorNodeReleaseName}-rest.${config.mirrorNamespace}.svc.cluster.local" `;
 
     if (config.domainName) {
       valuesArgument += helpers.populateHelmArguments({
@@ -253,7 +256,7 @@ export class ExplorerCommand extends BaseCommand {
   ): Promise<string> {
     const {tlsClusterIssuerType, namespace} = config;
 
-    let valuesArgument: string = '';
+    let valuesArgument: string = ' --install ';
 
     if (!['acme-staging', 'acme-prod', 'self-signed'].includes(tlsClusterIssuerType)) {
       throw new Error(
@@ -311,13 +314,13 @@ export class ExplorerCommand extends BaseCommand {
           // if cert-manager isn't already installed we want to install it separate from the certificate issuers
           // as they will fail to be created due to the order of the installation being dependent on the cert-manager
           // being installed first
-          await this.chartManager.install(
+          await this.chartManager.upgrade(
             NamespaceName.of(constants.CERT_MANAGER_NAME_SPACE),
             constants.SOLO_CERT_MANAGER_CHART,
             constants.SOLO_CERT_MANAGER_CHART,
             config.chartDirectory ? config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
             soloChartVersion,
-            '  --set cert-manager.installCRDs=true',
+            ' --install  --set cert-manager.installCRDs=true',
             config.clusterContext,
           );
           showVersionBanner(this.logger, constants.SOLO_CERT_MANAGER_CHART, soloChartVersion);
@@ -355,12 +358,13 @@ export class ExplorerCommand extends BaseCommand {
     return {
       title: 'Install explorer',
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
-        let exploreValuesArgument: string = prepareValuesFiles(constants.EXPLORER_VALUES_FILE);
+        let exploreValuesArgument: string = ' --install ';
+        exploreValuesArgument += prepareValuesFiles(constants.EXPLORER_VALUES_FILE);
         exploreValuesArgument += await this.prepareHederaExplorerValuesArg(config);
 
         config.explorerVersion = Version.getValidSemanticVersion(config.explorerVersion, false, 'Explorer version');
 
-        await this.chartManager.install(
+        await this.chartManager.upgrade(
           config.namespace,
           config.releaseName,
           '',
@@ -379,7 +383,7 @@ export class ExplorerCommand extends BaseCommand {
       title: 'Install explorer ingress controller',
       skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => !config.enableIngress,
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
-        let explorerIngressControllerValuesArgument: string = '';
+        let explorerIngressControllerValuesArgument: string = ' --install ';
 
         if (config.explorerStaticIp !== '') {
           explorerIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${config.explorerStaticIp}`;
@@ -391,7 +395,7 @@ export class ExplorerCommand extends BaseCommand {
           explorerIngressControllerValuesArgument += prepareValuesFiles(config.ingressControllerValueFile);
         }
 
-        await this.chartManager.install(
+        await this.chartManager.upgrade(
           config.namespace,
           config.ingressReleaseName,
           constants.INGRESS_CONTROLLER_RELEASE_NAME,
@@ -403,20 +407,24 @@ export class ExplorerCommand extends BaseCommand {
 
         showVersionBanner(this.logger, config.ingressReleaseName, INGRESS_CONTROLLER_VERSION);
 
+        const k8: K8 = this.k8Factory.getK8(config.clusterContext);
+
         // patch explorer ingress to use h1 protocol, haproxy ingress controller default backend protocol is h2
         // to support grpc over http/2
-        await this.k8Factory
-          .getK8(config.clusterContext)
-          .ingresses()
-          .update(config.namespace, config.releaseName, {
-            metadata: {
-              annotations: {
-                'haproxy-ingress.github.io/backend-protocol': 'h1',
-              },
+        await k8.ingresses().update(config.namespace, config.releaseName, {
+          metadata: {
+            annotations: {
+              'haproxy-ingress.github.io/backend-protocol': 'h1',
             },
-          });
-        await this.k8Factory
-          .getK8(config.clusterContext)
+          },
+        });
+
+        const ingressClasses: IngressClass[] = await k8.ingressClasses().list();
+        if (ingressClasses.some((ingressClass): boolean => ingressClass.name === config.ingressReleaseName)) {
+          return;
+        }
+
+        await k8
           .ingressClasses()
           .create(config.ingressReleaseName, constants.INGRESS_CONTROLLER_PREFIX + config.ingressReleaseName);
       },
@@ -565,6 +573,12 @@ export class ExplorerCommand extends BaseCommand {
               config.mirrorNamespace = config.namespace;
             }
 
+            config.mirrorNodeReleaseName = await this.inferMirrorNodeReleaseName(
+              config.mirrorNodeId,
+              config.mirrorNamespace,
+              config.clusterContext,
+            );
+
             config.newExplorerComponent = this.componentFactory.createNewExplorerComponent(
               config.clusterRef,
               config.namespace,
@@ -664,9 +678,17 @@ export class ExplorerCommand extends BaseCommand {
             config.isChartInstalled = isChartInstalled;
             config.isLegacyChartInstalled = isLegacyChartInstalled;
 
+            this.inferMirrorNodeId(config);
+
             if (!config.mirrorNamespace) {
               config.mirrorNamespace = config.namespace;
             }
+
+            config.mirrorNodeReleaseName = await this.inferMirrorNodeReleaseName(
+              config.mirrorNodeId,
+              config.mirrorNamespace,
+              config.clusterContext,
+            );
 
             config.valuesArg = await this.prepareValuesArg(context_.config);
 
@@ -882,6 +904,24 @@ export class ExplorerCommand extends BaseCommand {
     }
 
     return this.remoteConfig.configuration.components.state.explorers[0].metadata.id;
+  }
+
+  private async inferMirrorNodeReleaseName(
+    mirrorNodeId: ComponentId,
+    namespace: NamespaceName,
+    context: Context,
+  ): Promise<string> {
+    if (mirrorNodeId !== 1) {
+      return Templates.renderMirrorNodeName(mirrorNodeId);
+    }
+
+    const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
+      namespace,
+      constants.MIRROR_NODE_RELEASE_NAME,
+      context,
+    );
+
+    return isLegacyChartInstalled ? constants.MIRROR_NODE_RELEASE_NAME : Templates.renderMirrorNodeName(mirrorNodeId);
   }
 
   private async inferDestroyData(

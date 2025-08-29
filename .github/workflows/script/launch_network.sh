@@ -22,6 +22,7 @@ export SOLO_CLUSTER_NAME=solo-e2e
 export SOLO_NAMESPACE=solo-e2e
 export SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 export SOLO_DEPLOYMENT=solo-e2e
+export USE_MIRROR_NODE_LEGACY_RELEASE_NAME=true
 
 kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
