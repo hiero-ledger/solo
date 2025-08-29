@@ -111,7 +111,7 @@ function check_monitor_log()
 {
   namespace="${1}"
   # get the logs of mirror-monitor
-  kubectl get pods -n "${namespace}" | grep ${MIRROR_RELEASE_NAME}-monitor | awk '{print $1}' | xargs -IPOD kubectl logs -n "${namespace}" POD > mirror-monitor.log
+  kubectl get pods -n "${namespace}" | grep mirror-monitor | awk '{print $1}' | xargs -IPOD kubectl logs -n "${namespace}" POD > mirror-monitor.log
 
   if grep -q "ERROR" mirror-monitor.log; then
     echo "mirror-monitor.log contains ERROR"
@@ -140,7 +140,7 @@ function check_importer_log()
 {
   namespace="${1}"
 
-  kubectl get pods -n "${namespace}" | grep ${MIRROR_RELEASE_NAME}-importer | awk '{print $1}' | xargs -IPOD kubectl logs -n "${namespace}" POD > mirror-importer.log || result=$?
+  kubectl get pods -n "${namespace}" | grep mirror-importer | awk '{print $1}' | xargs -IPOD kubectl logs -n "${namespace}" POD > mirror-importer.log || result=$?
   if [[ $result -ne 0 ]]; then
     echo "Failed to get the mirror node importer logs with exit code $result"
     log_and_exit $result
