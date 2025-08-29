@@ -196,6 +196,6 @@ if [ "${storageType}" == "aws_only" ] || [ "${storageType}" == "gcs_only" ]; the
   fi
 fi
 
-cho "-----------------------------------------"
+echo "-----------------------------------------"
 echo "Solo test finished successfully"
 echo "-----------------------------------------"
