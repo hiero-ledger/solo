@@ -196,8 +196,6 @@ if [ "${storageType}" == "aws_only" ] || [ "${storageType}" == "gcs_only" ]; the
   fi
 fi
 
-npm run solo-test -- consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force -q
-
-echo "-----------------------------------------"
+cho "-----------------------------------------"
 echo "Solo test finished successfully"
 echo "-----------------------------------------"
