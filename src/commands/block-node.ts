@@ -208,24 +208,31 @@ export class BlockNodeCommand extends BaseCommand {
 
             context_.config = config;
 
+            let consensusNodeVersion: string = this.remoteConfig.configuration.versions.consensusNode.toString();
+            if (consensusNodeVersion === '0.0.0') {
+              consensusNodeVersion = config.releaseTag;
+            }
             if (
               lt(
-                new SemVer(config.releaseTag),
+                new SemVer(consensusNodeVersion),
                 new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE),
               )
             ) {
               throw new SoloError(
-                `Hedera platform versions less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE} are not supported`,
+                `Current version is ${consensusNodeVersion}, Hedera platform versions less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE} are not supported`,
               );
             }
 
             const currentBlockNodeVersion: SemVer = new SemVer(config.chartVersion);
             if (
-              lt(new SemVer(config.releaseTag), new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE)) &&
+              lt(
+                new SemVer(consensusNodeVersion),
+                new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE),
+              ) &&
               gte(currentBlockNodeVersion, MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)
             ) {
               throw new SoloError(
-                `Hedera platform version less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} ` +
+                `Current platform version is ${consensusNodeVersion}, Hedera platform version less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} ` +
                   `are not supported for block node version ${MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT.version}`,
               );
             }
@@ -610,8 +617,8 @@ export class BlockNodeCommand extends BaseCommand {
       imageTag = typeof tag === 'string' ? new SemVer(tag) : tag;
     }
 
-    this.remoteConfig.configuration.versions.blockNodeChart =
-      imageTag && lt(blockNodeVersion, imageTag) ? imageTag : blockNodeVersion;
+    const finalVersion = imageTag && lt(blockNodeVersion, imageTag) ? imageTag : blockNodeVersion;
+    this.remoteConfig.updateComponentVersion(ComponentTypes.BlockNode, finalVersion);
 
     await this.remoteConfig.persist();
   }
