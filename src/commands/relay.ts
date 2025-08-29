@@ -641,7 +641,6 @@ export class RelayCommand extends BaseCommand {
         this.deployJsonRpcRelayTask(),
         this.checkRelayIsRunningTask(),
         this.checkRelayIsReadyTask(),
-        this.addRelayComponent(),
         this.enablePortForwardingTask(),
         // TODO only show this if we are not running in quick-start mode
         // {

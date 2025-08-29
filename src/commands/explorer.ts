@@ -585,7 +585,7 @@ export class ExplorerCommand extends BaseCommand {
         this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
         this.checkExplorerIngressControllerPodIsReadyTask(),
-        this.addMirrorNodeExplorerComponents(),
+        this.addExplorerComponents(),
         this.enablePortForwardingTask(),
         // TODO only show this if we are not running in quick-start mode
         // {
@@ -681,7 +681,6 @@ export class ExplorerCommand extends BaseCommand {
         this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
         this.checkExplorerIngressControllerPodIsReadyTask(),
-        this.addMirrorNodeExplorerComponents(),
         this.enablePortForwardingTask(),
       ],
       {
@@ -838,7 +837,7 @@ export class ExplorerCommand extends BaseCommand {
   }
 
   /** Adds the explorer components to remote config. */
-  private addMirrorNodeExplorerComponents(): SoloListrTask<ExplorerDeployContext> {
+  private addExplorerComponents(): SoloListrTask<ExplorerDeployContext> {
     return {
       title: 'Add explorer to remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),

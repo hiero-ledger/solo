@@ -956,6 +956,7 @@ export class MirrorNodeCommand extends BaseCommand {
         await tasks.run();
         this.logger.debug('mirror node add has completed');
       } catch (error) {
+        console.error(error);
         throw new SoloError(`Error adding mirror node: ${error.message}`, error);
       } finally {
         await lease?.release();
@@ -1130,7 +1131,6 @@ export class MirrorNodeCommand extends BaseCommand {
         },
         this.enableMirrorNodeTask(),
         this.checkPodsAreReadyNodeTask(),
-        this.seedDbDataTask(),
         this.enablePortForwardingTask(),
         // TODO only show this if we are not running in quick-start mode
         // {
