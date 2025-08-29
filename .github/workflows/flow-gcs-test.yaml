@@ -154,7 +154,6 @@ jobs:
           GCP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GCP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           .github/workflows/script/gcs_test.sh || RC=$? || true
-          echo "RC=${RC}"
           if [[ "${RC}" != "0" ]]; then
             echo "GCS test failed with exit code ${RC}"
             npm run solo-test -- consensus diagnostics all --deployment solo-e2e -q --dev || true
