@@ -157,7 +157,7 @@ jobs:
           echo "RC=${RC}"
           if [[ "${RC}" != "0" ]]; then
             echo "GCS test failed with exit code ${RC}"
-            npm run solo-test -- consensus diagnostics all --deployment solo-e2e -q --dev || true
+            npm run solo-test -- consensus diagnostics all --deployment solo-deployment -q --dev || true
             exit ${RC}
           fi
 
