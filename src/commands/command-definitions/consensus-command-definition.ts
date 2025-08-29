@@ -42,7 +42,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
   private static readonly STATE_SUBCOMMAND_DESCRIPTION =
     'List, download, and upload consensus node state backups to/from individual consensus node instances.';
 
-  public static readonly DIAGNOSTIC_SUBCOMMAND_NAME = 'diagnostic';
+  public static readonly DIAGNOSTIC_SUBCOMMAND_NAME = 'diagnostics';
   private static readonly DIAGNOSTIC_SUBCOMMAND_DESCRIPTION =
     'Capture diagnostic information such as logs, signed states, and ledger/network/node configurations.';
 
