@@ -211,7 +211,7 @@ start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
 echo "Sleep a while to wait background transactions to finish"
 sleep 30
 
-echo "Run mirror node acceptance test"
+echo "Run mirror node acceptance test on namespace ${SOLO_NAMESPACE}"
 helm test mirror -n "${SOLO_NAMESPACE}" --timeout 10m || result=$?
 if [[ $result -ne 0 ]]; then
   echo "Mirror node acceptance test failed with exit code $result"
