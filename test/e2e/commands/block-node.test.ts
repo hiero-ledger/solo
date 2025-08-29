@@ -26,7 +26,6 @@ import {type ArgvStruct} from '../../../src/types/aliases.js';
 import {type BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
 import {TEST_LOCAL_BLOCK_NODE_VERSION} from '../../../version-test.js';
 import {BlockCommandDefinition} from '../../../src/commands/command-definitions/block-command-definition.js';
-import {MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} from '../../../version.js';
 
 // eslint-disable-next-line @typescript-eslint/typedef
 const execAsync = promisify(exec);
