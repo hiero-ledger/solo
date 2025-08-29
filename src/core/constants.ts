@@ -166,8 +166,9 @@ export const MIRROR_NODE_VALUES_FILE_HEDERA = PathEx.joinWithRealPath(RESOURCES_
 export const BLOCK_NODE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
 export const NODE_LOG_FAILURE_MSG = 'failed to download logs from pod';
 
-export const USE_MIRROR_NODE_LEGACY_RELEASE_NAME: boolean =
-  getEnvironmentVariable('USE_MIRROR_NODE_LEGACY_RELEASE_NAME') !== undefined;
+export const USE_MIRROR_NODE_LEGACY_RELEASE_NAME: {value: boolean} = {
+  value: getEnvironmentVariable('USE_MIRROR_NODE_LEGACY_RELEASE_NAME') !== undefined,
+};
 
 /**
  * Listr related

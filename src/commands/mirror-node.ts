@@ -806,7 +806,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
             config.id = config.newMirrorNodeComponent.metadata.id;
 
-            if (USE_MIRROR_NODE_LEGACY_RELEASE_NAME) {
+            if (USE_MIRROR_NODE_LEGACY_RELEASE_NAME.value) {
               config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
               config.ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
             } else {
@@ -1020,7 +1020,7 @@ export class MirrorNodeCommand extends BaseCommand {
             config.ingressReleaseName = ingressReleaseName;
             config.isLegacyChartInstalled = isLegacyChartInstalled;
 
-            if (USE_MIRROR_NODE_LEGACY_RELEASE_NAME) {
+            if (USE_MIRROR_NODE_LEGACY_RELEASE_NAME.value) {
               config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
               config.ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
             }
