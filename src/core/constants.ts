@@ -78,6 +78,7 @@ export const SOLO_CERT_MANAGER_CHART = 'solo-cert-manager';
 export const JSON_RPC_RELAY_CHART_URL =
   getEnvironmentVariable('JSON_RPC_RELAY_CHART_URL') ?? 'https://hiero-ledger.github.io/hiero-json-rpc-relay/charts';
 export const JSON_RPC_RELAY_CHART = 'hedera-json-rpc';
+export const JSON_RPC_RELAY_RELEASE_NAME: string = 'relay';
 
 export const MIRROR_NODE_CHART_URL =
   getEnvironmentVariable('MIRROR_NODE_CHART_URL') ?? 'https://hashgraph.github.io/hedera-mirror-node/charts';
@@ -164,6 +165,10 @@ export const MIRROR_NODE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'm
 export const MIRROR_NODE_VALUES_FILE_HEDERA = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values-hedera.yaml');
 export const BLOCK_NODE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
 export const NODE_LOG_FAILURE_MSG = 'failed to download logs from pod';
+
+export const USE_MIRROR_NODE_LEGACY_RELEASE_NAME: {value: boolean} = {
+  value: getEnvironmentVariable('USE_MIRROR_NODE_LEGACY_RELEASE_NAME') !== undefined,
+};
 
 /**
  * Listr related

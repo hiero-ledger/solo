@@ -22,6 +22,7 @@ export SOLO_CLUSTER_NAME=solo-e2e
 export SOLO_NAMESPACE=solo-e2e
 export SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 export SOLO_DEPLOYMENT=solo-e2e
+export USE_MIRROR_NODE_LEGACY_RELEASE_NAME=true
 
 kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
@@ -70,9 +71,9 @@ if ! grep -q "schemaVersion: 2" ./local-config-after.yaml; then
   exit 1
 fi
 
-# check remote-config-after.yaml should contains 'schemaVersion: 1'
-if ! grep -q "schemaVersion: 2" ./remote-config-after.yaml; then
-  echo "schemaVersion: 2 not found in remote-config-after.yaml"
+# check remote-config-after.yaml should contains 'schemaVersion: 3'
+if ! grep -q "schemaVersion: 3" ./remote-config-after.yaml; then
+  echo "schemaVersion: 3 not found in remote-config-after.yaml"
   exit 1
 fi
 echo "::endgroup::"
@@ -88,11 +89,11 @@ npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYM
 npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 
 # redeploy mirror node to upgrade to a newer version
-npm run solo -- mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --dev
+npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --dev
 
 # redeploy explorer and relay node to upgrade to a newer version
-npm run solo -- relay node add -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q --dev
-npm run solo -- explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
+npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q --dev
+npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
 # wait a few seconds for the pods to be ready before running transactions against them
 sleep 10

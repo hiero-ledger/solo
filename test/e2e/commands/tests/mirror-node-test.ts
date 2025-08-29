@@ -21,6 +21,7 @@ import {MirrorCommandDefinition} from '../../../../src/commands/command-definiti
 import * as constants from '../../../../src/core/constants.js';
 import fs from 'node:fs';
 import {ShellRunner} from '../../../../src/core/shell-runner.js';
+import {USE_MIRROR_NODE_LEGACY_RELEASE_NAME} from '../../../../src/core/constants.js';
 
 export class MirrorNodeTest extends BaseCommandTest {
   private static soloMirrorNodeDeployArgv(
@@ -58,7 +59,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     const mirrorNodeRestPods: Pod[] = await k8
       .pods()
       .list(namespace, [
-        'app.kubernetes.io/instance=mirror',
+        'app.kubernetes.io/instance=mirror-1',
         'app.kubernetes.io/name=rest',
         'app.kubernetes.io/component=rest',
       ]);
@@ -266,6 +267,9 @@ export class MirrorNodeTest extends BaseCommandTest {
     it(`${testName}: mirror node deploy with external database`, async (): Promise<void> => {
       const argv = soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger);
 
+      process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME = 'true';
+      USE_MIRROR_NODE_LEGACY_RELEASE_NAME.value = true;
+
       // Add external database flags
       argv.push(
         optionFromFlag(Flags.enableIngress),
@@ -299,7 +303,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       const mirrorNodePods: Pod[] = await k8
         .pods()
         .list(namespace, [
-          'app.kubernetes.io/instance=mirror',
+          'app.kubernetes.io/instance=mirror-1',
           'app.kubernetes.io/name=grpc',
           'app.kubernetes.io/component=grpc',
         ]);

@@ -55,12 +55,12 @@ Add SDK.md link here
 If you need to access mirror node service directly, use the following command to enable port forwarding, or just use `localhost:8081` as it should have all the mirror node services exposed to this port:
 
 ```bash
-kubectl port-forward svc/mirror-grpc -n "${SOLO_NAMESPACE}" 5600:5600 &
+kubectl port-forward svc/mirror-1-grpc -n "${SOLO_NAMESPACE}" 5600:5600 &
 grpcurl -plaintext "${GRPC_IP:-127.0.0.1}:5600" list
 
-kubectl port-forward svc/mirror-rest -n "${SOLO_NAMESPACE}" svc/mirror-rest 5551:80 &
+kubectl port-forward svc/mirror-1-rest -n "${SOLO_NAMESPACE}" svc/mirror-1-rest 5551:80 &
 curl -s "http://${REST_IP:-127.0.0.1}:5551/api/v1/transactions?limit=1"
 
-kubectl port-forward service/mirror-restjava -n "${SOLO_NAMESPACE}" 8084:80 &
+kubectl port-forward service/mirror-1-restjava -n "${SOLO_NAMESPACE}" 8084:80 &
 curl -s "http://${REST_IP:-127.0.0.1}:8084/api/v1/accounts/0.0.2/allowances/nfts"
 ```
