@@ -38,7 +38,6 @@ import {Version} from '../business/utils/version.js';
 import {Duration} from '../core/time/duration.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {K8} from '../integration/kube/k8.js';
-import {boolean} from 'yargs';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
