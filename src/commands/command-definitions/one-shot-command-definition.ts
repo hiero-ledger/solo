@@ -5,24 +5,24 @@ import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {BaseCommandDefinition} from './base-command-definition.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';
-import {DefaultQuickStartCommand} from '../quick-start/default-quick-start.js';
+import {DefaultOneShotCommand} from '../one-shot/default-one-shot.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 
 @injectable()
-export class QuickStartCommandDefinition extends BaseCommandDefinition {
+export class OneShotCommandDefinition extends BaseCommandDefinition {
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
-    @inject(InjectTokens.QuickStartCommand) public readonly quickStartCommand?: DefaultQuickStartCommand,
+    @inject(InjectTokens.OneShotCommand) public readonly oneShotCommand?: DefaultOneShotCommand,
   ) {
     super();
-    this.quickStartCommand = patchInject(quickStartCommand, InjectTokens.QuickStartCommand, this.constructor.name);
+    this.oneShotCommand = patchInject(oneShotCommand, InjectTokens.OneShotCommand, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME = 'quick-start';
+  public static override readonly COMMAND_NAME = 'one-shot';
   protected static override readonly DESCRIPTION =
-    'Quick start commands for new and returning users who need a preset environment type. ' +
+    'One Shot commands for new and returning users who need a preset environment type. ' +
     'These commands use reasonable defaults to provide a single command out of box experience.';
 
   public static readonly SINGLE_SUBCOMMAND_NAME = 'single';
@@ -39,32 +39,28 @@ export class QuickStartCommandDefinition extends BaseCommandDefinition {
   public static readonly SINGLE_DESTROY = 'destroy';
 
   public getCommandDefinition(): CommandDefinition {
-    return new CommandBuilder(
-      QuickStartCommandDefinition.COMMAND_NAME,
-      QuickStartCommandDefinition.DESCRIPTION,
-      this.logger,
-    )
+    return new CommandBuilder(OneShotCommandDefinition.COMMAND_NAME, OneShotCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(
         new CommandGroup(
-          QuickStartCommandDefinition.SINGLE_SUBCOMMAND_NAME,
-          QuickStartCommandDefinition.SINGLE_SUBCOMMAND_DESCRIPTION,
+          OneShotCommandDefinition.SINGLE_SUBCOMMAND_NAME,
+          OneShotCommandDefinition.SINGLE_SUBCOMMAND_DESCRIPTION,
         )
           .addSubcommand(
             new Subcommand(
-              QuickStartCommandDefinition.SINGLE_DEPLOY,
-              'Deploys all required components for the selected quick start configuration.',
-              this.quickStartCommand,
-              this.quickStartCommand.deploy,
-              DefaultQuickStartCommand.SINGLE_ADD_FLAGS_LIST,
+              OneShotCommandDefinition.SINGLE_DEPLOY,
+              'Deploys all required components for the selected one shot configuration.',
+              this.oneShotCommand,
+              this.oneShotCommand.deploy,
+              DefaultOneShotCommand.SINGLE_ADD_FLAGS_LIST,
             ),
           )
           .addSubcommand(
             new Subcommand(
-              QuickStartCommandDefinition.SINGLE_DESTROY,
-              'Removes the deployed resources for the selected quick start configuration.',
-              this.quickStartCommand,
-              this.quickStartCommand.destroy,
-              DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST,
+              OneShotCommandDefinition.SINGLE_DESTROY,
+              'Removes the deployed resources for the selected one shot configuration.',
+              this.oneShotCommand,
+              this.oneShotCommand.destroy,
+              DefaultOneShotCommand.SINGLE_DESTROY_FLAGS_LIST,
             ),
           ),
       )
