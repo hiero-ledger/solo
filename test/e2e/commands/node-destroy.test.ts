@@ -56,7 +56,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       await k8Factory.default().namespaces().delete(namespace);
     });
 
-    it('should succeed with in it command', async () => {
+    it('should succeed with init command', async () => {
       await commandInvoker.invoke({
         argv: argv,
         command: LedgerCommandDefinition.COMMAND_NAME,
@@ -114,8 +114,12 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     accountCreationShouldSucceed(accountManager, namespace, remoteConfig, logger, deleteNodeAlias);
 
     it('deleted consensus node should not be running', async () => {
-      // read config.txt file from first node, read config.txt line by line, it should not contain value of nodeAlias
-      const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
+      const pods: Pod[] = await k8Factory
+        .default()
+        .pods()
+        .list(namespace, ['solo.hedera.com/type=network-node', `solo.hedera.com/node-name=${deleteNodeAlias}`]);
+      expect(pods.length).to.equal(1);
+
       const response = await k8Factory
         .default()
         .containers()
