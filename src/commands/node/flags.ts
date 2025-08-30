@@ -127,11 +127,12 @@ const COMMON_DESTROY_OPTIONAL_FLAGS = [
   flags.releaseTag,
 ];
 
-const COMMON_ADD_REQUIRED_FLAGS = [flags.deployment, flags.clusterRef];
+const COMMON_ADD_REQUIRED_FLAGS = [flags.deployment];
 
 const COMMON_ADD_OPTIONAL_FLAGS = [
   flags.app,
   flags.chainId,
+  flags.clusterRef,
   flags.debugNodeAlias,
   flags.soloChartVersion,
   flags.persistentVolumeClaims,
