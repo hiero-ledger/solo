@@ -3,18 +3,27 @@
   "version": "0.0.0",
   "version.next": "0.0.1",
   "description": "Solo technical documentation.",
-  "repository": "github:hiero-ledger/solo",
+  "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hiero-ledger/solo.git"
+  },
   "homepage": "https://solo.hiero.org/",
   "author": "Hashgraph",
   "license": "Apache-2.0",
-  "bugs": "https://github.com/hiero-ledger/solo/issues",
+  "bugs": {
+    "url": "https://github.com/hiero-ledger/solo/issues"
+  },
   "spelling": "cSpell:ignore docsy hugo htmltest precheck postbuild rtlcss -",
   "scripts": {},
   "devDependencies": {
+    "@types/node": "^24.3.0",
     "autoprefixer": "^10.4.21",
     "cross-env": "^7.0.3",
+    "eslint": "^9.33.0",
     "hugo-extended": "0.145.0",
     "postcss-cli": "^11.0.1",
+    "prettier": "^3.6.2",
     "rtlcss": "^4.3.0"
   },
   "private": true,
@@ -23,6 +32,13 @@
     "singleQuote": true
   },
   "dependencies": {
-    "postcss": "^8.5.3"
-  }
+    "chalk": "^5.6.0",
+    "execa": "^9.6.0",
+    "kleur": "^4.1.5",
+    "mustache": "^4.2.0",
+    "node-pty": "^1.0.0",
+    "postcss": "^8.5.6"
+  },
+  "main": "index.js",
+  "keywords": []
 }
