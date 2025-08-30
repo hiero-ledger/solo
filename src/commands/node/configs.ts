@@ -355,6 +355,7 @@ export class NodeCommandConfigs {
   ): Promise<NodeAddConfigClass> {
     context_.config = this.configManager.getConfig(ADD_CONFIGS_NAME, argv.flags, [
       'allNodeAliases',
+      'newNodeAliases',
       'curDate',
       'existingNodeAliases',
       'freezeAdminPrivateKey',
