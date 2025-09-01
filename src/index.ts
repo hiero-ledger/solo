@@ -17,7 +17,11 @@ import {UserBreak} from './core/errors/user-break.js';
 import {getSoloVersion} from '../version.js';
 import {ArgumentProcessor} from './argument-processor.js';
 
-export async function main(argv: string[], context?: {logger: SoloLogger}) {
+export async function main(argv: string[], context?: {logger: SoloLogger}, extraVariables: Record<string, any> = {}) {
+  for (const [key, value] of Object.entries(extraVariables)) {
+    process.env[key] = value;
+  }
+
   try {
     Container.getInstance().init();
   } catch (error) {

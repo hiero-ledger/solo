@@ -282,7 +282,7 @@ export class MirrorNodeTest extends BaseCommandTest {
         this.postgresReadonlyPassword,
       );
 
-      await main(argv);
+      await main(argv, undefined, {USE_MIRROR_NODE_LEGACY_RELEASE_NAME: 'true'});
       await verifyMirrorNodeDeployWasSuccessful(
         contexts,
         namespace,
