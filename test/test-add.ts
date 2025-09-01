@@ -7,6 +7,7 @@ import {Flags as flags} from '../src/commands/flags.js';
 import {
   accountCreationShouldSucceed,
   balanceQueryShouldSucceed,
+  type BootstrapResponse,
   endToEndTestSuite,
   getNodeAliasesPrivateKeysHash,
   getTemporaryDirectory,
@@ -33,6 +34,7 @@ export function testNodeAdd(
   localBuildPath: string,
   testDescription = 'Node add should success',
   timeout: number = defaultTimeout,
+  additionalTests?: (bootstrapResponse: BootstrapResponse, argv: Argv) => Promise<void>,
 ): void {
   const suffix = localBuildPath.slice(0, 5);
   const namespace = NamespaceName.of(`node-add${suffix}`);
@@ -156,6 +158,10 @@ export function testNodeAdd(
               `${nodeAlias}:${keyFileName}:${existingKeyHash}`,
             );
           }
+        }
+
+        if (typeof additionalTests === 'function') {
+          await additionalTests(bootstrapResp, argv);
         }
       }).timeout(timeout);
     });
