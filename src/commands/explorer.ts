@@ -319,7 +319,7 @@ export class ExplorerCommand extends BaseCommand {
             constants.SOLO_CERT_MANAGER_CHART,
             config.chartDirectory ? config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
             soloChartVersion,
-            ' --install  --set cert-manager.installCRDs=true',
+            ' --install --create-namespace --set cert-manager.installCRDs=true',
             config.clusterContext,
           );
           showVersionBanner(this.logger, constants.SOLO_CERT_MANAGER_CHART, soloChartVersion);
