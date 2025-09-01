@@ -349,7 +349,7 @@ export class Templates {
   }
 
   public static renderMirrorNodeLabels(id: ComponentId, legacyReleaseName?: string): string[] {
-    const releaseName: string = legacyReleaseName ?? `${constants.MIRROR_NODE_RELEASE_NAME}-${id}`;
+    const releaseName: string = legacyReleaseName ?? Templates.renderMirrorNodeName(id);
 
     return [
       'app.kubernetes.io/name=importer',

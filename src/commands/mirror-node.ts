@@ -53,7 +53,6 @@ import {Base64} from 'js-base64';
 import {Version} from '../business/utils/version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
-import {USE_MIRROR_NODE_LEGACY_RELEASE_NAME} from '../core/constants.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -806,7 +805,9 @@ export class MirrorNodeCommand extends BaseCommand {
 
             config.id = config.newMirrorNodeComponent.metadata.id;
 
-            if (USE_MIRROR_NODE_LEGACY_RELEASE_NAME.value) {
+            console.log({USE_MIRROR_NODE_LEGACY_RELEASE_NAME: process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME});
+
+            if (process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME) {
               config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
               config.ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
             } else {
@@ -1020,7 +1021,9 @@ export class MirrorNodeCommand extends BaseCommand {
             config.ingressReleaseName = ingressReleaseName;
             config.isLegacyChartInstalled = isLegacyChartInstalled;
 
-            if (USE_MIRROR_NODE_LEGACY_RELEASE_NAME.value) {
+            console.log({USE_MIRROR_NODE_LEGACY_RELEASE_NAME: process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME});
+
+            if (process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME) {
               config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
               config.ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
             }

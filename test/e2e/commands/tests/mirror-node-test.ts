@@ -21,7 +21,6 @@ import {MirrorCommandDefinition} from '../../../../src/commands/command-definiti
 import * as constants from '../../../../src/core/constants.js';
 import fs from 'node:fs';
 import {ShellRunner} from '../../../../src/core/shell-runner.js';
-import {USE_MIRROR_NODE_LEGACY_RELEASE_NAME} from '../../../../src/core/constants.js';
 
 export class MirrorNodeTest extends BaseCommandTest {
   private static soloMirrorNodeDeployArgv(
@@ -264,7 +263,6 @@ export class MirrorNodeTest extends BaseCommandTest {
       const argv = soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger);
 
       process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME = 'true';
-      USE_MIRROR_NODE_LEGACY_RELEASE_NAME.value = true;
 
       // Add external database flags
       argv.push(
@@ -282,7 +280,7 @@ export class MirrorNodeTest extends BaseCommandTest {
         this.postgresReadonlyPassword,
       );
 
-      await main(argv, undefined, {USE_MIRROR_NODE_LEGACY_RELEASE_NAME: 'true'});
+      await main(argv);
       await verifyMirrorNodeDeployWasSuccessful(
         contexts,
         namespace,
