@@ -131,6 +131,8 @@ export interface NetworkDeployConfigClass {
   blockNodeComponents: BlockNodeStateSchema[];
   debugNodeAlias: NodeAlias;
   app: string;
+  serviceMonitor: string;
+  podLog: string;
 }
 
 interface NetworkDeployContext {
@@ -227,6 +229,8 @@ export class NetworkCommand extends BaseCommand {
       flags.backupRegion,
       flags.backupProvider,
       flags.domainNames,
+      flags.serviceMonitor,
+      flags.podLog,
     ],
   };
 
@@ -546,6 +550,8 @@ export class NetworkCommand extends BaseCommand {
       valuesArguments[clusterReference] +=
         ' --install' +
         ` --set "telemetry.prometheus.svcMonitor.enabled=${config.enablePrometheusSvcMonitor}"` +
+        ` --set "crds.serviceMonitor.enabled=${config.serviceMonitor}"` +
+        ` --set "crds.podLog.enabled=${config.podLog}"` +
         ` --set "defaults.volumeClaims.enabled=${config.persistentVolumeClaims}"`;
     }
 

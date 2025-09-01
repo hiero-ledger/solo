@@ -1788,6 +1788,28 @@ export class Flags {
     },
   };
 
+  public static readonly serviceMonitor: CommandFlag = {
+    constName: 'serviceMonitor',
+    name: 'service-monitor',
+    definition: {
+      describe: 'Install ServiceMonitor custom resource for monitoring Network Node metrics',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly podLog: CommandFlag = {
+    constName: 'podLog',
+    name: 'pod-log',
+    definition: {
+      describe: 'Install PodLog custom resource for monitoring Network Node pod logs',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly pinger: CommandFlag = {
     constName: 'pinger',
     name: 'pinger',
@@ -2645,6 +2667,8 @@ export class Flags {
     Flags.shard,
     Flags.username,
     Flags.skipNodeAlias,
+    Flags.serviceMonitor,
+    Flags.podLog,
   ];
 
   /** Resets the definition.disablePrompt for all flags */
