@@ -202,6 +202,7 @@ if [ -z "${SOLO_NAMESPACE}" ]; then
   export SOLO_NAMESPACE="solo-e2e"
 fi
 
+npm run solo-test -- init
 create_test_account "${SOLO_DEPLOYMENT}"
 clone_smart_contract_repo
 setup_smart_contract_test
