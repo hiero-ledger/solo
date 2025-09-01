@@ -58,11 +58,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     const k8: K8 = k8Factory.getK8(lastContext);
     const mirrorNodeRestPods: Pod[] = await k8
       .pods()
-      .list(namespace, [
-        'app.kubernetes.io/instance=mirror-1',
-        'app.kubernetes.io/name=rest',
-        'app.kubernetes.io/component=rest',
-      ]);
+      .list(namespace, ['app.kubernetes.io/name=rest', 'app.kubernetes.io/component=rest']);
     expect(mirrorNodeRestPods).to.have.lengthOf(1);
 
     const portForwarder: number = await k8
