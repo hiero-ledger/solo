@@ -10,11 +10,7 @@ import {type ChartManager} from '../../core/chart-manager.js';
 import {type CertificateManager} from '../../core/certificate-manager.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
-import {
-  DEFAULT_NETWORK_NODE_NAME,
-  HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
-  IGNORED_NODE_ACCOUNT_ID,
-} from '../../core/constants.js';
+import {DEFAULT_NETWORK_NODE_NAME, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
   AccountBalanceQuery,
@@ -2235,13 +2231,7 @@ export class NodeCommandTasks {
             break;
           }
           case NodeSubcommandType.DESTROY: {
-            this.prepareValuesArgForNodeDestroy(
-              consensusNodes,
-              valuesArgumentMap,
-              config.nodeAlias,
-              config.serviceMap,
-              clusterNodeIndexMap,
-            );
+            this.prepareValuesArgForNodeDestroy(consensusNodes, valuesArgumentMap, config.nodeAlias, config.serviceMap);
             break;
           }
           case NodeSubcommandType.ADD: {
@@ -2430,13 +2420,10 @@ export class NodeCommandTasks {
     valuesArgumentMap: Record<ClusterReferenceName, string>,
     nodeAlias: NodeAlias,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
-    clusterNodeIndexMap: Record<ClusterReferenceName, Record<NodeId, /* index in the chart -> */ number>>,
   ): void {
+    let index: number = 0;
     for (const consensusNode of consensusNodes) {
       const clusterReference: ClusterReferenceName = consensusNode.cluster;
-
-      // The index inside the chart
-      const index = clusterNodeIndexMap[clusterReference][consensusNode.nodeId];
       const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
       // For nodes that are not being deleted
       if (consensusNode.nodeId !== nodeId) {
@@ -2444,14 +2431,7 @@ export class NodeCommandTasks {
           ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(consensusNode.name).accountId}"` +
           ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
           ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
-      }
-
-      // When deleting node
-      else if (consensusNode.nodeId === nodeId) {
-        valuesArgumentMap[clusterReference] +=
-          ` --set "hedera.nodes[${index}].accountId=${IGNORED_NODE_ACCOUNT_ID}"` +
-          ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
-          ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}" `;
+        index++;
       }
     }
 
@@ -2503,17 +2483,33 @@ export class NodeCommandTasks {
     };
   }
 
-  public killNodes(): SoloListrTask<NodeDestroyContext | NodeAddContext> {
+  public killNodes(transactionType?: NodeSubcommandType): SoloListrTask<NodeDestroyContext | NodeAddContext> {
     return {
       title: 'Kill nodes',
       task: async context_ => {
         const config = context_.config;
         for (const service of config.serviceMap.values()) {
+          // skip pod if it's not in the list of config.allNodeAliases
+          if (!config.allNodeAliases.includes(service.nodeAlias)) {
+            continue;
+          }
           await this.k8Factory
             .getK8(service.context)
             .pods()
             .readByReference(PodReference.of(config.namespace, service.nodePodName))
             .killPod();
+        }
+
+        // remove from remote config
+        if (transactionType === NodeSubcommandType.DESTROY) {
+          const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+          this.remoteConfig.configuration.components.removeComponent(nodeId, ComponentTypes.ConsensusNode);
+          this.remoteConfig.configuration.components.removeComponent(nodeId, ComponentTypes.EnvoyProxy);
+          this.remoteConfig.configuration.components.removeComponent(nodeId, ComponentTypes.HaProxy);
+          // @ts-expect-error: all fields are not present in every task's context
+          context_.config.nodeAliases = config.allNodeAliases.filter(
+            (nodeAlias: NodeAlias) => nodeAlias !== config.nodeAlias,
+          );
         }
       },
     };
