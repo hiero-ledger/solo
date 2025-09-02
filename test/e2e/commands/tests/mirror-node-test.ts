@@ -51,6 +51,31 @@ export class MirrorNodeTest extends BaseCommandTest {
     return argv;
   }
 
+  private static soloMirrorNodeDestroyArgv(
+    testName: string,
+    deployment: DeploymentName,
+    clusterReference: ClusterReferenceName,
+  ): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = MirrorNodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      MirrorCommandDefinition.COMMAND_NAME,
+      MirrorCommandDefinition.NODE_SUBCOMMAND_NAME,
+      MirrorCommandDefinition.NODE_ADD,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.clusterRef),
+      clusterReference,
+      optionFromFlag(Flags.force),
+      optionFromFlag(Flags.quiet),
+      optionFromFlag(Flags.devMode),
+    );
+
+    argvPushGlobalFlags(argv, testName, false, true);
+    return argv;
+  }
+
   private static async forwardRestServicePort(contexts: string[], namespace: NamespaceName): Promise<number> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
     const lastContext: string = contexts?.length ? contexts[contexts?.length - 1] : undefined;
@@ -234,6 +259,15 @@ export class MirrorNodeTest extends BaseCommandTest {
       );
       await verifyPingerStatus(contexts, namespace, pinger);
     }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  public static destroy(options: BaseTestOptions): void {
+    const {testName, deployment, clusterReferenceNameArray} = options;
+    const {soloMirrorNodeDestroyArgv} = MirrorNodeTest;
+
+    it(`${testName}: mirror node add`, async (): Promise<void> => {
+      await main(soloMirrorNodeDestroyArgv(testName, deployment, clusterReferenceNameArray[1]));
+    }).timeout(Duration.ofMinutes(5).toMillis());
   }
 
   private static postgresPassword: string = 'XXXXXXX';

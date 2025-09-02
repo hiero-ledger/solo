@@ -91,6 +91,10 @@ export class NetworkTest extends BaseCommandTest {
       ConsensusCommandDefinition.NETWORK_DESTROY,
       optionFromFlag(Flags.deployment),
       deployment,
+      optionFromFlag(Flags.deletePvcs),
+      optionFromFlag(Flags.deleteSecrets),
+      optionFromFlag(Flags.force),
+      optionFromFlag(Flags.quiet),
     );
     argvPushGlobalFlags(argv, testName, false, true);
     return argv;
