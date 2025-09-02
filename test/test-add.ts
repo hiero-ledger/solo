@@ -11,7 +11,9 @@ import {
   endToEndTestSuite,
   getNodeAliasesPrivateKeysHash,
   getTemporaryDirectory,
+  getTestCluster,
   HEDERA_PLATFORM_VERSION_TAG,
+  localHederaPlatformSupportsNonZeroRealms,
 } from './test-utility.js';
 import {type NodeAlias} from '../src/types/aliases.js';
 import {Duration} from '../src/core/time/duration.js';
@@ -34,15 +36,17 @@ export function testNodeAdd(
   localBuildPath: string,
   testDescription = 'Node add should success',
   timeout: number = defaultTimeout,
-  additionalTests?: (bootstrapResponse: BootstrapResponse, argv: Argv) => Promise<void>,
+  additionalTests?: (bootstrapResponse: BootstrapResponse, argv: Argv) => void,
 ): void {
   const suffix = localBuildPath.slice(0, 5);
   const namespace = NamespaceName.of(`node-add${suffix}`);
   const argv = Argv.getDefaultArgv(namespace);
   argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2');
+  argv.setArg(flags.forcePortForward, true);
   argv.setArg(flags.stakeAmounts, '1500,1');
   argv.setArg(flags.generateGossipKeys, true);
   argv.setArg(flags.generateTlsKeys, true);
+  argv.setArg(flags.clusterRef, getTestCluster());
   // set the env variable SOLO_CHARTS_DIR if developer wants to use local Solo charts
   argv.setArg(
     flags.releaseTag,
@@ -53,7 +57,7 @@ export function testNodeAdd(
   argv.setArg(flags.persistentVolumeClaims, true);
   argv.setArg(flags.localBuildPath, localBuildPath);
   argv.setArg(flags.realm, 0);
-  argv.setArg(flags.shard, 0);
+  argv.setArg(flags.shard, localHederaPlatformSupportsNonZeroRealms() ? 1023 : 0);
 
   endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     const {
@@ -159,11 +163,11 @@ export function testNodeAdd(
             );
           }
         }
-
-        if (typeof additionalTests === 'function') {
-          await additionalTests(bootstrapResp, argv);
-        }
       }).timeout(timeout);
+
+      if (typeof additionalTests === 'function') {
+        additionalTests(bootstrapResp, argv);
+      }
     });
   });
 }
