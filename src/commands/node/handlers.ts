@@ -154,6 +154,8 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkAllNodeProxiesAreActive(),
       this.tasks.stakeNewNode(),
       this.tasks.triggerStakeWeightCalculate<NodeAddContext>(NodeSubcommandType.ADD),
+      this.tasks.loadAdminKey(),
+      this.tasks.setGrpcWebEndpoint('newNodeAliases'),
       this.tasks.finalize(),
     ];
   }
@@ -828,7 +830,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.checkNodeProxiesAreActive(),
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
         this.tasks.addNodeStakes(),
-        this.tasks.setGrpcWebEndpoint(),
+        this.tasks.setGrpcWebEndpoint('nodeAliases'),
         // TODO only show this if we are not running in quick-start mode
         // this.tasks.showUserMessages(),
       ],
