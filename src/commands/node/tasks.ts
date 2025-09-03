@@ -1618,6 +1618,7 @@ export class NodeCommandTasks {
             context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             nodeId,
           );
+          await this.remoteConfig.persist();
         }
       },
       skip: context_ => !context_.config.debugNodeAlias && !context_.config.forcePortForward,
