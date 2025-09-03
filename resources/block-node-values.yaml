@@ -34,3 +34,8 @@ loki:
 
 promtail:
   enabled: false
+
+logs:
+  level: "FINEST"
+  loggingProperties:
+    io.helidon.level: "INFO"

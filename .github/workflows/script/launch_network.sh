@@ -31,7 +31,7 @@ echo "::endgroup::"
 
 echo "::group::Launch solo using released Solo version ${releaseTag}"
 
-export CONSENSUS_NODE_VERSION=v0.62.10
+export CONSENSUS_NODE_VERSION=v0.64.3
 solo init
 solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
 solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
@@ -105,7 +105,10 @@ echo "::group::Upgrade Consensus Node"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade consensus node"
 ps -ef |grep port-forward
 # Upgrade to latest version
-export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
+export LINE_OF_STRING=$(tr -d '\n' < "version.ts" | grep -oE "HEDERA_PLATFORM_VERSION.*?'(v[0-9.]+(-rc[0-9]+)?)'" | grep -oE "v[0-9.]+(-rc[0-9]+)?")
+read -r CONSENSUS_NODE_VERSION rest_of_the_string <<< "$LINE_OF_STRING"
+echo "Upgrade Consensus Node to version: ${CONSENSUS_NODE_VERSION}"
+
 npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 echo "::endgroup::"
