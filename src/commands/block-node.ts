@@ -134,7 +134,9 @@ export class BlockNodeCommand extends BaseCommand {
     optional: [flags.chartDirectory, flags.devMode, flags.force, flags.quiet, flags.valuesFile, flags.upgradeVersion],
   };
 
-  private async prepareValuesArgForBlockNode(config: BlockNodeDeployConfigClass | BlockNodeUpgradeConfigClass): Promise<string> {
+  private async prepareValuesArgForBlockNode(
+    config: BlockNodeDeployConfigClass | BlockNodeUpgradeConfigClass,
+  ): Promise<string> {
     let valuesArgument: string = '';
 
     valuesArgument += helpers.prepareValuesFiles(constants.BLOCK_NODE_VALUES_FILE);
