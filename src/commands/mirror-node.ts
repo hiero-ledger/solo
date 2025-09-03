@@ -1041,6 +1041,7 @@ export class MirrorNodeCommand extends BaseCommand {
           this.componentFactory.createNewMirrorNodeComponent(clusterReference, namespace),
           ComponentTypes.MirrorNode,
         );
+        // update mirror node version in remote config
         this.remoteConfig.updateComponentVersion(
           ComponentTypes.MirrorNode,
           new SemVer(context_.config.mirrorNodeVersion),

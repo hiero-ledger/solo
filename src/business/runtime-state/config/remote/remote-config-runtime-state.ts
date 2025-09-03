@@ -377,15 +377,14 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       ? new SemVer(argv[flags.soloChartVersion.name])
       : new SemVer(flags.soloChartVersion.definition.defaultValue as string);
 
-    const componentTypes = [
+    // set default versions if not set
+    const componentTypes: ComponentTypes[] = [
       ComponentTypes.BlockNode,
       ComponentTypes.RelayNodes,
       ComponentTypes.MirrorNode,
       ComponentTypes.Explorers,
       ComponentTypes.ConsensusNode,
     ];
-
-    const defaultVersion = new SemVer(flags.soloChartVersion.definition.defaultValue as string);
 
     for (const componentType of componentTypes) {
       const version: SemVer = this.getComponentVersion(componentType);

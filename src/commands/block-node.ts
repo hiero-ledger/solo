@@ -208,8 +208,10 @@ export class BlockNodeCommand extends BaseCommand {
 
             context_.config = config;
 
+            // check if block node version compatible with current hedera platform version
             let consensusNodeVersion: string = this.remoteConfig.configuration.versions.consensusNode.toString();
             if (consensusNodeVersion === '0.0.0') {
+              // if is possible block node deployed before consensus node, then use release tag as fallback
               consensusNodeVersion = config.releaseTag;
             }
             if (
@@ -617,7 +619,7 @@ export class BlockNodeCommand extends BaseCommand {
       imageTag = typeof tag === 'string' ? new SemVer(tag) : tag;
     }
 
-    const finalVersion = imageTag && lt(blockNodeVersion, imageTag) ? imageTag : blockNodeVersion;
+    const finalVersion: SemVer = imageTag && lt(blockNodeVersion, imageTag) ? imageTag : blockNodeVersion;
     this.remoteConfig.updateComponentVersion(ComponentTypes.BlockNode, finalVersion);
 
     await this.remoteConfig.persist();
