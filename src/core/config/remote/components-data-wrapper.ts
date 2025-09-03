@@ -279,18 +279,18 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
 
       // Check if this exact podPort and localPort pair already exists
       const existingConfig = component.metadata.portForwardConfigs.find(
-        config => config.podPort === podPort && config.localPort === portForwardPortNumber
+        config => config.podPort === podPort && config.localPort === portForwardPortNumber,
       );
 
-      if (!existingConfig) {
+      if (existingConfig) {
+        logger.info(`port forward config already exists: localPort=${portForwardPortNumber}, podPort=${podPort}`);
+      } else {
         logger.info(`add port localPort=${portForwardPortNumber}, podPort=${podPort}`);
         // Save port forward config to component
         component.metadata.portForwardConfigs.push({
           podPort: podPort,
           localPort: portForwardPortNumber,
         });
-      } else {
-        logger.info(`port forward config already exists: localPort=${portForwardPortNumber}, podPort=${podPort}`);
       }
     }
 

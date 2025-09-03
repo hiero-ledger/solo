@@ -10,11 +10,7 @@ import {type ChartManager} from '../../core/chart-manager.js';
 import {type CertificateManager} from '../../core/certificate-manager.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
-import {
-  DEFAULT_NETWORK_NODE_NAME,
-  HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
-  IGNORED_NODE_ACCOUNT_ID,
-} from '../../core/constants.js';
+import {DEFAULT_NETWORK_NODE_NAME, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
   AccountBalanceQuery,
@@ -1354,7 +1350,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public setGrpcWebEndpoint(): SoloListrTask<NodeStartContext> {
+  public setGrpcWebEndpoint(nodeAliasesProperty: string): SoloListrTask<NodeStartContext> {
     return {
       title: 'set gRPC Web endpoint',
       skip: (context_): boolean => {
@@ -1376,7 +1372,7 @@ export class NodeCommandTasks {
           context_.config.deployment,
         );
 
-        for (const nodeAlias of context_.config.nodeAliases) {
+        for (const nodeAlias of context_.config[nodeAliasesProperty]) {
           const networkNodeService: NetworkNodeServices = serviceMap.get(nodeAlias);
 
           const cluster: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
@@ -1391,7 +1387,7 @@ export class NodeCommandTasks {
 
           const grpcProxyPort: number = +networkNodeService.envoyProxyGrpcWebPort;
 
-          const client = await this.accountManager.loadNodeClient(
+          const nodeClient: Client = await this.accountManager.loadNodeClient(
             namespace,
             this.remoteConfig.getClusterRefs(),
             context_.config.deployment,
@@ -1401,13 +1397,16 @@ export class NodeCommandTasks {
             .setDomainName(grpcProxyAddress)
             .setPort(grpcProxyPort);
 
-          const updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
+          let updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
             .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
-            .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint);
+            .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint)
+            .freezeWith(nodeClient);
 
-          const updateTransactionResponse: TransactionResponse = await updateTransaction.execute(client);
-
-          const updateTransactionReceipt: TransactionReceipt = await updateTransactionResponse.getReceipt(client);
+          if (context_.config.adminKey) {
+            updateTransaction = await updateTransaction.sign(context_.config.adminKey);
+          }
+          const transactionResponse: TransactionResponse = await updateTransaction.execute(nodeClient);
+          const updateTransactionReceipt: TransactionReceipt = await transactionResponse.getReceipt(nodeClient);
 
           if (updateTransactionReceipt.status !== Status.Success) {
             throw new SoloError('Failed to set gRPC web proxy endpoint');
@@ -1963,6 +1962,7 @@ export class NodeCommandTasks {
         };
         config.nodeAlias = lastNodeAlias as NodeAlias;
         config.allNodeAliases.push(lastNodeAlias as NodeAlias);
+        config.newNodeAliases = [lastNodeAlias as NodeAlias];
       },
     };
   }
@@ -2236,13 +2236,7 @@ export class NodeCommandTasks {
             break;
           }
           case NodeSubcommandType.DESTROY: {
-            this.prepareValuesArgForNodeDestroy(
-              consensusNodes,
-              valuesArgumentMap,
-              config.nodeAlias,
-              config.serviceMap,
-              clusterNodeIndexMap,
-            );
+            this.prepareValuesArgForNodeDestroy(consensusNodes, valuesArgumentMap, config.nodeAlias, config.serviceMap);
             break;
           }
           case NodeSubcommandType.ADD: {
@@ -2431,13 +2425,10 @@ export class NodeCommandTasks {
     valuesArgumentMap: Record<ClusterReferenceName, string>,
     nodeAlias: NodeAlias,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
-    clusterNodeIndexMap: Record<ClusterReferenceName, Record<NodeId, /* index in the chart -> */ number>>,
   ): void {
+    let index: number = 0;
     for (const consensusNode of consensusNodes) {
       const clusterReference: ClusterReferenceName = consensusNode.cluster;
-
-      // The index inside the chart
-      const index = clusterNodeIndexMap[clusterReference][consensusNode.nodeId];
       const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
       // For nodes that are not being deleted
       if (consensusNode.nodeId !== nodeId) {
@@ -2445,14 +2436,7 @@ export class NodeCommandTasks {
           ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(consensusNode.name).accountId}"` +
           ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
           ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
-      }
-
-      // When deleting node
-      else if (consensusNode.nodeId === nodeId) {
-        valuesArgumentMap[clusterReference] +=
-          ` --set "hedera.nodes[${index}].accountId=${IGNORED_NODE_ACCOUNT_ID}"` +
-          ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
-          ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}" `;
+        index++;
       }
     }
 
@@ -2504,17 +2488,33 @@ export class NodeCommandTasks {
     };
   }
 
-  public killNodes(): SoloListrTask<NodeDestroyContext | NodeAddContext> {
+  public killNodes(transactionType?: NodeSubcommandType): SoloListrTask<NodeDestroyContext | NodeAddContext> {
     return {
       title: 'Kill nodes',
       task: async context_ => {
         const config = context_.config;
         for (const service of config.serviceMap.values()) {
+          // skip pod if it's not in the list of config.allNodeAliases
+          if (!config.allNodeAliases.includes(service.nodeAlias)) {
+            continue;
+          }
           await this.k8Factory
             .getK8(service.context)
             .pods()
             .readByReference(PodReference.of(config.namespace, service.nodePodName))
             .killPod();
+        }
+
+        // remove from remote config
+        if (transactionType === NodeSubcommandType.DESTROY) {
+          const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+          this.remoteConfig.configuration.components.removeComponent(nodeId, ComponentTypes.ConsensusNode);
+          this.remoteConfig.configuration.components.removeComponent(nodeId, ComponentTypes.EnvoyProxy);
+          this.remoteConfig.configuration.components.removeComponent(nodeId, ComponentTypes.HaProxy);
+          // @ts-expect-error: all fields are not present in every task's context
+          context_.config.nodeAliases = config.allNodeAliases.filter(
+            (nodeAlias: NodeAlias) => nodeAlias !== config.nodeAlias,
+          );
         }
       },
     };
@@ -2722,6 +2722,7 @@ export class NodeCommandTasks {
             .setCertificateHash(context_.tlsCertHash)
             .setAdminKey(context_.adminKey.publicKey)
             .freezeWith(config.nodeClient);
+
           const signedTx = await nodeCreateTx.sign(context_.adminKey);
           const txResp = await signedTx.execute(config.nodeClient);
           const nodeCreateReceipt = await txResp.getReceipt(config.nodeClient);
