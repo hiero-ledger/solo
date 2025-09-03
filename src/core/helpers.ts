@@ -325,6 +325,7 @@ export function addLoadContextParser(context_: any, contextData: any) {
   config.nodeAlias = contextData.newNode.name;
   config.existingNodeAliases = contextData.existingNodeAliases;
   config.allNodeAliases = [...config.existingNodeAliases, contextData.newNode.name];
+  config.newNodeAliases = [contextData.newNode.name];
 
   const fieldsToImport = ['tlsCertHash', 'upgradeZipHash', 'newNode'];
 

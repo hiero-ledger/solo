@@ -1,4 +1,14 @@
 version: 3
+
+env:
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx @hashgraph/solo"
+      else
+        echo "npm run solo --"
+      fi
+
 vars:
   NODE_IDENTIFIERS: "node1,node2,node3"
   SOLO_NETWORK_SIZE: "3"
@@ -12,7 +22,12 @@ tasks:
     desc: Run a full standalone Solo network with block node, mirror node, and relay
     cmds:
       # Install Solo CLI
-      - cmd: npm i @hashgraph/solo@latest
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Skipping npm install - using development version"
+          fi
 
       # Create Kind cluster
       - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
@@ -24,71 +39,79 @@ tasks:
       - cmd: kubectl config set-context {{ .CONTEXT }}
 
       # Solo init
-      - cmd: npx solo init
+      - cmd: $SOLO_COMMAND init
 
       # Solo cluster-ref config connect
-      - cmd: npx solo cluster-ref config connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
+      - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
 
       # Solo deployment config create
-      - cmd: npx solo deployment config create --deployment {{ .DEPLOYMENT }} --namespace {{ .NAMESPACE }}
+      - cmd: $SOLO_COMMAND deployment config create --deployment {{ .DEPLOYMENT }} --namespace {{ .NAMESPACE }}
 
       # Solo deployment cluster attach
       - cmd: |
-          solo deployment cluster attach --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          $SOLO_COMMAND deployment cluster attach --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
           --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
 
       # Solo cluster-ref config setup
-      - cmd: npx solo cluster-ref config setup --cluster-ref {{ .CLUSTER_REFERENCE }}
+      - cmd: $SOLO_COMMAND cluster-ref config setup --cluster-ref {{ .CLUSTER_REFERENCE }}
 
       # Solo node keys
       - cmd: |
-          solo keys consensus generate --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
+          $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
           --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      # Label the node to be consistent with init-containers-values.yaml
+      - cmd: |
+          NODE_NAME=$(kubectl get nodes --no-headers | awk '{print $1}')
+          echo "Node name is: $NODE_NAME"
+          kubectl label node "$NODE_NAME" solo.hashgraph.io/network-id=4
+          kubectl label node "$NODE_NAME" solo.hashgraph.io/owner=alex.kuzmin
+          kubectl label node "$NODE_NAME" solo.hashgraph.io/role=consensus-node
 
       # Solo network deploy
       - cmd: |
-          solo consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
+          $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
           --values-file {{ .USER_WORKING_DIR }}/init-containers-values.yaml \
           --settings-txt {{ .USER_WORKING_DIR }}/settings.txt \
           --log4j2-xml {{ .USER_WORKING_DIR }}/log4j2.xml \
           --application-properties {{ .USER_WORKING_DIR }}/application.properties
 
       # Solo node setup
-      - cmd: npx solo consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
+      - cmd: $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
 
       # Solo node start
-      - cmd: npx solo consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
       # Solo mirror node add
-      - cmd: npx solo mirror node add --deployment {{ .DEPLOYMENT }} --pinger --enable-ingress
+      - cmd: $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} --pinger --enable-ingress
 
       # Solo relay node add
-      - cmd: npx solo relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      - cmd: $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
       # Solo explorer node add
       - cmd: |
-          solo explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} \
           --enable-explorer-tls --tls-cluster-issuer-type acme-staging \
           --enable-ingress \
-          -n {{ .EXPLORER_NAME_SPACE }} --deployment {{ .EXPLORER_DEPLOYMENT }} \
+          -n {{ .EXPLORER_NAME_SPACE }} \
           --cluster-ref {{ .CLUSTER_REFERENCE }}
   destroy:
     desc: Destroy the Solo network with block node
     cmds:
       # solo consensus node stop
-      - cmd: npx solo consensus node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      - cmd: $SOLO_COMMAND consensus node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
       # solo mirror node destroy
-      - cmd: npx solo mirror node destroy --deployment {{ .DEPLOYMENT }} --force
+      - cmd: $SOLO_COMMAND mirror node destroy --deployment {{ .DEPLOYMENT }} --force
 
       # solo relay node destroy
-      - cmd: npx solo relay node destroy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      - cmd: $SOLO_COMMAND relay node destroy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
       # solo explorer node destroy
-      - cmd: npx solo explorer node destroy --deployment {{ .DEPLOYMENT }}
+      - cmd: $SOLO_COMMAND explorer node destroy --deployment {{ .DEPLOYMENT }}
 
       # solo consensus network destroy
-      - cmd: npx solo consensus network destroy --deployment {{ .DEPLOYMENT }} --force
+      - cmd: $SOLO_COMMAND consensus network destroy --deployment {{ .DEPLOYMENT }} --force
 
       # Delete Kind cluster
       - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}

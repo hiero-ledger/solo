@@ -42,7 +42,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
   private static readonly STATE_SUBCOMMAND_DESCRIPTION =
     'List, download, and upload consensus node state backups to/from individual consensus node instances.';
 
-  public static readonly DIAGNOSTIC_SUBCOMMAND_NAME = 'diagnostic';
+  public static readonly DIAGNOSTIC_SUBCOMMAND_NAME = 'diagnostics';
   private static readonly DIAGNOSTIC_SUBCOMMAND_DESCRIPTION =
     'Capture diagnostic information such as logs, signed states, and ledger/network/node configurations.';
 
@@ -412,7 +412,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 'Prepare the network for a Freeze Upgrade operation',
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.prepareUpgrade,
-                NodeFlags.DEFAULT_FLAGS,
+                NodeFlags.PREPARE_UPGRADE_FLAGS,
               ),
             )
             .addSubcommand(
@@ -421,7 +421,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 'Performs a Freeze Upgrade operation with on the network after it has been prepared with prepare-upgrade',
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.freezeUpgrade,
-                NodeFlags.DEFAULT_FLAGS,
+                NodeFlags.PREPARE_UPGRADE_FLAGS,
               ),
             ),
         )
