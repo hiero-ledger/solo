@@ -87,17 +87,6 @@ npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEP
 npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
 npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 
-
-
-
-echo "-----------------------------------"
-ps -ef |grep port-forward
-echo "-----------------------------------"
-kubectl get pods -n solo-e2e
-echo "-----------------------------------"
-
-
-
 # force mirror importer restart to pick up changes of secretes due to upgrade of solo chart
 # even mirror chart version might not change, but the secrets it depends on might have changed
 kubectl rollout restart deployment/mirror-importer -n solo-e2e
@@ -110,6 +99,7 @@ kubectl rollout restart deployment/mirror-postgres-pgpool -n solo-e2e
 kubectl rollout restart deployment/mirror-ingress-controller -n solo-e2e
 
 npm run solo -- relay node add -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q --dev
+# force restart relay pod to pick up changes of configMap
 kubectl rollout restart deployment/relay-node1-node2 -n solo-e2e
 
 # redeploy mirror node to upgrade to a newer version
