@@ -498,6 +498,7 @@ export class ExplorerCommand extends BaseCommand {
           'Explorer',
           false, // config.isChartInstalled, // Reuse existing port if chart is already installed
         );
+        await this.remoteConfig.persist();
       },
     };
   }

@@ -760,6 +760,7 @@ export class MirrorNodeCommand extends BaseCommand {
           'Mirror ingress controller',
           config.isChartInstalled, // Reuse existing port if chart is already installed
         );
+        await this.remoteConfig.persist();
       },
     };
   }
