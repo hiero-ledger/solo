@@ -262,7 +262,7 @@ export class RelayCommand extends BaseCommand {
     const self = this;
     let lease: Lock;
 
-    const tasks = this.taskList.newTaskList(
+    const tasks = this.taskList.newTaskList<RelayDeployContext>(
       [
         {
           title: 'Initialize',
@@ -414,7 +414,7 @@ export class RelayCommand extends BaseCommand {
           title: 'Enable port forwarding for relay node',
           task: async (context_): Promise<void> => {
             const pods: Pod[] = await this.k8Factory
-              .getK8(context_.config.clusterContext)
+              .getK8(context_.config.context)
               .pods()
               .list(context_.config.namespace, ['app.kubernetes.io/name=relay']);
             if (pods.length === 0) {
@@ -430,7 +430,7 @@ export class RelayCommand extends BaseCommand {
               podReference,
               constants.JSON_RPC_RELAY_PORT, // Pod port
               constants.JSON_RPC_RELAY_PORT, // Local port
-              this.k8Factory.getK8(context_.config.clusterContext),
+              this.k8Factory.getK8(context_.config.context),
               this.logger,
               ComponentTypes.RelayNodes,
 

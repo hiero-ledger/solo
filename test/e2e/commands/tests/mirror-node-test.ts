@@ -62,7 +62,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     argv.push(
       MirrorCommandDefinition.COMMAND_NAME,
       MirrorCommandDefinition.NODE_SUBCOMMAND_NAME,
-      MirrorCommandDefinition.NODE_ADD,
+      MirrorCommandDefinition.NODE_DESTROY,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.clusterRef),

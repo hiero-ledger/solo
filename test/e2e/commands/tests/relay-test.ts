@@ -8,7 +8,6 @@ import {Duration} from '../../../../src/core/time/duration.js';
 import {type NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
-import {type K8} from '../../../../src/integration/kube/k8.js';
 import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
@@ -33,6 +32,8 @@ export class RelayTest extends BaseCommandTest {
       RelayCommandDefinition.NODE_ADD,
       optionFromFlag(Flags.deployment),
       deployment,
+      optionFromFlag(Flags.clusterRef),
+      clusterReference,
       optionFromFlag(Flags.nodeAliasesUnparsed),
       RelayTest.NODE_ALIASES_UNPARSED,
     );
@@ -56,10 +57,10 @@ export class RelayTest extends BaseCommandTest {
       deployment,
       optionFromFlag(Flags.clusterRef),
       clusterReference,
+      optionFromFlag(Flags.nodeAliasesUnparsed),
+      RelayTest.NODE_ALIASES_UNPARSED,
       optionFromFlag(Flags.quiet),
       optionFromFlag(Flags.devMode),
-      optionFromFlag(Flags.nodeAliasesUnparsed),
-      'node2',
     );
     argvPushGlobalFlags(argv, testName, false, true);
     return argv;
@@ -67,8 +68,11 @@ export class RelayTest extends BaseCommandTest {
 
   private static async verifyRelayDeployWasSuccessful(contexts: string[], namespace: NamespaceName): Promise<void> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-    const k8: K8 = k8Factory.getK8(contexts[1]);
-    const relayPods: Pod[] = await k8.pods().list(namespace, ['app.kubernetes.io/name=relay']);
+    const relayPods: Pod[] = await k8Factory
+      .getK8(contexts[1])
+      .pods()
+      .list(namespace, ['app.kubernetes.io/name=relay']);
+
     expect(relayPods).to.have.lengthOf(1);
   }
 
@@ -76,6 +80,7 @@ export class RelayTest extends BaseCommandTest {
     const {testName, deployment, namespace, contexts, clusterReferenceNameArray, testLogger} = options;
     const {soloRelayDeployArgv, verifyRelayDeployWasSuccessful} = RelayTest;
 
+    // TODO: Investigate validations
     it(`${testName}: JSON-RPC relay node add`, async (): Promise<void> => {
       await main(soloRelayDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
       await verifyRelayDeployWasSuccessful(contexts, namespace);
