@@ -26,6 +26,7 @@ export const DEFAULT_NAMESPACE = NamespaceName.of('default');
 export const DEFAULT_CERT_MANAGER_NAMESPACE = NamespaceName.of('cert-manager');
 export const HELM = 'helm';
 export const KIND = 'kind';
+export const PODMAN = 'podman';
 export const KUBECTL = 'kubectl';
 export const RESOURCES_DIR = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
 

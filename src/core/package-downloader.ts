@@ -166,14 +166,14 @@ export class PackageDownloader {
   /**
    * Fetch a remote package
    * @param packageURL
-   * @param checksumURL - package checksum URL
+   * @param checksumDataOrURL - package checksum URL or checksum data
    * @param destinationDirectory - a directory where the files should be downloaded to
    * @param [algo] - checksum algo
    * @param [force] - force download even if the file exists in the destinationDirectory
    */
   async fetchPackage(
     packageURL: string,
-    checksumURL: string,
+    checksumDataOrURL: string,
     destinationDirectory: string,
     algo = 'sha256',
     force = false,
@@ -181,37 +181,46 @@ export class PackageDownloader {
     if (!packageURL) {
       throw new Error('package URL is required');
     }
-    if (!checksumURL) {
-      throw new Error('checksum URL is required');
+
+    if (!checksumDataOrURL) {
+      throw new Error('checksum data or URL is required');
     }
     if (!destinationDirectory) {
       throw new Error('destination directory path is required');
     }
 
-    this.logger.debug(`Downloading package: ${packageURL}, checksum: ${checksumURL}`);
+    this.logger.debug(`Downloading package: ${packageURL}, checksum: ${checksumDataOrURL}`);
     if (!fs.existsSync(destinationDirectory)) {
       fs.mkdirSync(destinationDirectory, {recursive: true});
     }
 
     const packageFile = `${destinationDirectory}/${path.basename(packageURL)}`;
-    const checksumFile = `${destinationDirectory}/${path.basename(checksumURL)}`;
 
+    let checksumFile: string;
     try {
       if (fs.existsSync(packageFile) && !force) {
         return packageFile;
       }
 
-      await this.fetchFile(checksumURL, checksumFile);
-      const checksumData = fs.readFileSync(checksumFile).toString();
-      if (!checksumData) {
-        throw new SoloError(`unable to read checksum file: ${checksumFile}`);
+      let checksum: string;
+      if (this.isValidURL(checksumDataOrURL)) {
+        const checksumURL: string = checksumDataOrURL;
+        const checksumFile = `${destinationDirectory}/${path.basename(checksumURL)}`;
+        const checksumData = fs.readFileSync(checksumFile).toString();
+        if (!checksumData) {
+          throw new SoloError(`unable to read checksum file: ${checksumFile}`);
+        }
+        checksum = checksumData.split(' ')[0];
+        await this.fetchFile(checksumURL, checksumFile);
+      } else {
+        checksum = checksumDataOrURL;
       }
-      const checksum = checksumData.split(' ')[0];
+
       await this.fetchFile(packageURL, packageFile);
       await this.verifyChecksum(packageFile, checksum, algo);
       return packageFile;
     } catch (error: Error | any) {
-      if (fs.existsSync(checksumFile)) {
+      if (checksumFile && fs.existsSync(checksumFile)) {
         fs.rmSync(checksumFile);
       }
 
