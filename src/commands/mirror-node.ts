@@ -432,8 +432,6 @@ export class MirrorNodeCommand extends BaseCommand {
             }
 
             if (context_.config.pinger) {
-              context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=5`;
-
               const operatorId: string =
                 context_.config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
               context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
@@ -799,6 +797,7 @@ export class MirrorNodeCommand extends BaseCommand {
               'Mirror ingress controller',
               context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             );
+            await this.remoteConfig.persist();
           },
         },
         // TODO only show this if we are not running in quick-start mode
