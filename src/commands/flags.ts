@@ -426,29 +426,6 @@ export class Flags {
     },
   };
 
-  public static readonly enablePrometheusSvcMonitor: CommandFlag = {
-    constName: 'enablePrometheusSvcMonitor',
-    name: 'prometheus-svc-monitor',
-    definition: {
-      describe: 'Enable prometheus service monitor for the network nodes',
-      defaultValue: false,
-      type: 'boolean',
-    },
-    prompt: async function promptEnablePrometheusSvcMonitor(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: boolean,
-    ): Promise<boolean> {
-      return await Flags.promptToggle(
-        task,
-        input,
-        Flags.enablePrometheusSvcMonitor.definition.defaultValue as boolean,
-        'Would you like to enable the Prometheus service monitor for the network nodes? ',
-        null,
-        Flags.enablePrometheusSvcMonitor.name,
-      );
-    },
-  };
-
   public static readonly deployMinio: CommandFlag = {
     constName: 'deployMinio',
     name: 'minio',
@@ -2565,7 +2542,6 @@ export class Flags {
     Flags.ed25519PrivateKey,
     Flags.enableIngress,
     Flags.enableExplorerTls,
-    Flags.enablePrometheusSvcMonitor,
     Flags.enableTimeout,
     Flags.endpointType,
     Flags.envoyIps,
