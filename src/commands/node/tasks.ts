@@ -1364,7 +1364,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public setGrpcWebEndpoint(): SoloListrTask<NodeStartContext> {
+  public setGrpcWebEndpoint(nodeAliasesProperty: string): SoloListrTask<NodeStartContext> {
     return {
       title: 'set gRPC Web endpoint',
       skip: (context_): boolean => {
@@ -1386,7 +1386,7 @@ export class NodeCommandTasks {
           context_.config.deployment,
         );
 
-        for (const nodeAlias of context_.config.nodeAliases) {
+        for (const nodeAlias of context_.config[nodeAliasesProperty]) {
           const networkNodeService: NetworkNodeServices = serviceMap.get(nodeAlias);
 
           const cluster: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
@@ -1401,7 +1401,7 @@ export class NodeCommandTasks {
 
           const grpcProxyPort: number = +networkNodeService.envoyProxyGrpcWebPort;
 
-          const client = await this.accountManager.loadNodeClient(
+          const nodeClient: Client = await this.accountManager.loadNodeClient(
             namespace,
             this.remoteConfig.getClusterRefs(),
             context_.config.deployment,
@@ -1411,13 +1411,16 @@ export class NodeCommandTasks {
             .setDomainName(grpcProxyAddress)
             .setPort(grpcProxyPort);
 
-          const updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
+          let updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
             .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
-            .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint);
+            .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint)
+            .freezeWith(nodeClient);
 
-          const updateTransactionResponse: TransactionResponse = await updateTransaction.execute(client);
-
-          const updateTransactionReceipt: TransactionReceipt = await updateTransactionResponse.getReceipt(client);
+          if (context_.config.adminKey) {
+            updateTransaction = await updateTransaction.sign(context_.config.adminKey);
+          }
+          const transactionResponse: TransactionResponse = await updateTransaction.execute(nodeClient);
+          const updateTransactionReceipt: TransactionReceipt = await transactionResponse.getReceipt(nodeClient);
 
           if (updateTransactionReceipt.status !== Status.Success) {
             throw new SoloError('Failed to set gRPC web proxy endpoint');
@@ -1629,6 +1632,7 @@ export class NodeCommandTasks {
             context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             nodeId,
           );
+          await this.remoteConfig.persist();
         }
       },
       skip: context_ => !context_.config.debugNodeAlias && !context_.config.forcePortForward,
@@ -1972,6 +1976,7 @@ export class NodeCommandTasks {
         };
         config.nodeAlias = lastNodeAlias as NodeAlias;
         config.allNodeAliases.push(lastNodeAlias as NodeAlias);
+        config.newNodeAliases = [lastNodeAlias as NodeAlias];
       },
     };
   }
@@ -2731,6 +2736,7 @@ export class NodeCommandTasks {
             .setCertificateHash(context_.tlsCertHash)
             .setAdminKey(context_.adminKey.publicKey)
             .freezeWith(config.nodeClient);
+
           const signedTx = await nodeCreateTx.sign(context_.adminKey);
           const txResp = await signedTx.execute(config.nodeClient);
           const nodeCreateReceipt = await txResp.getReceipt(config.nodeClient);
