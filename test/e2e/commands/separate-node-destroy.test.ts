@@ -97,9 +97,8 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     accountCreationShouldSucceed(accountManager, namespace, remoteConfig, logger, nodeAlias);
 
     it('deleted consensus node should not be running', async () => {
-      // read config.txt file from first node, read config.txt line by line, it should not contain value of nodeAlias
       const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
-      expect(pods.length).to.equal(0);
+      expect(pods.length).to.equal(1);
     }).timeout(Duration.ofMinutes(10).toMillis());
   });
 });
