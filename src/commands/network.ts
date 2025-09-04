@@ -547,6 +547,7 @@ export class NetworkCommand extends BaseCommand {
     for (const clusterReference of clusterReferences) {
       valuesArguments[clusterReference] +=
         ' --install' +
+        ` --set "telemetry.prometheus.svcMonitor.enabled=false"` + // remove after chart version is bumped
         ` --set "crds.serviceMonitor.enabled=${config.serviceMonitor}"` +
         ` --set "crds.podLog.enabled=${config.podLog}"` +
         ` --set "defaults.volumeClaims.enabled=${config.persistentVolumeClaims}"`;
