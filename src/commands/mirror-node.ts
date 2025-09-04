@@ -436,6 +436,7 @@ export class MirrorNodeCommand extends BaseCommand {
           [
             {
               title: 'Prepare address book',
+              skip: ({config}): boolean => config.isChartInstalled,
               task: async context_ => {
                 const deployment = this.configManager.getFlag<DeploymentName>(flags.deployment);
                 const portForward = this.configManager.getFlag<boolean>(flags.forcePortForward);
@@ -452,6 +453,7 @@ export class MirrorNodeCommand extends BaseCommand {
             },
             {
               title: 'Install mirror ingress controller',
+              skip: ({config}): boolean => config.isChartInstalled || !config.enableIngress,
               task: async context_ => {
                 const config = context_.config;
 
@@ -477,7 +479,6 @@ export class MirrorNodeCommand extends BaseCommand {
                 );
                 showVersionBanner(this.logger, constants.INGRESS_CONTROLLER_RELEASE_NAME, INGRESS_CONTROLLER_VERSION);
               },
-              skip: context_ => !context_.config.enableIngress,
             },
             {
               title: 'Deploy mirror-node',

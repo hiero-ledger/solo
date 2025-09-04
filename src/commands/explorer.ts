@@ -306,21 +306,24 @@ export class ExplorerCommand extends BaseCommand {
             config.clusterContext,
           );
           showVersionBanner(this.logger, constants.SOLO_CERT_MANAGER_CHART, soloChartVersion);
+
+          // wait cert-manager to be ready to proceed, otherwise may get error of "failed calling webhook"
+          await this.k8Factory
+            .getK8(config.clusterContext)
+            .pods()
+            .waitForReadyStatus(
+              constants.DEFAULT_CERT_MANAGER_NAMESPACE,
+              [
+                'app.kubernetes.io/component=webhook',
+                `app.kubernetes.io/instance=${constants.SOLO_CERT_MANAGER_CHART}`,
+              ],
+              constants.PODS_READY_MAX_ATTEMPTS,
+              constants.PODS_READY_DELAY,
+            );
+
+          // sleep for a few seconds to allow cert-manager to be ready
+          await sleep(Duration.ofSeconds(10));
         }
-
-        // wait cert-manager to be ready to proceed, otherwise may get error of "failed calling webhook"
-        await this.k8Factory
-          .getK8(config.clusterContext)
-          .pods()
-          .waitForReadyStatus(
-            constants.DEFAULT_CERT_MANAGER_NAMESPACE,
-            ['app.kubernetes.io/component=webhook', `app.kubernetes.io/instance=${constants.SOLO_CERT_MANAGER_CHART}`],
-            constants.PODS_READY_MAX_ATTEMPTS,
-            constants.PODS_READY_DELAY,
-          );
-
-        // sleep for a few seconds to allow cert-manager to be ready
-        sleep(Duration.ofSeconds(10));
 
         await this.chartManager.upgrade(
           NamespaceName.of(constants.CERT_MANAGER_NAME_SPACE),
