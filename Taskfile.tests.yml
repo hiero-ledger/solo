@@ -72,6 +72,7 @@ tasks:
       - "{{ .test_prefix }}=\"Mocha E2E Standard Tests\"
         {{ .reporter_prefix }}='coverage/e2e-standard' 
         {{ .mocha_bin }} 'test/e2e/**/*.ts' 
+          --ignore 'test/e2e/commands/acc*.ts' 
           --ignore 'test/unit/**/*.ts' 
           --ignore 'test/e2e/integration/**/*.ts' 
           --ignore 'test/e2e/commands/node*.ts' 
