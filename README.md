@@ -14,22 +14,20 @@
 
 An opinionated CLI tool to deploy and manage standalone test networks.
 
-## Requirements
+## Releases and Requirements
 
-| Solo Version | Node.js                   | Kind       | Solo Chart | Hedera               | Kubernetes | Kubectl    | Helm    | k9s        | Docker Resources        |
-|--------------|---------------------------|------------|------------|----------------------|------------|------------|---------|------------|-------------------------|
-| 0.29.0       | >= 20.14.0 (lts/hydrogen) | >= v0.26.0 | v0.30.0    | v0.53.0 – <= v0.57.0 | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
-| 0.30.0       | >= 20.14.0 (lts/hydrogen) | >= v0.26.0 | v0.30.0    | v0.54.0 – <= v0.57.0 | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
-| 0.31.4       | >= 20.18.0 (lts/iron)     | >= v0.26.0 | v0.31.4    | v0.54.0 – <= v0.57.0 | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
-| 0.32.0       | >= 20.18.0 (lts/iron)     | >= v0.26.0 | v0.38.2    | v0.58.1 - <= v0.59.0 | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
-| 0.33.0       | >= 20.18.0 (lts/iron)     | >= v0.26.0 | v0.38.2    | v0.58.1 - <= v0.59.0 | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
-| 0.34.0       | >= 20.18.0 (lts/iron)     | >= v0.26.0 | v0.42.10   | v0.58.1+             | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
-| 0.35.0       | >= 20.18.0 (lts/iron)     | >= v0.26.0 | v0.44.0    | v0.58.1+             | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
-| 0.36.0       | >= 20.18.0 (lts/iron)     | >= v0.26.0 | v0.52.0    | v0.58.1+             | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
-| 0.36.1       | >= 20.18.0 (lts/iron)     | >= v0.26.0 | v0.53.0    | v0.58.1+             | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
-| 0.37.0       | >= 20.18.0 (lts/iron)     | >= v0.26.0 | v0.53.0    | v0.58.1+             | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
-| 0.37.1       | >= 20.18.0 (lts/iron)     | >= v0.26.0 | v0.53.0    | v0.58.1+             | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
-| 0.38.0       | >= 20.18.0 (lts/iron)     | >= v0.26.0 | v0.54.3    | v0.58.1+             | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 8GB, CPU >= 4 |
+Solo releases are supported for one month after their release date, after which they are no longer maintained.
+It is recommended to upgrade to the latest version to benefit from new features and improvements.
+Every quarter a version will be designated as LTS (Long-Term Support) and will be supported for three months.
+
+### Current Releases
+
+| Solo Version | Node.js                   | Kind       | Solo Chart | Hedera    | Kubernetes | Kubectl    | Helm    | k9s        | Docker Resources         | Release Date | End of Support |
+|--------------|---------------------------|------------|------------|-----------|------------|------------|---------|------------|--------------------------|--------------|----------------|
+| 0.43.0       | >= 20.18.0 (lts/iron)     | >= v0.26.0 | v0.54.5    | v0.63.9+  | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU >= 4 | 2025-08-15   | 2025-09-15     |
+| 0.42.0 (LTS) | >= 20.18.0 (lts/iron)     | >= v0.26.0 | v0.54.5    | v0.63.9+  | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU >= 4 | 2025-08-11   | 2025-11-11     |
+
+To see a list of legacy releases, please check the [legacy versions documentation page](docs/legacy-versions.md).
 
 ### Hardware Requirements
 
