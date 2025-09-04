@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 replicas: 1
 
 resources:
@@ -9,26 +10,26 @@ resources:
     memory: 32Gi
 
 nodeSelector:
-    solo.hashgraph.io/role: "consensus-node"
-    solo.hashgraph.io/owner: "alex.kuzmin"
-    solo.hashgraph.io/network-id: "engineering-1"
+  solo.hashgraph.io/role: "auxiliary-services"
+  solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+  solo.hashgraph.io/network-id: "%NETWORK_ID%"
 tolerations:
-    - key: "solo.hashgraph.io/role"
-      operator: "Equal"
-      value: "consensus-node"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/owner"
-      operator: "Equal"
-      value: "alex.kuzmin"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/network-id"
-      operator: "Equal"
-      value: "engineering-1"
-      effect: "NoSchedule"
+  - key: "solo.hashgraph.io/role"
+    operator: "Equal"
+    value: "auxiliary-services"
+    effect: "NoSchedule"
+  - key: "solo.hashgraph.io/owner"
+    operator: "Equal"
+    value: "%NETWORK_OWNER%"
+    effect: "NoSchedule"
+  - key: "solo.hashgraph.io/network-id"
+    operator: "Equal"
+    value: "%NETWORK_ID%"
+    effect: "NoSchedule"
 
 loadGenerator:
   java:
-    maxMemory: '30g'
+    maxMemory: "30g"
   test:
     className: com.hedera.benchmark.NftTransferLoadTest
     args:
@@ -47,4 +48,4 @@ loadGenerator:
       - -t
       - "1m"
   properties:
-     - 'x.y.z.1\:50211=0.0.3'
+    - 'x.y.z.1\:50211=0.0.3'
