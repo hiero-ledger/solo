@@ -41,9 +41,6 @@ on:
         type: boolean
         required: false
         default: true
-  push:
-    branches:
-      - 02465-D-example-local-cn
 defaults:
   run:
     shell: bash
