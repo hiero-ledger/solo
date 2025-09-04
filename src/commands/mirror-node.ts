@@ -457,6 +457,8 @@ export class MirrorNodeCommand extends BaseCommand {
                   throw new SoloError(`Error getting operator key: ${error.message}`, error);
                 }
               }
+            } else {
+              context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=0`;
             }
 
             const isQuiet = context_.config.quiet;
