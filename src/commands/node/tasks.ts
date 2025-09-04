@@ -77,6 +77,7 @@ import {NetworkNodes} from '../../core/network-nodes.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import {
   type ClusterReferenceName,
+  type ComponentId,
   type Context,
   type DeploymentName,
   type Optional,
@@ -2507,9 +2508,10 @@ export class NodeCommandTasks {
         // remove from remote config
         if (transactionType === NodeSubcommandType.DESTROY) {
           const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
-          this.remoteConfig.configuration.components.removeComponent(nodeId, ComponentTypes.ConsensusNode);
-          this.remoteConfig.configuration.components.removeComponent(nodeId, ComponentTypes.EnvoyProxy);
-          this.remoteConfig.configuration.components.removeComponent(nodeId, ComponentTypes.HaProxy);
+          const componentId: ComponentId = Templates.renderComponentIdFromNodeId(nodeId);
+          this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.ConsensusNode);
+          this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.EnvoyProxy);
+          this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.HaProxy);
           // @ts-expect-error: all fields are not present in every task's context
           context_.config.nodeAliases = config.allNodeAliases.filter(
             (nodeAlias: NodeAlias) => nodeAlias !== config.nodeAlias,
