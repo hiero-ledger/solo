@@ -437,6 +437,7 @@ export class RelayCommand extends BaseCommand {
           'JSON RPC Relay',
           config.isChartInstalled, // Reuse existing port if chart is already installed
         );
+        await this.remoteConfig.persist();
       },
     };
   }

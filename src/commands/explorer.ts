@@ -51,6 +51,7 @@ interface ExplorerDeployConfigClass {
   clusterContext: string;
   enableIngress: boolean;
   enableExplorerTls: boolean;
+  isChartInstalled: boolean;
   ingressControllerValueFile: string;
   explorerTlsHostName: string;
   explorerStaticIp: string | '';
@@ -67,7 +68,6 @@ interface ExplorerDeployConfigClass {
   soloChartVersion: string;
   domainName: Optional<string>;
   forcePortForward: Optional<boolean>;
-  isChartInstalled: boolean;
 }
 
 interface ExplorerDeployContext {
@@ -471,6 +471,7 @@ export class ExplorerCommand extends BaseCommand {
           'Explorer',
           config.isChartInstalled, // Reuse existing port if chart is already installed
         );
+        await this.remoteConfig.persist();
       },
     };
   }
@@ -815,7 +816,7 @@ export class ExplorerCommand extends BaseCommand {
   private addMirrorNodeExplorerComponents(): SoloListrTask<ExplorerDeployContext> {
     return {
       title: 'Add explorer to remote config',
-      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      skip: ({config}): boolean => !this.remoteConfig.isLoaded() || config.isChartInstalled,
       task: async (context_): Promise<void> => {
         const {namespace, clusterRef} = context_.config;
 

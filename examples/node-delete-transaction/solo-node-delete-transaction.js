@@ -28,7 +28,7 @@ async function main() {
 
   // NodeDeleteTransaction
   console.log(`${logPrefix} running node delete transaction`);
-  const prepareOutputString = readFileSync('/tmp/solo-deployment/prepare-output/node-delete.json');
+  const prepareOutputString = readFileSync('/tmp/solo-deployment/prepare-output/node-destroy.json');
   const prepareOutput = JSON.parse(prepareOutputString.toString());
   // console.log(`${logPrefix} ${JSON.stringify(prepareOutput)}`);
   const transformedPrepareOutput = prepareOutputParser(prepareOutput);

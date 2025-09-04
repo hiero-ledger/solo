@@ -161,8 +161,6 @@ export class MirrorNodeCommand extends BaseCommand {
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
   }
 
-  public static readonly COMMAND_NAME: string = 'mirror-node';
-
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
   private static readonly UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
@@ -711,6 +709,7 @@ export class MirrorNodeCommand extends BaseCommand {
           'Mirror ingress controller',
           context_.config.isChartInstalled, // Reuse existing port if chart is already installed
         );
+        await this.remoteConfig.persist();
       },
     };
   }
