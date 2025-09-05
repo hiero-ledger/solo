@@ -589,53 +589,66 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   public updateComponentVersion(type: ComponentTypes, version: SemVer): void {
-    switch (type) {
+    const updateVersionCallback = (versionField: { value: SemVer }): void => {
+      versionField.value = version;
+    };
+
+    this.applyCallbackToVersionField(type, updateVersionCallback);
+  }
+
+  /**
+   * Method used to map the component type to the specific version field
+   * and pass it to a callback to apply modifications
+   */
+  private applyCallbackToVersionField(
+    componentType: ComponentTypes,
+    callback: (versionField: { value: SemVer }) => void,
+  ): void {
+    switch (componentType) {
       case ComponentTypes.ConsensusNode: {
-        this.configuration.versions.consensusNode = version;
+        const versionField = { value: this.configuration.versions.consensusNode };
+        callback(versionField);
+        this.configuration.versions.consensusNode = versionField.value;
         break;
       }
       case ComponentTypes.MirrorNode: {
-        this.configuration.versions.mirrorNodeChart = version;
+        const versionField = { value: this.configuration.versions.mirrorNodeChart };
+        callback(versionField);
+        this.configuration.versions.mirrorNodeChart = versionField.value;
         break;
       }
       case ComponentTypes.Explorers: {
-        this.configuration.versions.explorerChart = version;
+        const versionField = { value: this.configuration.versions.explorerChart };
+        callback(versionField);
+        this.configuration.versions.explorerChart = versionField.value;
         break;
       }
       case ComponentTypes.RelayNodes: {
-        this.configuration.versions.jsonRpcRelayChart = version;
+        const versionField = { value: this.configuration.versions.jsonRpcRelayChart };
+        callback(versionField);
+        this.configuration.versions.jsonRpcRelayChart = versionField.value;
         break;
       }
       case ComponentTypes.BlockNode: {
-        this.configuration.versions.blockNodeChart = version;
+        const versionField = { value: this.configuration.versions.blockNodeChart };
+        callback(versionField);
+        this.configuration.versions.blockNodeChart = versionField.value;
         break;
       }
       default: {
-        throw new SoloError(`Unsupported component type: ${type}`);
+        throw new SoloError(`Unsupported component type: ${componentType}`);
       }
     }
   }
 
   public getComponentVersion(type: ComponentTypes): SemVer {
-    switch (type) {
-      case ComponentTypes.ConsensusNode: {
-        return this.configuration.versions.consensusNode;
-      }
-      case ComponentTypes.MirrorNode: {
-        return this.configuration.versions.mirrorNodeChart;
-      }
-      case ComponentTypes.Explorers: {
-        return this.configuration.versions.explorerChart;
-      }
-      case ComponentTypes.RelayNodes: {
-        return this.configuration.versions.jsonRpcRelayChart;
-      }
-      case ComponentTypes.BlockNode: {
-        return this.configuration.versions.blockNodeChart;
-      }
-      default: {
-        throw new SoloError(`Unsupported component type: ${type}`);
-      }
-    }
+    let version: SemVer;
+
+    const getVersionCallback = (versionField: { value: SemVer }): void => {
+      version = versionField.value;
+    };
+
+    this.applyCallbackToVersionField(type, getVersionCallback);
+    return version;
   }
 }
