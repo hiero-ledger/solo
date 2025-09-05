@@ -1,6 +1,7 @@
 version: 3
 
 env:
+  USE_MIRROR_NODE_LEGACY_RELEASE_NAME: 'true'
   SOLO_COMMAND:
     sh: |
       if [ "${USE_RELEASED_VERSION}" = "true" ]; then
@@ -29,7 +30,7 @@ vars:
   SOLO_CLUSTER_RELEASE_NAME: "external-database-example-cluster-setup"
   NODE_ALIASES: "node1"
   SOLO_USER_DIR: "{{ default (printf \"%s/.solo\" (env \"HOME\")) }}"
-  USE_MIRROR_NODE_LEGACY_RELEASE_NAME: 'true'
+
 tasks:
   default:
     desc: create the cluster, solo init, solo cluster-ref create, solo keys consensus generate, solo consensus network deploy
