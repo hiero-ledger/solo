@@ -44,12 +44,7 @@ on:
         description: "Use released or latest version"
         type: boolean
         required: false
-        default: true
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
+        default: false
 defaults:
   run:
     shell: bash
