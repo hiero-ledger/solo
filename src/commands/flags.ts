@@ -752,6 +752,38 @@ export class Flags {
     },
   };
 
+  public static readonly id: CommandFlag = {
+    constName: 'id',
+    name: 'id',
+    definition: {
+      describe: 'The numeric identifier for the component',
+      type: 'number',
+    },
+    prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<number> {
+      return await Flags.prompt('number', task, input, undefined, 'Enter component id: ', null, Flags.id.name);
+    },
+  };
+
+  public static readonly mirrorNodeId: CommandFlag = {
+    constName: 'mirrorNodeId',
+    name: 'mirror-node-id',
+    definition: {
+      describe: 'The id of the mirror node which to connect',
+      type: 'number',
+    },
+    prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<number> {
+      return await Flags.prompt(
+        'number',
+        task,
+        input,
+        undefined,
+        'Enter mirror node id: ',
+        null,
+        Flags.mirrorNodeId.name,
+      );
+    },
+  };
+
   public static readonly chainId: CommandFlag = {
     constName: 'chainId',
     name: 'ledger-id',
@@ -2645,6 +2677,8 @@ export class Flags {
     Flags.shard,
     Flags.username,
     Flags.skipNodeAlias,
+    Flags.id,
+    Flags.mirrorNodeId,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

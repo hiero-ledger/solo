@@ -32,12 +32,16 @@ export class ExplorerCommandDefinition extends BaseCommandDefinition {
 
   public static readonly NODE_ADD = 'add';
   public static readonly NODE_DESTROY = 'destroy';
+  public static readonly NODE_UPGRADE = 'upgrade';
 
   public static readonly ADD_COMMAND =
     `${ExplorerCommandDefinition.COMMAND_NAME} ${ExplorerCommandDefinition.NODE_SUBCOMMAND_NAME} ${ExplorerCommandDefinition.NODE_ADD}` as const;
 
   public static readonly DESTROY_COMMAND =
     `${ExplorerCommandDefinition.COMMAND_NAME} ${ExplorerCommandDefinition.NODE_SUBCOMMAND_NAME} ${ExplorerCommandDefinition.NODE_DESTROY}` as const;
+
+  public static readonly UPGRADE_COMMAND =
+    `${ExplorerCommandDefinition.COMMAND_NAME} ${ExplorerCommandDefinition.NODE_SUBCOMMAND_NAME} ${ExplorerCommandDefinition.NODE_UPGRADE}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -66,6 +70,15 @@ export class ExplorerCommandDefinition extends BaseCommandDefinition {
               this.explorerCommand,
               this.explorerCommand.destroy,
               ExplorerCommand.DESTROY_FLAGS_LIST,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              ExplorerCommandDefinition.NODE_UPGRADE,
+              'Upgrades the specified node in the deployment.',
+              this.explorerCommand,
+              this.explorerCommand.upgrade,
+              ExplorerCommand.UPGRADE_FLAGS_LIST,
             ),
           ),
       )
