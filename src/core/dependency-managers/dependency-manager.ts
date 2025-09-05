@@ -30,25 +30,25 @@ export class DependencyManager extends ShellRunner {
     if (helmDepManager) {
       this.dependancyManagerMap.set(constants.HELM, helmDepManager);
     } else {
-      this.dependancyManagerMap.set(constants.HELM, container.resolve(HelmDependencyManager));
+      this.dependancyManagerMap.set(constants.HELM, container.resolve(InjectTokens.HelmDependencyManager));
     }
 
     if (kindDepManager) {
       this.dependancyManagerMap.set(constants.KIND, kindDepManager);
     } else {
-      this.dependancyManagerMap.set(constants.KIND, container.resolve(KindDependencyManager));
+      this.dependancyManagerMap.set(constants.KIND, container.resolve(InjectTokens.KindDependencyManager));
     }
 
     if (kubectlDependencyManager) {
       this.dependancyManagerMap.set(constants.KUBECTL, kubectlDependencyManager);
     } else {
-      this.dependancyManagerMap.set(constants.KUBECTL, container.resolve(KubectlDependencyManager));
+      this.dependancyManagerMap.set(constants.KUBECTL, container.resolve(InjectTokens.KubectlDependencyManager));
     }
 
     if (podmanDependencyManager) {
       this.dependancyManagerMap.set(constants.PODMAN, podmanDependencyManager);
     } else {
-      this.dependancyManagerMap.set(constants.PODMAN, container.resolve(PodmanDependencyManager));
+      this.dependancyManagerMap.set(constants.PODMAN, container.resolve(InjectTokens.PodmanDependencyManager));
     }
   }
 

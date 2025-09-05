@@ -72,7 +72,7 @@ export class HelmDependencyManager extends BaseDependencyManager {
   /**
    * Process the downloaded Helm package by extracting it and finding the executable
    */
-  protected async processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string> {
+  protected async processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string[]> {
     // Extract the archive
     if (this.osPlatform === constants.OS_WINDOWS) {
       this.zippy!.unzip(packageFilePath, temporaryDirectory);
@@ -98,10 +98,10 @@ export class HelmDependencyManager extends BaseDependencyManager {
         throw new Error(`Helm executable not found in extracted archive: ${executablePath}`);
       }
 
-      return executablePath;
+      return [executablePath];
     }
 
-    return helmExecutablePath;
+    return [helmExecutablePath];
   }
 
   public async getVersion(executablePath: string): Promise<string> {
