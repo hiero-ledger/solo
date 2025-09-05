@@ -50,6 +50,8 @@ import {
 } from '../../core/helpers.js';
 import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
+import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
+import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {
   type AnyListrContext,
@@ -395,20 +397,20 @@ export class NodeCommandTasks {
     } = context_;
 
     const enableDebugger: boolean = context_.config.debugNodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
+    const debugNodeAlias: NodeAlias | undefined = context_.config.debugNodeAlias;
 
     const subTasks = nodeAliases.map(nodeAlias => {
-      const reminder =
-        'debugNodeAlias' in context_.config &&
-        context_.config.debugNodeAlias === nodeAlias &&
-        status !== NodeStatusCodes.FREEZE_COMPLETE
-          ? 'Please attach JVM debugger now.  Sleeping for 1 hour, hit ctrl-c once debugging is complete.'
-          : '';
-      const title = `Check network pod: ${chalk.yellow(nodeAlias)} ${chalk.red(reminder)}`;
-      const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+      const isDebugNode: boolean = debugNodeAlias === nodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
+      const reminder: string = isDebugNode ? 'Please attach JVM debugger now.' : '';
+      const title: string = `Check network pod: ${chalk.yellow(nodeAlias)} ${chalk.red(reminder)}`;
+      const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
 
       const subTask = async (context_: AnyListrContext, task: SoloListrTaskWrapper<AnyListrContext>) => {
-        if (enableDebugger) {
-          await sleep(Duration.ofHours(1));
+        if (enableDebugger && isDebugNode) {
+          await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
+            message: `JVM debugger setup for ${nodeAlias}. Continue when debugging is complete?`,
+            default: false,
+          });
         }
         context_.config.podRefs[nodeAlias] = await this._checkNetworkNodeActiveness(
           namespace,
@@ -427,7 +429,7 @@ export class NodeCommandTasks {
     });
 
     return task.newListr(subTasks, {
-      concurrent: true,
+      concurrent: !enableDebugger, // Run sequentially when debugging to avoid multiple prompts
       rendererOptions: {
         collapseSubtasks: false,
       },
