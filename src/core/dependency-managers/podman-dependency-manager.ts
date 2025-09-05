@@ -156,9 +156,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
       }
 
       // Find the matching asset
-      const matchingAsset = latestRelease.assets.find(asset =>
-        assetPattern.test(asset.browser_download_url)
-      );
+      const matchingAsset = latestRelease.assets.find(asset => assetPattern.test(asset.browser_download_url));
 
       if (!matchingAsset) {
         throw new SoloError(`No matching asset found for ${platform}-${arch}`);
@@ -170,9 +168,9 @@ export class PodmanDependencyManager extends BaseDependencyManager {
         : '0000000000000000000000000000000000000000000000000000000000000000';
 
       // Construct the release base URL (removing the filename from the download URL)
-      const downloadUrl: string = matchingAsset.browser_download_url.substring(
+      const downloadUrl: string = matchingAsset.browser_download_url.slice(
         0,
-        matchingAsset.browser_download_url.lastIndexOf('/'),
+        Math.max(0, matchingAsset.browser_download_url.lastIndexOf('/')),
       );
 
       return {
