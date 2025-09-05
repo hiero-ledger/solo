@@ -52,7 +52,7 @@ export class InitCommand extends BaseCommand {
         {
           title: 'Check dependencies',
           task: (_, task) => {
-            const deps = [constants.HELM, constants.KUBECTL];
+            const deps = [constants.HELM, constants.KUBECTL, constants.PODMAN];
 
             const subTasks = self.depManager.taskCheckDependencies<InitContext>(deps);
 

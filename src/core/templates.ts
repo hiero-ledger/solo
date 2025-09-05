@@ -160,6 +160,7 @@ export class Templates {
     switch (dep) {
       case constants.HELM:
       case constants.KIND:
+      case constants.PODMAN:
       case constants.KUBECTL: {
         if (osPlatform === constants.OS_WINDOWS) {
           return PathEx.join(installationDirectory, `${dep}.exe`);
