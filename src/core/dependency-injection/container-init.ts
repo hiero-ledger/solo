@@ -8,7 +8,8 @@ import {
   DependencyManager,
   HelmDependencyManager,
   KindDependencyManager,
-  KubectlDependencyManager, PodmanDependencyManager,
+  KubectlDependencyManager,
+  PodmanDependencyManager,
 } from '../dependency-managers/index.js';
 import * as constants from '../constants.js';
 import {ChartManager} from '../chart-manager.js';
