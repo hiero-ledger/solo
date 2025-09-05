@@ -48,8 +48,8 @@ tasks:
       - task: "solo:deployment:create"
       - task: "solo:deployment:attach"
       - task: "solo:keys"
-      # - task: "solo:block:add" wait until the consensus version is bumped up to v0.62.6
       - task: "solo:network:deploy"
+      - task: "solo:block:add"
 
   destroy:
     deps:
