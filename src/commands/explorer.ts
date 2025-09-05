@@ -38,6 +38,7 @@ import {Version} from '../business/utils/version.js';
 import {Duration} from '../core/time/duration.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {K8} from '../integration/kube/k8.js';
+import {BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -50,7 +51,7 @@ interface ExplorerDeployConfigClass {
   explorerTlsHostName: string;
   explorerStaticIp: string | '';
   explorerVersion: string;
-  mirrorNamespace: NamespaceName;
+  mirrorNamespace: string;
   namespace: NamespaceName;
   profileFile: string;
   profileName: string;
@@ -89,7 +90,7 @@ interface ExplorerUpgradeConfigClass {
   explorerTlsHostName: string;
   explorerStaticIp: string | '';
   explorerVersion: string;
-  mirrorNamespace: NamespaceName;
+  mirrorNamespace: string;
   namespace: NamespaceName;
   profileFile: string;
   profileName: string;
@@ -570,7 +571,7 @@ export class ExplorerCommand extends BaseCommand {
             this.inferMirrorNodeId(config);
 
             if (!config.mirrorNamespace) {
-              config.mirrorNamespace = config.namespace;
+              config.mirrorNamespace = config.namespace.name;
             }
 
             config.mirrorNodeReleaseName = await this.inferMirrorNodeReleaseName(
@@ -681,7 +682,7 @@ export class ExplorerCommand extends BaseCommand {
             this.inferMirrorNodeId(config);
 
             if (!config.mirrorNamespace) {
-              config.mirrorNamespace = config.namespace;
+              config.mirrorNamespace = config.namespace.name;
             }
 
             config.mirrorNodeReleaseName = await this.inferMirrorNodeReleaseName(
@@ -908,15 +909,29 @@ export class ExplorerCommand extends BaseCommand {
 
   private async inferMirrorNodeReleaseName(
     mirrorNodeId: ComponentId,
-    namespace: NamespaceName,
+    mirrorNodeNamespace: string,
     context: Context,
   ): Promise<string> {
     if (mirrorNodeId !== 1) {
       return Templates.renderMirrorNodeName(mirrorNodeId);
     }
 
+    // Try to get the component and use the precise cluster context
+    try {
+      const mirrorNodeComponent: BaseStateSchema = this.remoteConfig.configuration.components.getComponentById(
+        ComponentTypes.MirrorNode,
+        mirrorNodeId,
+      );
+
+      if (mirrorNodeComponent) {
+        context = this.getClusterContext(mirrorNodeComponent.metadata.cluster);
+      }
+    } catch {
+      // Guard
+    }
+
     const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
-      namespace,
+      NamespaceName.of(mirrorNodeNamespace),
       constants.MIRROR_NODE_RELEASE_NAME,
       context,
     );

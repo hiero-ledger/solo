@@ -193,7 +193,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       `namespace: ${component.metadata.namespace}, ` +
       `cluster: ${component.metadata.cluster}`;
 
-    if (Array.isArray(labels) && labels.length > 0) {
+    if (labels?.length !== 0) {
       message += `,    labels: ${labels}`;
     }
 
