@@ -367,12 +367,12 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       `Executed by ${this.localConfig.configuration.userIdentity.name}: ${currentCommand} ${commandArguments}`.trim(),
     );
 
-    this.populateVersionsInMetadata(argv, this.source.modelData);
+    this.initializeComponentVersions(argv, this.source.modelData);
 
     await this.persist();
   }
 
-  private populateVersionsInMetadata(argv: AnyObject, remoteConfig: RemoteConfigSchema): void {
+  private initializeComponentVersions(argv: AnyObject, remoteConfig: RemoteConfigSchema): void {
     remoteConfig.versions.chart = argv[flags.soloChartVersion.name]
       ? new SemVer(argv[flags.soloChartVersion.name])
       : new SemVer(flags.soloChartVersion.definition.defaultValue as string);
