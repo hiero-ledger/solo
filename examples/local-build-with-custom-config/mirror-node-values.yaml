@@ -1,0 +1,170 @@
+labels:
+  solo.hiero.com/testSuiteName: ""
+  solo.hiero.com/testName: ""
+  solo.hiero.com/testRunUID: ""
+  solo.hiero.com/testCreationTimestamp: ""
+  solo.hiero.com/testExpirationTimestamp: ""
+  solo.hiero.com/testRequester: ""
+graphql: # not needed for default use case
+  enabled: false
+rosetta: # not needed for default use case
+  enabled: false
+redis:
+  enabled: true
+#  namespaceOverride: "{{ tpl (.Values.global.namespaceOverride | toString) }}"
+# importer is a component of the hiero mirror node
+# config for subchart hiero-mirror/importer
+importer:
+  nodeSelector: {}
+  tolerations:
+    - key: "solo-scheduling.io/os"
+      operator: "Equal"
+      value: "linux"
+      effect: "NoSchedule"
+    - key: "solo-scheduling.io/role"
+      operator: "Equal"
+      value: "network"
+      effect: "NoSchedule"
+  envFrom:
+    - secretRef:
+        name: mirror-passwords
+    - secretRef:
+        name: "{{ .Release.Name }}-redis"
+    - secretRef:
+        name: uploader-mirror-secrets
+  # The addressbook.bin file updates will be handled by infrastructure code or solo
+  addressBook: ""
+  config:
+    # importer is a springboot app, its application.yaml configuration starts here
+    # This config is mounted at [/usr/etc/hiero/application.yaml] in the importer pod
+    hiero:
+      mirror:
+        importer:
+          startDate: 1970-01-01T00:00:00Z
+          network: other
+          downloader:
+            allowAnonymousAccess: false
+            bucketName: "solo-streams"
+            # for s3 configuration of mirror node look at uploader-mirror-secrets.yaml
+          parser:
+            record:
+              sidecar:
+                enabled: true
+grpc:
+  ingress:
+    annotations:
+      haproxy-ingress.github.io/backend-protocol: h2
+  nodeSelector: {}
+  tolerations:
+    - key: "solo-scheduling.io/os"
+      operator: "Equal"
+      value: "linux"
+      effect: "NoSchedule"
+    - key: "solo-scheduling.io/role"
+      operator: "Equal"
+      value: "network"
+      effect: "NoSchedule"
+postgresql:
+  postgresql:
+    nodeSelector: {}
+    tolerations:
+      - key: "solo-scheduling.io/os"
+        operator: "Equal"
+        value: "linux"
+        effect: "NoSchedule"
+      - key: "solo-scheduling.io/role"
+        operator: "Equal"
+        value: "network"
+        effect: "NoSchedule"
+  pgpool:
+    replicaCount: 0
+rest:
+  nodeSelector: {}
+  tolerations:
+    - key: "solo-scheduling.io/os"
+      operator: "Equal"
+      value: "linux"
+      effect: "NoSchedule"
+    - key: "solo-scheduling.io/role"
+      operator: "Equal"
+      value: "network"
+      effect: "NoSchedule"
+  monitor:
+    enabled: false
+  redis:
+    enabled: true
+  global:
+    hostname: "localhost"
+restjava:
+  nodeSelector: {}
+  tolerations:
+    - key: "solo-scheduling.io/os"
+      operator: "Equal"
+      value: "linux"
+      effect: "NoSchedule"
+    - key: "solo-scheduling.io/role"
+      operator: "Equal"
+      value: "network"
+      effect: "NoSchedule"
+web3:
+  nodeSelector: {}
+  tolerations:
+    - key: "solo-scheduling.io/os"
+      operator: "Equal"
+      value: "linux"
+      effect: "NoSchedule"
+    - key: "solo-scheduling.io/role"
+      operator: "Equal"
+      value: "network"
+      effect: "NoSchedule"
+
+# config for subchart hiero-mirror/monitor
+# Sets up a Pinger service that periodically submits CRYPTO_TRANSFER transactions
+# Additional configuration for node addresses, operator id and key should be handled by infrastructure code or solo
+monitor:
+  nodeSelector: {}
+  tolerations:
+    - key: "solo-scheduling.io/os"
+      operator: "Equal"
+      value: "linux"
+      effect: "NoSchedule"
+    - key: "solo-scheduling.io/role"
+      operator: "Equal"
+      value: "network"
+      effect: "NoSchedule"
+  envFrom:
+    - secretRef:
+        name: mirror-passwords
+    - secretRef:
+        name: "{{ .Release.Name }}-redis"
+    - secretRef:
+        name: uploader-mirror-secrets
+  config:
+    hiero:
+      mirror:
+        common:
+          realm: 0
+          shard: 0
+        monitor:
+          publish:
+            scenarios:
+              pinger:
+                properties:
+                  amount: 1
+                  maxTransactionFee: 10000
+                  senderAccountId: 0.0.2
+                  recipientAccountId: 0.0.55
+                  transferTypes:
+                    - CRYPTO
+                receiptPercent: 1
+                tps: 0
+                type: CRYPTO_TRANSFER
+          subscribe:
+            grpc:
+              hcs:
+                enabled: false
+            rest:
+              transactionId:
+                enabled: true
+                samplePercent: 1
+          network: OTHER

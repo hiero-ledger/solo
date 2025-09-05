@@ -38,5 +38,10 @@
     "name": "Node Update Transaction",
     "directory": "node-update-transaction",
     "local-java-build": true
+  },
+  {
+    "name": "Local Build with Custom Config",
+    "directory": "local-build-with-custom-config",
+    "local-java-build": true
   }
 ]
