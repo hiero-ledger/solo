@@ -801,7 +801,7 @@ export class MirrorNodeCommand extends BaseCommand {
             await this.remoteConfig.persist();
           },
         },
-        // TODO only show this if we are not running in quick-start mode
+        // TODO only show this if we are not running in one-shot mode
         // {
         //   title: 'Show user messages',
         //   task: (): void => {

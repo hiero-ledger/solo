@@ -2,6 +2,6 @@
 
 import {type BaseCommand} from '../base.js';
 
-export interface QuickStartCommand extends BaseCommand {
+export interface OneShotCommand extends BaseCommand {
   close(): Promise<void>;
 }

@@ -17,10 +17,10 @@ import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
 import {type BaseTestOptions} from './tests/base-test-options.js';
 import {main} from '../../../src/index.js';
 import {BaseCommandTest} from './tests/base-command-test.js';
-import {QuickStartCommandDefinition} from '../../../src/commands/command-definitions/quick-start-command-definition.js';
+import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
 
-const testName: string = 'quick-start-single';
-const testTitle: string = 'Quick Start Single E2E Test';
+const testName: string = 'one-shot-single';
+const testTitle: string = 'One Shot Single E2E Test';
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
   .withTestSuiteName(`${testTitle} Suite`)
@@ -54,14 +54,14 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       after(async (): Promise<void> => {
         testLogger.info(`${testName}: beginning ${testName}: destroy`);
-        await main(soloQuickStartDestroy(testName));
+        await main(soloOneShotDestroy(testName));
         testLogger.info(`${testName}: finished ${testName}: destroy`);
       }).timeout(Duration.ofMinutes(5).toMillis());
 
       // TODO pass in namespace for cache directory for proper destroy on restart
       it(`${testName}: deploy`, async (): Promise<void> => {
         testLogger.info(`${testName}: beginning ${testName}: deploy`);
-        await main(soloQuickStartDeploy(testName));
+        await main(soloOneShotDeploy(testName));
         testLogger.info(`${testName}: finished ${testName}: deploy`);
       }).timeout(Duration.ofMinutes(15).toMillis());
 
@@ -71,24 +71,24 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .build();
 endToEndTestSuite.runTestSuite();
 
-export function soloQuickStartDeploy(testName: string): string[] {
+export function soloOneShotDeploy(testName: string): string[] {
   const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
 
   const argv: string[] = newArgv();
   argv.push(
-    QuickStartCommandDefinition.COMMAND_NAME,
-    QuickStartCommandDefinition.SINGLE_SUBCOMMAND_NAME,
-    QuickStartCommandDefinition.SINGLE_DEPLOY,
+    OneShotCommandDefinition.COMMAND_NAME,
+    OneShotCommandDefinition.SINGLE_SUBCOMMAND_NAME,
+    OneShotCommandDefinition.SINGLE_DEPLOY,
   );
   argvPushGlobalFlags(argv, testName);
   return argv;
 }
 
-export function soloQuickStartDestroy(testName: string): string[] {
+export function soloOneShotDestroy(testName: string): string[] {
   const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
 
   const argv: string[] = newArgv();
-  argv.push('quick-start', 'single', 'destroy');
+  argv.push('one-shot', 'single', 'destroy');
   argvPushGlobalFlags(argv, testName);
   return argv;
 }
