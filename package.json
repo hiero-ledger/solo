@@ -26,7 +26,7 @@
     "@hiero-ledger/sdk": "^2.70.0",
     "@inquirer/prompts": "^7.8.3",
     "@kubernetes/client-node": "^0.22.3",
-    "@listr2/prompt-adapter-inquirer": "^3.0.1",
+    "@listr2/prompt-adapter-inquirer": "^3.0.3",
     "@peculiar/x509": "^1.13.0",
     "adm-zip": "^0.5.16",
     "chalk": "^5.6.0",
