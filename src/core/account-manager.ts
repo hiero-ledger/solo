@@ -1113,7 +1113,7 @@ export class AccountManager {
   }
 
   public getTreasuryAccountId(deployment: DeploymentName): AccountId {
-    return this.getAccountIdByNumber(deployment, constants.DEFAULT_TREASURY_ID_NUMBER);
+    return this.getAccountIdByNumber(deployment, constants.TREASURY_ACCOUNT);
   }
 
   public getStartAccountId(deployment: DeploymentName): AccountId {

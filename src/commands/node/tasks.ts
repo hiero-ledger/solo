@@ -10,7 +10,13 @@ import {type ChartManager} from '../../core/chart-manager.js';
 import {type CertificateManager} from '../../core/certificate-manager.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
-import {DEFAULT_NETWORK_NODE_NAME, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
+import {
+  DEFAULT_NETWORK_NODE_NAME,
+  HEDERA_DATA_ONBOARD_DIR,
+  HEDERA_HAPI_PATH,
+  HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
+  ROOT_CONTAINER,
+} from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
   AccountBalanceQuery,
@@ -125,6 +131,7 @@ import {SemVer, lt} from 'semver';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
 import {Version} from '../../business/utils/version.js';
+import os from 'node:os';
 
 export type LeaseWrapper = {lease: Lock};
 
@@ -1305,6 +1312,31 @@ export class NodeCommandTasks {
             // @ts-expect-error not all contexts have field
             task: () => this.platformInstaller.taskSetup(podReference, context_.config.stagingDir, isGenesis, context),
           });
+          if (isGenesis) {
+            subTasks.push({
+              title: `Copy Genesis Key to node: ${chalk.yellow(nodeAlias)}`,
+              task: async () => {
+                const k8: K8 = this.k8Factory.getK8(context);
+                const genesisKey: PrivateKey = await helpers.getGenesisPrivateKey(k8, context_.config.namespace);
+                const genesisPubKey: string = genesisKey.publicKey.toStringDer();
+                const genesisPrivateKey: string = genesisKey.toStringDer();
+
+                const temporaryDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'genesis-key-'));
+                const genesisPubKeyFile: string = path.join(temporaryDirectory, 'GenesisPubKey.txt');
+                const genesisPrivKeyFile: string = path.join(temporaryDirectory, 'GenesisPrivKey.txt');
+                fs.writeFileSync(genesisPubKeyFile, genesisPubKey);
+                fs.writeFileSync(genesisPrivKeyFile, genesisPrivateKey);
+
+                // copy the files to the pod
+                const containerReference: ContainerReference = ContainerReference.of(podReference, ROOT_CONTAINER);
+                const onboardPath: string = path.join(HEDERA_HAPI_PATH, HEDERA_DATA_ONBOARD_DIR);
+                await k8.containers().readByRef(containerReference).copyTo(genesisPubKeyFile, onboardPath);
+                await k8.containers().readByRef(containerReference).copyTo(genesisPrivKeyFile, onboardPath);
+                // remove the tmp directory
+                fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+              },
+            });
+          }
         }
 
         // set up the sub-tasks

@@ -47,6 +47,7 @@ export const HEDERA_SERVICES_PATH = `${HEDERA_HGCAPP_DIR}/services-hedera`;
 export const HEDERA_HAPI_PATH = `${HEDERA_SERVICES_PATH}/HapiApp2.0`;
 export const HEDERA_DATA_APPS_DIR = 'data/apps';
 export const HEDERA_DATA_LIB_DIR = 'data/lib';
+export const HEDERA_DATA_ONBOARD_DIR: string = 'data/onboard';
 export const HEDERA_USER_HOME_DIR = '/home/hedera';
 export const HEDERA_APP_NAME = 'HederaNode.jar';
 export const HEDERA_BUILDS_URL = 'https://builds.hedera.com';
@@ -133,7 +134,6 @@ export const OPERATOR_PUBLIC_KEY =
   '302a300506032b65700321000aa8e21064c61eab86e2a9c164565b4e7a9a4146106e0a6cd03a8c395a110e92';
 
 export const DEFAULT_FREEZE_ID_NUMBER = +getEnvironmentVariable('FREEZE_ADMIN_ACCOUNT') || 58;
-export const DEFAULT_TREASURY_ID_NUMBER = 2;
 export const DEFAULT_START_ID_NUMBER = +getEnvironmentVariable('DEFAULT_START_ID_NUMBER') || 3;
 
 export const GENESIS_KEY =
