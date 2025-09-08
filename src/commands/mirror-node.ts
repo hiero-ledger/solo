@@ -47,6 +47,7 @@ import {Base64} from 'js-base64';
 import {Lock} from '../core/lock/lock.js';
 import {Version} from '../business/utils/version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
+import {SemVer} from 'semver';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -431,8 +432,6 @@ export class MirrorNodeCommand extends BaseCommand {
             }
 
             if (context_.config.pinger) {
-              context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=5`;
-
               const operatorId: string =
                 context_.config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
               context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
@@ -459,6 +458,8 @@ export class MirrorNodeCommand extends BaseCommand {
                   throw new SoloError(`Error getting operator key: ${error.message}`, error);
                 }
               }
+            } else {
+              context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=0`;
             }
 
             const isQuiet = context_.config.quiet;
@@ -798,6 +799,7 @@ export class MirrorNodeCommand extends BaseCommand {
               'Mirror ingress controller',
               context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             );
+            await this.remoteConfig.persist();
           },
         },
         // TODO only show this if we are not running in quick-start mode
@@ -1040,7 +1042,11 @@ export class MirrorNodeCommand extends BaseCommand {
           this.componentFactory.createNewMirrorNodeComponent(clusterReference, namespace),
           ComponentTypes.MirrorNode,
         );
-
+        // update mirror node version in remote config
+        this.remoteConfig.updateComponentVersion(
+          ComponentTypes.MirrorNode,
+          new SemVer(context_.config.mirrorNodeVersion),
+        );
         await this.remoteConfig.persist();
       },
     };
