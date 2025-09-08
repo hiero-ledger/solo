@@ -26,7 +26,7 @@ Before we begin, let's ensure your system meets the requirements and has all the
 
 First, check that your computer meets these minimum specifications:
 
-* **Memory**: At least 8GB of RAM (16GB recommended for smoother performance)
+* **Memory**: At least 12GB of RAM (16GB recommended for smoother performance)
 * **CPU**: Minimum 4 cores (8 cores recommended)
 * **Storage**: At least 20GB of free disk space
 * **Operating System**: macOS, Linux, or Windows with WSL2
@@ -396,9 +396,11 @@ $SOLO_NODE_START_OUTPUT
 
 This is the most memory intensive step from a resource perspective. If you have issues at this step try checking your local resource utilization and make sure there's memory available for docker (close all unessential applications). Likewise, you can consider lowering your swap in docker settings to ease the swap demand, and try again.
 
+The `--pinger` flag starts a pinging service that sends transactions to the network at regular intervals. This is needed because the record file is not imported into the mirror node until the next one is created.
+
 ```bash
 # Deploy with explicit configuration
-solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress
+solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger
 ```
 
 Example output:
