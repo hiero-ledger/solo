@@ -122,15 +122,15 @@ tasks:
       - src/**/*.ts
       - version.ts
       - solo.ts
-      - docs/site/generate_help.sh
+      - docs/site/scripts/generateHelp.mjs
     generates:
       - docs/site/content/en/docs/solo-commands.md
     cmds:
       - printf "\r::group::Generating CLI help documentation\n"
       - rm -f docs/site/content/en/docs/solo-commands.md
-      - chmod 755 docs/site/generate_help.sh
+      - (cd docs/site/ && npm install)
       - task: "build:solo"
-      - docs/site/generate_help.sh
+      - (cd docs/site/ && node scripts/generateHelp.mjs)
       - printf "\r::endgroup::--------------\n"
 
   build:guide:
@@ -143,23 +143,22 @@ tasks:
       - solo.ts
       - docs/site/content/en/templates/step-by-step-guide.template.md
       - docs/site/content/en/templates/example-index.template.md
-      - docs/site/update_md.sh
-      - docs/site/wrapper_for_update_md.sh
+      - docs/site/scripts/wrapperForUpdateDocs.mjs
+      - docs/site/scripts/executeUpdateDocs.mjs
     generates:
       - docs/site/content/en/step-by-step-guide.md
     cmds:
       - printf "\r::group::Building the Step-by-Step Guide\n"
       - rm -f docs/site/content/en/step-by-step-guide.md
-      - chmod 755 docs/site/update_md.sh
-      - chmod 755 docs/site/wrapper_for_update_md.sh
+      - (cd docs/site/ && npm install)
       - task: "build:solo"
       - |
         if [[ "${SOLO_CI}" == "true" ]]; then
-          echo "Running wrapper_for_update_md.sh in CI mode"
-          docs/site/wrapper_for_update_md.sh
+          echo "Running wrapperForUpdateDocs.mjs in CI mode"
+          node docs/site/scripts/wrapperForUpdateDocs.mjs
         else
-          echo "Running update_md.sh in local mode"
-          docs/site/update_md.sh
+          echo "Running executeUpdateDocs.mjs.mjs in local mode"
+          node docs/site/scripts/executeUpdateDocs.mjs
         fi
       - printf "\r::endgroup::--------------\n"
 
