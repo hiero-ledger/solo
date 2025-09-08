@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Templates} from '../../core/templates.js';
-import * as constants from '../../core/constants.js';
 import {AccountId, PrivateKey} from '@hiero-ledger/sdk';
 import {SoloError} from '../../core/errors/solo-error.js';
 import * as helpers from '../../core/helpers.js';
@@ -372,9 +371,12 @@ export class NodeCommandConfigs {
       'contexts',
     ]) as NodeAddConfigClass;
 
-    context_.adminKey = argv[flags.adminKey?.name]
-      ? PrivateKey.fromStringED25519(argv[flags.adminKey?.name])
-      : PrivateKey.fromStringED25519(constants.GENESIS_KEY);
+    if (argv[flags.adminKey?.name]) {
+      context_.adminKey = PrivateKey.fromStringED25519(argv[flags.adminKey?.name]);
+    } else {
+      const k8 = this.k8Factory.default();
+      context_.adminKey = await helpers.getGenesisPrivateKey(k8, context_.config.namespace);
+    }
 
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
     context_.config.curDate = new Date();

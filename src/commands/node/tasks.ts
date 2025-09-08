@@ -742,10 +742,18 @@ export class NodeCommandTasks {
             config.adminKey = PrivateKey.fromStringED25519(privateKey);
           } catch (error) {
             this.logger.debug(`Error in loading node admin key: ${error.message}, use default key`);
-            config.adminKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
+            const k8 = this.k8Factory.getK8(
+              helpers.extractContextFromConsensusNodes(
+                (context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias,
+                context_.config.consensusNodes,
+              ),
+            );
+            config.adminKey = await helpers.getGenesisPrivateKey(k8, config.namespace);
           }
         } else {
-          config.adminKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
+          // Use default context when no nodeAlias is available
+          const k8 = this.k8Factory.default();
+          config.adminKey = await helpers.getGenesisPrivateKey(k8, config.namespace);
         }
       },
     };

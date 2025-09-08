@@ -345,7 +345,8 @@ export class AccountCommand extends BaseCommand {
                 {
                   title: 'Update node admin key',
                   task: async context_ => {
-                    const adminKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
+                    const k8 = this.k8Factory.getK8(context_.config.contextName);
+                    const adminKey = await helpers.getGenesisPrivateKey(k8, context_.config.namespace);
                     for (const nodeAlias of context_.config.nodeAliases) {
                       const nodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
                       const nodeClient = await self.accountManager.refreshNodeClient(

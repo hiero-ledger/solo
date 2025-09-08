@@ -28,6 +28,7 @@ import {ResourceNotFoundError} from './errors/resource-not-found-error.js';
 import {SoloError} from './errors/solo-error.js';
 import {Templates} from './templates.js';
 import {type NetworkNodeServices} from './network-node-services.js';
+import * as helpers from './helpers.js';
 
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
@@ -117,6 +118,15 @@ export class AccountManager {
             accountId: secret.labels['solo.hedera.com/account-id'],
             privateKey: Base64.decode(secret.data.privateKey),
             publicKey: Base64.decode(secret.data.publicKey),
+          };
+        } else {
+          // return genesis key from k8s secret or fallback to default
+          const k8 = this.k8Factory.getK8(context);
+          const genesisKey = await helpers.getGenesisKey(k8, namespace);
+          return {
+            accountId,
+            privateKey: genesisKey,
+            publicKey: PrivateKey.fromStringED25519(genesisKey).publicKey.toString(),
           };
         }
       } catch (error) {

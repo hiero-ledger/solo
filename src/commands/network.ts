@@ -47,6 +47,7 @@ import {
 } from '../types/index.js';
 import {Base64} from 'js-base64';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
+import {PrivateKey} from '@hiero-ledger/sdk';
 import {Duration} from '../core/time/duration.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
@@ -934,6 +935,27 @@ export class NetworkCommand extends BaseCommand {
                 rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
               },
             );
+          },
+        },
+        {
+          title: 'Save genesis key to k8s secret',
+          task: async (context_): Promise<void> => {
+            const config: NetworkDeployConfigClass = context_.config;
+            const genesisKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
+
+            const data = {
+              privateKey: Base64.encode(genesisKey.toString()),
+              publicKey: Base64.encode(genesisKey.publicKey.toString()),
+            };
+
+            for (const [clusterReference] of config.clusterRefs) {
+              await this.k8Factory
+                .getK8(clusterReference)
+                .secrets()
+                .create(config.namespace, 'genesis-key', SecretType.OPAQUE, data, {
+                  'solo.hedera.com/genesis-key': 'true',
+                });
+            }
           },
         },
         {

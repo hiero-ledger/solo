@@ -592,3 +592,36 @@ export function checkDockerImageExists(imageName: string, imageTag: string): boo
     return false;
   }
 }
+
+/**
+ * Gets the genesis key from Kubernetes secret if available, otherwise returns the default constants.GENESIS_KEY
+ * @param k8 - Kubernetes client instance
+ * @param namespace - Namespace to search for the secret
+ * @returns Promise<string> - The genesis key string
+ */
+export async function getGenesisKey(k8: K8, namespace: NamespaceName): Promise<string> {
+  try {
+    const secret = await k8.secrets().read(namespace, 'genesis-key');
+    if (secret && secret.data && secret.data.privateKey) {
+      // Decode the base64 encoded private key
+      const decodedKey = Buffer.from(secret.data.privateKey, 'base64').toString('utf-8');
+      return decodedKey;
+    }
+  } catch {
+    // Secret doesn't exist or can't be accessed, fall back to default
+  }
+
+  return constants.GENESIS_KEY;
+}
+
+/**
+ * Gets the genesis key as a PrivateKey object from Kubernetes secret if available,
+ * otherwise returns PrivateKey from constants.GENESIS_KEY
+ * @param k8 - Kubernetes client instance
+ * @param namespace - Namespace to search for the secret
+ * @returns Promise<PrivateKey> - The genesis PrivateKey object
+ */
+export async function getGenesisPrivateKey(k8: K8, namespace: NamespaceName): Promise<PrivateKey> {
+  const genesisKeyString = await getGenesisKey(k8, namespace);
+  return PrivateKey.fromStringED25519(genesisKeyString);
+}
