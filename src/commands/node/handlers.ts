@@ -84,8 +84,11 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.refreshNodeList(),
       this.tasks.copyNodeKeysToSecrets('refreshedConsensusNodes'),
       this.tasks.getNodeLogsAndConfigs(),
-      this.tasks.updateChartWithConfigMap('Delete network node and update configMaps', NodeSubcommandType.DESTROY),
-      this.tasks.killNodes(),
+      this.tasks.updateChartWithConfigMap(
+        'Delete network node from chart and update configMaps',
+        NodeSubcommandType.DESTROY,
+      ),
+      this.tasks.killNodes(NodeSubcommandType.DESTROY),
       this.tasks.sleep('Give time for pods to come up after being killed', 20_000),
       this.tasks.checkNodePodsAreRunning(),
       this.tasks.populateServiceMap(),
@@ -151,6 +154,8 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkAllNodeProxiesAreActive(),
       this.tasks.stakeNewNode(),
       this.tasks.triggerStakeWeightCalculate<NodeAddContext>(NodeSubcommandType.ADD),
+      this.tasks.loadAdminKey(),
+      this.tasks.setGrpcWebEndpoint('newNodeAliases'),
       this.tasks.finalize(),
     ];
   }
@@ -825,7 +830,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.checkNodeProxiesAreActive(),
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
         this.tasks.addNodeStakes(),
-        this.tasks.setGrpcWebEndpoint(),
+        this.tasks.setGrpcWebEndpoint('nodeAliases'),
         // TODO only show this if we are not running in quick-start mode
         // this.tasks.showUserMessages(),
       ],
