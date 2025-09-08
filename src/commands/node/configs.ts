@@ -49,11 +49,11 @@ import {type NodeRestartConfigClass} from './config-interfaces/node-restart-conf
 import {type NodeRestartContext} from './config-interfaces/node-restart-context.js';
 import {type NodeSetupContext} from './config-interfaces/node-setup-context.js';
 import {type NodePrepareUpgradeContext} from './config-interfaces/node-prepare-upgrade-context.js';
-import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
-import {SOLO_USER_AGENT_HEADER} from '../../core/constants.js';
-import {SemVer} from 'semver';
 import {Version} from '../../business/utils/version.js';
+import {eq, SemVer} from 'semver';
+import {SOLO_USER_AGENT_HEADER} from '../../core/constants.js';
 
 const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
 const DOWNLOAD_GENERATED_FILES_CONFIGS_NAME = 'downloadGeneratedFilesConfig';
@@ -629,6 +629,13 @@ export class NodeCommandConfigs {
       'consensusNodes',
       'contexts',
     ]) as NodeSetupConfigClass;
+
+    const savedVersion: SemVer = this.remoteConfig.configuration.versions.consensusNode;
+    if (!eq(savedVersion, new SemVer(context_.config.releaseTag))) {
+      throw new SoloError(
+        `Consensus node version saved in remote config ${savedVersion} is different from ${context_.config.releaseTag}`,
+      );
+    }
 
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
     context_.config.consensusNodes = this.remoteConfig.getConsensusNodes();
