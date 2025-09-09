@@ -24,7 +24,7 @@
   "license": "Apache2.0",
   "dependencies": {
     "@hiero-ledger/sdk": "^2.70.0",
-    "@inquirer/prompts": "^7.8.3",
+    "@inquirer/prompts": "^7.8.4",
     "@kubernetes/client-node": "^0.22.3",
     "@listr2/prompt-adapter-inquirer": "^3.0.1",
     "@peculiar/x509": "^1.13.0",
