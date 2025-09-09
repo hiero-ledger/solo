@@ -549,7 +549,14 @@ export class RelayCommand extends BaseCommand {
               Templates.nodeIdFromNodeAlias(nodeAlias),
             );
 
-            await this.inferMirrorNodeData(config.namespace, config.context);
+            const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
+              config.namespace,
+              config.context,
+            );
+
+            config.mirrorNodeId = mirrorNodeId;
+            config.mirrorNamespace = mirrorNamespace;
+            config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
             config.newRelayComponent = this.componentFactory.createNewRelayComponent(
               config.clusterRef,
@@ -651,16 +658,25 @@ export class RelayCommand extends BaseCommand {
             config.clusterRef = this.getClusterReference();
             config.context = this.getClusterContext(config.clusterRef);
 
-            const {id, isLegacyChartInstalled, isChartInstalled, releaseName, nodeAliases} =
-              await this.inferDestroyData(config.namespace, config.context);
-
-            await this.inferMirrorNodeData(config.namespace, config.context);
+            const {id, isLegacyChartInstalled, isChartInstalled, releaseName, nodeAliases} = await this.inferRelayData(
+              config.namespace,
+              config.context,
+            );
 
             config.id = id;
             config.isLegacyChartInstalled = isLegacyChartInstalled;
             config.isChartInstalled = isChartInstalled;
             config.releaseName = releaseName;
             config.nodeAliases = nodeAliases;
+
+            const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
+              config.namespace,
+              config.context,
+            );
+
+            config.mirrorNodeId = mirrorNodeId;
+            config.mirrorNamespace = mirrorNamespace;
+            config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
@@ -733,8 +749,10 @@ export class RelayCommand extends BaseCommand {
             const context: Context = this.getClusterContext(clusterReference);
             const namespace: NamespaceName = await this.getNamespace(task);
 
-            const {id, isLegacyChartInstalled, isChartInstalled, releaseName, nodeAliases} =
-              await this.inferDestroyData(namespace, context);
+            const {id, isLegacyChartInstalled, isChartInstalled, releaseName, nodeAliases} = await this.inferRelayData(
+              namespace,
+              context,
+            );
 
             const config: RelayDestroyConfigClass = {
               chartDirectory: this.configManager.getFlag(flags.chartDirectory),
@@ -859,7 +877,7 @@ export class RelayCommand extends BaseCommand {
     return this.remoteConfig.configuration.components.state.relayNodes[0].metadata.id;
   }
 
-  private async inferDestroyData(
+  private async inferRelayData(
     namespace: NamespaceName,
     context: Context,
   ): Promise<{

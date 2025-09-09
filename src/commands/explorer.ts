@@ -578,7 +578,14 @@ export class ExplorerCommand extends BaseCommand {
             config.releaseName = this.getReleaseName();
             config.ingressReleaseName = this.getIngressReleaseName();
 
-            await this.inferMirrorNodeData(config.namespace, config.clusterContext);
+            const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
+              config.namespace,
+              config.clusterContext,
+            );
+
+            config.mirrorNodeId = mirrorNodeId;
+            config.mirrorNamespace = mirrorNamespace;
+            config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
             config.newExplorerComponent = this.componentFactory.createNewExplorerComponent(
               config.clusterRef,
@@ -671,7 +678,7 @@ export class ExplorerCommand extends BaseCommand {
             config.clusterContext = this.getClusterContext(config.clusterRef);
 
             const {id, releaseName, ingressReleaseName, isChartInstalled, isLegacyChartInstalled} =
-              await this.inferDestroyData(config.namespace, config.clusterRef);
+              await this.inferExplorerData(config.namespace, config.clusterRef);
 
             config.id = id;
             config.releaseName = releaseName;
@@ -679,7 +686,14 @@ export class ExplorerCommand extends BaseCommand {
             config.isChartInstalled = isChartInstalled;
             config.isLegacyChartInstalled = isLegacyChartInstalled;
 
-            await this.inferMirrorNodeData(config.namespace, config.clusterContext);
+            const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
+              config.namespace,
+              config.clusterContext,
+            );
+
+            config.mirrorNodeId = mirrorNodeId;
+            config.mirrorNamespace = mirrorNamespace;
+            config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
             config.valuesArg = await this.prepareValuesArg(context_.config);
 
@@ -751,7 +765,7 @@ export class ExplorerCommand extends BaseCommand {
             const clusterContext: Context = this.getClusterContext(clusterReference);
 
             const {id, releaseName, ingressReleaseName, isChartInstalled, isLegacyChartInstalled} =
-              await this.inferDestroyData(namespace, clusterReference);
+              await this.inferExplorerData(namespace, clusterReference);
 
             context_.config = {
               namespace,
@@ -892,7 +906,7 @@ export class ExplorerCommand extends BaseCommand {
     return this.remoteConfig.configuration.components.state.explorers[0].metadata.id;
   }
 
-  private async inferDestroyData(
+  private async inferExplorerData(
     namespace: NamespaceName,
     context: Context,
   ): Promise<{
