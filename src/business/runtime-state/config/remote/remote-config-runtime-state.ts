@@ -389,7 +389,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       ComponentTypes.BlockNode,
       ComponentTypes.RelayNodes,
       ComponentTypes.MirrorNode,
-      ComponentTypes.Explorers,
+      ComponentTypes.Explorer,
       ComponentTypes.ConsensusNode,
     ];
 
@@ -418,7 +418,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
             );
             break;
           }
-          case ComponentTypes.Explorers: {
+          case ComponentTypes.Explorer: {
             this.updateComponentVersion(
               componentType,
               new SemVer(flags.explorerVersion.definition.defaultValue as string),
@@ -614,7 +614,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
         this.configuration.versions.mirrorNodeChart = versionField.value;
         break;
       }
-      case ComponentTypes.Explorers: {
+      case ComponentTypes.Explorer: {
         const versionField = {value: this.configuration.versions.explorerChart};
         callback(versionField);
         this.configuration.versions.explorerChart = versionField.value;

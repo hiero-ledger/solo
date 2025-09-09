@@ -786,11 +786,9 @@ export class RelayCommand extends BaseCommand {
           this.componentFactory.createNewRelayComponent(clusterRef, namespace, nodeIds),
           ComponentTypes.RelayNodes,
         );
+
         // save relay version in remote config
-        this.remoteConfig.updateComponentVersion(
-          ComponentTypes.RelayNodes,
-          new SemVer(context_.config.relayReleaseTag),
-        );
+        this.remoteConfig.updateComponentVersion(ComponentTypes.RelayNodes, new SemVer(config.relayReleaseTag));
         await this.remoteConfig.persist();
       },
     };
