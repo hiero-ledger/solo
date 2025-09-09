@@ -45,7 +45,6 @@ import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Duration} from '../core/time/duration.js';
 import {Version} from '../business/utils/version.js';
 import {SemVer} from 'semver';
-import {BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
