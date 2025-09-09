@@ -14,7 +14,9 @@ import fs from 'node:fs';
 import {
   type ClusterReferenceName,
   type ClusterReferences,
+  type ComponentId,
   type Context,
+  NamespaceNameAsString,
   type SoloListrTaskWrapper,
 } from '../types/index.js';
 import {Flags as flags, Flags} from './flags.js';
@@ -29,6 +31,9 @@ import {type ComponentFactoryApi} from '../core/config/remote/api/component-fact
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {AnyListrContext} from '../types/aliases.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
+import {Templates} from '../core/templates.js';
+import {BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
+import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 
 export abstract class BaseCommand extends ShellRunner {
   public constructor(
@@ -259,5 +264,68 @@ export abstract class BaseCommand extends ShellRunner {
     if (!(await this.k8Factory.getK8(context).namespaces().has(namespace))) {
       throw new SoloError(`namespace ${namespace} does not exist`);
     }
+  }
+
+  private inferMirrorNodeId(): ComponentId {
+    let mirrorNodeId: ComponentId = this.configManager.getFlag(flags.mirrorNodeId);
+
+    if (typeof mirrorNodeId !== 'number') {
+      mirrorNodeId = this.remoteConfig.configuration.components.state.mirrorNodes?.[0]?.metadata?.id ?? 1;
+    }
+
+    return mirrorNodeId;
+  }
+
+  protected async inferMirrorNodeData(
+    namespace: NamespaceName,
+    context: Context,
+  ): Promise<{
+    mirrorNodeId: ComponentId;
+    mirrorNamespace: NamespaceNameAsString;
+    mirrorNodeReleaseName: string;
+  }> {
+    const mirrorNodeId: ComponentId = this.inferMirrorNodeId();
+
+    let mirrorNamespace: NamespaceNameAsString = this.configManager.getFlag(flags.mirrorNamespace);
+
+    if (!mirrorNamespace) {
+      mirrorNamespace = namespace.name;
+    }
+
+    const mirrorNodeReleaseName: string = await this.inferMirrorNodeReleaseName(mirrorNodeId, mirrorNamespace, context);
+
+    return {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName};
+  }
+
+  private async inferMirrorNodeReleaseName(
+    mirrorNodeId: ComponentId,
+    mirrorNodeNamespace: string,
+    context: Context,
+  ): Promise<string> {
+    if (mirrorNodeId !== 1) {
+      return Templates.renderMirrorNodeName(mirrorNodeId);
+    }
+
+    // Try to get the component and use the precise cluster context
+    try {
+      const mirrorNodeComponent: BaseStateSchema = this.remoteConfig.configuration.components.getComponentById(
+        ComponentTypes.MirrorNode,
+        mirrorNodeId,
+      );
+
+      if (mirrorNodeComponent) {
+        context = this.getClusterContext(mirrorNodeComponent.metadata.cluster);
+      }
+    } catch {
+      // Guard
+    }
+
+    const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
+      NamespaceName.of(mirrorNodeNamespace),
+      constants.MIRROR_NODE_RELEASE_NAME,
+      context,
+    );
+
+    return isLegacyChartInstalled ? constants.MIRROR_NODE_RELEASE_NAME : Templates.renderMirrorNodeName(mirrorNodeId);
   }
 }

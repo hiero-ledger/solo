@@ -807,8 +807,6 @@ export class MirrorNodeCommand extends BaseCommand {
 
             config.id = config.newMirrorNodeComponent.metadata.id;
 
-            console.log({USE_MIRROR_NODE_LEGACY_RELEASE_NAME: process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME});
-
             if (process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME) {
               config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;
               config.ingressReleaseName = constants.INGRESS_CONTROLLER_RELEASE_NAME;
@@ -1024,8 +1022,6 @@ export class MirrorNodeCommand extends BaseCommand {
             config.isChartInstalled = isChartInstalled;
             config.ingressReleaseName = ingressReleaseName;
             config.isLegacyChartInstalled = isLegacyChartInstalled;
-
-            console.log({USE_MIRROR_NODE_LEGACY_RELEASE_NAME: process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME});
 
             if (process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME) {
               config.releaseName = constants.MIRROR_NODE_RELEASE_NAME;

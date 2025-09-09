@@ -23,6 +23,7 @@ import {
   type ComponentId,
   type Context,
   type DeploymentName,
+  NamespaceNameAsString,
   type Optional,
   type SoloListr,
   type SoloListrTask,
@@ -44,6 +45,7 @@ import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Duration} from '../core/time/duration.js';
 import {Version} from '../business/utils/version.js';
 import {SemVer} from 'semver';
+import {BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -87,6 +89,12 @@ interface RelayDeployConfigClass {
   forcePortForward: Optional<boolean>;
   cacheDir: Optional<string>;
   isLegacyChartInstalled: false;
+
+  // Mirror Node
+  mirrorNodeId: ComponentId;
+  mirrorNamespace: NamespaceNameAsString;
+  mirrorNodeReleaseName: string;
+  isMirrorNodeLegacyChartInstalled: boolean;
 }
 
 interface RelayDeployContext {
@@ -117,6 +125,12 @@ interface RelayUpgradeConfigClass {
   forcePortForward: Optional<boolean>;
   cacheDir: Optional<string>;
   isLegacyChartInstalled: boolean;
+
+  // Mirror Node
+  mirrorNodeId: ComponentId;
+  mirrorNamespace: NamespaceNameAsString;
+  mirrorNodeReleaseName: string;
+  isMirrorNodeLegacyChartInstalled: boolean;
 }
 
 interface RelayUpgradeContext {
@@ -157,6 +171,10 @@ export class RelayCommand extends BaseCommand {
       flags.domainName,
       flags.forcePortForward,
       flags.cacheDir,
+
+      // Mirror Node
+      flags.mirrorNodeId,
+      flags.mirrorNamespace,
     ],
   };
 
@@ -179,6 +197,10 @@ export class RelayCommand extends BaseCommand {
       flags.forcePortForward,
       flags.cacheDir,
       flags.id,
+
+      // Mirror Node
+      flags.mirrorNodeId,
+      flags.mirrorNamespace,
     ],
   };
 
@@ -200,6 +222,8 @@ export class RelayCommand extends BaseCommand {
     context,
     releaseName,
     deployment,
+    mirrorNodeReleaseName,
+    mirrorNamespace,
   }: RelayDeployConfigClass | RelayUpgradeConfigClass): Promise<string> {
     let valuesArgument: string = '';
 
@@ -209,18 +233,17 @@ export class RelayCommand extends BaseCommand {
       valuesArgument += helpers.prepareValuesFiles(profileValuesFile);
     }
 
-    // TODO need to change this so that the json rpc relay does not have to be in the same cluster as the mirror node
     valuesArgument += ' --install';
     valuesArgument += helpers.populateHelmArguments({nameOverride: releaseName});
 
     valuesArgument += ' --set ws.enabled=true';
-    valuesArgument += ` --set relay.config.MIRROR_NODE_URL=http://${constants.MIRROR_NODE_RELEASE_NAME}-rest`;
-    valuesArgument += ` --set relay.config.MIRROR_NODE_URL_WEB3=http://${constants.MIRROR_NODE_RELEASE_NAME}-web3`;
+    valuesArgument += ` --set relay.config.MIRROR_NODE_URL=http://${mirrorNodeReleaseName}-rest.${mirrorNamespace}.svc.cluster.local`;
+    valuesArgument += ` --set relay.config.MIRROR_NODE_URL_WEB3=http://${mirrorNodeReleaseName}-web3.${mirrorNamespace}.svc.cluster.local`;
     valuesArgument += ' --set relay.config.MIRROR_NODE_AGENT_CACHEABLE_DNS=false';
     valuesArgument += ' --set relay.config.MIRROR_NODE_RETRY_DELAY=2001';
     valuesArgument += ' --set relay.config.MIRROR_NODE_GET_CONTRACT_RESULTS_DEFAULT_RETRIES=21';
 
-    valuesArgument += ` --set ws.config.MIRROR_NODE_URL=http://${constants.MIRROR_NODE_RELEASE_NAME}-rest`;
+    valuesArgument += ` --set ws.config.MIRROR_NODE_URL=http://${mirrorNodeReleaseName}-rest.${mirrorNamespace}.svc.cluster.local`;
     valuesArgument += ' --set ws.config.SUBSCRIPTIONS_ENABLED=true';
 
     if (chainId) {
@@ -527,6 +550,8 @@ export class RelayCommand extends BaseCommand {
               Templates.nodeIdFromNodeAlias(nodeAlias),
             );
 
+            await this.inferMirrorNodeData(config.namespace, config.context);
+
             config.newRelayComponent = this.componentFactory.createNewRelayComponent(
               config.clusterRef,
               config.namespace,
@@ -629,6 +654,8 @@ export class RelayCommand extends BaseCommand {
 
             const {id, isLegacyChartInstalled, isChartInstalled, releaseName, nodeAliases} =
               await this.inferDestroyData(config.namespace, config.context);
+
+            await this.inferMirrorNodeData(config.namespace, config.context);
 
             config.id = id;
             config.isLegacyChartInstalled = isLegacyChartInstalled;

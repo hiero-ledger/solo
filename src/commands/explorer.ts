@@ -16,6 +16,7 @@ import {
   type ClusterReferenceName,
   type ComponentId,
   type Context,
+  NamespaceNameAsString,
   type Optional,
   type SoloListr,
   type SoloListrTask,
@@ -52,7 +53,6 @@ interface ExplorerDeployConfigClass {
   explorerTlsHostName: string;
   explorerStaticIp: string | '';
   explorerVersion: string;
-  mirrorNamespace: string;
   namespace: NamespaceName;
   profileFile: string;
   profileName: string;
@@ -65,14 +65,17 @@ interface ExplorerDeployConfigClass {
   domainName: Optional<string>;
   releaseName: string;
   ingressReleaseName: string;
-  mirrorNodeId: ComponentId;
-  isMirrorNodeLegacyChartInstalled: boolean;
   newExplorerComponent: ExplorerStateSchema;
   id: ComponentId;
   forcePortForward: Optional<boolean>;
   isChartInstalled: boolean;
   isLegacyChartInstalled: false;
+
+  // Mirror Node
+  mirrorNodeId: ComponentId;
+  mirrorNamespace: NamespaceNameAsString;
   mirrorNodeReleaseName: string;
+  isMirrorNodeLegacyChartInstalled: boolean;
 }
 
 interface ExplorerDeployContext {
@@ -91,7 +94,6 @@ interface ExplorerUpgradeConfigClass {
   explorerTlsHostName: string;
   explorerStaticIp: string | '';
   explorerVersion: string;
-  mirrorNamespace: string;
   namespace: NamespaceName;
   profileFile: string;
   profileName: string;
@@ -104,13 +106,16 @@ interface ExplorerUpgradeConfigClass {
   domainName: Optional<string>;
   releaseName: string;
   ingressReleaseName: string;
-  mirrorNodeId: ComponentId;
-  isMirrorNodeLegacyChartInstalled: boolean;
   forcePortForward: Optional<boolean>;
   id: ComponentId;
   isChartInstalled: boolean;
   isLegacyChartInstalled: boolean;
+
+  // Mirror Node
+  mirrorNodeId: ComponentId;
+  mirrorNamespace: NamespaceNameAsString;
   mirrorNodeReleaseName: string;
+  isMirrorNodeLegacyChartInstalled: boolean;
 }
 
 interface ExplorerUpgradeContext {
@@ -158,7 +163,6 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerTlsHostName,
       flags.explorerStaticIp,
       flags.explorerVersion,
-      flags.mirrorNamespace,
       flags.namespace,
       flags.profileFile,
       flags.profileName,
@@ -168,8 +172,11 @@ export class ExplorerCommand extends BaseCommand {
       flags.valuesFile,
       flags.clusterSetupNamespace,
       flags.domainName,
-      flags.mirrorNodeId,
       flags.forcePortForward,
+
+      // Mirror Node
+      flags.mirrorNodeId,
+      flags.mirrorNamespace,
     ],
   };
 
@@ -184,7 +191,6 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerTlsHostName,
       flags.explorerStaticIp,
       flags.explorerVersion,
-      flags.mirrorNamespace,
       flags.namespace,
       flags.profileFile,
       flags.profileName,
@@ -194,9 +200,12 @@ export class ExplorerCommand extends BaseCommand {
       flags.valuesFile,
       flags.clusterSetupNamespace,
       flags.domainName,
-      flags.mirrorNodeId,
       flags.forcePortForward,
       flags.id,
+
+      // Mirror Node
+      flags.mirrorNodeId,
+      flags.mirrorNamespace,
     ],
   };
 
@@ -569,17 +578,8 @@ export class ExplorerCommand extends BaseCommand {
 
             config.releaseName = this.getReleaseName();
             config.ingressReleaseName = this.getIngressReleaseName();
-            this.inferMirrorNodeId(config);
 
-            if (!config.mirrorNamespace) {
-              config.mirrorNamespace = config.namespace.name;
-            }
-
-            config.mirrorNodeReleaseName = await this.inferMirrorNodeReleaseName(
-              config.mirrorNodeId,
-              config.mirrorNamespace,
-              config.clusterContext,
-            );
+            await this.inferMirrorNodeData(config.namespace, config.clusterContext);
 
             config.newExplorerComponent = this.componentFactory.createNewExplorerComponent(
               config.clusterRef,
@@ -680,17 +680,7 @@ export class ExplorerCommand extends BaseCommand {
             config.isChartInstalled = isChartInstalled;
             config.isLegacyChartInstalled = isLegacyChartInstalled;
 
-            this.inferMirrorNodeId(config);
-
-            if (!config.mirrorNamespace) {
-              config.mirrorNamespace = config.namespace.name;
-            }
-
-            config.mirrorNodeReleaseName = await this.inferMirrorNodeReleaseName(
-              config.mirrorNodeId,
-              config.mirrorNamespace,
-              config.clusterContext,
-            );
+            await this.inferMirrorNodeData(config.namespace, config.clusterContext);
 
             config.valuesArg = await this.prepareValuesArg(context_.config);
 
@@ -879,12 +869,6 @@ export class ExplorerCommand extends BaseCommand {
 
   public async close(): Promise<void> {} // no-op
 
-  private inferMirrorNodeId(config: ExplorerDeployConfigClass | ExplorerUpgradeConfigClass): void {
-    if (typeof config.mirrorNodeId !== 'number') {
-      config.mirrorNodeId = this.remoteConfig.configuration.components.state.mirrorNodes?.[0]?.metadata?.id ?? 1;
-    }
-  }
-
   private async checkIfLegacyChartIsInstalled(
     id: ComponentId,
     namespace: NamespaceName,
@@ -907,38 +891,6 @@ export class ExplorerCommand extends BaseCommand {
     }
 
     return this.remoteConfig.configuration.components.state.explorers[0].metadata.id;
-  }
-
-  private async inferMirrorNodeReleaseName(
-    mirrorNodeId: ComponentId,
-    mirrorNodeNamespace: string,
-    context: Context,
-  ): Promise<string> {
-    if (mirrorNodeId !== 1) {
-      return Templates.renderMirrorNodeName(mirrorNodeId);
-    }
-
-    // Try to get the component and use the precise cluster context
-    try {
-      const mirrorNodeComponent: BaseStateSchema = this.remoteConfig.configuration.components.getComponentById(
-        ComponentTypes.MirrorNode,
-        mirrorNodeId,
-      );
-
-      if (mirrorNodeComponent) {
-        context = this.getClusterContext(mirrorNodeComponent.metadata.cluster);
-      }
-    } catch {
-      // Guard
-    }
-
-    const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
-      NamespaceName.of(mirrorNodeNamespace),
-      constants.MIRROR_NODE_RELEASE_NAME,
-      context,
-    );
-
-    return isLegacyChartInstalled ? constants.MIRROR_NODE_RELEASE_NAME : Templates.renderMirrorNodeName(mirrorNodeId);
   }
 
   private async inferDestroyData(
