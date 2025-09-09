@@ -87,10 +87,12 @@ interface BlockNodeUpgradeConfigClass {
   deployment: DeploymentName;
   devMode: boolean;
   quiet: boolean;
+  valuesFile: Optional<string>;
   namespace: NamespaceName;
   context: string;
   releaseName: string;
   upgradeVersion: string;
+  valuesArg: string;
   id: number;
   isLegacyChartInstalled: boolean;
 }
@@ -133,10 +135,20 @@ export class BlockNodeCommand extends BaseCommand {
 
   public static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.clusterRef],
-    optional: [flags.chartDirectory, flags.devMode, flags.force, flags.quiet, flags.upgradeVersion, flags.id],
+    optional: [
+      flags.chartDirectory,
+      flags.devMode,
+      flags.force,
+      flags.quiet,
+      flags.valuesFile,
+      flags.upgradeVersion,
+      flags.id,
+    ],
   };
 
-  private async prepareValuesArgForBlockNode(config: BlockNodeDeployConfigClass): Promise<string> {
+  private async prepareValuesArgForBlockNode(
+    config: BlockNodeDeployConfigClass | BlockNodeUpgradeConfigClass,
+  ): Promise<string> {
     let valuesArgument: string = '';
 
     valuesArgument += helpers.prepareValuesFiles(constants.BLOCK_NODE_VALUES_FILE);
@@ -147,7 +159,8 @@ export class BlockNodeCommand extends BaseCommand {
 
     valuesArgument += helpers.populateHelmArguments({nameOverride: config.releaseName});
 
-    if (config.domainName) {
+    // Only handle domainName and imageTag for deploy config (not upgrade config)
+    if ('domainName' in config && config.domainName) {
       valuesArgument += helpers.populateHelmArguments({
         'ingress.enabled': true,
         'ingress.hosts[0].host': config.domainName,
@@ -156,7 +169,7 @@ export class BlockNodeCommand extends BaseCommand {
       });
     }
 
-    if (config.imageTag) {
+    if ('imageTag' in config && config.imageTag) {
       config.imageTag = Version.getValidSemanticVersion(config.imageTag, false, 'Block node image tag');
       if (!checkDockerImageExists(BLOCK_NODE_IMAGE_NAME, config.imageTag)) {
         throw new SoloError(`Local block node image with tag "${config.imageTag}" does not exist.`);
@@ -217,14 +230,20 @@ export class BlockNodeCommand extends BaseCommand {
 
             context_.config = config;
 
+            // check if block node version compatible with current hedera platform version
+            let consensusNodeVersion: string = this.remoteConfig.configuration.versions.consensusNode.toString();
+            if (consensusNodeVersion === '0.0.0') {
+              // if is possible block node deployed before consensus node, then use release tag as fallback
+              consensusNodeVersion = config.releaseTag;
+            }
             if (
               lt(
-                new SemVer(config.releaseTag),
+                new SemVer(consensusNodeVersion),
                 new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE),
               )
             ) {
               throw new SoloError(
-                `Hedera platform versions less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE} are not supported`,
+                `Current version is ${consensusNodeVersion}, Hedera platform versions less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE} are not supported`,
               );
             }
 
@@ -235,11 +254,14 @@ export class BlockNodeCommand extends BaseCommand {
 
             const currentBlockNodeVersion: SemVer = new SemVer(config.chartVersion);
             if (
-              lt(new SemVer(config.releaseTag), new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE)) &&
+              lt(
+                new SemVer(consensusNodeVersion),
+                new SemVer(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE),
+              ) &&
               gte(currentBlockNodeVersion, MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)
             ) {
               throw new SoloError(
-                `Hedera platform version less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} ` +
+                `Current platform version is ${consensusNodeVersion}, Hedera platform version less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} ` +
                   `are not supported for block node version ${MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT.version}`,
               );
             }
@@ -518,6 +540,12 @@ export class BlockNodeCommand extends BaseCommand {
           },
         },
         {
+          title: 'Prepare chart values',
+          task: async ({config}): Promise<void> => {
+            config.valuesArg = await this.prepareValuesArgForBlockNode(config);
+          },
+        },
+        {
           title: 'Update block node chart',
           task: async ({config}): Promise<void> => {
             const {namespace, releaseName, context, upgradeVersion} = config;
@@ -534,7 +562,7 @@ export class BlockNodeCommand extends BaseCommand {
               constants.BLOCK_NODE_CHART,
               constants.BLOCK_NODE_CHART_URL,
               validatedUpgradeVersion,
-              '',
+              config.valuesArg,
               context,
             );
 
@@ -600,8 +628,8 @@ export class BlockNodeCommand extends BaseCommand {
       imageTag = typeof tag === 'string' ? new SemVer(tag) : tag;
     }
 
-    this.remoteConfig.configuration.versions.blockNodeChart =
-      imageTag && lt(blockNodeVersion, imageTag) ? imageTag : blockNodeVersion;
+    const finalVersion: SemVer = imageTag && lt(blockNodeVersion, imageTag) ? imageTag : blockNodeVersion;
+    this.remoteConfig.updateComponentVersion(ComponentTypes.BlockNode, finalVersion);
 
     await this.remoteConfig.persist();
   }

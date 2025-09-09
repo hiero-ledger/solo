@@ -95,8 +95,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
 
     it(`Should fail with versions less than ${version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE}`, async (): Promise<void> => {
       const argvClone: Argv = argv.clone();
-      argvClone.setArg(flags.releaseTag, 'v0.61.0');
-
+      remoteConfig.updateComponentVersion(ComponentTypes.ConsensusNode, new SemVer.SemVer('v0.61.0'));
       try {
         await commandInvoker.invoke({
           argv: argvClone,
@@ -109,6 +108,11 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
         expect.fail();
       } catch (error) {
         expect(error.message).to.include('Hedera platform versions less than');
+      } finally {
+        remoteConfig.updateComponentVersion(
+          ComponentTypes.ConsensusNode,
+          new SemVer.SemVer(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE),
+        );
       }
     });
 

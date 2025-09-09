@@ -8,7 +8,7 @@ import {RemoteConfigSource} from '../../../../data/configuration/impl/remote-con
 import {YamlConfigMapStorageBackend} from '../../../../data/backend/impl/yaml-config-map-storage-backend.js';
 import {type ConfigMap} from '../../../../integration/kube/resources/config-map/config-map.js';
 import {LedgerPhase} from '../../../../data/schema/model/remote/ledger-phase.js';
-import {SemVer} from 'semver';
+import {eq, SemVer} from 'semver';
 import {ComponentsDataWrapperApi} from '../../../../core/config/remote/api/components-data-wrapper-api.js';
 import {InjectTokens} from '../../../../core/dependency-injection/inject-tokens.js';
 import {type K8Factory} from '../../../../integration/kube/k8-factory.js';
@@ -374,61 +374,66 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       `Executed by ${this.localConfig.configuration.userIdentity.name}: ${currentCommand} ${commandArguments}`.trim(),
     );
 
-    this.populateVersionsInMetadata(argv, this.source.modelData);
+    this.initializeComponentVersions(argv, this.source.modelData);
 
     await this.persist();
   }
 
-  private populateVersionsInMetadata(argv: AnyObject, remoteConfig: RemoteConfigSchema): void {
-    const command: string = argv._[0];
-    const subcommand: string = argv._[1];
-    const action: string = argv._[2];
+  private initializeComponentVersions(argv: AnyObject, remoteConfig: RemoteConfigSchema): void {
+    remoteConfig.versions.chart = argv[flags.soloChartVersion.name]
+      ? new SemVer(argv[flags.soloChartVersion.name])
+      : new SemVer(flags.soloChartVersion.definition.defaultValue as string);
 
-    const isCommandUsingSoloChartVersionFlag: boolean =
-      (command === 'consensus' && subcommand === 'network' && action === 'deploy') ||
-      (command === 'consensus' && subcommand === 'network' && action === 'refresh') ||
-      (command === 'consensus' && subcommand === 'node' && action === 'update') ||
-      (command === 'consensus' && subcommand === 'dev-node-update' && action === 'execute') ||
-      (command === 'consensus' && subcommand === 'node' && action === 'add') ||
-      (command === 'consensus' && subcommand === 'dev-node-add' && action === 'execute') ||
-      (command === 'consensus' && subcommand === 'node' && action === 'destroy') ||
-      (command === 'consensus' && subcommand === 'dev-node-destroy' && action === 'execute');
+    // set default versions if not set
+    const componentTypes: ComponentTypes[] = [
+      ComponentTypes.BlockNode,
+      ComponentTypes.RelayNodes,
+      ComponentTypes.MirrorNode,
+      ComponentTypes.Explorers,
+      ComponentTypes.ConsensusNode,
+    ];
 
-    // TBD how to update remoteConfig.versions.cli
-
-    if (argv[flags.soloChartVersion.name]) {
-      remoteConfig.versions.chart = new SemVer(argv[flags.soloChartVersion.name]);
-    } else if (isCommandUsingSoloChartVersionFlag) {
-      remoteConfig.versions.chart = new SemVer(flags.soloChartVersion.definition.defaultValue as string);
-    }
-
-    const isCommandUsingReleaseTagVersionFlag: boolean =
-      (subcommand === 'node' && action !== 'all' && action !== 'states' && action !== 'download') ||
-      (subcommand === 'network' && action === 'deploy') ||
-      command !== 'keys';
-
-    if (argv[flags.releaseTag.name]) {
-      remoteConfig.versions.consensusNode = new SemVer(argv[flags.releaseTag.name]);
-    } else if (isCommandUsingReleaseTagVersionFlag) {
-      remoteConfig.versions.consensusNode = new SemVer(flags.releaseTag.definition.defaultValue as string);
-    }
-
-    if (argv[flags.mirrorNodeVersion.name]) {
-      remoteConfig.versions.mirrorNodeChart = new SemVer(argv[flags.mirrorNodeVersion.name]);
-    } else if (command === 'mirror' && subcommand === 'node' && action === 'add') {
-      remoteConfig.versions.mirrorNodeChart = new SemVer(flags.mirrorNodeVersion.definition.defaultValue as string);
-    }
-
-    if (argv[flags.explorerVersion.name]) {
-      remoteConfig.versions.explorerChart = new SemVer(argv[flags.explorerVersion.name]);
-    } else if (command === 'explorer' && subcommand === 'node' && action === 'add') {
-      remoteConfig.versions.explorerChart = new SemVer(flags.explorerVersion.definition.defaultValue as string);
-    }
-
-    if (argv[flags.relayReleaseTag.name]) {
-      remoteConfig.versions.jsonRpcRelayChart = new SemVer(argv[flags.relayReleaseTag.name]);
-    } else if (command === 'relay' && subcommand === 'node' && action === 'add') {
-      remoteConfig.versions.jsonRpcRelayChart = new SemVer(flags.relayReleaseTag.definition.defaultValue as string);
+    for (const componentType of componentTypes) {
+      const version: SemVer = this.getComponentVersion(componentType);
+      if (eq(version, new SemVer('0.0.0'))) {
+        switch (componentType) {
+          case ComponentTypes.BlockNode: {
+            this.updateComponentVersion(
+              componentType,
+              new SemVer(flags.blockNodeChartVersion.definition.defaultValue as string),
+            );
+            break;
+          }
+          case ComponentTypes.RelayNodes: {
+            this.updateComponentVersion(
+              componentType,
+              new SemVer(flags.relayReleaseTag.definition.defaultValue as string),
+            );
+            break;
+          }
+          case ComponentTypes.MirrorNode: {
+            this.updateComponentVersion(
+              componentType,
+              new SemVer(flags.mirrorNodeVersion.definition.defaultValue as string),
+            );
+            break;
+          }
+          case ComponentTypes.Explorers: {
+            this.updateComponentVersion(
+              componentType,
+              new SemVer(flags.explorerVersion.definition.defaultValue as string),
+            );
+            break;
+          }
+          case ComponentTypes.ConsensusNode: {
+            this.updateComponentVersion(componentType, new SemVer(flags.releaseTag.definition.defaultValue as string));
+            break;
+          }
+          default: {
+            throw new SoloError(`Unsupported component type: ${componentType}`);
+          }
+        }
+      }
     }
   }
 
@@ -578,5 +583,69 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
   public extractContextFromConsensusNodes(nodeAlias: NodeAlias): Optional<string> {
     return helpers.extractContextFromConsensusNodes(nodeAlias, this.getConsensusNodes());
+  }
+
+  public updateComponentVersion(type: ComponentTypes, version: SemVer): void {
+    const updateVersionCallback = (versionField: {value: SemVer}): void => {
+      versionField.value = version;
+    };
+
+    this.applyCallbackToVersionField(type, updateVersionCallback);
+  }
+
+  /**
+   * Method used to map the component type to the specific version field
+   * and pass it to a callback to apply modifications
+   */
+  private applyCallbackToVersionField(
+    componentType: ComponentTypes,
+    callback: (versionField: {value: SemVer}) => void,
+  ): void {
+    switch (componentType) {
+      case ComponentTypes.ConsensusNode: {
+        const versionField = {value: this.configuration.versions.consensusNode};
+        callback(versionField);
+        this.configuration.versions.consensusNode = versionField.value;
+        break;
+      }
+      case ComponentTypes.MirrorNode: {
+        const versionField = {value: this.configuration.versions.mirrorNodeChart};
+        callback(versionField);
+        this.configuration.versions.mirrorNodeChart = versionField.value;
+        break;
+      }
+      case ComponentTypes.Explorers: {
+        const versionField = {value: this.configuration.versions.explorerChart};
+        callback(versionField);
+        this.configuration.versions.explorerChart = versionField.value;
+        break;
+      }
+      case ComponentTypes.RelayNodes: {
+        const versionField = {value: this.configuration.versions.jsonRpcRelayChart};
+        callback(versionField);
+        this.configuration.versions.jsonRpcRelayChart = versionField.value;
+        break;
+      }
+      case ComponentTypes.BlockNode: {
+        const versionField = {value: this.configuration.versions.blockNodeChart};
+        callback(versionField);
+        this.configuration.versions.blockNodeChart = versionField.value;
+        break;
+      }
+      default: {
+        throw new SoloError(`Unsupported component type: ${componentType}`);
+      }
+    }
+  }
+
+  public getComponentVersion(type: ComponentTypes): SemVer {
+    let version: SemVer;
+
+    const getVersionCallback = (versionField: {value: SemVer}): void => {
+      version = versionField.value;
+    };
+
+    this.applyCallbackToVersionField(type, getVersionCallback);
+    return version;
   }
 }

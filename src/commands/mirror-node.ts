@@ -53,6 +53,7 @@ import {Base64} from 'js-base64';
 import {Version} from '../business/utils/version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
+import {SemVer} from 'semver';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -883,6 +884,8 @@ export class MirrorNodeCommand extends BaseCommand {
                   throw new SoloError(`Error getting operator key: ${error.message}`, error);
                 }
               }
+            } else {
+              context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=0`;
             }
 
             const isQuiet: boolean = config.quiet;
@@ -1090,6 +1093,8 @@ export class MirrorNodeCommand extends BaseCommand {
                   throw new SoloError(`Error getting operator key: ${error.message}`, error);
                 }
               }
+            } else {
+              context_.config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=0`;
             }
 
             const isQuiet: boolean = config.quiet;
@@ -1370,7 +1375,11 @@ export class MirrorNodeCommand extends BaseCommand {
           context_.config.newMirrorNodeComponent,
           ComponentTypes.MirrorNode,
         );
-
+        // update mirror node version in remote config
+        this.remoteConfig.updateComponentVersion(
+          ComponentTypes.MirrorNode,
+          new SemVer(context_.config.mirrorNodeVersion),
+        );
         await this.remoteConfig.persist();
       },
     };

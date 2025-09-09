@@ -39,6 +39,7 @@ import {Duration} from '../core/time/duration.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {K8} from '../integration/kube/k8.js';
 import {BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
+import {SemVer} from 'semver';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -869,7 +870,8 @@ export class ExplorerCommand extends BaseCommand {
           config.newExplorerComponent,
           ComponentTypes.Explorer,
         );
-
+        // update explorer version in remote config
+        this.remoteConfig.updateComponentVersion(ComponentTypes.Explorers, new SemVer(context_.config.explorerVersion));
         await this.remoteConfig.persist();
       },
     };
