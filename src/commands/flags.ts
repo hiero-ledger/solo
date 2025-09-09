@@ -253,19 +253,7 @@ export class Flags {
       describe: 'Namespace to use for the Mirror Node deployment, a new one will be created if it does not exist',
       type: 'string',
     },
-    prompt: async function promptNamespace(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: string,
-    ): Promise<string> {
-      return await Flags.promptText(
-        task,
-        input,
-        'solo',
-        'Enter mirror node namespace name: ',
-        'namespace cannot be empty',
-        Flags.mirrorNamespace.name,
-      );
-    },
+    prompt: undefined,
   };
 
   /**

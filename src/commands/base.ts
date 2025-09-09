@@ -17,6 +17,7 @@ import {
   type ComponentId,
   type Context,
   NamespaceNameAsString,
+  Optional,
   type SoloListrTaskWrapper,
 } from '../types/index.js';
 import {Flags as flags, Flags} from './flags.js';
@@ -266,14 +267,25 @@ export abstract class BaseCommand extends ShellRunner {
     }
   }
 
-  private inferMirrorNodeId(): ComponentId {
+  private inferMirrorNodeDataFromRemoteConfig(namespace: NamespaceName): {
+    mirrorNodeId: ComponentId;
+    mirrorNamespace: NamespaceNameAsString;
+  } {
     let mirrorNodeId: ComponentId = this.configManager.getFlag(flags.mirrorNodeId);
+    let mirrorNamespace: NamespaceNameAsString = this.configManager.getFlag(flags.mirrorNamespace);
 
-    if (typeof mirrorNodeId !== 'number') {
-      mirrorNodeId = this.remoteConfig.configuration.components.state.mirrorNodes?.[0]?.metadata?.id ?? 1;
+    const mirrorNodeComponent: Optional<BaseStateSchema> =
+      this.remoteConfig.configuration.components.state.mirrorNodes[0];
+
+    if (!mirrorNodeId) {
+      mirrorNodeId = mirrorNodeComponent?.metadata.id ?? 1;
     }
 
-    return mirrorNodeId;
+    if (!mirrorNamespace) {
+      mirrorNamespace = mirrorNodeComponent?.metadata.namespace ?? namespace.name;
+    }
+
+    return {mirrorNodeId, mirrorNamespace};
   }
 
   protected async inferMirrorNodeData(
@@ -284,13 +296,7 @@ export abstract class BaseCommand extends ShellRunner {
     mirrorNamespace: NamespaceNameAsString;
     mirrorNodeReleaseName: string;
   }> {
-    const mirrorNodeId: ComponentId = this.inferMirrorNodeId();
-
-    let mirrorNamespace: NamespaceNameAsString = this.configManager.getFlag(flags.mirrorNamespace);
-
-    if (!mirrorNamespace) {
-      mirrorNamespace = namespace.name;
-    }
+    const {mirrorNodeId, mirrorNamespace} = this.inferMirrorNodeDataFromRemoteConfig(namespace);
 
     const mirrorNodeReleaseName: string = await this.inferMirrorNodeReleaseName(mirrorNodeId, mirrorNamespace, context);
 
