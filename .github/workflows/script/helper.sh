@@ -8,7 +8,7 @@ function create_test_account ()
   DEPLOYMENT_NAME=$1
   echo "DEPLOYMENT_NAME=${DEPLOYMENT_NAME}"
   # create new account and extract account id
-  #  npm run solo-test -- init // TODO: see if fix no longer needed
+  npm run solo-test -- init
   npm run solo-test -- ledger account create --deployment "${DEPLOYMENT_NAME}" --hbar-amount 10000 --generate-ecdsa-key --set-alias > test.log
   export OPERATOR_ID=$(grep "accountId" test.log | awk '{print $2}' | sed 's/"//g'| sed 's/,//g')
   echo "OPERATOR_ID=${OPERATOR_ID}"
