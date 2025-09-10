@@ -23,7 +23,7 @@
   "author": "Hashgraph",
   "license": "Apache2.0",
   "dependencies": {
-    "@hiero-ledger/sdk": "^2.70.0",
+    "@hiero-ledger/sdk": "^2.72.0",
     "@inquirer/prompts": "7.8.4",
     "@kubernetes/client-node": "0.22.3",
     "@listr2/prompt-adapter-inquirer": "3.0.3",
