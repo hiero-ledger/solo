@@ -678,7 +678,6 @@ export class Flags {
     definition: {
       describe: 'Force actions even if those can be skipped',
       defaultValue: false,
-      alias: 'f',
       type: 'boolean',
     },
     prompt: async function promptForce(task: SoloListrTaskWrapper<AnyListrContext>, input: boolean): Promise<boolean> {

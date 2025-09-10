@@ -43,6 +43,7 @@ import {Version} from '../business/utils/version.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {CommandFlag} from '../types/flag-types.js';
 import {Duration} from '../core/time/duration.js';
+import {SemVer} from 'semver';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -827,7 +828,8 @@ export class ExplorerCommand extends BaseCommand {
           this.componentFactory.createNewExplorerComponent(clusterRef, namespace),
           ComponentTypes.Explorers,
         );
-
+        // update explorer version in remote config
+        this.remoteConfig.updateComponentVersion(ComponentTypes.Explorers, new SemVer(context_.config.explorerVersion));
         await this.remoteConfig.persist();
       },
     };
