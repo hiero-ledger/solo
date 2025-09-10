@@ -8,7 +8,7 @@ set -eo pipefail
 # This uses solo account creation function to repeatedly generate background transactions
 # Then run smart contract test, and also javascript sdk sample test to interact with solo network
 #
-export USE_MIRROR_NODE_LEGACY_RELEASE_NAME="true"
+
 source .github/workflows/script/helper.sh
 
 function clone_smart_contract_repo ()

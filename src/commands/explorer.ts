@@ -887,7 +887,7 @@ export class ExplorerCommand extends BaseCommand {
     namespace: NamespaceName,
     context: Context,
   ): Promise<boolean> {
-    return id === 1
+    return id <= 1
       ? await this.chartManager.isChartInstalled(namespace, constants.EXPLORER_RELEASE_NAME, context)
       : false;
   }

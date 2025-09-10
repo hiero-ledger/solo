@@ -448,7 +448,7 @@ export class RelayCommand extends BaseCommand {
             .pods()
             .waitForReadyStatus(
               config.namespace,
-              [`app.kubernetes.io/instance=${config.releaseName}`],
+              Templates.renderRelayLabels(config.id, config.isLegacyChartInstalled ? config.releaseName : undefined),
               constants.RELAY_PODS_READY_MAX_ATTEMPTS,
               constants.RELAY_PODS_READY_DELAY,
             );
@@ -686,13 +686,6 @@ export class RelayCommand extends BaseCommand {
         this.checkRelayIsRunningTask(),
         this.checkRelayIsReadyTask(),
         this.enablePortForwardingTask(),
-        // TODO only show this if we are not running in quick-start mode
-        // {
-        //   title: 'Show user messages',
-        //   task: (): void => {
-        //     this.logger.showAllMessageGroups();
-        //   },
-        // },
       ],
       {
         concurrent: false,
@@ -887,14 +880,7 @@ export class RelayCommand extends BaseCommand {
     isChartInstalled: boolean;
     isLegacyChartInstalled: boolean;
   }> {
-    let id: number = this.configManager.getFlag(flags.id);
-    if (typeof id !== 'number') {
-      if (this.remoteConfig.configuration.components.state.relayNodes.length === 0) {
-        throw new SoloError('Relay node not found in remote config');
-      }
-
-      id = this.remoteConfig.configuration.components.state.relayNodes[0].metadata.id;
-    }
+    const id: ComponentId = this.inferRelayId();
 
     const nodeAliases: NodeAliases = helpers.parseNodeAliases(
       this.configManager.getFlag(flags.nodeAliasesUnparsed),
