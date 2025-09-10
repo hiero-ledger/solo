@@ -38,7 +38,7 @@ export class HelmExecution {
    */
   constructor(command: string[], workingDirectory: string, environmentVariables: Record<string, string>) {
     this.commandLine = command.join(' ');
-    this.process = spawn(this.commandLine, {
+    this.process = spawn(command.join(' '), {
       shell: true,
       cwd: workingDirectory,
       env: {...process.env, ...environmentVariables},
