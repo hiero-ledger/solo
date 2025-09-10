@@ -97,7 +97,7 @@ jobs:
       fail-fast: false
       matrix:
         e2e-test-type: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
-      max-parallel: 5
+      max-parallel: 3
     with:
       custom-job-label: ${{ matrix.e2e-test-type.name }}
       test-script: ${{ matrix.e2e-test-type.test-script }}
