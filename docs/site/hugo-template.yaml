@@ -21,9 +21,7 @@ module:
   mounts:
     - source: build/
       target: content/docs
-      includeFiles:
-        - README.md
-        - legacy-versions.md
+      includeFiles: README.md
     - source: build/
       target: content/development
       includeFiles: DEV.md

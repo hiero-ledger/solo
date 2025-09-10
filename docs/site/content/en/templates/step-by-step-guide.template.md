@@ -396,11 +396,9 @@ $SOLO_NODE_START_OUTPUT
 
 This is the most memory intensive step from a resource perspective. If you have issues at this step try checking your local resource utilization and make sure there's memory available for docker (close all unessential applications). Likewise, you can consider lowering your swap in docker settings to ease the swap demand, and try again.
 
-The `--pinger` flag starts a pinging service that sends transactions to the network at regular intervals. This is needed because the record file is not imported into the mirror node until the next one is created.
-
 ```bash
 # Deploy with explicit configuration
-solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger
+solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress
 ```
 
 Example output:

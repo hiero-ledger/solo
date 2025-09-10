@@ -28,12 +28,10 @@ solo keys consensus generate --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --t
 solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
 solo consensus node setup     --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
 solo consensus node start     --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
-solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --enable-ingress --pinger
+solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --enable-ingress
 solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME}
 
 ```
-
-The `--pinger` flag in `solo mirror node add` starts a pinging service that sends transactions to the network at regular intervals. This is needed because the record file is not imported into the mirror node until the next one is created.
 
 Then you can access the Explorer at <http://localhost:8080>
 

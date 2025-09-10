@@ -6,10 +6,8 @@ tasks:
     silent: true
     sources:
       - README.md
-      - docs/legacy-versions.md
     generates:
       - docs/site/build/README.md
-      - docs/site/build/legacy-versions.md
     cmds:
       - |
         mkdir -p docs/site/build
@@ -22,9 +20,7 @@ tasks:
         type: docs
         ---
         EOF
-        # Remove 'docs/' from local file links like (docs/file.md) -> (file.md)
-        cat README.md | sed -E 's|\(docs/([^)]+)\)|(\1)|g' >> docs/site/build/README.md
-        cat docs/legacy-versions.md >> docs/site/build/legacy-versions.md
+      - cat README.md >> docs/site/build/README.md
 
   mutate:dev:
     desc: "Mutate the DEV.md file to add front-matter"
