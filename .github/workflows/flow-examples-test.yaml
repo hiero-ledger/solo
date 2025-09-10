@@ -1,0 +1,225 @@
+##
+# Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+name: "Test Examples"
+
+on:
+  schedule:
+    # Run every midnight US Central Time (6 AM UTC during DST, 7 AM UTC during standard time)
+    # Using 6 AM UTC to cover Central Daylight Time
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "22"
+      released-or-latest:
+        description: "Use released or latest version"
+        type: boolean
+        required: false
+        default: true
+  workflow_call:
+    inputs:
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "22"
+      released-or-latest:
+        description: "Use released or latest version"
+        type: boolean
+        required: false
+        default: true
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  generate_matrix:
+    name: Generate Test Matrix
+    runs-on: hiero-solo-linux-medium
+    outputs:
+      matrix: ${{ steps.set_matrix.outputs.matrix }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Generate Matrix
+        id: set_matrix
+        run: |
+          # Read the JSON file and convert it to a compact format
+          JSON_CONTENT=$(cat .github/workflows/support/examples-test-matrix.json | jq -c .)
+          echo "Generated matrix: $JSON_CONTENT"
+          
+          # Set the output variable 'matrix' with the JSON content
+          echo "matrix=$JSON_CONTENT" >> $GITHUB_OUTPUT
+
+  test-examples:
+    name: Test Example (${{ matrix.example.name }})
+    runs-on: hiero-solo-linux-large
+    needs:
+      - generate_matrix
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        example: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Setup Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ inputs.node-version || '22' }}
+          cache: npm
+
+      - name: Install Kubectl
+        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # pinned to v4.0.0
+        with:
+          version: 'v1.27.3'
+        id: install
+
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
+
+      - name: Setup Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: "v3.17.1" # helm version
+
+      - name: Install Dependencies
+        id: npm-deps
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
+        with:
+          max_attempts: 10
+          timeout_minutes: 10
+          command: |
+            npm ci
+
+      - name: Install Task
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        with:
+          version: 3.39.2
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Java
+        if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: 21.0.1
+
+      - name: Setup Gradle
+        if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
+        uses: gradle/gradle-build-action@ac2d340dc04d9e1113182899e983b5400c17cda1 # v3.5.0
+        with:
+          cache-read-only: false
+
+      - name: Build Hedera code locally
+        if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
+        run: |
+          if [ -z "${{ inputs.consensus-node-version }}" ]; then
+              export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+          else
+              export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
+          fi
+          cd ..
+          git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
+          cd hiero-consensus-node
+          ls -ltr
+          ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info
+          cd ../solo
+
+      - name: Build Application
+        run: task build
+
+      - name: Run Example Test - ${{ matrix.example.name }}
+        timeout-minutes: 45
+        working-directory: examples/${{ matrix.example.directory }}
+        run: |
+          echo "Running example test in directory: ${{ matrix.example.directory }}"
+          echo "Current directory: $(pwd)"
+          
+          # Export environment variables for Taskfile
+          export USE_RELEASED_VERSION="${{ inputs.released-or-latest || 'false' }}"
+          echo "USE_RELEASED_VERSION: $USE_RELEASED_VERSION"
+          
+          # Check if Taskfile.yml exists
+          if [ ! -f "Taskfile.yml" ]; then
+            echo "Warning: No Taskfile.yml found in ${{ matrix.example.directory }}"
+            exit 1
+          fi
+          
+          # Run the example
+          echo "Starting task..."
+          task
+          
+          echo "Task completed successfully"
+
+      - name: Cleanup Example - ${{ matrix.example.name }}
+        if: always()
+        timeout-minutes: 10
+        working-directory: examples/${{ matrix.example.directory }}
+        run: |
+          echo "Cleaning up example in directory: ${{ matrix.example.directory }}"
+          
+          # Export environment variables for cleanup task
+          export USE_RELEASED_VERSION="${{ inputs.released-or-latest || 'false' }}"
+          
+          # Check if Taskfile.yml exists and has destroy task
+          if [ -f "Taskfile.yml" ] && grep -q "destroy:" Taskfile.yml; then
+            echo "Running task destroy..."
+            task destroy || echo "Destroy task failed or not available, continuing..."
+          else
+            echo "No destroy task found in Taskfile.yml, skipping cleanup"
+          fi
+
+      - name: Upload Logs to GitHub
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: solo-logs-${{ matrix.example.directory }}
+          path: ~/.solo/logs/*
+          if-no-files-found: ignore
