@@ -117,17 +117,15 @@ export class NetworkTest extends BaseCommandTest {
       const chartManager: ChartManager = container.resolve<ChartManager>(InjectTokens.ChartManager);
       const {namespace, contexts: contextRecord} = options;
 
-      const contexts: string[] = [...contextRecord.values()]; // iterator into array
+      // convert iterator into array
+      const contexts: string[] = [...contextRecord.values()];
 
       async function getPodsCountInMultipleNamespaces(label: string[]): Promise<number> {
-        const results: Pod[][] = await Promise.all(
+        return await Promise.all(
           contexts.map((context: Context): Promise<Pod[]> => k8Factory.getK8(context).pods().list(namespace, label)),
-        );
-
-        return results.flat().length;
+        ).then((results): number => results.flat().length);
       }
 
-      // generic wait-until-gone helper
       async function waitUntilPodsGone(label: string[]): Promise<void> {
         while (true) {
           const podsCount: number = await getPodsCountInMultipleNamespaces(label);
@@ -139,17 +137,12 @@ export class NetworkTest extends BaseCommandTest {
         }
       }
 
-      // use it for both selectors
       await waitUntilPodsGone(['solo.hedera.com/type=network-node']);
       await waitUntilPodsGone(['app=minio']);
 
-      // check if chart is uninstalled
-      const chartInstalledStatus: boolean = await chartManager.isChartInstalled(
-        namespace,
-        constants.SOLO_DEPLOYMENT_CHART,
-      );
+      const isChartInstalled: boolean = await chartManager.isChartInstalled(namespace, constants.SOLO_DEPLOYMENT_CHART);
 
-      expect(chartInstalledStatus).to.be.false;
+      expect(isChartInstalled).to.be.false;
 
       // check if pvc are deleted
       await expect(k8Factory.getK8(contexts[0]).pvcs().list(namespace, [])).eventually.to.have.lengthOf(0);
