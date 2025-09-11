@@ -35,6 +35,7 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Version} from '../business/utils/version.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
+import {SemVer} from 'semver';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -43,6 +44,7 @@ interface ExplorerDeployConfigClass {
   clusterContext: string;
   enableIngress: boolean;
   enableExplorerTls: boolean;
+  isChartInstalled: boolean;
   ingressControllerValueFile: string;
   explorerTlsHostName: string;
   explorerStaticIp: string | '';
@@ -252,6 +254,12 @@ export class ExplorerCommand extends BaseCommand {
             context_.config.clusterContext = context_.config.clusterRef
               ? this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString()
               : this.k8Factory.default().contexts().readCurrent();
+
+            context_.config.isChartInstalled = await this.chartManager.isChartInstalled(
+              context_.config.namespace,
+              constants.EXPLORER_RELEASE_NAME,
+              context_.config.clusterContext,
+            );
 
             if (
               !(await self.k8Factory.getK8(context_.config.clusterContext).namespaces().has(context_.config.namespace))
@@ -463,6 +471,7 @@ export class ExplorerCommand extends BaseCommand {
               'Explorer',
               context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             );
+            await this.remoteConfig.persist();
           },
         },
         // TODO only show this if we are not running in quick-start mode
@@ -656,7 +665,7 @@ export class ExplorerCommand extends BaseCommand {
   private addMirrorNodeExplorerComponents(): SoloListrTask<ExplorerDeployContext> {
     return {
       title: 'Add explorer to remote config',
-      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      skip: context_ => !this.remoteConfig.isLoaded() || context_.config.isChartInstalled,
       task: async (context_): Promise<void> => {
         const {namespace, clusterRef} = context_.config;
 
@@ -664,7 +673,8 @@ export class ExplorerCommand extends BaseCommand {
           this.componentFactory.createNewExplorerComponent(clusterRef, namespace),
           ComponentTypes.Explorers,
         );
-
+        // update explorer version in remote config
+        this.remoteConfig.updateComponentVersion(ComponentTypes.Explorers, new SemVer(context_.config.explorerVersion));
         await this.remoteConfig.persist();
       },
     };

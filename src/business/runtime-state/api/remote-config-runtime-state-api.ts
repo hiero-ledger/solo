@@ -14,6 +14,8 @@ import {type LedgerPhase} from '../../../data/schema/model/remote/ledger-phase.j
 import {type ConsensusNode} from '../../../core/model/consensus-node.js';
 import {type ComponentFactoryApi} from '../../../core/config/remote/api/component-factory-api.js';
 import {type RemoteConfig} from '../config/remote/remote-config.js';
+import {type ComponentTypes} from '../../../core/config/remote/enumerations/component-types.js';
+import {type SemVer} from 'semver';
 
 export interface RemoteConfigRuntimeStateApi {
   configuration?: RemoteConfig;
@@ -65,4 +67,8 @@ export interface RemoteConfigRuntimeStateApi {
   ): Promise<void>;
 
   extractContextFromConsensusNodes(nodeAlias: NodeAlias): Optional<string>;
+
+  updateComponentVersion(type: ComponentTypes, version: SemVer): void;
+
+  getComponentVersion(type: ComponentTypes): SemVer;
 }
