@@ -41,6 +41,7 @@ jobs:
       fail-fast: false
       matrix:
         storageType: [ "gcs_only", "minio_only", "aws_only" ]
+      max-parallel: 1
     steps:
       - name: Check if job should be skipped
         id: check
