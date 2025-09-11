@@ -110,48 +110,54 @@ export class NetworkTest extends BaseCommandTest {
 
     it(`${testName}: consensus network destroy`, async (): Promise<void> => {
       await main(soloNetworkDestroyArgv(testName, deployment));
+    });
 
-      it('consensus network destroy should success', async () => {
-        const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-        const chartManager: ChartManager = container.resolve<ChartManager>(InjectTokens.ChartManager);
-        const {namespace, contexts: contextRecord} = options;
+    it(`${testName}: consensus network destroy should success`, async (): Promise<void> => {
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+      const chartManager: ChartManager = container.resolve<ChartManager>(InjectTokens.ChartManager);
+      const {namespace, contexts: contextRecord} = options;
 
-        const contexts: ArrayIterator<Context> = contextRecord.values();
+      const contexts: string[] = [...contextRecord.values()]; // iterator into array
 
-        const consensusNodeLabels: string[] = ['solo.hedera.com/type=network-node'];
-
-        // wait for consensus nodes to be deleted
-        while (
-          (await k8Factory.getK8(contexts[0]).pods().list(namespace, consensusNodeLabels)).length > 0 &&
-          (await k8Factory.getK8(contexts[1]).pods().list(namespace, consensusNodeLabels)).length > 0
-        ) {
-          await sleep(Duration.ofSeconds(3));
-        }
-
-        // wait for minio to be deleted
-        while (
-          (await k8Factory.getK8(contexts[0]).pods().list(namespace, ['app=minio'])).length > 0 &&
-          (await k8Factory.getK8(contexts[1]).pods().list(namespace, ['app=minio'])).length > 0
-        ) {
-          await sleep(Duration.ofSeconds(3));
-        }
-
-        // check if chart is uninstalled
-        const chartInstalledStatus: boolean = await chartManager.isChartInstalled(
-          namespace,
-          constants.SOLO_DEPLOYMENT_CHART,
+      async function getPodsCountInMultipleNamespaces(label: string[]): Promise<number> {
+        const results: Pod[][] = await Promise.all(
+          contexts.map((context: Context): Promise<Pod[]> => k8Factory.getK8(context).pods().list(namespace, label)),
         );
 
-        expect(chartInstalledStatus).to.be.false;
+        return results.flat().length;
+      }
 
-        // check if pvc are deleted
-        await expect(k8Factory.getK8(contexts[0]).pvcs().list(namespace, [])).eventually.to.have.lengthOf(0);
-        await expect(k8Factory.getK8(contexts[1]).pvcs().list(namespace, [])).eventually.to.have.lengthOf(0);
+      // generic wait-until-gone helper
+      async function waitUntilPodsGone(label: string[]): Promise<void> {
+        while (true) {
+          const podsCount: number = await getPodsCountInMultipleNamespaces(label);
+          if (podsCount === 0) {
+            return;
+          }
 
-        // check if secrets are deleted
-        await expect(k8Factory.getK8(contexts[0]).secrets().list(namespace)).eventually.to.have.lengthOf(0);
-        await expect(k8Factory.getK8(contexts[1]).secrets().list(namespace)).eventually.to.have.lengthOf(0);
-      }).timeout(Duration.ofMinutes(2).toMillis());
-    });
+          await sleep(Duration.ofSeconds(3));
+        }
+      }
+
+      // use it for both selectors
+      await waitUntilPodsGone(['solo.hedera.com/type=network-node']);
+      await waitUntilPodsGone(['app=minio']);
+
+      // check if chart is uninstalled
+      const chartInstalledStatus: boolean = await chartManager.isChartInstalled(
+        namespace,
+        constants.SOLO_DEPLOYMENT_CHART,
+      );
+
+      expect(chartInstalledStatus).to.be.false;
+
+      // check if pvc are deleted
+      await expect(k8Factory.getK8(contexts[0]).pvcs().list(namespace, [])).eventually.to.have.lengthOf(0);
+      await expect(k8Factory.getK8(contexts[1]).pvcs().list(namespace, [])).eventually.to.have.lengthOf(0);
+
+      // check if secrets are deleted
+      await expect(k8Factory.getK8(contexts[0]).secrets().list(namespace)).eventually.to.have.lengthOf(0);
+      await expect(k8Factory.getK8(contexts[1]).secrets().list(namespace)).eventually.to.have.lengthOf(0);
+    }).timeout(Duration.ofMinutes(2).toMillis());
   }
 }
