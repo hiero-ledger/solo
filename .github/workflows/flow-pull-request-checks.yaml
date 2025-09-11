@@ -104,7 +104,7 @@ jobs:
       fail-fast: false
       matrix:
         e2e-test-type: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
-      max-parallel: 5
+      max-parallel: 3
     with:
       # Conditionally pass consensus-node-version only if triggered by workflow_dispatch
       consensus-node-version: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.consensus-node-version || '' }}
