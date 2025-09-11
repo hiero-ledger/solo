@@ -33,7 +33,7 @@
     "class-transformer": "0.5.1",
     "class-validator": "0.14.2",
     "dot-object": "2.1.5",
-    "dotenv": "17.2.1",
+    "dotenv": "17.2.2",
     "elliptic": "6.6.1",
     "esm": "3.2.25",
     "figlet": "1.9.1",
