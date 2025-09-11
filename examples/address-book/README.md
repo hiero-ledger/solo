@@ -35,7 +35,7 @@ cd <solo-root>/examples/address-book
 If you don't already have a running Solo network, you can start one by running the following command:
 
 ```bash
-task start
+task
 ```
 
 To get the address book from the ledger, run the following command:

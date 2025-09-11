@@ -57,7 +57,7 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
         with:
           egress-policy: audit
 
@@ -104,7 +104,7 @@ jobs:
       fail-fast: false
       matrix:
         e2e-test-type: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
-      max-parallel: 5
+      max-parallel: 3
     with:
       # Conditionally pass consensus-node-version only if triggered by workflow_dispatch
       consensus-node-version: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.consensus-node-version || '' }}

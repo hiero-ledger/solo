@@ -23,6 +23,7 @@ export interface NodeAddConfigClass extends NodeCommonConfigWithNodeAlias, Check
   releaseTag: string;
   adminKey: PrivateKey;
   allNodeAliases: NodeAliases;
+  newNodeAliases: NodeAliases;
   curDate: Date;
   freezeAdminPrivateKey: string;
   keysDir: string;
