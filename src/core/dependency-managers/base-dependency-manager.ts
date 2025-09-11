@@ -150,9 +150,22 @@ export abstract class BaseDependencyManager extends ShellRunner {
   protected async preInstall(): Promise<void> {}
 
   /**
+   * Hook to determine if installation should proceed
+   * Child classes can override this for custom logic
+   */
+  protected async shouldInstall(): Promise<boolean> {
+    return true;
+  }
+
+  /**
    * Install the tool
    */
   public async install(temporaryDirectory: string = helpers.getTemporaryDirectory()): Promise<boolean> {
+    if (!(await this.shouldInstall())) {
+      this.logger.debug(`Skipping installation of ${this.executableName}`);
+      return true;
+    }
+
     await this.preInstall();
 
     // Check if it is already installed locally

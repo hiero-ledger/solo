@@ -76,6 +76,16 @@ export class PodmanDependencyManager extends BaseDependencyManager {
     );
   }
 
+  protected getArch() {
+    let arch = this.osArch;
+    if (arch === 'x64') {
+      arch = 'amd64';
+    } else if (arch === 'arm64' || arch === 'aarch64') {
+      arch = 'arm64';
+    }
+    return arch;
+  }
+
   /**
    * Get the Podman artifact name based on version, OS, and architecture
    */
@@ -133,14 +143,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
 
       // Normalize platform/arch for asset matching
       const platform = this.osPlatform === constants.OS_WIN32 ? constants.OS_WINDOWS : this.osPlatform;
-      let arch = this.osArch;
-
-      // Map Node.js architecture names to Podman's naming
-      if (arch === 'x64') {
-        arch = 'amd64';
-      } else if (arch === 'arm64' || arch === 'aarch64') {
-        arch = 'arm64';
-      }
+      const arch: string = this.getArch();
 
       // Construct asset pattern based on platform
       let assetPattern: RegExp;
@@ -187,6 +190,17 @@ export class PodmanDependencyManager extends BaseDependencyManager {
     }
   }
 
+  // Podman should only be installed if Docker is not already present on the client system
+  protected override async shouldInstall(): Promise<boolean> {
+    // Determine if Docker is already installed
+    try {
+      await this.run(`${constants.DOCKER} --version`);
+      return false;
+    } catch {
+      return true;
+    }
+  }
+
   protected override async preInstall(): Promise<void> {
     const latestReleaseInfo: ReleaseInfo = await this.fetchLatestReleaseInfo();
     this.checksum = latestReleaseInfo.checksum;
@@ -214,6 +228,11 @@ export class PodmanDependencyManager extends BaseDependencyManager {
     let binDirectory: string;
     if (this.osPlatform === constants.OS_LINUX) {
       binDirectory = path.join(temporaryDirectory, 'bin');
+      const arch: string = this.getArch();
+      fs.renameSync(
+        path.join(binDirectory, `podman-remote-static-linux_${arch}`),
+        path.join(binDirectory, constants.PODMAN),
+      );
     } else {
       // Find the Podman executable inside the extracted directory
       binDirectory = path.join(temporaryDirectory, `${constants.PODMAN}-${this.artifactVersion}`, 'usr', 'bin');
