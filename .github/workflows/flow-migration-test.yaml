@@ -77,7 +77,14 @@ jobs:
           version: 'v1.27.3'
         id: install
 
-      - name: Launch Network with Prior Release ${{ matrix.release-tag }}
+      - name: Get Latest Version
+        id: get-version
+        run: |
+          LATEST_VERSION=$(curl -s https://registry.npmjs.org/@hashgraph/solo/latest | jq -r '.version')
+          echo "Latest Version: ${LATEST_VERSION}"
+          echo "version=${LATEST_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Launch Network with Prior Release ${{ steps.get-version.outputs.version }}
         timeout-minutes: 60
         run: |
           echo "Install yq..."
@@ -87,9 +94,9 @@ jobs:
           
           npm install
           task build
-          timeout --kill-after=1s --preserve-status 55m bash -c '.github/workflows/script/launch_network.sh ${{ matrix.release-tag }}' || RC=$? || true
+          timeout --kill-after=1s --preserve-status 55m bash -c '.github/workflows/script/launch_network.sh ${{ steps.get-version.outputs.version }}' || RC=$? || true
           if [[ "$RC" != "0" ]]; then
-            echo "Failed to launch network with release version ${{ matrix.release-tag }}"
+            echo "Failed to launch network with release version ${{ steps.get-version.outputs.version }}"
             exit $RC
           fi
 
