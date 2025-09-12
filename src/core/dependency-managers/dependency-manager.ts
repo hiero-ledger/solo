@@ -82,4 +82,13 @@ export class DependencyManager extends ShellRunner {
       };
     });
   }
+
+  public getExecutablePath(dep: string): string {
+    const manager: HelmDependencyManager | KindDependencyManager | KubectlDependencyManager | PodmanDependencyManager =
+      this.dependancyManagerMap.get(dep);
+    if (manager) {
+      return manager.getExecutablePath();
+    }
+    throw new SoloError(`Dependency manager for '${dep}' is not found`);
+  }
 }

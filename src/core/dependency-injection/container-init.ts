@@ -78,6 +78,7 @@ import {LedgerCommandDefinition} from '../../commands/command-definitions/ledger
 import {MirrorCommandDefinition} from '../../commands/command-definitions/mirror-command-definition.js';
 import {QuickStartCommandDefinition} from '../../commands/command-definitions/quick-start-command-definition.js';
 import {RelayCommandDefinition} from '../../commands/command-definitions/relay-command-definition.js';
+import {DefaultKindClientBuilder} from '../../integration/kind/impl/default-kind-client-builder.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -110,6 +111,7 @@ export class Container {
       new SingletonContainer(InjectTokens.PackageDownloader, PackageDownloader),
       new SingletonContainer(InjectTokens.Zippy, Zippy),
       new SingletonContainer(InjectTokens.DependencyManager, DependencyManager),
+      new SingletonContainer(InjectTokens.KindBuilder, DefaultKindClientBuilder),
       new SingletonContainer(InjectTokens.Helm, DefaultHelmClient),
       new SingletonContainer(InjectTokens.HelmExecutionBuilder, HelmExecutionBuilder),
       new SingletonContainer(InjectTokens.HelmDependencyManager, HelmDependencyManager),

@@ -33,6 +33,7 @@ export class InjectTokens {
   public static KindDependencyManager: symbol = Symbol.for('KindDependencyManager');
   public static KubectlDependencyManager: symbol = Symbol.for('KubectlDependencyManager');
   public static PodmanDependencyManager: symbol = Symbol.for('PodmanDependencyManager');
+  public static KindBuilder: symbol = Symbol.for('KindBuilder');
   public static ChartManager: symbol = Symbol.for('ChartManager');
   public static ConfigManager: symbol = Symbol.for('ConfigManager');
   public static AccountManager: symbol = Symbol.for('AccountManager');

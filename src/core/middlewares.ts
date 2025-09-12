@@ -90,23 +90,32 @@ export class Middlewares {
     return (argv: any, yargs: any): AnyObject => {
       logger.debug('Processing arguments and displaying header');
 
-      // set cluster and namespace in the global configManager from kubernetes context
-      // so that we don't need to prompt the user
-      const k8: K8 = k8Factory.default();
-      const contextNamespace: NamespaceName = k8.contexts().readCurrentNamespace();
-      const currentClusterName: string = k8.clusters().readCurrent();
-      const contextName: string = k8.contexts().readCurrent();
+      let clusterName: string = 'N/A';
+      let contextName: string = 'N/A';
 
       // reset config on `solo init` command
       if (argv._[0] === 'init') {
         configManager.reset();
       }
 
-      const clusterName: string = configManager.getFlag<ClusterReferenceName>(flags.clusterRef) || currentClusterName;
+      argv.clusterExists = false;
 
-      // Set namespace if not provided
-      if (contextNamespace?.name) {
-        configManager.setFlag(flags.namespace, contextNamespace);
+      // set cluster and namespace in the global configManager from kubernetes context
+      // so that we don't need to prompt the user
+      try {
+        const k8: K8 = k8Factory.default();
+        const contextNamespace: NamespaceName = k8.contexts().readCurrentNamespace();
+        const currentClusterName: string = k8.clusters().readCurrent();
+        contextName = k8.contexts().readCurrent();
+        clusterName = configManager.getFlag<ClusterReferenceName>(flags.clusterRef) || currentClusterName;
+
+        // Set namespace if not provided
+        if (contextNamespace?.name) {
+          configManager.setFlag(flags.namespace, contextNamespace);
+        }
+        argv.clusterExists = true;
+      } catch {
+        /* empty */
       }
 
       // apply precedence for flags
