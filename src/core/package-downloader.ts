@@ -205,17 +205,14 @@ export class PackageDownloader {
       let checksum: string;
       if (this.isValidURL(checksumDataOrURL)) {
         const checksumURL: string = checksumDataOrURL;
-        const checksumFile = `${destinationDirectory}/${path.basename(checksumURL)}`;
-        if (!fs.existsSync(checksumFile)) {
-          throw new ResourceNotFoundError(`checksum file not found: ${checksumDataOrURL}`, checksumDataOrURL);
-        }
-
+        checksumFile = `${destinationDirectory}/${path.basename(checksumURL)}`;
+        await this.fetchFile(checksumURL, checksumFile);
+        // Then read its contents
         const checksumData = fs.readFileSync(checksumFile).toString();
         if (!checksumData) {
           throw new SoloError(`unable to read checksum file: ${checksumFile}`);
         }
         checksum = checksumData.split(' ')[0];
-        await this.fetchFile(checksumURL, checksumFile);
       } else {
         checksum = checksumDataOrURL;
       }
