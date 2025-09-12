@@ -100,10 +100,12 @@ Once you see the following message, you can launch the JVM debugger from Intelli
   Check node: node1,
   Check node: node2,  Please attach JVM debugger now.
   Check node: node3,
+? JVM debugger setup for node2. Continue when debugging is complete? (y/N)  
 ```
 
 The Hiero Consensus Node application should stop at the breakpoint you set:
 
+After done  with debugging, continue to run the application from Intellij. Then select `y` to continue the Solo command line operation.
 ![alt text](hedera-breakpoint.png)
 ![alt text](platform-breakpoint.png)
 
