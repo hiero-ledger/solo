@@ -10,9 +10,9 @@ import {type Lock} from '../../core/lock/lock.js';
 import {LeaseWrapper, type NodeCommandTasks} from './tasks.js';
 import {NodeSubcommandType} from '../../core/enumerations.js';
 import {NodeHelper} from './helper.js';
-import {type ArgvStruct, type NodeAlias, type NodeAliases, NodeId} from '../../types/aliases.js';
+import {type ArgvStruct, type NodeAlias, type NodeAliases} from '../../types/aliases.js';
 import chalk from 'chalk';
-import {type Optional, SoloListr, type SoloListrTask} from '../../types/index.js';
+import {type ComponentId, type Optional, type SoloListr, type SoloListrTask} from '../../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {CommandHandler} from '../../core/command-handler.js';
@@ -948,8 +948,8 @@ export class NodeCommandHandlers extends CommandHandler {
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async (context_: Context): Promise<void> => {
         for (const consensusNode of context_.config.consensusNodes) {
-          const nodeId: NodeId = Templates.nodeIdFromNodeAlias(consensusNode.name);
-          this.remoteConfig.configuration.components.changeNodePhase(nodeId, phase);
+          const componentId: ComponentId = Templates.renderComponentIdFromNodeAlias(consensusNode.name);
+          this.remoteConfig.configuration.components.changeNodePhase(componentId, phase);
         }
 
         if (ledgerPhase) {
@@ -1055,7 +1055,7 @@ export class NodeCommandHandlers extends CommandHandler {
     try {
       nodeComponent = components.getComponent<ConsensusNodeStateSchema>(
         ComponentTypes.ConsensusNode,
-        Templates.nodeIdFromNodeAlias(nodeAlias),
+        Templates.renderComponentIdFromNodeAlias(nodeAlias),
       );
     } catch {
       throw new SoloError(`${nodeAlias} not found in remote config`);

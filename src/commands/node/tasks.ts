@@ -77,6 +77,7 @@ import {NetworkNodes} from '../../core/network-nodes.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import {
   type ClusterReferenceName,
+  type ComponentId,
   type Context,
   type DeploymentName,
   type Optional,
@@ -1623,7 +1624,6 @@ export class NodeCommandTasks {
             this.k8Factory.getK8(context_.config.clusterContext),
             this.logger,
             ComponentTypes.ConsensusNode,
-
             'Consensus Node gRPC',
             context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             nodeId,
@@ -2518,9 +2518,10 @@ export class NodeCommandTasks {
         // remove from remote config
         if (transactionType === NodeSubcommandType.DESTROY) {
           const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
-          this.remoteConfig.configuration.components.removeComponent(nodeId, ComponentTypes.ConsensusNode);
-          this.remoteConfig.configuration.components.removeComponent(nodeId, ComponentTypes.EnvoyProxy);
-          this.remoteConfig.configuration.components.removeComponent(nodeId, ComponentTypes.HaProxy);
+          const componentId: ComponentId = Templates.renderComponentIdFromNodeId(nodeId);
+          this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.ConsensusNode);
+          this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.EnvoyProxy);
+          this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.HaProxy);
           // @ts-expect-error: all fields are not present in every task's context
           context_.config.nodeAliases = config.allNodeAliases.filter(
             (nodeAlias: NodeAlias) => nodeAlias !== config.nodeAlias,
@@ -2800,7 +2801,7 @@ export class NodeCommandTasks {
   public addNewConsensusNodeToRemoteConfig(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Add new node to remote config',
-      task: async (context_, task) => {
+      task: async (context_, task): Promise<void> => {
         const nodeAlias: NodeAlias = context_.config.nodeAlias;
         const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
         const namespace: NamespaceName = context_.config.namespace;
@@ -2811,7 +2812,7 @@ export class NodeCommandTasks {
 
         this.remoteConfig.configuration.components.addNewComponent(
           this.componentFactory.createNewConsensusNodeComponent(
-            nodeId,
+            Templates.renderComponentIdFromNodeId(nodeId),
             clusterReference,
             namespace,
             DeploymentPhase.STARTED,
@@ -2836,7 +2837,7 @@ export class NodeCommandTasks {
         // if the consensusNodes does not contain the nodeAlias then add it
         if (!context_.config.consensusNodes.some((node: ConsensusNode) => node.name === nodeAlias)) {
           const cluster: ClusterSchema = this.remoteConfig.configuration.clusters.find(
-            cluster => cluster.name === clusterReference,
+            (cluster): boolean => cluster.name === clusterReference,
           );
 
           context_.config.consensusNodes.push(

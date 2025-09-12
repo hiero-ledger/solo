@@ -14,6 +14,7 @@ import {ResourceType} from '../../../resources/resource-type.js';
 import {ResourceOperation} from '../../../resources/resource-operation.js';
 import {Duration} from '../../../../../core/time/duration.js';
 import {type SecretType} from '../../../resources/secret/secret-type.js';
+import {type Secret} from '../../../resources/secret/secret.js';
 
 export class K8ClientSecrets implements Secrets {
   public constructor(private readonly kubeClient: CoreV1Api) {}
@@ -53,16 +54,7 @@ export class K8ClientSecrets implements Secrets {
     return this.createOrReplaceWithForce(namespace, name, secretType, data, labels, true);
   }
 
-  public async read(
-    namespace: NamespaceName,
-    name: string,
-  ): Promise<{
-    data: Record<string, string>;
-    name: string;
-    namespace: string;
-    type: string;
-    labels: Record<string, string>;
-  }> {
+  public async read(namespace: NamespaceName, name: string): Promise<Secret> {
     const {response, body} = await this.kubeClient.readNamespacedSecret(name, namespace.name).catch(error => error);
     KubeApiResponse.check(response, ResourceOperation.READ, ResourceType.SECRET, namespace, name);
     return {
@@ -74,18 +66,7 @@ export class K8ClientSecrets implements Secrets {
     };
   }
 
-  public async list(
-    namespace: NamespaceName,
-    labels?: string[],
-  ): Promise<
-    Array<{
-      data: Record<string, string>;
-      name: string;
-      namespace: string;
-      type: string;
-      labels: Record<string, string>;
-    }>
-  > {
+  public async list(namespace: NamespaceName, labels?: string[]): Promise<Array<Secret>> {
     const labelSelector: string = labels ? labels.join(',') : undefined;
     const secretList = await this.kubeClient.listNamespacedSecret(
       namespace.toString(),
@@ -114,7 +95,7 @@ export class K8ClientSecrets implements Secrets {
 
   public async exists(namespace: NamespaceName, name: string): Promise<boolean> {
     try {
-      const cm = await this.read(namespace, name);
+      const cm: Secret = await this.read(namespace, name);
       return !!cm;
     } catch (error) {
       if (error instanceof ResourceNotFoundError) {

@@ -140,15 +140,15 @@ tasks:
 
       - cmd: |
           # Mirror Node gRPC port forward
-          /bin/bash -c "nohup kubectl port-forward svc/mirror-grpc -n {{ .SOLO_NAMESPACE }} 5600:5600 > /dev/null 2>&1 &"
+          /bin/bash -c "nohup kubectl port-forward svc/mirror-1-grpc -n {{ .SOLO_NAMESPACE }} 5600:5600 > /dev/null 2>&1 &"
 
       - cmd: |
           # Mirror Node REST API port forward
-          /bin/bash -c "nohup kubectl port-forward svc/mirror-rest -n {{ .SOLO_NAMESPACE }} 5551:80 > /dev/null 2>&1 &"
+          /bin/bash -c "nohup kubectl port-forward svc/mirror-1-rest -n {{ .SOLO_NAMESPACE }} 5551:80 > /dev/null 2>&1 &"
 
       - cmd: |
           # Mirror Node REST Java API port forward
-          /bin/bash -c "nohup kubectl port-forward svc/mirror-restjava -n {{ .SOLO_NAMESPACE }} 8084:80 > /dev/null 2>&1 &"
+          /bin/bash -c "nohup kubectl port-forward svc/mirror-1-restjava -n {{ .SOLO_NAMESPACE }} 8084:80 > /dev/null 2>&1 &"
 
       - cmd: |
           # Show active port forwards

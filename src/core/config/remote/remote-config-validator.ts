@@ -1,26 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import * as constants from '../../constants.js';
-import {SoloError} from '../../errors/solo-error.js';
-import {type K8Factory} from '../../../integration/kube/k8-factory.js';
-import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
-import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
-import {type LocalConfigRuntimeState} from '../../../business/runtime-state/config/local/local-config-runtime-state.js';
-import {type Context} from '../../../types/index.js';
-import {type NodeAlias} from '../../../types/aliases.js';
-import {Templates} from '../../templates.js';
-import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
-import {type ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
-import {type BaseStateSchema} from '../../../data/schema/model/remote/state/base-state-schema.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../dependency-injection/container-helper.js';
 import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
+import {SoloError} from '../../errors/solo-error.js';
+import {Templates} from '../../templates.js';
 import {RemoteConfigValidatorApi} from './api/remote-config-validator-api.js';
 import {DeploymentStateSchema} from '../../../data/schema/model/remote/deployment-state-schema.js';
-import {ExplorerStateSchema} from '../../../data/schema/model/remote/state/explorer-state-schema.js';
-import {SemVer} from 'semver';
-import {EXPLORER_OLD_VERSION_BEFORE_LABEL_CHANGE} from '../../../../version.js';
-import {type RelayNodeStateSchema} from '../../../data/schema/model/remote/state/relay-node-state-schema.js';
+import {DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
+import {NamespaceName} from '../../../types/namespace/namespace-name.js';
+import {type BaseStateSchema} from '../../../data/schema/model/remote/state/base-state-schema.js';
+import {type LocalConfigRuntimeState} from '../../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {type ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
+import {type ChartManager} from '../../chart-manager.js';
+import {type Pod} from '../../../integration/kube/resources/pod/pod.js';
+import {type ComponentId, type Context} from '../../../types/index.js';
+import {type K8Factory} from '../../../integration/kube/k8-factory.js';
+import * as constants from '../../constants.js';
+import {NodeAlias, NodeAliases} from '../../../types/aliases.js';
+import {RelayNodeStateSchema} from '../../../data/schema/model/remote/state/relay-node-state-schema.js';
 
 /**
  * Static class is used to validate that components in the remote config
@@ -31,54 +29,11 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
   public constructor(
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
+    @inject(InjectTokens.ChartManager) private readonly chartManager?: ChartManager,
   ) {
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
-  }
-
-  private static getRelayLabels(component: BaseStateSchema): string[] {
-    // TODO:
-    //  https://github.com/hashgraph/solo/issues/1823
-    //  Add logic for selecting by specific label,
-    //  when multiple instances can be deployed at the same time.
-    const relayComponent = component as RelayNodeStateSchema;
-    const ids: number[] = relayComponent.consensusNodeIds;
-    // generate label such as relay-node1 or relay-node1-node2
-    let label: string = 'relay';
-    for (const id of ids) {
-      label += `-${Templates.renderNodeAliasFromNumber(id + 1)}`;
-    }
-    return [`app.kubernetes.io/instance=${label}`];
-  }
-
-  private static getHaProxyLabels(component: BaseStateSchema): string[] {
-    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(component.metadata.id + 1);
-    return [`app=haproxy-${nodeAlias}`, 'solo.hedera.com/type=haproxy'];
-  }
-
-  private static getMirrorNodeLabels(): string[] {
-    // TODO:
-    //  https://github.com/hashgraph/solo/issues/1823
-    //  Add logic for selecting by specific label,
-    //  when multiple instances can be deployed at the same time.
-    return ['app.kubernetes.io/component=importer', 'app.kubernetes.io/name=importer'];
-  }
-
-  private static getEnvoyProxyLabels(component: BaseStateSchema): string[] {
-    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(component.metadata.id + 1);
-    return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=envoy-proxy'];
-  }
-
-  private static getMirrorNodeExplorerLabels(): string[] {
-    // TODO:
-    //  https://github.com/hashgraph/solo/issues/1823
-    //  Add logic for selecting by specific label,
-    //  when multiple instances can be deployed at the same time.
-    return [constants.SOLO_EXPLORER_LABEL];
-  }
-
-  private static getConsensusNodeLabels(component: BaseStateSchema): string[] {
-    return [`app=network-${Templates.renderNodeAliasFromNumber(component.metadata.id + 1)}`];
+    this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
   }
 
   private static consensusNodeSkipConditionCallback(nodeComponent: ConsensusNodeStateSchema): boolean {
@@ -88,46 +43,47 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     );
   }
 
-  private static getBlockNodeLabels(): string[] {
-    return [`app.kubernetes.io/name=${constants.BLOCK_NODE_RELEASE_NAME}-0`];
-  }
-
   private static componentValidationsMapping: Record<
     string,
     {
-      getLabelsCallback: (component: BaseStateSchema) => string[];
+      getLabelsCallback: (id: ComponentId, legacyReleaseName?: string) => string[];
       displayName: string;
       skipCondition?: (component: BaseStateSchema) => boolean;
+      legacyReleaseName?: string;
     }
   > = {
     relayNodes: {
       displayName: 'Relay Nodes',
-      getLabelsCallback: RemoteConfigValidator.getRelayLabels,
+      getLabelsCallback: Templates.renderRelayLabels,
+      legacyReleaseName: constants.JSON_RPC_RELAY_RELEASE_NAME,
     },
     haProxies: {
       displayName: 'HaProxy',
-      getLabelsCallback: RemoteConfigValidator.getHaProxyLabels,
+      getLabelsCallback: Templates.renderHaProxyLabels,
     },
     mirrorNodes: {
       displayName: 'Mirror Node',
-      getLabelsCallback: RemoteConfigValidator.getMirrorNodeLabels,
+      getLabelsCallback: Templates.renderMirrorNodeLabels,
+      legacyReleaseName: constants.MIRROR_NODE_RELEASE_NAME,
     },
     envoyProxies: {
       displayName: 'Envoy Proxy',
-      getLabelsCallback: RemoteConfigValidator.getEnvoyProxyLabels,
+      getLabelsCallback: Templates.renderEnvoyProxyLabels,
     },
     explorers: {
       displayName: 'Explorer',
-      getLabelsCallback: RemoteConfigValidator.getMirrorNodeExplorerLabels,
+      getLabelsCallback: Templates.renderExplorerLabels,
+      legacyReleaseName: 'hiero-explorer',
     },
     consensusNodes: {
       displayName: 'Consensus Node',
-      getLabelsCallback: RemoteConfigValidator.getConsensusNodeLabels,
+      getLabelsCallback: Templates.renderConsensusNodeLabels,
       skipCondition: RemoteConfigValidator.consensusNodeSkipConditionCallback,
     },
     blockNodes: {
       displayName: 'Block Node',
-      getLabelsCallback: RemoteConfigValidator.getBlockNodeLabels,
+      getLabelsCallback: Templates.renderBlockNodeLabels,
+      legacyReleaseName: `${constants.BLOCK_NODE_RELEASE_NAME}-0`,
     },
   };
 
@@ -137,20 +93,30 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     state: Readonly<DeploymentStateSchema>,
   ): Promise<void> {
     const validationPromises: Promise<void>[] = Object.entries(RemoteConfigValidator.componentValidationsMapping)
-      .filter(([key]) => key !== 'consensusNodes' || !skipConsensusNodes)
-      .flatMap(([key, {getLabelsCallback, displayName, skipCondition}]): Promise<void>[] =>
-        this.validateComponentGroup(namespace, state[key], getLabelsCallback, displayName, skipCondition),
+      .filter(([key]): boolean => key !== 'consensusNodes' || !skipConsensusNodes)
+      .flatMap(([key, {getLabelsCallback, displayName, skipCondition, legacyReleaseName}]): Promise<void>[] =>
+        this.validateComponentGroup(
+          key,
+          namespace,
+          state[key],
+          getLabelsCallback,
+          displayName,
+          skipCondition,
+          legacyReleaseName,
+        ),
       );
 
     await Promise.all(validationPromises);
   }
 
   private validateComponentGroup(
+    key: string,
     namespace: NamespaceName,
     components: BaseStateSchema[],
-    getLabelsCallback: (component: BaseStateSchema) => string[],
+    getLabelsCallback: (id: ComponentId, legacyReleaseName?: string) => string[],
     displayName: string,
     skipCondition?: (component: BaseStateSchema) => boolean,
+    legacyReleaseName?: string,
   ): Promise<void>[] {
     return components.map(async (component): Promise<void> => {
       if (skipCondition?.(component)) {
@@ -159,16 +125,30 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
 
       const context: Context = this.localConfig.configuration.clusterRefs.get(component.metadata.cluster)?.toString();
 
-      let labels: string[] = getLabelsCallback(component);
+      let useLegacyReleaseName: boolean = false;
+      if (legacyReleaseName && component.metadata.id <= 1) {
+        if (key === 'relayNodes') {
+          const nodeAliases: NodeAliases = (component as RelayNodeStateSchema)?.consensusNodeIds.map(
+            (nodeId): NodeAlias => Templates.renderNodeAliasFromNumber(nodeId + 1),
+          );
 
-      // special handling of explorer scheme since its label changed
-      if (component instanceof ExplorerStateSchema && component.version) {
-        const chartVersion: SemVer = new SemVer(component.version);
-        const oldVersion: SemVer = new SemVer(EXPLORER_OLD_VERSION_BEFORE_LABEL_CHANGE);
-        if (chartVersion.compare(oldVersion) <= 0) {
-          labels = [constants.OLD_SOLO_EXPLORER_LABEL];
+          legacyReleaseName = `${legacyReleaseName}-${nodeAliases.join('-')}`;
+        }
+
+        const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
+          namespace,
+          legacyReleaseName,
+          context,
+        );
+
+        if (isLegacyChartInstalled) {
+          useLegacyReleaseName = true;
         }
       }
+
+      const labels: string[] = useLegacyReleaseName
+        ? getLabelsCallback(component.metadata.id, legacyReleaseName)
+        : getLabelsCallback(component.metadata.id);
 
       try {
         const pods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);
@@ -177,7 +157,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
           throw new Error('Pod not found'); // to return the generic error message
         }
       } catch (error) {
-        throw RemoteConfigValidator.buildValidationError(displayName, component, error);
+        throw RemoteConfigValidator.buildValidationError(displayName, component, error, labels);
       }
     });
   }
@@ -188,20 +168,35 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
    * @param displayName - name to display in error message
    * @param component - component which is not found in the cluster
    * @param error - original error for the kube client
+   * @param labels - labels used to find the component
    */
   private static buildValidationError(
     displayName: string,
     component: BaseStateSchema,
     error: Error | unknown,
+    labels?: string[],
   ): SoloError {
-    return new SoloError(RemoteConfigValidator.buildValidationErrorMessage(displayName, component), error, component);
+    return new SoloError(
+      RemoteConfigValidator.buildValidationErrorMessage(displayName, component, labels),
+      error,
+      component,
+    );
   }
 
-  public static buildValidationErrorMessage(displayName: string, component: BaseStateSchema): string {
-    return (
+  public static buildValidationErrorMessage(
+    displayName: string,
+    component: BaseStateSchema,
+    labels: string[] = [],
+  ): string {
+    let message: string =
       `${displayName} in remote config with id ${component.metadata.id} was not found in ` +
       `namespace: ${component.metadata.namespace}, ` +
-      `cluster: ${component.metadata.cluster}`
-    );
+      `cluster: ${component.metadata.cluster}`;
+
+    if (labels?.length !== 0) {
+      message += `,    labels: ${labels}`;
+    }
+
+    return message;
   }
 }

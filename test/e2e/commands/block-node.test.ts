@@ -20,11 +20,12 @@ import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type ClusterReferenceName} from '../../../src/types/index.js';
 import {exec} from 'node:child_process';
 import {promisify} from 'node:util';
-import * as constants from '../../../src/core/constants.js';
 import * as SemVer from 'semver';
 import {type ArgvStruct} from '../../../src/types/aliases.js';
 import {type BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
 import {TEST_LOCAL_BLOCK_NODE_VERSION} from '../../../version-test.js';
+import {Templates} from '../../../src/core/templates.js';
+import * as constants from '../../../src/core/constants.js';
 import {BlockCommandDefinition} from '../../../src/commands/command-definitions/block-command-definition.js';
 
 // eslint-disable-next-line @typescript-eslint/typedef
@@ -126,7 +127,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
         callback: async (argv: {_: string[]} & Record<string, any>): Promise<boolean> => blockNodeCommand.add(argv),
       });
 
-      remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(ComponentTypes.BlockNode, 0);
+      remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(ComponentTypes.BlockNode, 1);
     });
 
     deployNetworkTest(argv, commandInvoker, networkCmd);
@@ -137,7 +138,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
       const pod: Pod = await k8Factory
         .default()
         .pods()
-        .list(namespace, [`app.kubernetes.io/instance=${constants.BLOCK_NODE_RELEASE_NAME}-0`])
+        .list(namespace, Templates.renderBlockNodeLabels(1))
         .then((pods: Pod[]): Pod => pods[0]);
 
       const srv: number = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
