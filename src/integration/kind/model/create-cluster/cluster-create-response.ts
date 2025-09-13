@@ -3,8 +3,12 @@
 export class ClusterCreateResponse {
   private readonly _name: string | undefined;
   private readonly _context: string | undefined;
+  private readonly _rawOutput: string | undefined;
 
-  public constructor(protected readonly _rawOutput: string) {
+  public constructor() {
+    // eslint-disable-next-line prefer-rest-params
+    this._rawOutput = [...arguments].join('\n');
+
     // Extract cluster name
     const nameMatch: RegExpMatchArray = this._rawOutput.match(/Creating cluster "([^"]+)"/);
     this._name = nameMatch ? nameMatch[1] : undefined;

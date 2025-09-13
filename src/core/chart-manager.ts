@@ -51,6 +51,30 @@ export class ChartManager {
     }
   }
 
+  /**
+   * Check if the required chart repositories are set up
+   *
+   * @param repoURLs - a map of name and chart repository URLs
+   * @returns true if all repos are set up, false otherwise
+   */
+  public async isSetup(repoURLs: Map<string, string> = constants.DEFAULT_CHART_REPO): Promise<boolean> {
+    try {
+      const existingRepos: Repository[] = await this.helm.listRepositories();
+      for (const [name, url] of repoURLs.entries()) {
+        const found: Repository = existingRepos.find(
+          (repo: Repository): boolean => repo.name === name && repo.url === url,
+        );
+        if (!found) {
+          this.logger.debug(`Repo not found: ${name} -> ${url}`);
+          return false;
+        }
+      }
+      return true;
+    } catch (error) {
+      throw new SoloError(`failed to check chart repositories: ${error.message}`, error);
+    }
+  }
+
   async addRepo(name: string, url: string, force: boolean) {
     this.logger.debug(`Adding repo ${name} -> ${url}`, {repoName: name, repoURL: url});
     const options = new AddRepoOptionsBuilder().forceUpdate(force).build();

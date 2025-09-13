@@ -10,37 +10,45 @@ import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {type SoloListrTask} from '../../types/index.js';
 import {KindDependencyManager} from './kind-dependency-manager.js';
 import {KubectlDependencyManager} from './kubectl-dependency-manager.js';
+import {PodmanDependencyManager} from './podman-dependency-manager.js';
 
 @injectable()
 export class DependencyManager extends ShellRunner {
   private readonly dependancyManagerMap: Map<
     string,
-    HelmDependencyManager | KindDependencyManager | KubectlDependencyManager
+    HelmDependencyManager | KindDependencyManager | KubectlDependencyManager | PodmanDependencyManager
   >;
 
   public constructor(
     @inject(InjectTokens.HelmDependencyManager) helmDepManager?: HelmDependencyManager,
     @inject(InjectTokens.KindDependencyManager) kindDepManager?: KindDependencyManager,
     @inject(InjectTokens.KubectlDependencyManager) kubectlDependencyManager?: KubectlDependencyManager,
+    @inject(InjectTokens.PodmanDependencyManager) podmanDependencyManager?: PodmanDependencyManager,
   ) {
     super();
     this.dependancyManagerMap = new Map();
     if (helmDepManager) {
       this.dependancyManagerMap.set(constants.HELM, helmDepManager);
     } else {
-      this.dependancyManagerMap.set(constants.HELM, container.resolve(HelmDependencyManager));
+      this.dependancyManagerMap.set(constants.HELM, container.resolve(InjectTokens.HelmDependencyManager));
     }
 
     if (kindDepManager) {
       this.dependancyManagerMap.set(constants.KIND, kindDepManager);
     } else {
-      this.dependancyManagerMap.set(constants.KIND, container.resolve(KindDependencyManager));
+      this.dependancyManagerMap.set(constants.KIND, container.resolve(InjectTokens.KindDependencyManager));
     }
 
     if (kubectlDependencyManager) {
       this.dependancyManagerMap.set(constants.KUBECTL, kubectlDependencyManager);
     } else {
-      this.dependancyManagerMap.set(constants.KUBECTL, container.resolve(KubectlDependencyManager));
+      this.dependancyManagerMap.set(constants.KUBECTL, container.resolve(InjectTokens.KubectlDependencyManager));
+    }
+
+    if (podmanDependencyManager) {
+      this.dependancyManagerMap.set(constants.PODMAN, podmanDependencyManager);
+    } else {
+      this.dependancyManagerMap.set(constants.PODMAN, container.resolve(InjectTokens.PodmanDependencyManager));
     }
   }
 
@@ -52,7 +60,7 @@ export class DependencyManager extends ShellRunner {
     this.logger.debug(`Checking for dependency: ${dep}`);
 
     let status: boolean = false;
-    const manager: HelmDependencyManager | KindDependencyManager | KubectlDependencyManager =
+    const manager: HelmDependencyManager | KindDependencyManager | KubectlDependencyManager | PodmanDependencyManager =
       this.dependancyManagerMap.get(dep);
     if (manager) {
       status = await manager.install();
@@ -73,5 +81,14 @@ export class DependencyManager extends ShellRunner {
         task: () => this.checkDependency(dep),
       };
     });
+  }
+
+  public getExecutablePath(dep: string): string {
+    const manager: HelmDependencyManager | KindDependencyManager | KubectlDependencyManager | PodmanDependencyManager =
+      this.dependancyManagerMap.get(dep);
+    if (manager) {
+      return manager.getExecutablePath();
+    }
+    throw new SoloError(`Dependency manager for '${dep}' is not found`);
   }
 }
