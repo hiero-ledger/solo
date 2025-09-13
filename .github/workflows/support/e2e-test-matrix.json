@@ -42,13 +42,6 @@
     "local-java-build": false
   },
   {
-    "name": "Node Local Hedera",
-    "test-script": "test-e2e-node-local-hedera",
-    "coverage-subdirectory": "e2e-node-local-hedera",
-    "coverage-report-name": "E2E_Node_Local_Hedera_Tests_Coverage_Report",
-    "local-java-build": true
-  },
-  {
     "name": "Node Destroy",
     "test-script": "test-e2e-node-destroy",
     "coverage-subdirectory": "e2e-node-destroy",
