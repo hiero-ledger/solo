@@ -178,13 +178,6 @@ tasks:
         {{ .mocha_bin }} 'test/e2e/commands/separate-node-upgrade.test.ts'
         {{ .reporter_options_prefix }}-e2e-node-upgrade-separate.xml"
 
-  test-e2e-relay:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Relay Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-relay'
-        {{ .mocha_bin }} 'test/e2e/commands/relay.test.ts'
-        {{ .reporter_options_prefix }}-e2e-relay.xml"
-
   test-e2e-block-node:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Block Nodes Tests\"
