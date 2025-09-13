@@ -73,32 +73,24 @@ export class DefaultTaskList<
 
   public parentTaskListMap: Map<string, TaskNodeType> = new Map();
 
-  public newTaskList(
+  public newTaskList<T = ListrContext>(
     task:
-      | ListrTask<
-          ListrContext,
-          ListrGetRendererClassFromValue<Renderer>,
-          ListrGetRendererClassFromValue<FallbackRenderer>
-        >
-      | ListrTask<
-          ListrContext,
-          ListrGetRendererClassFromValue<Renderer>,
-          ListrGetRendererClassFromValue<FallbackRenderer>
-        >[],
-    options?: ListrBaseClassOptions<ListrContext, Renderer, FallbackRenderer>,
+      | ListrTask<T, ListrGetRendererClassFromValue<Renderer>, ListrGetRendererClassFromValue<FallbackRenderer>>
+      | ListrTask<T, ListrGetRendererClassFromValue<Renderer>, ListrGetRendererClassFromValue<FallbackRenderer>>[],
+    options?: ListrBaseClassOptions<T, Renderer, FallbackRenderer>,
     parentTask?: ListrTaskObject<
-      ListrContext,
+      T,
       ListrGetRendererClassFromValue<Renderer>,
       ListrGetRendererClassFromValue<FallbackRenderer>
     >,
     commandName?: string,
-  ): Listr<ListrContext, Renderer, FallbackRenderer> {
+  ): Listr<T, Renderer, FallbackRenderer> {
     if (this.parentTaskListMap.has(commandName)) {
       const parentTaskList: TaskNodeType = this.parentTaskListMap.get(commandName);
       parentTaskList.children = parentTaskList.taskListWrapper.newListr(task, options);
-      return parentTaskList.children as Listr<ListrContext, Renderer, FallbackRenderer>;
+      return parentTaskList.children as Listr<T, Renderer, FallbackRenderer>;
     }
-    return new Listr<ListrContext, Renderer, FallbackRenderer>(task, options, parentTask);
+    return new Listr<T, Renderer, FallbackRenderer>(task, options, parentTask);
   }
 
   private trailingCloseFunctions: Array<() => Promise<void>> = [];
