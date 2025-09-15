@@ -328,6 +328,11 @@ export class MirrorNodeCommand extends BaseCommand {
       );
       // patch ingressClassName of mirror ingress, so it can be recognized by haproxy ingress controller
       const updated: object = {
+        metadata: {
+          annotations: {
+            'haproxy-ingress.github.io/path-type': 'regex',
+          },
+        },
         spec: {
           ingressClassName: `${constants.MIRROR_INGRESS_CLASS_NAME}`,
           tls: [
@@ -544,7 +549,9 @@ export class MirrorNodeCommand extends BaseCommand {
                     const config = context_.config;
 
                     let mirrorIngressControllerValuesArgument = '';
-
+                    mirrorIngressControllerValuesArgument += helpers.prepareValuesFiles(
+                      constants.INGRESS_CONTROLLER_VALUES_FILE,
+                    );
                     if (config.mirrorStaticIp !== '') {
                       mirrorIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${context_.config.mirrorStaticIp}`;
                     }
