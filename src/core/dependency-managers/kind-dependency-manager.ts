@@ -83,7 +83,8 @@ export class KindDependencyManager extends BaseDependencyManager {
   protected async processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string[]> {
     // Default implementation - just return the downloaded file path
     // Child classes can override for extraction or other processing
-    const kindExecutablePath: string = path.join(temporaryDirectory, constants.KIND);
+    const fileExtension: string = this.osPlatform === constants.OS_WINDOWS ? '.exe' : '';
+    const kindExecutablePath: string = path.join(temporaryDirectory, `${constants.KIND}${fileExtension}`);
     fs.renameSync(packageFilePath, kindExecutablePath);
     return [kindExecutablePath];
   }
