@@ -74,6 +74,11 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       NetworkTest.deploy(options);
       NodeTest.setup(options);
       NodeTest.start(options);
+
+      NodeTest.add(options);
+      NodeTest.update(options);
+      NodeTest.destroy(options);
+
       MirrorNodeTest.add(options);
       ExplorerTest.add(options);
       RelayTest.add(options);

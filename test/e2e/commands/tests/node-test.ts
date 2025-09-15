@@ -2,8 +2,8 @@
 
 import {BaseCommandTest} from './base-command-test.js';
 import {main} from '../../../../src/index.js';
-import {type ClusterReferences, type DeploymentName} from '../../../../src/types/index.js';
-import {Flags} from '../../../../src/commands/flags.js';
+import {ClusterReferenceName, type ClusterReferences, type DeploymentName} from '../../../../src/types/index.js';
+import {Flags as flags, Flags} from '../../../../src/commands/flags.js';
 import fs from 'node:fs';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
 import {expect} from 'chai';
@@ -31,6 +31,7 @@ import {
 import {type BaseTestOptions} from './base-test-options.js';
 import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
 import {KeysCommandDefinition} from '../../../../src/commands/command-definitions/keys-command-definition.js';
+import {type NodeAlias} from '../../../../src/types/aliases.js';
 
 export class NodeTest extends BaseCommandTest {
   private static soloNodeKeysArgv(testName: string, deployment: DeploymentName): string[] {
@@ -91,6 +92,115 @@ export class NodeTest extends BaseCommandTest {
         localBuildReleaseTag,
       );
     }
+    argvPushGlobalFlags(argv, testName, true);
+    return argv;
+  }
+
+  private static soloNodeAddArgv(options: BaseTestOptions): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+    const {testName} = options;
+
+    const firstClusterReference: ClusterReferenceName = [...options.clusterReferences.keys()][0];
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_ADD,
+      optionFromFlag(Flags.deployment),
+      options.deployment,
+      optionFromFlag(flags.persistentVolumeClaims),
+      optionFromFlag(Flags.clusterRef),
+      firstClusterReference,
+      optionFromFlag(flags.generateGossipKeys),
+      optionFromFlag(flags.generateTlsKeys),
+    );
+
+    if (options.enableLocalBuildPathTesting) {
+      argv.push(
+        optionFromFlag(Flags.localBuildPath),
+        options.localBuildPath,
+        optionFromFlag(Flags.releaseTag),
+        options.localBuildReleaseTag,
+      );
+    }
+
+    argvPushGlobalFlags(argv, testName, false, true);
+    return argv;
+  }
+
+  private static soloNodeUpdateArgv(options: BaseTestOptions): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+    const {
+      testName,
+      deployment,
+      enableLocalBuildPathTesting,
+      localBuildPath,
+      localBuildReleaseTag,
+      consensusNodesCount,
+    } = options;
+
+    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(consensusNodesCount + 1);
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_UPDATE,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.nodeAlias),
+      nodeAlias,
+    );
+
+    if (enableLocalBuildPathTesting) {
+      argv.push(
+        optionFromFlag(Flags.localBuildPath),
+        localBuildPath,
+        optionFromFlag(Flags.releaseTag),
+        localBuildReleaseTag,
+      );
+    }
+
+    argvPushGlobalFlags(argv, testName, true);
+    return argv;
+  }
+
+  private static soloNodeDestroyArgv(options: BaseTestOptions): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+    const {
+      testName,
+      deployment,
+      consensusNodesCount,
+      enableLocalBuildPathTesting,
+      localBuildPath,
+      localBuildReleaseTag,
+    } = options;
+
+    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(consensusNodesCount + 1);
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_DESTROY,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(flags.nodeAlias),
+      nodeAlias,
+      optionFromFlag(flags.force),
+      optionFromFlag(flags.quiet),
+    );
+
+    if (enableLocalBuildPathTesting) {
+      argv.push(
+        optionFromFlag(Flags.localBuildPath),
+        localBuildPath,
+        optionFromFlag(Flags.releaseTag),
+        localBuildReleaseTag,
+      );
+    }
+
     argvPushGlobalFlags(argv, testName, true);
     return argv;
   }
@@ -229,6 +339,35 @@ export class NodeTest extends BaseCommandTest {
       }
       // create one more account to make sure that the last one gets pushed to mirror node
       await verifyAccountCreateWasSuccessful(namespace, clusterReferences, deployment);
+    }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  public static add(options: BaseTestOptions): void {
+    const {testName} = options;
+    const {soloNodeAddArgv} = NodeTest;
+
+    console.log(options);
+
+    it(`${testName}: consensus node add`, async (): Promise<void> => {
+      await main(soloNodeAddArgv(options));
+    }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  public static update(options: BaseTestOptions): void {
+    const {testName} = options;
+    const {soloNodeUpdateArgv} = NodeTest;
+
+    it(`${testName}: consensus node update`, async (): Promise<void> => {
+      await main(soloNodeUpdateArgv(options));
+    }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  public static destroy(options: BaseTestOptions): void {
+    const {testName} = options;
+    const {soloNodeDestroyArgv} = NodeTest;
+
+    it(`${testName}: consensus node destroy`, async (): Promise<void> => {
+      await main(soloNodeDestroyArgv(options));
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 }
