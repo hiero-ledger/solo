@@ -491,9 +491,9 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
       const ecdsaAliasGroupKey: string = 'accounts-created-ecdsa-alias';
       const ed25519GroupKey: string = 'accounts-created-ed25519';
       this.logger.addMessageGroup(messageGroupKey, 'Created Accounts');
-      this.logger.addMessageGroup(ecdsaGroupKey, 'ECDSA Accounts:');
-      this.logger.addMessageGroup(ecdsaAliasGroupKey, 'ECDSA Alias Accounts:');
-      this.logger.addMessageGroup(ed25519GroupKey, 'ED25519 Accounts:');
+      this.logger.addMessageGroup(ecdsaGroupKey, 'ECDSA Accounts (Not EVM compatible, See ECDSA Alias Accounts below)');
+      this.logger.addMessageGroup(ecdsaAliasGroupKey, 'ECDSA Alias Accounts (EVM compatible)');
+      this.logger.addMessageGroup(ed25519GroupKey, 'ED25519 Accounts');
 
       this.logger.showMessageGroup(messageGroupKey);
 
