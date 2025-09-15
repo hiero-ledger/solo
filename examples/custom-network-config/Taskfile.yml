@@ -65,7 +65,6 @@ tasks:
           NODE_NAME=$(kubectl get nodes --no-headers | awk '{print $1}')
           echo "Node name is: $NODE_NAME"
           kubectl label node "$NODE_NAME" solo.hashgraph.io/network-id=4
-          kubectl label node "$NODE_NAME" solo.hashgraph.io/owner=alex.kuzmin
           kubectl label node "$NODE_NAME" solo.hashgraph.io/role=consensus-node
 
       # Solo network deploy
