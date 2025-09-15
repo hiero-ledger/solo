@@ -491,22 +491,11 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
       const ecdsaAliasGroupKey: string = 'accounts-created-ecdsa-alias';
       const ed25519GroupKey: string = 'accounts-created-ed25519';
       this.logger.addMessageGroup(messageGroupKey, 'Created Accounts');
-      this.logger.addMessageGroup(ecdsaGroupKey, 'ECDSA Accounts (Not EVM compatible, See ECDSA Alias Accounts below)');
+      this.logger.addMessageGroup(ecdsaGroupKey, 'ECDSA Accounts (Not EVM compatible, See ECDSA Alias Accounts above)');
       this.logger.addMessageGroup(ecdsaAliasGroupKey, 'ECDSA Alias Accounts (EVM compatible)');
       this.logger.addMessageGroup(ed25519GroupKey, 'ED25519 Accounts');
 
       this.logger.showMessageGroup(messageGroupKey);
-
-      if (ecdsaAccounts.length > 0) {
-        for (const account of ecdsaAccounts) {
-          this.logger.addMessageGroupMessage(
-            ecdsaGroupKey,
-            `Account ID: ${account.accountId.toString()}, Private Key: 0x${account.data.privateKey.toStringRaw()}, Balance: ${account.data.balance.toString()}`,
-          );
-        }
-
-        this.logger.showMessageGroup(ecdsaGroupKey);
-      }
 
       if (aliasAccounts.length > 0) {
         for (const account of aliasAccounts) {
@@ -528,6 +517,17 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
         }
 
         this.logger.showMessageGroup(ed25519GroupKey);
+      }
+
+      if (ecdsaAccounts.length > 0) {
+        for (const account of ecdsaAccounts) {
+          this.logger.addMessageGroupMessage(
+            ecdsaGroupKey,
+            `Account ID: ${account.accountId.toString()}, Private Key: 0x${account.data.privateKey.toStringRaw()}, Balance: ${account.data.balance.toString()}`,
+          );
+        }
+
+        this.logger.showMessageGroup(ecdsaGroupKey);
       }
     }
   }
