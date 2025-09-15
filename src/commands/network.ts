@@ -1391,7 +1391,11 @@ export class NetworkCommand extends BaseCommand {
           }
         }
         if (context_.config.releaseTag) {
-          this.remoteConfig.configuration.versions.consensusNode = new SemVer(context_.config.releaseTag);
+          // update the solo chart version to match the deployed version
+          this.remoteConfig.updateComponentVersion(
+            ComponentTypes.ConsensusNode,
+            new SemVer(context_.config.releaseTag),
+          );
         }
         await this.remoteConfig.persist();
       },
