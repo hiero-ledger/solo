@@ -22,6 +22,7 @@ import {NodeTest} from './tests/node-test.js';
 import {NetworkTest} from './tests/network-test.js';
 import {MirrorNodeTest} from './tests/mirror-node-test.js';
 import {ExplorerTest} from './tests/explorer-test.js';
+import {RelayTest} from './tests/relay-test.js';
 
 const testName: string = 'dual-cluster-full';
 
@@ -64,8 +65,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         testLogger.info(`${testName}: finished resetting containers for each test`);
       });
 
-      // TODO after all test are done delete the namespace for the next test
-
       InitTest.init(options);
       ClusterReferenceTest.connect(options);
       DeploymentTest.create(options);
@@ -77,13 +76,13 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       NodeTest.start(options);
       MirrorNodeTest.add(options);
       ExplorerTest.add(options);
+      RelayTest.add(options);
 
-      // TODO json rpc relay node add
-      // TODO json rpc relay node destroy
-      // TODO explorer node destroy
-      // TODO mirror node destroy
-      // TODO consensus network destroy
-    }).timeout(Duration.ofMinutes(10).toMillis());
+      RelayTest.destroy(options);
+      ExplorerTest.destroy(options);
+      MirrorNodeTest.destroy(options);
+      NetworkTest.destroy(options);
+    }).timeout(Duration.ofMinutes(15).toMillis());
   })
   .build();
 endToEndTestSuite.runTestSuite();
