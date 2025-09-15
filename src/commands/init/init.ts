@@ -8,7 +8,7 @@ import {Flags as flags} from '../flags.js';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
-import {type CommandDefinition} from '../../types/index.js';
+import {type CommandDefinition, type SoloListrTask} from '../../types/index.js';
 import {InitConfig} from './init-config.js';
 import {InitContext} from './init-context.js';
 import {Listr, ListrRendererValue} from 'listr2';
@@ -59,7 +59,7 @@ export class InitCommand extends BaseCommand {
         {
           title: 'Check dependencies',
           task: (_, task) => {
-            const deps = [constants.HELM, constants.KUBECTL, constants.PODMAN, constants.KIND];
+            const deps = [constants.HELM, constants.KUBECTL];
 
             const subTasks = self.depManager.taskCheckDependencies<InitContext>(deps);
 
@@ -75,11 +75,27 @@ export class InitCommand extends BaseCommand {
         {
           title: 'Create default cluster',
           task: async (_, task) => {
-            task.title = 'Creating local cluster...';
-            const kindExecutable: string = self.depManager.getExecutablePath(constants.KIND);
-            const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
-            const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(constants.DEFAULT_CLUSTER);
-            task.title = `Created local cluster '${clusterResponse.name}'; connect with context '${clusterResponse.context}'`;
+            const deps: string[] = [constants.PODMAN, constants.KIND];
+            const subTasks: SoloListrTask<InitContext>[] = self.depManager.taskCheckDependencies<InitContext>(deps);
+
+            subTasks.push({
+              title: `Creating local cluster...`,
+              task: async context_ => {
+                const kindExecutable: string = self.depManager.getExecutablePath(constants.KIND);
+                const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
+                const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
+                  constants.DEFAULT_CLUSTER,
+                );
+                task.title = `Created local cluster '${clusterResponse.name}'; connect with context '${clusterResponse.context}'`;
+              },
+            } as SoloListrTask<InitContext>);
+
+            return task.newListr(subTasks, {
+              concurrent: true,
+              rendererOptions: {
+                collapseSubtasks: false,
+              },
+            });
           },
           skip: (): boolean => argv.clusterExists,
         },
