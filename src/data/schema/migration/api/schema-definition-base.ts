@@ -34,7 +34,6 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
     if (this.migrations.length === 0) {
       return;
     }
-    // eslint-disable-next-line unicorn/no-array-sort
     const versionJumps: number[] = this.migrations.map(value => value.version.value).sort();
 
     for (let index = 1; index < versionJumps.length; index++) {
