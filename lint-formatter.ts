@@ -60,7 +60,7 @@ class LintFormatter {
         ruleToViolationMap.set(rule, violationArray);
       }
     }
-
+    // eslint-disable-next-line unicorn/no-array-sort
     const sortedKeys: string[] = [...ruleToViolationMap.keys()].sort();
     for (const [rule, violations] of sortedKeys.map((key: string): [string, Violation[]] => [
       key,
