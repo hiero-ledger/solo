@@ -98,13 +98,13 @@ kubectl rollout restart deployment/mirror-monitor -n solo-e2e
 kubectl rollout restart deployment/mirror-postgres-pgpool -n solo-e2e
 kubectl rollout restart deployment/mirror-ingress-controller -n solo-e2e
 
-npm run solo -- relay node add -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q --dev
+npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q --dev
 # force restart relay pod to pick up changes of configMap
 kubectl rollout restart deployment/relay-node1-node2 -n solo-e2e
 
 # redeploy mirror node to upgrade to a newer version
-npm run solo -- mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --dev
-npm run solo -- explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
+npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --dev
+npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
 
 # wait a few seconds for the pods to be ready before running transactions against them
