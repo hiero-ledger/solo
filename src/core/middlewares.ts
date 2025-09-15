@@ -98,8 +98,6 @@ export class Middlewares {
         configManager.reset();
       }
 
-      argv.clusterExists = false;
-
       // set cluster and namespace in the global configManager from kubernetes context
       // so that we don't need to prompt the user
       try {
@@ -113,7 +111,6 @@ export class Middlewares {
         if (contextNamespace?.name) {
           configManager.setFlag(flags.namespace, contextNamespace);
         }
-        argv.clusterExists = true;
       } catch {
         /* empty */
       }

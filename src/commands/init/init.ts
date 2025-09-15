@@ -17,6 +17,9 @@ import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {type DefaultKindClientBuilder} from '../../integration/kind/impl/default-kind-client-builder.js';
 import {KindClient} from '../../integration/kind/kind-client.js';
 import {ClusterCreateResponse} from '../../integration/kind/model/create-cluster/cluster-create-response.js';
+import {K8} from '../../integration/kube/k8.js';
+import {MissingActiveContextError} from '../../integration/kube/errors/missing-active-context-error.js';
+import {MissingActiveClusterError} from '../../integration/kube/errors/missing-active-cluster-error.js';
 
 /**
  * Defines the core functionalities of 'init' command
@@ -29,7 +32,6 @@ export class InitCommand extends BaseCommand {
   // Although empty, tsyringe requires the constructor to be present
   public constructor(@inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder) {
     super();
-
     this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, InitCommand.name);
   }
 
@@ -97,7 +99,15 @@ export class InitCommand extends BaseCommand {
               },
             });
           },
-          skip: (): boolean => argv.clusterExists,
+          skip: (): boolean => {
+            try {
+              const k8: K8 = self.k8Factory.default();
+              const contextName: string = k8.contexts().readCurrent();
+              return !!contextName;
+            } catch (error) {
+              return !(error instanceof MissingActiveContextError || error instanceof MissingActiveClusterError);
+            }
+          },
         },
         {
           title: 'Create local configuration',
