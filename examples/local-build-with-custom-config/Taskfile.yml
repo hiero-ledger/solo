@@ -12,14 +12,28 @@ env:
 vars:
   NODE_IDENTIFIERS: "node1,node2,node3"
   SOLO_NETWORK_SIZE: "3"
-  DEPLOYMENT: "deployment-network-with-custom-config"
-  NAMESPACE: "namespace-network-with-custom-config"
-  CLUSTER_NAME: "network-with-custom-config-cluster"
-  CONTEXT: "kind-network-with-custom-config-cluster"
-  CLUSTER_REFERENCE: "kind-network-with-custom-config-cluster"
+  DEPLOYMENT: "deployment-localbuild-with-custom-config"
+  NAMESPACE: "namespace-localbuild-with-custom-config"
+  CLUSTER_NAME: "localbuild-with-custom-config-cluster"
+  CONTEXT: "kind-localbuild-with-custom-config-cluster"
+  CLUSTER_REFERENCE: "kind-localbuild-with-custom-config-cluster"
+
+  CN_LOCAL_BUILD_PATH: "../hiero-consensus-node/hedera-node/data"
+  LOCAL_BUILD_FLAG: "--local-build-path {{.CN_LOCAL_BUILD_PATH}}"
+
+  CN_VERSION: "0.63.0"
+  BLOCK_NODE_RELEASE_TAG: "v0.14.0"
+  RELAY_RELEASE_FLAG: "--relay-release 0.70.1"
+  MIRROR_NODE_VERSION_FLAG: "--mirror-node-version v0.136.1"
+  EXPLORER_VERSION_FLAG: "--explorer-version 25.0.0"
+
+  BLOCK_NODE_VALUE_FILE_FLAG: "--values-file {{ .USER_WORKING_DIR }}/block-node-values.yaml"
+  MIRROR_NODE_VALUE_FILE_FLAG: "--values-file {{ .USER_WORKING_DIR }}/mirror-node-values.yaml"
+  RELAY_NODE_VALUE_FILE_FLAG: "--values-file {{ .USER_WORKING_DIR }}/relay-node-values.yaml"
+  EXPLORER_NODE_VALUE_FILE_FLAG: "--values-file {{ .USER_WORKING_DIR }}/hiero-explorer-values.yaml"
 tasks:
   default:
-    desc: Run a full standalone Solo network with block node, mirror node, and relay
+    desc: Run a full standalone Solo network with local built consensus node and block node, mirror node, and relay
     cmds:
       # Install Solo CLI
       - cmd: |
@@ -55,6 +69,12 @@ tasks:
       # Solo cluster-ref config setup
       - cmd: $SOLO_COMMAND cluster-ref config setup --cluster-ref {{ .CLUSTER_REFERENCE }}
 
+      # Solo block node add
+      - cmd: |
+          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .CN_VERSION }} \
+          --chart-version {{ .BLOCK_NODE_RELEASE_TAG }} \
+          --cluster-ref {{ .CLUSTER_REFERENCE }} {{ .BLOCK_NODE_VALUE_FILE_FLAG }}
+
       # Solo node keys
       - cmd: |
           $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
@@ -73,19 +93,20 @@ tasks:
           --values-file {{ .USER_WORKING_DIR }}/init-containers-values.yaml \
           --settings-txt {{ .USER_WORKING_DIR }}/settings.txt \
           --log4j2-xml {{ .USER_WORKING_DIR }}/log4j2.xml \
+          --release-tag {{ .CN_VERSION }} \
           --application-properties {{ .USER_WORKING_DIR }}/application.properties
 
       # Solo node setup
-      - cmd: $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
+      - cmd: $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }} {{.LOCAL_BUILD_FLAG}}
 
       # Solo node start
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
       # Solo mirror node add
-      - cmd: $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} --pinger --enable-ingress
+      - cmd: $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} --pinger --enable-ingress {{ .MIRROR_NODE_VERSION_FLAG }} {{ .MIRROR_NODE_VALUE_FILE_FLAG }}
 
       # Solo relay node add
-      - cmd: $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      - cmd: $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }} {{ .RELAY_RELEASE_FLAG }} {{ .RELAY_NODE_VALUE_FILE_FLAG }}
 
       # Solo explorer node add
       - cmd: |
@@ -93,7 +114,7 @@ tasks:
           --enable-explorer-tls --tls-cluster-issuer-type acme-staging \
           --enable-ingress \
           -n {{ .EXPLORER_NAME_SPACE }} \
-          --cluster-ref {{ .CLUSTER_REFERENCE }}
+          --cluster-ref {{ .CLUSTER_REFERENCE }} {{ .EXPLORER_VERSION_FLAG }} {{ .EXPLORER_NODE_VALUE_FILE_FLAG }}
   destroy:
     desc: Destroy the Solo network with block node
     cmds:
@@ -108,6 +129,9 @@ tasks:
 
       # solo explorer node destroy
       - cmd: $SOLO_COMMAND explorer node destroy --deployment {{ .DEPLOYMENT }}
+
+      # solo block node destroy
+      - cmd: $SOLO_COMMAND block node destroy --deployment {{ .DEPLOYMENT }}
 
       # solo consensus network destroy
       - cmd: $SOLO_COMMAND consensus network destroy --deployment {{ .DEPLOYMENT }} --force
