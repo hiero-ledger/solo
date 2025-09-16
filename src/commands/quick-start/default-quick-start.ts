@@ -529,6 +529,9 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
 
         this.logger.showMessageGroup(ecdsaGroupKey);
       }
+      this.logger.showUser(
+        'for more information on public and private keys see: https://docs.hedera.com/hedera/core-concepts/keys-and-signatures',
+      );
     }
   }
 

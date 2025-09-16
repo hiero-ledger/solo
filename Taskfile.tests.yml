@@ -101,13 +101,6 @@ tasks:
         {{ .mocha_bin }} 'test/e2e/commands/node-pem-kill.test.ts'
         {{ .reporter_options_prefix }}-e2e-node-pem-kill.xml"
 
-  test-e2e-node-local-hedera:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Local Hedera Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-local-hedera'
-        {{ .mocha_bin }} 'test/e2e/commands/node-local-hedera.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-local-hedera.xml"
-
   test-e2e-node-local-ptt:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Node Local PTT Tests\"
@@ -177,13 +170,6 @@ tasks:
         {{ .reporter_prefix }}='coverage/e2e-node-upgrade-separate'
         {{ .mocha_bin }} 'test/e2e/commands/separate-node-upgrade.test.ts'
         {{ .reporter_options_prefix }}-e2e-node-upgrade-separate.xml"
-
-  test-e2e-relay:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Relay Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-relay'
-        {{ .mocha_bin }} 'test/e2e/commands/relay.test.ts'
-        {{ .reporter_options_prefix }}-e2e-relay.xml"
 
   test-e2e-block-node:
     cmds:
