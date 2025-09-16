@@ -24,7 +24,7 @@ export async function update () {
   mkdirSync(BUILD_DIR, { recursive: true });
 
   // TBD, need to use at least version v0.62.6 for block node commands to work
-  const CONSENSUS_NODE_VERSION = process.argv[2] || 'v0.63.9'; // TODO why is this hardcoded?
+  const CONSENSUS_NODE_VERSION = process.argv[2] || 'v0.63.9';
   const CONSENSUS_NODE_FLAG = CONSENSUS_NODE_VERSION ? `--release-tag ${CONSENSUS_NODE_VERSION}` : '';
 
   process.env.SOLO_CLUSTER_NAME = 'solo';
