@@ -157,7 +157,7 @@ monitor:
                   transferTypes:
                     - CRYPTO
                 receiptPercent: 1
-                tps: 0
+                tps: 5
                 type: CRYPTO_TRANSFER
           subscribe:
             grpc:

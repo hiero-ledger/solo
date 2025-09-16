@@ -51,6 +51,31 @@ export class MirrorNodeTest extends BaseCommandTest {
     return argv;
   }
 
+  private static soloMirrorNodeDestroyArgv(
+    testName: string,
+    deployment: DeploymentName,
+    clusterReference: ClusterReferenceName,
+  ): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = MirrorNodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      MirrorCommandDefinition.COMMAND_NAME,
+      MirrorCommandDefinition.NODE_SUBCOMMAND_NAME,
+      MirrorCommandDefinition.NODE_DESTROY,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.clusterRef),
+      clusterReference,
+      optionFromFlag(Flags.force),
+      optionFromFlag(Flags.quiet),
+      optionFromFlag(Flags.devMode),
+    );
+
+    argvPushGlobalFlags(argv, testName, false, true);
+    return argv;
+  }
+
   private static async forwardRestServicePort(contexts: string[], namespace: NamespaceName): Promise<number> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
     const lastContext: string = contexts?.length ? contexts[contexts?.length - 1] : undefined;
@@ -177,7 +202,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     try {
       const transactionsEndpoint: string = 'http://localhost:5551/api/v1/transactions';
       // force to fetch new data instead of using cache
-      const fetchOptions = {
+      const fetchOptions: object = {
         cache: 'no-cache' as RequestCache,
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -186,21 +211,32 @@ export class MirrorNodeTest extends BaseCommandTest {
         },
       };
 
-      const firstResponse = await fetch(transactionsEndpoint, fetchOptions);
-      const firstData = await firstResponse.json();
+      const firstResponse: Response = await fetch(transactionsEndpoint, fetchOptions);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const firstData: any = await firstResponse.json();
       console.log(`firstData = ${JSON.stringify(firstData, null, 2)}`);
       await sleep(Duration.ofSeconds(15));
-      const secondResponse = await fetch(transactionsEndpoint, fetchOptions);
-      const secondData = await secondResponse.json();
+      const secondResponse: Response = await fetch(transactionsEndpoint, fetchOptions);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const secondData: any = await secondResponse.json();
       console.log(`secondData = ${JSON.stringify(secondData, null, 2)}`);
       expect(firstData.transactions).to.not.be.undefined;
       expect(firstData.transactions.length).to.be.gt(0);
       expect(secondData.transactions).to.not.be.undefined;
       expect(secondData.transactions.length).to.be.gt(0);
+
+      // if pinger is enabled, the first transaction in the first response should not equal the first transaction in the second response
+      // if pinger is disabled, the first transaction in the first response should equal the first transaction in the second response
+      // if there is more than one transaction in the second response, compare to the second transaction instead of the first
+      let secondTransactionIndex: number = 0;
+      if (secondData.transactions.length > 1) {
+        secondTransactionIndex = 1;
+      }
+
       if (pingerIsEnabled) {
-        expect(firstData.transactions[0]).to.not.deep.equal(secondData.transactions[0]);
+        expect(firstData.transactions[0]).to.not.deep.equal(secondData.transactions[secondTransactionIndex]);
       } else {
-        expect(firstData.transactions[0]).to.deep.equal(secondData.transactions[0]);
+        expect(firstData.transactions[0]).to.deep.equal(secondData.transactions[secondTransactionIndex]);
       }
     } finally {
       if (portForwarder) {
@@ -234,6 +270,15 @@ export class MirrorNodeTest extends BaseCommandTest {
       );
       await verifyPingerStatus(contexts, namespace, pinger);
     }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  public static destroy(options: BaseTestOptions): void {
+    const {testName, deployment, clusterReferenceNameArray} = options;
+    const {soloMirrorNodeDestroyArgv} = MirrorNodeTest;
+
+    it(`${testName}: mirror node add`, async (): Promise<void> => {
+      await main(soloMirrorNodeDestroyArgv(testName, deployment, clusterReferenceNameArray[1]));
+    }).timeout(Duration.ofMinutes(5).toMillis());
   }
 
   private static postgresPassword: string = 'XXXXXXX';

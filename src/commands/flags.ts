@@ -426,29 +426,6 @@ export class Flags {
     },
   };
 
-  public static readonly enablePrometheusSvcMonitor: CommandFlag = {
-    constName: 'enablePrometheusSvcMonitor',
-    name: 'prometheus-svc-monitor',
-    definition: {
-      describe: 'Enable prometheus service monitor for the network nodes',
-      defaultValue: false,
-      type: 'boolean',
-    },
-    prompt: async function promptEnablePrometheusSvcMonitor(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: boolean,
-    ): Promise<boolean> {
-      return await Flags.promptToggle(
-        task,
-        input,
-        Flags.enablePrometheusSvcMonitor.definition.defaultValue as boolean,
-        'Would you like to enable the Prometheus service monitor for the network nodes? ',
-        null,
-        Flags.enablePrometheusSvcMonitor.name,
-      );
-    },
-  };
-
   public static readonly deployMinio: CommandFlag = {
     constName: 'deployMinio',
     name: 'minio',
@@ -678,7 +655,6 @@ export class Flags {
     definition: {
       describe: 'Force actions even if those can be skipped',
       defaultValue: false,
-      alias: 'f',
       type: 'boolean',
     },
     prompt: async function promptForce(task: SoloListrTaskWrapper<AnyListrContext>, input: boolean): Promise<boolean> {
@@ -1788,6 +1764,28 @@ export class Flags {
     },
   };
 
+  public static readonly serviceMonitor: CommandFlag = {
+    constName: 'serviceMonitor',
+    name: 'service-monitor',
+    definition: {
+      describe: 'Install ServiceMonitor custom resource for monitoring Network Node metrics',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly podLog: CommandFlag = {
+    constName: 'podLog',
+    name: 'pod-log',
+    definition: {
+      describe: 'Install PodLog custom resource for monitoring Network Node pod logs',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly pinger: CommandFlag = {
     constName: 'pinger',
     name: 'pinger',
@@ -2543,7 +2541,6 @@ export class Flags {
     Flags.ed25519PrivateKey,
     Flags.enableIngress,
     Flags.enableExplorerTls,
-    Flags.enablePrometheusSvcMonitor,
     Flags.enableTimeout,
     Flags.endpointType,
     Flags.envoyIps,
@@ -2645,6 +2642,8 @@ export class Flags {
     Flags.shard,
     Flags.username,
     Flags.skipNodeAlias,
+    Flags.serviceMonitor,
+    Flags.podLog,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

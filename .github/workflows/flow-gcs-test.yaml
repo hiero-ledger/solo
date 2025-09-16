@@ -40,7 +40,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        storageType: ["gcs_only", "minio_only", "aws_only"]
+        storageType: [ "gcs_only", "minio_only", "aws_only" ]
+      max-parallel: 1
     steps:
       - name: Check if job should be skipped
         id: check
@@ -53,7 +54,7 @@ jobs:
 
       - name: Harden Runner
         if: steps.check.outputs.run == 'true'
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
         with:
           egress-policy: audit
 
@@ -64,14 +65,14 @@ jobs:
       - name: Authenticate to Google Cloud
         if: steps.check.outputs.run == 'true'
         id: google-auth
-        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        uses: step-security/google-github-auth@190f7ef9b7a34cc0dfd0c11f0e327365f70071d6 # v2.1.12
         with:
           workload_identity_provider: "projects/652966097426/locations/global/workloadIdentityPools/solo-bucket-dev-pool/providers/gh-provider"
           service_account: "solo-bucket-reader-writer@solo-bucket-dev.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
         if: steps.check.outputs.run == 'true'
-        uses: google-github-actions/setup-gcloud@cb1e50a9932213ecece00a606661ae9ca44f3397 # v2.2.0
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Get Current Job Log URL
         if: steps.check.outputs.run == 'true'
@@ -95,9 +96,9 @@ jobs:
 
       - name: Setup Node
         if: steps.check.outputs.run == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 20.19.3
+          node-version: 22
           cache: npm
 
       - name: Install Task

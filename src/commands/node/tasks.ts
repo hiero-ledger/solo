@@ -10,11 +10,7 @@ import {type ChartManager} from '../../core/chart-manager.js';
 import {type CertificateManager} from '../../core/certificate-manager.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
-import {
-  DEFAULT_NETWORK_NODE_NAME,
-  HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
-  IGNORED_NODE_ACCOUNT_ID,
-} from '../../core/constants.js';
+import {DEFAULT_NETWORK_NODE_NAME, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
   AccountBalanceQuery,
@@ -54,6 +50,8 @@ import {
 } from '../../core/helpers.js';
 import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
+import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
+import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {
   type AnyListrContext,
@@ -399,20 +397,20 @@ export class NodeCommandTasks {
     } = context_;
 
     const enableDebugger: boolean = context_.config.debugNodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
+    const debugNodeAlias: NodeAlias | undefined = context_.config.debugNodeAlias;
 
     const subTasks = nodeAliases.map(nodeAlias => {
-      const reminder =
-        'debugNodeAlias' in context_.config &&
-        context_.config.debugNodeAlias === nodeAlias &&
-        status !== NodeStatusCodes.FREEZE_COMPLETE
-          ? 'Please attach JVM debugger now.  Sleeping for 1 hour, hit ctrl-c once debugging is complete.'
-          : '';
-      const title = `Check network pod: ${chalk.yellow(nodeAlias)} ${chalk.red(reminder)}`;
-      const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+      const isDebugNode: boolean = debugNodeAlias === nodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
+      const reminder: string = isDebugNode ? 'Please attach JVM debugger now.' : '';
+      const title: string = `Check network pod: ${chalk.yellow(nodeAlias)} ${chalk.red(reminder)}`;
+      const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
 
       const subTask = async (context_: AnyListrContext, task: SoloListrTaskWrapper<AnyListrContext>) => {
-        if (enableDebugger) {
-          await sleep(Duration.ofHours(1));
+        if (enableDebugger && isDebugNode) {
+          await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
+            message: `JVM debugger setup for ${nodeAlias}. Continue when debugging is complete?`,
+            default: false,
+          });
         }
         context_.config.podRefs[nodeAlias] = await this._checkNetworkNodeActiveness(
           namespace,
@@ -431,7 +429,7 @@ export class NodeCommandTasks {
     });
 
     return task.newListr(subTasks, {
-      concurrent: true,
+      concurrent: !enableDebugger, // Run sequentially when debugging to avoid multiple prompts
       rendererOptions: {
         collapseSubtasks: false,
       },
@@ -1202,6 +1200,9 @@ export class NodeCommandTasks {
           }
           releaseTag = context_.config.upgradeVersion;
         }
+
+        context_.config.releaseTag = releaseTag;
+
         return localBuildPath === ''
           ? self._fetchPlatformSoftware(
               context_.config[aliasesField],
@@ -1340,6 +1341,13 @@ export class NodeCommandTasks {
             .readByRef(rootContainer);
 
           await container.execContainer('chmod 777 /opt/hgcapp/services-hedera/HapiApp2.0/data');
+
+          // save consensus node version in remote config
+          this.remoteConfig.updateComponentVersion(
+            ComponentTypes.ConsensusNode,
+            new SemVer(context_.config.releaseTag),
+          );
+          await this.remoteConfig.persist();
         }
       },
     };
@@ -1354,7 +1362,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public setGrpcWebEndpoint(): SoloListrTask<NodeStartContext> {
+  public setGrpcWebEndpoint(nodeAliasesProperty: string): SoloListrTask<NodeStartContext> {
     return {
       title: 'set gRPC Web endpoint',
       skip: (context_): boolean => {
@@ -1376,7 +1384,7 @@ export class NodeCommandTasks {
           context_.config.deployment,
         );
 
-        for (const nodeAlias of context_.config.nodeAliases) {
+        for (const nodeAlias of context_.config[nodeAliasesProperty]) {
           const networkNodeService: NetworkNodeServices = serviceMap.get(nodeAlias);
 
           const cluster: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
@@ -1391,7 +1399,7 @@ export class NodeCommandTasks {
 
           const grpcProxyPort: number = +networkNodeService.envoyProxyGrpcWebPort;
 
-          const client = await this.accountManager.loadNodeClient(
+          const nodeClient: Client = await this.accountManager.loadNodeClient(
             namespace,
             this.remoteConfig.getClusterRefs(),
             context_.config.deployment,
@@ -1401,13 +1409,16 @@ export class NodeCommandTasks {
             .setDomainName(grpcProxyAddress)
             .setPort(grpcProxyPort);
 
-          const updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
+          let updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
             .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
-            .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint);
+            .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint)
+            .freezeWith(nodeClient);
 
-          const updateTransactionResponse: TransactionResponse = await updateTransaction.execute(client);
-
-          const updateTransactionReceipt: TransactionReceipt = await updateTransactionResponse.getReceipt(client);
+          if (context_.config.adminKey) {
+            updateTransaction = await updateTransaction.sign(context_.config.adminKey);
+          }
+          const transactionResponse: TransactionResponse = await updateTransaction.execute(nodeClient);
+          const updateTransactionReceipt: TransactionReceipt = await transactionResponse.getReceipt(nodeClient);
 
           if (updateTransactionReceipt.status !== Status.Success) {
             throw new SoloError('Failed to set gRPC web proxy endpoint');
@@ -1619,6 +1630,7 @@ export class NodeCommandTasks {
             context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             nodeId,
           );
+          await this.remoteConfig.persist();
         }
       },
       skip: context_ => !context_.config.debugNodeAlias && !context_.config.forcePortForward,
@@ -1962,6 +1974,7 @@ export class NodeCommandTasks {
         };
         config.nodeAlias = lastNodeAlias as NodeAlias;
         config.allNodeAliases.push(lastNodeAlias as NodeAlias);
+        config.newNodeAliases = [lastNodeAlias as NodeAlias];
       },
     };
   }
@@ -2216,6 +2229,7 @@ export class NodeCommandTasks {
 
           for (const [index, node] of consensusNodes
             .filter(node => node.cluster === clusterReference)
+            // eslint-disable-next-line unicorn/no-array-sort
             .sort((a, b) => a.nodeId - b.nodeId)
             .entries()) {
             clusterNodeIndexMap[clusterReference][node.nodeId] = index;
@@ -2235,13 +2249,7 @@ export class NodeCommandTasks {
             break;
           }
           case NodeSubcommandType.DESTROY: {
-            this.prepareValuesArgForNodeDestroy(
-              consensusNodes,
-              valuesArgumentMap,
-              config.nodeAlias,
-              config.serviceMap,
-              clusterNodeIndexMap,
-            );
+            this.prepareValuesArgForNodeDestroy(consensusNodes, valuesArgumentMap, config.nodeAlias, config.serviceMap);
             break;
           }
           case NodeSubcommandType.ADD: {
@@ -2430,13 +2438,10 @@ export class NodeCommandTasks {
     valuesArgumentMap: Record<ClusterReferenceName, string>,
     nodeAlias: NodeAlias,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
-    clusterNodeIndexMap: Record<ClusterReferenceName, Record<NodeId, /* index in the chart -> */ number>>,
   ): void {
+    let index: number = 0;
     for (const consensusNode of consensusNodes) {
       const clusterReference: ClusterReferenceName = consensusNode.cluster;
-
-      // The index inside the chart
-      const index = clusterNodeIndexMap[clusterReference][consensusNode.nodeId];
       const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
       // For nodes that are not being deleted
       if (consensusNode.nodeId !== nodeId) {
@@ -2444,14 +2449,7 @@ export class NodeCommandTasks {
           ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(consensusNode.name).accountId}"` +
           ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
           ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
-      }
-
-      // When deleting node
-      else if (consensusNode.nodeId === nodeId) {
-        valuesArgumentMap[clusterReference] +=
-          ` --set "hedera.nodes[${index}].accountId=${IGNORED_NODE_ACCOUNT_ID}"` +
-          ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
-          ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}" `;
+        index++;
       }
     }
 
@@ -2503,17 +2501,33 @@ export class NodeCommandTasks {
     };
   }
 
-  public killNodes(): SoloListrTask<NodeDestroyContext | NodeAddContext> {
+  public killNodes(transactionType?: NodeSubcommandType): SoloListrTask<NodeDestroyContext | NodeAddContext> {
     return {
       title: 'Kill nodes',
       task: async context_ => {
         const config = context_.config;
         for (const service of config.serviceMap.values()) {
+          // skip pod if it's not in the list of config.allNodeAliases
+          if (!config.allNodeAliases.includes(service.nodeAlias)) {
+            continue;
+          }
           await this.k8Factory
             .getK8(service.context)
             .pods()
             .readByReference(PodReference.of(config.namespace, service.nodePodName))
             .killPod();
+        }
+
+        // remove from remote config
+        if (transactionType === NodeSubcommandType.DESTROY) {
+          const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+          this.remoteConfig.configuration.components.removeComponent(nodeId, ComponentTypes.ConsensusNode);
+          this.remoteConfig.configuration.components.removeComponent(nodeId, ComponentTypes.EnvoyProxy);
+          this.remoteConfig.configuration.components.removeComponent(nodeId, ComponentTypes.HaProxy);
+          // @ts-expect-error: all fields are not present in every task's context
+          context_.config.nodeAliases = config.allNodeAliases.filter(
+            (nodeAlias: NodeAlias) => nodeAlias !== config.nodeAlias,
+          );
         }
       },
     };
@@ -2721,6 +2735,7 @@ export class NodeCommandTasks {
             .setCertificateHash(context_.tlsCertHash)
             .setAdminKey(context_.adminKey.publicKey)
             .freezeWith(config.nodeClient);
+
           const signedTx = await nodeCreateTx.sign(context_.adminKey);
           const txResp = await signedTx.execute(config.nodeClient);
           const nodeCreateReceipt = await txResp.getReceipt(config.nodeClient);
