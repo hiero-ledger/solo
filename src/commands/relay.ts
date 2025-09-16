@@ -9,7 +9,6 @@ import {type ProfileManager} from '../core/profile-manager.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {
   type AnyListrContext,
   type ArgvStruct,
