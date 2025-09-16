@@ -73,8 +73,8 @@ export class AccountCommand extends BaseCommand {
   }
 
   public static INIT_FLAGS_LIST: CommandFlags = {
-    required: [],
-    optional: [flags.deployment, flags.nodeAliasesUnparsed, flags.clusterRef],
+    required: [flags.deployment],
+    optional: [flags.nodeAliasesUnparsed, flags.clusterRef],
   };
 
   public static CREATE_FLAGS_LIST: CommandFlags = {
