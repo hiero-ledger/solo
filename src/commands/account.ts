@@ -47,6 +47,12 @@ interface UpdateAccountContext {
 
 @injectable()
 export class AccountCommand extends BaseCommand {
+  private static ACCOUNT_KEY_USER_MESSAGE: string =
+    'where:\n' +
+    '- privateKey: the hex-encoded private key which is used to sign transactions with in the Hiero SDKs\n' +
+    '- privateKeyRaw: the Ethereum compatible private key, without the `0x` prefix\n' +
+    '- for more information see: https://docs.hedera.com/hedera/core-concepts/keys-and-signatures';
+
   private accountInfo: {
     accountId: string;
     balance: number;
@@ -532,6 +538,9 @@ export class AccountCommand extends BaseCommand {
                     delete accountInfoCopy.privateKey;
                   }
                   this.logger.showJSON('new account created', accountInfoCopy);
+                  if (context_.config.privateKey) {
+                    this.logger.showUser(AccountCommand.ACCOUNT_KEY_USER_MESSAGE);
+                  }
                 },
               });
             }
@@ -636,6 +645,7 @@ export class AccountCommand extends BaseCommand {
               false,
             );
             this.logger.showJSON('account info', self.accountInfo);
+            this.logger.showUser(AccountCommand.ACCOUNT_KEY_USER_MESSAGE);
           },
         },
       ],
@@ -721,6 +731,7 @@ export class AccountCommand extends BaseCommand {
               context_.config.privateKey,
             );
             this.logger.showJSON('account info', self.accountInfo);
+            this.logger.showUser(AccountCommand.ACCOUNT_KEY_USER_MESSAGE);
           },
         },
       ],
