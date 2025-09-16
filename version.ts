@@ -25,6 +25,11 @@ export const HEDERA_JSON_RPC_RELAY_VERSION: string = '0.70.0';
 export const INGRESS_CONTROLLER_VERSION: string = '0.14.5';
 export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_VERSION') || 'v0.14.0';
 
+// Chart version constants
+export const MINIO_OPERATOR_VERSION: string = '5.0.7';
+export const PROMETHEUS_STACK_VERSION: string = '52.0.1';
+export const GRAFANA_AGENT_VERSION: string = '0.27.1';
+
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE: string = 'v0.62.3';
 export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT: SemVer = new SemVer('v0.15.0');
 

@@ -359,7 +359,7 @@ export function endToEndTestSuite(
         }
 
         if (
-          !(await chartManager.isChartInstalled(constants.SOLO_SETUP_NAMESPACE, constants.SOLO_CLUSTER_SETUP_CHART))
+          !(await chartManager.isChartInstalled(constants.SOLO_SETUP_NAMESPACE, constants.MINIO_OPERATOR_RELEASE_NAME))
         ) {
           await commandInvoker.invoke({
             argv: argv,

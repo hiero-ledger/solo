@@ -408,7 +408,7 @@ export class Flags {
     name: 'prometheus-stack',
     definition: {
       describe: 'Deploy prometheus stack',
-      defaultValue: false,
+      defaultValue: true,
       type: 'boolean',
     },
     prompt: async function promptDeployPrometheusStack(
@@ -422,6 +422,29 @@ export class Flags {
         'Would you like to deploy prometheus stack? ',
         null,
         Flags.deployPrometheusStack.name,
+      );
+    },
+  };
+
+  public static readonly deployGrafanaAgent: CommandFlag = {
+    constName: 'deployGrafanaAgent',
+    name: 'grafana-agent',
+    definition: {
+      describe: 'Deploy grafana agent',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: async function promptDeployGrafanaAgent(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: boolean,
+    ): Promise<boolean> {
+      return await Flags.promptToggle(
+        task,
+        input,
+        Flags.deployGrafanaAgent.definition.defaultValue as boolean,
+        'Would you like to deploy grafana agent? ',
+        null,
+        Flags.deployGrafanaAgent.name,
       );
     },
   };

@@ -547,7 +547,7 @@ export class NetworkCommand extends BaseCommand {
     for (const clusterReference of clusterReferences) {
       valuesArguments[clusterReference] +=
         ' --install' +
-        ` --set "telemetry.prometheus.svcMonitor.enabled=false"` + // remove after chart version is bumped
+        ' --set "telemetry.prometheus.svcMonitor.enabled=false"' + // remove after chart version is bumped
         ` --set "crds.serviceMonitor.enabled=${config.serviceMonitor}"` +
         ` --set "crds.podLog.enabled=${config.podLog}"` +
         ` --set "defaults.volumeClaims.enabled=${config.persistentVolumeClaims}"`;
@@ -888,23 +888,6 @@ export class NetworkCommand extends BaseCommand {
             ),
           skip: (context_): boolean =>
             !context_.config.grpcTlsCertificatePath && !context_.config.grpcWebTlsCertificatePath,
-        },
-        {
-          title: 'Check if cluster setup chart is installed',
-          task: async (context_): Promise<void> => {
-            for (const context of context_.config.contexts) {
-              const isChartInstalled: boolean = await this.chartManager.isChartInstalled(
-                null,
-                constants.SOLO_CLUSTER_SETUP_CHART,
-                context,
-              );
-              if (!isChartInstalled) {
-                throw new SoloError(
-                  `Chart ${constants.SOLO_CLUSTER_SETUP_CHART} is not installed for cluster: ${context}. Run 'solo cluster-ref config setup'`,
-                );
-              }
-            }
-          },
         },
         {
           title: 'Prepare staging directory',
