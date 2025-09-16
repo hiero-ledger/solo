@@ -70,13 +70,6 @@
     "local-java-build": false
   },
   {
-    "name": "Relay",
-    "test-script": "test-e2e-relay",
-    "coverage-subdirectory": "e2e-relay",
-    "coverage-report-name": "E2E_Relay_Tests_Coverage_Report",
-    "local-java-build": false
-  },
-  {
     "name": "Node Update",
     "test-script": "test-e2e-node-update",
     "coverage-subdirectory": "e2e-node-update",
