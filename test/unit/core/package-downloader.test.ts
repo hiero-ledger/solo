@@ -51,6 +51,7 @@ describe('PackageDownloader', () => {
     });
 
     it('should succeed with a valid release artifact URL', async () => {
+      // eslint-disable-next-line no-useless-catch
       try {
         const temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'downloader-'));
 
@@ -65,7 +66,6 @@ describe('PackageDownloader', () => {
         // remove the file to reduce disk usage
         fs.rmSync(temporaryDirectory, {recursive: true});
       } catch (error) {
-        console.error(error);
         throw error;
       }
     });

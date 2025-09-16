@@ -22,6 +22,7 @@ export SOLO_CLUSTER_NAME=solo-e2e
 export SOLO_NAMESPACE=solo-e2e
 export SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 export SOLO_DEPLOYMENT=solo-e2e
+export USE_MIRROR_NODE_LEGACY_RELEASE_NAME=true
 
 kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
@@ -70,9 +71,9 @@ if ! grep -q "schemaVersion: 2" ./local-config-after.yaml; then
   exit 1
 fi
 
-# check remote-config-after.yaml should contains 'schemaVersion: 1'
-if ! grep -q "schemaVersion: 2" ./remote-config-after.yaml; then
-  echo "schemaVersion: 2 not found in remote-config-after.yaml"
+# check remote-config-after.yaml should contains 'schemaVersion: 3'
+if ! grep -q "schemaVersion: 3" ./remote-config-after.yaml; then
+  echo "schemaVersion: 3 not found in remote-config-after.yaml"
   exit 1
 fi
 echo "::endgroup::"
