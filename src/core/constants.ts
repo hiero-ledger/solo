@@ -92,6 +92,8 @@ export const GRAFANA_AGENT_CHART_URL =
 export const GRAFANA_AGENT_CHART = 'grafana-agent';
 export const GRAFANA_AGENT_RELEASE_NAME = 'grafana-agent';
 
+export const POD_MONITOR_ROLE = 'pod-monitor-role';
+
 export const MINIO_OPERATOR_CHART_URL =
   getEnvironmentVariable('MINIO_OPERATOR_CHART_URL') ?? 'https://operator.min.io/';
 export const MINIO_OPERATOR_CHART = 'operator';

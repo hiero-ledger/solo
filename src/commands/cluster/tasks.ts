@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {Flags as flags} from '../flags.js';
 import {type AnyListrContext, type ArgvStruct, type ConfigBuilder} from '../../types/aliases.js';
 import * as constants from '../../core/constants.js';
 import chalk from 'chalk';
@@ -24,13 +23,14 @@ import {type ClusterReferenceConnectContext} from './config-interfaces/cluster-r
 import {type ClusterReferenceDefaultContext} from './config-interfaces/cluster-reference-default-context.js';
 import {type ClusterReferenceSetupContext} from './config-interfaces/cluster-reference-setup-context.js';
 import {type ClusterReferenceResetContext} from './config-interfaces/cluster-reference-reset-context.js';
-import {PathEx} from '../../business/utils/path-ex.js';
-import {quote} from 'shell-quote';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {StringFacade} from '../../business/runtime-state/facade/string-facade.js';
 import {Lock} from '../../core/lock/lock.js';
 import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';
 import * as versions from '../../../version.js';
+import * as fs from 'fs';
+import * as yaml from 'yaml';
+import {PathEx} from '../../business/utils/path-ex.js';
 
 @injectable()
 export class ClusterCommandTasks {
@@ -349,6 +349,61 @@ export class ClusterCommandTasks {
     };
   }
 
+  public installPodMonitorRole(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+
+    return {
+      title: 'Install pod-monitor-role ClusterRole',
+      task: async context_ => {
+        const k8 = this.k8Factory.getK8(context_.config.context);
+
+        try {
+          // Check if ClusterRole already exists using Kubernetes JavaScript API
+          await k8.rbac().readClusterRole(constants.POD_MONITOR_ROLE);
+          self.logger.showUser('⏭️  ClusterRole pod-monitor-role already exists, skipping');
+        } catch {
+          // ClusterRole doesn't exist, create it
+          try {
+            const templatePath = PathEx.join(process.cwd(), 'resources', 'templates', 'pod-monitor-role.yaml');
+            const yamlContent = fs.readFileSync(templatePath, 'utf8');
+            const clusterRole = yaml.parse(yamlContent);
+
+            await k8.rbac().createClusterRole(clusterRole);
+            self.logger.showUser('✅ ClusterRole pod-monitor-role installed successfully');
+          } catch (installError) {
+            self.logger.debug('Error installing pod-monitor-role ClusterRole', installError);
+            throw new SoloError('Error installing pod-monitor-role ClusterRole', installError);
+          }
+        }
+      },
+    };
+  }
+
+  public uninstallPodMonitorRole(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
+    const self = this;
+
+    return {
+      title: 'Uninstall pod-monitor-role ClusterRole',
+      task: async context_ => {
+        const k8 = this.k8Factory.getK8(context_.config.context);
+
+        try {
+          // Check if ClusterRole exists using Kubernetes JavaScript API
+          await k8.rbac().readClusterRole(constants.POD_MONITOR_ROLE);
+          
+          // ClusterRole exists, delete it
+          await k8.rbac().deleteClusterRole(constants.POD_MONITOR_ROLE);
+          self.logger.showUser('✅ ClusterRole pod-monitor-role uninstalled successfully');
+        } catch {
+          // ClusterRole doesn't exist, skip
+          self.logger.showUser('⏭️  ClusterRole pod-monitor-role not found, skipping');
+        }
+      },
+    };
+  }
+
   public installClusterChart(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
     const self = this;
@@ -357,6 +412,9 @@ export class ClusterCommandTasks {
       title: 'Install cluster charts',
       task: async (context_, task) => {
         const subtasks = [];
+
+        // Always install pod-monitor-role ClusterRole first
+        subtasks.push(this.installPodMonitorRole(argv));
 
         if (context_.config.deployMinio) {
           subtasks.push(this.installMinioOperator(argv));
@@ -505,6 +563,7 @@ export class ClusterCommandTasks {
           this.uninstallGrafanaAgent(argv),
           this.uninstallPrometheusStack(argv),
           this.uninstallMinioOperator(argv),
+          this.uninstallPodMonitorRole(argv),
         ];
 
         const result = await task.newListr(subtasks, {concurrent: false});

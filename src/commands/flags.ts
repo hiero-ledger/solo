@@ -2557,6 +2557,7 @@ export class Flags {
     Flags.deployJsonRpcRelay,
     Flags.deployMinio,
     Flags.deployPrometheusStack,
+    Flags.deployGrafanaAgent,
     Flags.deployment,
     Flags.deploymentClusters,
     Flags.devMode,
