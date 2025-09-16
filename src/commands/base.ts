@@ -11,8 +11,16 @@ import {type HelmClient} from '../integration/helm/helm-client.js';
 import {type LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import * as constants from '../core/constants.js';
 import fs from 'node:fs';
-import {type ClusterReferenceName, type ClusterReferences} from '../types/index.js';
-import {Flags} from './flags.js';
+import {
+  type ClusterReferenceName,
+  type ClusterReferences,
+  type ComponentId,
+  type Context,
+  NamespaceNameAsString,
+  Optional,
+  type SoloListrTaskWrapper,
+} from '../types/index.js';
+import {Flags as flags, Flags} from './flags.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {inject} from 'tsyringe-neo';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
@@ -20,6 +28,13 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {type TaskList} from '../core/task-list/task-list.js';
 import {ListrContext, ListrRendererValue} from 'listr2';
+import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
+import {AnyListrContext} from '../types/aliases.js';
+import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
+import {Templates} from '../core/templates.js';
+import {BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
+import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 
 export abstract class BaseCommand extends ShellRunner {
   public constructor(
@@ -33,6 +48,7 @@ export abstract class BaseCommand extends ShellRunner {
     @inject(InjectTokens.RemoteConfigRuntimeState) protected readonly remoteConfig?: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.TaskList)
     protected readonly taskList?: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
+    @inject(InjectTokens.ComponentFactory) protected readonly componentFactory?: ComponentFactoryApi,
   ) {
     super();
 
@@ -45,6 +61,7 @@ export abstract class BaseCommand extends ShellRunner {
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
+    this.componentFactory = patchInject(componentFactory, InjectTokens.ComponentFactory, this.constructor.name);
   }
 
   /**
@@ -230,12 +247,91 @@ export abstract class BaseCommand extends ShellRunner {
     return directories;
   }
 
-  public setupHomeDirectoryTask() {
-    return {
-      tile: 'Setup home directory',
-      task: async () => {
-        this.setupHomeDirectory();
-      },
-    };
+  protected getClusterReference(): ClusterReferenceName {
+    return this.configManager.getFlag(flags.clusterRef) ?? this.k8Factory.default().clusters().readCurrent();
+  }
+
+  protected getClusterContext(clusterReference: ClusterReferenceName): Context {
+    return clusterReference
+      ? this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString()
+      : this.k8Factory.default().contexts().readCurrent();
+  }
+
+  protected getNamespace(task: SoloListrTaskWrapper<AnyListrContext>): Promise<NamespaceName> {
+    return resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+  }
+
+  protected async throwIfNamespaceIsMissing(context: Context, namespace: NamespaceName): Promise<void> {
+    if (!(await this.k8Factory.getK8(context).namespaces().has(namespace))) {
+      throw new SoloError(`namespace ${namespace} does not exist`);
+    }
+  }
+
+  private inferMirrorNodeDataFromRemoteConfig(namespace: NamespaceName): {
+    mirrorNodeId: ComponentId;
+    mirrorNamespace: NamespaceNameAsString;
+  } {
+    let mirrorNodeId: ComponentId = this.configManager.getFlag(flags.mirrorNodeId);
+    let mirrorNamespace: NamespaceNameAsString = this.configManager.getFlag(flags.mirrorNamespace);
+
+    const mirrorNodeComponent: Optional<BaseStateSchema> =
+      this.remoteConfig.configuration.components.state.mirrorNodes[0];
+
+    if (!mirrorNodeId) {
+      mirrorNodeId = mirrorNodeComponent?.metadata.id ?? 1;
+    }
+
+    if (!mirrorNamespace) {
+      mirrorNamespace = mirrorNodeComponent?.metadata.namespace ?? namespace.name;
+    }
+
+    return {mirrorNodeId, mirrorNamespace};
+  }
+
+  protected async inferMirrorNodeData(
+    namespace: NamespaceName,
+    context: Context,
+  ): Promise<{
+    mirrorNodeId: ComponentId;
+    mirrorNamespace: NamespaceNameAsString;
+    mirrorNodeReleaseName: string;
+  }> {
+    const {mirrorNodeId, mirrorNamespace} = this.inferMirrorNodeDataFromRemoteConfig(namespace);
+
+    const mirrorNodeReleaseName: string = await this.inferMirrorNodeReleaseName(mirrorNodeId, mirrorNamespace, context);
+
+    return {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName};
+  }
+
+  private async inferMirrorNodeReleaseName(
+    mirrorNodeId: ComponentId,
+    mirrorNodeNamespace: string,
+    context: Context,
+  ): Promise<string> {
+    if (mirrorNodeId !== 1) {
+      return Templates.renderMirrorNodeName(mirrorNodeId);
+    }
+
+    // Try to get the component and use the precise cluster context
+    try {
+      const mirrorNodeComponent: BaseStateSchema = this.remoteConfig.configuration.components.getComponentById(
+        ComponentTypes.MirrorNode,
+        mirrorNodeId,
+      );
+
+      if (mirrorNodeComponent) {
+        context = this.getClusterContext(mirrorNodeComponent.metadata.cluster);
+      }
+    } catch {
+      // Guard
+    }
+
+    const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
+      NamespaceName.of(mirrorNodeNamespace),
+      constants.MIRROR_NODE_RELEASE_NAME,
+      context,
+    );
+
+    return isLegacyChartInstalled ? constants.MIRROR_NODE_RELEASE_NAME : Templates.renderMirrorNodeName(mirrorNodeId);
   }
 }

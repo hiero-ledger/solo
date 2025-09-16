@@ -17,6 +17,7 @@ import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
+import {Templates} from '../../../../src/core/templates.js';
 import {ExplorerCommandDefinition} from '../../../../src/commands/command-definitions/explorer-command-definition.js';
 
 export class ExplorerTest extends BaseCommandTest {
@@ -73,13 +74,7 @@ export class ExplorerTest extends BaseCommandTest {
   ): Promise<void> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
     const k8: K8 = k8Factory.getK8(contexts[1]);
-    const explorerPods: Pod[] = await k8
-      .pods()
-      .list(namespace, [
-        'app.kubernetes.io/instance=hiero-explorer',
-        'app.kubernetes.io/name=hiero-explorer-chart',
-        'app.kubernetes.io/component=hiero-explorer',
-      ]);
+    const explorerPods: Pod[] = await k8.pods().list(namespace, Templates.renderExplorerLabels(1));
     expect(explorerPods).to.have.lengthOf(1);
     try {
       await sleep(Duration.ofSeconds(2));

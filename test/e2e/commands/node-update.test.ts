@@ -119,7 +119,7 @@ endToEndTestSuite(namespace.name, argv, {}, (bootstrapResp: BootstrapResponse): 
         .getK8(mirrorClusterReference)
         .pods()
         .list(namespace, [
-          'app.kubernetes.io/instance=mirror',
+          'app.kubernetes.io/instance=mirror-1',
           'app.kubernetes.io/name=rest',
           'app.kubernetes.io/component=rest',
         ]);

@@ -14,6 +14,7 @@ import {
 import {type QuickStartSingleDeployContext} from '../../commands/quick-start/quick-start-single-deploy-context.js';
 import {type TaskListWrapper} from './task-list-wrapper.js';
 import {type QuickStartSingleDestroyContext} from '../../commands/quick-start/quick-start-single-destroy-context.js';
+import {type AnyListrContext} from '../../types/aliases.js';
 
 export type TaskNodeType = {
   taskListWrapper: TaskListWrapper;
@@ -67,7 +68,7 @@ export interface TaskList<
 
   parentTaskListMap: Map<string, TaskNodeType>;
 
-  newTaskList<T = ListrContext>(
+  newTaskList<T = AnyListrContext>(
     task:
       | ListrTask<T, ListrGetRendererClassFromValue<Renderer>, ListrGetRendererClassFromValue<FallbackRenderer>>
       | ListrTask<T, ListrGetRendererClassFromValue<Renderer>, ListrGetRendererClassFromValue<FallbackRenderer>>[],

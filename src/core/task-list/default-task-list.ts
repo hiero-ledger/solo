@@ -15,6 +15,7 @@ import {
 import {QuickStartSingleDeployContext} from '../../commands/quick-start/quick-start-single-deploy-context.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {patchInject} from '../dependency-injection/container-helper.js';
+import {AnyListrContext} from '../../types/aliases.js';
 import {QuickStartSingleDestroyContext} from '../../commands/quick-start/quick-start-single-destroy-context.js';
 
 @injectable()
@@ -73,7 +74,7 @@ export class DefaultTaskList<
 
   public parentTaskListMap: Map<string, TaskNodeType> = new Map();
 
-  public newTaskList<T = ListrContext>(
+  public newTaskList<T = AnyListrContext>(
     task:
       | ListrTask<T, ListrGetRendererClassFromValue<Renderer>, ListrGetRendererClassFromValue<FallbackRenderer>>
       | ListrTask<T, ListrGetRendererClassFromValue<Renderer>, ListrGetRendererClassFromValue<FallbackRenderer>>[],
