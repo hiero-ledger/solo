@@ -45,7 +45,7 @@ jobs:
       version: ${{ steps.tag.outputs.version }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
         with:
           egress-policy: audit
 
@@ -94,7 +94,7 @@ jobs:
       - prepare-release
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
         with:
           egress-policy: audit
 
@@ -152,7 +152,7 @@ jobs:
           path: /home/runner/.npm/_logs
 
       - name: Setup JFrog CLI
-        uses: jfrog/setup-jfrog-cli@751c204e8e1d3fe053e30218a2143ab4fe100d95 # v4.6.0
+        uses: jfrog/setup-jfrog-cli@88e9eba31c07e31beefa4cef5c0e93d1af9535d7 # v4.6.1
         env:
           JF_URL: ${{ vars.JF_URL }}
           JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
@@ -210,7 +210,7 @@ jobs:
       - prepare-release
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
         with:
           egress-policy: audit
 

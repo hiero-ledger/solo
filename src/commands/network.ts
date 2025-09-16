@@ -72,7 +72,6 @@ export interface NetworkDeployConfigClass {
   applicationEnv: string;
   cacheDir: string;
   chartDirectory: string;
-  enablePrometheusSvcMonitor: boolean;
   loadBalancerEnabled: boolean;
   soloChartVersion: string;
   namespace: NamespaceName;
@@ -124,6 +123,8 @@ export interface NetworkDeployConfigClass {
   blockNodeComponents: BlockNodeStateSchema[];
   debugNodeAlias: NodeAlias;
   app: string;
+  serviceMonitor: string;
+  podLog: string;
 }
 
 interface NetworkDeployContext {
@@ -180,7 +181,6 @@ export class NetworkCommand extends BaseCommand {
       flags.cacheDir,
       flags.chainId,
       flags.chartDirectory,
-      flags.enablePrometheusSvcMonitor,
       flags.soloChartVersion,
       flags.debugNodeAlias,
       flags.loadBalancerEnabled,
@@ -218,6 +218,8 @@ export class NetworkCommand extends BaseCommand {
       flags.backupRegion,
       flags.backupProvider,
       flags.domainNames,
+      flags.serviceMonitor,
+      flags.podLog,
     ],
   };
 
@@ -536,7 +538,9 @@ export class NetworkCommand extends BaseCommand {
     for (const clusterReference of clusterReferences) {
       valuesArguments[clusterReference] +=
         ' --install' +
-        ` --set "telemetry.prometheus.svcMonitor.enabled=${config.enablePrometheusSvcMonitor}"` +
+        ` --set "telemetry.prometheus.svcMonitor.enabled=false"` + // remove after chart version is bumped
+        ` --set "crds.serviceMonitor.enabled=${config.serviceMonitor}"` +
+        ` --set "crds.podLog.enabled=${config.podLog}"` +
         ` --set "defaults.volumeClaims.enabled=${config.persistentVolumeClaims}"`;
     }
 

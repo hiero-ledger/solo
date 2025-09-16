@@ -9,6 +9,7 @@ import {type ProfileManager} from '../core/profile-manager.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
+import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {
   type AnyListrContext,
   type ArgvStruct,
@@ -35,7 +36,6 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {Templates} from '../core/templates.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
-import {CommandFlag, CommandFlags} from '../types/flag-types.js';
 import {Lock} from '../core/lock/lock.js';
 import {NodeServiceMapping} from '../types/mappings/node-service-mapping.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
@@ -44,6 +44,7 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {Duration} from '../core/time/duration.js';
 import {Version} from '../business/utils/version.js';
+import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {SemVer} from 'semver';
 
 interface RelayDestroyConfigClass {
@@ -526,7 +527,7 @@ export class RelayCommand extends BaseCommand {
             const config: RelayDeployConfigClass = this.configManager.getConfig(
               RelayCommand.DEPLOY_CONFIGS_NAME,
               allFlags,
-              [],
+              ['nodeAliases'],
             ) as RelayDeployConfigClass;
 
             context_.config = config;

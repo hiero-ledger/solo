@@ -42,6 +42,30 @@ export class ExplorerTest extends BaseCommandTest {
     return argv;
   }
 
+  private static soloExplorerDestroyArgv(
+    testName: string,
+    deployment: DeploymentName,
+    clusterReference: ClusterReferenceName,
+  ): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = ExplorerTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ExplorerCommandDefinition.COMMAND_NAME,
+      ExplorerCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ExplorerCommandDefinition.NODE_DESTROY,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.clusterRef),
+      clusterReference,
+      optionFromFlag(Flags.force),
+      optionFromFlag(Flags.quiet),
+      optionFromFlag(Flags.devMode),
+    );
+    argvPushGlobalFlags(argv, testName, false, true);
+    return argv;
+  }
+
   private static async verifyExplorerDeployWasSuccessful(
     contexts: string[],
     namespace: NamespaceName,
@@ -106,6 +130,15 @@ export class ExplorerTest extends BaseCommandTest {
 
     it(`${testName}: explorer node add`, async (): Promise<void> => {
       await main(soloExplorerDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
+    }).timeout(Duration.ofMinutes(5).toMillis());
+  }
+
+  public static destroy(options: BaseTestOptions): void {
+    const {testName, deployment, clusterReferenceNameArray} = options;
+    const {soloExplorerDestroyArgv} = ExplorerTest;
+
+    it(`${testName}: explorer node destroy`, async (): Promise<void> => {
+      await main(soloExplorerDestroyArgv(testName, deployment, clusterReferenceNameArray[1]));
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 }
