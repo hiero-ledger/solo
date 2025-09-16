@@ -132,7 +132,15 @@ export class BlockNodeCommand extends BaseCommand {
 
   public static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.devMode, flags.force, flags.quiet, flags.valuesFile, flags.upgradeVersion],
+    optional: [
+      flags.chartDirectory,
+      flags.clusterRef,
+      flags.devMode,
+      flags.force,
+      flags.quiet,
+      flags.valuesFile,
+      flags.upgradeVersion,
+    ],
   };
 
   private async prepareValuesArgForBlockNode(
