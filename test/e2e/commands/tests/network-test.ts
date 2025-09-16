@@ -11,10 +11,14 @@ import {Templates} from '../../../../src/core/templates.js';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';
 import {expect} from 'chai';
-import {type DeploymentName} from '../../../../src/types/index.js';
+import {type Context, type DeploymentName} from '../../../../src/types/index.js';
 import {Flags} from '../../../../src/commands/flags.js';
 import {type BaseTestOptions} from './base-test-options.js';
 import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
+import {it} from 'mocha';
+import {sleep} from '../../../../src/core/helpers.js';
+import * as constants from '../../../../src/core/constants.js';
+import {type ChartManager} from '../../../../src/core/chart-manager.js';
 
 export class NetworkTest extends BaseCommandTest {
   private static soloNetworkDeployArgv(
@@ -107,5 +111,46 @@ export class NetworkTest extends BaseCommandTest {
     it(`${testName}: consensus network destroy`, async (): Promise<void> => {
       await main(soloNetworkDestroyArgv(testName, deployment));
     });
+
+    it(`${testName}: consensus network destroy should success`, async (): Promise<void> => {
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+      const chartManager: ChartManager = container.resolve<ChartManager>(InjectTokens.ChartManager);
+      const {namespace, contexts: contextRecord} = options;
+
+      // convert iterator into array
+      const contexts: string[] = [...contextRecord.values()];
+
+      async function getPodsCountInMultipleNamespaces(label: string[]): Promise<number> {
+        return await Promise.all(
+          contexts.map((context: Context): Promise<Pod[]> => k8Factory.getK8(context).pods().list(namespace, label)),
+        ).then((results): number => results.flat().length);
+      }
+
+      async function waitUntilPodsGone(label: string[]): Promise<void> {
+        while (true) {
+          const podsCount: number = await getPodsCountInMultipleNamespaces(label);
+          if (podsCount === 0) {
+            return;
+          }
+
+          await sleep(Duration.ofSeconds(3));
+        }
+      }
+
+      await waitUntilPodsGone(['solo.hedera.com/type=network-node']);
+      await waitUntilPodsGone(['app=minio']);
+
+      const isChartInstalled: boolean = await chartManager.isChartInstalled(namespace, constants.SOLO_DEPLOYMENT_CHART);
+
+      expect(isChartInstalled).to.be.false;
+
+      // check if pvc are deleted
+      await expect(k8Factory.getK8(contexts[0]).pvcs().list(namespace, [])).eventually.to.have.lengthOf(0);
+      await expect(k8Factory.getK8(contexts[1]).pvcs().list(namespace, [])).eventually.to.have.lengthOf(0);
+
+      // check if secrets are deleted
+      await expect(k8Factory.getK8(contexts[0]).secrets().list(namespace)).eventually.to.have.lengthOf(0);
+      await expect(k8Factory.getK8(contexts[1]).secrets().list(namespace)).eventually.to.have.lengthOf(0);
+    }).timeout(Duration.ofMinutes(2).toMillis());
   }
 }
