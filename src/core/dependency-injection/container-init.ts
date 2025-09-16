@@ -9,6 +9,7 @@ import {
   HelmDependencyManager,
   KindDependencyManager,
   KubectlDependencyManager,
+  PodmanDependencyManager,
 } from '../dependency-managers/index.js';
 import * as constants from '../constants.js';
 import {ChartManager} from '../chart-manager.js';
@@ -77,6 +78,7 @@ import {LedgerCommandDefinition} from '../../commands/command-definitions/ledger
 import {MirrorCommandDefinition} from '../../commands/command-definitions/mirror-command-definition.js';
 import {OneShotCommandDefinition} from '../../commands/command-definitions/one-shot-command-definition.js';
 import {RelayCommandDefinition} from '../../commands/command-definitions/relay-command-definition.js';
+import {DefaultKindClientBuilder} from '../../integration/kind/impl/default-kind-client-builder.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -109,11 +111,13 @@ export class Container {
       new SingletonContainer(InjectTokens.PackageDownloader, PackageDownloader),
       new SingletonContainer(InjectTokens.Zippy, Zippy),
       new SingletonContainer(InjectTokens.DependencyManager, DependencyManager),
+      new SingletonContainer(InjectTokens.KindBuilder, DefaultKindClientBuilder),
       new SingletonContainer(InjectTokens.Helm, DefaultHelmClient),
       new SingletonContainer(InjectTokens.HelmExecutionBuilder, HelmExecutionBuilder),
       new SingletonContainer(InjectTokens.HelmDependencyManager, HelmDependencyManager),
       new SingletonContainer(InjectTokens.KindDependencyManager, KindDependencyManager),
       new SingletonContainer(InjectTokens.KubectlDependencyManager, KubectlDependencyManager),
+      new SingletonContainer(InjectTokens.PodmanDependencyManager, PodmanDependencyManager),
       new SingletonContainer(InjectTokens.ChartManager, ChartManager),
       new SingletonContainer(InjectTokens.ConfigManager, ConfigManager),
       new SingletonContainer(InjectTokens.AccountManager, AccountManager),
@@ -182,9 +186,11 @@ export class Container {
       new ValueContainer(InjectTokens.HelmInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.KindInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.KubectlInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
+      new ValueContainer(InjectTokens.PodmanInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.HelmVersion, version.HELM_VERSION),
       new ValueContainer(InjectTokens.KindVersion, version.KIND_VERSION),
       new ValueContainer(InjectTokens.KubectlVersion, version.KUBECTL_VERSION),
+      new ValueContainer(InjectTokens.PodmanVersion, version.PODMAN_VERSION),
       new ValueContainer(InjectTokens.SystemAccounts, constants.SYSTEM_ACCOUNTS),
       new ValueContainer(InjectTokens.CacheDir, cacheDirectory),
       new ValueContainer(InjectTokens.LocalConfigFileName, constants.DEFAULT_LOCAL_CONFIG_FILE),
