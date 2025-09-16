@@ -67,26 +67,18 @@ export interface TaskList<
 
   parentTaskListMap: Map<string, TaskNodeType>;
 
-  newTaskList(
+  newTaskList<T = ListrContext>(
     task:
-      | ListrTask<
-          ListrContext,
-          ListrGetRendererClassFromValue<Renderer>,
-          ListrGetRendererClassFromValue<FallbackRenderer>
-        >
-      | ListrTask<
-          ListrContext,
-          ListrGetRendererClassFromValue<Renderer>,
-          ListrGetRendererClassFromValue<FallbackRenderer>
-        >[],
-    options?: ListrBaseClassOptions<ListrContext, Renderer, FallbackRenderer>,
+      | ListrTask<T, ListrGetRendererClassFromValue<Renderer>, ListrGetRendererClassFromValue<FallbackRenderer>>
+      | ListrTask<T, ListrGetRendererClassFromValue<Renderer>, ListrGetRendererClassFromValue<FallbackRenderer>>[],
+    options?: ListrBaseClassOptions<T, Renderer, FallbackRenderer>,
     parentTask?: ListrTaskObject<
-      ListrContext,
+      T,
       ListrGetRendererClassFromValue<Renderer>,
       ListrGetRendererClassFromValue<FallbackRenderer>
     >,
     commandName?: string,
-  ): Listr<ListrContext, Renderer, FallbackRenderer>;
+  ): Listr<T, Renderer, FallbackRenderer>;
 
   registerCloseFunction(trailingCloseFunction: () => Promise<void>): void;
 
