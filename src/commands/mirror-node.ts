@@ -179,10 +179,11 @@ export class MirrorNodeCommand extends BaseCommand {
   private static readonly UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment, flags.clusterRef],
+    required: [flags.deployment],
     optional: [
       flags.cacheDir,
       flags.chartDirectory,
+      flags.clusterRef,
       flags.enableIngress,
       flags.ingressControllerValueFile,
       flags.mirrorStaticIp,

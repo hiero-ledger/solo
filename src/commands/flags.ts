@@ -1289,7 +1289,7 @@ export class Flags {
     constName: 'ed25519PrivateKey',
     name: 'ed25519-private-key',
     definition: {
-      describe: 'ED25519 private key for the Hedera account',
+      describe: 'Specify a hex-encoded ED25519 private key for the Hedera account',
       defaultValue: '',
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
@@ -1324,7 +1324,7 @@ export class Flags {
     constName: 'ecdsaPrivateKey',
     name: 'ecdsa-private-key',
     definition: {
-      describe: 'ECDSA private key for the Hedera account',
+      describe: 'Specify a hex-encoded ECDSA private key for the Hedera account',
       defaultValue: '',
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
