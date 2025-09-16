@@ -9,6 +9,7 @@ import sinon from 'sinon';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
+import {DefaultKindClient} from '../../../../src/integration/kind/impl/default-kind-client.js';
 
 describe('InitCommand', () => {
   let sandbox = sinon.createSandbox();
@@ -17,6 +18,7 @@ describe('InitCommand', () => {
   before(() => {
     sandbox = sinon.createSandbox();
     sandbox.stub(K8Client.prototype, 'init').callsFake(() => this);
+    sandbox.stub(DefaultKindClient.prototype, 'createCluster').callsFake(() => this);
     initCmd = container.resolve(InjectTokens.InitCommand);
   });
 

@@ -10,6 +10,7 @@ import * as semver from 'semver';
 import {OS_WIN32, OS_WINDOWS} from '../constants.js';
 import {MissingArgumentError} from '../errors/missing-argument-error.js';
 import {SoloError} from '../errors/solo-error.js';
+import {PathEx} from '../../business/utils/path-ex.js';
 
 /**
  * Base class for dependency managers that download and manage CLI tools
@@ -76,7 +77,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
    * Handle any post-download processing before copying to destination
    * Child classes can override this for custom extraction or processing
    */
-  protected abstract processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string>;
+  protected abstract processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string[]>;
 
   /**
    * Get the path to the executable (global or local)
@@ -144,9 +145,29 @@ export abstract class BaseDependencyManager extends ShellRunner {
   }
 
   /**
+   * Hook for any pre-installation steps
+   */
+  protected async preInstall(): Promise<void> {}
+
+  /**
+   * Hook to determine if installation should proceed
+   * Child classes can override this for custom logic
+   */
+  protected async shouldInstall(): Promise<boolean> {
+    return true;
+  }
+
+  /**
    * Install the tool
    */
   public async install(temporaryDirectory: string = helpers.getTemporaryDirectory()): Promise<boolean> {
+    if (!(await this.shouldInstall())) {
+      this.logger.debug(`Skipping installation of ${this.executableName}`);
+      return true;
+    }
+
+    await this.preInstall();
+
     // Check if it is already installed locally
     if (await this.isInstalledLocallyAndMeetsRequirements()) {
       this.logger.debug(
@@ -166,11 +187,11 @@ export abstract class BaseDependencyManager extends ShellRunner {
     // If not installed, download and install
     this.logger.debug(`Downloading and installing ${this.executableName} executable...`);
     const packageFile: string = await this.downloader!.fetchPackage(
-      this.downloadURL,
-      this.checksumURL,
+      this.getDownloadURL(),
+      this.getChecksumURL(),
       temporaryDirectory,
     );
-    const processedFile: string = await this.processDownloadedPackage(packageFile, temporaryDirectory);
+    const processedFiles: string[] = await this.processDownloadedPackage(packageFile, temporaryDirectory);
 
     if (!fs.existsSync(this.installationDirectory!)) {
       fs.mkdirSync(this.installationDirectory!, {recursive: true});
@@ -180,8 +201,12 @@ export abstract class BaseDependencyManager extends ShellRunner {
     this.uninstallLocal();
 
     try {
-      fs.cpSync(processedFile, this.localExecutablePath);
-      fs.chmodSync(this.localExecutablePath, 0o755);
+      for (const processedFile of processedFiles) {
+        const fileName: string = processedFile.split(/[\\/]/).pop();
+        const localExecutable: string = PathEx.join(this.installationDirectory, fileName);
+        fs.cpSync(processedFile, localExecutable);
+        fs.chmodSync(localExecutable, 0o755);
+      }
     } catch (error: Error | any) {
       throw new SoloError(`Failed to install ${this.executableName}: ${error.message}`);
     }
