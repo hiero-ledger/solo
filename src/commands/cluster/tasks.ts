@@ -28,7 +28,7 @@ import {StringFacade} from '../../business/runtime-state/facade/string-facade.js
 import {Lock} from '../../core/lock/lock.js';
 import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';
 import * as versions from '../../../version.js';
-import * as fs from 'fs';
+import * as fs from 'node:fs';
 import * as yaml from 'yaml';
 import {PathEx} from '../../business/utils/path-ex.js';
 
@@ -392,7 +392,7 @@ export class ClusterCommandTasks {
         try {
           // Check if ClusterRole exists using Kubernetes JavaScript API
           await k8.rbac().readClusterRole(constants.POD_MONITOR_ROLE);
-          
+
           // ClusterRole exists, delete it
           await k8.rbac().deleteClusterRole(constants.POD_MONITOR_ROLE);
           self.logger.showUser('✅ ClusterRole pod-monitor-role uninstalled successfully');
