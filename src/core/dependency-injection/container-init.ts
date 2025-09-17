@@ -65,7 +65,7 @@ import {DefaultConfigSource} from '../../data/configuration/impl/default-config-
 import {type SoloConfigSchema} from '../../data/schema/model/solo/solo-config-schema.js';
 import {SoloConfigSchemaDefinition} from '../../data/schema/migration/impl/solo/solo-config-schema-definition.js';
 import {BeanFactorySupplier} from './bean-factory-supplier.js';
-import {DefaultQuickStartCommand} from '../../commands/quick-start/default-quick-start.js';
+import {DefaultOneShotCommand} from '../../commands/one-shot/default-one-shot.js';
 import {DefaultTaskList} from '../task-list/default-task-list.js';
 import {Commands} from '../../commands/commands.js';
 import {BlockCommandDefinition} from '../../commands/command-definitions/block-command-definition.js';
@@ -76,7 +76,7 @@ import {ExplorerCommandDefinition} from '../../commands/command-definitions/expl
 import {KeysCommandDefinition} from '../../commands/command-definitions/keys-command-definition.js';
 import {LedgerCommandDefinition} from '../../commands/command-definitions/ledger-command-definition.js';
 import {MirrorCommandDefinition} from '../../commands/command-definitions/mirror-command-definition.js';
-import {QuickStartCommandDefinition} from '../../commands/command-definitions/quick-start-command-definition.js';
+import {OneShotCommandDefinition} from '../../commands/command-definitions/one-shot-command-definition.js';
 import {RelayCommandDefinition} from '../../commands/command-definitions/relay-command-definition.js';
 import {DefaultKindClientBuilder} from '../../integration/kind/impl/default-kind-client-builder.js';
 
@@ -153,7 +153,7 @@ export class Container {
       new SingletonContainer(InjectTokens.ObjectMapper, ClassToObjectMapper),
       new SingletonContainer(InjectTokens.ComponentFactory, ComponentFactory),
       new SingletonContainer(InjectTokens.RemoteConfigValidator, RemoteConfigValidator),
-      new SingletonContainer(InjectTokens.QuickStartCommand, DefaultQuickStartCommand),
+      new SingletonContainer(InjectTokens.OneShotCommand, DefaultOneShotCommand),
       new SingletonContainer(InjectTokens.TaskList, DefaultTaskList),
       new SingletonContainer(InjectTokens.Commands, Commands),
 
@@ -167,7 +167,7 @@ export class Container {
       new SingletonContainer(InjectTokens.LedgerCommandDefinition, LedgerCommandDefinition),
       new SingletonContainer(InjectTokens.MirrorCommandDefinition, MirrorCommandDefinition),
       new SingletonContainer(InjectTokens.RelayCommandDefinition, RelayCommandDefinition),
-      new SingletonContainer(InjectTokens.QuickStartCommandDefinition, QuickStartCommandDefinition),
+      new SingletonContainer(InjectTokens.OneShotCommandDefinition, OneShotCommandDefinition),
     ];
   }
 
