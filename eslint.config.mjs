@@ -208,7 +208,6 @@ export default [
           ignore: ['.*\\.d\\.ts$'], // Ignore TypeScript declaration files if needed
         },
       ],
-      'unicorn/prefer-spread': 'warn', // TODO error
       'unicorn/no-null': 'warn', // TODO error
       'unicorn/text-encoding-identifier-case': 'warn', // TODO error
       'unicorn/catch-error-name': 'warn', // TODO error
