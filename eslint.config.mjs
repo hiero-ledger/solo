@@ -218,7 +218,6 @@ export default [
       'unicorn/prefer-optional-catch-binding': 'warn', // TODO error
       'unicorn/no-await-expression-member': 'warn', // TODO error
       'unicorn/no-array-push-push': 'warn', // TODO error
-      'unicorn/prefer-ternary': 'warn', // TODO error
       'unicorn/prefer-logical-operator-over-ternary': 'warn', // TODO error
     },
   },
