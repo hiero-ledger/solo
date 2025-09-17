@@ -346,8 +346,6 @@ export class NodeTest extends BaseCommandTest {
     const {testName} = options;
     const {soloNodeAddArgv} = NodeTest;
 
-    console.log(options);
-
     it(`${testName}: consensus node add`, async (): Promise<void> => {
       await main(soloNodeAddArgv(options));
     }).timeout(Duration.ofMinutes(10).toMillis());
