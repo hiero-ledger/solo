@@ -2236,6 +2236,18 @@ export class NodeCommandTasks {
           }
         }
 
+        console.log({
+          consensusNodes: consensusNodes,
+          valuesArgumentMap: valuesArgumentMap,
+          serviceMap: config.serviceMap,
+          clusterNodeIndexMap: clusterNodeIndexMap,
+          'config.clusterRef': (config as NodeAddConfigClass).clusterRef,
+          nodeId: nodeId,
+          'config.nodeAlias': config.nodeAlias,
+          'config.newNode': (context_ as NodeAddContext).newNode,
+          config: config as NodeAddConfigClass,
+        });
+
         switch (transactionType) {
           case NodeSubcommandType.UPDATE: {
             this.prepareValuesArgForNodeUpdate(
