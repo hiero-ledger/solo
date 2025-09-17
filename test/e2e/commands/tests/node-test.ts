@@ -2,7 +2,7 @@
 
 import {BaseCommandTest} from './base-command-test.js';
 import {main} from '../../../../src/index.js';
-import {ClusterReferenceName, type ClusterReferences, type DeploymentName} from '../../../../src/types/index.js';
+import {type ClusterReferenceName, type ClusterReferences, type DeploymentName} from '../../../../src/types/index.js';
 import {Flags as flags, Flags} from '../../../../src/commands/flags.js';
 import fs from 'node:fs';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
