@@ -71,7 +71,7 @@ export class InjectTokens {
   public static LocalConfigSource: symbol = Symbol.for('LocalConfigSource');
   public static LocalConfigRuntimeState: symbol = Symbol.for('LocalConfigRuntimeState');
   public static HomeDirectory: symbol = Symbol.for('HomeDirectory');
-  public static QuickStartCommand: symbol = Symbol.for('QuickStartCommand');
+  public static OneShotCommand: symbol = Symbol.for('OneShotCommand');
   public static TaskList: symbol = Symbol.for('TaskList');
   public static Commands: symbol = Symbol.for('Commands');
 
@@ -85,5 +85,5 @@ export class InjectTokens {
   public static LedgerCommandDefinition: symbol = Symbol.for('LedgerCommandDefinition');
   public static MirrorCommandDefinition: symbol = Symbol.for('MirrorCommandDefinition');
   public static RelayCommandDefinition: symbol = Symbol.for('RelayCommandDefinition');
-  public static QuickStartCommandDefinition: symbol = Symbol.for('QuickStartCommandDefinition');
+  public static OneShotCommandDefinition: symbol = Symbol.for('OneShotCommandDefinition');
 }

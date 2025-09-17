@@ -13,11 +13,11 @@ import {v4 as uuid4} from 'uuid';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {StringEx} from '../../business/utils/string-ex.js';
 import {ArgumentProcessor} from '../../argument-processor.js';
-import {QuickStartCommand} from './quick-start.js';
-import {QuickStartSingleDeployConfigClass} from './quick-start-single-deploy-config-class.js';
-import {QuickStartSingleDeployContext} from './quick-start-single-deploy-context.js';
-import {QuickStartSingleDestroyConfigClass} from './quick-start-single-destroy-config-class.js';
-import {QuickStartSingleDestroyContext} from './quick-start-single-destroy-context.js';
+import {OneShotCommand} from './one-shot.js';
+import {OneShotSingleDeployConfigClass} from './one-shot-single-deploy-config-class.js';
+import {OneShotSingleDeployContext} from './one-shot-single-deploy-context.js';
+import {OneShotSingleDestroyConfigClass} from './one-shot-single-destroy-config-class.js';
+import {OneShotSingleDestroyContext} from './one-shot-single-destroy-context.js';
 import {InitCommand} from '../init/init.js';
 import {TaskList} from '../../core/task-list/task-list.js';
 import {TaskListWrapper} from '../../core/task-list/task-list-wrapper.js';
@@ -47,7 +47,7 @@ import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import fs from 'node:fs';
 
 @injectable()
-export class DefaultQuickStartCommand extends BaseCommand implements QuickStartCommand {
+export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
   private static readonly SINGLE_ADD_CONFIGS_NAME: string = 'singleAddConfigs';
 
   private static readonly SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';
@@ -126,32 +126,32 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
   }
 
   public async deploy(argv: ArgvStruct): Promise<boolean> {
-    let config: QuickStartSingleDeployConfigClass | null = null;
+    let config: OneShotSingleDeployConfigClass | null = null;
 
-    const tasks: Listr<QuickStartSingleDeployContext, ListrRendererValue, ListrRendererValue> =
-      this.taskList.newQuickStartSingleDeployTaskList(
+    const tasks: Listr<OneShotSingleDeployContext, ListrRendererValue, ListrRendererValue> =
+      this.taskList.newOneShotSingleDeployTaskList(
         [
           {
             title: 'Initialize',
             task: async (
-              context_: QuickStartSingleDeployContext,
-              task: SoloListrTaskWrapper<QuickStartSingleDeployContext>,
+              context_: OneShotSingleDeployContext,
+              task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
             ): Promise<void> => {
               this.configManager.update(argv);
 
-              flags.disablePrompts(DefaultQuickStartCommand.SINGLE_ADD_FLAGS_LIST.optional);
+              flags.disablePrompts(DefaultOneShotCommand.SINGLE_ADD_FLAGS_LIST.optional);
 
               const allFlags: CommandFlag[] = [
-                ...DefaultQuickStartCommand.SINGLE_ADD_FLAGS_LIST.required,
-                ...DefaultQuickStartCommand.SINGLE_ADD_FLAGS_LIST.optional,
+                ...DefaultOneShotCommand.SINGLE_ADD_FLAGS_LIST.required,
+                ...DefaultOneShotCommand.SINGLE_ADD_FLAGS_LIST.optional,
               ];
 
               await this.configManager.executePrompt(task, allFlags);
 
               context_.config = this.configManager.getConfig(
-                DefaultQuickStartCommand.SINGLE_ADD_CONFIGS_NAME,
+                DefaultOneShotCommand.SINGLE_ADD_CONFIGS_NAME,
                 allFlags,
-              ) as QuickStartSingleDeployConfigClass;
+              ) as OneShotSingleDeployConfigClass;
               config = context_.config;
 
               const uniquePostfix: string = uuid4().slice(-8);
@@ -344,14 +344,14 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
             title: 'Create Accounts',
             skip: () => config.predefinedAccounts === false,
             task: async (
-              context_: QuickStartSingleDeployContext,
-              task: SoloListrTaskWrapper<QuickStartSingleDeployContext>,
-            ): Promise<Listr<QuickStartSingleDeployContext>> => {
+              context_: OneShotSingleDeployContext,
+              task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+            ): Promise<Listr<OneShotSingleDeployContext>> => {
               await this.localConfig.load();
               await this.remoteConfig.loadAndValidate(argv);
 
               const self = this;
-              const subTasks: SoloListrTask<QuickStartSingleDeployContext>[] = [];
+              const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [];
 
               const accountsToCreate = [
                 ...predefinedEcdsaAccounts,
@@ -371,8 +371,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
                   subTasks.push({
                     title: `Creating Account ${index}`,
                     task: async (
-                      context_: QuickStartSingleDeployContext,
-                      subTask: SoloListrTaskWrapper<QuickStartSingleDeployContext>,
+                      context_: OneShotSingleDeployContext,
+                      subTask: SoloListrTaskWrapper<OneShotSingleDeployContext>,
                     ): Promise<void> => {
                       await helpers.sleep(Duration.ofMillis(100 * index));
 
@@ -407,8 +407,8 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
           },
           {
             title: 'Finish',
-            task: async (context_: QuickStartSingleDeployContext): Promise<void> => {
-              this.showQuickStartUserNotes(context_);
+            task: async (context_: OneShotSingleDeployContext): Promise<void> => {
+              this.showOneShotUserNotes(context_);
               this.showVersions();
               this.showPortForwards();
               this.showCreatedAccounts(context_.createdAccounts);
@@ -426,7 +426,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error deploying Solo in quick-start mode: ${error.message}`, error);
+      throw new SoloError(`Error deploying Solo in one-shot mode: ${error.message}`, error);
     } finally {
       await this.taskList
         .callCloseFunctions()
@@ -439,9 +439,9 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     return true;
   }
 
-  private showQuickStartUserNotes(context_: QuickStartSingleDeployContext): void {
-    const messageGroupKey: string = 'quick-start-user-notes';
-    this.logger.addMessageGroup(messageGroupKey, 'Quick Start User Notes');
+  private showOneShotUserNotes(context_: OneShotSingleDeployContext): void {
+    const messageGroupKey: string = 'one-shot-user-notes';
+    this.logger.addMessageGroup(messageGroupKey, 'One Shot User Notes');
     this.logger.addMessageGroupMessage(messageGroupKey, `Cluster Reference: ${context_.config.clusterRef}`);
     this.logger.addMessageGroupMessage(messageGroupKey, `Deployment Name: ${context_.config.deployment}`);
     this.logger.addMessageGroupMessage(messageGroupKey, `Namespace Name: ${context_.config.namespace.name}`);
@@ -541,28 +541,28 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
-    let config: QuickStartSingleDestroyConfigClass;
+    let config: OneShotSingleDestroyConfigClass;
 
-    const tasks: SoloListr<QuickStartSingleDestroyContext> = this.taskList.newQuickStartSingleDestroyTaskList(
+    const tasks: SoloListr<OneShotSingleDestroyContext> = this.taskList.newOneShotSingleDestroyTaskList(
       [
         {
           title: 'Initialize',
           task: async (context_, task): Promise<void> => {
             this.configManager.update(argv);
 
-            flags.disablePrompts(DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST.optional);
+            flags.disablePrompts(DefaultOneShotCommand.SINGLE_DESTROY_FLAGS_LIST.optional);
 
             const allFlags: CommandFlag[] = [
-              ...DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST.required,
-              ...DefaultQuickStartCommand.SINGLE_DESTROY_FLAGS_LIST.optional,
+              ...DefaultOneShotCommand.SINGLE_DESTROY_FLAGS_LIST.required,
+              ...DefaultOneShotCommand.SINGLE_DESTROY_FLAGS_LIST.optional,
             ];
 
             await this.configManager.executePrompt(task, allFlags);
 
             context_.config = this.configManager.getConfig(
-              DefaultQuickStartCommand.SINGLE_DESTROY_CONFIGS_NAME,
+              DefaultOneShotCommand.SINGLE_DESTROY_CONFIGS_NAME,
               allFlags,
-            ) as QuickStartSingleDestroyConfigClass;
+            ) as OneShotSingleDestroyConfigClass;
 
             config = context_.config;
 
@@ -696,7 +696,7 @@ export class DefaultQuickStartCommand extends BaseCommand implements QuickStartC
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error destroying Solo in quick-start mode: ${error.message}`, error);
+      throw new SoloError(`Error destroying Solo in one-shot mode: ${error.message}`, error);
     } finally {
       await this.taskList
         .callCloseFunctions()

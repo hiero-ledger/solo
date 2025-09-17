@@ -27,7 +27,7 @@ platform.
   * [Ledger](#ledger)
   * [Mirror](#mirror)
   * [Relay](#relay)
-  * [Quick Start](#quick-start)
+  * [One Shot](#one-shot)
 * [Operations by Resource](#operations-by-resource)
   * [Block](#block-1)
     * [Node](#node)
@@ -54,7 +54,7 @@ platform.
     * [Node](#node-3)
   * [Relay](#relay-1)
     * [Node](#node-4)
-  * [Quick Start](#quick-start-1)
+  * [One Shot](#one-shot-1)
     * [EVM](#evm)
     * [Single](#single)
     * [Multi](#multi)
@@ -154,7 +154,7 @@ flags may be specified at any level of the command hierarchy.
 | ledger      | crypto                 | < transfer &amp; balance >                                                                                             |
 | mirror      | node                   | < list &amp; info &amp; logs &amp; add &amp; upgrade &amp; destroy >                                                   |
 | relay       | node                   | < list &amp; info &amp; logs &amp; add &amp; upgrade &amp; destroy >                                                   |
-| quick-start | < single &amp; multi > | < info &amp; deploy &amp; destroy >                                                                                    |
+| one-shot | < single &amp; multi > | < info &amp; deploy &amp; destroy >                                                                                    |
 
 #### Example Commands
 
@@ -210,7 +210,7 @@ The CLI application is designed around the following high-level entities (aka co
 | **Ledger**        |                               | `ledger`                      |                                           | System, Account, and Crypto ledger-based management operations. These commands require an operational set of consensus nodes and may require an operational mirror node.       |
 | **Relay Node**    | `relay`                       | `relay`                       | Manage JSON RPC relays in solo network    | RPC Relay Node operations for creating, modifying, and destroying resources. These commands require the presence of an existing deployment.                                    |
 | **Mirror Node**   | `mirror-node`                 | `mirror`                      | Manage Hedera Mirror Node in solo network | Mirror Node operations for creating, modifying, and destroying resources. These commands require the presence of an existing deployment.                                       |
-| **Quick Start**   |                               | `quick-start`                 |                                           | Quick start commands for new and returning users who need a preset environment type. These commands use reasonable defaults to provide a single command out of box experience. |
+| **One Shot**   |                               | `one-shot`                 |                                           | Quick start commands for new and returning users who need a preset environment type. These commands use reasonable defaults to provide a single command out of box experience. |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -334,7 +334,7 @@ associated with each group.
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
 </p>
 
-### Quick Start
+### One Shot
 
 | Resource Name | Command Syntax | Description                                                                                                                                                  |
 |---------------|----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -584,15 +584,15 @@ operations associated with each resource.
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
 </p>
 
-### Quick Start
+### One Shot
 
 #### EVM
 
 | Operation Name | Command Syntax | Description                                                                 |
 |----------------|----------------|-----------------------------------------------------------------------------|
-| **Info**       | `info`         | Displays details of the quick start configuration.                          |
-| **Deploy**     | `deploy`       | Deploys all required components for the selected quick start configuration. |
-| **Destroy**    | `destroy`      | Removes the deployed resources for the selected quick start configuration.  |
+| **Info**       | `info`         | Displays details of the one shot configuration.                             |
+| **Deploy**     | `deploy`       | Deploys all required components for the selected one shot configuration. |
+| **Destroy**    | `destroy`      | Removes the deployed resources for the selected one shot configuration.  |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -602,9 +602,9 @@ operations associated with each resource.
 
 | Operation Name | Command Syntax | Description                                                                 |
 |----------------|----------------|-----------------------------------------------------------------------------|
-| **Info**       | `info`         | Displays details of the quick start configuration.                          |
-| **Deploy**     | `deploy`       | Deploys all required components for the selected quick start configuration. |
-| **Destroy**    | `destroy`      | Removes the deployed resources for the selected quick start configuration.  |
+| **Info**       | `info`         | Displays details of the one shot configuration.                          |
+| **Deploy**     | `deploy`       | Deploys all required components for the selected one shot configuration. |
+| **Destroy**    | `destroy`      | Removes the deployed resources for the selected one shot configuration.  |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -614,9 +614,9 @@ operations associated with each resource.
 
 | Operation Name | Command Syntax | Description                                                                 |
 |----------------|----------------|-----------------------------------------------------------------------------|
-| **Info**       | `info`         | Displays details of the quick start configuration.                          |
-| **Deploy**     | `deploy`       | Deploys all required components for the selected quick start configuration. |
-| **Destroy**    | `destroy`      | Removes the deployed resources for the selected quick start configuration.  |
+| **Info**       | `info`         | Displays details of the one shot configuration.                          |
+| **Deploy**     | `deploy`       | Deploys all required components for the selected one shot configuration. |
+| **Destroy**    | `destroy`      | Removes the deployed resources for the selected one shot configuration.  |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
