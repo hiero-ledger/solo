@@ -217,7 +217,6 @@ export default [
       'unicorn/error-message': 'warn', // TODO error
       'unicorn/import-style': 'warn', // TODO error
       'unicorn/prefer-optional-catch-binding': 'warn', // TODO error
-      'unicorn/prefer-string-slice': 'warn', // TODO error
       'unicorn/no-await-expression-member': 'warn', // TODO error
       'unicorn/no-array-push-push': 'warn', // TODO error
       'unicorn/prefer-ternary': 'warn', // TODO error
