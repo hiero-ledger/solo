@@ -2406,7 +2406,7 @@ export class NodeCommandTasks {
       if (node.name === nodeAlias) {
         continue;
       }
-      const index = clusterNodeIndexMap[clusterReference][node.nodeId];
+      const index: number = clusterNodeIndexMap[node.cluster][node.nodeId];
 
       valuesArgumentMap[clusterReference] +=
         ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
@@ -2415,7 +2415,7 @@ export class NodeCommandTasks {
     }
 
     // Add new node
-    const index = clusterNodeIndexMap[clusterReference][nodeId];
+    const index: number = clusterNodeIndexMap[clusterReference][nodeId];
     valuesArgumentMap[clusterReference] +=
       ` --set "hedera.nodes[${index}].accountId=${newNode.accountId}"` +
       ` --set "hedera.nodes[${index}].name=${newNode.name}"` +
