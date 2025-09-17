@@ -9,6 +9,8 @@ import {BaseDependencyManager} from './base-dependency-manager.js';
 import {PackageDownloader} from '../package-downloader.js';
 import util from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
+import path from 'node:path';
+import fs from 'node:fs';
 
 const KIND_RELEASE_BASE_URL: string = 'https://kind.sigs.k8s.io/dl';
 const KIND_ARTIFACT_TEMPLATE: string = '%s/kind-%s-%s';
@@ -78,10 +80,13 @@ export class KindDependencyManager extends BaseDependencyManager {
    * Handle any post-download processing before copying to destination
    * Child classes can override this for custom extraction or processing
    */
-  protected async processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string> {
+  protected async processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string[]> {
     // Default implementation - just return the downloaded file path
     // Child classes can override for extraction or other processing
-    return packageFilePath;
+    const fileExtension: string = this.osPlatform === constants.OS_WINDOWS ? '.exe' : '';
+    const kindExecutablePath: string = path.join(temporaryDirectory, `${constants.KIND}${fileExtension}`);
+    fs.renameSync(packageFilePath, kindExecutablePath);
+    return [kindExecutablePath];
   }
 
   protected getChecksumURL(): string {

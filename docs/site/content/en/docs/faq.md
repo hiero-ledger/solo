@@ -8,15 +8,15 @@ type: docs
 
 ### How can I set up a Solo network in a single command?
 
-You can run `npx @hashgraph/solo:@latest quick-start single deploy`
+You can run `npx @hashgraph/solo:@latest one-shot single deploy`
 
 More documentation can be found here:
-- [Solo User Guide](step-by-step-guide/#quick-start-deployment)
-- [Solo CLI Commands](solo-commands/#quick-start-single)
+- [Solo User Guide](step-by-step-guide/#one-shot-deployment)
+- [Solo CLI Commands](solo-commands/#one-shot-single)
 
 # How can I tear down a Solo network in a single command?
 
-You can run `npx @hashgraph/solo:@latest quick-start single destroy`
+You can run `npx @hashgraph/solo:@latest one-shot single destroy`
 
 ### How can I avoid using genesis keys ?
 

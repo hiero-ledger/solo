@@ -12,10 +12,11 @@ import {
   ListrTask,
   ListrTaskObject,
 } from 'listr2';
-import {QuickStartSingleDeployContext} from '../../commands/quick-start/quick-start-single-deploy-context.js';
+import {OneShotSingleDeployContext} from '../../commands/one-shot/one-shot-single-deploy-context.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {patchInject} from '../dependency-injection/container-helper.js';
-import {QuickStartSingleDestroyContext} from '../../commands/quick-start/quick-start-single-destroy-context.js';
+import {AnyListrContext} from '../../types/aliases.js';
+import {OneShotSingleDestroyContext} from '../../commands/one-shot/one-shot-single-destroy-context.js';
 
 @injectable()
 export class DefaultTaskList<
@@ -27,53 +28,53 @@ export class DefaultTaskList<
   public constructor(@inject(InjectTokens.SoloLogger) private readonly logger: any) {
     this.logger = patchInject(InjectTokens.SoloLogger, this.logger, this.constructor.name);
   }
-  public newQuickStartSingleDeployTaskList(
+  public newOneShotSingleDeployTaskList(
     task:
       | ListrTask<
-          QuickStartSingleDeployContext,
+          OneShotSingleDeployContext,
           ListrGetRendererClassFromValue<Renderer>,
           ListrGetRendererClassFromValue<FallbackRenderer>
         >
       | ListrTask<
-          QuickStartSingleDeployContext,
+          OneShotSingleDeployContext,
           ListrGetRendererClassFromValue<Renderer>,
           ListrGetRendererClassFromValue<FallbackRenderer>
         >[],
-    options?: ListrBaseClassOptions<QuickStartSingleDeployContext, Renderer, FallbackRenderer>,
+    options?: ListrBaseClassOptions<OneShotSingleDeployContext, Renderer, FallbackRenderer>,
     parentTask?: ListrTaskObject<
       any,
       ListrGetRendererClassFromValue<Renderer>,
       ListrGetRendererClassFromValue<FallbackRenderer>
     >,
-  ): Listr<QuickStartSingleDeployContext, Renderer, FallbackRenderer> {
-    return new Listr<QuickStartSingleDeployContext, Renderer, FallbackRenderer>(task, options, parentTask);
+  ): Listr<OneShotSingleDeployContext, Renderer, FallbackRenderer> {
+    return new Listr<OneShotSingleDeployContext, Renderer, FallbackRenderer>(task, options, parentTask);
   }
 
-  public newQuickStartSingleDestroyTaskList(
+  public newOneShotSingleDestroyTaskList(
     task:
       | ListrTask<
-          QuickStartSingleDestroyContext,
+          OneShotSingleDestroyContext,
           ListrGetRendererClassFromValue<Renderer>,
           ListrGetRendererClassFromValue<FallbackRenderer>
         >
       | ListrTask<
-          QuickStartSingleDestroyContext,
+          OneShotSingleDestroyContext,
           ListrGetRendererClassFromValue<Renderer>,
           ListrGetRendererClassFromValue<FallbackRenderer>
         >[],
-    options?: ListrBaseClassOptions<QuickStartSingleDestroyContext, Renderer, FallbackRenderer>,
+    options?: ListrBaseClassOptions<OneShotSingleDestroyContext, Renderer, FallbackRenderer>,
     parentTask?: ListrTaskObject<
       any,
       ListrGetRendererClassFromValue<Renderer>,
       ListrGetRendererClassFromValue<FallbackRenderer>
     >,
-  ): Listr<QuickStartSingleDestroyContext, Renderer, FallbackRenderer> {
-    return new Listr<QuickStartSingleDestroyContext, Renderer, FallbackRenderer>(task, options, parentTask);
+  ): Listr<OneShotSingleDestroyContext, Renderer, FallbackRenderer> {
+    return new Listr<OneShotSingleDestroyContext, Renderer, FallbackRenderer>(task, options, parentTask);
   }
 
   public parentTaskListMap: Map<string, TaskNodeType> = new Map();
 
-  public newTaskList<T = ListrContext>(
+  public newTaskList<T = AnyListrContext>(
     task:
       | ListrTask<T, ListrGetRendererClassFromValue<Renderer>, ListrGetRendererClassFromValue<FallbackRenderer>>
       | ListrTask<T, ListrGetRendererClassFromValue<Renderer>, ListrGetRendererClassFromValue<FallbackRenderer>>[],

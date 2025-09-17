@@ -23,11 +23,11 @@
 | account create  | ledger account create |
 | account get     | ledger account info   |
 
-## Quick Start
+## One Shot
 | **Old Command**            | **New Command**  |
 |----------------------------|------------------|
-| quick-start single deploy  | one shot deploy  |
-| quick-start single destroy | one shot destroy |
+| one-shot single deploy  | one shot deploy  |
+| one-shot single destroy | one shot destroy |
 
 
 ## Cluster Reference

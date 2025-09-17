@@ -9,6 +9,7 @@ import {
   HelmDependencyManager,
   KindDependencyManager,
   KubectlDependencyManager,
+  PodmanDependencyManager,
 } from '../dependency-managers/index.js';
 import * as constants from '../constants.js';
 import {ChartManager} from '../chart-manager.js';
@@ -64,7 +65,7 @@ import {DefaultConfigSource} from '../../data/configuration/impl/default-config-
 import {type SoloConfigSchema} from '../../data/schema/model/solo/solo-config-schema.js';
 import {SoloConfigSchemaDefinition} from '../../data/schema/migration/impl/solo/solo-config-schema-definition.js';
 import {BeanFactorySupplier} from './bean-factory-supplier.js';
-import {DefaultQuickStartCommand} from '../../commands/quick-start/default-quick-start.js';
+import {DefaultOneShotCommand} from '../../commands/one-shot/default-one-shot.js';
 import {DefaultTaskList} from '../task-list/default-task-list.js';
 import {Commands} from '../../commands/commands.js';
 import {BlockCommandDefinition} from '../../commands/command-definitions/block-command-definition.js';
@@ -75,8 +76,9 @@ import {ExplorerCommandDefinition} from '../../commands/command-definitions/expl
 import {KeysCommandDefinition} from '../../commands/command-definitions/keys-command-definition.js';
 import {LedgerCommandDefinition} from '../../commands/command-definitions/ledger-command-definition.js';
 import {MirrorCommandDefinition} from '../../commands/command-definitions/mirror-command-definition.js';
-import {QuickStartCommandDefinition} from '../../commands/command-definitions/quick-start-command-definition.js';
+import {OneShotCommandDefinition} from '../../commands/command-definitions/one-shot-command-definition.js';
 import {RelayCommandDefinition} from '../../commands/command-definitions/relay-command-definition.js';
+import {DefaultKindClientBuilder} from '../../integration/kind/impl/default-kind-client-builder.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -109,11 +111,13 @@ export class Container {
       new SingletonContainer(InjectTokens.PackageDownloader, PackageDownloader),
       new SingletonContainer(InjectTokens.Zippy, Zippy),
       new SingletonContainer(InjectTokens.DependencyManager, DependencyManager),
+      new SingletonContainer(InjectTokens.KindBuilder, DefaultKindClientBuilder),
       new SingletonContainer(InjectTokens.Helm, DefaultHelmClient),
       new SingletonContainer(InjectTokens.HelmExecutionBuilder, HelmExecutionBuilder),
       new SingletonContainer(InjectTokens.HelmDependencyManager, HelmDependencyManager),
       new SingletonContainer(InjectTokens.KindDependencyManager, KindDependencyManager),
       new SingletonContainer(InjectTokens.KubectlDependencyManager, KubectlDependencyManager),
+      new SingletonContainer(InjectTokens.PodmanDependencyManager, PodmanDependencyManager),
       new SingletonContainer(InjectTokens.ChartManager, ChartManager),
       new SingletonContainer(InjectTokens.ConfigManager, ConfigManager),
       new SingletonContainer(InjectTokens.AccountManager, AccountManager),
@@ -149,7 +153,7 @@ export class Container {
       new SingletonContainer(InjectTokens.ObjectMapper, ClassToObjectMapper),
       new SingletonContainer(InjectTokens.ComponentFactory, ComponentFactory),
       new SingletonContainer(InjectTokens.RemoteConfigValidator, RemoteConfigValidator),
-      new SingletonContainer(InjectTokens.QuickStartCommand, DefaultQuickStartCommand),
+      new SingletonContainer(InjectTokens.OneShotCommand, DefaultOneShotCommand),
       new SingletonContainer(InjectTokens.TaskList, DefaultTaskList),
       new SingletonContainer(InjectTokens.Commands, Commands),
 
@@ -163,7 +167,7 @@ export class Container {
       new SingletonContainer(InjectTokens.LedgerCommandDefinition, LedgerCommandDefinition),
       new SingletonContainer(InjectTokens.MirrorCommandDefinition, MirrorCommandDefinition),
       new SingletonContainer(InjectTokens.RelayCommandDefinition, RelayCommandDefinition),
-      new SingletonContainer(InjectTokens.QuickStartCommandDefinition, QuickStartCommandDefinition),
+      new SingletonContainer(InjectTokens.OneShotCommandDefinition, OneShotCommandDefinition),
     ];
   }
 
@@ -182,9 +186,11 @@ export class Container {
       new ValueContainer(InjectTokens.HelmInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.KindInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.KubectlInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
+      new ValueContainer(InjectTokens.PodmanInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.HelmVersion, version.HELM_VERSION),
       new ValueContainer(InjectTokens.KindVersion, version.KIND_VERSION),
       new ValueContainer(InjectTokens.KubectlVersion, version.KUBECTL_VERSION),
+      new ValueContainer(InjectTokens.PodmanVersion, version.PODMAN_VERSION),
       new ValueContainer(InjectTokens.SystemAccounts, constants.SYSTEM_ACCOUNTS),
       new ValueContainer(InjectTokens.CacheDir, cacheDirectory),
       new ValueContainer(InjectTokens.LocalConfigFileName, constants.DEFAULT_LOCAL_CONFIG_FILE),

@@ -80,7 +80,7 @@ tasks:
           --ignore 'test/e2e/commands/block-node.test.ts' 
           --ignore 'test/e2e/commands/dual-*.ts'
           --ignore 'test/e2e/commands/external-*.ts'
-          --ignore 'test/e2e/commands/quick-start-single.test.ts'
+          --ignore 'test/e2e/commands/one-shot-single.test.ts'
           --ignore 'test/e2e/commands/separate-node-add.test.ts' 
           --ignore 'test/e2e/commands/separate-node-destroy.test.ts' 
           --ignore 'test/e2e/commands/separate-node-update.test.ts' 
@@ -201,12 +201,12 @@ tasks:
         task default
         task destroy
 
-  test-e2e-quick-start-single:
+  test-e2e-one-shot-single:
     cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Quick Start Single Test\"
-        {{ .reporter_prefix }}='coverage/e2e-quick-start-single'
-        {{ .mocha_bin }} 'test/e2e/commands/quick-start-single.test.ts' 
-        {{ .reporter_options_prefix }}-e2e-quick-start-single.xml"
+      - "{{ .test_prefix }}=\"Mocha E2E One Shot Single Test\"
+        {{ .reporter_prefix }}='coverage/e2e-one-shot-single'
+        {{ .mocha_bin }} 'test/e2e/commands/one-shot-single.test.ts' 
+        {{ .reporter_options_prefix }}-e2e-one-shot-single.xml"
 
   test-example-node-create-transaction:
     dir: examples/node-create-transaction

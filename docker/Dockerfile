@@ -1,6 +1,6 @@
 # Multi-stage build for Solo Docker container
 # This Dockerfile builds Solo from the local source code and creates a container
-# that can run Solo quick-start single deploy
+# that can run Solo one-shot single deploy
 
 # Stage 1: Install external tools required by Solo
 FROM busybox:1.37.0 AS installer
@@ -118,11 +118,11 @@ ENV SOLO_CLUSTER_NAME=solo-cluster
 ENV SOLO_NAMESPACE=solo
 ENV SOLO_DEPLOYMENT=solo-deployment
 
-# Create a startup script for quick-start
-RUN echo '#!/bin/sh' > /usr/local/bin/solo-quick-start.sh && \
-    echo 'echo "Starting Solo quick-start single deploy..."' >> /usr/local/bin/solo-quick-start.sh && \
-    echo 'solo quick-start single deploy' >> /usr/local/bin/solo-quick-start.sh && \
-    chmod +x /usr/local/bin/solo-quick-start.sh
+# Create a startup script for one-shot
+RUN echo '#!/bin/sh' > /usr/local/bin/solo-one-shot.sh && \
+    echo 'echo "Starting Solo one-shot single deploy..."' >> /usr/local/bin/solo-one-shot.sh && \
+    echo 'solo one-shot single deploy' >> /usr/local/bin/solo-one-shot.sh && \
+    chmod +x /usr/local/bin/solo-one-shot.sh
 
-# Default command runs Solo quick-start
-CMD ["/usr/local/bin/solo-quick-start.sh"]
+# Default command runs Solo one-shot
+CMD ["/usr/local/bin/solo-one-shot.sh"]

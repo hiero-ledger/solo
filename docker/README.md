@@ -8,7 +8,7 @@ The Solo Docker container allows developers to run Solo networks with Docker as 
 
 * Solo CLI built from local source code
 * All required tools (Kind, kubectl, Helm, Docker)
-* Pre-configured environment for quick-start deployments
+* Pre-configured environment for one-shot deployments
 * Container version matches the Solo version number
 
 ## Prerequisites
@@ -16,7 +16,7 @@ The Solo Docker container allows developers to run Solo networks with Docker as 
 * Docker installed on your system
 * [Task](https://taskfile.dev) installed for build automation
 
-## Quick Start
+## One Shot
 
 ### Build the Container
 
@@ -34,7 +34,7 @@ task build-docker  # Build Docker image
 ### Run the Container
 
 ```bash
-# Run with quick-start single deploy (default)
+# Run with one-shot single deploy (default)
 docker run --rm -it --privileged hashgraph/solo:latest
 
 # Run with custom Solo commands
@@ -96,7 +96,7 @@ docker/
 * Copies Solo source code
 * Builds Solo from source using TypeScript compiler
 * Packages and installs Solo globally
-* Sets up quick-start script
+* Sets up one-shot script
 
 ### Customization
 
