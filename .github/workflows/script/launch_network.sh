@@ -22,6 +22,7 @@ export SOLO_CLUSTER_NAME=solo-e2e
 export SOLO_NAMESPACE=solo-e2e
 export SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 export SOLO_DEPLOYMENT=solo-e2e
+export USE_MIRROR_NODE_LEGACY_RELEASE_NAME=true
 
 kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
@@ -31,7 +32,7 @@ echo "::endgroup::"
 
 echo "::group::Launch solo using released Solo version ${releaseTag}"
 
-export CONSENSUS_NODE_VERSION=v0.62.10
+export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
 echo "Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
 solo init
 solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
@@ -70,9 +71,9 @@ if ! grep -q "schemaVersion: 2" ./local-config-after.yaml; then
   exit 1
 fi
 
-# check remote-config-after.yaml should contains 'schemaVersion: 1'
-if ! grep -q "schemaVersion: 2" ./remote-config-after.yaml; then
-  echo "schemaVersion: 2 not found in remote-config-after.yaml"
+# check remote-config-after.yaml should contains 'schemaVersion: 3'
+if ! grep -q "schemaVersion: 3" ./remote-config-after.yaml; then
+  echo "schemaVersion: 3 not found in remote-config-after.yaml"
   exit 1
 fi
 echo "::endgroup::"
@@ -87,15 +88,37 @@ npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEP
 npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
 npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 
-# redeploy mirror node to upgrade to a newer version
-npm run solo -- mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --dev
+# force mirror importer restart to pick up changes of secretes due to upgrade of solo chart
+# even mirror chart version might not change, but the secrets it depends on might have changed
+kubectl rollout restart deployment/mirror-importer -n solo-e2e
+kubectl rollout restart deployment/mirror-rest -n solo-e2e
+kubectl rollout restart deployment/mirror-restjava -n solo-e2e
+kubectl rollout restart deployment/mirror-web3 -n solo-e2e
+kubectl rollout restart deployment/mirror-grpc -n solo-e2e
+kubectl rollout restart deployment/mirror-monitor -n solo-e2e
+kubectl rollout restart deployment/mirror-postgres-pgpool -n solo-e2e
+kubectl rollout restart deployment/mirror-ingress-controller -n solo-e2e
 
-# redeploy explorer and relay node to upgrade to a newer version
-npm run solo -- relay node add -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q --dev
-npm run solo -- explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
+npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q --dev
+# force restart relay pod to pick up changes of configMap
+kubectl rollout restart deployment/relay-node1-node2 -n solo-e2e
+
+# redeploy mirror node to upgrade to a newer version
+npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --dev
+npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
+
 
 # wait a few seconds for the pods to be ready before running transactions against them
 sleep 10
+
+# kill existing port-forward process due to restart of relay pods
+curl http://127.0.0.1:7546 || true
+
+# find the new pod name then enable port-forwarding to it, do not match anything with "ws" in the name
+relayPodName=$(kubectl get pods -n solo-e2e  | grep relay | awk '{print $1}' | grep -v ws)
+echo "Relay Pod Name: ${relayPodName}"
+kubectl port-forward -n solo-e2e pods/"${relayPodName}" 7546:7546 &
+echo "command is kubectl port-forward -n solo-e2e pods/${relayPodName} 7546:7546 &"
 
 # Test transaction can still be sent and processed
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
@@ -105,7 +128,8 @@ echo "::group::Upgrade Consensus Node"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade consensus node"
 ps -ef |grep port-forward
 # Upgrade to latest version
-export CONSENSUS_NODE_VERSION=$(grep 'HEDERA_PLATFORM_VERSION' version.ts | sed -E "s/.*'([^']+)';/\1/")
+# HEDERA_PLATFORM_VERSION is no longer a hardcoded value in version.ts,
+export CONSENSUS_NODE_VERSION=$(grep "HEDERA_PLATFORM_VERSION" version.ts | sed -E "s/.*'([^']+)';/\1/")
 echo "Upgrade to Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
 npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100

@@ -50,6 +50,8 @@ import {
 } from '../../core/helpers.js';
 import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
+import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
+import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {
   type AnyListrContext,
@@ -77,6 +79,7 @@ import {NetworkNodes} from '../../core/network-nodes.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import {
   type ClusterReferenceName,
+  type ComponentId,
   type Context,
   type DeploymentName,
   type Optional,
@@ -395,20 +398,20 @@ export class NodeCommandTasks {
     } = context_;
 
     const enableDebugger: boolean = context_.config.debugNodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
+    const debugNodeAlias: NodeAlias | undefined = context_.config.debugNodeAlias;
 
     const subTasks = nodeAliases.map(nodeAlias => {
-      const reminder =
-        'debugNodeAlias' in context_.config &&
-        context_.config.debugNodeAlias === nodeAlias &&
-        status !== NodeStatusCodes.FREEZE_COMPLETE
-          ? 'Please attach JVM debugger now.  Sleeping for 1 hour, hit ctrl-c once debugging is complete.'
-          : '';
-      const title = `Check network pod: ${chalk.yellow(nodeAlias)} ${chalk.red(reminder)}`;
-      const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+      const isDebugNode: boolean = debugNodeAlias === nodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
+      const reminder: string = isDebugNode ? 'Please attach JVM debugger now.' : '';
+      const title: string = `Check network pod: ${chalk.yellow(nodeAlias)} ${chalk.red(reminder)}`;
+      const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
 
       const subTask = async (context_: AnyListrContext, task: SoloListrTaskWrapper<AnyListrContext>) => {
-        if (enableDebugger) {
-          await sleep(Duration.ofHours(1));
+        if (enableDebugger && isDebugNode) {
+          await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
+            message: `JVM debugger setup for ${nodeAlias}. Continue when debugging is complete?`,
+            default: false,
+          });
         }
         context_.config.podRefs[nodeAlias] = await this._checkNetworkNodeActiveness(
           namespace,
@@ -427,7 +430,7 @@ export class NodeCommandTasks {
     });
 
     return task.newListr(subTasks, {
-      concurrent: true,
+      concurrent: !enableDebugger, // Run sequentially when debugging to avoid multiple prompts
       rendererOptions: {
         collapseSubtasks: false,
       },
@@ -1623,7 +1626,6 @@ export class NodeCommandTasks {
             this.k8Factory.getK8(context_.config.clusterContext),
             this.logger,
             ComponentTypes.ConsensusNode,
-
             'Consensus Node gRPC',
             context_.config.isChartInstalled, // Reuse existing port if chart is already installed
             nodeId,
@@ -2227,6 +2229,7 @@ export class NodeCommandTasks {
 
           for (const [index, node] of consensusNodes
             .filter(node => node.cluster === clusterReference)
+            // eslint-disable-next-line unicorn/no-array-sort
             .sort((a, b) => a.nodeId - b.nodeId)
             .entries()) {
             clusterNodeIndexMap[clusterReference][node.nodeId] = index;
@@ -2518,9 +2521,10 @@ export class NodeCommandTasks {
         // remove from remote config
         if (transactionType === NodeSubcommandType.DESTROY) {
           const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
-          this.remoteConfig.configuration.components.removeComponent(nodeId, ComponentTypes.ConsensusNode);
-          this.remoteConfig.configuration.components.removeComponent(nodeId, ComponentTypes.EnvoyProxy);
-          this.remoteConfig.configuration.components.removeComponent(nodeId, ComponentTypes.HaProxy);
+          const componentId: ComponentId = Templates.renderComponentIdFromNodeId(nodeId);
+          this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.ConsensusNode);
+          this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.EnvoyProxy);
+          this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.HaProxy);
           // @ts-expect-error: all fields are not present in every task's context
           context_.config.nodeAliases = config.allNodeAliases.filter(
             (nodeAlias: NodeAlias) => nodeAlias !== config.nodeAlias,
@@ -2800,7 +2804,7 @@ export class NodeCommandTasks {
   public addNewConsensusNodeToRemoteConfig(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Add new node to remote config',
-      task: async (context_, task) => {
+      task: async (context_, task): Promise<void> => {
         const nodeAlias: NodeAlias = context_.config.nodeAlias;
         const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
         const namespace: NamespaceName = context_.config.namespace;
@@ -2811,7 +2815,7 @@ export class NodeCommandTasks {
 
         this.remoteConfig.configuration.components.addNewComponent(
           this.componentFactory.createNewConsensusNodeComponent(
-            nodeId,
+            Templates.renderComponentIdFromNodeId(nodeId),
             clusterReference,
             namespace,
             DeploymentPhase.STARTED,
@@ -2836,7 +2840,7 @@ export class NodeCommandTasks {
         // if the consensusNodes does not contain the nodeAlias then add it
         if (!context_.config.consensusNodes.some((node: ConsensusNode) => node.name === nodeAlias)) {
           const cluster: ClusterSchema = this.remoteConfig.configuration.clusters.find(
-            cluster => cluster.name === clusterReference,
+            (cluster): boolean => cluster.name === clusterReference,
           );
 
           context_.config.consensusNodes.push(

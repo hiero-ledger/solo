@@ -253,19 +253,7 @@ export class Flags {
       describe: 'Namespace to use for the Mirror Node deployment, a new one will be created if it does not exist',
       type: 'string',
     },
-    prompt: async function promptNamespace(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: string,
-    ): Promise<string> {
-      return await Flags.promptText(
-        task,
-        input,
-        'solo',
-        'Enter mirror node namespace name: ',
-        'namespace cannot be empty',
-        Flags.mirrorNamespace.name,
-      );
-    },
+    prompt: undefined,
   };
 
   /**
@@ -422,29 +410,6 @@ export class Flags {
         'Would you like to deploy prometheus stack? ',
         null,
         Flags.deployPrometheusStack.name,
-      );
-    },
-  };
-
-  public static readonly enablePrometheusSvcMonitor: CommandFlag = {
-    constName: 'enablePrometheusSvcMonitor',
-    name: 'prometheus-svc-monitor',
-    definition: {
-      describe: 'Enable prometheus service monitor for the network nodes',
-      defaultValue: false,
-      type: 'boolean',
-    },
-    prompt: async function promptEnablePrometheusSvcMonitor(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: boolean,
-    ): Promise<boolean> {
-      return await Flags.promptToggle(
-        task,
-        input,
-        Flags.enablePrometheusSvcMonitor.definition.defaultValue as boolean,
-        'Would you like to enable the Prometheus service monitor for the network nodes? ',
-        null,
-        Flags.enablePrometheusSvcMonitor.name,
       );
     },
   };
@@ -747,6 +712,38 @@ export class Flags {
         'How many replica do you want? ',
         null,
         Flags.replicaCount.name,
+      );
+    },
+  };
+
+  public static readonly id: CommandFlag = {
+    constName: 'id',
+    name: 'id',
+    definition: {
+      describe: 'The numeric identifier for the component',
+      type: 'number',
+    },
+    prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<number> {
+      return await Flags.prompt('number', task, input, undefined, 'Enter component id: ', null, Flags.id.name);
+    },
+  };
+
+  public static readonly mirrorNodeId: CommandFlag = {
+    constName: 'mirrorNodeId',
+    name: 'mirror-node-id',
+    definition: {
+      describe: 'The id of the mirror node which to connect',
+      type: 'number',
+    },
+    prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<number> {
+      return await Flags.prompt(
+        'number',
+        task,
+        input,
+        undefined,
+        'Enter mirror node id: ',
+        null,
+        Flags.mirrorNodeId.name,
       );
     },
   };
@@ -1292,7 +1289,7 @@ export class Flags {
     constName: 'ed25519PrivateKey',
     name: 'ed25519-private-key',
     definition: {
-      describe: 'ED25519 private key for the Hedera account',
+      describe: 'Specify a hex-encoded ED25519 private key for the Hedera account',
       defaultValue: '',
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
@@ -1327,7 +1324,7 @@ export class Flags {
     constName: 'ecdsaPrivateKey',
     name: 'ecdsa-private-key',
     definition: {
-      describe: 'ECDSA private key for the Hedera account',
+      describe: 'Specify a hex-encoded ECDSA private key for the Hedera account',
       defaultValue: '',
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
@@ -1785,6 +1782,28 @@ export class Flags {
         Flags.deploymentClusters.name,
       );
     },
+  };
+
+  public static readonly serviceMonitor: CommandFlag = {
+    constName: 'serviceMonitor',
+    name: 'service-monitor',
+    definition: {
+      describe: 'Install ServiceMonitor custom resource for monitoring Network Node metrics',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly podLog: CommandFlag = {
+    constName: 'podLog',
+    name: 'pod-log',
+    definition: {
+      describe: 'Install PodLog custom resource for monitoring Network Node pod logs',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
   };
 
   public static readonly pinger: CommandFlag = {
@@ -2542,7 +2561,6 @@ export class Flags {
     Flags.ed25519PrivateKey,
     Flags.enableIngress,
     Flags.enableExplorerTls,
-    Flags.enablePrometheusSvcMonitor,
     Flags.enableTimeout,
     Flags.endpointType,
     Flags.envoyIps,
@@ -2644,6 +2662,10 @@ export class Flags {
     Flags.shard,
     Flags.username,
     Flags.skipNodeAlias,
+    Flags.id,
+    Flags.mirrorNodeId,
+    Flags.serviceMonitor,
+    Flags.podLog,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

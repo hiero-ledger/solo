@@ -3,7 +3,9 @@
 import {type KindClientBuilder} from '../kind-client-builder.js';
 import {type KindClient} from '../kind-client.js';
 import {DefaultKindClient} from './default-kind-client.js';
+import {injectable} from 'tsyringe-neo';
 
+@injectable()
 export class DefaultKindClientBuilder implements KindClientBuilder {
   /**
    * The path to the Kind executable.

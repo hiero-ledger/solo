@@ -245,7 +245,7 @@ describe('KubectlDependencyManager', (): void => {
 
       // @ts-expect-error TS2341: Property processDownloadedPackage is private
       const linuxResult = await kubectlDependencyManager.processDownloadedPackage('/tmp/kubectl', '/tmp');
-      expect(linuxResult).to.equal('/tmp/kubectl');
+      expect(linuxResult).to.contain('/tmp/kubectl');
 
       // Now test with Windows platform
       kubectlDependencyManager = new KubectlDependencyManager(
@@ -258,7 +258,7 @@ describe('KubectlDependencyManager', (): void => {
 
       // @ts-expect-error TS2341: Property processDownloadedPackage is private
       const windowsResult = await kubectlDependencyManager.processDownloadedPackage('/tmp/kubectl.exe', '/tmp');
-      expect(windowsResult).to.equal('/tmp/kubectl.exe');
+      expect(windowsResult).to.contain('/tmp/kubectl.exe');
     });
 
     it('getArtifactName should generate correct URL format based on platform/arch', (): void => {

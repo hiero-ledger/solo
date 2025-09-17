@@ -82,11 +82,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     const k8: K8 = k8Factory.getK8(lastContext);
     const mirrorNodeRestPods: Pod[] = await k8
       .pods()
-      .list(namespace, [
-        'app.kubernetes.io/instance=mirror',
-        'app.kubernetes.io/name=rest',
-        'app.kubernetes.io/component=rest',
-      ]);
+      .list(namespace, ['app.kubernetes.io/name=rest', 'app.kubernetes.io/component=rest']);
     expect(mirrorNodeRestPods).to.have.lengthOf(1);
 
     const portForwarder: number = await k8
@@ -311,6 +307,8 @@ export class MirrorNodeTest extends BaseCommandTest {
     it(`${testName}: mirror node deploy with external database`, async (): Promise<void> => {
       const argv = soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger);
 
+      process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME = 'true';
+
       // Add external database flags
       argv.push(
         optionFromFlag(Flags.enableIngress),
@@ -343,11 +341,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       const k8: K8 = k8Factory.getK8(contexts[1]);
       const mirrorNodePods: Pod[] = await k8
         .pods()
-        .list(namespace, [
-          'app.kubernetes.io/instance=mirror',
-          'app.kubernetes.io/name=grpc',
-          'app.kubernetes.io/component=grpc',
-        ]);
+        .list(namespace, ['app.kubernetes.io/name=grpc', 'app.kubernetes.io/component=grpc']);
       const mirrorNodePod: Pod = mirrorNodePods[0];
       await k8.pods().readByReference(mirrorNodePod.podReference).portForward(5600, 5600);
     });

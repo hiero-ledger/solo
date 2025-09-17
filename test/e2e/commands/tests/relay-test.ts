@@ -12,6 +12,7 @@ import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
+import {Templates} from '../../../../src/core/templates.js';
 import {RelayCommandDefinition} from '../../../../src/commands/command-definitions/relay-command-definition.js';
 import {type NodeAlias} from '../../../../src/types/aliases.js';
 
@@ -68,10 +69,7 @@ export class RelayTest extends BaseCommandTest {
 
   private static async verifyRelayDeployWasSuccessful(contexts: string[], namespace: NamespaceName): Promise<void> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-    const relayPods: Pod[] = await k8Factory
-      .getK8(contexts[1])
-      .pods()
-      .list(namespace, ['app.kubernetes.io/name=relay']);
+    const relayPods: Pod[] = await k8Factory.getK8(contexts[1]).pods().list(namespace, Templates.renderRelayLabels(1));
 
     expect(relayPods).to.have.lengthOf(1);
   }

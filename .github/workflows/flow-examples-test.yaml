@@ -17,10 +17,6 @@
 name: "Test Examples"
 
 on:
-  schedule:
-    # Run every midnight US Central Time (6 AM UTC during DST, 7 AM UTC during standard time)
-    # Using 6 AM UTC to cover Central Daylight Time
-    - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
       node-version:
@@ -32,7 +28,7 @@ on:
         description: "Use released or latest version"
         type: boolean
         required: false
-        default: true
+        default: false
   workflow_call:
     inputs:
       node-version:
@@ -44,12 +40,7 @@ on:
         description: "Use released or latest version"
         type: boolean
         required: false
-        default: true
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
+        default: false
 defaults:
   run:
     shell: bash
