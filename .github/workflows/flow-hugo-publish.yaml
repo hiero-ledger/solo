@@ -169,7 +169,7 @@ jobs:
     name: Hugo Docs Publish
     if: >
       ${{ needs.setup.outputs.versioned-release == 'true' && inputs.dry-run-enabled != 'true' && 
-      startsWith(github.ref_name, 'release/') && !cancelled() && !failure() }}
+      startsWith(github.ref_name, 'release/') && needs.hugo-docs-build-main.outputs.build_succeeded == 'true' && !cancelled() && !failure() }}
     uses: ./.github/workflows/zxc-hugo-publish.yaml
     needs:
       - setup

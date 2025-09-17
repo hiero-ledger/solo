@@ -68,6 +68,10 @@ tasks:
     silent: true
     cmds:
       - |
+        if [ -z "$HUGO_SOLO_VERSION" ]; then
+          echo "skipping since we are building this release not downloading it"
+          exit 0
+        fi
         LATEST_TAG=$(jq -r '.[] | select(.npmjsLatest == true) | .tag' build/releases.json)
         if [ -z "$LATEST_TAG" ]; then
           echo "No latest version found in releases.json"
@@ -96,6 +100,10 @@ tasks:
     silent: true
     cmds:
       - |
+        if [ -z "$HUGO_SOLO_VERSION" ]; then
+          echo "skipping since we are building this release not downloading it"
+          exit 0
+        fi
         jq -c '.[] | select(.npmjsLatest == true or .npmjsLatest == false)' build/releases.json | while read -r release; do
           TAG=$(echo "$release" | jq -r '.tag')
           SAFE_TAG=$(echo "$TAG" | sed 's#[/:]#_#g')
