@@ -125,7 +125,7 @@ export class NodeTest extends BaseCommandTest {
       );
     }
 
-    argvPushGlobalFlags(argv, testName, false, true);
+    argvPushGlobalFlags(argv, testName, true, true);
     return argv;
   }
 
