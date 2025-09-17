@@ -110,7 +110,7 @@ export class InitCommand extends BaseCommand {
 
             subTasks.push(
               {
-                title: `Create Podman machine...`,
+                title: 'Create Podman machine...',
                 task: async () => {
                   const podmanExecutable: string = self.depManager.getExecutablePath(constants.PODMAN);
                   // await this.run(`${podmanExecutable} machine init --cpus=8 --memory=16384`); // 16GB
@@ -120,7 +120,7 @@ export class InitCommand extends BaseCommand {
                 skip: (): boolean => skipPodmanTasks,
               } as SoloListrTask<InitContext>,
               {
-                title: `Configure kind to use podman...`,
+                title: 'Configure kind to use podman...',
                 task: async () => {
                   process.env.PATH = `${this.podmanInstallationDirectory}${path.delimiter}${process.env.PATH}`;
                   process.env.KIND_EXPERIMENTAL_PROVIDER = 'podman';
@@ -128,7 +128,7 @@ export class InitCommand extends BaseCommand {
                 skip: (): boolean => skipPodmanTasks,
               } as SoloListrTask<InitContext>,
               {
-                title: `Creating local cluster...`,
+                title: 'Creating local cluster...',
                 task: async context_ => {
                   const kindExecutable: string = self.depManager.getExecutablePath(constants.KIND);
                   const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
