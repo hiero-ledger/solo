@@ -20,6 +20,8 @@ import {ClusterCreateResponse} from '../../integration/kind/model/create-cluster
 import {K8} from '../../integration/kube/k8.js';
 import {MissingActiveContextError} from '../../integration/kube/errors/missing-active-context-error.js';
 import {MissingActiveClusterError} from '../../integration/kube/errors/missing-active-cluster-error.js';
+import {type DependencyManagerType} from '../../core/dependency-managers/dependency-manager.js';
+import path from 'node:path';
 
 /**
  * Defines the core functionalities of 'init' command
@@ -29,10 +31,17 @@ export class InitCommand extends BaseCommand {
   public static readonly COMMAND_NAME: string = 'init';
   public static readonly INIT_COMMAND_NAME: string = InitCommand.COMMAND_NAME;
 
-  // Although empty, tsyringe requires the constructor to be present
-  public constructor(@inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder) {
+  public constructor(
+    @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
+    @inject(InjectTokens.PodmanInstallationDir) protected readonly podmanInstallationDirectory: string,
+  ) {
     super();
     this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, InitCommand.name);
+    this.podmanInstallationDirectory = patchInject(
+      podmanInstallationDirectory,
+      InjectTokens.PodmanInstallationDir,
+      InitCommand.name,
+    );
   }
 
   /** Executes the init CLI command */
@@ -75,23 +84,13 @@ export class InitCommand extends BaseCommand {
           },
         },
         {
-          title: 'Create default cluster',
-          task: async (_, task) => {
+          title: 'Install Kind',
+          task: (_, task) => {
             const deps: string[] = [constants.PODMAN, constants.KIND];
-            const subTasks: SoloListrTask<InitContext>[] = self.depManager.taskCheckDependencies<InitContext>(deps);
 
-            subTasks.push({
-              title: `Creating local cluster...`,
-              task: async context_ => {
-                const kindExecutable: string = self.depManager.getExecutablePath(constants.KIND);
-                const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
-                const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
-                  constants.DEFAULT_CLUSTER,
-                );
-                task.title = `Created local cluster '${clusterResponse.name}'; connect with context '${clusterResponse.context}'`;
-              },
-            } as SoloListrTask<InitContext>);
+            const subTasks = self.depManager.taskCheckDependencies<InitContext>(deps);
 
+            // set up the sub-tasks
             return task.newListr(subTasks, {
               concurrent: true,
               rendererOptions: {
@@ -99,15 +98,56 @@ export class InitCommand extends BaseCommand {
               },
             });
           },
-          skip: (): boolean => {
-            try {
-              const k8: K8 = self.k8Factory.default();
-              const contextName: string = k8.contexts().readCurrent();
-              return !!contextName;
-            } catch (error) {
-              return !(error instanceof MissingActiveContextError || error instanceof MissingActiveClusterError);
-            }
+          skip: this.skipKindSetup(),
+        },
+        {
+          title: 'Create default cluster',
+          task: async (_, task) => {
+            const subTasks: SoloListrTask<InitContext>[] = [];
+
+            const podmanDependency: DependencyManagerType = await self.depManager.getDependency(constants.PODMAN);
+            const skipPodmanTasks: boolean = !(await podmanDependency.shouldInstall());
+
+            subTasks.push(
+              {
+                title: `Create Podman machine...`,
+                task: async () => {
+                  const podmanExecutable: string = self.depManager.getExecutablePath(constants.PODMAN);
+                  // await this.run(`${podmanExecutable} machine init --cpus=8 --memory=16384`); // 16GB
+                  await this.run(`${podmanExecutable} machine init --memory=16384`); // 16GB
+                  await this.run(`${podmanExecutable} machine start`);
+                },
+                skip: (): boolean => skipPodmanTasks,
+              } as SoloListrTask<InitContext>,
+              {
+                title: `Configure kind to use podman...`,
+                task: async () => {
+                  process.env.PATH = `${this.podmanInstallationDirectory}${path.delimiter}${process.env.PATH}`;
+                  process.env.KIND_EXPERIMENTAL_PROVIDER = 'podman';
+                },
+                skip: (): boolean => skipPodmanTasks,
+              } as SoloListrTask<InitContext>,
+              {
+                title: `Creating local cluster...`,
+                task: async context_ => {
+                  const kindExecutable: string = self.depManager.getExecutablePath(constants.KIND);
+                  const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
+                  const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
+                    constants.DEFAULT_CLUSTER,
+                  );
+                  task.title = `Created local cluster '${clusterResponse.name}'; connect with context '${clusterResponse.context}'`;
+                },
+              } as SoloListrTask<InitContext>,
+            );
+
+            return task.newListr(subTasks, {
+              concurrent: false,
+              rendererOptions: {
+                collapseSubtasks: false,
+              },
+            });
           },
+          skip: this.skipKindSetup(),
         },
         {
           title: 'Create local configuration',
@@ -184,6 +224,16 @@ export class InitCommand extends BaseCommand {
     }
 
     return true;
+  }
+
+  private skipKindSetup(): boolean {
+    try {
+      const k8: K8 = this.k8Factory.default();
+      const contextName: string = k8.contexts().readCurrent();
+      return !!contextName;
+    } catch (error) {
+      return !(error instanceof MissingActiveContextError || error instanceof MissingActiveClusterError);
+    }
   }
 
   /**
