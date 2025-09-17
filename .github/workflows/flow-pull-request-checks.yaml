@@ -93,6 +93,15 @@ jobs:
     with:
       custom-job-label: Standard
 
+  build-docker-image:
+    name: Build / Docker Image (PR Check)
+    needs: unit-tests
+    uses: ./.github/workflows/zxc-release-solo-docker-container.yaml
+    with:
+      dry-run-enabled: true
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   e2e-tests:
     name: E2E Tests (${{ matrix.e2e-test-type.name }})
     if: ${{ !cancelled() && always() }}
