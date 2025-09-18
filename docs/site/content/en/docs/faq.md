@@ -11,8 +11,9 @@ type: docs
 You can run `npx @hashgraph/solo:@latest one-shot single deploy`
 
 More documentation can be found here:
-- [Solo User Guide](step-by-step-guide/#one-shot-deployment)
-- [Solo CLI Commands](solo-commands/#one-shot-single)
+
+* [Solo User Guide](step-by-step-guide/#one-shot-deployment)
+* [Solo CLI Commands](solo-commands/#one-shot-single)
 
 # How can I tear down a Solo network in a single command?
 
@@ -24,7 +25,7 @@ You can run `solo ledger system init` anytime after `solo consensus node start`.
 
 ### Where can I find the default account keys ?
 
-By default, Solo leverages the Hiero Consensus Node well known ED25519 private genesis key: `302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137`, the genesis public key is: `302a300506032b65700321000aa8e21064c61eab86e2a9c164565b4e7a9a4146106e0a6cd03a8c395a110e92`. 
+By default, Solo leverages the Hiero Consensus Node well known ED25519 private genesis key: `302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137`, the genesis public key is: `302a300506032b65700321000aa8e21064c61eab86e2a9c164565b4e7a9a4146106e0a6cd03a8c395a110e92`.
 Unless changed it is the private key for the default operator account `0.0.2` of the consensus network.
 It is defined in Hiero source code [Link](https://github.com/hiero-ledger/hiero-consensus-node/blob/develop/hedera-node/data/onboard/GenesisPrivKey.txt)
 
