@@ -10,8 +10,9 @@ To get the address book from the ledger, this requires a port forward to be setu
 
 > \[!NOTE]
 > Due to file size, the Yahcli.jar file is stored with Git LFS (Large File Storage).  You will need to install Git LFS prior to cloning this repository to automatically download the Yahcli.jar file. For instructions on how to install see: <https://docs.github.com/en/repositories/working-with-files/managing-large-files/installing-git-large-file-storage>
-> 
+>
 > After cloning the repository, navigate to this directory and run the following command to pull the Yahcli.jar file:
+>
 > ```bash
 > git lfs install
 > git lfs pull

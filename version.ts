@@ -16,14 +16,15 @@ import * as constants from './src/core/constants.js';
 export const HELM_VERSION: string = 'v3.14.2';
 export const KIND_VERSION: string = 'v0.29.0';
 export const KUBECTL_VERSION: string = 'v1.32.2';
-export const SOLO_CHART_VERSION: string = '0.54.5';
-export const HEDERA_PLATFORM_VERSION: string = constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.63.9';
-export const MIRROR_NODE_VERSION: string = 'v0.136.0';
-export const EXPLORER_VERSION: string = '25.1.1';
+export const SOLO_CHART_VERSION: string = constants.getEnvironmentVariable('SOLO_CHART_VERSION') || '0.54.5';
+export const HEDERA_PLATFORM_VERSION: string = constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.65.1';
+export const MIRROR_NODE_VERSION: string = constants.getEnvironmentVariable('MIRROR_NODE_VERSION') || 'v0.138.0';
+export const EXPLORER_VERSION: string = constants.getEnvironmentVariable('EXPLORER_VERSION') || '25.1.1';
 export const EXPLORER_OLD_VERSION_BEFORE_LABEL_CHANGE: string = '24.12.0';
-export const HEDERA_JSON_RPC_RELAY_VERSION: string = '0.70.0';
-export const INGRESS_CONTROLLER_VERSION: string = '0.14.5';
-export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_VERSION') || 'v0.14.0';
+export const HEDERA_JSON_RPC_RELAY_VERSION: string = constants.getEnvironmentVariable('RELAY_VERSION') || '0.70.0';
+export const INGRESS_CONTROLLER_VERSION: string =
+  constants.getEnvironmentVariable('INGRESS_CONTROLLER_VERSION') || '0.14.5';
+export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_VERSION') || 'v0.18.0';
 
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE: string = 'v0.62.3';
 export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT: SemVer = new SemVer('v0.15.0');
