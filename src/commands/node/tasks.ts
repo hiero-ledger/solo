@@ -2229,6 +2229,7 @@ export class NodeCommandTasks {
 
           for (const [index, node] of consensusNodes
             .filter(node => node.cluster === clusterReference)
+            // eslint-disable-next-line unicorn/no-array-sort
             .sort((a, b) => a.nodeId - b.nodeId)
             .entries()) {
             clusterNodeIndexMap[clusterReference][node.nodeId] = index;
