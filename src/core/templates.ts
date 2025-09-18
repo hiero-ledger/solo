@@ -186,7 +186,7 @@ export class Templates {
   public static nodeIdFromNodeAlias(nodeAlias: NodeAlias): NodeId {
     for (let index: number = nodeAlias.length - 1; index > 0; index--) {
       if (Number.isNaN(Number.parseInt(nodeAlias[index]))) {
-        return Number.parseInt(nodeAlias.substring(index + 1, nodeAlias.length)) - 1;
+        return Number.parseInt(nodeAlias.slice(index + 1)) - 1;
       }
     }
 
