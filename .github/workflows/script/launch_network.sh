@@ -46,7 +46,7 @@ solo node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NOD
 solo node start --deployment "${SOLO_DEPLOYMENT}" -q
 solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
-solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q
+solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --mirror-node-version v0.138.0
 solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q
 solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 echo "::endgroup::"
