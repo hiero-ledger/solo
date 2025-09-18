@@ -21,7 +21,7 @@ This example demonstrates how to create and manage a custom Hiero Hashgraph Solo
 
 ### Component Version Control
 
-* **Block Node**: `BLOCK_NODE_RELEASE_TAG` - Helm chart version (e.g., "--chart-version v0.14.0")
+* **Block Node**: `BLOCK_NODE_RELEASE_TAG` - Helm chart version (e.g., "--chart-version v0.18.0")
 * **Mirror Node**: `MIRROR_NODE_VERSION_FLAG` - Version flag (e.g., "--mirror-node-version v0.136.1")
 * **Relay**: `RELAY_RELEASE_FLAG` - Release flag (e.g., "--relay-release 0.70.1")
 * **Explorer**: `EXPLORER_VERSION_FLAG` - Version flag (e.g., "--explorer-version 25.0.0")
