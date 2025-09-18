@@ -45,7 +45,7 @@ export class InitCommand extends BaseCommand {
   }
 
   /** Executes the init CLI command */
-  public async init(argv: any): Promise<boolean> {
+  public getInitTasks(argv: any): Listr<InitContext, ListrRendererValue, ListrRendererValue> {
     const self = this;
 
     let cacheDirectory: string = this.configManager.getFlag<string>(flags.cacheDir) as string;
@@ -53,7 +53,7 @@ export class InitCommand extends BaseCommand {
       cacheDirectory = constants.SOLO_CACHE_DIR as string;
     }
 
-    const tasks: Listr<InitContext, ListrRendererValue, ListrRendererValue> = this.taskList.newTaskList(
+    return this.taskList.newTaskList(
       [
         {
           title: 'Setup home directory and cache',
@@ -214,6 +214,10 @@ export class InitCommand extends BaseCommand {
       undefined,
       InitCommand.INIT_COMMAND_NAME,
     );
+  }
+
+  public async init(argv: any): Promise<boolean> {
+    const tasks: Listr<InitContext, ListrRendererValue, ListrRendererValue> = this.getInitTasks(argv);
 
     if (tasks.isRoot()) {
       try {

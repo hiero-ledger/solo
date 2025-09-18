@@ -19,6 +19,7 @@ import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/re
 import {K8} from '../integration/kube/k8.js';
 import {type TaskList} from './task-list/task-list.js';
 import {ListrContext, ListrRendererValue} from 'listr2';
+import {type InitCommand} from '../commands/init/init.js';
 
 @injectable()
 export class Middlewares {
@@ -31,6 +32,7 @@ export class Middlewares {
     @inject(InjectTokens.HelpRenderer) private readonly helpRenderer: HelpRenderer,
     @inject(InjectTokens.TaskList)
     private readonly taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
+    @inject(InjectTokens.InitCommand) private readonly initCommand: InitCommand,
   ) {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
@@ -39,6 +41,14 @@ export class Middlewares {
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.helpRenderer = patchInject(helpRenderer, InjectTokens.HelpRenderer, this.constructor.name);
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
+    this.initCommand = patchInject(initCommand, InjectTokens.InitCommand, this.constructor.name);
+  }
+
+  public initSolo(): (argv: ArgvStruct) => AnyObject {
+    return async (argv: ArgvStruct): Promise<AnyObject> => {
+      await this.initCommand.init(argv);
+      return argv;
+    };
   }
 
   public printCustomHelp(rootCmd: any): (argv: any) => void {
