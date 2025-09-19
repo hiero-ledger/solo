@@ -12,15 +12,19 @@ import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type AccountManager} from './account-manager.js';
 import {type TaskList} from './task-list/task-list.js';
 import {ListrContext, ListrRendererValue} from 'listr2';
+import {InitCommand} from '../commands/init/init.js';
 
 @injectable()
 export class CommandHandler {
   protected readonly _configMaps: Map<string, any> = new Map<string, any>();
+  protected _deps: string[] = [];
+  protected _createCluster: boolean = false;
 
   public constructor(
     @inject(InjectTokens.SoloLogger) public readonly logger?: SoloLogger,
     @inject(InjectTokens.ConfigManager) private readonly configManager?: ConfigManager,
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
+    @inject(InjectTokens.InitCommand) private readonly initCommand?: InitCommand,
     @inject(InjectTokens.TaskList)
     private readonly taskList?: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
   ) {
@@ -28,6 +32,15 @@ export class CommandHandler {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
+    this.initCommand = patchInject(initCommand, InjectTokens.InitCommand, this.constructor.name);
+  }
+
+  public setDependencies(dependencies: string[]): void {
+    this._deps = dependencies;
+  }
+
+  public setCreateCluster(createCluster: boolean): void {
+    this._createCluster = createCluster;
   }
 
   public async commandAction(
@@ -37,8 +50,24 @@ export class CommandHandler {
     errorString: string,
     lease: Lock | null,
     commandName: string = 'command',
+    dependencies?: string[],
+    createCluster?: boolean,
   ): Promise<void> {
-    const tasks = this.taskList.newTaskList([...actionTasks], options, undefined, commandName);
+    createCluster = createCluster === undefined ? this._createCluster : createCluster;
+    dependencies = dependencies === undefined ? this._deps : dependencies;
+
+    const tasks = this.taskList.newTaskList(
+      [
+        ...this.initCommand.installDependenciesTasks({
+          deps: dependencies,
+          createCluster,
+        }),
+        ...actionTasks,
+      ],
+      options,
+      undefined,
+      commandName,
+    );
     if (tasks.isRoot()) {
       try {
         await tasks.run();

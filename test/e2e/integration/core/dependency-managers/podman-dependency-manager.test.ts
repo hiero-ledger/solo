@@ -208,16 +208,12 @@ describe('PodmanDependencyManager', () => {
 
     it('shouldInstall should return false when Docker is installed', async () => {
       runStub.withArgs(`${constants.DOCKER} --version`).resolves(['Docker version 20.10.8']);
-
-      // @ts-expect-error TS2341: Property shouldInstall is protected
       const result: boolean = await podmanDependencyManager.shouldInstall();
       expect(result).to.be.false;
     });
 
     it('shouldInstall should return true when Docker is not installed', async () => {
       runStub.withArgs(`${constants.DOCKER} --version`).rejects(new Error('Docker not found'));
-
-      // @ts-expect-error TS2341: Property shouldInstall is protected
       const result: boolean = await podmanDependencyManager.shouldInstall();
       expect(result).to.be.true;
     });
@@ -349,7 +345,6 @@ describe('PodmanDependencyManager', () => {
     });
 
     it('should prefer the global installation if it meets the requirements', async () => {
-      // @ts-expect-error TS2345: Argument of type 'shouldInstall' is not assignable to parameter of type keyof PodmanDependencyManager
       sinon.stub(podmanDependencyManager, 'shouldInstall').resolves(true);
 
       runStub.withArgs('which podman').resolves(['/usr/local/bin/podman']);
