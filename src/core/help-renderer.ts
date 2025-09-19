@@ -56,6 +56,7 @@ export class HelpRenderer {
 
     const requiredTable: Table = table.filter((row: string[]): boolean => row[3].includes('required'));
     const optionalTable: Table = table.filter((row: string[]): boolean => !row[3].includes('required'));
+    // eslint-disable-next-line unicorn/prefer-spread
     return requiredTable.concat(optionalTable);
   }
 

@@ -39,10 +39,10 @@ export class Prefix {
       return false;
     }
 
-    let prefixFilter = prefix ? formatter.normalize(prefix) : null;
+    let prefixFilter: string = prefix ? formatter.normalize(prefix) : null;
 
     if (prefixFilter && !prefixFilter.endsWith(formatter.separator)) {
-      prefixFilter = prefixFilter.concat(formatter.separator);
+      prefixFilter = [...prefixFilter, ...formatter.separator].join('');
     }
 
     return prefixFilter ? formatter.normalize(key)?.startsWith(prefixFilter) : true;

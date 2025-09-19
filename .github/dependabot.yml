@@ -5,9 +5,17 @@ updates:
     schedule:
       interval: "daily"
     open-pull-requests-limit: 5
+    groups:
+      github-actions-deps:
+        patterns:
+          - '*'
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "daily"
-    open-pull-requests-limit: 15
+    open-pull-requests-limit: 5
     versioning-strategy: increase
+    groups:
+      npm-deps:
+        patterns:
+          - '*'
