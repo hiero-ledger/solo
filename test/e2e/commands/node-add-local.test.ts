@@ -39,9 +39,6 @@ function additionalTests(bootstrapResp: BootstrapResponse, argv: Argv): void {
   const namespace: NamespaceName = NamespaceName.of(argv.getArg(flags.namespace));
 
   it('should save the state, restart node, and preserve account balances', async (): Promise<void> => {
-    console.log('---------------- additionalTests ----------------');
-    console.log({namespace});
-
     // create account before stopping
     await accountManager.loadNodeClient(
       namespace,

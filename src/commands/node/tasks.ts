@@ -1228,19 +1228,20 @@ export class NodeCommandTasks {
   public populateServiceMap(): SoloListrTask<NodeAddContext | NodeDestroyContext> {
     return {
       title: 'Populate serviceMap',
-      task: async context_ => {
-        context_.config.serviceMap = await this.accountManager.getNodeServiceMap(
-          context_.config.namespace,
+      task: async ({config}): Promise<void> => {
+        config.serviceMap = await this.accountManager.getNodeServiceMap(
+          config.namespace,
           this.remoteConfig.getClusterRefs(),
-          context_.config.deployment,
+          config.deployment,
         );
-        if (!context_.config.serviceMap.has(context_.config.nodeAlias)) {
+
+        if (!config.serviceMap.has(config.nodeAlias)) {
           return;
         }
 
-        context_.config.podRefs[context_.config.nodeAlias] = PodReference.of(
-          context_.config.namespace,
-          context_.config.serviceMap.get(context_.config.nodeAlias).nodePodName,
+        config.podRefs[config.nodeAlias] = PodReference.of(
+          config.namespace,
+          config.serviceMap.get(config.nodeAlias).nodePodName,
         );
       },
     };
@@ -2387,7 +2388,7 @@ export class NodeCommandTasks {
       if (node.name === nodeAlias) {
         continue;
       }
-      const index = clusterNodeIndexMap[clusterReference][node.nodeId];
+      const index: number = clusterNodeIndexMap[node.cluster][node.nodeId];
 
       valuesArgumentMap[clusterReference] +=
         ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
@@ -2396,7 +2397,7 @@ export class NodeCommandTasks {
     }
 
     // Add new node
-    const index = clusterNodeIndexMap[clusterReference][nodeId];
+    const index: number = clusterNodeIndexMap[clusterReference][nodeId];
     valuesArgumentMap[clusterReference] +=
       ` --set "hedera.nodes[${index}].accountId=${newNode.accountId}"` +
       ` --set "hedera.nodes[${index}].name=${newNode.name}"` +
@@ -2566,15 +2567,14 @@ export class NodeCommandTasks {
   public checkNodePodsAreRunning(): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext> {
     return {
       title: 'Check node pods are running',
-      task: (context_, task) => {
-        const config = context_.config;
+      task: ({config}, task): SoloListr<NodeUpdateContext | NodeAddContext | NodeDestroyContext> => {
         const subTasks: SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext>[] = [];
 
         for (const nodeAlias of config.allNodeAliases) {
-          const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+          const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
           subTasks.push({
             title: `Check Node: ${chalk.yellow(nodeAlias)}`,
-            task: async () =>
+            task: async (): Promise<void> => {
               await this.k8Factory
                 .getK8(context)
                 .pods()
@@ -2583,7 +2583,8 @@ export class NodeCommandTasks {
                   [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'],
                   constants.PODS_RUNNING_MAX_ATTEMPTS,
                   constants.PODS_RUNNING_DELAY,
-                ), // timeout 15 minutes
+                ); // timeout 15 minutes
+            },
           });
         }
 
@@ -2610,16 +2611,15 @@ export class NodeCommandTasks {
   public downloadLastState(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Download last state from an existing node',
-      task: async context_ => {
-        const config = context_.config;
+      task: async ({config}) => {
         const node1FullyQualifiedPodName = Templates.renderNetworkPodName(config.existingNodeAliases[0]);
         const podReference = PodReference.of(config.namespace, node1FullyQualifiedPodName);
         const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
         const upgradeDirectory = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/0/123`;
 
-        const context = helpers.extractContextFromConsensusNodes(
+        const context: Context = helpers.extractContextFromConsensusNodes(
           config.existingNodeAliases[0],
-          context_.config.consensusNodes,
+          config.consensusNodes,
         );
 
         const k8 = this.k8Factory.getK8(context);
