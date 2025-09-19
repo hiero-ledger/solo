@@ -2347,24 +2347,17 @@ export class NodeCommandTasks {
     nodeAlias: NodeAlias,
   ): void {
     for (const consensusNode of consensusNodes) {
-      const clusterReference = consensusNode.cluster;
-      const index = clusterNodeIndexMap[clusterReference][consensusNode.nodeId];
+      const clusterReference: string = consensusNode.cluster;
+      const index: number = clusterNodeIndexMap[clusterReference][consensusNode.nodeId];
 
-      // for the case of updating node, use new account number for this node id
-      if (newAccountNumber && consensusNode.name === nodeAlias) {
-        valuesArgumentMap[clusterReference] +=
-          ` --set "hedera.nodes[${index}].accountId=${newAccountNumber}"` +
-          ` --set "hedera.nodes[${index}].name=${nodeAlias}"` +
-          ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
-      }
-
-      // Populate the values for the rest
-      else {
-        valuesArgumentMap[clusterReference] +=
-          ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(consensusNode.name).accountId}"` +
-          ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
-          ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
-      }
+      valuesArgumentMap[clusterReference] +=
+        newAccountNumber && consensusNode.name === nodeAlias
+          ? ` --set "hedera.nodes[${index}].accountId=${newAccountNumber}"` +
+            ` --set "hedera.nodes[${index}].name=${nodeAlias}"` +
+            ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`
+          : ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(consensusNode.name).accountId}"` +
+            ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
+            ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
     }
   }
 
