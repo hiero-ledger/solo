@@ -18,8 +18,10 @@ import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/lo
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {K8} from '../integration/kube/k8.js';
 import {type TaskList} from './task-list/task-list.js';
-import {ListrContext, ListrRendererValue} from 'listr2';
+import {Listr, ListrContext, ListrRendererValue} from 'listr2';
 import {type InitCommand} from '../commands/init/init.js';
+import {InitContext} from '../commands/init/init-context.js';
+import {SoloError} from './errors/solo-error.js';
 
 @injectable()
 export class Middlewares {
@@ -44,9 +46,19 @@ export class Middlewares {
     this.initCommand = patchInject(initCommand, InjectTokens.InitCommand, this.constructor.name);
   }
 
-  public initSolo(): (argv: ArgvStruct) => AnyObject {
+  public initSystemFiles(): (argv: ArgvStruct) => AnyObject {
     return async (argv: ArgvStruct): Promise<AnyObject> => {
-      await this.initCommand.init(argv);
+      const tasks: Listr<InitContext, ListrRendererValue, ListrRendererValue> =
+        // @ts-expect-error - TS2445: Property taskList is protected and only accessible within class BaseCommand and its subclasses.
+        this.initCommand.taskList.newTaskList(this.initCommand.setupSystemFilesTasks(argv), {renderer: 'silent'});
+      if (tasks.isRoot()) {
+        try {
+          await tasks.run();
+        } catch (error: Error | any) {
+          throw new SoloError('Error initiating Solo system files', error);
+        }
+      }
+
       return argv;
     };
   }

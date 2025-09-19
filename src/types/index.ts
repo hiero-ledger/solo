@@ -136,6 +136,8 @@ export interface CommandDefinition {
   handler?: (argv: ArgvStruct) => Promise<void>;
 }
 
+export type InitDependenciesOptions = {deps: string[]; createCluster: boolean};
+
 export type Version = string;
 /// TODO - see if we can use NamespaceName and use some annotations and overrides to covert to strings
 export type NamespaceNameAsString = string;
