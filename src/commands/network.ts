@@ -1302,17 +1302,14 @@ export class NetworkCommand extends BaseCommand {
                 this.logger.showUser(chalk.red(message));
                 networkDestroySuccess = false;
 
-                if (context_.config.deletePvcs && context_.config.deleteSecrets) {
-                  await Promise.all(
-                    context_.config.contexts.map(context =>
-                      this.k8Factory.getK8(context).namespaces().delete(context_.config.namespace),
-                    ),
-                  );
-                } else {
-                  // If the namespace is not being deleted,
-                  // remove all components data from the remote configuration
-                  await this.remoteConfig.deleteComponents();
-                }
+                await (context_.config.deletePvcs && context_.config.deleteSecrets
+                  ? Promise.all(
+                      context_.config.contexts.map(
+                        (context: string): Promise<boolean> =>
+                          this.k8Factory.getK8(context).namespaces().delete(context_.config.namespace),
+                      ),
+                    )
+                  : this.remoteConfig.deleteComponents());
               }, constants.NETWORK_DESTROY_WAIT_TIMEOUT * 1000);
 
               await this.destroyTask(context_, task);

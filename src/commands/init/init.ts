@@ -81,7 +81,7 @@ export class InitCommand extends BaseCommand {
             const subTasks: SoloListrTask<InitContext>[] = self.depManager.taskCheckDependencies<InitContext>(deps);
 
             subTasks.push({
-              title: `Creating local cluster...`,
+              title: 'Creating local cluster...',
               task: async context_ => {
                 const kindExecutable: string = self.depManager.getExecutablePath(constants.KIND);
                 const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
