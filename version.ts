@@ -26,7 +26,6 @@ export const INGRESS_CONTROLLER_VERSION: string =
   constants.getEnvironmentVariable('INGRESS_CONTROLLER_VERSION') || '0.14.5';
 export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_VERSION') || 'v0.18.0';
 
-// Chart version constants
 export const MINIO_OPERATOR_VERSION: string = '7.1.1';
 export const PROMETHEUS_STACK_VERSION: string = '52.0.1';
 export const GRAFANA_AGENT_VERSION: string = '0.27.1';
