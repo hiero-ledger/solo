@@ -96,7 +96,6 @@ export class ChartManager {
       this.logger.showUserError(error);
       throw new SoloError(`failed to list installed charts: ${error.message}`, error);
     }
-    return [];
   }
 
   async install(
