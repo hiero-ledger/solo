@@ -1,0 +1,3 @@
+controller:
+  config:
+    path-type-order: exact,regex,prefix,begin
