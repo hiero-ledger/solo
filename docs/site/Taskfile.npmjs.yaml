@@ -5,7 +5,7 @@ tasks:
     silent: true
     cmds:
       - |
-        LATEST_VERSION=$(curl -s https://registry.npmjs.org/@hashgraph/solo/latest | jq -r '.version')
+        LATEST_VERSION=$(npm view @hashgraph/solo version)
         echo "Latest version of Solo CLI from https://www.npmjs.com/package/@hashgraph/solo: $LATEST_VERSION"
         mkdir -p build
         echo -n "v$LATEST_VERSION" > build/npmjs-latest-version.txt
