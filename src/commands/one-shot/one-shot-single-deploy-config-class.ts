@@ -2,7 +2,7 @@
 
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 
-export interface QuickStartSingleDeployConfigClass {
+export interface OneShotSingleDeployConfigClass {
   clusterRef: string;
   context: string;
   deployment: string;

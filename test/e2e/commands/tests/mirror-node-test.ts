@@ -51,17 +51,38 @@ export class MirrorNodeTest extends BaseCommandTest {
     return argv;
   }
 
+  private static soloMirrorNodeDestroyArgv(
+    testName: string,
+    deployment: DeploymentName,
+    clusterReference: ClusterReferenceName,
+  ): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = MirrorNodeTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      MirrorCommandDefinition.COMMAND_NAME,
+      MirrorCommandDefinition.NODE_SUBCOMMAND_NAME,
+      MirrorCommandDefinition.NODE_DESTROY,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.clusterRef),
+      clusterReference,
+      optionFromFlag(Flags.force),
+      optionFromFlag(Flags.quiet),
+      optionFromFlag(Flags.devMode),
+    );
+
+    argvPushGlobalFlags(argv, testName, false, true);
+    return argv;
+  }
+
   private static async forwardRestServicePort(contexts: string[], namespace: NamespaceName): Promise<number> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
     const lastContext: string = contexts?.length ? contexts[contexts?.length - 1] : undefined;
     const k8: K8 = k8Factory.getK8(lastContext);
     const mirrorNodeRestPods: Pod[] = await k8
       .pods()
-      .list(namespace, [
-        'app.kubernetes.io/instance=mirror',
-        'app.kubernetes.io/name=rest',
-        'app.kubernetes.io/component=rest',
-      ]);
+      .list(namespace, ['app.kubernetes.io/name=rest', 'app.kubernetes.io/component=rest']);
     expect(mirrorNodeRestPods).to.have.lengthOf(1);
 
     const portForwarder: number = await k8
@@ -247,6 +268,15 @@ export class MirrorNodeTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
+  public static destroy(options: BaseTestOptions): void {
+    const {testName, deployment, clusterReferenceNameArray} = options;
+    const {soloMirrorNodeDestroyArgv} = MirrorNodeTest;
+
+    it(`${testName}: mirror node add`, async (): Promise<void> => {
+      await main(soloMirrorNodeDestroyArgv(testName, deployment, clusterReferenceNameArray[1]));
+    }).timeout(Duration.ofMinutes(5).toMillis());
+  }
+
   private static postgresPassword: string = 'XXXXXXX';
   private static postgresUsername: string = 'postgres';
 
@@ -276,6 +306,8 @@ export class MirrorNodeTest extends BaseCommandTest {
 
     it(`${testName}: mirror node deploy with external database`, async (): Promise<void> => {
       const argv = soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger);
+
+      process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME = 'true';
 
       // Add external database flags
       argv.push(
@@ -309,11 +341,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       const k8: K8 = k8Factory.getK8(contexts[1]);
       const mirrorNodePods: Pod[] = await k8
         .pods()
-        .list(namespace, [
-          'app.kubernetes.io/instance=mirror',
-          'app.kubernetes.io/name=grpc',
-          'app.kubernetes.io/component=grpc',
-        ]);
+        .list(namespace, ['app.kubernetes.io/name=grpc', 'app.kubernetes.io/component=grpc']);
       const mirrorNodePod: Pod = mirrorNodePods[0];
       await k8.pods().readByReference(mirrorNodePod.podReference).portForward(5600, 5600);
     });

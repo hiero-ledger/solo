@@ -17,10 +17,6 @@
 name: "Test Examples"
 
 on:
-  schedule:
-    # Run every midnight US Central Time (6 AM UTC during DST, 7 AM UTC during standard time)
-    # Using 6 AM UTC to cover Central Daylight Time
-    - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
       node-version:
@@ -32,7 +28,7 @@ on:
         description: "Use released or latest version"
         type: boolean
         required: false
-        default: true
+        default: false
   workflow_call:
     inputs:
       node-version:
@@ -149,7 +145,7 @@ jobs:
 
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
-        uses: gradle/gradle-build-action@ac2d340dc04d9e1113182899e983b5400c17cda1 # v3.5.0
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
         with:
           cache-read-only: false
 

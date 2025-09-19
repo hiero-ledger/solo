@@ -30,21 +30,11 @@ export function getInternalAddress(
   releaseVersion: semver.SemVer | string,
   namespaceName: NamespaceName,
   nodeAlias: NodeAlias,
-) {
-  //? Explanation: for v0.59.x the internal IP address is set to 127.0.0.1 to avoid an ISS
-  let internalIp = '';
-
-  // for versions that satisfy 0.58.5+
+): string {
   // @ts-expect-error TS2353: Object literal may only specify known properties
-  if (semver.gte(releaseVersion, '0.58.5', {includePrerelease: true})) {
-    internalIp = '127.0.0.1';
-  }
-  // versions less than 0.58.5
-  else {
-    internalIp = Templates.renderFullyQualifiedNetworkPodName(namespaceName, nodeAlias);
-  }
-
-  return internalIp;
+  return semver.gte(releaseVersion, '0.58.5', {includePrerelease: true})
+    ? '127.0.0.1'
+    : Templates.renderFullyQualifiedNetworkPodName(namespaceName, nodeAlias);
 }
 
 export async function getExternalAddress(

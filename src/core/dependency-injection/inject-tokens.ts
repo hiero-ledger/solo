@@ -13,9 +13,11 @@ export class InjectTokens {
   public static HelmInstallationDir: symbol = Symbol.for('HelmInstallationDir');
   public static KindInstallationDir: symbol = Symbol.for('KindInstallationDir');
   public static KubectlInstallationDir: symbol = Symbol.for('KubectlInstallationDir');
+  public static PodmanInstallationDir: symbol = Symbol.for('PodmanInstallationDir');
   public static HelmVersion: symbol = Symbol.for('HelmVersion');
   public static KindVersion: symbol = Symbol.for('KindVersion');
   public static KubectlVersion: symbol = Symbol.for('KubectlVersion');
+  public static PodmanVersion: symbol = Symbol.for('PodmanVersion');
   public static SystemAccounts: symbol = Symbol.for('SystemAccounts');
   public static CacheDir: symbol = Symbol.for('CacheDir');
   public static LockRenewalService: symbol = Symbol.for('LockRenewalService');
@@ -30,6 +32,8 @@ export class InjectTokens {
   public static HelmDependencyManager: symbol = Symbol.for('HelmDependencyManager');
   public static KindDependencyManager: symbol = Symbol.for('KindDependencyManager');
   public static KubectlDependencyManager: symbol = Symbol.for('KubectlDependencyManager');
+  public static PodmanDependencyManager: symbol = Symbol.for('PodmanDependencyManager');
+  public static KindBuilder: symbol = Symbol.for('KindBuilder');
   public static ChartManager: symbol = Symbol.for('ChartManager');
   public static ConfigManager: symbol = Symbol.for('ConfigManager');
   public static AccountManager: symbol = Symbol.for('AccountManager');
@@ -67,7 +71,7 @@ export class InjectTokens {
   public static LocalConfigSource: symbol = Symbol.for('LocalConfigSource');
   public static LocalConfigRuntimeState: symbol = Symbol.for('LocalConfigRuntimeState');
   public static HomeDirectory: symbol = Symbol.for('HomeDirectory');
-  public static QuickStartCommand: symbol = Symbol.for('QuickStartCommand');
+  public static OneShotCommand: symbol = Symbol.for('OneShotCommand');
   public static TaskList: symbol = Symbol.for('TaskList');
   public static Commands: symbol = Symbol.for('Commands');
 
@@ -81,5 +85,5 @@ export class InjectTokens {
   public static LedgerCommandDefinition: symbol = Symbol.for('LedgerCommandDefinition');
   public static MirrorCommandDefinition: symbol = Symbol.for('MirrorCommandDefinition');
   public static RelayCommandDefinition: symbol = Symbol.for('RelayCommandDefinition');
-  public static QuickStartCommandDefinition: symbol = Symbol.for('QuickStartCommandDefinition');
+  public static OneShotCommandDefinition: symbol = Symbol.for('OneShotCommandDefinition');
 }

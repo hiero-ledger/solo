@@ -63,6 +63,7 @@ describe('KindDependencyManager', (): void => {
     let runStub: SinonStub;
     let cpSyncStub: SinonStub;
     let chmodSyncStub: SinonStub;
+    let renameSyncStub: SinonStub;
     let existsSyncStub: SinonStub;
     let rmSyncStub: SinonStub;
 
@@ -80,6 +81,7 @@ describe('KindDependencyManager', (): void => {
       // Add stubs for file system operations
       cpSyncStub = sinon.stub(fs, 'cpSync').returns();
       chmodSyncStub = sinon.stub(fs, 'chmodSync').returns();
+      renameSyncStub = sinon.stub(fs, 'renameSync').returns();
       existsSyncStub = sinon.stub(fs, 'existsSync').returns(true);
       rmSyncStub = sinon.stub(fs, 'rmSync').returns();
     });
@@ -88,6 +90,7 @@ describe('KindDependencyManager', (): void => {
       runStub.restore();
       cpSyncStub.restore();
       chmodSyncStub.restore();
+      renameSyncStub.restore();
       existsSyncStub.restore();
       rmSyncStub.restore();
     });

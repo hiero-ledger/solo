@@ -7,11 +7,19 @@ import {SoloError} from '../../core/errors/solo-error.js';
 import {Flags as flags} from '../flags.js';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
-import {injectable} from 'tsyringe-neo';
-import {type CommandDefinition} from '../../types/index.js';
+import {inject, injectable} from 'tsyringe-neo';
+import {type CommandDefinition, type SoloListrTask} from '../../types/index.js';
 import {InitConfig} from './init-config.js';
 import {InitContext} from './init-context.js';
 import {Listr, ListrRendererValue} from 'listr2';
+import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
+import {patchInject} from '../../core/dependency-injection/container-helper.js';
+import {type DefaultKindClientBuilder} from '../../integration/kind/impl/default-kind-client-builder.js';
+import {KindClient} from '../../integration/kind/kind-client.js';
+import {ClusterCreateResponse} from '../../integration/kind/model/create-cluster/cluster-create-response.js';
+import {K8} from '../../integration/kube/k8.js';
+import {MissingActiveContextError} from '../../integration/kube/errors/missing-active-context-error.js';
+import {MissingActiveClusterError} from '../../integration/kube/errors/missing-active-cluster-error.js';
 
 /**
  * Defines the core functionalities of 'init' command
@@ -22,8 +30,9 @@ export class InitCommand extends BaseCommand {
   public static readonly INIT_COMMAND_NAME: string = InitCommand.COMMAND_NAME;
 
   // Although empty, tsyringe requires the constructor to be present
-  public constructor() {
+  public constructor(@inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder) {
     super();
+    this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, InitCommand.name);
   }
 
   /** Executes the init CLI command */
@@ -66,6 +75,41 @@ export class InitCommand extends BaseCommand {
           },
         },
         {
+          title: 'Create default cluster',
+          task: async (_, task) => {
+            const deps: string[] = [constants.PODMAN, constants.KIND];
+            const subTasks: SoloListrTask<InitContext>[] = self.depManager.taskCheckDependencies<InitContext>(deps);
+
+            subTasks.push({
+              title: 'Creating local cluster...',
+              task: async context_ => {
+                const kindExecutable: string = self.depManager.getExecutablePath(constants.KIND);
+                const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
+                const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
+                  constants.DEFAULT_CLUSTER,
+                );
+                task.title = `Created local cluster '${clusterResponse.name}'; connect with context '${clusterResponse.context}'`;
+              },
+            } as SoloListrTask<InitContext>);
+
+            return task.newListr(subTasks, {
+              concurrent: true,
+              rendererOptions: {
+                collapseSubtasks: false,
+              },
+            });
+          },
+          skip: (): boolean => {
+            try {
+              const k8: K8 = self.k8Factory.default();
+              const contextName: string = k8.contexts().readCurrent();
+              return !!contextName;
+            } catch (error) {
+              return !(error instanceof MissingActiveContextError || error instanceof MissingActiveClusterError);
+            }
+          },
+        },
+        {
           title: 'Create local configuration',
           skip: () => this.localConfig.configFileExists(),
           task: async (): Promise<void> => {
@@ -76,6 +120,9 @@ export class InitCommand extends BaseCommand {
           title: 'Setup chart manager',
           task: async context_ => {
             context_.repoURLs = await this.chartManager.setup();
+          },
+          skip: async (context_): Promise<boolean> => {
+            return this.chartManager.isSetup();
           },
         },
         {

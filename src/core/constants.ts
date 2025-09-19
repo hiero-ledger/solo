@@ -26,7 +26,10 @@ export const DEFAULT_NAMESPACE = NamespaceName.of('default');
 export const DEFAULT_CERT_MANAGER_NAMESPACE = NamespaceName.of('cert-manager');
 export const HELM = 'helm';
 export const KIND = 'kind';
+export const PODMAN = 'podman';
+export const DOCKER = 'docker';
 export const KUBECTL = 'kubectl';
+export const DEFAULT_CLUSTER = 'solo-cluster';
 export const RESOURCES_DIR = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
 
 export const ROOT_CONTAINER = ContainerName.of('root-container');
@@ -76,6 +79,7 @@ export const SOLO_CERT_MANAGER_CHART = 'solo-cert-manager';
 export const JSON_RPC_RELAY_CHART_URL =
   getEnvironmentVariable('JSON_RPC_RELAY_CHART_URL') ?? 'https://hiero-ledger.github.io/hiero-json-rpc-relay/charts';
 export const JSON_RPC_RELAY_CHART = 'hedera-json-rpc';
+export const JSON_RPC_RELAY_RELEASE_NAME: string = 'relay';
 
 export const MIRROR_NODE_CHART_URL =
   getEnvironmentVariable('MIRROR_NODE_CHART_URL') ?? 'https://hashgraph.github.io/hedera-mirror-node/charts';

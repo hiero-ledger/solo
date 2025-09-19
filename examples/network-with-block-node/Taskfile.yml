@@ -12,7 +12,7 @@ env:
 vars:
   # This Taskfile creates a Hiero deployment with a block node using Kind and kubectl.
   NODE_IDENTIFIERS: "node1"
-  BLOCK_NODE_RELEASE_TAG: "v0.63.9"
+  BLOCK_NODE_RELEASE_TAG: "v0.18.0"
   SOLO_NETWORK_SIZE: "1"
   DEPLOYMENT: "deployment-network-with-block-node"
   NAMESPACE: "namespace-network-with-block-node"
@@ -60,7 +60,8 @@ tasks:
 
       # Solo block node add
       - cmd: |
-          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .BLOCK_NODE_RELEASE_TAG }} \
+          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .CN_VERSION }} \
+          --chart-version {{ .BLOCK_NODE_RELEASE_TAG }} \
           --cluster-ref {{ .CLUSTER_REFERENCE }}
 
       # Solo node keys

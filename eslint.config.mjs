@@ -208,7 +208,6 @@ export default [
           ignore: ['.*\\.d\\.ts$'], // Ignore TypeScript declaration files if needed
         },
       ],
-      'unicorn/prefer-spread': 'warn', // TODO error
       'unicorn/no-null': 'warn', // TODO error
       'unicorn/text-encoding-identifier-case': 'warn', // TODO error
       'unicorn/catch-error-name': 'warn', // TODO error
@@ -217,10 +216,8 @@ export default [
       'unicorn/error-message': 'warn', // TODO error
       'unicorn/import-style': 'warn', // TODO error
       'unicorn/prefer-optional-catch-binding': 'warn', // TODO error
-      'unicorn/prefer-string-slice': 'warn', // TODO error
       'unicorn/no-await-expression-member': 'warn', // TODO error
       'unicorn/no-array-push-push': 'warn', // TODO error
-      'unicorn/prefer-ternary': 'warn', // TODO error
       'unicorn/prefer-logical-operator-over-ternary': 'warn', // TODO error
     },
   },

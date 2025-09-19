@@ -30,6 +30,8 @@ import {K8ClientIngresses} from './resources/ingress/k8-client-ingresses.js';
 import {type Crds} from '../resources/crd/crds.js';
 import {K8ClientCRDs} from './resources/crd/k8-clinet-crds.js';
 import {KubeConfig} from '@kubernetes/client-node';
+import {MissingActiveClusterError} from '../errors/missing-active-cluster-error.js';
+import {MissingActiveContextError} from '../errors/missing-active-context-error.js';
 
 /**
  * A kubernetes API wrapper class providing custom functionalities required by solo
@@ -72,11 +74,11 @@ export class K8Client implements K8 {
     this.kubeConfig = this.getKubeConfig(context);
 
     if (!this.kubeConfig.getCurrentContext()) {
-      throw new SoloError('No active kubernetes context found. ' + 'Please set current kubernetes context.');
+      throw new MissingActiveContextError();
     }
 
     if (!this.kubeConfig.getCurrentCluster()) {
-      throw new SoloError('No active kubernetes cluster found. ' + 'Please create a cluster and set current context.');
+      throw new MissingActiveClusterError();
     }
 
     this.kubeClient = this.kubeConfig.makeApiClient(k8s.CoreV1Api);

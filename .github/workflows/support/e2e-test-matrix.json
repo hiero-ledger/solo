@@ -28,9 +28,9 @@
     "local-java-build": false
   },
   {
-    "name": "Quick Start Single",
-    "test-script": "test-e2e-quick-start-single",
-    "coverage-subdirectory": "e2e-quick-start-single",
+    "name": "One Shot Single",
+    "test-script": "test-e2e-one-shot-single",
+    "coverage-subdirectory": "e2e-one-shot-single",
     "coverage-report-name": "E2E_Quick_Start_Single_Tests_Coverage_Report",
     "local-java-build": false
   },
@@ -40,13 +40,6 @@
     "coverage-subdirectory": "e2e-node-add",
     "coverage-report-name": "E2E_Node_Add_Tests_Coverage_Report",
     "local-java-build": false
-  },
-  {
-    "name": "Node Local Hedera",
-    "test-script": "test-e2e-node-local-hedera",
-    "coverage-subdirectory": "e2e-node-local-hedera",
-    "coverage-report-name": "E2E_Node_Local_Hedera_Tests_Coverage_Report",
-    "local-java-build": true
   },
   {
     "name": "Node Destroy",
@@ -67,13 +60,6 @@
     "test-script": "test-e2e-standard",
     "coverage-subdirectory": "e2e-standard",
     "coverage-report-name": "E2E_Standard_Tests_Coverage_Report",
-    "local-java-build": false
-  },
-  {
-    "name": "Relay",
-    "test-script": "test-e2e-relay",
-    "coverage-subdirectory": "e2e-relay",
-    "coverage-report-name": "E2E_Relay_Tests_Coverage_Report",
     "local-java-build": false
   },
   {

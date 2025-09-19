@@ -35,7 +35,7 @@ tasks:
       - cmd: kubectl config set-context {{ .CONTEXT }}
 
       # "Solo init"
-      - cmd: $SOLO_COMMAND quick-start single deploy
+      - cmd: $SOLO_COMMAND one-shot single deploy
 
   get:ledger:addressbook:
     silent: true

@@ -80,7 +80,7 @@ tasks:
           --ignore 'test/e2e/commands/block-node.test.ts' 
           --ignore 'test/e2e/commands/dual-*.ts'
           --ignore 'test/e2e/commands/external-*.ts'
-          --ignore 'test/e2e/commands/quick-start-single.test.ts'
+          --ignore 'test/e2e/commands/one-shot-single.test.ts'
           --ignore 'test/e2e/commands/separate-node-add.test.ts' 
           --ignore 'test/e2e/commands/separate-node-destroy.test.ts' 
           --ignore 'test/e2e/commands/separate-node-update.test.ts' 
@@ -100,13 +100,6 @@ tasks:
         {{ .reporter_prefix }}='coverage/e2e-node-pem-kill'
         {{ .mocha_bin }} 'test/e2e/commands/node-pem-kill.test.ts'
         {{ .reporter_options_prefix }}-e2e-node-pem-kill.xml"
-
-  test-e2e-node-local-hedera:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Local Hedera Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-local-hedera'
-        {{ .mocha_bin }} 'test/e2e/commands/node-local-hedera.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-local-hedera.xml"
 
   test-e2e-node-local-ptt:
     cmds:
@@ -178,13 +171,6 @@ tasks:
         {{ .mocha_bin }} 'test/e2e/commands/separate-node-upgrade.test.ts'
         {{ .reporter_options_prefix }}-e2e-node-upgrade-separate.xml"
 
-  test-e2e-relay:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Relay Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-relay'
-        {{ .mocha_bin }} 'test/e2e/commands/relay.test.ts'
-        {{ .reporter_options_prefix }}-e2e-relay.xml"
-
   test-e2e-block-node:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Block Nodes Tests\"
@@ -215,12 +201,12 @@ tasks:
         task default
         task destroy
 
-  test-e2e-quick-start-single:
+  test-e2e-one-shot-single:
     cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Quick Start Single Test\"
-        {{ .reporter_prefix }}='coverage/e2e-quick-start-single'
-        {{ .mocha_bin }} 'test/e2e/commands/quick-start-single.test.ts' 
-        {{ .reporter_options_prefix }}-e2e-quick-start-single.xml"
+      - "{{ .test_prefix }}=\"Mocha E2E One Shot Single Test\"
+        {{ .reporter_prefix }}='coverage/e2e-one-shot-single'
+        {{ .mocha_bin }} 'test/e2e/commands/one-shot-single.test.ts' 
+        {{ .reporter_options_prefix }}-e2e-one-shot-single.xml"
 
   test-example-node-create-transaction:
     dir: examples/node-create-transaction

@@ -17,6 +17,7 @@ import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
+import {Templates} from '../../../../src/core/templates.js';
 import {ExplorerCommandDefinition} from '../../../../src/commands/command-definitions/explorer-command-definition.js';
 
 export class ExplorerTest extends BaseCommandTest {
@@ -41,6 +42,30 @@ export class ExplorerTest extends BaseCommandTest {
     return argv;
   }
 
+  private static soloExplorerDestroyArgv(
+    testName: string,
+    deployment: DeploymentName,
+    clusterReference: ClusterReferenceName,
+  ): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = ExplorerTest;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ExplorerCommandDefinition.COMMAND_NAME,
+      ExplorerCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ExplorerCommandDefinition.NODE_DESTROY,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.clusterRef),
+      clusterReference,
+      optionFromFlag(Flags.force),
+      optionFromFlag(Flags.quiet),
+      optionFromFlag(Flags.devMode),
+    );
+    argvPushGlobalFlags(argv, testName, false, true);
+    return argv;
+  }
+
   private static async verifyExplorerDeployWasSuccessful(
     contexts: string[],
     namespace: NamespaceName,
@@ -49,13 +74,7 @@ export class ExplorerTest extends BaseCommandTest {
   ): Promise<void> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
     const k8: K8 = k8Factory.getK8(contexts[1]);
-    const explorerPods: Pod[] = await k8
-      .pods()
-      .list(namespace, [
-        'app.kubernetes.io/instance=hiero-explorer',
-        'app.kubernetes.io/name=hiero-explorer-chart',
-        'app.kubernetes.io/component=hiero-explorer',
-      ]);
+    const explorerPods: Pod[] = await k8.pods().list(namespace, Templates.renderExplorerLabels(1));
     expect(explorerPods).to.have.lengthOf(1);
     try {
       await sleep(Duration.ofSeconds(2));
@@ -111,6 +130,15 @@ export class ExplorerTest extends BaseCommandTest {
 
     it(`${testName}: explorer node add`, async (): Promise<void> => {
       await main(soloExplorerDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
+    }).timeout(Duration.ofMinutes(5).toMillis());
+  }
+
+  public static destroy(options: BaseTestOptions): void {
+    const {testName, deployment, clusterReferenceNameArray} = options;
+    const {soloExplorerDestroyArgv} = ExplorerTest;
+
+    it(`${testName}: explorer node destroy`, async (): Promise<void> => {
+      await main(soloExplorerDestroyArgv(testName, deployment, clusterReferenceNameArray[1]));
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 }

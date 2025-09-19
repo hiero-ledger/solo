@@ -4,11 +4,13 @@
 > Entries marked as No changes retain their original form.
 
 ## Init
+
 | **Old Command** | **New Command** |
 |-----------------|-----------------|
 | init            | *No changes*    |
 
 ## Block node
+
 | **Old Command**     | **New Command** |
 |---------------------|-----------------|
 | block node add      | *No changes*    |
@@ -16,6 +18,7 @@
 | block node upgrade  | *No changes*    |
 
 ## Account
+
 | **Old Command** | **New Command**       |
 |-----------------|-----------------------|
 | account init    | ledger system init    |
@@ -23,14 +26,15 @@
 | account create  | ledger account create |
 | account get     | ledger account info   |
 
-## Quick Start
+## One Shot
+
 | **Old Command**            | **New Command**  |
 |----------------------------|------------------|
-| quick-start single deploy  | one shot deploy  |
-| quick-start single destroy | one shot destroy |
-
+| one-shot single deploy  | one shot deploy  |
+| one-shot single destroy | one shot destroy |
 
 ## Cluster Reference
+
 | **Old Command**        | **New Command**               |
 |------------------------|-------------------------------|
 | cluster-ref connect    | cluster-ref config connect    |
@@ -41,6 +45,7 @@
 | cluster-ref reset      | cluster-ref config reset      |
 
 ## Deployment
+
 | **Old Command**        | **New Command**           |
 |------------------------|---------------------------|
 | deployment add-cluster | deployment cluster attach |
@@ -49,30 +54,35 @@
 | deployment delete      | deployment config destroy |
 
 ## Explorer
+
 | **Old Command**   | **New Command**        |
 |-------------------|------------------------|
 | explorer deploy   | explorer node add      |
 | explorer destroy  | explorer node destroy  |
 
 ## Mirror Node
+
 | **Old Command**     | **New Command**      |
 |---------------------|----------------------|
 | mirror-node deploy  | mirror node add      |
 | mirror-node destroy | mirror node destroy  |
 
 ## Relay
+
 | **Old Command** | **New Command**     |
 |-----------------|---------------------|
 | relay deploy    | relay node add      |
 | relay destroy   | relay node destroy  |
 
 ## Network
+
 | **Old Command** | **New Command**           |
 |-----------------|---------------------------|
 | network deploy  | consensus network deploy  |
 | network destroy | consensus network destroy |
 
 ## Node
+
 | **Old Command**                 | **New Command**                               |
 |---------------------------------|-----------------------------------------------|
 | node keys                       | keys consensus generate                       |
@@ -104,7 +114,3 @@
 | node download-generated-files   | consensus diagnostic configs                  |
 | node logs                       | consensus diagnostics all                     |
 | node states                     | consensus state download                      |
-
-
-
-

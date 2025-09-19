@@ -23,7 +23,7 @@ import {NetworkTest} from './tests/network-test.js';
 import {MirrorNodeTest} from './tests/mirror-node-test.js';
 import {ExplorerTest} from './tests/explorer-test.js';
 import {RelayTest} from './tests/relay-test.js';
-import {spawn} from 'node:child_process';
+import {type ChildProcessWithoutNullStreams, spawn} from 'node:child_process';
 
 const testName: string = 'external-database-test';
 
@@ -81,7 +81,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       MirrorNodeTest.deployWithExternalDatabase(options);
       ExplorerTest.add(options);
       MirrorNodeTest.runSql(options);
-      RelayTest.deploy(options);
+      RelayTest.add(options);
 
       it('should run smoke tests', async (): Promise<void> => {
         const scriptPath: string = `export SOLO_HOME=${testCacheDirectory}; \
@@ -95,26 +95,22 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         // running the script and show its output in real time for easy to debug
         // and check its progress
-        return new Promise<void>((resolve, reject) => {
-          const process = spawn(scriptPath, {
+        return new Promise<void>((resolve, reject): void => {
+          const process: ChildProcessWithoutNullStreams = spawn(scriptPath, {
             stdio: 'pipe', // Use pipe to capture output
             shell: true, // Run in shell to support bash features
           });
 
           // Stream stdout in real-time
-          process.stdout.on('data', data => {
-            console.log(`${data}`.trim());
-          });
+          process.stdout.on('data', (data): void => console.log(`${data}`.trim()));
 
           // Stream stderr in real-time
-          process.stderr.on('data', data => {
-            console.error(`${data}`.trim());
-          });
+          process.stderr.on('data', (data): void => console.error(`${data}`.trim()));
 
           // Handle process completion
-          process.on('close', code => {
+          process.on('close', (code): void => {
             if (code) {
-              const error = new Error(`Smoke test failed with exit code ${code}`);
+              const error: Error = new Error(`Smoke test failed with exit code ${code}`);
               console.error(error.message);
               reject(error);
             } else {
@@ -124,7 +120,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           });
 
           // Handle process errors
-          process.on('error', error => {
+          process.on('error', (error): void => {
             console.error('Failed to start smoke test process:', error.message);
             reject(error);
           });
@@ -133,4 +129,5 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
     }).timeout(Duration.ofMinutes(25).toMillis());
   })
   .build();
+
 endToEndTestSuite.runTestSuite();

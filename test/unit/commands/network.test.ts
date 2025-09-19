@@ -230,6 +230,12 @@ describe('NetworkCommand unit tests', () => {
         // @ts-expect-error - TS2341: to mock
         networkCommand.getBlockNodes = sinon.stub().returns([]);
 
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.componentFactory = {
+          createNewEnvoyProxyComponent: sinon.stub(),
+          createNewHaProxyComponent: sinon.stub(),
+        };
+
         await networkCommand.deploy(argv.build());
 
         expect(options.chartManager.upgrade.args[0][0].name).to.equal('solo-e2e');
@@ -255,6 +261,12 @@ describe('NetworkCommand unit tests', () => {
 
         // @ts-expect-error - TS2341: to mock
         networkCommand.getBlockNodes = sinon.stub().returns([]);
+
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.componentFactory = {
+          createNewEnvoyProxyComponent: sinon.stub(),
+          createNewHaProxyComponent: sinon.stub(),
+        };
 
         await networkCommand.deploy(argv.build());
         expect(options.chartManager.upgrade.args[0][0].name).to.equal('solo-e2e');

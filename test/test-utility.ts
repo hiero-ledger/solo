@@ -69,6 +69,7 @@ import {ConsensusCommandDefinition} from '../src/commands/command-definitions/co
 import {ClusterReferenceCommandDefinition} from '../src/commands/command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../src/commands/command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../src/commands/command-definitions/keys-command-definition.js';
+import {type ComponentFactoryApi} from '../src/core/config/remote/api/component-factory-api.js';
 
 export const BASE_TEST_DIR: string = PathEx.join('test', 'data', 'tmp');
 
@@ -166,6 +167,7 @@ interface TestOptions {
   remoteConfig: RemoteConfigRuntimeStateApi;
   localConfig: LocalConfigRuntimeState;
   commandInvoker: CommandInvoker;
+  componentFactory: ComponentFactoryApi;
 }
 
 export interface BootstrapResponse {
@@ -239,6 +241,7 @@ export function bootstrapTestVariables(
   const remoteConfig: RemoteConfigRuntimeStateApi = container.resolve(InjectTokens.RemoteConfigRuntimeState);
   const testLogger: SoloLogger = getTestLogger();
   const commandInvoker: CommandInvoker = container.resolve(InjectTokens.CommandInvoker);
+  const componentFactory: ComponentFactoryApi = container.resolve(InjectTokens.ComponentFactory);
 
   const options: TestOptions = {
     logger: testLogger,
@@ -258,6 +261,7 @@ export function bootstrapTestVariables(
     localConfig,
     remoteConfig,
     commandInvoker,
+    componentFactory,
   };
 
   return {
