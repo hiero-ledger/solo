@@ -27,7 +27,8 @@ export const INGRESS_CONTROLLER_VERSION: string =
 export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_VERSION') || 'v0.18.0';
 
 export const MINIO_OPERATOR_VERSION: string = constants.getEnvironmentVariable('MINIO_OPERATOR_VERSION') || '7.1.1';
-export const PROMETHEUS_STACK_VERSION: string = constants.getEnvironmentVariable('PROMETHEUS_STACK_VERSION') || '52.0.1';
+export const PROMETHEUS_STACK_VERSION: string =
+  constants.getEnvironmentVariable('PROMETHEUS_STACK_VERSION') || '52.0.1';
 export const GRAFANA_AGENT_VERSION: string = constants.getEnvironmentVariable('GRAFANA_AGENT_VERSION') || '0.27.1';
 
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE: string = 'v0.62.3';
