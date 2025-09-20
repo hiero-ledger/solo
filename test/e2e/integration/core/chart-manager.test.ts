@@ -21,7 +21,7 @@ describe('ChartManager', () => {
   it('should be able to check if a chart is installed', async () => {
     const ns = constants.SOLO_SETUP_NAMESPACE;
     expect(ns, 'namespace should not be null').not.to.be.null;
-    const isInstalled = await chartManager.isChartInstalled(ns, constants.SOLO_CLUSTER_SETUP_CHART);
-    expect(isInstalled, `${constants.SOLO_CLUSTER_SETUP_CHART} should be installed`).to.be.ok;
+    const isInstalled = await chartManager.isChartInstalled(ns, constants.MINIO_OPERATOR_RELEASE_NAME);
+    expect(isInstalled, `${constants.MINIO_OPERATOR_RELEASE_NAME} should be installed`).to.be.ok;
   });
 });

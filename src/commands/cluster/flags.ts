@@ -20,6 +20,7 @@ export const SETUP_FLAGS = {
     flags.clusterSetupNamespace,
     flags.deployMinio,
     flags.deployPrometheusStack,
+    flags.deployGrafanaAgent,
     flags.quiet,
     flags.soloChartVersion,
   ],

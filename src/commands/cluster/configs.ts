@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Flags as flags} from '../flags.js';
-import * as constants from '../../core/constants.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {UserBreak} from '../../core/errors/user-break.js';
-import {SoloError} from '../../core/errors/solo-error.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
@@ -99,6 +97,7 @@ export class ClusterCommandConfigs {
       flags.clusterSetupNamespace,
       flags.deployMinio,
       flags.deployPrometheusStack,
+      flags.deployGrafanaAgent,
     ]);
 
     context_.config = {
@@ -106,6 +105,7 @@ export class ClusterCommandConfigs {
       clusterSetupNamespace: configManager.getFlag<NamespaceName>(flags.clusterSetupNamespace),
       deployMinio: configManager.getFlag<boolean>(flags.deployMinio),
       deployPrometheusStack: configManager.getFlag<boolean>(flags.deployPrometheusStack),
+      deployGrafanaAgent: configManager.getFlag<boolean>(flags.deployGrafanaAgent),
       soloChartVersion: configManager.getFlag(flags.soloChartVersion),
       clusterRef: configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
     } as ClusterReferenceSetupConfigClass;
@@ -113,12 +113,6 @@ export class ClusterCommandConfigs {
     context_.config.context =
       this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString() ??
       this.k8Factory.default().contexts().readCurrent();
-
-    context_.isChartInstalled = await this.chartManager.isChartInstalled(
-      context_.config.clusterSetupNamespace,
-      constants.SOLO_CLUSTER_SETUP_CHART,
-      context_.config.context,
-    );
 
     return context_.config;
   }
@@ -145,14 +139,6 @@ export class ClusterCommandConfigs {
       clusterName: this.configManager.getFlag(flags.clusterRef),
       clusterSetupNamespace: this.configManager.getFlag<NamespaceName>(flags.clusterSetupNamespace),
     } as ClusterReferenceResetConfigClass;
-
-    context_.isChartInstalled = await this.chartManager.isChartInstalled(
-      context_.config.clusterSetupNamespace,
-      constants.SOLO_CLUSTER_SETUP_CHART,
-    );
-    if (!context_.isChartInstalled) {
-      throw new SoloError('No chart found for the cluster');
-    }
 
     return context_.config;
   }

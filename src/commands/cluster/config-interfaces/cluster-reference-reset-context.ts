@@ -4,5 +4,4 @@ import {type ClusterReferenceResetConfigClass} from './cluster-reference-reset-c
 
 export interface ClusterReferenceResetContext {
   config: ClusterReferenceResetConfigClass;
-  isChartInstalled: boolean;
 }

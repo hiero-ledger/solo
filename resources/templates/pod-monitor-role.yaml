@@ -1,0 +1,22 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pod-monitor-role
+  labels:
+    solo.hedera.com/type: cluster-role
+rules:
+  - apiGroups: [ "" ]
+    resources:
+      - pods
+      - services
+      - clusterroles
+      - pods/log
+      - secrets
+    verbs:
+      - get
+      - list
+  - apiGroups: [ "" ]
+    resources:
+      - pods/exec
+    verbs:
+      - create

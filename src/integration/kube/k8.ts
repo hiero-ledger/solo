@@ -13,6 +13,7 @@ import {type IngressClasses} from './resources/ingress-class/ingress-classes.js'
 import {type Secrets} from './resources/secret/secrets.js';
 import {type Ingresses} from './resources/ingress/ingresses.js';
 import {type Crds} from './resources/crd/crds.js';
+import type * as k8s from '@kubernetes/client-node';
 
 export interface K8 {
   /**
@@ -92,4 +93,10 @@ export interface K8 {
    * @returns an object instance providing crd operations
    */
   crds(): Crds;
+
+  /**
+   * Fluent accessor for RBAC operations in the kubernetes cluster.
+   * @returns an object instance providing RBAC operations
+   */
+  rbac(): k8s.RbacAuthorizationV1Api;
 }
