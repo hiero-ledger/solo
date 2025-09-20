@@ -36,6 +36,7 @@ task
 ```
 
 This will execute all steps in sequence:
+
 1. Setup cluster and Solo environment
 2. Deploy all components with previous versions
 3. Upgrade each component to current version
@@ -46,21 +47,25 @@ This will execute all steps in sequence:
 You can also run individual tasks:
 
 #### Setup Cluster
+
 ```bash
 task setup-cluster
 ```
 
 #### Deploy with Old Versions
+
 ```bash
 task deploy-old-versions
 ```
 
 #### Upgrade Components
+
 ```bash
 task upgrade-components
 ```
 
 #### Verify Functionality
+
 ```bash
 task verify-functionality
 ```
@@ -108,19 +113,25 @@ This will:
 ## Troubleshooting
 
 ### Port Forward Issues
+
 If port forwarding fails, check if the services are running:
+
 ```bash
 kubectl get services -n namespace-version-upgrade-test
 ```
 
 ### Component Status
+
 Check the status of all pods:
+
 ```bash
 task status
 ```
 
 ### Service Logs
+
 View logs for specific components:
+
 ```bash
 kubectl logs -n namespace-version-upgrade-test -l app=network-node1
 kubectl logs -n namespace-version-upgrade-test -l app=mirror-node
@@ -129,7 +140,9 @@ kubectl logs -n namespace-version-upgrade-test -l app=explorer
 ```
 
 ### API Verification
+
 If API verification fails, ensure port forwarding is active and services are ready:
+
 ```bash
 # Check if port forwards are running
 ps aux | grep port-forward
