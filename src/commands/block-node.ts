@@ -323,7 +323,7 @@ export class BlockNodeCommand extends BaseCommand {
               });
               task.title += ` with local built image (${config.imageTag})`;
             }
-            showVersionBanner(this.logger, config.releaseName, versions.BLOCK_NODE_VERSION);
+            showVersionBanner(this.logger, config.releaseName, config.chartVersion);
 
             await this.updateBlockNodeVersionInRemoteConfig(config);
           },
