@@ -6,7 +6,7 @@ This example demonstrates how to deploy a complete Hedera network with previous 
 
 This test scenario performs the following operations:
 
-1. **Deploy with Previous Versions**: Deploys a network with consensus nodes, block node, mirror node, relay, and explorer using previous versions (current minus one)
+1. **Deploy with Previous Versions**: Deploys a network with consensus nodes, block node, mirror node, relay, and explorer using previous versions
 2. **Upgrade Components**: Upgrades each component individually to the current version
 3. **Network Upgrade with Local Build**: Upgrades the consensus network using the `--local-build-path` flag
 4. **Functionality Verification**: Creates accounts, verifies Explorer API responses, and tests Relay functionality
@@ -18,22 +18,6 @@ This test scenario performs the following operations:
 - Node.js and npm
 - Task runner (`go-task/task`)
 - Local Hedera consensus node build (for network upgrade with local build path)
-
-## Component Versions
-
-### Previous Versions (deployed initially)
-- Consensus Node: v0.65.0
-- Block Node: v0.17.0
-- Mirror Node: v0.137.0
-- Relay: 0.69.0
-- Explorer: 25.1.0
-
-### Current Versions (upgraded to)
-- Consensus Node: v0.65.1
-- Block Node: v0.18.0
-- Mirror Node: v0.138.0
-- Relay: 0.70.0
-- Explorer: 25.1.1
 
 ## Usage
 
@@ -80,30 +64,14 @@ task upgrade-components
 ```bash
 task verify-functionality
 ```
-
-#### Setup Port Forwarding
-```bash
-task port-forward
-```
-
-#### Check Status
-```bash
-task status
-```
-
 ## Port Forwarding
 
-The example includes a task to setup port forwarding for easy access to services:
+The example includes setup of port forwarding for easy access to services:
 
 - Explorer: http://localhost:8080
 - Relay: http://localhost:7546
 - Mirror Node: http://localhost:8081
 
-Run the port forwarding task:
-
-```bash
-task port-forward
-```
 
 ## Verification Steps
 
@@ -186,5 +154,4 @@ The Taskfile.yml contains several configurable variables:
 
 - This example assumes you have the necessary permissions to create Kind clusters
 - The local build path feature requires a local Hedera consensus node build
-- Port forwarding may require manual setup depending on your environment
 - API verification steps may need adjustment based on actual service endpoints and ingress configuration
