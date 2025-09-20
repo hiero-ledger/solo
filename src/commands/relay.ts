@@ -28,7 +28,6 @@ import {
   type SoloListr,
   type SoloListrTask,
 } from '../types/index.js';
-import {HEDERA_JSON_RPC_RELAY_VERSION} from '../../version.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
@@ -404,12 +403,12 @@ export class RelayCommand extends BaseCommand {
           config.releaseName,
           constants.JSON_RPC_RELAY_CHART,
           constants.JSON_RPC_RELAY_CHART,
-          '',
+          '', // relay.image.tag is used to set the version
           config.valuesArg,
           config.context,
         );
 
-        showVersionBanner(this.logger, config.releaseName, HEDERA_JSON_RPC_RELAY_VERSION);
+        showVersionBanner(this.logger, config.releaseName, config.relayReleaseTag);
         await helpers.sleep(Duration.ofSeconds(40)); // wait for the pod to destroy in case it was an upgrade
       },
     };

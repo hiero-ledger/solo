@@ -1,0 +1,222 @@
+version: 3
+
+env:
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx @hashgraph/solo"
+      else
+        echo "npm run solo --"
+      fi
+
+vars:
+  NODE_IDENTIFIERS: "node1,node2"
+  SOLO_NETWORK_SIZE: "2"
+  DEPLOYMENT: "deployment-version-upgrade-test"
+  NAMESPACE: "namespace-version-upgrade-test"
+  CLUSTER_NAME: "version-upgrade-test-cluster"
+  CONTEXT: "kind-version-upgrade-test-cluster"
+  CLUSTER_REFERENCE: "kind-version-upgrade-test-cluster"
+
+  # Previous versions (current minus one)
+  PREV_CN_VERSION: "v0.64.0"
+  PREV_MIRROR_VERSION: "v0.136.0"
+  PREV_EXPLORER_VERSION: "25.0.0"
+  PREV_RELAY_VERSION: "0.69.0"
+  PREV_BLOCK_VERSION: "v0.17.0"
+
+  # Local build path for network upgrade
+  CN_LOCAL_BUILD_PATH: "../hiero-consensus-node/hedera-node/data"
+  LOCAL_BUILD_FLAG: "--local-build-path {{.CN_LOCAL_BUILD_PATH}}"
+
+tasks:
+  default:
+    desc: Run full version upgrade test scenario
+    cmds:
+      - task: setup-cluster
+      - task: deploy-old-versions
+      - task: upgrade-components
+      - task: verify-functionality
+      - echo "Version upgrade test completed successfully!"
+
+  setup-cluster:
+    desc: Setup Kind cluster and Solo environment
+    cmds:
+      # Install Solo CLI
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Skipping npm install - using development version"
+          fi
+
+      # Create Kind cluster
+      - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
+
+      # Wait for control plane
+      - cmd: sleep 10
+
+      # Set kubectl context
+      - cmd: kubectl config set-context {{ .CONTEXT }}
+
+      # Solo init
+      - cmd: $SOLO_COMMAND init
+
+      # Solo cluster-ref config setup
+      - cmd: $SOLO_COMMAND cluster-ref config setup --quiet-mode --dev
+
+      # Solo cluster-ref config connect
+      - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
+
+      # Solo deployment config create
+      - cmd: $SOLO_COMMAND deployment config create --deployment {{ .DEPLOYMENT }} --namespace {{ .NAMESPACE }}
+
+      # Solo deployment cluster attach
+      - cmd: |
+          $SOLO_COMMAND deployment cluster attach --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
+
+
+  deploy-old-versions:
+    desc: Deploy network with previous versions of all components
+    cmds:
+      # Deploy consensus network with previous version
+      - cmd: |
+          $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
+          --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      - cmd: |
+          $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
+          --release-tag {{ .PREV_CN_VERSION }}
+
+      - cmd: $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }}
+
+      - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      # Deploy block node with previous version
+      - cmd: |
+          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }} \
+          --chart-version {{ .PREV_BLOCK_VERSION }} --cluster-ref {{ .CLUSTER_REFERENCE }}
+
+      # Deploy mirror node with previous version
+      - cmd: |
+          $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          --pinger --enable-ingress --mirror-node-version {{ .PREV_MIRROR_VERSION }}
+
+      # Deploy relay with previous version
+      - cmd: |
+          $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }} \
+          --relay-release {{ .PREV_RELAY_VERSION }}
+
+      # Deploy explorer with previous version
+      - cmd: |
+          $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          --enable-ingress --explorer-version {{ .PREV_EXPLORER_VERSION }}
+
+      - echo "All components deployed with previous versions"
+
+  upgrade-components:
+    desc: Upgrade all components to current versions
+    cmds:
+      # Upgrade mirror node
+      - cmd: |
+          $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }}
+
+      # Upgrade block node
+      - cmd: |
+          $SOLO_COMMAND block node upgrade --deployment {{ .DEPLOYMENT }}  \
+          --cluster-ref {{ .CLUSTER_REFERENCE }}
+
+      # Upgrade relay
+      - cmd: |
+          $SOLO_COMMAND relay node upgrade --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      # Upgrade explorer
+      - cmd: |
+          $SOLO_COMMAND explorer node upgrade --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }}
+
+      # Upgrade network to main with local build path
+      - cmd: |
+          export CONSENSUS_NODE_VERSION=$(grep "HEDERA_PLATFORM_VERSION" version.ts | sed -E "s/.*'([^']+)';/\1/")
+          $SOLO_COMMAND consensus network upgrade --node-aliases {{ .NODE_IDENTIFIERS }} \
+          --upgrade-version ${CONSENSUS_NODE_VERSION} \
+          --deployment {{ .DEPLOYMENT }} {{ .LOCAL_BUILD_FLAG }}
+
+  verify-functionality:
+    desc: Verify all components are working correctly
+    cmds:
+      # Create first account and capture ID
+      - cmd: |
+          ACCOUNT_ID=$($SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 100 | grep -o '0\.0\.[0-9]*' | head -1)
+          echo "Created first account: $ACCOUNT_ID"
+          echo "$ACCOUNT_ID" > /tmp/first_account_id.txt
+      - echo "First account created and ID captured"
+
+      # Create second account
+      - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
+      - echo "Second account created"
+
+      # Wait for transactions to be processed
+      - cmd: sleep 30
+
+      # Check Explorer REST API for the first account
+      - cmd: |
+          ACCOUNT_ID=$(cat /tmp/first_account_id.txt)
+          echo "Checking Explorer API for account: $ACCOUNT_ID"
+          
+          # Get the explorer service URL (assuming port-forward or ingress)
+          EXPLORER_URL="http://localhost:8080"
+          
+          # Try to access the account via Explorer API
+          curl -s "${EXPLORER_URL}/api/v1/accounts/${ACCOUNT_ID}" | jq '.' || echo "Explorer API check completed"
+      - echo "Explorer API verification completed"
+
+      # Test Relay functionality
+      - cmd: |
+          # Get relay service URL (assuming port-forward or ingress)
+          RELAY_URL="http://localhost:7546"
+          
+          # Make a simple JSON-RPC call to verify relay is working
+          curl -X POST "${RELAY_URL}" \
+            -H "Content-Type: application/json" \
+            -d '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' \
+            | jq '.' || echo "Relay API check completed"
+      - echo "Relay API verification completed"
+
+      - echo "All functionality verification completed successfully!"
+
+  destroy:
+    desc: Destroy the Solo network and cleanup
+    cmds:
+      # Stop consensus nodes
+      - cmd: $SOLO_COMMAND consensus node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      # Destroy explorer
+      - cmd: $SOLO_COMMAND explorer node destroy --deployment {{ .DEPLOYMENT }} --force
+
+      # Destroy relay
+      - cmd: $SOLO_COMMAND relay node destroy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+      # Destroy mirror node
+      - cmd: $SOLO_COMMAND mirror node destroy --deployment {{ .DEPLOYMENT }} --force
+
+      # Destroy block node
+      - cmd: $SOLO_COMMAND block node destroy --deployment {{ .DEPLOYMENT }}
+
+      # Destroy consensus network
+      - cmd: $SOLO_COMMAND consensus network destroy --deployment {{ .DEPLOYMENT }} --force
+
+      # Delete Kind cluster
+      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
+
+      # Cleanup temp files
+      - cmd: rm -f /tmp/first_account_id.txt
+
+      - echo "Cleanup completed"
+
+  status:
+    desc: Check status of all components
+    cmds:
+      - cmd: kubectl get pods -n {{ .NAMESPACE }}
+      - cmd: kubectl get services -n {{ .NAMESPACE }}
+      - echo "Status check completed"

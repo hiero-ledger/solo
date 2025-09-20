@@ -43,5 +43,10 @@
     "name": "Local Build with Custom Config",
     "directory": "local-build-with-custom-config",
     "local-java-build": true
+  },
+  {
+    "name": "Version Upgrade Test",
+    "directory": "version-upgrade-test",
+    "local-java-build": true
   }
 ]
