@@ -71,7 +71,7 @@ describe('ClusterCommand', () => {
     do {
       await sleep(Duration.ofSeconds(5));
     } while (
-      !(await chartManager.isChartInstalled(constants.SOLO_SETUP_NAMESPACE, constants.SOLO_CLUSTER_SETUP_CHART))
+      !(await chartManager.isChartInstalled(constants.SOLO_SETUP_NAMESPACE, constants.MINIO_OPERATOR_RELEASE_NAME))
     );
   });
 
@@ -85,7 +85,7 @@ describe('ClusterCommand', () => {
   afterEach(async () => await sleep(Duration.ofMillis(5)));
 
   it('should cleanup existing deployment', async () => {
-    if (await chartManager.isChartInstalled(constants.SOLO_SETUP_NAMESPACE, constants.SOLO_CLUSTER_SETUP_CHART)) {
+    if (await chartManager.isChartInstalled(constants.SOLO_SETUP_NAMESPACE, constants.MINIO_OPERATOR_RELEASE_NAME)) {
       expect(await clusterCmdHandlers.reset(argv.build())).to.be.true;
     }
   }).timeout(Duration.ofMinutes(1).toMillis());

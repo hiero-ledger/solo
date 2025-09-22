@@ -117,7 +117,6 @@ export class ClusterCommandHandlers extends CommandHandler {
         argv,
         [
           this.tasks.initialize(argv, this.configs.setupConfigBuilder.bind(this.configs)),
-          this.tasks.prepareChartValues(),
           this.tasks.installClusterChart(argv),
         ],
         {
