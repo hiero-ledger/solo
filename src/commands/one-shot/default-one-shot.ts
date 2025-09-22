@@ -18,6 +18,10 @@ import {OneShotSingleDeployConfigClass} from './one-shot-single-deploy-config-cl
 import {OneShotSingleDeployContext} from './one-shot-single-deploy-context.js';
 import {OneShotSingleDestroyConfigClass} from './one-shot-single-destroy-config-class.js';
 import {OneShotSingleDestroyContext} from './one-shot-single-destroy-context.js';
+import {OneShotMultipleDeployConfigClass} from './one-shot-multiple-deploy-config-class.js';
+import {OneShotMultipleDeployContext} from './one-shot-multiple-deploy-context.js';
+import {OneShotMultipleDestroyConfigClass} from './one-shot-multiple-destroy-config-class.js';
+import {OneShotMultipleDestroyContext} from './one-shot-multiple-destroy-context.js';
 import {InitCommand} from '../init/init.js';
 import {TaskList} from '../../core/task-list/task-list.js';
 import {TaskListWrapper} from '../../core/task-list/task-list-wrapper.js';
@@ -52,6 +56,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   private static readonly SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';
 
+  private static readonly MULTIPLE_ADD_CONFIGS_NAME: string = 'multipleAddConfigs';
+
+  private static readonly MULTIPLE_DESTROY_CONFIGS_NAME: string = 'multipleDestroyConfigs';
+
   public static readonly SINGLE_ADD_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
@@ -70,6 +78,35 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   };
 
   public static readonly SINGLE_DESTROY_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [
+      flags.cacheDir,
+      flags.clusterRef,
+      flags.context,
+      flags.deployment,
+      flags.namespace,
+      flags.quiet,
+      flags.force,
+      flags.devMode,
+    ],
+  };
+
+  public static readonly MULTIPLE_ADD_FLAGS_LIST: CommandFlags = {
+    required: [flags.numberOfConsensusNodes],
+    optional: [
+      flags.cacheDir,
+      flags.clusterRef,
+      flags.clusterSetupNamespace,
+      flags.context,
+      flags.deployment,
+      flags.devMode,
+      flags.namespace,
+      flags.predefinedAccounts,
+      flags.quiet,
+    ],
+  };
+
+  public static readonly MULTIPLE_DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [
       flags.cacheDir,
@@ -704,6 +741,542 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     }
 
     return true;
+  }
+
+  public async deployMultiple(argv: ArgvStruct): Promise<boolean> {
+    let config: OneShotMultipleDeployConfigClass | null = null;
+
+    const tasks: Listr<OneShotMultipleDeployContext, ListrRendererValue, ListrRendererValue> =
+      this.taskList.newOneShotMultipleDeployTaskList(
+        [
+          {
+            title: 'Initialize',
+            task: async (
+              context_: OneShotMultipleDeployContext,
+              task: SoloListrTaskWrapper<OneShotMultipleDeployContext>,
+            ): Promise<void> => {
+              this.configManager.update(argv);
+
+              flags.disablePrompts(DefaultOneShotCommand.MULTIPLE_ADD_FLAGS_LIST.optional);
+
+              const allFlags: CommandFlag[] = [
+                ...DefaultOneShotCommand.MULTIPLE_ADD_FLAGS_LIST.required,
+                ...DefaultOneShotCommand.MULTIPLE_ADD_FLAGS_LIST.optional,
+              ];
+
+              await this.configManager.executePrompt(task, allFlags);
+
+              context_.config = this.configManager.getConfig(
+                DefaultOneShotCommand.MULTIPLE_ADD_CONFIGS_NAME,
+                allFlags,
+              ) as OneShotMultipleDeployConfigClass;
+
+              config = context_.config;
+
+              await this.localConfig.load();
+
+              if (!config.cacheDir) {
+                config.cacheDir = constants.SOLO_CACHE_DIR;
+              }
+
+              if (!config.clusterRef) {
+                config.clusterRef = `solo-${uuid4()}`;
+              }
+
+              if (!config.deployment) {
+                config.deployment = `solo-deployment-${uuid4()}`;
+              }
+
+              if (!config.namespace) {
+                config.namespace = NamespaceName.of(`solo-${uuid4()}`);
+              }
+
+              context_.createdAccounts = [];
+            },
+          },
+          this.invokeSoloCommand(
+            `solo ${InitCommand.COMMAND_NAME}`,
+            InitCommand.COMMAND_NAME,
+            (): string[] => {
+              const argv: string[] = this.newArgv();
+              argv.push(InitCommand.COMMAND_NAME);
+              return this.argvPushGlobalFlags(argv, config.cacheDir);
+            },
+          ),
+          this.invokeSoloCommand(
+            `solo ${ClusterReferenceCommandDefinition.SETUP_COMMAND}`,
+            ClusterReferenceCommandDefinition.SETUP_COMMAND,
+            (): string[] => {
+              const argv: string[] = this.newArgv();
+              argv.push(
+                ...ClusterReferenceCommandDefinition.SETUP_COMMAND.split(' '),
+                this.optionFromFlag(flags.clusterRef),
+                config.clusterRef,
+              );
+              return this.argvPushGlobalFlags(argv, config.cacheDir);
+            },
+          ),
+          this.invokeSoloCommand(
+            `solo ${DeploymentCommandDefinition.CREATE_COMMAND}`,
+            DeploymentCommandDefinition.CREATE_COMMAND,
+            (): string[] => {
+              const argv: string[] = this.newArgv();
+              argv.push(
+                ...DeploymentCommandDefinition.CREATE_COMMAND.split(' '),
+                this.optionFromFlag(flags.deployment),
+                config.deployment,
+                this.optionFromFlag(flags.namespace),
+                config.namespace.name,
+              );
+              return this.argvPushGlobalFlags(argv, config.cacheDir);
+            },
+          ),
+          this.invokeSoloCommand(
+            `solo ${DeploymentCommandDefinition.ATTACH_COMMAND}`,
+            DeploymentCommandDefinition.ATTACH_COMMAND,
+            (): string[] => {
+              const argv: string[] = this.newArgv();
+              argv.push(
+                ...DeploymentCommandDefinition.ATTACH_COMMAND.split(' '),
+                this.optionFromFlag(flags.deployment),
+                config.deployment,
+                this.optionFromFlag(flags.clusterRef),
+                config.clusterRef,
+                this.optionFromFlag(flags.numberOfConsensusNodes),
+                config.numberOfConsensusNodes.toString(),
+              );
+              return this.argvPushGlobalFlags(argv, config.cacheDir);
+            },
+          ),
+          {
+            title: 'Deploy network components',
+            task: async (
+              context_: OneShotMultipleDeployContext,
+              task: SoloListrTaskWrapper<OneShotMultipleDeployContext>,
+            ): Promise<Listr<OneShotMultipleDeployContext, ListrRendererValue, ListrRendererValue>> => {
+              // Generate node aliases based on number of consensus nodes
+              const nodeAliases: string[] = [];
+              for (let i = 1; i <= config.numberOfConsensusNodes; i++) {
+                nodeAliases.push(`node${i}`);
+              }
+              const nodeAliasesStr = nodeAliases.join(',');
+
+              const subTasks: SoloListrTask<OneShotMultipleDeployContext>[] = [
+                this.invokeSoloCommand(
+                  `solo ${KeysCommandDefinition.KEYS_COMMAND}`,
+                  KeysCommandDefinition.KEYS_COMMAND,
+                  (): string[] => {
+                    const argv: string[] = this.newArgv();
+                    argv.push(
+                      ...KeysCommandDefinition.KEYS_COMMAND.split(' '),
+                      this.optionFromFlag(flags.deployment),
+                      config.deployment,
+                      this.optionFromFlag(flags.nodeAliasesUnparsed),
+                      nodeAliasesStr,
+                      this.optionFromFlag(flags.generateGossipKeys),
+                      this.optionFromFlag(flags.generateTlsKeys),
+                    );
+                    return this.argvPushGlobalFlags(argv, config.cacheDir);
+                  },
+                ),
+                this.invokeSoloCommand(
+                  `solo ${ConsensusCommandDefinition.DEPLOY_COMMAND}`,
+                  ConsensusCommandDefinition.DEPLOY_COMMAND,
+                  (): string[] => {
+                    const argv: string[] = this.newArgv();
+                    argv.push(
+                      ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
+                      this.optionFromFlag(flags.deployment),
+                      config.deployment,
+                      this.optionFromFlag(flags.nodeAliasesUnparsed),
+                      nodeAliasesStr,
+                      this.optionFromFlag(flags.persistentVolumeClaims),
+                    );
+                    return this.argvPushGlobalFlags(argv, config.cacheDir);
+                  },
+                ),
+                this.invokeSoloCommand(
+                  `solo ${ConsensusCommandDefinition.SETUP_COMMAND}`,
+                  ConsensusCommandDefinition.SETUP_COMMAND,
+                  (): string[] => {
+                    const argv: string[] = this.newArgv();
+                    argv.push(
+                      ...ConsensusCommandDefinition.SETUP_COMMAND.split(' '),
+                      this.optionFromFlag(flags.deployment),
+                      config.deployment,
+                      this.optionFromFlag(flags.nodeAliasesUnparsed),
+                      nodeAliasesStr,
+                    );
+                    return this.argvPushGlobalFlags(argv, config.cacheDir);
+                  },
+                ),
+                this.invokeSoloCommand(
+                  `solo ${ConsensusCommandDefinition.START_COMMAND}`,
+                  ConsensusCommandDefinition.START_COMMAND,
+                  (): string[] => {
+                    const argv: string[] = this.newArgv();
+                    argv.push(
+                      ...ConsensusCommandDefinition.START_COMMAND.split(' '),
+                      this.optionFromFlag(flags.deployment),
+                      config.deployment,
+                      this.optionFromFlag(flags.nodeAliasesUnparsed),
+                      nodeAliasesStr,
+                    );
+                    return this.argvPushGlobalFlags(argv, config.cacheDir);
+                  },
+                ),
+                this.invokeSoloCommand(
+                  `solo ${MirrorCommandDefinition.ADD_COMMAND}`,
+                  MirrorCommandDefinition.ADD_COMMAND,
+                  (): string[] => {
+                    const argv: string[] = this.newArgv();
+                    argv.push(
+                      ...MirrorCommandDefinition.ADD_COMMAND.split(' '),
+                      this.optionFromFlag(flags.deployment),
+                      config.deployment,
+                      this.optionFromFlag(flags.clusterRef),
+                      config.clusterRef,
+                    );
+                    return this.argvPushGlobalFlags(argv, config.cacheDir);
+                  },
+                ),
+                this.invokeSoloCommand(
+                  `solo ${RelayCommandDefinition.ADD_COMMAND}`,
+                  RelayCommandDefinition.ADD_COMMAND,
+                  (): string[] => {
+                    const argv: string[] = this.newArgv();
+                    argv.push(
+                      ...RelayCommandDefinition.ADD_COMMAND.split(' '),
+                      this.optionFromFlag(flags.deployment),
+                      config.deployment,
+                      this.optionFromFlag(flags.nodeAliasesUnparsed),
+                      nodeAliasesStr,
+                    );
+                    return this.argvPushGlobalFlags(argv, config.cacheDir);
+                  },
+                ),
+                this.invokeSoloCommand(
+                  `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
+                  ExplorerCommandDefinition.ADD_COMMAND,
+                  (): string[] => {
+                    const argv: string[] = this.newArgv();
+                    argv.push(
+                      ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
+                      this.optionFromFlag(flags.deployment),
+                      config.deployment,
+                      this.optionFromFlag(flags.clusterRef),
+                      config.clusterRef,
+                    );
+                    return this.argvPushGlobalFlags(argv, config.cacheDir);
+                  },
+                ),
+              ];
+
+              if (config.predefinedAccounts) {
+                subTasks.push({
+                  title: 'Create predefined accounts',
+                  task: async (): Promise<void> => {
+                    await helpers.sleep(Duration.ofSeconds(15));
+                    context_.createdAccounts = await this.createPredefinedAccounts(config);
+                  },
+                });
+              }
+
+              return task.newListr(subTasks, {
+                concurrent: true,
+                rendererOptions: {
+                  collapseSubtasks: false,
+                },
+              });
+            },
+          },
+          {
+            title: 'Finish',
+            task: async (context_: OneShotMultipleDeployContext): Promise<void> => {
+              this.showOneShotMultipleUserNotes(context_);
+              this.showVersions();
+              this.showPortForwards();
+              this.showCreatedAccounts(context_.createdAccounts);
+
+              return;
+            },
+          },
+        ],
+        {
+          concurrent: false,
+          rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        },
+      );
+
+    try {
+      await tasks.run();
+    } catch (error) {
+      throw new SoloError(`Error deploying Solo in one-shot multiple mode: ${error.message}`, error);
+    } finally {
+      await this.taskList
+        .callCloseFunctions()
+        .then()
+        .catch((error): void => {
+          this.logger.error('Error during closing task list:', error);
+        });
+    }
+
+    return true;
+  }
+
+  private showOneShotMultipleUserNotes(context_: OneShotMultipleDeployContext): void {
+    const messageGroupKey: string = 'one-shot-multiple-user-notes';
+    this.logger.addMessageGroup(messageGroupKey, 'One Shot Multiple User Notes');
+    this.logger.addMessageGroupMessage(messageGroupKey, `Cluster Reference: ${context_.config.clusterRef}`);
+    this.logger.addMessageGroupMessage(messageGroupKey, `Deployment Name: ${context_.config.deployment}`);
+    this.logger.addMessageGroupMessage(messageGroupKey, `Namespace Name: ${context_.config.namespace.name}`);
+    this.logger.addMessageGroupMessage(messageGroupKey, `Number of Consensus Nodes: ${context_.config.numberOfConsensusNodes}`);
+    this.logger.addMessageGroupMessage(
+      messageGroupKey,
+      'To quickly delete the deployed resources, run the following command:\n' +
+        `kubectl delete ns ${context_.config.namespace.name}`,
+    );
+
+    this.logger.showMessageGroup(messageGroupKey);
+  }
+
+  public async destroyMultiple(argv: ArgvStruct): Promise<boolean> {
+    let config: OneShotMultipleDestroyConfigClass;
+
+    const tasks: SoloListr<OneShotMultipleDestroyContext> = this.taskList.newOneShotMultipleDestroyTaskList(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_, task): Promise<void> => {
+            this.configManager.update(argv);
+
+            flags.disablePrompts(DefaultOneShotCommand.MULTIPLE_DESTROY_FLAGS_LIST.optional);
+
+            const allFlags: CommandFlag[] = [
+              ...DefaultOneShotCommand.MULTIPLE_DESTROY_FLAGS_LIST.required,
+              ...DefaultOneShotCommand.MULTIPLE_DESTROY_FLAGS_LIST.optional,
+            ];
+
+            await this.configManager.executePrompt(task, allFlags);
+
+            context_.config = this.configManager.getConfig(
+              DefaultOneShotCommand.MULTIPLE_DESTROY_CONFIGS_NAME,
+              allFlags,
+            ) as OneShotMultipleDestroyConfigClass;
+
+            config = context_.config;
+
+            await this.localConfig.load();
+
+            if (!config.cacheDir) {
+              config.cacheDir = constants.SOLO_CACHE_DIR;
+            }
+
+            if (!config.clusterRef) {
+              config.clusterRef = this.localConfig.configuration.clusterRefs.keys().next().value;
+            }
+
+            if (!config.context) {
+              config.context = this.localConfig.configuration.clusterRefs.get(config.clusterRef).toString();
+            }
+
+            if (!config.deployment) {
+              if (this.localConfig.configuration.deployments.length === 0) {
+                throw new SoloError('Deployments name is not found in local config');
+              }
+              config.deployment = this.localConfig.configuration.deployments.get(0).name;
+              this.configManager.setFlag(flags.deployment, config.deployment);
+            }
+
+            if (!config.namespace) {
+              config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+            }
+          },
+        },
+        this.invokeSoloCommand(
+          `solo ${ExplorerCommandDefinition.DESTROY_COMMAND}`,
+          ExplorerCommandDefinition.DESTROY_COMMAND,
+          (): string[] => {
+            const argv: string[] = this.newArgv();
+            argv.push(
+              ...ExplorerCommandDefinition.DESTROY_COMMAND.split(' '),
+              this.optionFromFlag(flags.clusterRef),
+              config.clusterRef,
+              this.optionFromFlag(flags.deployment),
+              config.deployment,
+              this.optionFromFlag(flags.quiet),
+              this.optionFromFlag(flags.force),
+            );
+            return this.argvPushGlobalFlags(argv);
+          },
+        ),
+        this.invokeSoloCommand(
+          `solo ${MirrorCommandDefinition.DESTROY_COMMAND}`,
+          MirrorCommandDefinition.DESTROY_COMMAND,
+          (): string[] => {
+            const argv: string[] = this.newArgv();
+            argv.push(
+              ...MirrorCommandDefinition.DESTROY_COMMAND.split(' '),
+              this.optionFromFlag(flags.clusterRef),
+              config.clusterRef,
+              this.optionFromFlag(flags.deployment),
+              config.deployment,
+              this.optionFromFlag(flags.quiet),
+              this.optionFromFlag(flags.force),
+              this.optionFromFlag(flags.devMode),
+            );
+            return this.argvPushGlobalFlags(argv);
+          },
+        ),
+        this.invokeSoloCommand(
+          `solo ${RelayCommandDefinition.DESTROY_COMMAND}`,
+          RelayCommandDefinition.DESTROY_COMMAND,
+          (): string[] => {
+            const argv: string[] = this.newArgv();
+            // Generate node aliases based on number of consensus nodes
+            const nodeAliases: string[] = [];
+            for (let i = 1; i <= config.numberOfConsensusNodes; i++) {
+              nodeAliases.push(`node${i}`);
+            }
+            argv.push(
+              ...RelayCommandDefinition.DESTROY_COMMAND.split(' '),
+              this.optionFromFlag(flags.clusterRef),
+              config.clusterRef,
+              this.optionFromFlag(flags.deployment),
+              config.deployment,
+              this.optionFromFlag(flags.nodeAliasesUnparsed),
+              nodeAliases.join(','),
+              this.optionFromFlag(flags.quiet),
+            );
+            return this.argvPushGlobalFlags(argv);
+          },
+        ),
+        this.invokeSoloCommand(
+          `solo ${ConsensusCommandDefinition.DESTROY_COMMAND}`,
+          ConsensusCommandDefinition.DESTROY_COMMAND,
+          (): string[] => {
+            const argv: string[] = this.newArgv();
+            argv.push(
+              ...ConsensusCommandDefinition.DESTROY_COMMAND.split(' '),
+              this.optionFromFlag(flags.deployment),
+              config.deployment,
+              this.optionFromFlag(flags.quiet),
+              this.optionFromFlag(flags.force),
+              this.optionFromFlag(flags.deletePvcs),
+              this.optionFromFlag(flags.deleteSecrets),
+              this.optionFromFlag(flags.enableTimeout),
+            );
+            return this.argvPushGlobalFlags(argv);
+          },
+        ),
+        this.invokeSoloCommand(
+          `solo ${ClusterReferenceCommandDefinition.RESET_COMMAND}`,
+          ClusterReferenceCommandDefinition.RESET_COMMAND,
+          (): string[] => {
+            const argv: string[] = this.newArgv();
+            argv.push(
+              ...ClusterReferenceCommandDefinition.RESET_COMMAND.split(' '),
+              this.optionFromFlag(flags.clusterRef),
+              config.clusterRef,
+              this.optionFromFlag(flags.quiet),
+              this.optionFromFlag(flags.force),
+            );
+            return this.argvPushGlobalFlags(argv);
+          },
+        ),
+        {
+          title: 'Delete cache folder',
+          task: async (): Promise<void> => {
+            fs.rmSync(config.cacheDir, {recursive: true, force: true});
+          },
+        },
+        {title: 'Finish', task: async (): Promise<void> => {}},
+      ],
+      {
+        concurrent: false,
+        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+      },
+    );
+
+    try {
+      await tasks.run();
+    } catch (error) {
+      throw new SoloError(`Error destroying Solo in one-shot multiple mode: ${error.message}`, error);
+    } finally {
+      await this.taskList
+        .callCloseFunctions()
+        .then()
+        .catch((error): void => this.logger.error('Error during closing task list:', error));
+    }
+
+    return true;
+  }
+
+  private async createPredefinedAccounts(config: OneShotMultipleDeployConfigClass): Promise<CreatedPredefinedAccount[]> {
+    const createdAccounts: CreatedPredefinedAccount[] = [];
+    
+    // Create ECDSA accounts
+    for (const account of predefinedEcdsaAccounts) {
+      try {
+        const accountId = await this.accountManager.createNewAccount(
+          config.namespace,
+          account.privateKey,
+          account.balance.to(HbarUnit.Hbar).toNumber(),
+          null,
+          config.context,
+        );
+        createdAccounts.push({
+          accountId: AccountId.fromString(accountId.accountId),
+          data: account,
+          alias: null,
+        });
+      } catch (error) {
+        this.logger.error(`Failed to create ECDSA account: ${error.message}`);
+      }
+    }
+
+    // Create ECDSA alias accounts
+    for (const account of predefinedEcdsaAccountsWithAlias) {
+      try {
+        const accountId = await this.accountManager.createNewAccount(
+          config.namespace,
+          account.privateKey,
+          account.balance.to(HbarUnit.Hbar).toNumber(),
+          null,
+          config.context,
+        );
+        const alias = account.privateKey.publicKey.toEvmAddress();
+        createdAccounts.push({
+          accountId: AccountId.fromString(accountId.accountId),
+          data: account,
+          alias: alias.toString(),
+        });
+      } catch (error) {
+        this.logger.error(`Failed to create ECDSA alias account: ${error.message}`);
+      }
+    }
+
+    // Create ED25519 accounts
+    for (const account of predefinedEd25519Accounts) {
+      try {
+        const accountId = await this.accountManager.createNewAccount(
+          config.namespace,
+          account.privateKey,
+          account.balance.to(HbarUnit.Hbar).toNumber(),
+          null,
+          config.context,
+        );
+        createdAccounts.push({
+          accountId: AccountId.fromString(accountId.accountId),
+          data: account,
+          alias: null,
+        });
+      } catch (error) {
+        this.logger.error(`Failed to create ED25519 account: ${error.message}`);
+      }
+    }
+
+    return createdAccounts;
   }
 
   public async close(): Promise<void> {} // no-op

@@ -37,6 +37,8 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
 
   public static readonly SINGLE_DEPLOY = 'deploy';
   public static readonly SINGLE_DESTROY = 'destroy';
+  public static readonly MULTIPLE_DEPLOY = 'deploy';
+  public static readonly MULTIPLE_DESTROY = 'destroy';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(OneShotCommandDefinition.COMMAND_NAME, OneShotCommandDefinition.DESCRIPTION, this.logger)
@@ -61,6 +63,30 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.destroy,
               DefaultOneShotCommand.SINGLE_DESTROY_FLAGS_LIST,
+            ),
+          ),
+      )
+      .addCommandGroup(
+        new CommandGroup(
+          OneShotCommandDefinition.MULTI_SUBCOMMAND_NAME,
+          OneShotCommandDefinition.MULTI_SUBCOMMAND_DESCRIPTION,
+        )
+          .addSubcommand(
+            new Subcommand(
+              OneShotCommandDefinition.MULTIPLE_DEPLOY,
+              'Deploys all required components for the selected multiple node one shot configuration.',
+              this.oneShotCommand,
+              this.oneShotCommand.deployMultiple,
+              DefaultOneShotCommand.MULTIPLE_ADD_FLAGS_LIST,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              OneShotCommandDefinition.MULTIPLE_DESTROY,
+              'Removes the deployed resources for the selected multiple node one shot configuration.',
+              this.oneShotCommand,
+              this.oneShotCommand.destroyMultiple,
+              DefaultOneShotCommand.MULTIPLE_DESTROY_FLAGS_LIST,
             ),
           ),
       )
