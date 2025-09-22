@@ -36,7 +36,6 @@ task
 ```
 
 This will execute all steps in sequence:
-
 1. Setup cluster and Solo environment
 2. Deploy all components with previous versions
 3. Upgrade each component to current version
@@ -47,19 +46,16 @@ This will execute all steps in sequence:
 You can also run individual tasks:
 
 #### Setup Cluster
-
 ```bash
 task setup-cluster
 ```
 
 #### Deploy with Old Versions
-
 ```bash
 task deploy-old-versions
 ```
 
 #### Upgrade Components
-
 ```bash
 task upgrade-components
 ```
