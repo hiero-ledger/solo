@@ -62,7 +62,7 @@ nvm use v20.18.0
 
 ## Install Solo
 
-* Run `npm install -g @hashgraph/solo`
+* Run `npx @hashgraph/solo`
 
 ## Documentation
 
