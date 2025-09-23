@@ -106,6 +106,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     testLogger: SoloLogger,
     createdAccountIds: string[],
     consensusNodesCount: number,
+    isExternalDatabaseTest: boolean = false,
   ): Promise<void> {
     const portForwarder: number = await MirrorNodeTest.forwardRestServicePort(contexts, namespace);
     try {
@@ -123,10 +124,15 @@ export class MirrorNodeTest extends BaseCommandTest {
             response.on('data', (chunk): void => {
               // convert chunk to json object
               const object: {nodes: {service_endpoints: unknown[]}[]} = JSON.parse(chunk);
+
+              const expectedConsensusNodesCountInMirrorNodeAddressBook: number = isExternalDatabaseTest
+                ? consensusNodesCount
+                : consensusNodesCount + 1; // the additional node created by add/delete/update test
+
               expect(
                 object.nodes?.length,
-                `expect there to be ${consensusNodesCount + 1} nodes in the mirror node's copy of the address book`,
-              ).to.equal(consensusNodesCount + 1); // because of the additional node created by test
+                `expect there to be ${expectedConsensusNodesCountInMirrorNodeAddressBook} nodes in the mirror node's copy of the address book`,
+              ).to.equal(expectedConsensusNodesCountInMirrorNodeAddressBook); // because of the additional node created by test
 
               expect(
                 object.nodes[0].service_endpoints?.length,
@@ -332,6 +338,7 @@ export class MirrorNodeTest extends BaseCommandTest {
         testLogger,
         createdAccountIds,
         consensusNodesCount,
+        true,
       );
       await verifyPingerStatus(contexts, namespace, pinger);
     }).timeout(Duration.ofMinutes(10).toMillis());
