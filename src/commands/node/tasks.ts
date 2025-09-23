@@ -2322,7 +2322,6 @@ export class NodeCommandTasks {
               false,
               'Solo chart version',
             );
-
             await self.chartManager.upgrade(
               config.namespace,
               constants.SOLO_DEPLOYMENT_CHART,
@@ -2332,7 +2331,6 @@ export class NodeCommandTasks {
               valuesArguments,
               context,
             );
-
             showVersionBanner(self.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
           }),
         );

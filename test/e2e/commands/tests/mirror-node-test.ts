@@ -123,7 +123,6 @@ export class MirrorNodeTest extends BaseCommandTest {
             response.on('data', (chunk): void => {
               // convert chunk to json object
               const object: {nodes: {service_endpoints: unknown[]}[]} = JSON.parse(chunk);
-
               expect(
                 object.nodes?.length,
                 `expect there to be ${consensusNodesCount} nodes in the mirror node's copy of the address book`,

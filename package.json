@@ -13,8 +13,7 @@
   "scripts": {
     "solo-test": "tsx --no-deprecation --no-warnings solo.ts",
     "solo": "node --no-deprecation --no-warnings dist/solo.js",
-    "prepare": "node c8-nyc-bridge.mjs",
-    "task-debug": "task test-e2e-dual-cluster-full"
+    "prepare": "node c8-nyc-bridge.mjs"
   },
   "keywords": [
     "solo",

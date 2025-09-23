@@ -311,7 +311,7 @@ export class AccountManager {
           networkNodeService.nodeAlias !== skipNodeAlias
         ) {
           configureNodeAccessPromiseArray.push(
-            this.configureNodeAccess(networkNodeService, localPort, networkNodeServicesMap.size, namespace),
+            this.configureNodeAccess(networkNodeService, localPort, networkNodeServicesMap.size),
           );
           localPort++;
         }
@@ -364,7 +364,6 @@ export class AccountManager {
     networkNodeService: NetworkNodeServices,
     localPort: number,
     totalNodes: number,
-    namespace: NamespaceName,
   ): Promise<Record<SdkNetworkEndpoint, AccountId>> {
     this.logger.debug(`configuring node access for node: ${networkNodeService.nodeAlias}`);
 
@@ -376,14 +375,11 @@ export class AccountManager {
       if (!this.shouldUseLocalHostPortForward(networkNodeService)) {
         const host: string = networkNodeService.haProxyLoadBalancerIp as string;
         const endpoint: SdkNetworkEndpoint = `${host}:${port}`;
-
         this.logger.debug(`using load balancer IP: ${endpoint}`);
 
         try {
           const object: Record<SdkNetworkEndpoint, AccountId> = {[endpoint]: accountId};
-
           await this.sdkPingNetworkNode(object, accountId);
-
           this.logger.debug(`successfully pinged network node: ${endpoint}`);
 
           return object;
