@@ -2249,7 +2249,13 @@ export class NodeCommandTasks {
             break;
           }
           case NodeSubcommandType.DESTROY: {
-            this.prepareValuesArgForNodeDestroy(consensusNodes, valuesArgumentMap, config.nodeAlias, config.serviceMap);
+            this.prepareValuesArgForNodeDestroy(
+              consensusNodes,
+              valuesArgumentMap,
+              config.nodeAlias,
+              config.serviceMap,
+              clusterReferences,
+            );
             break;
           }
           case NodeSubcommandType.ADD: {
@@ -2433,17 +2439,28 @@ export class NodeCommandTasks {
     valuesArgumentMap: Record<ClusterReferenceName, string>,
     nodeAlias: NodeAlias,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
+    clusterReferences: ClusterReferences,
   ): void {
-    let index: number = 0;
-    for (const consensusNode of consensusNodes) {
-      const clusterReference: ClusterReferenceName = consensusNode.cluster;
-      const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
-      // For nodes that are not being deleted
-      if (consensusNode.nodeId !== nodeId) {
+    for (const [clusterReference] of clusterReferences) {
+      const nodesInCluster: ConsensusNode[] = consensusNodes
+        .filter((node): boolean => node.cluster === clusterReference)
+        // eslint-disable-next-line unicorn/no-array-sort
+        .sort((a, b): number => a.nodeId - b.nodeId);
+
+      let index: number = 0;
+
+      for (const node of nodesInCluster) {
+        // For nodes that are being deleted
+        if (node.name === nodeAlias) {
+          continue;
+        }
+
+        // For nodes that are not being deleted
         valuesArgumentMap[clusterReference] +=
-          ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(consensusNode.name).accountId}"` +
-          ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
-          ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
+          ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
+          ` --set "hedera.nodes[${index}].name=${node.name}"` +
+          ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
+
         index++;
       }
     }
