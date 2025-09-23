@@ -12,22 +12,22 @@ export class NetworkNodeServices {
     public readonly deployment: DeploymentName,
     public readonly nodeAlias: NodeAlias,
     public readonly namespace: NamespaceName,
-    public readonly nodeId: string | number,
+    public readonly nodeId: number,
     public readonly nodePodName: PodName,
     public readonly haProxyName: string,
     public readonly haProxyLoadBalancerIp: string,
     public readonly haProxyClusterIp: string,
-    public readonly haProxyGrpcPort: string | number,
-    public readonly haProxyGrpcsPort: string | number,
+    public readonly haProxyGrpcPort: number,
+    public readonly haProxyGrpcsPort: number,
     public readonly accountId: string,
     public readonly haProxyAppSelector: string,
     public readonly haProxyPodName: PodName,
     public readonly nodeServiceName: string,
     public readonly nodeServiceClusterIp: string,
     public readonly nodeServiceLoadBalancerIp: string,
-    public readonly nodeServiceGossipPort: string | number,
-    public readonly nodeServiceGrpcPort: string | number,
-    public readonly nodeServiceGrpcsPort: string | number,
+    public readonly nodeServiceGossipPort: number,
+    public readonly nodeServiceGrpcPort: number,
+    public readonly nodeServiceGrpcsPort: number,
     public readonly envoyProxyName: string,
     public readonly envoyProxyClusterIp: string,
     public readonly envoyProxyLoadBalancerIp: string,
@@ -35,7 +35,7 @@ export class NetworkNodeServices {
     public readonly externalAddress: string,
   ) {}
 
-  public key() {
+  public key(): NodeAlias {
     return this.nodeAlias;
   }
 }

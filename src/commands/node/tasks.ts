@@ -79,6 +79,7 @@ import {NetworkNodes} from '../../core/network-nodes.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import {
   type ClusterReferenceName,
+  type ClusterReferences,
   type ComponentId,
   type Context,
   type DeploymentName,
@@ -1228,20 +1229,19 @@ export class NodeCommandTasks {
   public populateServiceMap(): SoloListrTask<NodeAddContext | NodeDestroyContext> {
     return {
       title: 'Populate serviceMap',
-      task: async ({config}): Promise<void> => {
-        config.serviceMap = await this.accountManager.getNodeServiceMap(
-          config.namespace,
+      task: async context_ => {
+        context_.config.serviceMap = await this.accountManager.getNodeServiceMap(
+          context_.config.namespace,
           this.remoteConfig.getClusterRefs(),
-          config.deployment,
+          context_.config.deployment,
         );
-
-        if (!config.serviceMap.has(config.nodeAlias)) {
+        if (!context_.config.serviceMap.has(context_.config.nodeAlias)) {
           return;
         }
 
-        config.podRefs[config.nodeAlias] = PodReference.of(
-          config.namespace,
-          config.serviceMap.get(config.nodeAlias).nodePodName,
+        context_.config.podRefs[context_.config.nodeAlias] = PodReference.of(
+          context_.config.namespace,
+          context_.config.serviceMap.get(context_.config.nodeAlias).nodePodName,
         );
       },
     };
@@ -2192,11 +2192,11 @@ export class NodeCommandTasks {
     const self = this;
     return {
       title,
-      task: async context_ => {
+      task: async (context_): Promise<void> => {
         // Prepare parameter and update the network node chart
-        const config = context_.config;
-        const consensusNodes = context_.config.consensusNodes as ConsensusNode[];
-        const clusterReferences = this.remoteConfig.getClusterRefs();
+        const config: NodeDestroyConfigClass | NodeAddConfigClass | NodeUpdateConfigClass = context_.config;
+        const consensusNodes: ConsensusNode[] = context_.config.consensusNodes;
+        const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
 
         // Make sure valuesArgMap is initialized with empty strings
         const valuesArgumentMap: Record<ClusterReferenceName, string> = {};
@@ -2204,21 +2204,18 @@ export class NodeCommandTasks {
           valuesArgumentMap[clusterReference] = '';
         }
 
-        if (!config.serviceMap) {
-          config.serviceMap = await self.accountManager.getNodeServiceMap(
-            config.namespace,
-            clusterReferences,
-            config.deployment,
-          );
-        }
+        config.serviceMap ??= await self.accountManager.getNodeServiceMap(
+          config.namespace,
+          clusterReferences,
+          config.deployment,
+        );
 
-        let maxNodeId = 0;
+        let maxNodeId: NodeId = 0;
         for (const nodeAlias of config.existingNodeAliases) {
-          const nodeId = config.serviceMap.get(nodeAlias).nodeId;
-          maxNodeId = Math.max(+nodeId, maxNodeId);
+          maxNodeId = Math.max(Templates.nodeIdFromNodeAlias(nodeAlias), maxNodeId);
         }
 
-        const nodeId = maxNodeId + 1;
+        const nodeId: NodeId = maxNodeId + 1;
 
         const clusterNodeIndexMap: Record<
           ClusterReferenceName,
@@ -2228,13 +2225,15 @@ export class NodeCommandTasks {
         for (const [clusterReference] of clusterReferences) {
           clusterNodeIndexMap[clusterReference] = {};
 
-          for (const [index, node] of consensusNodes
-            .filter(node => node.cluster === clusterReference)
+          const nodesInCluster: ConsensusNode[] = consensusNodes
+            .filter((node): boolean => node.cluster === clusterReference)
             // eslint-disable-next-line unicorn/no-array-sort
-            .sort((a, b) => a.nodeId - b.nodeId)
-            .entries()) {
+            .sort((a, b): number => a.nodeId - b.nodeId);
+
+          // eslint-disable-next-line unicorn/no-array-for-each
+          nodesInCluster.forEach((node: ConsensusNode, index: number): void => {
             clusterNodeIndexMap[clusterReference][node.nodeId] = index;
-          }
+          });
         }
 
         switch (transactionType) {
@@ -2309,14 +2308,15 @@ export class NodeCommandTasks {
         // Update all charts
         await Promise.all(
           clusterReferencesList.map(async clusterReference => {
-            const valuesArguments = valuesArgumentMap[clusterReference];
-            const context = this.localConfig.configuration.clusterRefs.get(clusterReference);
+            const valuesArguments: string = valuesArgumentMap[clusterReference];
+            const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
 
             config.soloChartVersion = Version.getValidSemanticVersion(
               config.soloChartVersion,
               false,
               'Solo chart version',
             );
+
             await self.chartManager.upgrade(
               config.namespace,
               constants.SOLO_DEPLOYMENT_CHART,
@@ -2324,8 +2324,9 @@ export class NodeCommandTasks {
               context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
               config.soloChartVersion,
               valuesArguments,
-              context.toString(),
+              context,
             );
+
             showVersionBanner(self.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
           }),
         );
@@ -2375,7 +2376,7 @@ export class NodeCommandTasks {
     clusterReference: ClusterReferenceName,
     nodeId: NodeId,
     nodeAlias: NodeAlias,
-    newNode: {accountId: string; name: string},
+    newNode: {accountId: string; name: NodeAlias},
     config: {
       haproxyIps?: string;
       haproxyIpsParsed?: Record<NodeAlias, IP>;
@@ -2390,7 +2391,7 @@ export class NodeCommandTasks {
       }
       const index: number = clusterNodeIndexMap[node.cluster][node.nodeId];
 
-      valuesArgumentMap[clusterReference] +=
+      valuesArgumentMap[node.cluster] +=
         ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
         ` --set "hedera.nodes[${index}].name=${node.name}"` +
         ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
@@ -2567,7 +2568,8 @@ export class NodeCommandTasks {
   public checkNodePodsAreRunning(): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext> {
     return {
       title: 'Check node pods are running',
-      task: ({config}, task): SoloListr<NodeUpdateContext | NodeAddContext | NodeDestroyContext> => {
+      task: (context_, task) => {
+        const config = context_.config;
         const subTasks: SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext>[] = [];
 
         for (const nodeAlias of config.allNodeAliases) {
@@ -2589,12 +2591,7 @@ export class NodeCommandTasks {
         }
 
         // set up the sub-tasks
-        return task.newListr(subTasks, {
-          concurrent: false, // no need to run concurrently since if one node is up, the rest should be up by then
-          rendererOptions: {
-            collapseSubtasks: false,
-          },
-        });
+        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
       },
     };
   }
@@ -2611,15 +2608,16 @@ export class NodeCommandTasks {
   public downloadLastState(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Download last state from an existing node',
-      task: async ({config}) => {
+      task: async context_ => {
+        const config = context_.config;
         const node1FullyQualifiedPodName = Templates.renderNetworkPodName(config.existingNodeAliases[0]);
         const podReference = PodReference.of(config.namespace, node1FullyQualifiedPodName);
         const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
         const upgradeDirectory = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/0/123`;
 
-        const context: Context = helpers.extractContextFromConsensusNodes(
+        const context = helpers.extractContextFromConsensusNodes(
           config.existingNodeAliases[0],
-          config.consensusNodes,
+          context_.config.consensusNodes,
         );
 
         const k8 = this.k8Factory.getK8(context);

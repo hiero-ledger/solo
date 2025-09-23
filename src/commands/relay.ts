@@ -23,7 +23,7 @@ import {
   type ComponentId,
   type Context,
   type DeploymentName,
-  type NamespaceNameAsString,
+  NamespaceNameAsString,
   type Optional,
   type SoloListr,
   type SoloListrTask,
