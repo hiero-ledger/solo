@@ -64,7 +64,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.destroy,
               DefaultOneShotCommand.SINGLE_DESTROY_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [constants.HELM],
               false,
             ),
           ),

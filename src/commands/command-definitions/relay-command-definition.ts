@@ -68,7 +68,7 @@ export class RelayCommandDefinition extends BaseCommandDefinition {
               this.relayCommand,
               this.relayCommand.destroy,
               RelayCommand.DESTROY_FLAGS_LIST,
-              [constants.HELM, constants.KUBECTL],
+              [constants.HELM],
               false,
             ),
           )

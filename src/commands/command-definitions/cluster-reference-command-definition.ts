@@ -74,7 +74,7 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.connect,
               ContextFlags.CONNECT_FLAGS,
-              [constants.HELM, constants.KUBECTL],
+              [],
               false,
             ),
           )
@@ -85,7 +85,7 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.disconnect,
               ContextFlags.DEFAULT_FLAGS,
-              [constants.HELM, constants.KUBECTL],
+              [],
               false,
             ),
           )
@@ -96,7 +96,7 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.list,
               ContextFlags.NO_FLAGS,
-              [constants.HELM, constants.KUBECTL],
+              [],
               false,
             ),
           )
@@ -107,7 +107,7 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.info,
               ContextFlags.DEFAULT_FLAGS,
-              [constants.HELM, constants.KUBECTL],
+              [],
               false,
             ),
           )
@@ -119,7 +119,7 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.setup,
               ContextFlags.SETUP_FLAGS,
-              [constants.HELM, constants.KUBECTL],
+              [constants.HELM],
               false,
             ),
           )
@@ -131,7 +131,7 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.reset,
               ContextFlags.RESET_FLAGS,
-              [constants.HELM, constants.KUBECTL],
+              [constants.HELM],
               false,
             ),
           ),
