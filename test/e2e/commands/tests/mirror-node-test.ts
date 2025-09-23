@@ -125,8 +125,8 @@ export class MirrorNodeTest extends BaseCommandTest {
               const object: {nodes: {service_endpoints: unknown[]}[]} = JSON.parse(chunk);
               expect(
                 object.nodes?.length,
-                `expect there to be ${consensusNodesCount} nodes in the mirror node's copy of the address book`,
-              ).to.equal(consensusNodesCount);
+                `expect there to be ${consensusNodesCount + 1} nodes in the mirror node's copy of the address book`,
+              ).to.equal(consensusNodesCount + 1); // because of the additional node created by test
 
               expect(
                 object.nodes[0].service_endpoints?.length,
@@ -272,7 +272,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     const {testName, deployment, clusterReferenceNameArray} = options;
     const {soloMirrorNodeDestroyArgv} = MirrorNodeTest;
 
-    it(`${testName}: mirror node add`, async (): Promise<void> => {
+    it(`${testName}: mirror node destroy`, async (): Promise<void> => {
       await main(soloMirrorNodeDestroyArgv(testName, deployment, clusterReferenceNameArray[1]));
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
