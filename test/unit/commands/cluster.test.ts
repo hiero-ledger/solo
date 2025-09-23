@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import sinon from 'sinon';
-import {before, beforeEach, describe, it} from 'mocha';
+import {before, beforeEach, describe} from 'mocha';
 import {expect} from 'chai';
-
 import {getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import * as version from '../../../version.js';
@@ -23,6 +22,7 @@ import {ClusterCommandHandlers} from '../../../src/commands/cluster/handlers.js'
 import {SoloWinstonLogger} from '../../../src/core/logging/solo-winston-logger.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
+import {ClusterCommandTasks} from '../../../src/commands/cluster/tasks.js';
 
 const getBaseCommandOptions = (context: string) => {
   const options = {
@@ -80,6 +80,12 @@ describe('ClusterCommand unit tests', () => {
       options.chartManager.isChartInstalled = sandbox.stub().returns(false);
       options.chartManager.install = sandbox.stub().returns(true);
 
+      // Simple mock for installPodMonitorRole to avoid cluster connection
+      sandbox.stub(ClusterCommandTasks.prototype, 'installPodMonitorRole' as any).returns({
+        title: 'Install pod-monitor-role ClusterRole',
+        task: async () => {},
+      });
+
       options.configManager = container.resolve(InjectTokens.ConfigManager);
       options.remoteConfig = sandbox.stub();
     });
@@ -89,9 +95,9 @@ describe('ClusterCommand unit tests', () => {
       await clusterCommandHandlers.setup(argv.build());
 
       expect(options.chartManager.install.args[0][0].name).to.equal(constants.SOLO_SETUP_NAMESPACE.name);
-      expect(options.chartManager.install.args[0][1]).to.equal(constants.SOLO_CLUSTER_SETUP_CHART);
-      expect(options.chartManager.install.args[0][2]).to.equal(constants.SOLO_CLUSTER_SETUP_CHART);
-      expect(options.chartManager.install.args[0][3]).to.equal(constants.SOLO_TESTING_CHART_URL);
+      expect(options.chartManager.install.args[0][1]).to.equal(constants.MINIO_OPERATOR_RELEASE_NAME);
+      expect(options.chartManager.install.args[0][2]).to.equal(constants.MINIO_OPERATOR_CHART);
+      expect(options.chartManager.install.args[0][3]).to.equal(constants.MINIO_OPERATOR_CHART);
     });
 
     it('Should use local chart directory', async () => {
@@ -101,7 +107,7 @@ describe('ClusterCommand unit tests', () => {
       const clusterCommandHandlers = container.resolve(ClusterCommandHandlers) as ClusterCommandHandlers;
       await clusterCommandHandlers.setup(argv.build());
 
-      expect(options.chartManager.install.args[0][2]).to.equal(constants.SOLO_CLUSTER_SETUP_CHART);
+      expect(options.chartManager.install.args[0][2]).to.equal(constants.MINIO_OPERATOR_CHART);
     });
   });
 });

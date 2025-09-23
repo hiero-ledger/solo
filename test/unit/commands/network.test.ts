@@ -158,7 +158,6 @@ describe('NetworkCommand unit tests', () => {
       options.k8Factory.default().clusters().readCurrent = sinon.stub().returns('solo-e2e');
 
       clusterChecksStub.isMinioInstalled = sinon.stub();
-      clusterChecksStub.isPrometheusInstalled = sinon.stub();
       clusterChecksStub.isCertManagerInstalled = sinon.stub();
       container.registerInstance(InjectTokens.ClusterChecks, clusterChecksStub);
 

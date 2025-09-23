@@ -72,8 +72,6 @@ export const SOLO_SETUP_NAMESPACE = NamespaceName.of('solo-setup');
 // TODO: remove after migrated to resources/solo-config.yaml
 export const SOLO_TESTING_CHART_URL = 'oci://ghcr.io/hashgraph/solo-charts';
 // TODO: remove after migrated to resources/solo-config.yaml
-export const SOLO_CLUSTER_SETUP_CHART = 'solo-cluster-setup';
-// TODO: remove after migrated to resources/solo-config.yaml
 export const SOLO_DEPLOYMENT_CHART = 'solo-deployment';
 // TODO: remove after migrated to resources/solo-config.yaml
 export const SOLO_CERT_MANAGER_CHART = 'solo-cert-manager';
@@ -87,6 +85,23 @@ export const MIRROR_NODE_CHART_URL =
   getEnvironmentVariable('MIRROR_NODE_CHART_URL') ?? 'https://hashgraph.github.io/hedera-mirror-node/charts';
 export const MIRROR_NODE_CHART = 'hedera-mirror';
 export const MIRROR_NODE_RELEASE_NAME = 'mirror';
+
+export const PROMETHEUS_STACK_CHART_URL =
+  getEnvironmentVariable('PROMETHEUS_STACK_CHART_URL') ?? 'https://prometheus-community.github.io/helm-charts';
+export const PROMETHEUS_STACK_CHART = 'kube-prometheus-stack';
+export const PROMETHEUS_RELEASE_NAME = 'kube-prometheus-stack';
+
+export const GRAFANA_AGENT_CHART_URL =
+  getEnvironmentVariable('GRAFANA_AGENT_CHART_URL') ?? 'https://grafana.github.io/helm-charts';
+export const GRAFANA_AGENT_CHART = 'grafana-agent';
+export const GRAFANA_AGENT_RELEASE_NAME = 'grafana-agent';
+
+export const POD_MONITOR_ROLE = 'pod-monitor-role';
+
+export const MINIO_OPERATOR_CHART_URL =
+  getEnvironmentVariable('MINIO_OPERATOR_CHART_URL') ?? 'https://operator.min.io/';
+export const MINIO_OPERATOR_CHART = 'operator';
+export const MINIO_OPERATOR_RELEASE_NAME = 'operator';
 
 export const EXPLORER_CHART_URL =
   getEnvironmentVariable('EXPLORER_CHART_URL') ??
@@ -121,6 +136,9 @@ export const SOLO_HEDERA_MIRROR_IMPORTER = [
 export const DEFAULT_CHART_REPO: Map<string, string> = new Map()
   .set(JSON_RPC_RELAY_CHART, JSON_RPC_RELAY_CHART_URL)
   .set(MIRROR_NODE_RELEASE_NAME, MIRROR_NODE_CHART_URL)
+  .set(PROMETHEUS_RELEASE_NAME, PROMETHEUS_STACK_CHART_URL)
+  .set(GRAFANA_AGENT_RELEASE_NAME, GRAFANA_AGENT_CHART_URL)
+  .set(MINIO_OPERATOR_RELEASE_NAME, MINIO_OPERATOR_CHART_URL)
   .set(INGRESS_CONTROLLER_RELEASE_NAME, INGRESS_CONTROLLER_CHART_URL);
 
 export const MIRROR_INGRESS_CLASS_NAME = 'mirror-ingress-class';
