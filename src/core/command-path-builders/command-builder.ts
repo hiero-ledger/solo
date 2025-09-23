@@ -47,10 +47,12 @@ export class Subcommand {
       undefined,
       this.name,
     );
-    try {
-      await tasks.run();
-    } catch (error: Error | any) {
-      throw new SoloError(`Could not install dependencies: ${error.message}`, error);
+    if (this.taskList.parentTaskListMap.size === 0) {
+      try {
+        await tasks.run();
+      } catch (error: Error | any) {
+        throw new SoloError(`Could not install dependencies: ${error.message}`, error);
+      }
     }
   }
 }
