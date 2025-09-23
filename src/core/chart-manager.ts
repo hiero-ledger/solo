@@ -94,8 +94,8 @@ export class ChartManager {
       return result.map(release => `${release.name} [${release.chart}]`);
     } catch (error: Error | any) {
       this.logger.showUserError(error);
+      throw new SoloError(`failed to list installed charts: ${error.message}`, error);
     }
-    return [];
   }
 
   async install(

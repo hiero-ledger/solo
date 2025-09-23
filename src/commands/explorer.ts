@@ -766,7 +766,7 @@ export class ExplorerCommand extends BaseCommand {
             const clusterContext: Context = this.getClusterContext(clusterReference);
 
             const {id, releaseName, ingressReleaseName, isChartInstalled, isLegacyChartInstalled} =
-              await this.inferExplorerData(namespace, clusterReference);
+              await this.inferExplorerData(namespace, clusterContext);
 
             context_.config = {
               namespace,

@@ -93,23 +93,6 @@ export class ClusterChecks {
   }
 
   /**
-   * Check if the prometheus is installed inside the namespace.
-   * @param namespace - namespace where to search
-   * @returns if prometheus is found
-   */
-  public async isPrometheusInstalled(namespace: NamespaceName) {
-    try {
-      const pods: Pod[] = await this.k8Factory.default().pods().list(namespace, ['app.kubernetes.io/name=prometheus']);
-
-      return pods.length > 0;
-    } catch (error) {
-      this.logger.error('Failed to find prometheus:', error);
-
-      return false;
-    }
-  }
-
-  /**
    * Searches specific namespace for remote config's config map
    *
    * @param namespace - namespace where to search

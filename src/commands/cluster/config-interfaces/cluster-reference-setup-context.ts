@@ -4,7 +4,6 @@ import {type ClusterReferenceSetupConfigClass} from './cluster-reference-setup-c
 
 export interface ClusterReferenceSetupContext {
   config: ClusterReferenceSetupConfigClass;
-  isChartInstalled: boolean;
   valuesArg: string;
   context: string;
 }
