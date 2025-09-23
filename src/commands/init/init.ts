@@ -257,6 +257,14 @@ export class InitCommand extends BaseCommand {
   public async init(argv: any): Promise<boolean> {
     const tasks: Listr<InitContext, ListrRendererValue, ListrRendererValue> = this.initTasks(argv);
 
+    this.logger.showUser(
+      chalk.grey('**********************************************************************************'),
+    );
+    this.logger.showUser(chalk.grey("'solo init' is now deprecated, you don't need to run it anymore."));
+    this.logger.showUser(
+      chalk.grey('**********************************************************************************\n'),
+    );
+
     if (tasks.isRoot()) {
       try {
         await tasks.run();
