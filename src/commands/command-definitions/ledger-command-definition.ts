@@ -8,6 +8,7 @@ import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {AccountCommand} from '../account.js';
+import * as constants from '../../core/constants.js';
 
 @injectable()
 export class LedgerCommandDefinition extends BaseCommandDefinition {
@@ -56,6 +57,8 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
             this.accountCommand,
             this.accountCommand.init,
             AccountCommand.INIT_FLAGS_LIST,
+            [constants.KUBECTL],
+            false,
           ),
         ),
       )
@@ -71,6 +74,8 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
               this.accountCommand,
               this.accountCommand.update,
               AccountCommand.UPDATE_FLAGS_LIST,
+              [constants.KUBECTL],
+              false,
             ),
           )
           .addSubcommand(
@@ -80,6 +85,8 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
               this.accountCommand,
               this.accountCommand.create,
               AccountCommand.CREATE_FLAGS_LIST,
+              [constants.KUBECTL],
+              false,
             ),
           )
           .addSubcommand(
@@ -89,6 +96,8 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
               this.accountCommand,
               this.accountCommand.get,
               AccountCommand.GET_FLAGS_LIST,
+              [constants.KUBECTL],
+              false,
             ),
           ),
       )

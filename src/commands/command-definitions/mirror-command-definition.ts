@@ -8,6 +8,7 @@ import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-
 import {MirrorNodeCommand} from '../mirror-node.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
+import * as constants from '../../core/constants.js';
 
 @injectable()
 export class MirrorCommandDefinition extends BaseCommandDefinition {
@@ -56,6 +57,8 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
               this.mirrorNodeCommand,
               this.mirrorNodeCommand.add,
               MirrorNodeCommand.DEPLOY_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
+              true,
             ),
           )
           .addSubcommand(
@@ -65,6 +68,8 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
               this.mirrorNodeCommand,
               this.mirrorNodeCommand.destroy,
               MirrorNodeCommand.DESTROY_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
+              false,
             ),
           )
           .addSubcommand(
@@ -74,6 +79,8 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
               this.mirrorNodeCommand,
               this.mirrorNodeCommand.upgrade,
               MirrorNodeCommand.UPGRADE_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
+              true,
             ),
           ),
       )

@@ -9,6 +9,7 @@ import {NodeCommand} from '../node/index.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import * as NodeFlags from '../node/flags.js';
+import * as constants from '../../core/constants.js';
 
 @injectable()
 export class KeysCommandDefinition extends BaseCommandDefinition {
@@ -46,6 +47,8 @@ export class KeysCommandDefinition extends BaseCommandDefinition {
             this.nodeCommand.handlers,
             this.nodeCommand.handlers.keys,
             NodeFlags.KEYS_FLAGS,
+            [],
+            false,
           ),
         ),
       )

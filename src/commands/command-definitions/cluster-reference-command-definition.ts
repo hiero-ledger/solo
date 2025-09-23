@@ -9,6 +9,7 @@ import * as ContextFlags from '../cluster/flags.js';
 import {ClusterCommand} from '../cluster/index.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
+import * as constants from '../../core/constants.js';
 
 @injectable()
 export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
@@ -73,6 +74,8 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.connect,
               ContextFlags.CONNECT_FLAGS,
+              [constants.HELM, constants.KUBECTL],
+              false,
             ),
           )
           .addSubcommand(
@@ -82,6 +85,8 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.disconnect,
               ContextFlags.DEFAULT_FLAGS,
+              [constants.HELM, constants.KUBECTL],
+              false,
             ),
           )
           .addSubcommand(
@@ -91,6 +96,8 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.list,
               ContextFlags.NO_FLAGS,
+              [constants.HELM, constants.KUBECTL],
+              false,
             ),
           )
           .addSubcommand(
@@ -100,6 +107,8 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.info,
               ContextFlags.DEFAULT_FLAGS,
+              [constants.HELM, constants.KUBECTL],
+              false,
             ),
           )
           // TODO: remove once command is merged in 'consensus network deploy'
@@ -110,6 +119,8 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.setup,
               ContextFlags.SETUP_FLAGS,
+              [constants.HELM, constants.KUBECTL],
+              false,
             ),
           )
           // TODO: remove once command is merged in 'consensus network destroy'
@@ -120,6 +131,8 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.reset,
               ContextFlags.RESET_FLAGS,
+              [constants.HELM, constants.KUBECTL],
+              false,
             ),
           ),
       )

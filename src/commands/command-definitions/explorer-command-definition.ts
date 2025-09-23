@@ -8,6 +8,7 @@ import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {ExplorerCommand} from '../explorer.js';
+import * as constants from '../../core/constants.js';
 
 @injectable()
 export class ExplorerCommandDefinition extends BaseCommandDefinition {
@@ -61,6 +62,8 @@ export class ExplorerCommandDefinition extends BaseCommandDefinition {
               this.explorerCommand,
               this.explorerCommand.add,
               ExplorerCommand.DEPLOY_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
+              true,
             ),
           )
           .addSubcommand(
@@ -70,6 +73,8 @@ export class ExplorerCommandDefinition extends BaseCommandDefinition {
               this.explorerCommand,
               this.explorerCommand.destroy,
               ExplorerCommand.DESTROY_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
+              false,
             ),
           )
           .addSubcommand(
@@ -79,6 +84,8 @@ export class ExplorerCommandDefinition extends BaseCommandDefinition {
               this.explorerCommand,
               this.explorerCommand.upgrade,
               ExplorerCommand.UPGRADE_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
+              true,
             ),
           ),
       )

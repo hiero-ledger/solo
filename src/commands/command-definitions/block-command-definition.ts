@@ -8,6 +8,7 @@ import {BaseCommandDefinition} from './base-command-definition.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
+import * as constants from '../../core/constants.js';
 
 @injectable()
 export class BlockCommandDefinition extends BaseCommandDefinition {
@@ -49,6 +50,8 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand,
               this.blockNodeCommand.add,
               BlockNodeCommand.ADD_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
+              true,
             ),
           )
           .addSubcommand(
@@ -59,6 +62,8 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand,
               this.blockNodeCommand.destroy,
               BlockNodeCommand.DESTROY_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
+              false,
             ),
           )
           .addSubcommand(
@@ -69,6 +74,8 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand,
               this.blockNodeCommand.upgrade,
               BlockNodeCommand.UPGRADE_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
+              true,
             ),
           ),
       )
