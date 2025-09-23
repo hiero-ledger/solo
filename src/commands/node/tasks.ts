@@ -2533,10 +2533,14 @@ export class NodeCommandTasks {
         // remove from remote config
         if (transactionType === NodeSubcommandType.DESTROY) {
           const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+
           const componentId: ComponentId = Templates.renderComponentIdFromNodeId(nodeId);
           this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.ConsensusNode);
           this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.EnvoyProxy);
           this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.HaProxy);
+
+          await this.remoteConfig.persist();
+
           // @ts-expect-error: all fields are not present in every task's context
           context_.config.nodeAliases = config.allNodeAliases.filter(
             (nodeAlias: NodeAlias) => nodeAlias !== config.nodeAlias,
