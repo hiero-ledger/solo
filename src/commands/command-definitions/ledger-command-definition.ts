@@ -8,7 +8,6 @@ import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {AccountCommand} from '../account.js';
-import * as constants from '../../core/constants.js';
 
 @injectable()
 export class LedgerCommandDefinition extends BaseCommandDefinition {
