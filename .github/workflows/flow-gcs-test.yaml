@@ -130,7 +130,7 @@ jobs:
         id: npm-deps
         run: |
           npm ci
-          npx @hashgraph/solo
+          npm install -g @hashgraph/solo
 
       - name: Install Kubectl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # pinned to v4.0.0

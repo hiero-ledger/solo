@@ -69,11 +69,11 @@ done
 # **********************************************************************************************************************
 SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 task build
-npx @hashgraph/solo -- init || exit 1 # cache args for subsequent commands
+npm run solo -- init || exit 1 # cache args for subsequent commands
 
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   kubectl config use-context "kind-${SOLO_CLUSTER_NAME}-c${i}"
-  npx @hashgraph/solo -- cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" || exit 1
+  npm run solo -- cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" || exit 1
   helm list --all-namespaces
 done
 
