@@ -81,6 +81,7 @@ tasks:
           --ignore 'test/e2e/commands/dual-*.ts'
           --ignore 'test/e2e/commands/external-*.ts'
           --ignore 'test/e2e/commands/one-shot-single.test.ts'
+          --ignore 'test/e2e/commands/separate-node-update.test.ts' 
           --ignore 'test/e2e/commands/separate-node-add.test.ts' 
           --ignore 'test/e2e/commands/separate-node-destroy.test.ts' 
           --ignore 'test/e2e/commands/separate-node-upgrade.test.ts' 
@@ -106,13 +107,6 @@ tasks:
         {{ .reporter_prefix }}='coverage/e2e-node-local-ptt'
         {{ .mocha_bin }} 'test/e2e/commands/node-local-ptt.test.ts'
         {{ .reporter_options_prefix }}-e2e-node-local-ptt.xml"
-
-  test-e2e-node-add:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Add Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-add'
-        {{ .mocha_bin }} 'test/e2e/commands/node-add.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-add.xml"
 
   test-e2e-node-add-local:
     cmds:
