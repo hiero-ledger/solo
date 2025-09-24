@@ -212,7 +212,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 'Update a node with a specific version of Hedera platform',
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.update,
-                NodeFlags.REFRESH_FLAGS,
+                NodeFlags.UPDATE_FLAGS,
               ),
             )
             .addSubcommand(

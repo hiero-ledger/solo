@@ -79,6 +79,7 @@ import {NetworkNodes} from '../../core/network-nodes.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import {
   type ClusterReferenceName,
+  type ClusterReferences,
   type ComponentId,
   type Context,
   type DeploymentName,
@@ -2191,11 +2192,11 @@ export class NodeCommandTasks {
     const self = this;
     return {
       title,
-      task: async context_ => {
+      task: async (context_): Promise<void> => {
         // Prepare parameter and update the network node chart
-        const config = context_.config;
-        const consensusNodes = context_.config.consensusNodes as ConsensusNode[];
-        const clusterReferences = this.remoteConfig.getClusterRefs();
+        const config: NodeDestroyConfigClass | NodeAddConfigClass | NodeUpdateConfigClass = context_.config;
+        const consensusNodes: ConsensusNode[] = context_.config.consensusNodes;
+        const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
 
         // Make sure valuesArgMap is initialized with empty strings
         const valuesArgumentMap: Record<ClusterReferenceName, string> = {};
@@ -2211,13 +2212,12 @@ export class NodeCommandTasks {
           );
         }
 
-        let maxNodeId = 0;
+        let maxNodeId: NodeId = 0;
         for (const nodeAlias of config.existingNodeAliases) {
-          const nodeId = config.serviceMap.get(nodeAlias).nodeId;
-          maxNodeId = Math.max(+nodeId, maxNodeId);
+          maxNodeId = Math.max(Templates.nodeIdFromNodeAlias(nodeAlias), maxNodeId);
         }
 
-        const nodeId = maxNodeId + 1;
+        const nodeId: NodeId = maxNodeId + 1;
 
         const clusterNodeIndexMap: Record<
           ClusterReferenceName,
@@ -2227,13 +2227,15 @@ export class NodeCommandTasks {
         for (const [clusterReference] of clusterReferences) {
           clusterNodeIndexMap[clusterReference] = {};
 
-          for (const [index, node] of consensusNodes
-            .filter(node => node.cluster === clusterReference)
+          const nodesInCluster: ConsensusNode[] = consensusNodes
+            .filter((node): boolean => node.cluster === clusterReference)
             // eslint-disable-next-line unicorn/no-array-sort
-            .sort((a, b) => a.nodeId - b.nodeId)
-            .entries()) {
+            .sort((a, b): number => a.nodeId - b.nodeId);
+
+          // eslint-disable-next-line unicorn/no-array-for-each
+          nodesInCluster.forEach((node: ConsensusNode, index: number): void => {
             clusterNodeIndexMap[clusterReference][node.nodeId] = index;
-          }
+          });
         }
 
         switch (transactionType) {
@@ -2249,7 +2251,13 @@ export class NodeCommandTasks {
             break;
           }
           case NodeSubcommandType.DESTROY: {
-            this.prepareValuesArgForNodeDestroy(consensusNodes, valuesArgumentMap, config.nodeAlias, config.serviceMap);
+            this.prepareValuesArgForNodeDestroy(
+              consensusNodes,
+              valuesArgumentMap,
+              config.nodeAlias,
+              config.serviceMap,
+              clusterReferences,
+            );
             break;
           }
           case NodeSubcommandType.ADD: {
@@ -2308,8 +2316,8 @@ export class NodeCommandTasks {
         // Update all charts
         await Promise.all(
           clusterReferencesList.map(async clusterReference => {
-            const valuesArguments = valuesArgumentMap[clusterReference];
-            const context = this.localConfig.configuration.clusterRefs.get(clusterReference);
+            const valuesArguments: string = valuesArgumentMap[clusterReference];
+            const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
 
             config.soloChartVersion = Version.getValidSemanticVersion(
               config.soloChartVersion,
@@ -2323,7 +2331,7 @@ export class NodeCommandTasks {
               context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
               config.soloChartVersion,
               valuesArguments,
-              context.toString(),
+              context,
             );
             showVersionBanner(self.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
           }),
@@ -2374,7 +2382,7 @@ export class NodeCommandTasks {
     clusterReference: ClusterReferenceName,
     nodeId: NodeId,
     nodeAlias: NodeAlias,
-    newNode: {accountId: string; name: string},
+    newNode: {accountId: string; name: NodeAlias},
     config: {
       haproxyIps?: string;
       haproxyIpsParsed?: Record<NodeAlias, IP>;
@@ -2387,16 +2395,16 @@ export class NodeCommandTasks {
       if (node.name === nodeAlias) {
         continue;
       }
-      const index = clusterNodeIndexMap[clusterReference][node.nodeId];
+      const index: number = clusterNodeIndexMap[node.cluster][node.nodeId];
 
-      valuesArgumentMap[clusterReference] +=
+      valuesArgumentMap[node.cluster] +=
         ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
         ` --set "hedera.nodes[${index}].name=${node.name}"` +
         ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
     }
 
     // Add new node
-    const index = clusterNodeIndexMap[clusterReference][nodeId];
+    const index: number = clusterNodeIndexMap[clusterReference][nodeId];
     valuesArgumentMap[clusterReference] +=
       ` --set "hedera.nodes[${index}].accountId=${newNode.accountId}"` +
       ` --set "hedera.nodes[${index}].name=${newNode.name}"` +
@@ -2431,17 +2439,28 @@ export class NodeCommandTasks {
     valuesArgumentMap: Record<ClusterReferenceName, string>,
     nodeAlias: NodeAlias,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
+    clusterReferences: ClusterReferences,
   ): void {
-    let index: number = 0;
-    for (const consensusNode of consensusNodes) {
-      const clusterReference: ClusterReferenceName = consensusNode.cluster;
-      const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
-      // For nodes that are not being deleted
-      if (consensusNode.nodeId !== nodeId) {
+    for (const [clusterReference] of clusterReferences) {
+      const nodesInCluster: ConsensusNode[] = consensusNodes
+        .filter((node): boolean => node.cluster === clusterReference)
+        // eslint-disable-next-line unicorn/no-array-sort
+        .sort((a, b): number => a.nodeId - b.nodeId);
+
+      let index: number = 0;
+
+      for (const node of nodesInCluster) {
+        // For nodes that are being deleted
+        if (node.name === nodeAlias) {
+          continue;
+        }
+
+        // For nodes that are not being deleted
         valuesArgumentMap[clusterReference] +=
-          ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(consensusNode.name).accountId}"` +
-          ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
-          ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
+          ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
+          ` --set "hedera.nodes[${index}].name=${node.name}"` +
+          ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
+
         index++;
       }
     }
@@ -2514,10 +2533,14 @@ export class NodeCommandTasks {
         // remove from remote config
         if (transactionType === NodeSubcommandType.DESTROY) {
           const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+
           const componentId: ComponentId = Templates.renderComponentIdFromNodeId(nodeId);
           this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.ConsensusNode);
           this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.EnvoyProxy);
           this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.HaProxy);
+
+          await this.remoteConfig.persist();
+
           // @ts-expect-error: all fields are not present in every task's context
           context_.config.nodeAliases = config.allNodeAliases.filter(
             (nodeAlias: NodeAlias) => nodeAlias !== config.nodeAlias,
@@ -2571,10 +2594,10 @@ export class NodeCommandTasks {
         const subTasks: SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext>[] = [];
 
         for (const nodeAlias of config.allNodeAliases) {
-          const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+          const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
           subTasks.push({
             title: `Check Node: ${chalk.yellow(nodeAlias)}`,
-            task: async () =>
+            task: async (): Promise<void> => {
               await this.k8Factory
                 .getK8(context)
                 .pods()
@@ -2583,17 +2606,13 @@ export class NodeCommandTasks {
                   [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'],
                   constants.PODS_RUNNING_MAX_ATTEMPTS,
                   constants.PODS_RUNNING_DELAY,
-                ), // timeout 15 minutes
+                ); // timeout 15 minutes
+            },
           });
         }
 
         // set up the sub-tasks
-        return task.newListr(subTasks, {
-          concurrent: false, // no need to run concurrently since if one node is up, the rest should be up by then
-          rendererOptions: {
-            collapseSubtasks: false,
-          },
-        });
+        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
       },
     };
   }
