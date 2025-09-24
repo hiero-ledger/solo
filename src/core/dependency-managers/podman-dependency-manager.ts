@@ -191,7 +191,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
   }
 
   // Podman should only be installed if Docker is not already present on the client system
-  protected override async shouldInstall(): Promise<boolean> {
+  public override async shouldInstall(): Promise<boolean> {
     // Determine if Docker is already installed
     try {
       await this.run(`${constants.DOCKER} --version`);

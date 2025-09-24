@@ -153,7 +153,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
    * Hook to determine if installation should proceed
    * Child classes can override this for custom logic
    */
-  protected async shouldInstall(): Promise<boolean> {
+  public async shouldInstall(): Promise<boolean> {
     return true;
   }
 

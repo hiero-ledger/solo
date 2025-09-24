@@ -46,6 +46,8 @@ export class KeysCommandDefinition extends BaseCommandDefinition {
             this.nodeCommand.handlers,
             this.nodeCommand.handlers.keys,
             NodeFlags.KEYS_FLAGS,
+            [],
+            false,
           ),
         ),
       )
