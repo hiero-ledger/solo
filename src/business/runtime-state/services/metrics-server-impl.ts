@@ -6,7 +6,6 @@ import {NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {type Context} from '../../../types/index.js';
 import {ShellRunner} from '../../../core/shell-runner.js';
 import {PodName} from '../../../integration/kube/resources/pod/pod-name.js';
-import {PodName} from '../../../integration/kube/resources/pod/pod-name.js';
 
 export class MetricsServerImpl implements MetricsServer {
   public async getMetrics(
