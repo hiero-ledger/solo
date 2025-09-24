@@ -10,4 +10,8 @@ export class PodMetrics {
     public readonly cpuInMillicores: number,
     public readonly memoryInMebibytes: number,
   ) {}
+
+  public toString(): string {
+    return `{ "namespace": "${this.namespace.name}", "podName": "${this.podName.name}", "cpuInMillicores": "${this.cpuInMillicores}m", "memoryInMebibytes": "${this.memoryInMebibytes}Mi"}`;
+  }
 }
