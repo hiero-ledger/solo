@@ -12,7 +12,6 @@ import {container} from 'tsyringe-neo';
 import {expect} from 'chai';
 import {type BaseTestOptions} from './base-test-options.js';
 import {ClusterReferenceCommandDefinition} from '../../../../src/commands/command-definitions/cluster-reference-command-definition.js';
-import {Duration} from '../../../../src/core/time/duration.js';
 
 export class ClusterReferenceTest extends BaseCommandTest {
   private static soloClusterReferenceConnectArgv(
@@ -81,6 +80,6 @@ export class ClusterReferenceTest extends BaseCommandTest {
       }
       // TODO add some verification that the setup was successful
       testLogger.info(`${testName}: finishing solo cluster-ref config setup`);
-    }).timeout(Duration.ofMinutes(5).toMillis());
+    });
   }
 }
