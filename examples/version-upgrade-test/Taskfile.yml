@@ -37,7 +37,6 @@ tasks:
       - task: deploy-old-versions
       - task: upgrade-components
       - task: verify-functionality
-      - echo "Version upgrade test completed successfully!"
 
   setup-cluster:
     desc: Setup Kind cluster and Solo environment
