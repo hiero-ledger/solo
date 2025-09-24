@@ -2204,11 +2204,13 @@ export class NodeCommandTasks {
           valuesArgumentMap[clusterReference] = '';
         }
 
-        config.serviceMap ??= await self.accountManager.getNodeServiceMap(
-          config.namespace,
-          clusterReferences,
-          config.deployment,
-        );
+        if (!config.serviceMap) {
+          config.serviceMap = await self.accountManager.getNodeServiceMap(
+            config.namespace,
+            clusterReferences,
+            config.deployment,
+          );
+        }
 
         let maxNodeId: NodeId = 0;
         for (const nodeAlias of config.existingNodeAliases) {
