@@ -83,7 +83,6 @@ tasks:
           --ignore 'test/e2e/commands/one-shot-single.test.ts'
           --ignore 'test/e2e/commands/separate-node-add.test.ts' 
           --ignore 'test/e2e/commands/separate-node-destroy.test.ts' 
-          --ignore 'test/e2e/commands/separate-node-update.test.ts' 
           --ignore 'test/e2e/commands/separate-node-upgrade.test.ts' 
         {{ .reporter_options_prefix }}-e2e-standard.xml --timeout 30000"
 
@@ -128,13 +127,6 @@ tasks:
         {{ .reporter_prefix }}='coverage/e2e-node-add-separate'
         {{ .mocha_bin }} 'test/e2e/commands/separate-node-add.test.ts'
         {{ .reporter_options_prefix }}-e2e-node-add-separate.xml"
-
-  test-e2e-node-update:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Update Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-update'
-        {{ .mocha_bin }} 'test/e2e/commands/node-update.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-update.xml"
 
   test-e2e-node-update-separate:
     cmds:

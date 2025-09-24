@@ -63,13 +63,6 @@
     "local-java-build": false
   },
   {
-    "name": "Node Update",
-    "test-script": "test-e2e-node-update",
-    "coverage-subdirectory": "e2e-node-update",
-    "coverage-report-name": "E2E_Node_Update_Tests_Coverage_Report",
-    "local-java-build": false
-  },
-  {
     "name": "Node Upgrade",
     "test-script": "test-e2e-node-upgrade",
     "coverage-subdirectory": "e2e-node-upgrade",
