@@ -54,7 +54,9 @@ describe('KindDependencyManager', (): void => {
       undefined,
       undefined,
     );
-    fs.writeFileSync(await kindDependencyManager.getExecutablePath(), '');
+    // Create the local executable file for testing
+    const localPath = PathEx.join(temporaryDirectory, 'kind');
+    fs.writeFileSync(localPath, '');
     expect(kindDependencyManager.isInstalledLocally()).to.be.ok;
   });
 
@@ -109,7 +111,8 @@ describe('KindDependencyManager', (): void => {
 
       // Verify that the file system operations were called
       expect(cpSyncStub.calledOnce).to.be.true;
-      expect(await kindDependencyManager.getExecutablePath()).to.equal(PathEx.join(temporaryDirectory, 'kind'));
+      // Should return global path since it meets requirements
+      expect(await kindDependencyManager.getExecutablePath()).to.equal('/usr/local/bin/kind');
     });
 
     it('should install kind locally if the global installation does not meet the requirements', async (): Promise<void> => {
@@ -198,8 +201,8 @@ describe('KindDependencyManager', (): void => {
 
     it('installationMeetsRequirements returns false on invalid version', async (): Promise<void> => {
       runStub.resolves(['not a version']);
-      const path: string = await kindDependencyManager.getExecutablePath();
       try {
+        const path: string = await kindDependencyManager.getExecutablePath();
         await kindDependencyManager.installationMeetsRequirements(path);
         expect.fail('Should have thrown an error');
       } catch (error: any) {

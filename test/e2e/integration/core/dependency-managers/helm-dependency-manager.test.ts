@@ -35,7 +35,9 @@ describe('HelmDependencyManager', () => {
 
   it('should be able to check when helm is installed', async () => {
     const helmDependencyManager = new HelmDependencyManager(undefined, undefined, temporaryDirectory);
-    fs.writeFileSync(await helmDependencyManager.getExecutablePath(), '');
+    // Create the local executable file for testing
+    const localPath = PathEx.join(temporaryDirectory, 'helm');
+    fs.writeFileSync(localPath, '');
     expect(helmDependencyManager.isInstalledLocally()).to.be.ok;
   });
 
@@ -103,7 +105,8 @@ describe('HelmDependencyManager', () => {
 
       expect(await helmDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(fs.existsSync(PathEx.join(temporaryDirectory, 'helm'))).to.be.ok;
-      expect(await helmDependencyManager.getExecutablePath()).to.equal(PathEx.join(temporaryDirectory, 'helm'));
+      // Should return global path since it meets requirements
+      expect(await helmDependencyManager.getExecutablePath()).to.equal(globalHelmPath);
 
       // Clean up dummy global helm binary
       fs.rmSync(globalHelmPath);

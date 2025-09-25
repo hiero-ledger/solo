@@ -60,7 +60,9 @@ describe('KubectlDependencyManager', (): void => {
       undefined,
       undefined,
     );
-    fs.writeFileSync(await kubectlDependencyManager.getExecutablePath(), '');
+    // Create the local executable file for testing
+    const localPath = PathEx.join(localInstallationDirectory, 'kubectl');
+    fs.writeFileSync(localPath, '');
     expect(kubectlDependencyManager.isInstalledLocally()).to.be.ok;
   });
 
@@ -110,7 +112,8 @@ describe('KubectlDependencyManager', (): void => {
 
       expect(await kubectlDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(cpSyncStub.calledOnce).to.be.true;
-      expect(await kubectlDependencyManager.getExecutablePath()).to.equal(`${localInstallationDirectory}/kubectl`);
+      // Should return global path since it meets requirements
+      expect(await kubectlDependencyManager.getExecutablePath()).to.equal('/usr/local/bin/kubectl');
     });
 
     it('should install kubectl locally if the global installation does not meet the requirements', async (): Promise<void> => {

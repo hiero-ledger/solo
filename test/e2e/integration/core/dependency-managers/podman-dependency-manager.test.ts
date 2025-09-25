@@ -365,7 +365,8 @@ describe('PodmanDependencyManager', () => {
 
       // Verify that the file system operations were called
       expect(cpSyncStub.calledOnce).to.be.true;
-      expect(await podmanDependencyManager.getExecutablePath()).to.equal(PathEx.join(temporaryDirectory, 'podman'));
+      // Should return global path since it meets requirements
+      expect(await podmanDependencyManager.getExecutablePath()).to.equal('/usr/local/bin/podman');
     });
 
     it('should install podman locally if the global installation does not meet the requirements', async () => {
