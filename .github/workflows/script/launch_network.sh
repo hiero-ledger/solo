@@ -35,20 +35,20 @@ echo "::group::Launch solo using released Solo version ${releaseTag}"
 export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
 echo "Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
 solo init
-solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
-solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 2
-solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
-solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 2
+solo node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
+solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 
-solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q
-solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
-solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -q
-solo ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
+solo network deploy --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q
+solo node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
+solo node start --deployment "${SOLO_DEPLOYMENT}" -q
+solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 
-solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --mirror-node-version v0.138.0
-solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q
-solo relay node add -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
+solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --mirror-node-version v0.138.0
+solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q
+solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
 echo "::endgroup::"
 
 echo "::group::Verification"
@@ -101,8 +101,7 @@ kubectl rollout restart deployment/mirror-ingress-controller -n solo-e2e
 
 npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q --dev
 # force restart relay pod to pick up changes of configMap
-kubectl rollout restart deployment/relay-1 -n solo-e2e
-kubectl rollout restart deployment/relay-1-ws -n solo-e2e
+kubectl rollout restart deployment/relay-node1-node2 -n solo-e2e
 
 # redeploy mirror node to upgrade to a newer version
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --dev
@@ -118,16 +117,8 @@ curl http://127.0.0.1:7546 || true
 # find the new pod name then enable port-forwarding to it, do not match anything with "ws" in the name
 relayPodName=$(kubectl get pods -n solo-e2e  | grep relay | awk '{print $1}' | grep -v ws)
 echo "Relay Pod Name: ${relayPodName}"
-kubectl port-forward -n solo-e2e --context kind-solo-e2e pods/"${relayPodName}" 7546:7546 &
+kubectl port-forward -n solo-e2e pods/"${relayPodName}" 7546:7546 &
 echo "command is kubectl port-forward -n solo-e2e pods/${relayPodName} 7546:7546 &"
-
-# kill existing port-forward process due to restart of mirror ingress controller
-curl http://127.0.0.1:8081 || true
-# find the new mirror-ingress-controller pod name then enable port-forwarding to it
-mirrorPodName=$(kubectl get pods -n solo-e2e  | grep mirror-ingress-controller | awk '{print $1}')
-echo "Mirror Ingress Controller Pod Name: ${mirrorPodName}"
-kubectl port-forward -n solo-e2e --context kind-solo-e2e pods/"${mirrorPodName}" 8081:80 &
-
 
 # Test transaction can still be sent and processed
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
