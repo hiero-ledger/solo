@@ -118,8 +118,16 @@ curl http://127.0.0.1:7546 || true
 # find the new pod name then enable port-forwarding to it, do not match anything with "ws" in the name
 relayPodName=$(kubectl get pods -n solo-e2e  | grep relay | awk '{print $1}' | grep -v ws)
 echo "Relay Pod Name: ${relayPodName}"
-kubectl port-forward -n solo-e2e pods/"${relayPodName}" 7546:7546 &
+kubectl port-forward -n solo-e2e --context kind-solo-e2e pods/"${relayPodName}" 7546:7546 &
 echo "command is kubectl port-forward -n solo-e2e pods/${relayPodName} 7546:7546 &"
+
+# kill existing port-forward process due to restart of mirror ingress controller
+curl http://127.0.0.1:8081 || true
+# find the new mirror-ingress-controller pod name then enable port-forwarding to it
+mirrorPodName=$(kubectl get pods -n solo-e2e  | grep mirror-ingress-controller | awk '{print $1}')
+echo "Mirror Ingress Controller Pod Name: ${mirrorPodName}"
+kubectl port-forward -n solo-e2e --context kind-solo-e2e pods/"${mirrorPodName}" 8081:80 &
+
 
 # Test transaction can still be sent and processed
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
