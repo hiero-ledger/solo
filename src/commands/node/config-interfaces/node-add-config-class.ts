@@ -24,6 +24,7 @@ export interface NodeAddConfigClass extends NodeCommonConfigWithNodeAlias, Check
   adminKey: PrivateKey;
   allNodeAliases: NodeAliases;
   newNodeAliases: NodeAliases;
+  nodeAliases: NodeAliases;
   curDate: Date;
   freezeAdminPrivateKey: string;
   keysDir: string;
@@ -41,4 +42,5 @@ export interface NodeAddConfigClass extends NodeCommonConfigWithNodeAlias, Check
   clusterRef: ClusterReferenceName;
   domainNames: string;
   domainNamesMapping: Record<NodeAlias, string>;
+  nodeAliasesUnparsed?: string;
 }
