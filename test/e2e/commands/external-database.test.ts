@@ -24,6 +24,8 @@ import {MirrorNodeTest} from './tests/mirror-node-test.js';
 import {ExplorerTest} from './tests/explorer-test.js';
 import {RelayTest} from './tests/relay-test.js';
 import {type ChildProcessWithoutNullStreams, spawn} from 'node:child_process';
+import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
+import * as constants from '../../../src/core/constants.js';
 
 const testName: string = 'external-database-test';
 
@@ -126,6 +128,21 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           });
         });
       }).timeout(Duration.ofMinutes(15).toMillis());
+
+      it('Should write log metrics', async (): Promise<void> => {
+        await new MetricsServerImpl().logMetrics(
+          PathEx.join(constants.SOLO_LOGS_DIR, `${testName}-${contexts[0]}.json`),
+          undefined,
+          undefined,
+          contexts[0],
+        );
+        await new MetricsServerImpl().logMetrics(
+          PathEx.join(constants.SOLO_LOGS_DIR, `${testName}-${contexts[1]}.json`),
+          undefined,
+          undefined,
+          contexts[1],
+        );
+      });
     }).timeout(Duration.ofMinutes(25).toMillis());
   })
   .build();

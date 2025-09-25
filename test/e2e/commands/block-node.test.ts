@@ -27,6 +27,8 @@ import {TEST_LOCAL_BLOCK_NODE_VERSION} from '../../../version-test.js';
 import {Templates} from '../../../src/core/templates.js';
 import * as constants from '../../../src/core/constants.js';
 import {BlockCommandDefinition} from '../../../src/commands/command-definitions/block-command-definition.js';
+import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
+import {PathEx} from '../../../src/business/utils/path-ex.js';
 
 // eslint-disable-next-line @typescript-eslint/typedef
 const execAsync = promisify(exec);
@@ -154,6 +156,10 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
       expect(scriptStd.stdout).to.include('"status": "SUCCESS"');
 
       await pod.stopPortForward(srv);
+    });
+
+    it('Should write log metrics', async (): Promise<void> => {
+      await new MetricsServerImpl().logMetrics(PathEx.join(constants.SOLO_LOGS_DIR, `${testName}.json`));
     });
 
     it("Should succeed with removing block node with 'destroy' command", async function (): Promise<void> {
