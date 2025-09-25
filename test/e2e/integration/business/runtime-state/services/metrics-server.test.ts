@@ -11,18 +11,14 @@ describe('MetricsServer', (): void => {
   describe('getMetrics', (): void => {
     it('should succeed', async (): Promise<void> => {
       const metricsServer: MetricsServer = new MetricsServerImpl();
-      const metrics: PodMetrics[] = await metricsServer.getMetrics(undefined, 'app.kubernetes.io/instance=mirror-1');
+      const metrics: PodMetrics[] = await metricsServer.getMetrics();
       expect(metrics.length).to.be.greaterThan(0);
     });
   });
   describe('logMetrics', (): void => {
     it('should succeed', async (): Promise<void> => {
       const metricsServer: MetricsServer = new MetricsServerImpl();
-      await metricsServer.logMetrics(
-        PathEx.join(constants.SOLO_LOGS_DIR, 'metrics.json'),
-        undefined,
-        'app.kubernetes.io/instance=mirror-1',
-      );
+      await metricsServer.logMetrics(PathEx.join(constants.SOLO_LOGS_DIR, 'metrics.json'));
     });
   });
 });
