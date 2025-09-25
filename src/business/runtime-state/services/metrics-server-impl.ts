@@ -65,14 +65,20 @@ export class MetricsServerImpl implements MetricsServer {
     context?: Context,
   ): Promise<void> {
     const metrics: PodMetrics[] = await this.getMetrics(namespace, labelSelector, context);
-    let outputString: string = '[';
+    let cpuInMillicores: number = 0;
+    let memoryInMebibytes: number = 0;
+    let outputString: string = '{"podMetrics": [';
     for (let index: number = 0; index < metrics.length; index++) {
       outputString += `${metrics[index].toString()}`;
+      cpuInMillicores += metrics[index].cpuInMillicores;
+      memoryInMebibytes += metrics[index].memoryInMebibytes;
+
       if (index + 1 < metrics.length) {
         outputString += ',';
       }
     }
     outputString += ']';
+    outputString += `, "totalCpuInMillicores": ${cpuInMillicores}, "memoryInMebibytes": ${memoryInMebibytes}}`;
     fs.writeFileSync(metricsLogFile, outputString);
   }
 }

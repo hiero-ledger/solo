@@ -12,6 +12,6 @@ export class PodMetrics {
   ) {}
 
   public toString(): string {
-    return `{ "namespace": "${this.namespace.name}", "podName": "${this.podName.name}", "cpuInMillicores": "${this.cpuInMillicores}m", "memoryInMebibytes": "${this.memoryInMebibytes}Mi"}`;
+    return `{ "namespace": "${this.namespace.name}", "podName": "${this.podName.name}", "cpuInMillicores": ${this.cpuInMillicores}, "memoryInMebibytes": ${this.memoryInMebibytes}}`;
   }
 }
