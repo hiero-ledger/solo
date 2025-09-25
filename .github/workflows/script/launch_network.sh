@@ -14,6 +14,15 @@ then
     exit 1
 fi
 
+if [[ "$(printf '%s\n' "0.43.3" "${releaseTag}" | sort -V | head -n1)" == "0.43.3" ]]; then
+  IS_OLD_VERSION=false
+  echo "New version detected: ${releaseTag} (> 0.43.2)"
+else
+  IS_OLD_VERSION=true
+  echo "Old version detected: ${releaseTag} (<= 0.43.2)"
+fi
+
+
 echo "::group::Prerequisites"
 npm install -g @hashgraph/solo@"${releaseTag}" --force
 solo --version
@@ -36,17 +45,9 @@ export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' versio
 echo "Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
 solo init
 
-# IS_OLD_VERSION is set true if compare releaseTag >= 0.43.2
-if [[ "$(printf '%s\n' "0.43.2" "${releaseTag}" | sort -V | head -n1)" == "0.43.2" ]]; then
-  IS_OLD_VERSION=true
-  echo "Old version detected: ${releaseTag}"
-else
-  IS_OLD_VERSION=false
-  echo "New version detected: ${releaseTag}"
-fi
 
 if [[ $IS_OLD_VERSION == false ]]; then
-  solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+  solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
   solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
   solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 2
   solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
