@@ -82,7 +82,14 @@ export abstract class BaseDependencyManager extends ShellRunner {
   /**
    * Get the path to the executable (global or local)
    */
-  public getExecutablePath(): string {
+  public async getExecutablePath(): Promise<string> {
+    // First check if global installation exists and meets requirements
+    const globalPath: false | string = await this.getGlobalExecutablePath();
+    if (globalPath && (await this.installationMeetsRequirements(globalPath))) {
+      return globalPath;
+    }
+
+    // Fall back to local installation
     return this.localExecutablePath;
   }
 

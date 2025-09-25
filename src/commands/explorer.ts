@@ -507,7 +507,7 @@ export class ExplorerCommand extends BaseCommand {
           this.logger,
           ComponentTypes.Explorer,
           'Explorer',
-          false, // config.isChartInstalled, // Reuse existing port if chart is already installed
+          config.isChartInstalled, // Reuse existing port if chart is already installed
         );
         await this.remoteConfig.persist();
       },
