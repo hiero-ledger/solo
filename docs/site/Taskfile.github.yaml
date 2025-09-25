@@ -68,7 +68,7 @@ tasks:
     silent: true
     cmds:
       - |
-        if [ -n "$HUGO_SOLO_VERSION" ]; then
+        if [[ -n "$HUGO_SOLO_VERSION" && "$HUGO_SOLO_VERSION" != "main" ]]; then
           echo "skipping since we are building this release not downloading it"
           exit 0
         fi
@@ -100,7 +100,7 @@ tasks:
     silent: true
     cmds:
       - |
-        if [ -n "$HUGO_SOLO_VERSION" ]; then
+        if [[ -n "$HUGO_SOLO_VERSION" && "$HUGO_SOLO_VERSION" != "main" ]]; then
           echo "skipping since we are building this release not downloading it"
           exit 0
         fi

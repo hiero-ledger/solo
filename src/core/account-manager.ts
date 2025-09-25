@@ -31,8 +31,13 @@ import {type NetworkNodeServices} from './network-node-services.js';
 
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
-import {type AccountIdWithKeyPairObject, Context} from '../types/index.js';
-import {type NodeAlias, type NodeAliases, type SdkNetworkEndpoint} from '../types/aliases.js';
+import {
+  type AccountIdWithKeyPairObject,
+  type ClusterReferenceName,
+  type Context,
+  type Optional,
+} from '../types/index.js';
+import {type NodeAlias, type NodeAliases, type NodeId, type SdkNetworkEndpoint} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {entityId, getExternalAddress, isNumeric, sleep} from './helpers.js';
 import {Duration} from './time/duration.js';
@@ -52,6 +57,7 @@ import {type ConsensusNode} from './model/consensus-node.js';
 import {NetworkNodeServicesBuilder} from './network-node-services-builder.js';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {Secret} from '../integration/kube/resources/secret/secret.js';
 
 const REASON_FAILED_TO_GET_KEYS: string = 'failed to get keys for accountId';
 const REASON_SKIPPED: string = 'skipped since it does not have a genesis key';
@@ -64,7 +70,7 @@ const REJECTED: string = 'rejected';
 export class AccountManager {
   private _portForwards: number[];
   private _forcePortForward: boolean = false;
-  public _nodeClient: Client | null;
+  public _nodeClient: Optional<Client>;
 
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
@@ -94,25 +100,13 @@ export class AccountManager {
 
     for (const context of contexts) {
       try {
-        const secrets: Array<{
-          data: Record<string, string>;
-          name: string;
-          namespace: string;
-          type: string;
-          labels: Record<string, string>;
-        }> = await this.k8Factory
+        const secrets: Secret[] = await this.k8Factory
           .getK8(context)
           .secrets()
           .list(namespace, [Templates.renderAccountKeySecretLabelSelector(accountId)]);
 
         if (secrets.length > 0) {
-          const secret: {
-            data: Record<string, string>;
-            name: string;
-            namespace: string;
-            type: string;
-            labels: Record<string, string>;
-          } = secrets[0];
+          const secret: Secret = secrets[0];
           return {
             accountId: secret.labels['solo.hedera.com/account-id'],
             privateKey: Base64.decode(secret.data.privateKey),
@@ -158,10 +152,10 @@ export class AccountManager {
     const batchSize: number = constants.ACCOUNT_UPDATE_BATCH_SIZE as number;
     const batchSets: number[][] = [];
 
-    let currentBatch: any[] = [];
+    let currentBatch: number[] = [];
     for (const [start, end] of accountRange) {
       let batchCounter: number = start;
-      for (let index = start; index <= end; index++) {
+      for (let index: number = start; index <= end; index++) {
         currentBatch.push(index);
         batchCounter++;
 
@@ -241,14 +235,14 @@ export class AccountManager {
    * @param namespace - the namespace of the network
    * @param clusterReferences - the cluster references
    * @param skipNodeAlias - the node alias to skip
-   * @param [deployment] - the deployment name
-   * @param forcePortForward - whether to force the port forward
+   * @param deployment - the deployment name
+   * @param [forcePortForward] - whether to force the port forward
    */
   public async refreshNodeClient(
     namespace: NamespaceName,
     clusterReferences: ClusterReferences,
-    skipNodeAlias?: NodeAlias,
-    deployment?: DeploymentName,
+    skipNodeAlias: NodeAlias,
+    deployment: DeploymentName,
     forcePortForward?: boolean,
   ): Promise<Client> {
     try {
@@ -305,8 +299,8 @@ export class AccountManager {
     operatorKey: string,
     skipNodeAlias: string,
   ): Promise<Client> {
-    let nodes = {};
-    const configureNodeAccessPromiseArray: any[] = [];
+    let nodes: Record<SdkNetworkEndpoint, AccountId> = {};
+    const configureNodeAccessPromiseArray: Promise<Record<SdkNetworkEndpoint, AccountId>>[] = [];
 
     try {
       let localPort: number = constants.LOCAL_NODE_START_PORT;
@@ -324,14 +318,14 @@ export class AccountManager {
       }
       this.logger.debug(`configuring node access for ${configureNodeAccessPromiseArray.length} nodes`);
 
-      await Promise.allSettled(configureNodeAccessPromiseArray).then((results: any[]): void => {
+      await Promise.allSettled(configureNodeAccessPromiseArray).then((results): void => {
         for (const result of results) {
           switch (result.status) {
             case REJECTED: {
-              throw new SoloError(`failed to configure node access: ${result.reason}`);
+              throw new SoloError(`failed to configure node access: ${(result as PromiseRejectedResult).reason}`);
             }
             case FULFILLED: {
-              nodes = {...nodes, ...result.value};
+              nodes = {...nodes, ...(result as PromiseFulfilledResult<Record<NodeAlias, AccountId>>).value};
               break;
             }
           }
@@ -373,7 +367,6 @@ export class AccountManager {
   ): Promise<Record<SdkNetworkEndpoint, AccountId>> {
     this.logger.debug(`configuring node access for node: ${networkNodeService.nodeAlias}`);
 
-    const object: Record<SdkNetworkEndpoint, AccountId> = {};
     const port: number = +networkNodeService.haProxyGrpcPort;
     const accountId: AccountId = AccountId.fromString(networkNodeService.accountId as string);
 
@@ -381,13 +374,13 @@ export class AccountManager {
       // if the load balancer IP is set, then we should use that and avoid the local host port forward
       if (!this.shouldUseLocalHostPortForward(networkNodeService)) {
         const host: string = networkNodeService.haProxyLoadBalancerIp as string;
-        const targetPort: number = port;
-        this.logger.debug(`using load balancer IP: ${host}:${targetPort}`);
+        const endpoint: SdkNetworkEndpoint = `${host}:${port}`;
+        this.logger.debug(`using load balancer IP: ${endpoint}`);
 
         try {
-          object[`${host}:${targetPort}`] = accountId;
+          const object: Record<SdkNetworkEndpoint, AccountId> = {[endpoint]: accountId};
           await this.sdkPingNetworkNode(object, accountId);
-          this.logger.debug(`successfully pinged network node: ${host}:${targetPort}`);
+          this.logger.debug(`successfully pinged network node: ${endpoint}`);
 
           return object;
         } catch {
@@ -396,7 +389,7 @@ export class AccountManager {
       }
       // if the load balancer IP is not set or the test connection fails, then we should use the local host port forward
       const host: string = '127.0.0.1';
-      const targetPort: number = localPort;
+      const endpoint: SdkNetworkEndpoint = `${host}:${localPort}`;
 
       if (this._portForwards.length < totalNodes) {
         const portForward: number = await this.k8Factory
@@ -408,7 +401,7 @@ export class AccountManager {
         this.logger.debug(`using local host port forward: ${host}:${portForward}`);
       }
 
-      object[`${host}:${targetPort}`] = accountId;
+      const object: Record<SdkNetworkEndpoint, AccountId> = {[endpoint]: accountId};
 
       await this.testNodeClientConnection(object, accountId);
 
@@ -466,20 +459,17 @@ export class AccountManager {
    * Gets a Map of the Hedera node services and the attributes needed, throws a SoloError if anything fails
    * @param namespace - the namespace of the solo network deployment
    * @param clusterReferences - the cluster references to use for the services
-   * @param [deployment] - the deployment to use
+   * @param deployment - the deployment to use
    * @returns a map of the network node services
    */
   public async getNodeServiceMap(
     namespace: NamespaceName,
     clusterReferences: ClusterReferences,
-    deployment?: string,
+    deployment: DeploymentName,
   ): Promise<NodeServiceMapping> {
     const labelSelector: string = 'solo.hedera.com/node-name';
 
-    const serviceBuilderMap: Map<NodeAlias, NetworkNodeServicesBuilder> = new Map<
-      NodeAlias,
-      NetworkNodeServicesBuilder
-    >();
+    const serviceBuilderMap: Map<NodeAlias, NetworkNodeServicesBuilder> = new Map();
 
     try {
       const services: SoloService[] = [];
@@ -495,8 +485,8 @@ export class AccountManager {
       // retrieve the list of services and build custom objects for the attributes we need
       for (const service of services) {
         let loadBalancerEnabled: boolean = false;
-        let nodeId: string | number;
-        const clusterReference: string = service.clusterReference;
+        let nodeId: NodeId;
+        const clusterReference: ClusterReferenceName = service.clusterReference;
 
         let serviceBuilder: NetworkNodeServicesBuilder = new NetworkNodeServicesBuilder(
           service.metadata.labels['solo.hedera.com/node-name'] as NodeAlias,
@@ -519,8 +509,8 @@ export class AccountManager {
           // solo.hedera.com/type: envoy-proxy-svc
           case 'envoy-proxy-svc': {
             serviceBuilder
-              .withEnvoyProxyName(service.metadata!.name as string)
-              .withEnvoyProxyClusterIp(service.spec!.clusterIP as string)
+              .withEnvoyProxyName(service.metadata.name)
+              .withEnvoyProxyClusterIp(service.spec.clusterIP)
               .withEnvoyProxyLoadBalancerIp(
                 service.status.loadBalancer.ingress ? service.status.loadBalancer.ingress[0].ip : undefined,
               )
@@ -533,8 +523,8 @@ export class AccountManager {
           case 'haproxy-svc': {
             serviceBuilder
               .withHaProxyAppSelector(service.spec!.selector!.app)
-              .withHaProxyName(service.metadata!.name as string)
-              .withHaProxyClusterIp(service.spec!.clusterIP as string)
+              .withHaProxyName(service.metadata!.name)
+              .withHaProxyClusterIp(service.spec!.clusterIP)
               .withHaProxyLoadBalancerIp(
                 service.status.loadBalancer.ingress ? service.status.loadBalancer.ingress[0].ip : undefined,
               )
@@ -553,9 +543,10 @@ export class AccountManager {
               service.metadata!.labels!['solo.hedera.com/node-id'] !== '' &&
               isNumeric(service.metadata!.labels!['solo.hedera.com/node-id'])
             ) {
-              nodeId = service.metadata!.labels!['solo.hedera.com/node-id'];
+              nodeId = +service.metadata!.labels!['solo.hedera.com/node-id'];
             } else {
-              nodeId = `${Templates.nodeIdFromNodeAlias(service.metadata.labels['solo.hedera.com/node-name'] as NodeAlias)}`;
+              nodeId =
+                +`${Templates.nodeIdFromNodeAlias(service.metadata.labels['solo.hedera.com/node-name'] as NodeAlias)}`;
               this.logger.warn(
                 `received an incorrect node id of ${service.metadata!.labels!['solo.hedera.com/node-id']} for ` +
                   `${service.metadata.labels['solo.hedera.com/node-name']}`,
@@ -564,8 +555,8 @@ export class AccountManager {
 
             serviceBuilder
               .withAccountId(service.metadata!.labels!['solo.hedera.com/account-id'])
-              .withNodeServiceName(service.metadata!.name as string)
-              .withNodeServiceClusterIp(service.spec!.clusterIP as string)
+              .withNodeServiceName(service.metadata.name)
+              .withNodeServiceClusterIp(service.spec!.clusterIP)
               .withNodeServiceLoadBalancerIp(
                 service.status.loadBalancer.ingress ? service.status.loadBalancer.ingress[0].ip : undefined,
               )
@@ -573,15 +564,15 @@ export class AccountManager {
               .withNodeServiceGrpcPort(service.spec!.ports!.find((port): boolean => port.name === 'grpc-non-tls').port)
               .withNodeServiceGrpcsPort(service.spec!.ports!.find((port): boolean => port.name === 'grpc-tls').port);
 
-            if (nodeId) {
-              serviceBuilder.withNodeId(nodeId);
+            if (typeof nodeId === 'number') {
+              serviceBuilder.withNodeId(+nodeId);
             }
             break;
           }
         }
         const consensusNode: ConsensusNode = this.remoteConfig
           .getConsensusNodes()
-          .find((node: ConsensusNode): boolean => node.name === serviceBuilder.nodeAlias);
+          .find((node): boolean => node.name === serviceBuilder.nodeAlias);
         serviceBuilder.withExternalAddress(
           await getExternalAddress(consensusNode, this.k8Factory.getK8(serviceBuilder.context), loadBalancerEnabled),
         );
@@ -616,7 +607,7 @@ export class AccountManager {
         }
       }
 
-      const serviceMap: Map<NodeAlias, NetworkNodeServices> = new Map<NodeAlias, NetworkNodeServices>();
+      const serviceMap: Map<NodeAlias, NetworkNodeServices> = new Map();
       for (const networkNodeServicesBuilder of serviceBuilderMap.values()) {
         serviceMap.set(networkNodeServicesBuilder.key(), networkNodeServicesBuilder.build());
       }

@@ -1,6 +1,6 @@
 {
   "name": "@hashgraph/solo",
-  "version": "0.45.1",
+  "version": "0.45.2",
   "description": "An opinionated CLI tool to deploy and manage private Hedera Networks.",
   "main": "./dist/src/index.js",
   "type": "module",
@@ -23,7 +23,7 @@
   "author": "Hashgraph",
   "license": "Apache2.0",
   "dependencies": {
-    "@hiero-ledger/sdk": "^2.73.1",
+    "@hiero-ledger/sdk": "^2.73.2",
     "@inquirer/prompts": "7.8.6",
     "@kubernetes/client-node": "0.22.3",
     "@listr2/prompt-adapter-inquirer": "3.0.4",
@@ -47,7 +47,7 @@
     "shell-quote": "1.8.3",
     "source-map-support": "0.5.21",
     "stream-buffers": "3.0.3",
-    "tar": "7.4.4",
+    "tar": "7.5.1",
     "tsyringe-neo": "5.1.0",
     "uuid": "13.0.0",
     "validator": "13.15.15",

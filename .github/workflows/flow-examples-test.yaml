@@ -101,7 +101,7 @@ jobs:
           cache: npm
 
       - name: Install Kubectl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # pinned to v4.0.0
+        uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
         with:
           version: 'v1.27.3'
         id: install
