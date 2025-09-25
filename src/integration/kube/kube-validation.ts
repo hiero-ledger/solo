@@ -15,7 +15,7 @@ export function isDns1123Label(value: string): boolean {
  * @returns true if the string is a valid DNS-1123 object
  */
 export function isDns1123Object(value: string): boolean {
-  return /^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$/.test(value);
+  return /^[a-z0-9]([-a-z0-9]{0,243}[a-z0-9])?$/.test(value);
 }
 /**
  * @include DNS_1123_RESOURCE
