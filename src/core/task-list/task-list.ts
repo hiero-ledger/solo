@@ -14,8 +14,6 @@ import {
 import {type OneShotSingleDeployContext} from '../../commands/one-shot/one-shot-single-deploy-context.js';
 import {type TaskListWrapper} from './task-list-wrapper.js';
 import {type OneShotSingleDestroyContext} from '../../commands/one-shot/one-shot-single-destroy-context.js';
-import {type OneShotMultipleDeployContext} from '../../commands/one-shot/one-shot-multiple-deploy-context.js';
-import {type OneShotMultipleDestroyContext} from '../../commands/one-shot/one-shot-multiple-destroy-context.js';
 import {type AnyListrContext} from '../../types/aliases.js';
 
 export type TaskNodeType = {
@@ -67,46 +65,6 @@ export interface TaskList<
       ListrGetRendererClassFromValue<FallbackRenderer>
     >,
   ): Listr<OneShotSingleDestroyContext, Renderer, FallbackRenderer>;
-
-  newOneShotMultipleDeployTaskList(
-    task:
-      | ListrTask<
-          OneShotMultipleDeployContext,
-          ListrGetRendererClassFromValue<Renderer>,
-          ListrGetRendererClassFromValue<FallbackRenderer>
-        >
-      | ListrTask<
-          OneShotMultipleDeployContext,
-          ListrGetRendererClassFromValue<Renderer>,
-          ListrGetRendererClassFromValue<FallbackRenderer>
-        >[],
-    options?: ListrBaseClassOptions<OneShotMultipleDeployContext, Renderer, FallbackRenderer>,
-    parentTask?: ListrTaskObject<
-      any,
-      ListrGetRendererClassFromValue<Renderer>,
-      ListrGetRendererClassFromValue<FallbackRenderer>
-    >,
-  ): Listr<OneShotMultipleDeployContext, Renderer, FallbackRenderer>;
-
-  newOneShotMultipleDestroyTaskList(
-    task:
-      | ListrTask<
-          OneShotMultipleDestroyContext,
-          ListrGetRendererClassFromValue<Renderer>,
-          ListrGetRendererClassFromValue<FallbackRenderer>
-        >
-      | ListrTask<
-          OneShotMultipleDestroyContext,
-          ListrGetRendererClassFromValue<Renderer>,
-          ListrGetRendererClassFromValue<FallbackRenderer>
-        >[],
-    options?: ListrBaseClassOptions<OneShotMultipleDestroyContext, Renderer, FallbackRenderer>,
-    parentTask?: ListrTaskObject<
-      any,
-      ListrGetRendererClassFromValue<Renderer>,
-      ListrGetRendererClassFromValue<FallbackRenderer>
-    >,
-  ): Listr<OneShotMultipleDestroyContext, Renderer, FallbackRenderer>;
 
   parentTaskListMap: Map<string, TaskNodeType>;
 
