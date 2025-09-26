@@ -172,6 +172,12 @@ jobs:
       #            sudo cgclassify -g cpu,memory:${AGENT_GROUP_NAME} $(pgrep 'Runner.Worker' | tr '\n' ' ')
       #          echo "::endgroup::"
 
+      - name: Setup Posix Dependencies
+        id: set-posix-dependencies
+        run: |
+          # Install jq (a lightweight and flexible command-line JSON processor)
+          sudo apt-get update && sudo apt-get install -y jq
+
       - name: Setup Node
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
@@ -185,7 +191,7 @@ jobs:
           fi
 
       - name: Install Kubectl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # pinned to v4.0.0
+        uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
         with:
           version: 'v1.27.3'
         id: install
@@ -309,6 +315,10 @@ jobs:
           echo SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1 > .env
           cat .env
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
+
+      - name: Log Metrics
+        run: |
+          for logFile in $(ls -1 ~/.solo/logs/*.json); do cat $logFile | jq; done
 
       - name: Upload E2E Logs to GitHub
         if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && !cancelled() }}
