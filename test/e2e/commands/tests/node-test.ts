@@ -247,12 +247,10 @@ export class NodeTest extends BaseCommandTest {
 
     argvPushGlobalFlags(argv, testName, true, true);
 
-    console.log('REFRESH ARGV:', argv.join(' '));
-
     return argv;
   }
 
-  private static soloNodeStopArgv(options: BaseTestOptions): string[] {
+  private static soloNodeStopArgv(options: BaseTestOptions, nodeAlias?: NodeAlias): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
     const {testName, deployment} = options;
 
@@ -265,6 +263,10 @@ export class NodeTest extends BaseCommandTest {
       deployment,
       optionFromFlag(flags.quiet),
     );
+
+    if (nodeAlias) {
+      argv.push(optionFromFlag(Flags.nodeAliasesUnparsed), nodeAlias);
+    }
 
     argvPushGlobalFlags(argv, testName, false);
     return argv;
@@ -478,7 +480,6 @@ export class NodeTest extends BaseCommandTest {
   public static PemKill(options: BaseTestOptions): void {
     const {namespace, testName, testLogger} = options;
 
-    testLogger.showUser('------------ PEM KILL -------------------');
     const nodeAlias: NodeAlias = 'node1';
 
     it(`${testName}: perform PEM kill`, async (): Promise<void> => {
@@ -501,7 +502,6 @@ export class NodeTest extends BaseCommandTest {
       this.verifyPodShouldNotBeActive(namespace, nodeAlias);
     }).timeout(Duration.ofMinutes(10).toMillis());
 
-    testLogger.showUser('------------ PEM KILL REFRESH -------------------');
     this.refresh(options);
 
     this.checkNetwork(testName, namespace, testLogger);
@@ -511,11 +511,10 @@ export class NodeTest extends BaseCommandTest {
     const {namespace, testName, testLogger, consensusNodesCount} = options;
     const {soloNodeStopArgv} = NodeTest;
 
-    testLogger.showUser('------------ PEM STOP -------------------');
-    const nodeAlias: NodeAlias = 'node2'; // TODO: Might wanna target a single node
+    const nodeAlias: NodeAlias = 'node2';
 
     it(`${testName}: perform PEM stop`, async (): Promise<void> => {
-      await main(soloNodeStopArgv(options, nodeAlias)); // target specific node
+      await main(soloNodeStopArgv(options, nodeAlias));
 
       await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
 
@@ -525,7 +524,6 @@ export class NodeTest extends BaseCommandTest {
       }
     }).timeout(Duration.ofMinutes(10).toMillis());
 
-    testLogger.showUser('------------ PEM STOP REFRESH -------------------');
     this.refresh(options);
 
     this.checkNetwork(testName, namespace, testLogger);
