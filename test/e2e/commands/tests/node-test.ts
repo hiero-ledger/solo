@@ -216,11 +216,6 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
-  /**
-   * @param options
-   * @param nodeAlias - the target node to refresh
-   * @private
-   */
   private static soloNodeRefreshArgv(options: BaseTestOptions): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
     const {testName, deployment, enableLocalBuildPathTesting, localBuildPath, localBuildReleaseTag} = options;
