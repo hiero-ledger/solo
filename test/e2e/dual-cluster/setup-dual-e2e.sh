@@ -39,12 +39,9 @@ helm repo add metallb https://metallb.github.io/metallb
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   kind create cluster -n "${SOLO_CLUSTER_NAME}-c${i}" --image "${KIND_IMAGE}" --config "${SCRIPT_PATH}/kind-cluster-${i}.yaml" || exit 1
 
-  # Deploy the metrics-server if not running in CI
-  if [[ -z "${CI}" ]]; then
-    helm upgrade --install metrics-server metrics-server/metrics-server \
-      --namespace kube-system \
-      --set "args[0]=--kubelet-insecure-tls"
-  fi
+  helm upgrade --install metrics-server metrics-server/metrics-server \
+    --namespace kube-system \
+    --set "args[0]=--kubelet-insecure-tls"
 
   helm upgrade --install metallb metallb/metallb \
     --namespace metallb-system --create-namespace --atomic --wait \

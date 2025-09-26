@@ -44,7 +44,7 @@ export class RemoteConfig implements Facade<RemoteConfigSchema> {
     return this._versions;
   }
 
-  public get clusters(): Readonly<Readonly<ClusterSchema>[]> {
+  public get clusters(): ReadonlyArray<Readonly<ClusterSchema>> {
     return this._clusters;
   }
 

@@ -272,7 +272,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     const {testName, deployment, clusterReferenceNameArray} = options;
     const {soloMirrorNodeDestroyArgv} = MirrorNodeTest;
 
-    it(`${testName}: mirror node add`, async (): Promise<void> => {
+    it(`${testName}: mirror node destroy`, async (): Promise<void> => {
       await main(soloMirrorNodeDestroyArgv(testName, deployment, clusterReferenceNameArray[1]));
     }).timeout(Duration.ofMinutes(5).toMillis());
   }

@@ -3,7 +3,7 @@
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ClusterReferenceName, type Context, type DeploymentName} from './../types/index.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
-import {type NodeAlias} from '../types/aliases.js';
+import {type NodeAlias, type NodeId} from '../types/aliases.js';
 import {NetworkNodeServices} from './network-node-services.js';
 
 export class NetworkNodeServicesBuilder {
@@ -11,156 +11,156 @@ export class NetworkNodeServicesBuilder {
   public clusterRef: ClusterReferenceName;
   public context: Context;
   public deployment: DeploymentName;
-  public nodeId: string | number;
+  public nodeId: NodeId;
   public haProxyName: string;
   public accountId: string;
   public haProxyClusterIp!: string;
   public envoyProxyGrpcWebPort!: number;
   public envoyProxyLoadBalancerIp: string;
   public haProxyLoadBalancerIp: string;
-  public haProxyGrpcPort!: string | number;
-  public haProxyGrpcsPort!: string | number;
+  public haProxyGrpcPort!: number;
+  public haProxyGrpcsPort!: number;
   public haProxyAppSelector!: string;
   public haProxyPodName!: PodName;
-  public nodeServiceName!: any;
+  public nodeServiceName!: string;
   public nodeServiceClusterIp!: string;
-  public nodeServiceGrpcsPort!: string | number;
+  public nodeServiceGrpcsPort!: number;
   public envoyProxyClusterIp: string;
   public envoyProxyName!: string;
   public nodeServiceLoadBalancerIp!: string;
-  public nodeServiceGossipPort!: string | number;
-  public nodeServiceGrpcPort!: string | number;
+  public nodeServiceGossipPort!: number;
+  public nodeServiceGrpcPort!: number;
   public externalAddress!: string;
   public nodePodName: PodName;
 
   public constructor(public readonly nodeAlias: NodeAlias) {}
 
-  public withNamespace(namespace: NamespaceName) {
+  public withNamespace(namespace: NamespaceName): this {
     this.namespace = namespace;
     return this;
   }
 
-  public withClusterRef(clusterReference: ClusterReferenceName) {
+  public withClusterRef(clusterReference: ClusterReferenceName): this {
     this.clusterRef = clusterReference;
     return this;
   }
 
-  public withContext(context: Context) {
+  public withContext(context: Context): this {
     this.context = context;
     return this;
   }
 
-  public withDeployment(deployment: DeploymentName) {
+  public withDeployment(deployment: DeploymentName): this {
     this.deployment = deployment;
     return this;
   }
 
-  public withNodeId(nodeId: string | number) {
+  public withNodeId(nodeId: NodeId): this {
     this.nodeId = nodeId;
     return this;
   }
 
-  public withAccountId(accountId: string) {
+  public withAccountId(accountId: string): this {
     this.accountId = accountId;
     return this;
   }
 
-  public withHaProxyName(haProxyName: string) {
+  public withHaProxyName(haProxyName: string): this {
     this.haProxyName = haProxyName;
     return this;
   }
 
-  public withHaProxyClusterIp(haProxyClusterIp: string) {
+  public withHaProxyClusterIp(haProxyClusterIp: string): this {
     this.haProxyClusterIp = haProxyClusterIp;
     return this;
   }
 
-  public withHaProxyLoadBalancerIp(haProxyLoadBalancerIp: string | undefined) {
+  public withHaProxyLoadBalancerIp(haProxyLoadBalancerIp: string | undefined): this {
     this.haProxyLoadBalancerIp = haProxyLoadBalancerIp;
     return this;
   }
 
-  public withHaProxyGrpcPort(haProxyGrpcPort: string | number) {
-    this.haProxyGrpcPort = haProxyGrpcPort;
+  public withHaProxyGrpcPort(haProxyGrpcPort: number): this {
+    this.haProxyGrpcPort = +haProxyGrpcPort;
     return this;
   }
 
-  public withHaProxyGrpcsPort(haProxyGrpcsPort: string | number) {
-    this.haProxyGrpcsPort = haProxyGrpcsPort;
+  public withHaProxyGrpcsPort(haProxyGrpcsPort: number): this {
+    this.haProxyGrpcsPort = +haProxyGrpcsPort;
     return this;
   }
 
-  public withHaProxyAppSelector(haProxyAppSelector: string) {
+  public withHaProxyAppSelector(haProxyAppSelector: string): this {
     this.haProxyAppSelector = haProxyAppSelector;
     return this;
   }
 
-  public withHaProxyPodName(haProxyPodName: PodName) {
+  public withHaProxyPodName(haProxyPodName: PodName): this {
     this.haProxyPodName = haProxyPodName;
     return this;
   }
 
-  public withNodePodName(nodePodName: PodName) {
+  public withNodePodName(nodePodName: PodName): this {
     this.nodePodName = nodePodName;
     return this;
   }
 
-  public withNodeServiceName(nodeServiceName: string) {
+  public withNodeServiceName(nodeServiceName: string): this {
     this.nodeServiceName = nodeServiceName;
     return this;
   }
 
-  public withNodeServiceClusterIp(nodeServiceClusterIp: string) {
+  public withNodeServiceClusterIp(nodeServiceClusterIp: string): this {
     this.nodeServiceClusterIp = nodeServiceClusterIp;
     return this;
   }
 
-  public withNodeServiceLoadBalancerIp(nodeServiceLoadBalancerIp: string) {
+  public withNodeServiceLoadBalancerIp(nodeServiceLoadBalancerIp: string): this {
     this.nodeServiceLoadBalancerIp = nodeServiceLoadBalancerIp;
     return this;
   }
 
-  public withNodeServiceGossipPort(nodeServiceGossipPort: string | number) {
-    this.nodeServiceGossipPort = nodeServiceGossipPort;
+  public withNodeServiceGossipPort(nodeServiceGossipPort: number): this {
+    this.nodeServiceGossipPort = +nodeServiceGossipPort;
     return this;
   }
 
-  public withNodeServiceGrpcPort(nodeServiceGrpcPort: string | number) {
-    this.nodeServiceGrpcPort = nodeServiceGrpcPort;
+  public withNodeServiceGrpcPort(nodeServiceGrpcPort: number): this {
+    this.nodeServiceGrpcPort = +nodeServiceGrpcPort;
     return this;
   }
 
-  public withNodeServiceGrpcsPort(nodeServiceGrpcsPort: string | number) {
-    this.nodeServiceGrpcsPort = nodeServiceGrpcsPort;
+  public withNodeServiceGrpcsPort(nodeServiceGrpcsPort: number): this {
+    this.nodeServiceGrpcsPort = +nodeServiceGrpcsPort;
     return this;
   }
 
-  public withEnvoyProxyName(envoyProxyName: string) {
+  public withEnvoyProxyName(envoyProxyName: string): this {
     this.envoyProxyName = envoyProxyName;
     return this;
   }
 
-  public withEnvoyProxyClusterIp(envoyProxyClusterIp: string | undefined) {
+  public withEnvoyProxyClusterIp(envoyProxyClusterIp: string | undefined): this {
     this.envoyProxyClusterIp = envoyProxyClusterIp;
     return this;
   }
 
-  public withEnvoyProxyLoadBalancerIp(envoyProxyLoadBalancerIp?: string) {
+  public withEnvoyProxyLoadBalancerIp(envoyProxyLoadBalancerIp?: string): this {
     this.envoyProxyLoadBalancerIp = envoyProxyLoadBalancerIp;
     return this;
   }
 
-  public withEnvoyProxyGrpcWebPort(envoyProxyGrpcWebPort: number) {
-    this.envoyProxyGrpcWebPort = envoyProxyGrpcWebPort;
+  public withEnvoyProxyGrpcWebPort(envoyProxyGrpcWebPort: number): this {
+    this.envoyProxyGrpcWebPort = +envoyProxyGrpcWebPort;
     return this;
   }
 
-  public withExternalAddress(externalAddress: string) {
+  public withExternalAddress(externalAddress: string): this {
     this.externalAddress = externalAddress;
     return this;
   }
 
-  public build() {
+  public build(): NetworkNodeServices {
     return new NetworkNodeServices(
       this.clusterRef,
       this.context,
@@ -191,7 +191,7 @@ export class NetworkNodeServicesBuilder {
     );
   }
 
-  public key() {
+  public key(): NodeAlias {
     return this.nodeAlias;
   }
 }

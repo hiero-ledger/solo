@@ -87,7 +87,7 @@ One thing to consider, old installs can really hamper your ability to get a new 
 Open your terminal and install Solo globally using npm:
 
 ```bash
-npm install -g @hashgraph/solo
+npx @hashgraph/solo
 
 # Verify the installation
 solo --version

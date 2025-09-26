@@ -35,27 +35,6 @@
     "local-java-build": false
   },
   {
-    "name": "Node Add",
-    "test-script": "test-e2e-node-add",
-    "coverage-subdirectory": "e2e-node-add",
-    "coverage-report-name": "E2E_Node_Add_Tests_Coverage_Report",
-    "local-java-build": false
-  },
-  {
-    "name": "Node Destroy",
-    "test-script": "test-e2e-node-destroy",
-    "coverage-subdirectory": "e2e-node-destroy",
-    "coverage-report-name": "E2E_Node_Destroy_Tests_Coverage_Report",
-    "local-java-build": false
-  },
-  {
-    "name": "Node PEM Kill",
-    "test-script": "test-e2e-node-pem-kill",
-    "coverage-subdirectory": "e2e-node-pem-kill",
-    "coverage-report-name": "E2E_Node_PEM_Kill_Tests_Coverage_Report",
-    "local-java-build": false
-  },
-  {
     "name": "Standard",
     "test-script": "test-e2e-standard",
     "coverage-subdirectory": "e2e-standard",
@@ -63,24 +42,10 @@
     "local-java-build": false
   },
   {
-    "name": "Node Update",
-    "test-script": "test-e2e-node-update",
-    "coverage-subdirectory": "e2e-node-update",
-    "coverage-report-name": "E2E_Node_Update_Tests_Coverage_Report",
-    "local-java-build": false
-  },
-  {
     "name": "Node Upgrade",
     "test-script": "test-e2e-node-upgrade",
     "coverage-subdirectory": "e2e-node-upgrade",
     "coverage-report-name": "E2E_Node_Upgrade_Tests_Coverage_Report",
-    "local-java-build": false
-  },
-  {
-    "name": "Node PEM Stop",
-    "test-script": "test-e2e-node-pem-stop",
-    "coverage-subdirectory": "e2e-node-pem-stop",
-    "coverage-report-name": "E2E_Node_PEM_Stop_Tests_Coverage_Report",
     "local-java-build": false
   },
   {

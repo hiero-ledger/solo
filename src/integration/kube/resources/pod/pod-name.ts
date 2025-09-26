@@ -4,9 +4,9 @@ import {ResourceName} from '../resource-name.js';
 import {ResourceType} from '../resource-type.js';
 
 /**
- * Represents a Kubernetes pod name. A Kubernetes pod name must be a valid RFC-1123 DNS label.
+ * Represents a Kubernetes pod name. A Kubernetes pod name must be a valid RFC-1123 DNS resource.
  *
- * @include DNS_1123_LABEL
+ * @include DNS_1123_RESOURCE
  */
 export class PodName extends ResourceName {
   private constructor(name: string) {
@@ -14,9 +14,9 @@ export class PodName extends ResourceName {
   }
 
   /**
-   * Creates a pod. A Kubernetes pod name must be a valid RFC-1123 DNS label.
+   * Creates a pod. A Kubernetes pod name must be a valid RFC-1123 DNS resource.
    *
-   * @include DNS_1123_LABEL
+   * @include DNS_1123_RESOURCE
    *
    * @param name The name of the pod.
    * @returns An instance of PodName.

@@ -83,7 +83,7 @@ export class InitCommand extends BaseCommand {
             subTasks.push({
               title: 'Creating local cluster...',
               task: async context_ => {
-                const kindExecutable: string = self.depManager.getExecutablePath(constants.KIND);
+                const kindExecutable: string = await self.depManager.getExecutablePath(constants.KIND);
                 const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
                 const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
                   constants.DEFAULT_CLUSTER,
@@ -93,17 +93,30 @@ export class InitCommand extends BaseCommand {
             } as SoloListrTask<InitContext>);
 
             return task.newListr(subTasks, {
-              concurrent: true,
+              concurrent: false, // should not use concurrent as cluster creation may be called before dependencies are finished installing
               rendererOptions: {
                 collapseSubtasks: false,
               },
             });
           },
-          skip: (): boolean => {
+          skip: async (): Promise<boolean> => {
             try {
               const k8: K8 = self.k8Factory.default();
               const contextName: string = k8.contexts().readCurrent();
-              return !!contextName;
+
+              if (!contextName) {
+                return false;
+              }
+
+              // Try to verify the cluster is actually accessible by making a simple API call
+              try {
+                await k8.namespaces().list();
+                return true;
+              } catch {
+                // If we can't connect to the cluster, don't skip cluster creation
+                // This handles cases where contexts exist but clusters are not running
+                return false;
+              }
             } catch (error) {
               return !(error instanceof MissingActiveContextError || error instanceof MissingActiveClusterError);
             }
