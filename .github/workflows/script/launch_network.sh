@@ -110,12 +110,11 @@ echo "::endgroup::"
 echo "::group::Upgrade Solo"
 # need to add ingress controller helm repo
 npm run solo -- init
-
 # using new solo to redeploy solo deployment chart to new version
-npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
+# freeze network instead of using "node stop" to make sure the network is stopped elegantly
+npm run solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}"
 npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q
 npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
-npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 
 # force mirror importer restart to pick up changes of secretes due to upgrade of solo chart
 # even mirror chart version might not change, but the secrets it depends on might have changed
@@ -127,6 +126,10 @@ kubectl rollout restart deployment/mirror-grpc -n solo-e2e
 kubectl rollout restart deployment/mirror-monitor -n solo-e2e
 kubectl rollout restart deployment/mirror-postgres-pgpool -n solo-e2e
 kubectl rollout restart deployment/mirror-ingress-controller -n solo-e2e
+sleep 40;
+
+# restart consensus nodes nodes after mirror nodes are restarted to avoid mirror nodes missing any stream files during restart
+npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
 
 npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q --dev
 # force restart relay pod to pick up changes of configMap
