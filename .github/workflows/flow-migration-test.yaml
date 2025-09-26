@@ -19,6 +19,9 @@ name: "Test Migration Process"
 on:
   workflow_dispatch:
   workflow_call:
+  push:
+    branches:
+      - main
   pull_request:
     types:
       - opened
