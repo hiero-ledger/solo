@@ -11,11 +11,13 @@ type: docs
 You can run one of the following commands depending on your needs:
 
 **Single Node Deployment (recommended for development):**
+
 ```bash
 npx @hashgraph/solo:@latest one-shot single deploy
 ```
 
 **Multiple Node Deployment (for testing consensus scenarios):**
+
 ```bash
 npx @hashgraph/solo:@latest one-shot multiple deploy
 ```
@@ -30,11 +32,13 @@ More documentation can be found here:
 You can run one of the following commands depending on how you deployed:
 
 **Single Node Teardown:**
+
 ```bash
 npx @hashgraph/solo:@latest one-shot single destroy
 ```
 
 **Multiple Node Teardown:**
+
 ```bash
 npx @hashgraph/solo:@latest one-shot multiple destroy
 ```

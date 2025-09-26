@@ -53,7 +53,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               'Deploys all required components for the selected one shot configuration.',
               this.oneShotCommand,
               this.oneShotCommand.deploy,
-              DefaultOneShotCommand.SINGLE_ADD_FLAGS_LIST,
+              DefaultOneShotCommand.ADD_FLAGS_LIST,
             ),
           )
           .addSubcommand(
@@ -62,7 +62,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               'Removes the deployed resources for the selected one shot configuration.',
               this.oneShotCommand,
               this.oneShotCommand.destroy,
-              DefaultOneShotCommand.SINGLE_DESTROY_FLAGS_LIST,
+              DefaultOneShotCommand.DESTROY_FLAGS_LIST,
             ),
           ),
       )
@@ -77,7 +77,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               'Deploys all required components for the selected multiple node one shot configuration.',
               this.oneShotCommand,
               this.oneShotCommand.deployMultiple,
-              DefaultOneShotCommand.MULTIPLE_ADD_FLAGS_LIST,
+              DefaultOneShotCommand.ADD_FLAGS_LIST,
             ),
           )
           .addSubcommand(
@@ -86,7 +86,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               'Removes the deployed resources for the selected multiple node one shot configuration.',
               this.oneShotCommand,
               this.oneShotCommand.destroyMultiple,
-              DefaultOneShotCommand.MULTIPLE_DESTROY_FLAGS_LIST,
+              DefaultOneShotCommand.DESTROY_FLAGS_LIST,
             ),
           ),
       )
