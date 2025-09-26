@@ -183,7 +183,7 @@ Solo provides two one-shot deployment options to quickly set up your Hedera test
 For a simple setup with a single node with a mirror node, explorer, and JSON RPC relay, you can follow these quick steps. This is ideal for testing and development purposes.
 
 ```bash
-solo one-shot single deploy --num-consensus-nodes 2
+solo one-shot single deploy
 ```
 
 When you're finished, you can tear down your Solo network just as easily:
@@ -197,7 +197,7 @@ solo one-shot single destroy
 For testing consensus scenarios or multi-node behavior, you can deploy a network with multiple consensus nodes. This setup includes all the same components as the single node deployment but with multiple consensus nodes for testing consensus mechanisms.
 
 ```bash
-solo one-shot multiple deploy
+solo one-shot multiple deploy --num-consensus-nodes 2
 ```
 
 This command will:
