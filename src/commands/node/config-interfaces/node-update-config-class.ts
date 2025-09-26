@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type NodeAlias} from '../../../types/aliases.js';
+import {type NodeAlias, type NodeAliases} from '../../../types/aliases.js';
 import {type PrivateKey} from '@hiero-ledger/sdk';
 import {type CheckedNodesConfigClass, type NodeCommonConfigWithNodeAlias} from './node-common-config-class.js';
 import {type Client} from '@hiero-ledger/sdk';
@@ -9,6 +9,7 @@ export interface NodeUpdateConfigClass extends NodeCommonConfigWithNodeAlias, Ch
   app: string;
   cacheDir: string;
   chartDirectory: string;
+  nodeAliases: NodeAliases;
   devMode: boolean;
   debugNodeAlias: NodeAlias;
   endpointType: string;
@@ -16,6 +17,7 @@ export interface NodeUpdateConfigClass extends NodeCommonConfigWithNodeAlias, Ch
   gossipEndpoints: string;
   gossipPrivateKey: string;
   gossipPublicKey: string;
+  nodeAliasesUnparsed?: string;
   grpcEndpoints: string;
   localBuildPath: string;
   newAccountNumber: string;

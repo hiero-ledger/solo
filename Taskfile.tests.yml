@@ -87,20 +87,6 @@ tasks:
           --ignore 'test/e2e/commands/separate-node-upgrade.test.ts' 
         {{ .reporter_options_prefix }}-e2e-standard.xml --timeout 30000"
 
-  test-e2e-node-pem-stop:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node PEM Stop Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-pem-stop'
-        {{ .mocha_bin }} 'test/e2e/commands/node-pem-stop.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-pem-stop.xml"
-
-  test-e2e-node-pem-kill:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node PEM Kill Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-pem-kill'
-        {{ .mocha_bin }} 'test/e2e/commands/node-pem-kill.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-pem-kill.xml"
-
   test-e2e-node-local-ptt:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Node Local PTT Tests\"

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {isDns1123Label} from '../kube-validation.js';
 import {InvalidResourceNameError} from '../errors/invalid-resource-name-error.js';
+import {isDns1123Resource} from '../kube-validation.js';
 import {type ResourceType} from './resource-type.js';
 
 export abstract class ResourceName {
@@ -23,7 +23,7 @@ export abstract class ResourceName {
    * @throws InvalidResourceNameError if the pod name is invalid.
    */
   private isValid(): boolean {
-    return isDns1123Label(this.name);
+    return isDns1123Resource(this.name);
   }
 
   /**
