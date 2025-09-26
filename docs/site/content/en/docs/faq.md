@@ -8,16 +8,36 @@ type: docs
 
 ### How can I set up a Solo network in a single command?
 
-You can run `npx @hashgraph/solo:@latest one-shot single deploy`
+You can run one of the following commands depending on your needs:
+
+**Single Node Deployment (recommended for development):**
+```bash
+npx @hashgraph/solo:@latest one-shot single deploy
+```
+
+**Multiple Node Deployment (for testing consensus scenarios):**
+```bash
+npx @hashgraph/solo:@latest one-shot multiple deploy
+```
 
 More documentation can be found here:
 
 * [Solo User Guide](step-by-step-guide/#one-shot-deployment)
 * [Solo CLI Commands](solo-commands/#one-shot-single)
 
-# How can I tear down a Solo network in a single command?
+### How can I tear down a Solo network in a single command?
 
-You can run `npx @hashgraph/solo:@latest one-shot single destroy`
+You can run one of the following commands depending on how you deployed:
+
+**Single Node Teardown:**
+```bash
+npx @hashgraph/solo:@latest one-shot single destroy
+```
+
+**Multiple Node Teardown:**
+```bash
+npx @hashgraph/solo:@latest one-shot multiple destroy
+```
 
 ### How can I avoid using genesis keys ?
 

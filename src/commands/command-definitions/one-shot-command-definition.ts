@@ -32,8 +32,8 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
 
   public static readonly MULTI_SUBCOMMAND_NAME = 'multi';
   private static readonly MULTI_SUBCOMMAND_DESCRIPTION =
-    'Creates a uniquely named deployment with a four consensus nodes, ' +
-    'a single mirror node, a single block node, a single relay node, and a single explorer node.';
+    'Creates a uniquely named deployment with multiple consensus nodes, ' +
+    'mirror node, block node, relay node, and explorer node.';
 
   public static readonly SINGLE_DEPLOY = 'deploy';
   public static readonly SINGLE_DESTROY = 'destroy';
