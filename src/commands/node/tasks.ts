@@ -1264,7 +1264,6 @@ export class NodeCommandTasks {
             this.configManager,
           );
         }
-
         if (isGenesis) {
           await this.generateGenesisNetworkJson(
             config.namespace,

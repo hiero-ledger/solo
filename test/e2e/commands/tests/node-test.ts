@@ -216,6 +216,11 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
+  /**
+   * @param options
+   * @param nodeAlias - the target node to refresh
+   * @private
+   */
   private static soloNodeRefreshArgv(options: BaseTestOptions): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
     const {testName, deployment, enableLocalBuildPathTesting, localBuildPath, localBuildReleaseTag} = options;
@@ -228,6 +233,7 @@ export class NodeTest extends BaseCommandTest {
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(flags.quiet),
+      optionFromFlag(flags.nodeAliasesUnparsed),
     );
 
     if (enableLocalBuildPathTesting) {
@@ -254,7 +260,7 @@ export class NodeTest extends BaseCommandTest {
     argv.push(
       ConsensusCommandDefinition.COMMAND_NAME,
       ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-      ConsensusCommandDefinition.NODE_REFRESH,
+      ConsensusCommandDefinition.NODE_STOP,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(flags.quiet),
@@ -439,67 +445,63 @@ export class NodeTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
-  private static verifyPodShouldBeRunning(namespace: NamespaceName, numberOfNodes: number): void {
-    for (const nodeAlias of Templates.renderNodeAliasesFromCount(numberOfNodes, 0)) {
-      it(`${nodeAlias} should be running`, async (): Promise<void> => {
-        const podName: string = await container
-          .resolve(NodeCommandTasks)
-          // @ts-expect-error - TS2341: to access private property
-          .checkNetworkNodePod(namespace, nodeAlias)
-          .then((pod): string => pod.name.toString());
+  private static verifyPodShouldBeRunning(namespace: NamespaceName, nodeAlias: NodeAlias): void {
+    it(`${nodeAlias} should be running`, async (): Promise<void> => {
+      const podName: string = await container
+        .resolve(NodeCommandTasks)
+        // @ts-expect-error - TS2341: to access private property
+        .checkNetworkNodePod(namespace, nodeAlias)
+        .then((pod): string => pod.name.toString());
 
-        expect(podName).to.equal(`network-${nodeAlias}-0`);
-      }).timeout(Duration.ofMinutes(5).toMillis());
-    }
+      expect(podName).to.equal(`network-${nodeAlias}-0`);
+    }).timeout(Duration.ofMinutes(5).toMillis());
   }
 
-  private static verifyPodShouldNotBeActive(namespace: NamespaceName, numberOfNodes: number): void {
-    for (const nodeAlias of Templates.renderNodeAliasesFromCount(numberOfNodes, 0)) {
-      it(`${nodeAlias} should not be ACTIVE`, async (): Promise<void> => {
-        await expect(
-          container
-            .resolve(NodeCommandTasks)
-            // @ts-expect-error - TS2341: to access private property
-            ._checkNetworkNodeActiveness(
-              namespace,
-              nodeAlias,
-              {title: ''} as SoloListrTaskWrapper<any>,
-              '',
-              undefined,
-              15,
-            ),
-        ).to.be.rejected;
-      }).timeout(Duration.ofMinutes(2).toMillis());
-    }
+  private static verifyPodShouldNotBeActive(namespace: NamespaceName, nodeAlias: NodeAlias): void {
+    it(`${nodeAlias} should not be ACTIVE`, async (): Promise<void> => {
+      await expect(
+        container
+          .resolve(NodeCommandTasks)
+          // @ts-expect-error - TS2341: to access private property
+          ._checkNetworkNodeActiveness(
+            namespace,
+            nodeAlias,
+            {title: ''} as SoloListrTaskWrapper<any>,
+            '',
+            undefined,
+            15,
+          ),
+      ).to.be.rejected;
+    }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
   public static PemKill(options: BaseTestOptions): void {
     const {namespace, testName, testLogger} = options;
 
-    console.log(options);
+    testLogger.showUser('------------ PEM KILL -------------------');
+    const nodeAlias: NodeAlias = 'node1';
 
     it(`${testName}: perform PEM kill`, async (): Promise<void> => {
       const pods: Pod[] = await container
         .resolve<K8Factory>(InjectTokens.K8Factory)
         .default()
         .pods()
-        .list(namespace, ['solo.hedera.com/type=network-node']);
+        .list(namespace, ['solo.hedera.com/type=network-node', `solo.hedera.com/node-name=${nodeAlias}`]);
 
-      for (const pod of pods) {
-        await container
-          .resolve<K8Factory>(InjectTokens.K8Factory)
-          .default()
-          .pods()
-          .readByReference(pod.podReference)
-          .killPod();
-      }
+      await container
+        .resolve<K8Factory>(InjectTokens.K8Factory)
+        .default()
+        .pods()
+        .readByReference(pods[0].podReference)
+        .killPod();
 
       await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
 
-      this.verifyPodShouldBeRunning(namespace, pods.length);
-      this.verifyPodShouldNotBeActive(namespace, pods.length);
+      this.verifyPodShouldBeRunning(namespace, nodeAlias);
+      this.verifyPodShouldNotBeActive(namespace, nodeAlias);
     }).timeout(Duration.ofMinutes(10).toMillis());
 
+    testLogger.showUser('------------ PEM KILL REFRESH -------------------');
     this.refresh(options);
 
     this.checkNetwork(testName, namespace, testLogger);
@@ -509,15 +511,21 @@ export class NodeTest extends BaseCommandTest {
     const {namespace, testName, testLogger, consensusNodesCount} = options;
     const {soloNodeStopArgv} = NodeTest;
 
+    testLogger.showUser('------------ PEM STOP -------------------');
+    const nodeAlias: NodeAlias = 'node2'; // TODO: Might wanna target a single node
+
     it(`${testName}: perform PEM stop`, async (): Promise<void> => {
-      await main(soloNodeStopArgv(options));
+      await main(soloNodeStopArgv(options, nodeAlias)); // target specific node
 
       await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
 
-      this.verifyPodShouldBeRunning(namespace, consensusNodesCount);
-      this.verifyPodShouldNotBeActive(namespace, consensusNodesCount);
+      for (const nodeAlias of Templates.renderNodeAliasesFromCount(consensusNodesCount, 0)) {
+        this.verifyPodShouldBeRunning(namespace, nodeAlias);
+        this.verifyPodShouldNotBeActive(namespace, nodeAlias);
+      }
     }).timeout(Duration.ofMinutes(10).toMillis());
 
+    testLogger.showUser('------------ PEM STOP REFRESH -------------------');
     this.refresh(options);
 
     this.checkNetwork(testName, namespace, testLogger);
