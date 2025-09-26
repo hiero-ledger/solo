@@ -201,10 +201,11 @@ solo one-shot multiple deploy
 ```
 
 This command will:
-- Deploy multiple consensus nodes (configurable number)
-- Set up mirror node, explorer, and JSON RPC relay
-- Generate appropriate keys for all nodes
-- Create predefined accounts for testing
+
+* Deploy multiple consensus nodes (configurable number)
+* Set up mirror node, explorer, and JSON RPC relay
+* Generate appropriate keys for all nodes
+* Create predefined accounts for testing
 
 When you're finished with the multiple node network:
 
