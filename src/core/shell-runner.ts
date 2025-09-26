@@ -60,7 +60,9 @@ export class ShellRunner {
 
       child.on('exit', (code, signal): void => {
         if (code) {
-          const error: Error = new Error(`Command exit with error code ${code}: ${cmd}`);
+          const error: Error = new Error(
+            `Command exit with error code ${code}, [command: '${cmd}'], [message: '${errorOutput.join('\n')}']`,
+          );
 
           // include the callStack to the parent run() instead of from inside this handler.
           // this is needed to ensure we capture the proper callstack for easier debugging.

@@ -79,6 +79,7 @@ import {MirrorCommandDefinition} from '../../commands/command-definitions/mirror
 import {OneShotCommandDefinition} from '../../commands/command-definitions/one-shot-command-definition.js';
 import {RelayCommandDefinition} from '../../commands/command-definitions/relay-command-definition.js';
 import {DefaultKindClientBuilder} from '../../integration/kind/impl/default-kind-client-builder.js';
+import {MetricsServerImpl} from '../../business/runtime-state/services/metrics-server-impl.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -156,6 +157,7 @@ export class Container {
       new SingletonContainer(InjectTokens.OneShotCommand, DefaultOneShotCommand),
       new SingletonContainer(InjectTokens.TaskList, DefaultTaskList),
       new SingletonContainer(InjectTokens.Commands, Commands),
+      new SingletonContainer(InjectTokens.MetricsServer, MetricsServerImpl),
 
       // Command Definitions
       new SingletonContainer(InjectTokens.BlockCommandDefinition, BlockCommandDefinition),
