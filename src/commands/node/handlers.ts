@@ -729,8 +729,6 @@ export class NodeCommandHandlers extends CommandHandler {
     return true;
   }
 
-  // TODO this is broken, since genesis reconnects is no longer supported in 0.59+
-  // TODO this is not in the test harness
   public async refresh(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.REFRESH_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};

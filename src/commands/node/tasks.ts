@@ -1254,60 +1254,42 @@ export class NodeCommandTasks {
     return {
       title: 'Setup network nodes',
       task: async (
-        context_,
+        {config},
         task,
       ): Promise<SoloListr<NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeRefreshContext>> => {
-        // @ts-expect-error: all fields are not present in every task's context
-        if (!context_.config.nodeAliases || context_.config.nodeAliases.length === 0) {
-          // @ts-expect-error: all fields are not present in every task's context
-          context_.config.nodeAliases = helpers.parseNodeAliases(
-            // @ts-expect-error: all fields are not present in every task's context
-            context_.config.nodeAliasesUnparsed,
+        if (!config.nodeAliases || config.nodeAliases.length === 0) {
+          config.nodeAliases = helpers.parseNodeAliases(
+            config.nodeAliasesUnparsed,
             this.remoteConfig.getConsensusNodes(),
             this.configManager,
           );
         }
         if (isGenesis) {
           await this.generateGenesisNetworkJson(
-            context_.config.namespace,
-            context_.config.consensusNodes,
-            // @ts-expect-error: all fields are not present in every task's context
-            context_.config.keysDir,
-            // @ts-expect-error: all fields are not present in every task's context
-            context_.config.stagingDir,
-            context_.config.domainNamesMapping,
+            config.namespace,
+            config.consensusNodes,
+            config.keysDir,
+            config.stagingDir,
+            config.domainNamesMapping,
           );
         }
 
-        // TODO: during `consensus node add` ctx.config.nodeAliases is empty, since ctx.config.nodeAliasesUnparsed is empty
-        await this.generateNodeOverridesJson(
-          context_.config.namespace,
-          // @ts-expect-error: all fields are not present in every task's context
-          context_.config.nodeAliases,
-          // @ts-expect-error: all fields are not present in every task's context
-          context_.config.stagingDir,
-        );
+        await this.generateNodeOverridesJson(config.namespace, config.nodeAliases, config.stagingDir);
 
-        const consensusNodes: ConsensusNode[] = context_.config.consensusNodes;
         const subTasks: SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeRefreshContext>[] =
           [];
 
-        for (const nodeAlias of context_.config[nodeAliasesProperty]) {
-          const podReference: PodReference = context_.config.podRefs[nodeAlias];
-          const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+        for (const nodeAlias of config[nodeAliasesProperty]) {
+          const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
           subTasks.push({
             title: `Node: ${chalk.yellow(nodeAlias)}`,
-            // @ts-expect-error not all contexts have field
-            task: () => this.platformInstaller.taskSetup(podReference, context_.config.stagingDir, isGenesis, context),
+            task: (): SoloListr<NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeRefreshContext> =>
+              this.platformInstaller.taskSetup(config.podRefs[nodeAlias], config.stagingDir, isGenesis, context),
           });
         }
 
-        // set up the sub-tasks
-        return task.newListr(subTasks, {
-          concurrent: true,
-          rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        });
+        return task.newListr(subTasks, {concurrent: true, rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION});
       },
     };
   }
@@ -2541,9 +2523,8 @@ export class NodeCommandTasks {
 
           await this.remoteConfig.persist();
 
-          // @ts-expect-error: all fields are not present in every task's context
           context_.config.nodeAliases = config.allNodeAliases.filter(
-            (nodeAlias: NodeAlias) => nodeAlias !== config.nodeAlias,
+            (nodeAlias: NodeAlias): boolean => nodeAlias !== config.nodeAlias,
           );
         }
       },

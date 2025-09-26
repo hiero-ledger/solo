@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type NodeAlias} from '../../../types/aliases.js';
+import {type NodeAlias, type NodeAliases} from '../../../types/aliases.js';
 import {type PrivateKey} from '@hiero-ledger/sdk';
 import {type CheckedNodesConfigClass, type NodeCommonConfigWithNodeAlias} from './node-common-config-class.js';
 import {type Client} from '@hiero-ledger/sdk';
@@ -12,6 +12,7 @@ export interface NodeDestroyConfigClass extends NodeCommonConfigWithNodeAlias, C
   chartDirectory: string;
   devMode: boolean;
   debugNodeAlias: NodeAlias;
+  nodeAliases: NodeAliases;
   endpointType: string;
   soloChartVersion: string;
   localBuildPath: string;
@@ -28,4 +29,5 @@ export interface NodeDestroyConfigClass extends NodeCommonConfigWithNodeAlias, C
   refreshedConsensusNodes: ConsensusNode[];
   domainNames: string;
   domainNamesMapping: Record<NodeAlias, string>;
+  nodeAliasesUnparsed?: string;
 }

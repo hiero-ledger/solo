@@ -77,6 +77,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       NodeTest.setup(options);
       NodeTest.start(options);
 
+      NodeTest.PemKill(options);
+      NodeTest.PemStop(options);
+
       MirrorNodeTest.add(options);
 
       NodeTest.add(options);
