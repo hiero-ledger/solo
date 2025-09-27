@@ -32,11 +32,13 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
 
   public static readonly MULTI_SUBCOMMAND_NAME = 'multi';
   private static readonly MULTI_SUBCOMMAND_DESCRIPTION =
-    'Creates a uniquely named deployment with a four consensus nodes, ' +
-    'a single mirror node, a single block node, a single relay node, and a single explorer node.';
+    'Creates a uniquely named deployment with multiple consensus nodes, ' +
+    'mirror node, block node, relay node, and explorer node.';
 
   public static readonly SINGLE_DEPLOY = 'deploy';
   public static readonly SINGLE_DESTROY = 'destroy';
+  public static readonly MULTIPLE_DEPLOY = 'deploy';
+  public static readonly MULTIPLE_DESTROY = 'destroy';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(OneShotCommandDefinition.COMMAND_NAME, OneShotCommandDefinition.DESCRIPTION, this.logger)
@@ -51,7 +53,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               'Deploys all required components for the selected one shot configuration.',
               this.oneShotCommand,
               this.oneShotCommand.deploy,
-              DefaultOneShotCommand.SINGLE_ADD_FLAGS_LIST,
+              DefaultOneShotCommand.ADD_FLAGS_LIST,
             ),
           )
           .addSubcommand(
@@ -60,7 +62,31 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               'Removes the deployed resources for the selected one shot configuration.',
               this.oneShotCommand,
               this.oneShotCommand.destroy,
-              DefaultOneShotCommand.SINGLE_DESTROY_FLAGS_LIST,
+              DefaultOneShotCommand.DESTROY_FLAGS_LIST,
+            ),
+          ),
+      )
+      .addCommandGroup(
+        new CommandGroup(
+          OneShotCommandDefinition.MULTI_SUBCOMMAND_NAME,
+          OneShotCommandDefinition.MULTI_SUBCOMMAND_DESCRIPTION,
+        )
+          .addSubcommand(
+            new Subcommand(
+              OneShotCommandDefinition.MULTIPLE_DEPLOY,
+              'Deploys all required components for the selected multiple node one shot configuration.',
+              this.oneShotCommand,
+              this.oneShotCommand.deployMultiple,
+              DefaultOneShotCommand.ADD_FLAGS_LIST,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              OneShotCommandDefinition.MULTIPLE_DESTROY,
+              'Removes the deployed resources for the selected multiple node one shot configuration.',
+              this.oneShotCommand,
+              this.oneShotCommand.destroyMultiple,
+              DefaultOneShotCommand.DESTROY_FLAGS_LIST,
             ),
           ),
       )
