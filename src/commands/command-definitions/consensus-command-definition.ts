@@ -139,7 +139,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.freeze,
                 NodeFlags.FREEZE_FLAGS,
-                [constants.HELM, constants.KUBECTL],
+                [],
                 true,
               ),
             )
