@@ -57,33 +57,24 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [
-      flags.cacheDir,
-      flags.clusterRef,
-      flags.clusterSetupNamespace,
-      flags.context,
-      flags.deployment,
-      flags.devMode,
-      flags.namespace,
-      flags.numberOfConsensusNodes,
-      flags.predefinedAccounts,
-      flags.quiet,
-      // TODO add flag for consensus node version
-    ],
+    optional: [],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [
-      flags.cacheDir,
-      flags.clusterRef,
-      flags.context,
-      flags.deployment,
-      flags.namespace,
-      flags.quiet,
-      flags.force,
-      flags.devMode,
-    ],
+    optional: [],
+  };
+
+  // Flag sets for the new "falcon" subcommands. These mirror the base one-shot flag sets
+  // but also include the chart values override flag `--values-file`.
+  public static readonly FALCON_ADD_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [...DefaultOneShotCommand.ADD_FLAGS_LIST.optional, flags.valuesFile],
+  };
+
+  public static readonly FALCON_DESTROY_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [...DefaultOneShotCommand.DESTROY_FLAGS_LIST.optional, flags.valuesFile],
   };
 
   public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {

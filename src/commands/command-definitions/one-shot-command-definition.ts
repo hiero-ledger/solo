@@ -35,6 +35,10 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
     'Creates a uniquely named deployment with multiple consensus nodes, ' +
     'mirror node, block node, relay node, and explorer node.';
 
+  public static readonly FALCON_SUBCOMMAND_NAME = 'falcon';
+  private static readonly FALCON_SUBCOMMAND_DESCRIPTION =
+    'Creates a uniquely named deployment with optional chart values override using --values-file.';
+
   public static readonly SINGLE_DEPLOY = 'deploy';
   public static readonly SINGLE_DESTROY = 'destroy';
   public static readonly MULTIPLE_DEPLOY = 'deploy';
@@ -87,6 +91,30 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.destroyMultiple,
               DefaultOneShotCommand.DESTROY_FLAGS_LIST,
+            ),
+          ),
+      )
+      .addCommandGroup(
+        new CommandGroup(
+          OneShotCommandDefinition.FALCON_SUBCOMMAND_NAME,
+          OneShotCommandDefinition.FALCON_SUBCOMMAND_DESCRIPTION,
+        )
+          .addSubcommand(
+            new Subcommand(
+              OneShotCommandDefinition.SINGLE_DEPLOY,
+              'Deploys all required components for the selected one shot configuration (with optional values file).',
+              this.oneShotCommand,
+              this.oneShotCommand.deploy,
+              DefaultOneShotCommand.FALCON_ADD_FLAGS_LIST,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              OneShotCommandDefinition.SINGLE_DESTROY,
+              'Removes the deployed resources for the selected one shot configuration (with optional values file).',
+              this.oneShotCommand,
+              this.oneShotCommand.destroy,
+              DefaultOneShotCommand.FALCON_DESTROY_FLAGS_LIST,
             ),
           ),
       )
