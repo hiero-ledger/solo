@@ -139,7 +139,7 @@ export class InitCommand extends BaseCommand {
             },
           });
         },
-        skip: this.skipKindSetup(),
+        skip: this.skipKindSetup,
       },
       {
         title: 'Create default cluster',
@@ -153,7 +153,7 @@ export class InitCommand extends BaseCommand {
             {
               title: 'Create Podman machine...',
               task: async () => {
-                const podmanExecutable: string = self.depManager.getExecutablePath(constants.PODMAN);
+                const podmanExecutable: string = await self.depManager.getExecutablePath(constants.PODMAN);
                 await this.run(`${podmanExecutable} machine init --memory=16384`); // 16GB
                 await this.run(`${podmanExecutable} machine start`);
               },
@@ -170,7 +170,7 @@ export class InitCommand extends BaseCommand {
             {
               title: 'Creating local cluster...',
               task: async context_ => {
-                const kindExecutable: string = self.depManager.getExecutablePath(constants.KIND);
+                const kindExecutable: string = await self.depManager.getExecutablePath(constants.KIND);
                 const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
                 const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
                   constants.DEFAULT_CLUSTER,
@@ -181,13 +181,13 @@ export class InitCommand extends BaseCommand {
           );
 
           return task.newListr(subTasks, {
-            concurrent: false,
+            concurrent: false, // should not use concurrent as cluster creation may be called before dependencies are finished installing
             rendererOptions: {
               collapseSubtasks: false,
             },
           });
         },
-        skip: this.skipKindSetup(),
+        skip: this.skipKindSetup,
       },
     ];
   }
@@ -276,11 +276,23 @@ export class InitCommand extends BaseCommand {
     return true;
   }
 
-  private skipKindSetup(): boolean {
+  private async skipKindSetup(): Promise<boolean> {
     try {
       const k8: K8 = this.k8Factory.default();
       const contextName: string = k8.contexts().readCurrent();
-      return !!contextName;
+      if (!contextName) {
+        return false;
+      }
+
+      // Try to verify the cluster is actually accessible by making a simple API call
+      try {
+        await k8.namespaces().list();
+        return true;
+      } catch {
+        // If we can't connect to the cluster, don't skip cluster creation
+        // This handles cases where contexts exist but clusters are not running
+        return false;
+      }
     } catch (error) {
       return !(error instanceof MissingActiveContextError || error instanceof MissingActiveClusterError);
     }
