@@ -106,10 +106,10 @@ export class DependencyManager extends ShellRunner {
     });
   }
 
-  public getExecutablePath(dep: string): string {
+  public async getExecutablePath(dep: string): Promise<string> {
     const manager: DependencyManagerType = this.dependancyManagerMap.get(dep);
     if (manager) {
-      return manager.getExecutablePath();
+      return await manager.getExecutablePath();
     }
     throw new SoloError(`Dependency manager for '${dep}' is not found`);
   }

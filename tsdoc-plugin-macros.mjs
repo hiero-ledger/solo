@@ -13,6 +13,18 @@ const MACROS = {
     '- The middle part can contain a-z, 0-9, or -\n' +
     '- The last character must be a-z or 0-9\n' +
     '- The total length must not exceed 63 characters\n',
+  DNS_1123_RESOURCE:
+    'A valid RFC-1123 DNS resource consists of the following:\n' +
+    '- The first character must be a-z or 0-9\n' +
+    '- The middle part can contain a-z, 0-9, or -\n' +
+    '- The last character must be a-z or 0-9\n' +
+    '- The total length must not exceed 253 characters\n',
+  DNS_1123_OBJECT:
+    'A valid RFC-1123 DNS object consists of the following:\n' +
+    '- The first character must be a-z or 0-9\n' +
+    '- The middle part can contain a-z, 0-9, or -\n' +
+    '- The last character must be a-z or 0-9\n' +
+    '- The total length must not exceed 253 characters\n',
 };
 
 /**

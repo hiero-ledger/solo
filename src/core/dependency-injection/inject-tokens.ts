@@ -74,6 +74,7 @@ export class InjectTokens {
   public static OneShotCommand: symbol = Symbol.for('OneShotCommand');
   public static TaskList: symbol = Symbol.for('TaskList');
   public static Commands: symbol = Symbol.for('Commands');
+  public static MetricsServer: symbol = Symbol.for('MetricsServer');
 
   // Command Definitions
   public static BlockCommandDefinition: symbol = Symbol.for('BlockCommandDefinition');

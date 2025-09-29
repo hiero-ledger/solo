@@ -140,7 +140,7 @@ describe('PodmanDependencyManager', () => {
     expect(podmanDependencyManager.isInstalledLocally()).not.to.be.ok;
   });
 
-  it('should be able to check when podman is installed', () => {
+  it('should be able to check when podman is installed', async () => {
     const podmanDependencyManager = new PodmanDependencyManager(
       undefined,
       temporaryDirectory,
@@ -149,7 +149,7 @@ describe('PodmanDependencyManager', () => {
       undefined,
       undefined,
     );
-    fs.writeFileSync(podmanDependencyManager.getExecutablePath(), '');
+    fs.writeFileSync(await podmanDependencyManager.getExecutablePath(), '');
     expect(podmanDependencyManager.isInstalledLocally()).to.be.ok;
   });
 
@@ -360,7 +360,8 @@ describe('PodmanDependencyManager', () => {
 
       // Verify that the file system operations were called
       expect(cpSyncStub.calledOnce).to.be.true;
-      expect(podmanDependencyManager.getExecutablePath()).to.equal(PathEx.join(temporaryDirectory, 'podman'));
+      // Should return global path since it meets requirements
+      expect(await podmanDependencyManager.getExecutablePath()).to.equal('/usr/local/bin/podman');
     });
 
     it('should install podman locally if the global installation does not meet the requirements', async () => {
@@ -377,7 +378,7 @@ describe('PodmanDependencyManager', () => {
 
       expect(await podmanDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(fs.existsSync(PathEx.join(temporaryDirectory, 'podman'))).to.be.ok;
-      expect(podmanDependencyManager.getExecutablePath()).to.equal(PathEx.join(temporaryDirectory, 'podman'));
+      expect(await podmanDependencyManager.getExecutablePath()).to.equal(PathEx.join(temporaryDirectory, 'podman'));
     });
   });
 });

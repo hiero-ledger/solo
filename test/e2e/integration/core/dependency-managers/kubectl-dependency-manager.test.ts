@@ -52,7 +52,7 @@ describe('KubectlDependencyManager', (): void => {
     expect(kubectlDependencyManager.isInstalledLocally()).not.to.be.ok;
   });
 
-  it('should be able to check when kubectl is installed', (): void => {
+  it('should be able to check when kubectl is installed', async (): Promise<void> => {
     const kubectlDependencyManager: KubectlDependencyManager = new KubectlDependencyManager(
       undefined,
       localInstallationDirectory,
@@ -60,7 +60,9 @@ describe('KubectlDependencyManager', (): void => {
       undefined,
       undefined,
     );
-    fs.writeFileSync(kubectlDependencyManager.getExecutablePath(), '');
+    // Create the local executable file for testing
+    const localPath = PathEx.join(localInstallationDirectory, 'kubectl');
+    fs.writeFileSync(localPath, '');
     expect(kubectlDependencyManager.isInstalledLocally()).to.be.ok;
   });
 
@@ -110,7 +112,8 @@ describe('KubectlDependencyManager', (): void => {
 
       expect(await kubectlDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(cpSyncStub.calledOnce).to.be.true;
-      expect(kubectlDependencyManager.getExecutablePath()).to.equal(`${localInstallationDirectory}/kubectl`);
+      // Should return global path since it meets requirements
+      expect(await kubectlDependencyManager.getExecutablePath()).to.equal('/usr/local/bin/kubectl');
     });
 
     it('should install kubectl locally if the global installation does not meet the requirements', async (): Promise<void> => {
@@ -126,7 +129,9 @@ describe('KubectlDependencyManager', (): void => {
 
       expect(await kubectlDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(fs.existsSync(PathEx.join(localInstallationDirectory, 'kubectl'))).to.be.ok;
-      expect(kubectlDependencyManager.getExecutablePath()).to.equal(PathEx.join(localInstallationDirectory, 'kubectl'));
+      expect(await kubectlDependencyManager.getExecutablePath()).to.equal(
+        PathEx.join(localInstallationDirectory, 'kubectl'),
+      );
     });
   });
 

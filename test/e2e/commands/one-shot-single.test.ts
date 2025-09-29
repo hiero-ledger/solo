@@ -18,6 +18,8 @@ import {type BaseTestOptions} from './tests/base-test-options.js';
 import {main} from '../../../src/index.js';
 import {BaseCommandTest} from './tests/base-command-test.js';
 import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
+import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
+import * as constants from '../../../src/core/constants.js';
 
 const testName: string = 'one-shot-single';
 const testTitle: string = 'One Shot Single E2E Test';
@@ -64,6 +66,10 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         await main(soloOneShotDeploy(testName));
         testLogger.info(`${testName}: finished ${testName}: deploy`);
       }).timeout(Duration.ofMinutes(15).toMillis());
+
+      it('Should write log metrics', async (): Promise<void> => {
+        await new MetricsServerImpl().logMetrics(PathEx.join(constants.SOLO_LOGS_DIR, `${testName}.json`));
+      });
 
       // TODO add verifications
     });
