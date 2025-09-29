@@ -139,7 +139,7 @@ export class InitCommand extends BaseCommand {
             },
           });
         },
-        skip: this.skipKindSetup,
+        skip: this.skipKindSetup.bind(this),
       },
       {
         title: 'Create default cluster',
@@ -187,7 +187,7 @@ export class InitCommand extends BaseCommand {
             },
           });
         },
-        skip: this.skipKindSetup,
+        skip: this.skipKindSetup.bind(this),
       },
     ];
   }
