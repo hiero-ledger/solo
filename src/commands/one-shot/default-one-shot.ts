@@ -57,11 +57,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [],
+      flags.quiet,
     optional: [],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
+      flags.quiet,
     optional: [],
   };
 
