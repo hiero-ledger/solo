@@ -130,7 +130,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       it('Should write log metrics', async (): Promise<void> => {
         await new MetricsServerImpl().logMetrics(
-          PathEx.join(constants.SOLO_LOGS_DIR, `${testName}.json`),
+          PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`),
           undefined,
           undefined,
           contexts,

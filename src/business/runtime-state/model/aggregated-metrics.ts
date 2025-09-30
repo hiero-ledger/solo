@@ -6,10 +6,10 @@ import {type ClusterMetrics} from './cluster-metrics.js';
 export class AggregatedMetrics extends Metrics {
   public constructor(
     public readonly clusterMetrics: ClusterMetrics[],
-    public readonly date: Date,
-    public readonly gitHubSha: string,
     cpuInMillicores: number,
     memoryInMebibytes: number,
+    public readonly date?: Date,
+    public readonly gitHubSha?: string,
   ) {
     super(cpuInMillicores, memoryInMebibytes);
     this.date = new Date();

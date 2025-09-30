@@ -18,7 +18,7 @@ describe('MetricsServer', (): void => {
   describe('logMetrics', (): void => {
     it('should succeed', async (): Promise<void> => {
       const metricsServer: MetricsServer = new MetricsServerImpl();
-      await metricsServer.logMetrics(PathEx.join(constants.SOLO_LOGS_DIR, 'metrics.json'));
+      await metricsServer.logMetrics(PathEx.join(constants.SOLO_LOGS_DIR, 'metrics'));
     });
   });
 });

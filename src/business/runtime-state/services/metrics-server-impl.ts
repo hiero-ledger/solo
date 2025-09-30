@@ -13,6 +13,7 @@ import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js'
 import fs from 'node:fs';
 import {AggregatedMetrics} from '../model/aggregated-metrics.js';
 import {ClusterMetrics} from '../model/cluster-metrics.js';
+import yaml from 'yaml';
 
 @injectable()
 export class MetricsServerImpl implements MetricsServer {
@@ -118,6 +119,7 @@ export class MetricsServerImpl implements MetricsServer {
     contexts?: Context[],
   ): Promise<void> {
     const aggregatedMetrics: AggregatedMetrics = await this.getMetrics(namespace, labelSelector, contexts);
-    fs.writeFileSync(metricsLogFile, aggregatedMetrics ? aggregatedMetrics.toString() : '');
+    fs.writeFileSync(`${metricsLogFile}.json`, aggregatedMetrics ? aggregatedMetrics.toString() : '');
+    fs.writeFileSync(`${metricsLogFile}.yaml`, aggregatedMetrics ? yaml.stringify(aggregatedMetrics) : '');
   }
 }

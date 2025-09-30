@@ -319,6 +319,9 @@ jobs:
       - name: Log Metrics
         run: |
           for logFile in $(ls -1 ~/.solo/logs/*.json); do cat $logFile | jq; done
+          echo "-----------------------------------------------------------------"
+          for logFile in $(ls -1 ~/.solo/logs/*.yaml); do cat $logFile | jq; done
+          
 
       - name: Upload E2E Logs to GitHub
         if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && !cancelled() }}
