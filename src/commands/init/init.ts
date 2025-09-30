@@ -127,7 +127,7 @@ export class InitCommand extends BaseCommand {
       {
         title: 'Install Kind',
         task: (_, task) => {
-          const deps: string[] = [constants.PODMAN, constants.KIND];
+          const deps: string[] = [constants.PODMAN, constants.VFKIT, constants.GVPROXY, constants.KIND];
 
           const subTasks = self.depManager.taskCheckDependencies<InitContext>(deps);
 

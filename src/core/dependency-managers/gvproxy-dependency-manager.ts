@@ -9,15 +9,14 @@ import {BaseDependencyManager} from './base-dependency-manager.js';
 import {PackageDownloader} from '../package-downloader.js';
 import util from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
+import {GitHubRelease, GitHubReleaseAsset, ReleaseInfo} from '../../types/index.js';
 import path from 'node:path';
 import fs from 'node:fs';
-import {Zippy} from '../zippy.js';
-import {GitHubRelease, ReleaseInfo} from '../../types/index.js';
 
-const PODMAN_RELEASES_LIST_URL: string = 'https://api.github.com/repos/containers/podman/releases';
+const GVPROXY_RELEASES_LIST_URL: string = 'https://api.github.com/repos/containers/gvisor-tap-vsock/releases';
 
 @injectable()
-export class PodmanDependencyManager extends BaseDependencyManager {
+export class GvproxyDependencyManager extends BaseDependencyManager {
   protected checksum: string;
   protected releaseBaseUrl: string;
   protected artifactFileName: string;
@@ -25,38 +24,36 @@ export class PodmanDependencyManager extends BaseDependencyManager {
 
   public constructor(
     @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
-    @inject(InjectTokens.PodmanInstallationDir) protected override readonly installationDirectory: string,
+    @inject(InjectTokens.GvproxyInstallationDir) protected override readonly installationDirectory: string,
     @inject(InjectTokens.OsPlatform) osPlatform: NodeJS.Platform,
     @inject(InjectTokens.OsArch) osArch: string,
-    @inject(InjectTokens.PodmanVersion) protected readonly podmanVersion: string,
-    @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
+    @inject(InjectTokens.GvproxyVersion) protected readonly gvproxyVersion: string,
   ) {
     // Patch injected values to handle undefined values
     installationDirectory = patchInject(
       installationDirectory,
-      InjectTokens.PodmanInstallationDir,
-      PodmanDependencyManager.name,
+      InjectTokens.GvproxyInstallationDir,
+      GvproxyDependencyManager.name,
     );
-    osPlatform = patchInject(osPlatform, InjectTokens.OsPlatform, PodmanDependencyManager.name);
-    osArch = patchInject(osArch, InjectTokens.OsArch, PodmanDependencyManager.name);
-    podmanVersion = patchInject(podmanVersion, InjectTokens.PodmanVersion, PodmanDependencyManager.name);
-    downloader = patchInject(downloader, InjectTokens.PackageDownloader, PodmanDependencyManager.name);
-    zippy = patchInject(zippy, InjectTokens.Zippy, PodmanDependencyManager.name);
+    osPlatform = patchInject(osPlatform, InjectTokens.OsPlatform, GvproxyDependencyManager.name);
+    osArch = patchInject(osArch, InjectTokens.OsArch, GvproxyDependencyManager.name);
+    gvproxyVersion = patchInject(gvproxyVersion, InjectTokens.GvproxyVersion, GvproxyDependencyManager.name);
+    downloader = patchInject(downloader, InjectTokens.PackageDownloader, GvproxyDependencyManager.name);
 
-    // Call the base constructor with the podman-specific parameters
+    // Call the base constructor with the gvproxy-specific parameters
     super(
       downloader,
       installationDirectory,
       osPlatform,
       osArch,
-      podmanVersion || version.PODMAN_VERSION,
-      constants.PODMAN,
+      gvproxyVersion || version.GVPROXY_VERSION,
+      constants.GVPROXY,
       '',
     );
   }
 
   /**
-   * Get the Podman artifact name based on version, OS, and architecture
+   * Get the Gvproxy artifact name based on version, OS, and architecture
    */
   protected getArtifactName(): string {
     return util.format(this.artifactFileName, this.getRequiredVersion(), this.osPlatform, this.osArch);
@@ -64,7 +61,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
 
   public async getVersion(executablePath: string): Promise<string> {
     // The retry logic is to handle potential transient issues with the command execution
-    // The command `podman --version` was sometimes observed to return an empty output in the CI environment
+    // The command `gvproxy --version` was sometimes observed to return an empty output in the CI environment
     const maxAttempts: number = 3;
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
@@ -74,10 +71,43 @@ export class PodmanDependencyManager extends BaseDependencyManager {
           return match[1];
         }
       } catch (error: any) {
-        throw new SoloError('Failed to check podman version', error);
+        throw new SoloError('Failed to check gvproxy version', error);
       }
     }
-    throw new SoloError('Failed to check podman version');
+    throw new SoloError('Failed to check gvproxy version');
+  }
+
+  /**
+   * Determine the appropriate asset name for the current platform and architecture
+   * based on the naming conventions used in gvproxy GitHub releases
+   */
+  private getAssetName(): string {
+    // Normalize platform/arch for asset matching
+    const platform = this.osPlatform === constants.OS_WIN32 ? constants.OS_WINDOWS : this.osPlatform;
+    const arch: string = this.getArch();
+
+    // Select the appropriate asset name based on platform and architecture
+    let assetName: string;
+
+    switch (platform) {
+      case constants.OS_WINDOWS: {
+        // For Windows, use the regular exe (not the GUI version)
+        assetName = arch === 'arm64' ? 'gvproxy-windows-arm64.exe' : 'gvproxy-windows.exe';
+        break;
+      }
+      case constants.OS_DARWIN: {
+        assetName = 'gvproxy-darwin';
+        break;
+      }
+      case constants.OS_LINUX: {
+        assetName = `gvproxy-linux-${arch}`;
+        break;
+      }
+      default: {
+        throw new SoloError(`Unsupported platform: ${platform}`);
+      }
+    }
+    return assetName;
   }
 
   /**
@@ -87,8 +117,8 @@ export class PodmanDependencyManager extends BaseDependencyManager {
   private async fetchLatestReleaseInfo(): Promise<ReleaseInfo> {
     try {
       // Make a GET request to GitHub API using fetch
-      const response = await fetch(PODMAN_RELEASES_LIST_URL, {
-        method: 'GET', // Changed from HEAD to GET to retrieve the body
+      const response = await fetch(GVPROXY_RELEASES_LIST_URL, {
+        method: 'GET',
         headers: {
           'User-Agent': constants.SOLO_USER_AGENT_HEADER,
           Accept: 'application/vnd.github.v3+json', // Explicitly request GitHub API v3 format
@@ -110,28 +140,12 @@ export class PodmanDependencyManager extends BaseDependencyManager {
       const latestRelease = releases[0];
       const version = latestRelease.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
 
-      // Normalize platform/arch for asset matching
-      const platform = this.osPlatform === constants.OS_WIN32 ? constants.OS_WINDOWS : this.osPlatform;
-      const arch: string = this.getArch();
+      const assetName: string = this.getAssetName();
 
-      // Construct asset pattern based on platform
-      let assetPattern: RegExp;
-      if (platform === constants.OS_WINDOWS) {
-        // Windows
-        assetPattern = new RegExp(`podman-remote-release-windows_${arch}\\.zip$`);
-      } else if (platform === 'darwin') {
-        // macOS
-        assetPattern = new RegExp(`podman-remote-release-darwin_${arch}\\.zip$`);
-      } else {
-        // Linux
-        assetPattern = new RegExp(`podman-remote-static-linux_${arch}\\.tar\\.gz$`);
-      }
-
-      // Find the matching asset
-      const matchingAsset = latestRelease.assets.find(asset => assetPattern.test(asset.browser_download_url));
+      const matchingAsset: GitHubReleaseAsset = latestRelease.assets.find(asset => asset.name === assetName);
 
       if (!matchingAsset) {
-        throw new SoloError(`No matching asset found for ${platform}-${arch}`);
+        throw new SoloError(`No matching asset found (${assetName})`);
       }
 
       // Get the digest from the shasums file
@@ -159,17 +173,6 @@ export class PodmanDependencyManager extends BaseDependencyManager {
     }
   }
 
-  // // Podman should only be installed if Docker is not already present on the client system
-  // public override async shouldInstall(): Promise<boolean> {
-  //   // Determine if Docker is already installed
-  //   try {
-  //     await this.run(`${constants.DOCKER} --version`);
-  //     return false;
-  //   } catch {
-  //     return true;
-  //   }
-  // }
-
   protected override async preInstall(): Promise<void> {
     const latestReleaseInfo: ReleaseInfo = await this.fetchLatestReleaseInfo();
     this.checksum = latestReleaseInfo.checksum;
@@ -187,27 +190,14 @@ export class PodmanDependencyManager extends BaseDependencyManager {
    * Child classes can override this for custom extraction or processing
    */
   protected async processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string[]> {
-    // Extract the archive based on file extension
-    if (packageFilePath.endsWith('.zip')) {
-      this.zippy!.unzip(packageFilePath, temporaryDirectory);
-    } else {
-      this.zippy!.untar(packageFilePath, temporaryDirectory);
-    }
+    // Determine the target filename based on the platform
+    const targetFileName: string = this.osPlatform === constants.OS_WINDOWS ? 'gvproxy.exe' : 'gvproxy';
+    const targetPath: string = path.join(temporaryDirectory, targetFileName);
 
-    let binDirectory: string;
-    if (this.osPlatform === constants.OS_LINUX) {
-      binDirectory = path.join(temporaryDirectory, 'bin');
-      const arch: string = this.getArch();
-      fs.renameSync(
-        path.join(binDirectory, `podman-remote-static-linux_${arch}`),
-        path.join(binDirectory, constants.PODMAN),
-      );
-    } else {
-      // Find the Podman executable inside the extracted directory
-      binDirectory = path.join(temporaryDirectory, `${constants.PODMAN}-${this.artifactVersion}`, 'usr', 'bin');
-    }
+    // Rename the downloaded file
+    fs.renameSync(packageFilePath, targetPath);
 
-    return fs.readdirSync(binDirectory).map((file: string): string => path.join(binDirectory, file));
+    return [targetPath];
   }
 
   protected getChecksumURL(): string {

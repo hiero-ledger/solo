@@ -136,6 +136,28 @@ export interface CommandDefinition {
   handler?: (argv: ArgvStruct) => Promise<void>;
 }
 
+// GitHub API response interfaces
+export interface GitHubReleaseAsset {
+  name: string;
+  browser_download_url: string;
+  content_type: string;
+  size: number;
+  digest: string;
+}
+
+export interface GitHubRelease {
+  tag_name: string;
+  html_url: string;
+  assets: GitHubReleaseAsset[];
+}
+
+export interface ReleaseInfo {
+  downloadUrl: string;
+  assetName: string;
+  checksum: string;
+  version: string;
+}
+
 export type InitDependenciesOptions = {deps: string[]; createCluster: boolean};
 
 export type Version = string;

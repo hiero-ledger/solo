@@ -55,6 +55,16 @@ export abstract class BaseDependencyManager extends ShellRunner {
     this.checksumURL = this.getChecksumURL();
   }
 
+  protected getArch(): string {
+    let arch: string = this.osArch;
+    if (arch === 'x64') {
+      arch = 'amd64';
+    } else if (arch === 'arm64' || arch === 'aarch64') {
+      arch = 'arm64';
+    }
+    return arch;
+  }
+
   /**
    * Child classes must implement this to generate the correct artifact name
    * based on version, platform, and architecture
@@ -165,6 +175,14 @@ export abstract class BaseDependencyManager extends ShellRunner {
   }
 
   /**
+   * Determine if checksum verification should be performed
+   * Child classes can override this if needed
+   */
+  public getVerifyChecksum(): boolean {
+    return true;
+  }
+
+  /**
    * Install the tool
    */
   public async install(temporaryDirectory: string = helpers.getTemporaryDirectory()): Promise<boolean> {
@@ -197,6 +215,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
       this.getDownloadURL(),
       this.getChecksumURL(),
       temporaryDirectory,
+      this.getVerifyChecksum(),
     );
     const processedFiles: string[] = await this.processDownloadedPackage(packageFile, temporaryDirectory);
 

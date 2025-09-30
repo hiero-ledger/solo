@@ -80,6 +80,8 @@ import {OneShotCommandDefinition} from '../../commands/command-definitions/one-s
 import {RelayCommandDefinition} from '../../commands/command-definitions/relay-command-definition.js';
 import {DefaultKindClientBuilder} from '../../integration/kind/impl/default-kind-client-builder.js';
 import {MetricsServerImpl} from '../../business/runtime-state/services/metrics-server-impl.js';
+import {VfkitDependencyManager} from '../dependency-managers/vfkit-dependency-manager.js';
+import {GvproxyDependencyManager} from '../dependency-managers/gvproxy-dependency-manager.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -119,6 +121,8 @@ export class Container {
       new SingletonContainer(InjectTokens.KindDependencyManager, KindDependencyManager),
       new SingletonContainer(InjectTokens.KubectlDependencyManager, KubectlDependencyManager),
       new SingletonContainer(InjectTokens.PodmanDependencyManager, PodmanDependencyManager),
+      new SingletonContainer(InjectTokens.VfkitDependencyManager, VfkitDependencyManager),
+      new SingletonContainer(InjectTokens.GvproxyDependencyManager, GvproxyDependencyManager),
       new SingletonContainer(InjectTokens.ChartManager, ChartManager),
       new SingletonContainer(InjectTokens.ConfigManager, ConfigManager),
       new SingletonContainer(InjectTokens.AccountManager, AccountManager),
@@ -189,10 +193,17 @@ export class Container {
       new ValueContainer(InjectTokens.KindInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.KubectlInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.PodmanInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
+      new ValueContainer(InjectTokens.VfkitInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin/podman-helpers')),
+      new ValueContainer(
+        InjectTokens.GvproxyInstallationDir,
+        PathEx.join(constants.SOLO_HOME_DIR, 'bin/podman-helpers'),
+      ),
       new ValueContainer(InjectTokens.HelmVersion, version.HELM_VERSION),
       new ValueContainer(InjectTokens.KindVersion, version.KIND_VERSION),
       new ValueContainer(InjectTokens.KubectlVersion, version.KUBECTL_VERSION),
       new ValueContainer(InjectTokens.PodmanVersion, version.PODMAN_VERSION),
+      new ValueContainer(InjectTokens.VfkitVersion, version.VFKIT_VERSION),
+      new ValueContainer(InjectTokens.GvproxyVersion, version.GVPROXY_VERSION),
       new ValueContainer(InjectTokens.SystemAccounts, constants.SYSTEM_ACCOUNTS),
       new ValueContainer(InjectTokens.CacheDir, cacheDirectory),
       new ValueContainer(InjectTokens.LocalConfigFileName, constants.DEFAULT_LOCAL_CONFIG_FILE),

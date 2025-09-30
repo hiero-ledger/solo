@@ -14,10 +14,14 @@ export class InjectTokens {
   public static KindInstallationDir: symbol = Symbol.for('KindInstallationDir');
   public static KubectlInstallationDir: symbol = Symbol.for('KubectlInstallationDir');
   public static PodmanInstallationDir: symbol = Symbol.for('PodmanInstallationDir');
+  public static VfkitInstallationDir: symbol = Symbol.for('VfkitInstallationDir');
+  public static GvproxyInstallationDir: symbol = Symbol.for('GvproxyInstallationDir');
   public static HelmVersion: symbol = Symbol.for('HelmVersion');
   public static KindVersion: symbol = Symbol.for('KindVersion');
   public static KubectlVersion: symbol = Symbol.for('KubectlVersion');
   public static PodmanVersion: symbol = Symbol.for('PodmanVersion');
+  public static VfkitVersion: symbol = Symbol.for('VfkitVersion');
+  public static GvproxyVersion: symbol = Symbol.for('GvproxyVersion');
   public static SystemAccounts: symbol = Symbol.for('SystemAccounts');
   public static CacheDir: symbol = Symbol.for('CacheDir');
   public static LockRenewalService: symbol = Symbol.for('LockRenewalService');
@@ -33,6 +37,8 @@ export class InjectTokens {
   public static KindDependencyManager: symbol = Symbol.for('KindDependencyManager');
   public static KubectlDependencyManager: symbol = Symbol.for('KubectlDependencyManager');
   public static PodmanDependencyManager: symbol = Symbol.for('PodmanDependencyManager');
+  public static VfkitDependencyManager: symbol = Symbol.for('VfkitDependencyManager');
+  public static GvproxyDependencyManager: symbol = Symbol.for('GvproxyDependencyManager');
   public static KindBuilder: symbol = Symbol.for('KindBuilder');
   public static ChartManager: symbol = Symbol.for('ChartManager');
   public static ConfigManager: symbol = Symbol.for('ConfigManager');

@@ -168,6 +168,7 @@ export class PackageDownloader {
    * @param packageURL
    * @param checksumDataOrURL - package checksum URL or checksum data
    * @param destinationDirectory - a directory where the files should be downloaded to
+   * @param verifyChecksum - whether to verify checksum or not
    * @param [algo] - checksum algo
    * @param [force] - force download even if the file exists in the destinationDirectory
    */
@@ -175,6 +176,7 @@ export class PackageDownloader {
     packageURL: string,
     checksumDataOrURL: string,
     destinationDirectory: string,
+    verifyChecksum = true,
     algo = 'sha256',
     force = false,
   ) {
@@ -203,22 +205,27 @@ export class PackageDownloader {
       }
 
       let checksum: string;
-      if (this.isValidURL(checksumDataOrURL)) {
-        const checksumURL: string = checksumDataOrURL;
-        checksumFile = `${destinationDirectory}/${path.basename(checksumURL)}`;
-        await this.fetchFile(checksumURL, checksumFile);
-        // Then read its contents
-        const checksumData = fs.readFileSync(checksumFile).toString();
-        if (!checksumData) {
-          throw new SoloError(`unable to read checksum file: ${checksumFile}`);
+      if (verifyChecksum) {
+        if (this.isValidURL(checksumDataOrURL)) {
+          const checksumURL: string = checksumDataOrURL;
+          checksumFile = `${destinationDirectory}/${path.basename(checksumURL)}`;
+          await this.fetchFile(checksumURL, checksumFile);
+          // Then read its contents
+          const checksumData = fs.readFileSync(checksumFile).toString();
+          if (!checksumData) {
+            throw new SoloError(`unable to read checksum file: ${checksumFile}`);
+          }
+          checksum = checksumData.split(' ')[0];
+        } else {
+          checksum = checksumDataOrURL;
         }
-        checksum = checksumData.split(' ')[0];
-      } else {
-        checksum = checksumDataOrURL;
       }
 
       await this.fetchFile(packageURL, packageFile);
-      await this.verifyChecksum(packageFile, checksum, algo);
+
+      if (verifyChecksum) {
+        await this.verifyChecksum(packageFile, checksum, algo);
+      }
       return packageFile;
     } catch (error: Error | any) {
       if (checksumFile && fs.existsSync(checksumFile)) {
@@ -256,6 +263,6 @@ export class PackageDownloader {
     const packageURL = `${constants.HEDERA_BUILDS_URL}/node/software/${releaseDirectory}/build-${tag}.zip`;
     const checksumURL = `${constants.HEDERA_BUILDS_URL}/node/software/${releaseDirectory}/build-${tag}.sha384`;
 
-    return await this.fetchPackage(packageURL, checksumURL, downloadDirectory, 'sha384', force);
+    return await this.fetchPackage(packageURL, checksumURL, downloadDirectory, true, 'sha384', force);
   }
 }
