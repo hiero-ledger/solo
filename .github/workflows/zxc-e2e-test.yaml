@@ -331,11 +331,12 @@ jobs:
               cat $logFile
             fi
           done
+          echo "solo_log_dir=$(cd ~/.solo/logs && pwd)" >> $GITHUB_OUTPUT
 
       - name: Write Log Metrics Message File
         id: log-metrics-file
         env:
-          LOG_FILE: "~/.solo/logs/log_file.md"
+          LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
           JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
         run: |
           ls -al ~/.solo/logs
