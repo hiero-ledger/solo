@@ -5,7 +5,7 @@ import {SoloError} from '../../core/errors/solo-error.js';
 import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
 import {Flags as flags, Flags} from '../flags.js';
-import {type ArgvStruct} from '../../types/aliases.js';
+import {AnyObject, type ArgvStruct} from '../../types/aliases.js';
 import {type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {injectable, inject} from 'tsyringe-neo';
@@ -44,6 +44,7 @@ import * as helpers from '../../core/helpers.js';
 import {Duration} from '../../core/time/duration.js';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import fs from 'node:fs';
+import yaml from 'yaml';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -57,7 +58,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [flags.quiet],
-    optional: [],
+    optional: [flags.valuesFile],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
@@ -88,6 +89,22 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   private optionFromFlag(flag: CommandFlag): string {
     return `--${flag.name}`;
+  }
+
+  /**
+   * Appends non-empty config entries to the argv array as CLI flags.
+   * @param argv - The argument array to append to
+   * @param configSection - The config object to extract key-value pairs from
+   */
+  private appendConfigToArgv(argv: string[], configSection: AnyObject): void {
+    if (!configSection) return;
+    for (const [key, value] of Object.entries(configSection)) {
+      if (value !== undefined && value !== null && value !== StringEx.EMPTY) {
+        argv.push(`--${key}`, value.toString());
+        console.log(`Appended to argv: --${key} ${value.toString()}`);
+      }
+    }
+    console.log(`argv after appending config: ${argv.join(' ')}`);
   }
 
   private argvPushGlobalFlags(argv: string[], cacheDirectory: string = StringEx.EMPTY): string[] {
@@ -165,6 +182,27 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               context_.config.numberOfConsensusNodes = context_.config.numberOfConsensusNodes || 1;
 
               context_.createdAccounts = [];
+
+              // Initialize component config sections to empty objects to prevent undefined errors
+              config.consensusNode = {};
+              config.mirrorNode = {};
+              config.blockNode = {};
+              config.explorerNode = {};
+              config.relayNode = {};
+
+              // if valuesFile is set, read the yaml file and save flags to different config sections to be used
+              // later for consensus node, mirror node, block node, explorer node, relay node
+              if (context_.config.valuesFile) {
+                const valuesFileContent: string = fs.readFileSync(context_.config.valuesFile, 'utf-8');
+                const profileItems = yaml.parse(valuesFileContent) as Record<string, AnyObject>;
+
+                // Override with values from file if they exist
+                if (profileItems.consensusNode) config.consensusNode = profileItems.consensusNode;
+                if (profileItems.mirrorNode) config.mirrorNode = profileItems.mirrorNode;
+                if (profileItems.blockNode) config.blockNode = profileItems.blockNode;
+                if (profileItems.explorerNode) config.explorerNode = profileItems.explorerNode;
+                if (profileItems.relayNode) config.relayNode = profileItems.relayNode;
+              }
               return;
             },
           },
@@ -263,6 +301,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,
               );
+              console.log(`argv before appending config: ${argv.join(' ')}`);
+              this.appendConfigToArgv(argv, config.consensusNode);
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
           ),
@@ -307,6 +347,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 this.optionFromFlag(Flags.pinger),
                 this.optionFromFlag(Flags.enableIngress),
               );
+              this.appendConfigToArgv(argv, config.mirrorNode);
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
           ),
@@ -322,6 +363,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 this.optionFromFlag(Flags.clusterRef),
                 config.clusterRef,
               );
+              this.appendConfigToArgv(argv, config.explorerNode);
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
           ),
@@ -339,6 +381,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 this.optionFromFlag(Flags.nodeAliasesUnparsed),
                 'node1',
               );
+              this.appendConfigToArgv(argv, config.relayNode);
               return this.argvPushGlobalFlags(argv);
             },
           ),

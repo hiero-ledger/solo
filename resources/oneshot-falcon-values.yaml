@@ -1,8 +1,3 @@
-# oneshot-falcon-values.ymal
-# A single values file for "solo one-shot falcon" that lets you override per-component configuration.
-# You can target a specific cluster/context and namespace/deployment per section.
-# Fields left empty are treated as "use defaults" from one-shot flow.
-
 consensusNode:
   # Target cluster/context (optional)
   clusterRef: ""            # --cluster-ref
@@ -19,7 +14,7 @@ consensusNode:
 
   # Chart and versioning
   soloChartVersion: ""      # --solo-chart-version
-  releaseTag: ""            # --release-tag
+  releaseTag: "v0.65.0"            # --release-tag
 
   # Application
   app: ""                   # --app
@@ -110,21 +105,47 @@ mirrorNode:
   storageBucketRegion: ""  # --storage-bucket-region
 
 relayNode:
-  clusterRef: ""
-  context: ""
-  namespace: ""
-  deployment: ""
-  chart:
-    version: ""           # Relay chart version
-    releaseTag: ""        # Relay app release (e.g. v0.48.0)
-  config:
-    overrides: {}
-    # examples:
-    # service:
-    #   type: ClusterIP
-    # env:
-    #   - name: HEDERA_NETWORK
-    #     value: local
+  # Target cluster/context (optional)
+  clusterRef: ""            # --cluster-ref
+  context: ""               # Kubernetes context (not a direct flag, but commonly used)
+
+  # Target location for this component
+  namespace: ""             # --namespace (not in DEPLOY_FLAGS_LIST but commonly needed)
+  deployment: ""            # --deployment (required)
+
+  # Local paths
+  cacheDir: ""              # --cache-dir
+  chartDirectory: ""        # --chart-dir
+
+  # Chart and versioning
+  relayReleaseTag: ""       # --relay-release
+  valuesFile: ""            # --values-file
+
+  # Node configuration
+  nodeAliasesUnparsed: ""   # --node-aliases
+  replicaCount: 1           # --replica-count
+
+  # Network and chain settings
+  chainId: ""               # --ledger-id (chain ID)
+  domainName: ""            # --domain-name
+
+  # Operator credentials
+  operatorId: ""            # --operator-id
+  operatorKey: ""           # --operator-key
+
+  # Profile settings
+  profileFile: ""           # --profile-file
+  profileName: ""           # --profile
+
+  # Port forwarding
+  forcePortForward: true    # --force-port-forward
+
+  # Output control
+  quiet: false              # --quiet
+
+  # Mirror Node integration
+  mirrorNodeId: null        # --mirror-node-id (numeric)
+  mirrorNamespace: ""       # --mirror-namespace
 
 blockNode:
   # Target cluster/context (optional)
