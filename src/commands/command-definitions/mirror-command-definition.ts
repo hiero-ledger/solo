@@ -58,7 +58,6 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
               this.mirrorNodeCommand.add,
               MirrorNodeCommand.DEPLOY_FLAGS_LIST,
               [constants.HELM, constants.KUBECTL],
-              true,
             ),
           )
           .addSubcommand(
@@ -69,7 +68,6 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
               this.mirrorNodeCommand.destroy,
               MirrorNodeCommand.DESTROY_FLAGS_LIST,
               [constants.HELM],
-              false,
             ),
           )
           .addSubcommand(
@@ -80,7 +78,6 @@ export class MirrorCommandDefinition extends BaseCommandDefinition {
               this.mirrorNodeCommand.upgrade,
               MirrorNodeCommand.UPGRADE_FLAGS_LIST,
               [constants.HELM],
-              true,
             ),
           ),
       )

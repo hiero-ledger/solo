@@ -63,7 +63,6 @@ export class ExplorerCommandDefinition extends BaseCommandDefinition {
               this.explorerCommand.add,
               ExplorerCommand.DEPLOY_FLAGS_LIST,
               [constants.HELM, constants.KUBECTL],
-              true,
             ),
           )
           .addSubcommand(
@@ -74,7 +73,6 @@ export class ExplorerCommandDefinition extends BaseCommandDefinition {
               this.explorerCommand.destroy,
               ExplorerCommand.DESTROY_FLAGS_LIST,
               [constants.HELM],
-              false,
             ),
           )
           .addSubcommand(
@@ -85,7 +83,6 @@ export class ExplorerCommandDefinition extends BaseCommandDefinition {
               this.explorerCommand.upgrade,
               ExplorerCommand.UPGRADE_FLAGS_LIST,
               [constants.HELM, constants.KUBECTL],
-              true,
             ),
           ),
       )

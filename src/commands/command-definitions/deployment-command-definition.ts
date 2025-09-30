@@ -69,7 +69,6 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
             this.deploymentCommand.addCluster,
             DeploymentCommand.ADD_CLUSTER_FLAGS_LIST,
             [constants.KUBECTL],
-            false,
           ),
         ),
       )
@@ -86,7 +85,6 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               this.deploymentCommand.list,
               DeploymentCommand.LIST_DEPLOYMENTS_FLAGS_LIST,
               [],
-              false,
             ),
           )
           .addSubcommand(
@@ -97,7 +95,6 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               this.deploymentCommand.create,
               DeploymentCommand.CREATE_FLAGS_LIST,
               [],
-              false,
             ),
           )
           .addSubcommand(
@@ -108,7 +105,6 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               this.deploymentCommand.delete,
               DeploymentCommand.DESTROY_FLAGS_LIST,
               [],
-              false,
             ),
           ),
       )

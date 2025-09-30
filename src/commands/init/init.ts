@@ -249,7 +249,7 @@ export class InitCommand extends BaseCommand {
         ...this.setupSystemFilesTasks(argv),
         ...this.installDependenciesTasks({
           deps: [constants.HELM, constants.KUBECTL],
-          createCluster: true,
+          createCluster: false,
         }),
       ],
       {

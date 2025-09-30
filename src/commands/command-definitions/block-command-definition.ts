@@ -51,7 +51,7 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand.add,
               BlockNodeCommand.ADD_FLAGS_LIST,
               [constants.HELM, constants.KUBECTL],
-              true,
+              false,
             ),
           )
           .addSubcommand(
@@ -75,7 +75,7 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand.upgrade,
               BlockNodeCommand.UPGRADE_FLAGS_LIST,
               [constants.HELM, constants.KUBECTL],
-              true,
+              false,
             ),
           ),
       )

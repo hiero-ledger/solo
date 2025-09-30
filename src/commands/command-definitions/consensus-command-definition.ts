@@ -118,7 +118,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.networkCommand.deploy,
                 NetworkCommand.DEPLOY_FLAGS_LIST,
                 [constants.HELM, constants.KUBECTL],
-                true,
               ),
             )
             .addSubcommand(
@@ -129,7 +128,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.networkCommand.destroy,
                 NetworkCommand.DESTROY_FLAGS_LIST,
                 [constants.HELM, constants.KUBECTL],
-                true,
               ),
             )
             .addSubcommand(
@@ -140,7 +138,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers.freeze,
                 NodeFlags.FREEZE_FLAGS,
                 [],
-                true,
               ),
             )
             .addSubcommand(
@@ -151,7 +148,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers.upgrade,
                 NodeFlags.UPGRADE_FLAGS,
                 [constants.HELM, constants.KUBECTL],
-                true,
               ),
             ),
         )
@@ -169,7 +165,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers.setup,
                 NodeFlags.SETUP_FLAGS,
                 [],
-                true,
               ),
             )
             .addSubcommand(
@@ -180,7 +175,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers.start,
                 NodeFlags.START_FLAGS,
                 [constants.KUBECTL],
-                true,
               ),
             )
             .addSubcommand(
@@ -191,7 +185,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers.stop,
                 NodeFlags.STOP_FLAGS,
                 [constants.KUBECTL],
-                true,
               ),
             )
             .addSubcommand(
@@ -202,7 +195,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers.restart,
                 NodeFlags.RESTART_FLAGS,
                 [constants.KUBECTL],
-                true,
               ),
             )
             .addSubcommand(
@@ -213,7 +205,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers.refresh,
                 NodeFlags.REFRESH_FLAGS,
                 [],
-                true,
               ),
             )
             .addSubcommand(
@@ -224,7 +215,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers.add,
                 NodeFlags.ADD_FLAGS,
                 [constants.HELM, constants.KUBECTL],
-                true,
               ),
             )
             .addSubcommand(
@@ -235,7 +225,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers.update,
                 NodeFlags.UPDATE_FLAGS,
                 [constants.HELM, constants.KUBECTL],
-                true,
               ),
             )
             .addSubcommand(
@@ -246,7 +235,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers.destroy,
                 NodeFlags.DESTROY_FLAGS,
                 [constants.HELM],
-                false,
               ),
             ),
         )

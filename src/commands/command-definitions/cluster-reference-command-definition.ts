@@ -75,7 +75,6 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers.connect,
               ContextFlags.CONNECT_FLAGS,
               [],
-              false,
             ),
           )
           .addSubcommand(
@@ -86,7 +85,6 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers.disconnect,
               ContextFlags.DEFAULT_FLAGS,
               [],
-              false,
             ),
           )
           .addSubcommand(
@@ -97,7 +95,6 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers.list,
               ContextFlags.NO_FLAGS,
               [],
-              false,
             ),
           )
           .addSubcommand(
@@ -108,7 +105,6 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers.info,
               ContextFlags.DEFAULT_FLAGS,
               [],
-              false,
             ),
           )
           // TODO: remove once command is merged in 'consensus network deploy'
@@ -120,7 +116,6 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers.setup,
               ContextFlags.SETUP_FLAGS,
               [constants.HELM],
-              false,
             ),
           )
           // TODO: remove once command is merged in 'consensus network destroy'
@@ -132,7 +127,6 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
               this.clusterCommand.handlers.reset,
               ContextFlags.RESET_FLAGS,
               [constants.HELM],
-              false,
             ),
           ),
       )
