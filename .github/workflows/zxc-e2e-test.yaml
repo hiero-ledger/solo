@@ -350,9 +350,9 @@ jobs:
           echo "<summary>" >> $LOG_FILE
           echo "JSON Log Metrics" >> $LOG_FILE
           echo "</summary>" >> $LOG_FILE
-          echo "```JSON" >> $LOG_FILE
+          echo '```JSON' >> $LOG_FILE
           echo "$JSON_INPUT" >> $LOG_FILE
-          echo "```" >> $LOG_FILE
+          echo '```' >> $LOG_FILE
           echo "</details>" >> $LOG_FILE
           echo "log_file=$LOG_FILE" >> $GITHUB_OUTPUT
           echo "-----"
@@ -364,7 +364,7 @@ jobs:
           echo "-----------"
           echo $JSON_INPUT2
 
-      - name: Comment PR with execution number
+      - name: Comment PR with Log Metrics
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
         with:
           mode: recreate
