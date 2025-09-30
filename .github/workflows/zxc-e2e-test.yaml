@@ -338,12 +338,7 @@ jobs:
         env:
           LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
           JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
-          JSON_INPUT2: ${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}
         run: |
-          ls -al ~/.solo/logs
-          echo "LOG_FILE=$LOG_FILE"
-          touch $LOG_FILE
-          ls -al $LOG_FILE
           echo "## Log Metrics - ${{ inputs.custom-job-label }}" >> $LOG_FILE
           echo "" >> $LOG_FILE
           echo "<details>" >> $LOG_FILE
@@ -355,14 +350,6 @@ jobs:
           echo "</code></pre>" >> $LOG_FILE
           echo "</details>" >> $LOG_FILE
           echo "log_file=$LOG_FILE" >> $GITHUB_OUTPUT
-          echo "-----"
-          echo "$JSON_INPUT"
-          echo "-----------"
-          echo $JSON_INPUT
-          echo "-----"
-          echo "$JSON_INPUT2"
-          echo "-----------"
-          echo $JSON_INPUT2
 
       - name: Comment PR with Log Metrics
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
