@@ -6,15 +6,18 @@ import {type ClusterMetrics} from './cluster-metrics.js';
 export class AggregatedMetrics extends Metrics {
   public constructor(
     public readonly clusterMetrics: ClusterMetrics[],
+    public readonly date: Date,
     cpuInMillicores: number,
     memoryInMebibytes: number,
   ) {
     super(cpuInMillicores, memoryInMebibytes);
+    this.date = new Date();
   }
 
   public override toString(): string {
     let outputString: string =
-      `{"cpuInMillicores": ${this.cpuInMillicores}, ` +
+      `{"date": "${this.date.toISOString()}", ` +
+      `"cpuInMillicores": ${this.cpuInMillicores}, ` +
       `"memoryInMebibytes": ${this.memoryInMebibytes}, ` +
       '"clusterMetrics": [';
     for (let index: number = 0; index < this.clusterMetrics?.length; index++) {
