@@ -1,30 +1,76 @@
-consensusNode:
-  --cluster-ref: ""
-  --context: ""
-  --namespace: ""
+network:
   --deployment: ""
-  --cache-dir: ""
-  --chart-dir: ""
-  --local-build-path: ""
-  --solo-chart-version: ""
-  --release-tag: "v0.65.0"
+  --api-permission-properties: ""
   --app: ""
+  --application-env: ""
+  --application-properties: ""
+  --bootstrap-properties: ""
+  --genesis-throttles-file: ""
+  --cache-dir: ""
   --ledger-id: ""
+  --chart-dir: ""
+  --solo-chart-version: ""
   --debug-node-alias: ""
+  --load-balancer: false
+  --log4j2-xml: ""
   --pvcs: false
+  --profile-file: ""
+  --profile: ""
+  --quiet-mode: false
+  --release-tag: "v0.65.0"
+  --settings-txt: ""
+  --values-file: ""
+  --node-aliases: ""
   --grpc-tls-certificate-path: ""
   --grpc-web-tls-certificate-path: ""
   --grpc-tls-key-path: ""
   --grpc-web-tls-key-path: ""
-  --gossip-endpoints: ""
-  --grpc-endpoints: ""
-  --endpoint-type: ""
+  --haproxy-ips: ""
+  --envoy-ips: ""
+  --storage-type: ""
+  --gcs-write-access-key: ""
+  --gcs-write-secrets: ""
+  --gcs-endpoint: ""
+  --gcs-bucket: ""
+  --gcs-bucket-prefix: ""
+  --aws-write-access-key: ""
+  --aws-write-secrets: ""
+  --aws-endpoint: ""
+  --aws-bucket: ""
+  --aws-bucket-region: ""
+  --aws-bucket-prefix: ""
+  --backup-bucket: ""
+  --backup-write-access-key: ""
+  --backup-write-secrets: ""
+  --backup-endpoint: ""
+  --backup-region: ""
+  --backup-provider: ""
   --domain-names: ""
-  --gossip-keys: false
-  --tls-keys: false
+  --service-monitor: false
+  --pod-log: false
+
+setup:
+  --deployment: ""
+  --cache-dir: ""
+  --release-tag: "v0.65.0"
+  --app: ""
+  --app-config: ""
+  --node-aliases: ""
+  --quiet-mode: false
   --dev: false
-  --force: false
-  --quiet: false
+  --local-build-path: ""
+  --admin-public-keys: ""
+  --domain-names: ""
+
+consensusNode:
+  --deployment: ""
+  --app: ""
+  --quiet-mode: false
+  --node-aliases: ""
+  --debug-node-alias: ""
+  --state-file: ""
+  --stake-amounts: ""
+  --force-port-forward: true
 
 mirrorNode:
   --cluster-ref: ""
@@ -42,7 +88,7 @@ mirrorNode:
   --profile-file: ""
   --profile: ""
   --force-port-forward: true
-  --quiet: false
+  --quiet-mode: false
   --pinger: false
   --operator-id: ""
   --operator-key: ""
@@ -78,7 +124,7 @@ relayNode:
   --profile-file: ""
   --profile: ""
   --force-port-forward: true
-  --quiet: false
+  --quiet-mode: false
   --mirror-node-id: null
   --mirror-namespace: ""
 
@@ -95,7 +141,7 @@ blockNode:
   --enable-ingress: false
   --domain-name: ""
   --dev: false
-  --quiet: false
+  --quiet-mode: false
 
 explorerNode:
   --cluster-ref: ""
@@ -118,6 +164,6 @@ explorerNode:
   --profile: ""
   --cluster-setup-namespace: ""
   --force-port-forward: true
-  --quiet: false
+  --quiet-mode: false
   --mirror-node-id: null
   --mirror-namespace: ""
