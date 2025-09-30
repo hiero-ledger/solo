@@ -323,19 +323,12 @@ jobs:
           {
             echo "json_log=<<EOF"
             for logFile in $(ls -1 ~/.solo/logs/*.json); do 
-              jq < $logFile
+              cat $logFile
             done
             echo EOF
           } >> $GITHUB_OUTPUT
           echo "-----------------------------------------------------------------"
           for logFile in $(ls -1 ~/.solo/logs/*.yaml); do cat $logFile; done
-          {
-            echo "yaml_log=<<EOF"
-            for logFile in $(ls -1 ~/.solo/logs/*.yaml); do 
-              cat $logFile
-            done
-            echo EOF
-          } >> $GITHUB_OUTPUT
 
       - name: Delete a comment
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
@@ -353,14 +346,7 @@ jobs:
             <summary>
             JSON 
             </summary>
-            ${{ steps.log-metrics.outputs.json_log }}
-            </details>
-
-            <details>
-            <summary>
-            YAML 
-            </summary>
-            ${{ steps.log-metrics.outputs.yaml_log }}
+            ${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}
             </details>
           comment-tag: log-metrics-${{ inputs.test-script }}
 
