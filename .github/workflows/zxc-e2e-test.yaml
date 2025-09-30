@@ -335,10 +335,12 @@ jobs:
       - name: Write Log Metrics Message File
         id: log-metrics-file
         env:
-          LOG_FILE: ~/.solo/logs/log_file.md
-          JSON_INPUT: ${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}
+          LOG_FILE: "~/.solo/logs/log_file.md"
+          JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
         run: |
-          echo "## Log Metrics - ${{ inputs.custom-job-label }}" > $LOG_FILE
+          touch $LOG_FILE
+          ls -al $LOG_FILE
+          echo "## Log Metrics - ${{ inputs.custom-job-label }}" >> $LOG_FILE
           echo "" >> $LOG_FILE
           echo "<details>" >> $LOG_FILE
           echo "<summary>" >> $LOG_FILE
