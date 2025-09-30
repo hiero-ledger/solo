@@ -320,7 +320,7 @@ jobs:
         run: |
           for logFile in $(ls -1 ~/.solo/logs/*.json); do cat $logFile | jq; done
           echo "-----------------------------------------------------------------"
-          for logFile in $(ls -1 ~/.solo/logs/*.yaml); do cat $logFile | jq; done
+          for logFile in $(ls -1 ~/.solo/logs/*.yaml); do cat $logFile; done
           
 
       - name: Upload E2E Logs to GitHub
