@@ -97,10 +97,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
    * @param configSection - The config object to extract key-value pairs from
    */
   private appendConfigToArgv(argv: string[], configSection: AnyObject): void {
-    if (!configSection) return;
+    if (!configSection) {
+      return;
+    }
     for (const [key, value] of Object.entries(configSection)) {
       if (value !== undefined && value !== null && value !== StringEx.EMPTY) {
-        argv.push(`--${key}`, value.toString());
+        argv.push(`${key}`, value.toString());
         console.log(`Appended to argv: --${key} ${value.toString()}`);
       }
     }

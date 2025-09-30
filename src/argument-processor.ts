@@ -54,13 +54,11 @@ export class ArgumentProcessor {
           rootCmd.showHelp(output => {
             helpRenderer.render(rootCmd, output);
           });
+          // Throw error to propagate through async call chains (e.g., Listr tasks)
+          throw new SoloError(message, error);
         } else {
           logger.showUserError(new SoloError(`Error running Solo CLI, failure occurred: ${message ? message : ''}`));
-        }
-        if (message.includes('Unknown argument') || message.includes('Missing required argument')) {
-          rootCmd.exit(1, error);
-        } else {
-          rootCmd.exit(0, error);
+          throw new SoloError(message, error);
         }
       }
     });

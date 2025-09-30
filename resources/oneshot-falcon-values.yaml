@@ -1,220 +1,123 @@
 consensusNode:
-  # Target cluster/context (optional)
-  clusterRef: ""            # --cluster-ref
-  context: ""               # Kubernetes context (not a direct flag, but commonly used)
-
-  # Target location for this component
-  namespace: ""             # --namespace (not in COMMON_ADD_OPTIONAL_FLAGS but commonly needed)
-  deployment: ""            # --deployment (required)
-
-  # Local paths
-  cacheDir: ""              # --cache-dir
-  chartDirectory: ""        # --chart-dir
-  localBuildPath: ""        # --local-build-path
-
-  # Chart and versioning
-  soloChartVersion: ""      # --solo-chart-version
-  releaseTag: "v0.65.0"            # --release-tag
-
-  # Application
-  app: ""                   # --app
-
-  # Network and chain settings
-  chainId: ""               # --ledger-id (chain ID)
-  debugNodeAlias: ""        # --debug-node-alias
-
-  # Storage options
-  persistentVolumeClaims: false  # --pvcs
-
-  # TLS certificates (gRPC)
-  grpcTlsCertificatePath: ""     # --grpc-tls-certificate-path
-  grpcWebTlsCertificatePath: ""  # --grpc-web-tls-certificate-path
-  grpcTlsKeyPath: ""             # --grpc-tls-key-path
-  grpcWebTlsKeyPath: ""          # --grpc-web-tls-key-path
-
-  # Endpoints configuration
-  gossipEndpoints: ""       # --gossip-endpoints
-  grpcEndpoints: ""         # --grpc-endpoints
-  endpointType: ""          # --endpoint-type
-  domainNames: ""           # --domain-names
-
-  # Key generation
-  generateGossipKeys: false # --gossip-keys
-  generateTlsKeys: false    # --tls-keys
-
-  # Mode and output
-  devMode: false            # --dev
-  force: false              # --force
-  quiet: false              # --quiet
+  --cluster-ref: ""
+  --context: ""
+  --namespace: ""
+  --deployment: ""
+  --cache-dir: ""
+  --chart-dir: ""
+  --local-build-path: ""
+  --solo-chart-version: ""
+  --release-tag: "v0.65.0"
+  --app: ""
+  --ledger-id: ""
+  --debug-node-alias: ""
+  --pvcs: false
+  --grpc-tls-certificate-path: ""
+  --grpc-web-tls-certificate-path: ""
+  --grpc-tls-key-path: ""
+  --grpc-web-tls-key-path: ""
+  --gossip-endpoints: ""
+  --grpc-endpoints: ""
+  --endpoint-type: ""
+  --domain-names: ""
+  --gossip-keys: false
+  --tls-keys: false
+  --dev: false
+  --force: false
+  --quiet: false
 
 mirrorNode:
-  # Target cluster/context (optional)
-  clusterRef: ""            # --cluster-ref
-  context: ""               # Kubernetes context (not a direct flag, but commonly used)
-
-  # Target location for this component
-  namespace: ""             # --namespace (not in DEPLOY_FLAGS_LIST but commonly needed)
-  deployment: ""            # --deployment (required)
-
-  # Local paths
-  cacheDir: ""              # --cache-dir
-  chartDirectory: ""        # --chart-dir
-
-  # Chart and versioning
-  mirrorNodeVersion: ""     # --mirror-node-version
-  valuesFile: ""            # --values-file
-
-  # Ingress configuration
-  enableIngress: false       # --enable-ingress
-  ingressControllerValueFile: ""  # --ingress-controller-value-file
-  mirrorStaticIp: ""        # --mirror-static-ip
-  domainName: ""            # --domain-name
-
-  # Profile settings
-  profileFile: ""           # --profile-file
-  profileName: ""           # --profile
-
-  # Port forwarding
-  forcePortForward: true    # --force-port-forward
-
-  # Output control
-  quiet: false              # --quiet
-
-  # Pinger configuration
-  pinger: false             # --pinger
-
-  # Operator credentials
-  operatorId: ""            # --operator-id
-  operatorKey: ""           # --operator-key
-
-  # External database configuration
-  useExternalDatabase: false  # --use-external-database
-  externalDatabaseHost: ""    # --external-database-host
-  externalDatabaseOwnerUsername: ""    # --external-database-owner-username
-  externalDatabaseOwnerPassword: ""    # --external-database-owner-password
-  externalDatabaseReadonlyUsername: "" # --external-database-readonly-username
-  externalDatabaseReadonlyPassword: "" # --external-database-readonly-password
-
-  # Storage configuration
-  storageType: ""           # --storage-type
-  storageReadAccessKey: "" # --storage-read-access-key
-  storageReadSecrets: ""   # --storage-read-secrets
-  storageEndpoint: ""       # --storage-endpoint
-  storageBucket: ""         # --storage-bucket
-  storageBucketPrefix: ""  # --storage-bucket-prefix
-  storageBucketRegion: ""  # --storage-bucket-region
+  --cluster-ref: ""
+  --context: ""
+  --namespace: ""
+  --deployment: ""
+  --cache-dir: ""
+  --chart-dir: ""
+  --mirror-node-version: ""
+  --values-file: ""
+  --enable-ingress: false
+  --ingress-controller-value-file: ""
+  --mirror-static-ip: ""
+  --domain-name: ""
+  --profile-file: ""
+  --profile: ""
+  --force-port-forward: true
+  --quiet: false
+  --pinger: false
+  --operator-id: ""
+  --operator-key: ""
+  --use-external-database: false
+  --external-database-host: ""
+  --external-database-owner-username: ""
+  --external-database-owner-password: ""
+  --external-database-readonly-username: ""
+  --external-database-readonly-password: ""
+  --storage-type: ""
+  --storage-read-access-key: ""
+  --storage-read-secrets: ""
+  --storage-endpoint: ""
+  --storage-bucket: ""
+  --storage-bucket-prefix: ""
+  --storage-bucket-region: ""
 
 relayNode:
-  # Target cluster/context (optional)
-  clusterRef: ""            # --cluster-ref
-  context: ""               # Kubernetes context (not a direct flag, but commonly used)
-
-  # Target location for this component
-  namespace: ""             # --namespace (not in DEPLOY_FLAGS_LIST but commonly needed)
-  deployment: ""            # --deployment (required)
-
-  # Local paths
-  cacheDir: ""              # --cache-dir
-  chartDirectory: ""        # --chart-dir
-
-  # Chart and versioning
-  relayReleaseTag: ""       # --relay-release
-  valuesFile: ""            # --values-file
-
-  # Node configuration
-  nodeAliasesUnparsed: ""   # --node-aliases
-  replicaCount: 1           # --replica-count
-
-  # Network and chain settings
-  chainId: ""               # --ledger-id (chain ID)
-  domainName: ""            # --domain-name
-
-  # Operator credentials
-  operatorId: ""            # --operator-id
-  operatorKey: ""           # --operator-key
-
-  # Profile settings
-  profileFile: ""           # --profile-file
-  profileName: ""           # --profile
-
-  # Port forwarding
-  forcePortForward: true    # --force-port-forward
-
-  # Output control
-  quiet: false              # --quiet
-
-  # Mirror Node integration
-  mirrorNodeId: null        # --mirror-node-id (numeric)
-  mirrorNamespace: ""       # --mirror-namespace
+  --cluster-ref: ""
+  --context: ""
+  --namespace: ""
+  --deployment: ""
+  --cache-dir: ""
+  --chart-dir: ""
+  --relay-release: ""
+  --values-file: ""
+  --node-aliases: ""
+  --replica-count: 1
+  --ledger-id: ""
+  --domain-name: ""
+  --operator-id: ""
+  --operator-key: ""
+  --profile-file: ""
+  --profile: ""
+  --force-port-forward: true
+  --quiet: false
+  --mirror-node-id: null
+  --mirror-namespace: ""
 
 blockNode:
-  # Target cluster/context (optional)
-  clusterRef: ""            # --cluster-ref
-  context: ""               # Kubernetes context (not a direct flag, but commonly used)
-
-  # Target location for this component
-  namespace: ""             # --namespace (not in ADD_FLAGS_LIST but commonly needed)
-  deployment: ""            # --deployment (required)
-
-  # Local paths
-  chartDirectory: ""        # --chart-dir
-
-  # Chart and versioning
-  blockNodeChartVersion: "" # --block-node-chart-version
-  releaseTag: ""            # --release-tag
-  imageTag: ""              # --image-tag
-  valuesFile: ""            # --values-file
-
-  # Ingress configuration
-  enableIngress: false       # --enable-ingress
-  domainName: ""            # --domain-name
-
-  # Mode and output
-  devMode: false            # --dev
-  quiet: false              # --quiet
+  --cluster-ref: ""
+  --context: ""
+  --namespace: ""
+  --deployment: ""
+  --chart-dir: ""
+  --block-node-chart-version: ""
+  --release-tag: ""
+  --image-tag: ""
+  --values-file: ""
+  --enable-ingress: false
+  --domain-name: ""
+  --dev: false
+  --quiet: false
 
 explorerNode:
-  # Target cluster/context (optional)
-  clusterRef: ""            # --cluster-ref
-  context: ""               # Kubernetes context (not a direct flag, but commonly used)
-
-  # Target location for this component
-  namespace: ""             # --namespace
-  deployment: ""            # --deployment (required)
-
-  # Local paths
-  cacheDir: ""              # --cache-dir
-  chartDirectory: ""        # --chart-dir
-
-  # Chart and versioning
-  soloChartVersion: ""      # --solo-chart-version
-  explorerVersion: ""       # --explorer-version
-  valuesFile: ""            # --values-file
-
-  # Ingress configuration
-  enableIngress: false       # --enable-ingress
-  ingressControllerValueFile: ""  # --ingress-controller-value-file
-  domainName: ""            # --domain-name
-
-  # TLS configuration
-  enableExplorerTls: false   # --enable-explorer-tls
-  explorerTlsHostName: "explorer.solo.local"  # --explorer-tls-host-name
-  tlsClusterIssuerType: "self-signed"  # --tls-cluster-issuer-type (acme-staging | acme-prod | self-signed)
-  explorerStaticIp: ""      # --explorer-static-ip
-
-  # Profile settings
-  profileFile: ""           # --profile-file
-  profileName: ""           # --profile
-
-  # Cluster setup
-  clusterSetupNamespace: "" # --cluster-setup-namespace
-
-  # Port forwarding
-  forcePortForward: true    # --force-port-forward
-
-  # Output control
-  quiet: false              # --quiet
-
-  # Mirror Node integration
-  mirrorNodeId: null        # --mirror-node-id (numeric)
-  mirrorNamespace: ""       # --mirror-namespace
+  --cluster-ref: ""
+  --context: ""
+  --namespace: ""
+  --deployment: ""
+  --cache-dir: ""
+  --chart-dir: ""
+  --solo-chart-version: ""
+  --explorer-version: ""
+  --values-file: ""
+  --enable-ingress: false
+  --ingress-controller-value-file: ""
+  --domain-name: ""
+  --enable-explorer-tls: false
+  --explorer-tls-host-name: "explorer.solo.local"
+  --tls-cluster-issuer-type: "self-signed"
+  --explorer-static-ip: ""
+  --profile-file: ""
+  --profile: ""
+  --cluster-setup-namespace: ""
+  --force-port-forward: true
+  --quiet: false
+  --mirror-node-id: null
+  --mirror-namespace: ""
