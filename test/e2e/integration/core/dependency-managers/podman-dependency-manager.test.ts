@@ -124,6 +124,7 @@ describe('PodmanDependencyManager', () => {
       undefined,
       undefined,
       undefined,
+      undefined,
     );
     expect(podmanDependencyManager.getRequiredVersion()).to.equal(version.PODMAN_VERSION);
   });
@@ -136,6 +137,7 @@ describe('PodmanDependencyManager', () => {
       undefined,
       undefined,
       undefined,
+      undefined,
     );
     expect(podmanDependencyManager.isInstalledLocally()).not.to.be.ok;
   });
@@ -144,6 +146,7 @@ describe('PodmanDependencyManager', () => {
     const podmanDependencyManager = new PodmanDependencyManager(
       undefined,
       temporaryDirectory,
+      undefined,
       undefined,
       undefined,
       undefined,
@@ -164,6 +167,7 @@ describe('PodmanDependencyManager', () => {
         temporaryDirectory,
         process.platform,
         process.arch,
+        undefined,
         undefined,
         undefined,
       );
@@ -227,17 +231,34 @@ describe('PodmanDependencyManager', () => {
         'x64',
         undefined,
         undefined,
+        undefined,
       );
       // @ts-expect-error TS2341: Property getArch is protected
       expect(manager.getArch()).to.equal('amd64');
 
       // Test arm64 conversion
-      manager = new PodmanDependencyManager(undefined, temporaryDirectory, 'linux', 'arm64', undefined, undefined);
+      manager = new PodmanDependencyManager(
+        undefined,
+        temporaryDirectory,
+        'linux',
+        'arm64',
+        undefined,
+        undefined,
+        undefined,
+      );
       // @ts-expect-error TS2341: Property getArch is protected
       expect(manager.getArch()).to.equal('arm64');
 
       // Test aarch64 to arm64 conversion
-      manager = new PodmanDependencyManager(undefined, temporaryDirectory, 'linux', 'aarch64', undefined, undefined);
+      manager = new PodmanDependencyManager(
+        undefined,
+        temporaryDirectory,
+        'linux',
+        'aarch64',
+        undefined,
+        undefined,
+        undefined,
+      );
       // @ts-expect-error TS2341: Property getArch is protected
       expect(manager.getArch()).to.equal('arm64');
     });
@@ -250,6 +271,7 @@ describe('PodmanDependencyManager', () => {
         temporaryDirectory,
         'linux',
         'x64',
+        undefined,
         undefined,
         undefined,
       );
@@ -315,6 +337,7 @@ describe('PodmanDependencyManager', () => {
         temporaryDirectory,
         process.platform,
         process.arch,
+        undefined,
         undefined,
         undefined,
       );

@@ -246,4 +246,10 @@ export abstract class BaseDependencyManager extends ShellRunner {
   public getRequiredVersion(): string {
     return this.requiredVersion as string;
   }
+
+  /**
+   * Hook for setting up any configuration after installation
+   * Child classes can override this if needed
+   */
+  public setupConfig(): void {}
 }

@@ -24,7 +24,7 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
 
   public constructor(
     @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
-    @inject(InjectTokens.GvproxyInstallationDir) protected override readonly installationDirectory: string,
+    @inject(InjectTokens.PodmanDependenciesInstallationDir) protected override readonly installationDirectory: string,
     @inject(InjectTokens.OsPlatform) osPlatform: NodeJS.Platform,
     @inject(InjectTokens.OsArch) osArch: string,
     @inject(InjectTokens.GvproxyVersion) protected readonly gvproxyVersion: string,
@@ -32,7 +32,7 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
     // Patch injected values to handle undefined values
     installationDirectory = patchInject(
       installationDirectory,
-      InjectTokens.GvproxyInstallationDir,
+      InjectTokens.PodmanDependenciesInstallationDir,
       GvproxyDependencyManager.name,
     );
     osPlatform = patchInject(osPlatform, InjectTokens.OsPlatform, GvproxyDependencyManager.name);

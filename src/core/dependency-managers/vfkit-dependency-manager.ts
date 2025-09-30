@@ -22,7 +22,7 @@ export class VfkitDependencyManager extends BaseDependencyManager {
 
   public constructor(
     @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
-    @inject(InjectTokens.VfkitInstallationDir) protected override readonly installationDirectory: string,
+    @inject(InjectTokens.PodmanDependenciesInstallationDir) protected override readonly installationDirectory: string,
     @inject(InjectTokens.OsPlatform) osPlatform: NodeJS.Platform,
     @inject(InjectTokens.OsArch) osArch: string,
     @inject(InjectTokens.VfkitVersion) protected readonly vfkitVersion: string,
@@ -30,7 +30,7 @@ export class VfkitDependencyManager extends BaseDependencyManager {
     // Patch injected values to handle undefined values
     installationDirectory = patchInject(
       installationDirectory,
-      InjectTokens.VfkitInstallationDir,
+      InjectTokens.PodmanDependenciesInstallationDir,
       VfkitDependencyManager.name,
     );
     osPlatform = patchInject(osPlatform, InjectTokens.OsPlatform, VfkitDependencyManager.name);

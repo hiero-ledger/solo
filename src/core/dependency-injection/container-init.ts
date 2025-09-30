@@ -193,9 +193,9 @@ export class Container {
       new ValueContainer(InjectTokens.KindInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.KubectlInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.PodmanInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
-      new ValueContainer(InjectTokens.VfkitInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin/podman-helpers')),
+      new ValueContainer(InjectTokens.PodmanDependenciesInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin/podman-helpers')),
       new ValueContainer(
-        InjectTokens.GvproxyInstallationDir,
+        InjectTokens.PodmanDependenciesInstallationDir,
         PathEx.join(constants.SOLO_HOME_DIR, 'bin/podman-helpers'),
       ),
       new ValueContainer(InjectTokens.HelmVersion, version.HELM_VERSION),

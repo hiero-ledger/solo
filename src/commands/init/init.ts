@@ -126,8 +126,14 @@ export class InitCommand extends BaseCommand {
     return [
       {
         title: 'Install Kind',
-        task: (_, task) => {
-          const deps: string[] = [constants.PODMAN, constants.VFKIT, constants.GVPROXY, constants.KIND];
+        task: async (_, task) => {
+          const podmanDependency: DependencyManagerType = await self.depManager.getDependency(constants.PODMAN);
+          const shouldInstallPodman: boolean = await podmanDependency.shouldInstall();
+
+          const podmanDependencies: string[] = shouldInstallPodman
+            ? [constants.PODMAN, constants.VFKIT, constants.GVPROXY]
+            : [];
+          const deps: string[] = [...podmanDependencies, constants.KIND];
 
           const subTasks = self.depManager.taskCheckDependencies<InitContext>(deps);
 
@@ -153,6 +159,7 @@ export class InitCommand extends BaseCommand {
             {
               title: 'Create Podman machine...',
               task: async () => {
+                await podmanDependency.setupConfig();
                 const podmanExecutable: string = await self.depManager.getExecutablePath(constants.PODMAN);
                 await this.run(`${podmanExecutable} machine init --memory=16384`); // 16GB
                 await this.run(`${podmanExecutable} machine start`);

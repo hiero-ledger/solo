@@ -13,6 +13,8 @@ import path from 'node:path';
 import fs from 'node:fs';
 import {Zippy} from '../zippy.js';
 import {GitHubRelease, ReleaseInfo} from '../../types/index.js';
+import {fileURLToPath} from 'node:url';
+import {PathEx} from '../../business/utils/path-ex.js';
 
 const PODMAN_RELEASES_LIST_URL: string = 'https://api.github.com/repos/containers/podman/releases';
 
@@ -30,6 +32,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
     @inject(InjectTokens.OsArch) osArch: string,
     @inject(InjectTokens.PodmanVersion) protected readonly podmanVersion: string,
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
+    @inject(InjectTokens.PodmanDependenciesInstallationDir) protected readonly helpersDirectory: string,
   ) {
     // Patch injected values to handle undefined values
     installationDirectory = patchInject(
@@ -42,6 +45,11 @@ export class PodmanDependencyManager extends BaseDependencyManager {
     podmanVersion = patchInject(podmanVersion, InjectTokens.PodmanVersion, PodmanDependencyManager.name);
     downloader = patchInject(downloader, InjectTokens.PackageDownloader, PodmanDependencyManager.name);
     zippy = patchInject(zippy, InjectTokens.Zippy, PodmanDependencyManager.name);
+    helpersDirectory = patchInject(
+      helpersDirectory,
+      InjectTokens.PodmanDependenciesInstallationDir,
+      PodmanDependencyManager.name,
+    );
 
     // Call the base constructor with the podman-specific parameters
     super(
@@ -159,16 +167,16 @@ export class PodmanDependencyManager extends BaseDependencyManager {
     }
   }
 
-  // // Podman should only be installed if Docker is not already present on the client system
-  // public override async shouldInstall(): Promise<boolean> {
-  //   // Determine if Docker is already installed
-  //   try {
-  //     await this.run(`${constants.DOCKER} --version`);
-  //     return false;
-  //   } catch {
-  //     return true;
-  //   }
-  // }
+  // Podman should only be installed if Docker is not already present on the client system
+  public override async shouldInstall(): Promise<boolean> {
+    // Determine if Docker is already installed
+    try {
+      await this.run(`${constants.DOCKER} --version`);
+      return false;
+    } catch {
+      return true;
+    }
+  }
 
   protected override async preInstall(): Promise<void> {
     const latestReleaseInfo: ReleaseInfo = await this.fetchLatestReleaseInfo();
@@ -212,5 +220,26 @@ export class PodmanDependencyManager extends BaseDependencyManager {
 
   protected getChecksumURL(): string {
     return this.checksum;
+  }
+
+  /**
+   * Create a custom containers.conf file for Podman and set the CONTAINERS_CONF env variable
+   * @private
+   */
+  public override async setupConfig(): Promise<void> {
+    // Create the containers.conf file from the template
+    const configDirectory = path.join(constants.SOLO_HOME_DIR, 'config');
+    if (!fs.existsSync(configDirectory)) {
+      fs.mkdirSync(configDirectory, {recursive: true});
+    }
+
+    const templatesDirectory: string = PathEx.join(constants.SOLO_HOME_DIR, 'cache', 'templates');
+    const templatePath: string = path.join(templatesDirectory, 'podman', 'containers.conf');
+    const destinationPath: string = path.join(configDirectory, 'containers.conf');
+
+    let configContent: string = fs.readFileSync(templatePath, 'utf-8');
+    configContent = configContent.replace('$HELPER_BINARIES_DIR', this.helpersDirectory.replaceAll('\\', '/'));
+    fs.writeFileSync(destinationPath, configContent, 'utf-8');
+    process.env.CONTAINERS_CONF = destinationPath;
   }
 }
