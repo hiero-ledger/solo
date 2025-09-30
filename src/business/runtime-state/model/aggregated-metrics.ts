@@ -19,6 +19,7 @@ export class AggregatedMetrics extends Metrics {
   public override toString(): string {
     let outputString: string =
       `{"date": "${this.date.toISOString()}", ` +
+      `"gitHubSha": "${this.gitHubSha}", ` +
       `"cpuInMillicores": ${this.cpuInMillicores}, ` +
       `"memoryInMebibytes": ${this.memoryInMebibytes}, ` +
       '"clusterMetrics": [';
