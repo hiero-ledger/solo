@@ -350,9 +350,9 @@ jobs:
           echo "<summary>" >> $LOG_FILE
           echo "JSON Log Metrics" >> $LOG_FILE
           echo "</summary>" >> $LOG_FILE
-          echo '```JSON' >> $LOG_FILE
+          echo '<pre><code class="JSON">' >> $LOG_FILE
           echo "$JSON_INPUT" >> $LOG_FILE
-          echo '```' >> $LOG_FILE
+          echo "</code></pre>" >> $LOG_FILE
           echo "</details>" >> $LOG_FILE
           echo "log_file=$LOG_FILE" >> $GITHUB_OUTPUT
           echo "-----"
