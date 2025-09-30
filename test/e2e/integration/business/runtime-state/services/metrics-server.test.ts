@@ -5,7 +5,7 @@ import {type MetricsServer} from '../../../../../../src/business/runtime-state/a
 import {expect} from 'chai';
 import {PathEx} from '../../../../../../src/business/utils/path-ex.js';
 import * as constants from '../../../../../../src/core/constants.js';
-import {type AggregatedMetrics} from '../../../../../../src/business/runtime-state/model/aggregrated-metrics.js';
+import {type AggregatedMetrics} from '../../../../../../src/business/runtime-state/model/aggregated-metrics.js';
 
 describe('MetricsServer', (): void => {
   describe('getMetrics', (): void => {

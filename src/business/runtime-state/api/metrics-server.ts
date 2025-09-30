@@ -2,7 +2,7 @@
 
 import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {type Context} from '../../../types/index.js';
-import {type AggregatedMetrics} from '../model/aggregrated-metrics.js';
+import {type AggregatedMetrics} from '../model/aggregated-metrics.js';
 
 export interface MetricsServer {
   getMetrics(namespace?: NamespaceName, labelSelector?: string, contexts?: Context[]): Promise<AggregatedMetrics>;
