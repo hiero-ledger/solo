@@ -14,7 +14,7 @@ import {
 } from '../../test-utility.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
-import {Argv} from '../../helpers/argv-wrapper.js';
+import {type Argv} from '../../helpers/argv-wrapper.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
 import {
   type DeploymentName,
@@ -24,7 +24,6 @@ import {
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
-import {LedgerCommandDefinition} from '../../../src/commands/command-definitions/ledger-command-definition.js';
 
 export function testSeparateNodeUpdate(
   argv: Argv,
@@ -44,7 +43,7 @@ export function testSeparateNodeUpdate(
 
   const {
     opts: {k8Factory, logger, remoteConfig, commandInvoker, accountManager, keyManager},
-    cmd: {nodeCmd, accountCmd},
+    cmd: {nodeCmd},
   } = bootstrapResp;
 
   describe('Node update via separated commands', async (): Promise<void> => {

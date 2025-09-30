@@ -15,7 +15,7 @@ import {
   type ClusterReferenceName,
   type ClusterReferences,
   type ComponentId,
-  type Context, type DeploymentName,
+  type Context,
   NamespaceNameAsString,
   Optional,
   type SoloListrTaskWrapper,
@@ -31,7 +31,7 @@ import {ListrContext, ListrRendererValue} from 'listr2';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {AnyListrContext} from '../types/aliases.js';
-import {promptTheUserForDeployment, resolveNamespaceFromDeployment} from '../core/resolvers.js';
+import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {Templates} from '../core/templates.js';
 import {BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';

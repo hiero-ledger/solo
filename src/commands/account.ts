@@ -279,8 +279,6 @@ export class AccountCommand extends BaseCommand {
 
             await this.throwIfNamespaceIsMissing(config.contextName, config.namespace);
 
-            console.log(config);
-
             // set config in the context for later tasks to use
             context_.config = config;
 

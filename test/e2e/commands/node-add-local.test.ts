@@ -7,7 +7,7 @@ import {testSeparateNodeAdd} from './separate-node-add.test.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
-import {endToEndTestSuite, getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
+import {endToEndTestSuite, getTestCluster} from '../../test-utility.js';
 import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../../../version-test.js';
 import {container} from 'tsyringe-neo';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';

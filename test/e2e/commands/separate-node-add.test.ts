@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {it, describe, after} from 'mocha';
+import {it, describe} from 'mocha';
 import {expect} from 'chai';
 
 import {Flags as flags} from '../../../src/commands/flags.js';
@@ -10,15 +10,13 @@ import {
   type BootstrapResponse,
   getNodeAliasesPrivateKeysHash,
   getTemporaryDirectory,
-  getTestCluster,
-  HEDERA_PLATFORM_VERSION_TAG,
 } from '../../test-utility.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
-import {Argv} from '../../helpers/argv-wrapper.js';
+import {type Argv} from '../../helpers/argv-wrapper.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
 import {type DeploymentName} from '../../../src/types/index.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
@@ -67,7 +65,6 @@ export function testSeparateNodeAdd(
         remoteConfig.getClusterRefs(),
         argv.getArg<DeploymentName>(flags.deployment),
       );
-
       existingNodeIdsPrivateKeysHash = await getNodeAliasesPrivateKeysHash(
         existingServiceMap,
         k8Factory,
