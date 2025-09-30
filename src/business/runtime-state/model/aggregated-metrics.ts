@@ -7,11 +7,13 @@ export class AggregatedMetrics extends Metrics {
   public constructor(
     public readonly clusterMetrics: ClusterMetrics[],
     public readonly date: Date,
+    public readonly gitHubSha: string,
     cpuInMillicores: number,
     memoryInMebibytes: number,
   ) {
     super(cpuInMillicores, memoryInMebibytes);
     this.date = new Date();
+    this.gitHubSha = process.env.GITHUB_SHA;
   }
 
   public override toString(): string {
