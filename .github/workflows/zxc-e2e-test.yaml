@@ -319,16 +319,18 @@ jobs:
       - name: Log Metrics
         id: log-metrics
         run: |
-          for logFile in $(ls -1 ~/.solo/logs/*.json); do cat $logFile | jq; done
-          {
-            echo "json_log=<<EOF"
-            for logFile in $(ls -1 ~/.solo/logs/*.json); do 
-              cat $logFile
-            done
-            echo EOF
-          } >> $GITHUB_OUTPUT
+          for logFile in ~/.solo/logs/*.json; do 
+            if [[ -f "$logFile" ]]; then
+              cat $logFile | jq
+              echo "json_log=$(cat $logFile)" >> $GITHUB_OUTPUT
+            fi
+          done
           echo "-----------------------------------------------------------------"
-          for logFile in $(ls -1 ~/.solo/logs/*.yaml); do cat $logFile; done
+          for logFile in ~/.solo/logs/*.yaml; do 
+            if [[ -f "$logFile" ]]; then
+              cat $logFile
+            fi
+          done
 
       - name: Delete a comment
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
