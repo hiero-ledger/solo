@@ -317,11 +317,40 @@ jobs:
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
 
       - name: Log Metrics
+        id: log-metrics
         run: |
           for logFile in $(ls -1 ~/.solo/logs/*.json); do cat $logFile | jq; done
+          for logFile in $(ls -1 ~/.solo/logs/*.json); do echo -n "json_log=$(jq < $logFile)" >> $GITHUB_OUTPUT ; done
           echo "-----------------------------------------------------------------"
           for logFile in $(ls -1 ~/.solo/logs/*.yaml); do cat $logFile; done
-          
+          for logFile in $(ls -1 ~/.solo/logs/*.yaml); do echo -n "yaml_log=$(cat $logFile)" >> $GITHUB_OUTPUT ; done
+
+      - name: Delete a comment
+        uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
+        with:
+          comment-tag: log-metrics
+          mode: delete
+
+      - name: Comment PR with execution number
+        uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
+        with:
+          message: |
+            ## Log metrics
+
+            <details>
+            <summary>
+            JSON 
+            </summary>
+            ${{ steps.log-metrics.outputs.json_log }}
+            </details>
+
+            <details>
+            <summary>
+            YAML 
+            </summary>
+            ${{ steps.log-metrics.outputs.yaml_log }}
+            </details>
+          comment-tag: log-metrics
 
       - name: Upload E2E Logs to GitHub
         if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && !cancelled() }}
