@@ -15,7 +15,7 @@ import {
   type ClusterReferenceName,
   type ClusterReferences,
   type ComponentId,
-  type Context,
+  type Context, type DeploymentName,
   NamespaceNameAsString,
   Optional,
   type SoloListrTaskWrapper,
@@ -31,7 +31,7 @@ import {ListrContext, ListrRendererValue} from 'listr2';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {AnyListrContext} from '../types/aliases.js';
-import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
+import {promptTheUserForDeployment, resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {Templates} from '../core/templates.js';
 import {BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
@@ -333,5 +333,9 @@ export abstract class BaseCommand extends ShellRunner {
     );
 
     return isLegacyChartInstalled ? constants.MIRROR_NODE_RELEASE_NAME : Templates.renderMirrorNodeName(mirrorNodeId);
+  }
+
+  protected async resolveNamespaceFromDeployment(task?: SoloListrTaskWrapper<AnyListrContext>): Promise<NamespaceName> {
+    return await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
   }
 }

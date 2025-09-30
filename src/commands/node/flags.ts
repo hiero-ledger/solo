@@ -192,7 +192,7 @@ export const ADD_SUBMIT_TRANSACTIONS_FLAGS = {
 
 export const ADD_EXECUTE_FLAGS = {
   required: [...COMMON_ADD_REQUIRED_FLAGS, flags.inputDir],
-  optional: [...COMMON_ADD_OPTIONAL_FLAGS, flags.haproxyIps, flags.envoyIps],
+  optional: [...COMMON_ADD_OPTIONAL_FLAGS, flags.adminKey, flags.haproxyIps, flags.envoyIps],
 };
 
 export const LOGS_FLAGS = {

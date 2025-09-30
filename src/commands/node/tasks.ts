@@ -911,6 +911,8 @@ export class NodeCommandTasks {
       task: async context_ => {
         const config = context_.config;
 
+        console.log(config);
+
         // don't try to download from the same node we are deleting, it won't work
         const nodeAlias: NodeAlias =
           (context_ as any).config.nodeAlias === config.existingNodeAliases[0] && config.existingNodeAliases.length > 1
