@@ -81,7 +81,7 @@ mirrorNode:
   --chart-dir: ""
   --mirror-node-version: ""
   --values-file: ""
-  --enable-ingress: false
+  --enable-ingress: true
   --ingress-controller-value-file: ""
   --mirror-static-ip: ""
   --domain-name: ""
@@ -153,7 +153,7 @@ explorerNode:
   --solo-chart-version: ""
   --explorer-version: ""
   --values-file: ""
-  --enable-ingress: false
+  --enable-ingress: true
   --ingress-controller-value-file: ""
   --domain-name: ""
   --enable-explorer-tls: false

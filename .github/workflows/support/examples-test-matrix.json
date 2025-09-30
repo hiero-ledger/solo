@@ -48,5 +48,10 @@
     "name": "Version Upgrade Test",
     "directory": "version-upgrade-test",
     "local-java-build": true
+  },
+  {
+    "name": "One Short Falcon",
+    "directory": "one-short-falcon",
+    "local-java-build": true
   }
 ]

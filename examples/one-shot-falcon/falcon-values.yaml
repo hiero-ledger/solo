@@ -1,0 +1,104 @@
+# One-Shot Falcon Deployment Configuration
+# This file configures all components of the Hiero network deployment
+
+# Network-wide configuration for consensus network deployment
+network:
+  --deployment: "falcon-deployment"
+  --cache-dir: ""
+  --ledger-id: ""
+  --release-tag: "v0.65.0"
+  --profile: ""
+  --quiet-mode: false
+  --pvcs: false
+  --node-aliases: "node1"
+  --domain-names: ""
+
+# Setup configuration for consensus nodes
+setup:
+  --deployment: "falcon-deployment"
+  --cache-dir: ""
+  --release-tag: "v0.65.0"
+  --app: ""
+  --app-config: ""
+  --node-aliases: "node1"
+  --quiet-mode: false
+  --dev: false
+  --local-build-path: ""
+  --admin-public-keys: ""
+  --domain-names: ""
+
+# Consensus node start configuration
+consensusNode:
+  --deployment: "falcon-deployment"
+  --app: ""
+  --quiet-mode: false
+  --node-aliases: "node1"
+  --debug-node-alias: ""
+  --state-file: ""
+  --stake-amounts: ""
+  --force-port-forward: true
+
+# Mirror node deployment configuration
+mirrorNode:
+  --cluster-ref: "falcon-cluster"
+  --deployment: "falcon-deployment"
+  --cache-dir: ""
+  --mirror-node-version: ""
+  --enable-ingress: true
+  --domain-name: ""
+  --profile: ""
+  --force-port-forward: true
+  --quiet-mode: false
+  --pinger: true
+  --operator-id: ""
+  --operator-key: ""
+
+# Relay node deployment configuration
+relayNode:
+  --cluster-ref: "falcon-cluster"
+  --deployment: "falcon-deployment"
+  --cache-dir: ""
+  --relay-release: ""
+  --node-aliases: "node1"
+  --ledger-id: ""
+  --domain-name: ""
+  --operator-id: ""
+  --operator-key: ""
+  --profile: ""
+  --force-port-forward: true
+  --quiet-mode: false
+  --mirror-node-id: null
+  --mirror-namespace: ""
+
+# Block node deployment configuration
+blockNode:
+  --cluster-ref: "falcon-cluster"
+  --deployment: "falcon-deployment"
+  --chart-dir: ""
+  --block-node-chart-version: ""
+  --release-tag: ""
+  --image-tag: ""
+  --enable-ingress: false
+  --domain-name: ""
+  --dev: false
+  --quiet-mode: false
+
+# Explorer node deployment configuration
+explorerNode:
+  --cluster-ref: "falcon-cluster"
+  --deployment: "falcon-deployment"
+  --cache-dir: ""
+  --chart-dir: ""
+  --solo-chart-version: ""
+  --explorer-version: ""
+  --enable-ingress: true
+  --domain-name: ""
+  --enable-explorer-tls: false
+  --explorer-tls-host-name: "explorer.solo.local"
+  --tls-cluster-issuer-type: "self-signed"
+  --profile: ""
+  --cluster-setup-namespace: ""
+  --force-port-forward: true
+  --quiet-mode: false
+  --mirror-node-id: null
+  --mirror-namespace: ""
