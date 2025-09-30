@@ -13,7 +13,6 @@ import path from 'node:path';
 import fs from 'node:fs';
 import {Zippy} from '../zippy.js';
 import {GitHubRelease, ReleaseInfo} from '../../types/index.js';
-import {fileURLToPath} from 'node:url';
 import {PathEx} from '../../business/utils/path-ex.js';
 
 const PODMAN_RELEASES_LIST_URL: string = 'https://api.github.com/repos/containers/podman/releases';
@@ -237,7 +236,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
     const templatePath: string = path.join(templatesDirectory, 'podman', 'containers.conf');
     const destinationPath: string = path.join(configDirectory, 'containers.conf');
 
-    let configContent: string = fs.readFileSync(templatePath, 'utf-8');
+    let configContent: string = fs.readFileSync(templatePath, 'utf8');
     configContent = configContent.replace('$HELPER_BINARIES_DIR', this.helpersDirectory.replaceAll('\\', '/'));
     fs.writeFileSync(destinationPath, configContent, 'utf-8');
     process.env.CONTAINERS_CONF = destinationPath;

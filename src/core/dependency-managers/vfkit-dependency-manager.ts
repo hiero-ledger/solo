@@ -113,7 +113,7 @@ export class VfkitDependencyManager extends BaseDependencyManager {
       const platform = this.osPlatform === constants.OS_WIN32 ? constants.OS_WINDOWS : this.osPlatform;
       const arch: string = this.getArch();
 
-      const assetName = `vfkit`;
+      const assetName = 'vfkit';
       const matchingAsset = latestRelease.assets.find(asset => asset.name === assetName);
 
       if (!matchingAsset) {
