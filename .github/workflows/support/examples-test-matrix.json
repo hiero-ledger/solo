@@ -50,8 +50,8 @@
     "local-java-build": true
   },
   {
-    "name": "One Short Falcon",
-    "directory": "one-short-falcon",
+    "name": "One Shot Falcon",
+    "directory": "one-shot-falcon",
     "local-java-build": true
   }
 ]
