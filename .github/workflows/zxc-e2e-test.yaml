@@ -340,14 +340,14 @@ jobs:
       - name: Delete a comment
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
         with:
-          comment-tag: log-metrics
+          comment-tag: log-metrics-${{ inputs.test-script }}
           mode: delete
 
       - name: Comment PR with execution number
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
         with:
           message: |
-            ## Log metrics
+            ## Log Metrics - ${{ inputs.custom-job-label }}
 
             <details>
             <summary>
@@ -362,7 +362,7 @@ jobs:
             </summary>
             ${{ steps.log-metrics.outputs.yaml_log }}
             </details>
-          comment-tag: log-metrics
+          comment-tag: log-metrics-${{ inputs.test-script }}
 
       - name: Upload E2E Logs to GitHub
         if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && !cancelled() }}
