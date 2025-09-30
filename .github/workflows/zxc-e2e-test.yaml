@@ -338,6 +338,8 @@ jobs:
           LOG_FILE: "~/.solo/logs/log_file.md"
           JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
         run: |
+          ls -al ~/.solo/logs
+          echo "LOG_FILE=$LOG_FILE"
           touch $LOG_FILE
           ls -al $LOG_FILE
           echo "## Log Metrics - ${{ inputs.custom-job-label }}" >> $LOG_FILE
