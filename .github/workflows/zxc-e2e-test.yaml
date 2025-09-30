@@ -332,24 +332,27 @@ jobs:
             fi
           done
 
-      - name: Delete a comment
-        uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
-        with:
-          comment-tag: log-metrics-${{ inputs.test-script }}
-          mode: delete
+      - name: Write Log Metrics Message File
+        id: log-metrics-file
+        env:
+          LOG_FILE: ~/.solo/logs/log_file.md
+          JSON_INPUT: ${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}
+        run: |
+          echo "## Log Metrics - ${{ inputs.custom-job-label }}" > $LOG_FILE
+          echo "" >> $LOG_FILE
+          echo "<details>" >> $LOG_FILE
+          echo "<summary>" >> $LOG_FILE
+          echo "JSON Log Metrics" >> $LOG_FILE
+          echo "</summary>" >> $LOG_FILE
+          echo "$JSON_INPUT" >> $LOG_FILE
+          echo "</details>" >> $LOG_FILE
+          echo "log_file=$LOG_FILE" >> $GITHUB_OUTPUT
 
       - name: Comment PR with execution number
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
         with:
-          message: |
-            ## Log Metrics - ${{ inputs.custom-job-label }}
-
-            <details>
-            <summary>
-            JSON 
-            </summary>
-            ${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}
-            </details>
+          mode: recreate
+          file-path: ${{ steps.log-metrics-file.outputs.log_file }}
           comment-tag: log-metrics-${{ inputs.test-script }}
 
       - name: Upload E2E Logs to GitHub
