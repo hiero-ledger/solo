@@ -5,6 +5,7 @@ import {type ClusterMetrics} from './cluster-metrics.js';
 
 export class AggregatedMetrics extends Metrics {
   public constructor(
+    public readonly snapshotName: string,
     public readonly clusterMetrics: ClusterMetrics[],
     cpuInMillicores: number,
     memoryInMebibytes: number,
@@ -18,7 +19,8 @@ export class AggregatedMetrics extends Metrics {
 
   public override toString(): string {
     let outputString: string =
-      `{"date": "${this.date.toISOString()}", ` +
+      `{"snapshotName": "${this.snapshotName}", ` +
+      `"date": "${this.date.toISOString()}", ` +
       `"gitHubSha": "${this.gitHubSha}", ` +
       `"cpuInMillicores": ${this.cpuInMillicores}, ` +
       `"memoryInMebibytes": ${this.memoryInMebibytes}, ` +

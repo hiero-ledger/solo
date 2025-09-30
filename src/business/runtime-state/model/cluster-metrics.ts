@@ -2,9 +2,11 @@
 
 import {Metrics} from './metrics.js';
 import {type PodMetrics} from './pod-metrics.js';
+import {type Context} from '../../../types/index.js';
 
 export class ClusterMetrics extends Metrics {
   public constructor(
+    public readonly context: Context,
     public readonly podMetrics: PodMetrics[],
     cpuInMillicores: number,
     memoryInMebibytes: number,
@@ -14,7 +16,8 @@ export class ClusterMetrics extends Metrics {
 
   public override toString(): string {
     let outputString: string =
-      `{"cpuInMillicores": ${this.cpuInMillicores}, ` +
+      `{"context": "${this.context}", ` +
+      `"cpuInMillicores": ${this.cpuInMillicores}, ` +
       `"memoryInMebibytes": ${this.memoryInMebibytes}, ` +
       '"podMetrics": [';
     for (let index: number = 0; index < this.podMetrics.length; index++) {

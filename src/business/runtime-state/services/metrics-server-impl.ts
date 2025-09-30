@@ -22,6 +22,7 @@ export class MetricsServerImpl implements MetricsServer {
   }
 
   public async getMetrics(
+    snapshotName: string,
     namespaceLookup: NamespaceName = undefined,
     labelSelector: string = undefined,
     contexts: Context[] = undefined,
@@ -40,7 +41,7 @@ export class MetricsServerImpl implements MetricsServer {
         }
       }
     }
-    return this.createAggregatedMetrics(clusterMetrics);
+    return this.createAggregatedMetrics(snapshotName, clusterMetrics);
   }
 
   private async getClusterMetrics(
@@ -74,7 +75,7 @@ export class MetricsServerImpl implements MetricsServer {
           new PodMetrics(NamespaceName.of(namespace), PodName.of(podName), cpuInMillicores, memoryInMebibytes),
         );
       }
-      return this.createClusterMetrics(podMetrics);
+      return this.createClusterMetrics(context ?? 'default', podMetrics);
     } catch (error) {
       if (error.message.includes('Metrics API not available')) {
         this.logger.showUser('Metrics API not available for reporting metrics');
@@ -84,7 +85,7 @@ export class MetricsServerImpl implements MetricsServer {
     }
   }
 
-  private createAggregatedMetrics(clusterMetrics: ClusterMetrics[]): AggregatedMetrics {
+  private createAggregatedMetrics(snapshotName: string, clusterMetrics: ClusterMetrics[]): AggregatedMetrics {
     if (!clusterMetrics || clusterMetrics?.length === 0) {
       return undefined;
     }
@@ -95,10 +96,10 @@ export class MetricsServerImpl implements MetricsServer {
       cpuInMillicores += clusterMetric.cpuInMillicores;
       memoryInMebibytes += clusterMetric.memoryInMebibytes;
     }
-    return new AggregatedMetrics(clusterMetrics, cpuInMillicores, memoryInMebibytes);
+    return new AggregatedMetrics(snapshotName, clusterMetrics, cpuInMillicores, memoryInMebibytes);
   }
 
-  private createClusterMetrics(podMetrics: PodMetrics[]): ClusterMetrics {
+  private createClusterMetrics(context: Context, podMetrics: PodMetrics[]): ClusterMetrics {
     if (!podMetrics || podMetrics?.length === 0) {
       return undefined;
     }
@@ -109,16 +110,23 @@ export class MetricsServerImpl implements MetricsServer {
       cpuInMillicores += podMetric.cpuInMillicores;
       memoryInMebibytes += podMetric.memoryInMebibytes;
     }
-    return new ClusterMetrics(podMetrics, cpuInMillicores, memoryInMebibytes);
+    return new ClusterMetrics(context, podMetrics, cpuInMillicores, memoryInMebibytes);
   }
 
   public async logMetrics(
+    snapshotName: string,
     metricsLogFile: string,
     namespace?: NamespaceName,
     labelSelector?: string,
     contexts?: Context[],
   ): Promise<void> {
-    const aggregatedMetrics: AggregatedMetrics = await this.getMetrics(namespace, labelSelector, contexts);
+    const aggregatedMetrics: AggregatedMetrics = await this.getMetrics(
+      snapshotName,
+      namespace,
+      labelSelector,
+      contexts,
+    );
+
     fs.writeFileSync(`${metricsLogFile}.json`, aggregatedMetrics ? aggregatedMetrics.toString() : '');
     fs.writeFileSync(`${metricsLogFile}.yaml`, aggregatedMetrics ? yaml.stringify(aggregatedMetrics) : '');
   }

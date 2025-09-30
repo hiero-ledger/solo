@@ -11,14 +11,14 @@ describe('MetricsServer', (): void => {
   describe('getMetrics', (): void => {
     it('should succeed', async (): Promise<void> => {
       const metricsServer: MetricsServer = new MetricsServerImpl();
-      const metrics: AggregatedMetrics = await metricsServer.getMetrics();
+      const metrics: AggregatedMetrics = await metricsServer.getMetrics('metrics-server-test');
       expect(metrics?.clusterMetrics?.length).to.be.greaterThan(0);
     });
   });
   describe('logMetrics', (): void => {
     it('should succeed', async (): Promise<void> => {
       const metricsServer: MetricsServer = new MetricsServerImpl();
-      await metricsServer.logMetrics(PathEx.join(constants.SOLO_LOGS_DIR, 'metrics'));
+      await metricsServer.logMetrics('metric-server-test', PathEx.join(constants.SOLO_LOGS_DIR, 'metrics'));
     });
   });
 });
