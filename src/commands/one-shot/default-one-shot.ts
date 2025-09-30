@@ -57,12 +57,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   private static readonly MULTIPLE_DESTROY_CONFIGS_NAME: string = 'multipleDestroyConfigs';
 
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
-    required: [flags.quiet],
+    required: [],
     optional: [flags.valuesFile],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.quiet],
+    required: [],
     optional: [],
   };
 
