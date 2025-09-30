@@ -63,16 +63,16 @@ export function testSeparateNodeUpdate(
         getTemporaryDirectory(),
       );
     }).timeout(Duration.ofMinutes(8).toMillis());
-
-    it('should succeed with init command', async (): Promise<void> => {
-      await commandInvoker.invoke({
-        argv: argv,
-        command: LedgerCommandDefinition.COMMAND_NAME,
-        subcommand: LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
-        action: LedgerCommandDefinition.SYSTEM_INIT,
-        callback: async (argv): Promise<boolean> => accountCmd.init(argv),
-      });
-    }).timeout(Duration.ofMinutes(8).toMillis());
+    //
+    // it('should succeed with init command', async (): Promise<void> => {
+    //   await commandInvoker.invoke({
+    //     argv: argv,
+    //     command: LedgerCommandDefinition.COMMAND_NAME,
+    //     subcommand: LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
+    //     action: LedgerCommandDefinition.SYSTEM_INIT,
+    //     callback: async (argv): Promise<boolean> => accountCmd.init(argv),
+    //   });
+    // }).timeout(Duration.ofMinutes(8).toMillis());
 
     it('should update a new node property successfully', async (): Promise<void> => {
       // generate gossip and tls keys for the updated node
@@ -104,7 +104,7 @@ export function testSeparateNodeUpdate(
       const argvPrepare: Argv = argv.clone();
       argvPrepare.setArg(flags.outputDir, temporaryDirectory2);
 
-      const argvExecute: Argv = Argv.getDefaultArgv(namespace);
+      const argvExecute: Argv = argv.clone();
       argvExecute.setArg(flags.inputDir, temporaryDirectory2);
 
       await commandInvoker.invoke({

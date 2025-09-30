@@ -318,10 +318,8 @@ export class AccountCommand extends BaseCommand {
 
                     // do a write transaction to trigger the handler and generate the system accounts to complete genesis
                     const deployment: DeploymentName = config.deployment;
-
                     const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
                     const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
-
                     await self.accountManager.transferAmount(treasuryAccountId, freezeAccountId, 1);
                   },
                 },
@@ -359,7 +357,12 @@ export class AccountCommand extends BaseCommand {
                     }
 
                     // set up the sub-tasks
-                    return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
+                    return task.newListr(subTasks, {
+                      concurrent: false,
+                      rendererOptions: {
+                        collapseSubtasks: false,
+                      },
+                    });
                   },
                 },
                 {

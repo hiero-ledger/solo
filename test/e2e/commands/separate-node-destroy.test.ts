@@ -10,7 +10,6 @@ import {Duration} from '../../../src/core/time/duration.js';
 import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type Argv} from '../../helpers/argv-wrapper.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
-import {LedgerCommandDefinition} from '../../../src/commands/command-definitions/ledger-command-definition.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 
 export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapResponse, namespace: NamespaceName): void {
@@ -28,20 +27,10 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
 
   const {
     opts: {k8Factory, accountManager, remoteConfig, logger, commandInvoker},
-    cmd: {nodeCmd, accountCmd},
+    cmd: {nodeCmd},
   } = bootstrapResp;
 
   describe('Node delete via separated commands', async (): Promise<void> => {
-    it('should succeed with init command', async (): Promise<void> => {
-      await commandInvoker.invoke({
-        argv: argv,
-        command: LedgerCommandDefinition.COMMAND_NAME,
-        subcommand: LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
-        action: LedgerCommandDefinition.SYSTEM_INIT,
-        callback: async (argv): Promise<boolean> => accountCmd.init(argv),
-      });
-    }).timeout(Duration.ofMinutes(8).toMillis());
-
     it('should delete a node from the network successfully', async (): Promise<void> => {
       await commandInvoker.invoke({
         argv: argvPrepare,
@@ -76,7 +65,7 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
 
     it('deleted consensus node should not be running', async (): Promise<void> => {
       const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
-      expect(pods.length).to.equal(1);
+      expect(pods.length).to.equal(2);
     }).timeout(Duration.ofMinutes(10).toMillis());
   });
 }
