@@ -159,7 +159,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
     });
 
     it('Should write log metrics', async (): Promise<void> => {
-      await new MetricsServerImpl().logMetrics(PathEx.join(constants.SOLO_LOGS_DIR, `${testName}.json`));
+      await new MetricsServerImpl().logMetrics(testName, PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`));
     });
 
     it("Should succeed with removing block node with 'destroy' command", async function (): Promise<void> {

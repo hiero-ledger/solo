@@ -68,7 +68,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       }).timeout(Duration.ofMinutes(15).toMillis());
 
       it('Should write log metrics', async (): Promise<void> => {
-        await new MetricsServerImpl().logMetrics(PathEx.join(constants.SOLO_LOGS_DIR, `${testName}.json`));
+        await new MetricsServerImpl().logMetrics(testName, PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`));
       });
 
       // TODO add verifications
