@@ -6,7 +6,7 @@ import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
 import {Flags as flags, Flags} from '../flags.js';
 import {type ArgvStruct} from '../../types/aliases.js';
-import {SoloListr, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
+import {type Realm, type Shard, SoloListr, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {injectable, inject} from 'tsyringe-neo';
 import {v4 as uuid4} from 'uuid';
@@ -38,13 +38,17 @@ import {
   PredefinedAccount,
   predefinedEcdsaAccounts,
   predefinedEcdsaAccountsWithAlias,
-  predefinedEd25519Accounts,
+  predefinedEd25519Accounts, SystemAccount,
 } from './predefined-accounts.js';
-import {AccountId, HbarUnit} from '@hiero-ledger/sdk';
+import {AccountId, HbarUnit, PrivateKey} from '@hiero-ledger/sdk';
 import * as helpers from '../../core/helpers.js';
 import {Duration} from '../../core/time/duration.js';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import fs from 'node:fs';
+import chalk from 'chalk';
+import {PathEx} from '../../business/utils/path-ex.js';
+import {GENESIS_KEY, GENESIS_PUBLIC_KEY} from '../../core/constants.js';
+import {createDirectoryIfNotExists, entityId} from '../../core/helpers.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -408,10 +412,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           {
             title: 'Finish',
             task: async (context_: OneShotSingleDeployContext): Promise<void> => {
-              this.showOneShotUserNotes(context_);
-              this.showVersions();
-              this.showPortForwards();
-              this.showCreatedAccounts(context_.createdAccounts);
+              const outputDirectory = PathEx.join(
+                constants.SOLO_HOME_DIR,
+                `one-shot-${context_.config.deployment}`,
+              );
+
+              this.showOneShotUserNotes(context_, PathEx.join(outputDirectory, 'notes'));
+              this.showVersions(PathEx.join(outputDirectory, 'versions'));
+              this.showPortForwards(PathEx.join(outputDirectory, 'forwards'));
+              this.showAccounts(context_.createdAccounts, context_, PathEx.join(outputDirectory, 'accounts.json'));
 
               return;
             },
@@ -439,12 +448,19 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     return true;
   }
 
-  private showOneShotUserNotes(context_: OneShotSingleDeployContext): void {
+  private showOneShotUserNotes(context_: OneShotSingleDeployContext, outputFile?: string): void {
     const messageGroupKey: string = 'one-shot-user-notes';
     this.logger.addMessageGroup(messageGroupKey, 'One Shot User Notes');
-    this.logger.addMessageGroupMessage(messageGroupKey, `Cluster Reference: ${context_.config.clusterRef}`);
-    this.logger.addMessageGroupMessage(messageGroupKey, `Deployment Name: ${context_.config.deployment}`);
-    this.logger.addMessageGroupMessage(messageGroupKey, `Namespace Name: ${context_.config.namespace.name}`);
+    const data = [
+      `Cluster Reference: ${context_.config.clusterRef}`,
+      `Deployment Name: ${context_.config.deployment}`,
+      `Namespace Name: ${context_.config.namespace.name}`,
+    ];
+
+    for (const line of data) {
+      this.logger.addMessageGroupMessage(messageGroupKey, line);
+    }
+
     this.logger.addMessageGroupMessage(
       messageGroupKey,
       'To quickly delete the deployed resources, run the following command:\n' +
@@ -452,25 +468,45 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     );
 
     this.logger.showMessageGroup(messageGroupKey);
+
+    if (outputFile) {
+      const fileData: string = data.join('\n') + '\n';
+      createDirectoryIfNotExists(outputFile);
+      fs.writeFileSync(outputFile, fileData);
+      this.logger.showUser(chalk.green(`✅ User notes saved to file: ${outputFile}`));
+    }
   }
 
-  private showVersions(): void {
+  private showVersions(outputFile?: string): void {
     const messageGroupKey: string = 'versions-used';
     this.logger.addMessageGroup(messageGroupKey, 'Versions Used');
 
-    this.logger.addMessageGroupMessage(messageGroupKey, `Solo Chart Version: ${version.SOLO_CHART_VERSION}`);
-    this.logger.addMessageGroupMessage(messageGroupKey, `Consensus Node Version: ${version.HEDERA_PLATFORM_VERSION}`);
-    this.logger.addMessageGroupMessage(messageGroupKey, `Mirror Node Version: ${version.MIRROR_NODE_VERSION}`);
-    this.logger.addMessageGroupMessage(messageGroupKey, `Explorer Version: ${version.EXPLORER_VERSION}`);
-    this.logger.addMessageGroupMessage(
-      messageGroupKey,
+    const data = [
+      `Solo Chart Version: ${version.SOLO_CHART_VERSION}`,
+      `Consensus Node Version: ${version.HEDERA_PLATFORM_VERSION}`,
+      `Mirror Node Version: ${version.MIRROR_NODE_VERSION}`,
+      `Explorer Version: ${version.EXPLORER_VERSION}`,
       `JSON RPC Relay Version: ${version.HEDERA_JSON_RPC_RELAY_VERSION}`,
-    );
+    ];
+
+    for (const line of data) {
+      this.logger.addMessageGroupMessage(messageGroupKey, line);
+    }
 
     this.logger.showMessageGroup(messageGroupKey);
+    if (outputFile) {
+      const fileData: string = data.join('\n') + '\n';
+      createDirectoryIfNotExists(outputFile);
+      fs.writeFileSync(outputFile, fileData);
+      this.logger.showUser(chalk.green(`✅ Versions used saved to file: ${outputFile}`));
+    }
   }
 
-  private showCreatedAccounts(createdAccounts: CreatedPredefinedAccount[] = []): void {
+  private showAccounts(
+    createdAccounts: CreatedPredefinedAccount[] = [],
+    context: OneShotSingleDeployContext,
+    outputFile?: string,
+  ): void {
     if (createdAccounts.length > 0) {
       createdAccounts.sort((a: CreatedPredefinedAccount, b: CreatedPredefinedAccount): number =>
         a.accountId.compare(b.accountId),
@@ -486,16 +522,44 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         (account: CreatedPredefinedAccount): boolean => account.data.group === PREDEFINED_ACCOUNT_GROUPS.ED25519,
       );
 
+      const systemAccountsGroupKey: string = 'system-accounts';
       const messageGroupKey: string = 'accounts-created';
       const ecdsaGroupKey: string = 'accounts-created-ecdsa';
       const ecdsaAliasGroupKey: string = 'accounts-created-ecdsa-alias';
       const ed25519GroupKey: string = 'accounts-created-ed25519';
+
+      const realm: Realm = this.localConfig.configuration.realmForDeployment(context.config.deployment);
+      const shard: Shard = this.localConfig.configuration.shardForDeployment(context.config.deployment);
+      const operatorAccountData: SystemAccount = {
+        name: 'Operator',
+        accountId: entityId(shard, realm, 2),
+        publicKey: constants.GENESIS_PUBLIC_KEY,
+      };
+
+      if (constants.GENESIS_KEY === constants.DEFAULT_GENESIS_KEY) {
+        operatorAccountData.privateKey = constants.DEFAULT_GENESIS_KEY;
+      }
+
+      const systemAccounts: SystemAccount[] = [operatorAccountData];
+
+      if (systemAccounts.length > 0) {
+        this.logger.addMessageGroup(systemAccountsGroupKey, 'System Accounts');
+
+        for (const account of systemAccounts) {
+          let message: string = `${account.name} Account ID: ${account.accountId.toString()}, Public Key: ${account.publicKey.toString()}`;
+          if (account.privateKey) {
+            message += `, Private Key: ${account.privateKey}`;
+          }
+          this.logger.addMessageGroupMessage(systemAccountsGroupKey, message);
+        }
+
+        this.logger.showMessageGroup(systemAccountsGroupKey);
+      }
+
       this.logger.addMessageGroup(messageGroupKey, 'Created Accounts');
       this.logger.addMessageGroup(ecdsaGroupKey, 'ECDSA Accounts (Not EVM compatible, See ECDSA Alias Accounts above)');
       this.logger.addMessageGroup(ecdsaAliasGroupKey, 'ECDSA Alias Accounts (EVM compatible)');
       this.logger.addMessageGroup(ed25519GroupKey, 'ED25519 Accounts');
-
-      this.logger.showMessageGroup(messageGroupKey);
 
       if (aliasAccounts.length > 0) {
         for (const account of aliasAccounts) {
@@ -529,14 +593,61 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
         this.logger.showMessageGroup(ecdsaGroupKey);
       }
+
+      if (outputFile) {
+        createDirectoryIfNotExists(outputFile);
+
+        // Format account data in the same way as it appears in the console output
+        const formattedCreatedAccounts = createdAccounts.map(account => {
+          const formattedAccount = {
+            accountId: account.accountId.toString(),
+            privateKey: `0x${account.data.privateKey.toStringRaw()}`,
+            balance: account.data.balance.toString(),
+            group: account.data.group,
+          };
+
+          // Add alias field for ECDSA_ALIAS accounts
+          if (account.data.group === PREDEFINED_ACCOUNT_GROUPS.ECDSA_ALIAS && account.alias) {
+            formattedAccount['publicAddress'] = account.alias;
+          }
+
+          return formattedAccount;
+        });
+
+        // Format system accounts data
+        const formattedSystemAccounts = systemAccounts.map(account => ({
+          name: account.name,
+          accountId: account.accountId.toString(),
+          publicKey: account.publicKey.toString(),
+          privateKey: account.privateKey,
+        }));
+
+        // Create the structured output with both systemAccounts and createdAccounts
+        const outputData = {
+          systemAccounts: formattedSystemAccounts,
+          createdAccounts: formattedCreatedAccounts,
+        };
+
+        fs.writeFileSync(outputFile, JSON.stringify(outputData, null, 2));
+        this.logger.showUser(chalk.green(`✅ Created accounts saved to file in JSON format: ${outputFile}`));
+      }
+
       this.logger.showUser(
-        'for more information on public and private keys see: https://docs.hedera.com/hedera/core-concepts/keys-and-signatures',
+        'For more information on public and private keys see: https://docs.hedera.com/hedera/core-concepts/keys-and-signatures',
       );
     }
   }
 
-  private showPortForwards(): void {
+  private showPortForwards(outputFile?: string): void {
     this.logger.showMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP);
+
+    if (outputFile) {
+      const messages: string[] = this.logger.getMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP);
+      const fileData: string = messages.join('\n') + '\n';
+      createDirectoryIfNotExists(outputFile);
+      fs.writeFileSync(outputFile, fileData);
+      this.logger.showUser(chalk.green(`✅ Port forwarding info saved to file: ${outputFile}`));
+    }
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {

@@ -163,6 +163,13 @@ export class SoloWinstonLogger implements SoloLogger {
     console.log(JSON.stringify(object, null, ' '));
   }
 
+  public getMessageGroup(key: string): string[] {
+    if (!this.messageGroupMap.has(key)) {
+      throw new SoloError(`Message group with key "${key}" does not exist.`);
+    }
+    return this.messageGroupMap.get(key);
+  }
+
   public addMessageGroup(key: string, title: string): void {
     if (this.messageGroupMap.has(key)) {
       this.warn(`Message group with key "${key}" already exists. Skipping.`);
