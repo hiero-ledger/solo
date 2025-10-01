@@ -175,13 +175,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
               const uniquePostfix: string = uuid4().slice(-8);
 
-              context_.config.clusterRef = context_.config.clusterRef || `solo-${uniquePostfix}`;
-              context_.config.context = context_.config.context || this.k8Factory.default().contexts().readCurrent();
-              context_.config.deployment = context_.config.deployment || `solo-deployment-${uniquePostfix}`;
-              context_.config.namespace = context_.config.namespace || NamespaceName.of(`solo-${uniquePostfix}`);
-              context_.config.numberOfConsensusNodes = context_.config.numberOfConsensusNodes || 1;
-
-              context_.createdAccounts = [];
 
               // Initialize component config sections to empty objects to prevent undefined errors
               config.consensusNodeCfg = {};
@@ -221,6 +214,18 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                   config.relayNodeCfg = profileItems.relayNode;
                 }
               }
+              if (config.networkCfg && config.networkCfg['--cluster-ref']) {
+                context_.config.clusterRef = config.networkCfg['--cluster-ref'] as string;
+                console.log(`Adding cluster-ref from values file: ${context_.config.clusterRef}`);
+              }
+              context_.config.clusterRef = context_.config.clusterRef || `solo-${uniquePostfix}`;
+              context_.config.context = context_.config.context || this.k8Factory.default().contexts().readCurrent();
+              context_.config.deployment = context_.config.deployment || `solo-deployment-${uniquePostfix}`;
+              context_.config.namespace = context_.config.namespace || NamespaceName.of(`solo-${uniquePostfix}`);
+              context_.config.numberOfConsensusNodes = context_.config.numberOfConsensusNodes || 1;
+
+              context_.createdAccounts = [];
+
               return;
             },
           },
@@ -319,7 +324,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,
               );
-              this.appendConfigToArgv(argv, config.networkCfg);
+              if (config.networkCfg) {
+                this.appendConfigToArgv(argv, config.networkCfg);
+              }
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
           ),

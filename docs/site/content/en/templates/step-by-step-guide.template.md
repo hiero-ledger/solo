@@ -176,7 +176,7 @@ kubectl config use-context <context-name>
 
 ## One Shot Deployment
 
-Solo provides two one-shot deployment options to quickly set up your Hedera test network:
+Solo provides three one-shot deployment options to quickly set up your Hedera test network:
 
 ### Single Node Deployment (Recommended for Development)
 
@@ -214,6 +214,59 @@ solo one-shot multiple destroy
 ```
 
 > 📝 **Note**: Multiple node deployments require more system resources. Ensure you have adequate memory and CPU allocated to Docker (recommended: 16GB+ RAM, 8+ CPU cores).
+
+### Falcon Deployment (Advanced Configuration)
+
+For advanced users who need fine-grained control over all network components, the falcon deployment uses a YAML configuration file to customize every aspect of the network.
+
+```bash
+solo one-shot falcon deploy --values-file falcon-values.yaml
+```
+
+The falcon deployment allows you to:
+
+* Configure all network components through a single YAML file
+* Customize consensus nodes, mirror node, explorer, relay, and block node settings
+* Set specific versions, resource allocations, and feature flags
+* Perfect for CI/CD pipelines and automated testing scenarios
+
+**Example Configuration File** (`falcon-values.yaml`):
+
+```yaml
+network:
+  --deployment: "my-network"
+  --release-tag: "v0.65.0"
+  --node-aliases: "node1"
+
+setup:
+  --release-tag: "v0.65.0"
+  --node-aliases: "node1"
+
+consensusNode:
+  --deployment: "my-network"
+  --node-aliases: "node1"
+  --force-port-forward: true
+
+mirrorNode:
+  --enable-ingress: true
+  --pinger: true
+
+explorerNode:
+  --enable-ingress: true
+
+relayNode:
+  --node-aliases: "node1"
+```
+
+See the [falcon example](https://github.com/hashgraph/solo/tree/main/examples/one-shot-falcon) for a complete configuration template.
+
+When you're finished with the falcon deployment:
+
+```bash
+solo one-shot falcon destroy
+```
+
+> 📝 **Note**: The falcon deployment reads deployment name and other shared settings from the values file, so you don't need to specify `--deployment` on the command line.
 
 ## Step-by-Step Solo Network Deployment
 

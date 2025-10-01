@@ -22,6 +22,14 @@ npx @hashgraph/solo:@latest one-shot single deploy
 npx @hashgraph/solo:@latest one-shot multiple deploy
 ```
 
+**Falcon Deployment (with custom configuration file):**
+
+```bash
+npx @hashgraph/solo:@latest one-shot falcon deploy --values-file falcon-values.yaml
+```
+
+The falcon deployment allows you to configure all network components (consensus nodes, mirror node, explorer, relay, and block node) through a single YAML configuration file.
+
 More documentation can be found here:
 
 * [Solo User Guide](step-by-step-guide/#one-shot-deployment)
@@ -41,6 +49,12 @@ npx @hashgraph/solo:@latest one-shot single destroy
 
 ```bash
 npx @hashgraph/solo:@latest one-shot multiple destroy
+```
+
+**Falcon Deployment Teardown:**
+
+```bash
+npx @hashgraph/solo:@latest one-shot falcon destroy
 ```
 
 ### How can I avoid using genesis keys ?

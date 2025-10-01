@@ -20,7 +20,7 @@ vars:
 
   # Previous versions (current minus one)
   PREV_CN_VERSION: "v0.64.0"
-  PREV_MIRROR_VERSION: "v0.136.0"
+  PREV_MIRROR_VERSION: "v0.138.0"
   PREV_EXPLORER_VERSION: "25.0.0"
   PREV_RELAY_VERSION: "0.69.0"
   PREV_BLOCK_VERSION: "v0.17.0"
