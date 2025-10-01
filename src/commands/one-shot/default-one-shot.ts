@@ -59,7 +59,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [],
+    optional: [flags.quiet],
   };
 
   // Flag sets for the new "falcon" subcommands. These mirror the base one-shot flag sets

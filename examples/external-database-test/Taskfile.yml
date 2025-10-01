@@ -90,7 +90,7 @@ tasks:
       # Wait for PostgreSQL pod to be ready"
       - cmd: |
           kubectl wait --for=condition=ready pod/{{.POSTGRES_CONTAINER_NAME}} \
-          -n {{ .POSTGRES_DATABASE_NAMESPACE }} --timeout=160s
+          -n {{ .POSTGRES_DATABASE_NAMESPACE }} --timeout=300s
 
       # Copy init.sql inside the database pod"
       - cmd: |
