@@ -21,9 +21,7 @@ import {type ClusterReferenceName} from '../../../src/types/index.js';
 import {exec} from 'node:child_process';
 import {promisify} from 'node:util';
 import * as SemVer from 'semver';
-import {type ArgvStruct} from '../../../src/types/aliases.js';
 import {type BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
-import {TEST_LOCAL_BLOCK_NODE_VERSION} from '../../../version-test.js';
 import {Templates} from '../../../src/core/templates.js';
 import * as constants from '../../../src/core/constants.js';
 import {BlockCommandDefinition} from '../../../src/commands/command-definitions/block-command-definition.js';
@@ -38,28 +36,12 @@ const namespace: NamespaceName = NamespaceName.of(testName);
 const argv: Argv = Argv.getDefaultArgv(namespace);
 const clusterReference: ClusterReferenceName = getTestCluster();
 argv.setArg(flags.namespace, namespace.name);
-// TODO remove TEST_BLOCK_NODE_MINIMUM_PLATFORM_VERSION and the tertiary when we have a version that supports block node
-argv.setArg(
-  flags.releaseTag,
-  SemVer.lt(
-    new SemVer.SemVer(version.HEDERA_PLATFORM_VERSION),
-    new SemVer.SemVer(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE),
-  )
-    ? version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE
-    : version.HEDERA_PLATFORM_VERSION,
-);
 argv.setArg(flags.nodeAliasesUnparsed, 'node1');
 argv.setArg(flags.generateGossipKeys, true);
 argv.setArg(flags.generateTlsKeys, true);
 argv.setArg(flags.clusterRef, clusterReference);
 argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
 argv.setArg(flags.force, true);
-argv.setArg(flags.blockNodeChartVersion, version.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT.version);
-
-// Notes: need to check out block node repo and build the block node image first.
-// Then use the following command to load image into the kind cluster after cluster creation
-// kind load docker-image block-node-server:<tag> --name <cluster-name>
-argv.setArg(flags.blockNodeChartVersion, TEST_LOCAL_BLOCK_NODE_VERSION);
 
 endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, bootstrapResp => {
   describe('BlockNodeCommand', async (): Promise<void> => {
@@ -94,29 +76,6 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
     });
 
     afterEach(async (): Promise<void> => await sleep(Duration.ofMillis(5)));
-
-    it(`Should fail with versions less than ${version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE}`, async (): Promise<void> => {
-      const argvClone: Argv = argv.clone();
-      remoteConfig.updateComponentVersion(ComponentTypes.ConsensusNode, new SemVer.SemVer('v0.61.0'));
-      try {
-        await commandInvoker.invoke({
-          argv: argvClone,
-          command: BlockCommandDefinition.COMMAND_NAME,
-          subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
-          action: BlockCommandDefinition.NODE_ADD,
-          callback: async (argv: ArgvStruct): Promise<boolean> => blockNodeCommand.add(argv),
-        });
-
-        expect.fail();
-      } catch (error) {
-        expect(error.message).to.include('Hedera platform versions less than');
-      } finally {
-        remoteConfig.updateComponentVersion(
-          ComponentTypes.ConsensusNode,
-          new SemVer.SemVer(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE),
-        );
-      }
-    });
 
     it("Should succeed deploying block node with 'add' command", async function (): Promise<void> {
       this.timeout(Duration.ofMinutes(5).toMillis());
