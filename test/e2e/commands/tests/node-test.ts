@@ -5,6 +5,7 @@ import {main} from '../../../../src/index.js';
 import {
   type ClusterReferenceName,
   type ClusterReferences,
+  Context,
   type DeploymentName,
   type SoloListrTaskWrapper,
 } from '../../../../src/types/index.js';
@@ -511,13 +512,22 @@ export class NodeTest extends BaseCommandTest {
       const stagingDirectory: string = Templates.renderStagingDir(cacheDirectory, TEST_UPGRADE_VERSION);
       fs.rmSync(stagingDirectory, {recursive: true, force: true});
 
+      const nodeAlias: NodeAlias = remoteConfig.getConsensusNodes()[0].name;
+      const context: Context = remoteConfig.getConsensusNodes()[0].context;
+
       // Download application.properties from the pod
       const temporaryDirectory: string = getTemporaryDirectory();
-      const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
+
+      const pods: Pod[] = await k8Factory
+        .getK8(context)
+        .pods()
+        .list(namespace, [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node']);
+
       const containerReference: Container = k8Factory
-        .default()
+        .getK8(context)
         .containers()
         .readByRef(ContainerReference.of(PodReference.of(namespace, pods[0].podReference.name), ROOT_CONTAINER));
+
       await containerReference.copyFrom(`${HEDERA_HAPI_PATH}/data/config/application.properties`, temporaryDirectory);
 
       const applicationPropertiesPath: string = PathEx.join(temporaryDirectory, 'application.properties');
