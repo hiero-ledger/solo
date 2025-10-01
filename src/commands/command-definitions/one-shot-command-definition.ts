@@ -104,7 +104,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               OneShotCommandDefinition.SINGLE_DEPLOY,
               'Deploys all required components for the selected one shot configuration (with optional values file).',
               this.oneShotCommand,
-              this.oneShotCommand.deploy,
+              this.oneShotCommand.deployFalcon,
               DefaultOneShotCommand.FALCON_ADD_FLAGS_LIST,
             ),
           )
@@ -113,7 +113,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               OneShotCommandDefinition.SINGLE_DESTROY,
               'Removes the deployed resources for the selected one shot configuration (with optional values file).',
               this.oneShotCommand,
-              this.oneShotCommand.destroy,
+              this.oneShotCommand.destroyFalcon,
               DefaultOneShotCommand.FALCON_DESTROY_FLAGS_LIST,
             ),
           ),

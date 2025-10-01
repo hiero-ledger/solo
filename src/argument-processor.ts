@@ -45,6 +45,9 @@ export class ArgumentProcessor {
 
     rootCmd.fail((message, error) => {
       if (message) {
+        // Set exit code but don't exit immediately - allows I/O buffers to flush
+        process.exitCode = 1;
+
         if (
           message.includes('Unknown argument') ||
           message.includes('Missing required argument') ||

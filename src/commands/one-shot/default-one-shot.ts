@@ -71,7 +71,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public static readonly FALCON_DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [...DefaultOneShotCommand.DESTROY_FLAGS_LIST.optional, flags.valuesFile],
+    optional: [...DefaultOneShotCommand.DESTROY_FLAGS_LIST.optional],
   };
 
   public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {
@@ -133,6 +133,14 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   public async deploy(argv: ArgvStruct): Promise<boolean> {
+    return this.deployInternal(argv, DefaultOneShotCommand.ADD_FLAGS_LIST);
+  }
+
+  public async deployFalcon(argv: ArgvStruct): Promise<boolean> {
+    return this.deployInternal(argv, DefaultOneShotCommand.FALCON_ADD_FLAGS_LIST);
+  }
+
+  private async deployInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
     let config: OneShotSingleDeployConfigClass | null = null;
 
     const tasks: Listr<OneShotSingleDeployContext, ListrRendererValue, ListrRendererValue> =
@@ -146,12 +154,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             ): Promise<void> => {
               this.configManager.update(argv);
 
-              flags.disablePrompts(DefaultOneShotCommand.ADD_FLAGS_LIST.optional);
+              flags.disablePrompts(flagsList.optional);
 
-              const allFlags: CommandFlag[] = [
-                ...DefaultOneShotCommand.ADD_FLAGS_LIST.required,
-                ...DefaultOneShotCommand.ADD_FLAGS_LIST.optional,
-              ];
+              const allFlags: CommandFlag[] = [...flagsList.required, ...flagsList.optional];
 
               await this.configManager.executePrompt(task, allFlags);
 
@@ -200,10 +205,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 if (profileItems.relayNode) {
                   config.relayNodeCfg = profileItems.relayNode;
                 }
-              }
-              if (config.networkCfg && config.networkCfg['--cluster-ref']) {
-                context_.config.clusterRef = config.networkCfg['--cluster-ref'] as string;
-                console.log(`Adding cluster-ref from values file: ${context_.config.clusterRef}`);
               }
               context_.config.clusterRef = context_.config.clusterRef || `solo-${uniquePostfix}`;
               context_.config.context = context_.config.context || this.k8Factory.default().contexts().readCurrent();
@@ -608,14 +609,18 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
-    return this.destroyInternal(argv, false);
+    return this.destroyInternal(argv, DefaultOneShotCommand.DESTROY_FLAGS_LIST);
   }
 
   public async destroyMultiple(argv: ArgvStruct): Promise<boolean> {
-    return this.destroyInternal(argv, true);
+    return this.destroyInternal(argv, DefaultOneShotCommand.DESTROY_FLAGS_LIST);
   }
 
-  private async destroyInternal(argv: ArgvStruct, isMultiple: boolean): Promise<boolean> {
+  public async destroyFalcon(argv: ArgvStruct): Promise<boolean> {
+    return this.destroyInternal(argv, DefaultOneShotCommand.FALCON_DESTROY_FLAGS_LIST);
+  }
+
+  private async destroyInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
     let config: OneShotSingleDestroyConfigClass;
 
     const taskArray = [
@@ -623,8 +628,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         title: 'Initialize',
         task: async (context_, task): Promise<void> => {
           this.configManager.update(argv);
-
-          const flagsList = DefaultOneShotCommand.DESTROY_FLAGS_LIST;
 
           flags.disablePrompts(flagsList.optional);
 
@@ -769,10 +772,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(
-        `Error destroying Solo in ${isMultiple ? 'one-shot multiple' : 'one-shot'} mode: ${error.message}`,
-        error,
-      );
+      throw new SoloError(`Error destroying Solo in one-shot mode: ${error.message}`, error);
     } finally {
       await this.taskList
         .callCloseFunctions()
