@@ -81,9 +81,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       MirrorNodeTest.add(options);
 
-      // wait longer for node to be active for node add/update/destroy test
-      process.env.NETWORK_NODE_ACTIVE_MAX_ATTEMPTS = '600';
-
       NodeTest.add(options);
       NodeTest.update(options);
       NodeTest.destroy(options);

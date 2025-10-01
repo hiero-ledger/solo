@@ -80,7 +80,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               OneShotCommandDefinition.MULTIPLE_DEPLOY,
               'Deploys all required components for the selected multiple node one shot configuration.',
               this.oneShotCommand,
-              this.oneShotCommand.deployMultiple,
+              this.oneShotCommand.deploy,
               DefaultOneShotCommand.ADD_FLAGS_LIST,
             ),
           )

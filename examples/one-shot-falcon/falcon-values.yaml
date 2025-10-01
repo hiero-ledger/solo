@@ -23,7 +23,6 @@ network:
   --release-tag: "v0.65.0"
   --settings-txt: ""
   --values-file: ""
-  --node-aliases: "node1"
   --grpc-tls-certificate-path: ""
   --grpc-web-tls-certificate-path: ""
   --grpc-tls-key-path: ""
@@ -58,7 +57,6 @@ setup:
   --release-tag: "v0.65.0"
   --app: ""
   --app-config: ""
-  --node-aliases: "node1"
   --quiet-mode: false
   --dev: false
   --local-build-path: ""

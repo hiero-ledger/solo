@@ -38,7 +38,7 @@ tasks:
       # Solo one-shot falcon deploy
       - cmd: |
           $SOLO_COMMAND one-shot falcon deploy \
-          --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml
+          --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --num-consensus-nodes 2
 
   destroy:
     desc: Destroy the Solo network using one-shot falcon destroy

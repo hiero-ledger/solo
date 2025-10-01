@@ -52,13 +52,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   private static readonly SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';
 
-  private static readonly MULTIPLE_ADD_CONFIGS_NAME: string = 'multipleAddConfigs';
-
-  private static readonly MULTIPLE_DESTROY_CONFIGS_NAME: string = 'multipleDestroyConfigs';
-
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.valuesFile],
+    optional: [flags.quiet, flags.numberOfConsensusNodes],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
@@ -70,7 +66,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   // but also include the chart values override flag `--values-file`.
   public static readonly FALCON_ADD_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [...DefaultOneShotCommand.ADD_FLAGS_LIST.optional, flags.valuesFile],
+    optional: [flags.quiet, flags.valuesFile, flags.numberOfConsensusNodes],
   };
 
   public static readonly FALCON_DESTROY_FLAGS_LIST: CommandFlags = {
@@ -137,14 +133,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   public async deploy(argv: ArgvStruct): Promise<boolean> {
-    return this.deployInternal(argv);
-  }
-
-  public async deployMultiple(argv: ArgvStruct): Promise<boolean> {
-    return this.deployInternal(argv);
-  }
-
-  private async deployInternal(argv: ArgvStruct): Promise<boolean> {
     let config: OneShotSingleDeployConfigClass | null = null;
 
     const tasks: Listr<OneShotSingleDeployContext, ListrRendererValue, ListrRendererValue> =
@@ -174,7 +162,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               config = context_.config;
 
               const uniquePostfix: string = uuid4().slice(-8);
-
 
               // Initialize component config sections to empty objects to prevent undefined errors
               config.consensusNodeCfg = {};
@@ -638,9 +625,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           this.configManager.update(argv);
 
           const flagsList = DefaultOneShotCommand.DESTROY_FLAGS_LIST;
-          const configsName = isMultiple
-            ? DefaultOneShotCommand.MULTIPLE_DESTROY_CONFIGS_NAME
-            : DefaultOneShotCommand.SINGLE_DESTROY_CONFIGS_NAME;
 
           flags.disablePrompts(flagsList.optional);
 
@@ -648,7 +632,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
           await this.configManager.executePrompt(task, allFlags);
 
-          context_.config = this.configManager.getConfig(configsName, allFlags) as OneShotSingleDestroyConfigClass;
+          context_.config = this.configManager.getConfig(
+            DefaultOneShotCommand.SINGLE_DESTROY_CONFIGS_NAME,
+            allFlags,
+          ) as OneShotSingleDestroyConfigClass;
 
           config = context_.config;
 
