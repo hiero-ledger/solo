@@ -323,6 +323,8 @@ jobs:
             if [[ -f "$logFile" ]]; then
               cat $logFile | jq
               echo "json_log=$(cat $logFile)" >> $GITHUB_OUTPUT
+            else
+              echo "json_log='{}'" >> $GITHUB_OUTPUT
             fi
           done
           echo "-----------------------------------------------------------------"
@@ -335,6 +337,7 @@ jobs:
 
       - name: Write Log Metrics Message File
         id: log-metrics-file
+        if: ${{ steps.log-metrics.outputs.json_log != '{}' && !cancelled() && !failure() }}
         env:
           LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
           JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
@@ -352,6 +355,7 @@ jobs:
           echo "log_file=$LOG_FILE" >> $GITHUB_OUTPUT
 
       - name: Comment PR with Log Metrics
+        if: ${{ steps.log-metrics.outputs.json_log != '{}' && !cancelled() && !failure() }}
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
         with:
           mode: recreate
