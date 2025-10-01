@@ -92,7 +92,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               OneShotCommandDefinition.MULTIPLE_DESTROY,
               'Removes the deployed resources for the selected multiple node one shot configuration.',
               this.oneShotCommand,
-              this.oneShotCommand.destroyMultiple,
+              this.oneShotCommand.destroy,
               DefaultOneShotCommand.DESTROY_FLAGS_LIST,
             ),
           ),

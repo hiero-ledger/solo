@@ -54,7 +54,7 @@ This example demonstrates how to use the Solo **one-shot falcon** commands to qu
 
 The `falcon-values.yaml` file contains the following configuration sections:
 
-* `network` - Network-wide settings (deployment, namespace, release tag, etc.)
+* `network` - Network-wide settings (release tag, application properties, etc.)
 * `setup` - Node setup configuration (keys, admin settings, etc.)
 * `consensusNode` - Consensus node start parameters
 * `mirrorNode` - Mirror node deployment settings

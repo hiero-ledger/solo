@@ -62,8 +62,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     optional: [flags.quiet],
   };
 
-  // Flag sets for the new "falcon" subcommands. These mirror the base one-shot flag sets
-  // but also include the chart values override flag `--values-file`.
   public static readonly FALCON_ADD_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.quiet, flags.valuesFile, flags.numberOfConsensusNodes],
@@ -609,10 +607,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
-    return this.destroyInternal(argv, DefaultOneShotCommand.DESTROY_FLAGS_LIST);
-  }
-
-  public async destroyMultiple(argv: ArgvStruct): Promise<boolean> {
     return this.destroyInternal(argv, DefaultOneShotCommand.DESTROY_FLAGS_LIST);
   }
 
