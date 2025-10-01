@@ -1,3 +1,4 @@
 state.mainClassNameOverride,                   com.hedera.services.ServicesMain
 state.saveStatePeriod, 60
 loadKeysFromPfxFiles, 1
+merkleDb.initialCapacity, 10M
