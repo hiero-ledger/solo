@@ -38,16 +38,16 @@ import {
   PredefinedAccount,
   predefinedEcdsaAccounts,
   predefinedEcdsaAccountsWithAlias,
-  predefinedEd25519Accounts, SystemAccount,
+  predefinedEd25519Accounts,
+  SystemAccount,
 } from './predefined-accounts.js';
-import {AccountId, HbarUnit, PrivateKey} from '@hiero-ledger/sdk';
+import {AccountId, HbarUnit} from '@hiero-ledger/sdk';
 import * as helpers from '../../core/helpers.js';
 import {Duration} from '../../core/time/duration.js';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import fs from 'node:fs';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
-import {GENESIS_KEY, GENESIS_PUBLIC_KEY} from '../../core/constants.js';
 import {createDirectoryIfNotExists, entityId} from '../../core/helpers.js';
 
 @injectable()
@@ -412,11 +412,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           {
             title: 'Finish',
             task: async (context_: OneShotSingleDeployContext): Promise<void> => {
-              const outputDirectory = PathEx.join(
+              const outputDirectory: string = PathEx.join(
                 constants.SOLO_HOME_DIR,
                 `one-shot-${context_.config.deployment}`,
               );
-
               this.showOneShotUserNotes(context_, PathEx.join(outputDirectory, 'notes'));
               this.showVersions(PathEx.join(outputDirectory, 'versions'));
               this.showPortForwards(PathEx.join(outputDirectory, 'forwards'));

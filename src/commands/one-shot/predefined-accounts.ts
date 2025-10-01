@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type AccountId, Hbar, HbarUnit, PrivateKey, PublicKey} from '@hiero-ledger/sdk';
+import {type AccountId, Hbar, HbarUnit, PrivateKey, type PublicKey} from '@hiero-ledger/sdk';
 
 export type PredefinedAccount = {
   privateKey: PrivateKey;
