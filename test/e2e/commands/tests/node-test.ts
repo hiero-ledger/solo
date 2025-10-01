@@ -5,7 +5,7 @@ import {main} from '../../../../src/index.js';
 import {
   type ClusterReferenceName,
   type ClusterReferences,
-  Context,
+  type Context,
   type DeploymentName,
   type SoloListrTaskWrapper,
 } from '../../../../src/types/index.js';
