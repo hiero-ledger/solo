@@ -77,9 +77,6 @@ consensusNode:
 
 # Mirror node deployment configuration
 mirrorNode:
-  --cluster-ref: ""
-  --context: ""
-  --namespace: ""
   --cache-dir: ""
   --chart-dir: ""
   --mirror-node-version: ""
@@ -111,9 +108,6 @@ mirrorNode:
 
 # Relay node deployment configuration
 relayNode:
-  --cluster-ref: ""
-  --context: ""
-  --namespace: ""
   --cache-dir: ""
   --chart-dir: ""
   --relay-release: ""
@@ -133,7 +127,6 @@ relayNode:
 
 # Block node deployment configuration
 blockNode:
-  --cluster-ref: ""
   --chart-dir: ""
   --block-node-chart-version: ""
   --release-tag: ""
@@ -146,8 +139,6 @@ blockNode:
 
 # Explorer node deployment configuration
 explorerNode:
-  --cluster-ref: ""
-  --namespace: ""
   --cache-dir: ""
   --chart-dir: ""
   --solo-chart-version: ""
