@@ -125,7 +125,7 @@ export const INGRESS_CONTROLLER_PREFIX = 'haproxy-ingress.github.io/controller/'
 
 export const BLOCK_NODE_CHART_URL =
   getEnvironmentVariable('BLOCK_NODE_CHART_URL') ?? 'oci://ghcr.io/hiero-ledger/hiero-block-node';
-export const BLOCK_NODE_CHART = 'block-node-helm-chart';
+export const BLOCK_NODE_CHART: string = getEnvironmentVariable('BLOCK_NODE_CHART') ?? 'block-node-server';
 export const BLOCK_NODE_RELEASE_NAME = 'block-node';
 export const BLOCK_NODE_CONTAINER_NAME: ContainerName = ContainerName.of('block-node-helm-chart');
 
