@@ -130,6 +130,7 @@ import {Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
 import {Version} from '../../business/utils/version.js';
 import {NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-class.js';
+import {Secret} from '../../integration/kube/resources/secret/secret.js';
 
 export type LeaseWrapper = {lease: Lock};
 
@@ -689,68 +690,72 @@ export class NodeCommandTasks {
       title: 'Prepare upgrade zip file for node upgrade process',
       task: async (context_: NodeUpgradeContext): Promise<void> => {
         const config: NodeUpgradeConfigClass = context_.config;
-        const {upgradeZipFile, deployment} = context_.config;
-        if (upgradeZipFile) {
-          context_.upgradeZipFile = upgradeZipFile;
+
+        if (config.upgradeZipFile) {
+          context_.upgradeZipFile = config.upgradeZipFile;
           this.logger.debug(`Using upgrade zip file: ${context_.upgradeZipFile}`);
-        } else {
-          // download application.properties from the first node in the deployment
-          const nodeAlias: NodeAlias = config.existingNodeAliases[0];
 
-          const nodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(nodeAlias);
-          const podReference: PodReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
-          const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-
-          const context: Context = helpers.extractContextFromConsensusNodes(
-            (context_ as any).config.nodeAlias,
-            context_.config.consensusNodes,
+          context_.upgradeZipHash = await this._uploadUpgradeZip(
+            context_.upgradeZipFile,
+            config.nodeClient,
+            config.deployment,
           );
 
-          const templatesDirectory: string = PathEx.join(config.stagingDir, 'templates');
-          fs.mkdirSync(templatesDirectory, {recursive: true});
-
-          await this.k8Factory
-            .getK8(context)
-            .containers()
-            .readByRef(containerReference)
-            .copyFrom(`${constants.HEDERA_HAPI_PATH}/data/config/application.properties`, templatesDirectory);
-
-          context_.upgradeZipFile = await this._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
+          return;
         }
-        context_.upgradeZipHash = await this._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
+
+        // download application.properties from the first node in the deployment
+        const nodeAlias: NodeAlias = config.existingNodeAliases[0];
+
+        const nodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(nodeAlias);
+        const podReference: PodReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
+        const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+
+        const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+
+        const templatesDirectory: string = PathEx.join(config.stagingDir, 'templates');
+        fs.mkdirSync(templatesDirectory, {recursive: true});
+
+        await this.k8Factory
+          .getK8(context)
+          .containers()
+          .readByRef(containerReference)
+          .copyFrom(`${constants.HEDERA_HAPI_PATH}/data/config/application.properties`, templatesDirectory);
+
+        context_.upgradeZipFile = await this._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
+        context_.upgradeZipHash = await this._uploadUpgradeZip(
+          context_.upgradeZipFile,
+          config.nodeClient,
+          config.deployment,
+        );
       },
     };
   }
 
-  public loadAdminKey(): SoloListrTask<NodeUpdateContext | NodeUpgradeContext | NodeDestroyContext> {
+  public loadAdminKey(): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeUpgradeContext | NodeDestroyContext> {
     return {
       title: 'Load node admin key',
-      task: async context_ => {
-        const config = context_.config;
-        if ((context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias) {
-          try {
-            const context = helpers.extractContextFromConsensusNodes(
-              (context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias,
-              context_.config.consensusNodes,
-            );
+      task: async ({config}): Promise<void> => {
+        if ((config as NodeUpdateConfigClass | NodeDestroyConfigClass | NodeAddConfigClass).nodeAlias) {
+          const nodeAlias: NodeAlias = (config as NodeUpdateConfigClass | NodeDestroyConfigClass).nodeAlias;
+          const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
+          try {
             // load nodeAdminKey from k8s if exist
-            const keyFromK8 = await this.k8Factory
+            const keyFromK8: Secret = await this.k8Factory
               .getK8(context)
               .secrets()
-              .read(
-                config.namespace,
-                Templates.renderNodeAdminKeyName((context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias),
-              );
-            const privateKey = Base64.decode(keyFromK8.data.privateKey);
+              .read(config.namespace, Templates.renderNodeAdminKeyName(nodeAlias));
+
+            const privateKey: string = Base64.decode(keyFromK8.data.privateKey);
             config.adminKey = PrivateKey.fromStringED25519(privateKey);
+            return;
           } catch (error) {
             this.logger.debug(`Error in loading node admin key: ${error.message}, use default key`);
-            config.adminKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
           }
-        } else {
-          config.adminKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
         }
+
+        config.adminKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
       },
     };
   }
@@ -1109,14 +1114,14 @@ export class NodeCommandTasks {
     return {
       title: 'Identify existing network nodes',
       task: async (context_, task) => {
-        const config = context_.config;
-        config.existingNodeAliases = [];
-        const clusterReferences = this.remoteConfig.getClusterRefs();
+        const config: CheckedNodesConfigClass = context_.config;
         config.serviceMap = await self.accountManager.getNodeServiceMap(
           config.namespace,
-          clusterReferences,
+          this.remoteConfig.getClusterRefs(),
           config.deployment,
         );
+
+        config.existingNodeAliases = [];
         for (const networkNodeServices of config.serviceMap.values()) {
           if (networkNodeServices.accountId === constants.IGNORED_NODE_ACCOUNT_ID) {
             continue;
@@ -1346,7 +1351,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public setGrpcWebEndpoint(nodeAliasesProperty: string): SoloListrTask<NodeStartContext> {
+  public setGrpcWebEndpoint(nodeAliasesProperty: string): SoloListrTask<NodeStartContext | NodeAddContext> {
     return {
       title: 'set gRPC Web endpoint',
       skip: (context_): boolean => {

@@ -29,7 +29,7 @@ import {type NodeUpdateConfigClass} from './config-interfaces/node-update-config
 import {type NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-class.js';
 import {type NodeDownloadGeneratedFilesConfigClass} from './config-interfaces/node-download-generated-files-config-class.js';
 import {type NodePrepareUpgradeConfigClass} from './config-interfaces/node-prepare-upgrade-config-class.js';
-import {type SoloListrTaskWrapper} from '../../types/index.js';
+import {AccountIdWithKeyPairObject, type SoloListrTaskWrapper} from '../../types/index.js';
 import {type NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
 import {type NodeDownloadGeneratedFilesContext} from './config-interfaces/node-download-generated-files-context.js';
 import {type NodeUpdateContext} from './config-interfaces/node-update-context.js';
@@ -217,7 +217,7 @@ export class NodeCommandConfigs {
     }
 
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
-    const accountKeys = await this.accountManager.getAccountKeysFromSecret(
+    const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
       freezeAdminAccountId.toString(),
       context_.config.namespace,
     );
