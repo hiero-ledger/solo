@@ -47,9 +47,6 @@ export class ArgumentProcessor {
 
     rootCmd.fail((message, error) => {
       if (message) {
-        // Set exit code but don't exit immediately - allows I/O buffers to flush
-        process.exitCode = 1;
-
         if (
           message.includes('Unknown argument') ||
           message.includes('Missing required argument') ||
@@ -59,10 +56,16 @@ export class ArgumentProcessor {
           rootCmd.showHelp(output => {
             helpRenderer.render(rootCmd, output);
           });
-          // Throw error to propagate through async call chains (e.g., Listr tasks)
+          if (message.includes('Select')) {
+            // show use what subcommands are available then exit normally
+            rootCmd.exit(0, error);
+          }
+          // Set exit code but don't exit immediately - allows I/O buffers to flush
+          process.exitCode = 1;
+          // Throw error to propagate through async call chains if given unknown argument
           throw new SoloError(message, error);
         } else {
-          logger.showUserError(new SoloError(`Error running Solo CLI, failure occurred: ${message ? message : ''}`));
+          logger.showUserError(new SoloError(`Error running Solo CLI, failure occurred: ${message ?? ''}`));
           throw new SoloError(message, error);
         }
       }
