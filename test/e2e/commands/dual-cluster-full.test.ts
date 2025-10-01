@@ -90,16 +90,11 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       it('Should write log metrics', async (): Promise<void> => {
         await new MetricsServerImpl().logMetrics(
-          PathEx.join(constants.SOLO_LOGS_DIR, `${testName}-${contexts[0]}.json`),
+          testName,
+          PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`),
           undefined,
           undefined,
-          contexts[0],
-        );
-        await new MetricsServerImpl().logMetrics(
-          PathEx.join(constants.SOLO_LOGS_DIR, `${testName}-${contexts[1]}.json`),
-          undefined,
-          undefined,
-          contexts[1],
+          contexts,
         );
       });
 

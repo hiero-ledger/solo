@@ -8,6 +8,7 @@ import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-
 import {DefaultOneShotCommand} from '../one-shot/default-one-shot.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
+import * as constants from '../../core/constants.js';
 
 @injectable()
 export class OneShotCommandDefinition extends BaseCommandDefinition {
@@ -58,6 +59,8 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deploy,
               DefaultOneShotCommand.ADD_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
+              true,
             ),
           )
           .addSubcommand(
@@ -115,6 +118,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.destroyFalcon,
               DefaultOneShotCommand.FALCON_DESTROY_FLAGS_LIST,
+              [constants.HELM],
             ),
           ),
       )

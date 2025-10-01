@@ -65,11 +65,11 @@ export function testNodeAdd(
       cmd: {nodeCmd, accountCmd, networkCmd},
     } = bootstrapResp;
 
-    describe(testDescription, async () => {
+    describe('Node add via separated commands should success', async (): Promise<void> => {
       let existingServiceMap: NodeServiceMapping;
       let existingNodeIdsPrivateKeysHash: Map<NodeAlias, Map<string, string>>;
 
-      after(async function () {
+      after(async function (): Promise<void> {
         this.timeout(Duration.ofMinutes(10).toMillis());
 
         await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
@@ -93,7 +93,7 @@ export function testNodeAdd(
         await k8Factory.default().namespaces().delete(namespace);
       });
 
-      it('cache current version of private keys', async () => {
+      it('cache current version of private keys', async (): Promise<void> => {
         existingServiceMap = await accountManager.getNodeServiceMap(
           namespace,
           remoteConfig.getClusterRefs(),
@@ -106,7 +106,7 @@ export function testNodeAdd(
         );
       }).timeout(defaultTimeout);
 
-      it('should succeed with init command', async () => {
+      it('should succeed with init command', async (): Promise<void> => {
         await commandInvoker.invoke({
           argv: argv,
           command: LedgerCommandDefinition.COMMAND_NAME,
@@ -116,9 +116,9 @@ export function testNodeAdd(
         });
       }).timeout(Duration.ofMinutes(8).toMillis());
 
-      it('should add a new node to the network successfully', async () => {
+      it('should add a new node to the network successfully', async (): Promise<void> => {
         // staging directory does not need to exist
-        const stagingDirectory = Templates.renderStagingDir(cacheDir, argv.getArg<string>(flags.releaseTag));
+        const stagingDirectory: string = Templates.renderStagingDir(cacheDir, argv.getArg<string>(flags.releaseTag));
         fs.rmSync(stagingDirectory, {recursive: true, force: true});
 
         await commandInvoker.invoke({
@@ -133,7 +133,7 @@ export function testNodeAdd(
         await accountManager.close();
       }).timeout(Duration.ofMinutes(12).toMillis());
 
-      it('should be able to create account after a consensus node add', async () => {
+      it('should be able to create account after a consensus node add', async (): Promise<void> => {
         await commandInvoker.invoke({
           argv: argv,
           command: LedgerCommandDefinition.COMMAND_NAME,
@@ -147,15 +147,15 @@ export function testNodeAdd(
 
       accountCreationShouldSucceed(accountManager, namespace, remoteConfig, logger);
 
-      it('existing nodes private keys should not have changed', async () => {
-        const currentNodeIdsPrivateKeysHash = await getNodeAliasesPrivateKeysHash(
+      it('existing nodes private keys should not have changed', async (): Promise<void> => {
+        const currentNodeIdsPrivateKeysHash: Map<NodeAlias, Map<string, string>> = await getNodeAliasesPrivateKeysHash(
           existingServiceMap,
           k8Factory,
           getTemporaryDirectory(),
         );
 
         for (const [nodeAlias, existingKeyHashMap] of existingNodeIdsPrivateKeysHash.entries()) {
-          const currentNodeKeyHashMap = currentNodeIdsPrivateKeysHash.get(nodeAlias);
+          const currentNodeKeyHashMap: Map<string, string> = currentNodeIdsPrivateKeysHash.get(nodeAlias);
 
           for (const [keyFileName, existingKeyHash] of existingKeyHashMap.entries()) {
             expect(`${nodeAlias}:${keyFileName}:${currentNodeKeyHashMap.get(keyFileName)}`).to.deep.equal(
