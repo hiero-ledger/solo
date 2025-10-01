@@ -34,6 +34,13 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
   public static readonly NODE_DESTROY = 'destroy';
   public static readonly NODE_UPGRADE = 'upgrade';
 
+  public static readonly ADD_COMMAND: string =
+    `${BlockCommandDefinition.COMMAND_NAME} ${BlockCommandDefinition.NODE_SUBCOMMAND_NAME} ${BlockCommandDefinition.NODE_ADD}` as const;
+  public static readonly DESTROY_COMMAND: string =
+    `${BlockCommandDefinition.COMMAND_NAME} ${BlockCommandDefinition.NODE_SUBCOMMAND_NAME} ${BlockCommandDefinition.NODE_DESTROY}` as const;
+  public static readonly UPGRADE_COMMAND: string =
+    `${BlockCommandDefinition.COMMAND_NAME} ${BlockCommandDefinition.NODE_SUBCOMMAND_NAME} ${BlockCommandDefinition.NODE_UPGRADE}` as const;
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(BlockCommandDefinition.COMMAND_NAME, BlockCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(

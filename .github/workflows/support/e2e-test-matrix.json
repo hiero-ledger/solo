@@ -1,5 +1,12 @@
 [
   {
+    "name": "One Shot Single",
+    "test-script": "test-e2e-one-shot-single",
+    "coverage-subdirectory": "e2e-one-shot-single",
+    "coverage-report-name": "E2E_Quick_Start_Single_Tests_Coverage_Report",
+    "local-java-build": false
+  },
+  {
     "name": "External database new",
     "test-script": "test-e2e-external-database",
     "coverage-subdirectory": "e2e-external-database",
@@ -25,13 +32,6 @@
     "test-script": "test-e2e-dual-cluster-full",
     "coverage-subdirectory": "e2e-dual-cluster-full",
     "coverage-report-name": "E2E_Dual_Cluster_Full_Tests_Coverage_Report",
-    "local-java-build": false
-  },
-  {
-    "name": "One Shot Single",
-    "test-script": "test-e2e-one-shot-single",
-    "coverage-subdirectory": "e2e-one-shot-single",
-    "coverage-report-name": "E2E_Quick_Start_Single_Tests_Coverage_Report",
     "local-java-build": false
   },
   {
