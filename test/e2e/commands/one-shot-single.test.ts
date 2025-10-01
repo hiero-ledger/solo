@@ -35,6 +35,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
       before(async (): Promise<void> => {
+        process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true'; // enable block-node for metrics gathering during various configurations
+        process.env.MIRROR_NODE_PINGER_TPS = '50'; // set pinger TPS to 50 to create a small load for metrics gathering
+
         fs.rmSync(testCacheDirectory, {recursive: true, force: true});
         try {
           fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {
