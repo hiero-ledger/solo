@@ -108,13 +108,6 @@ tasks:
         {{ .mocha_bin }} 'test/e2e/commands/node-upgrade.test.ts'
         {{ .reporter_options_prefix }}-e2e-node-upgrade.xml"
 
-  test-e2e-node-upgrade-separate:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Upgrade - Separate commands Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-upgrade-separate'
-        {{ .mocha_bin }} 'test/e2e/commands/separate-node-upgrade.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-upgrade-separate.xml"
-
   test-e2e-block-node:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Block Nodes Tests\"
