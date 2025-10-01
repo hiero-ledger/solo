@@ -10,8 +10,17 @@ import * as constants from '../core/constants.js';
 import * as helpers from '../core/helpers.js';
 import {entityId} from '../core/helpers.js';
 import {type AccountManager} from '../core/account-manager.js';
-import {type AccountId, AccountInfo, HbarUnit, Long, NodeUpdateTransaction, PrivateKey} from '@hiero-ledger/sdk';
-import {type ArgvStruct, type NodeAliases} from '../types/aliases.js';
+import {
+  type AccountId,
+  AccountInfo,
+  HbarUnit,
+  Long,
+  NodeUpdateTransaction,
+  PrivateKey,
+  TransactionReceipt,
+  TransactionResponse,
+} from '@hiero-ledger/sdk';
+import {type ArgvStruct, type NodeAliases, NodeId} from '../types/aliases.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {
@@ -19,7 +28,9 @@ import {
   type DeploymentName,
   type Realm,
   type Shard,
+  type SoloListr,
   type SoloListrTask,
+  type SoloListrTaskWrapper,
 } from '../types/index.js';
 import {Templates} from '../core/templates.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
@@ -239,11 +250,11 @@ export class AccountCommand extends BaseCommand {
       };
     }
 
-    const tasks = new Listr<Context>(
+    const tasks: Listr<Context> = new Listr<Context>(
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
+          task: async (context_: Context, task: SoloListrTaskWrapper<Context>): Promise<void> => {
             await self.localConfig.load();
             await self.remoteConfig.loadAndValidate(argv);
 
@@ -251,24 +262,22 @@ export class AccountCommand extends BaseCommand {
 
             flags.disablePrompts([flags.clusterRef]);
 
-            const config = {
+            const clusterReference: ClusterReferenceName = this.getClusterReference();
+            const contextName: string = this.getClusterContext(clusterReference);
+
+            const config: Config = {
               deployment: self.configManager.getFlag<DeploymentName>(flags.deployment),
-              clusterRef: self.configManager.getFlag(flags.clusterRef) as ClusterReferenceName,
-              namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
+              clusterRef: clusterReference,
+              contextName,
+              namespace: await this.resolveNamespaceFromDeployment(task),
               nodeAliases: helpers.parseNodeAliases(
                 this.configManager.getFlag(flags.nodeAliasesUnparsed),
                 this.remoteConfig.getConsensusNodes(),
                 this.configManager,
               ),
-            } as Config;
+            };
 
-            config.contextName =
-              this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString() ??
-              self.k8Factory.default().contexts().readCurrent();
-
-            if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
-              throw new SoloError(`namespace ${config.namespace.name} does not exist`);
-            }
+            await this.throwIfNamespaceIsMissing(config.contextName, config.namespace);
 
             // set config in the context for later tasks to use
             context_.config = config;
@@ -283,17 +292,19 @@ export class AccountCommand extends BaseCommand {
         },
         {
           title: 'Update special account keys',
-          task: (_, task) => {
+          task: (_, task): SoloListr<Context> => {
             return new Listr(
               [
                 {
                   title: 'Prepare for account key updates',
-                  task: async context_ => {
+                  task: async (context_: Context): Promise<void> => {
+                    const config: Config = context_.config;
+
                     context_.updateSecrets = await self.k8Factory
-                      .getK8(context_.config.clusterRef)
+                      .getK8(config.clusterRef)
                       .secrets()
-                      .list(context_.config.namespace, ['solo.hedera.com/account-id'])
-                      .then(secrets => secrets.length > 0);
+                      .list(config.namespace, ['solo.hedera.com/account-id'])
+                      .then((secrets): boolean => secrets.length > 0);
 
                     context_.accountsBatchedSet = self.accountManager.batchAccounts(this.systemAccounts);
 
@@ -304,7 +315,7 @@ export class AccountCommand extends BaseCommand {
                     };
 
                     // do a write transaction to trigger the handler and generate the system accounts to complete genesis
-                    const deployment: DeploymentName = context_.config.deployment;
+                    const deployment: DeploymentName = config.deployment;
                     const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
                     const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
                     await self.accountManager.transferAmount(treasuryAccountId, freezeAccountId, 1);
@@ -312,28 +323,32 @@ export class AccountCommand extends BaseCommand {
                 },
                 {
                   title: 'Update special account key sets',
-                  task: context_ => {
+                  task: (context_: Context): SoloListr<Context> => {
+                    const config: Config = context_.config;
+
                     const subTasks: SoloListrTask<Context>[] = [];
-                    const realm: Realm = this.localConfig.configuration.realmForDeployment(context_.config.deployment);
-                    const shard: Shard = this.localConfig.configuration.shardForDeployment(context_.config.deployment);
+                    const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
+                    const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
 
                     for (const currentSet of context_.accountsBatchedSet) {
-                      const accountStart = entityId(shard, realm, currentSet[0]);
-                      const accountEnd = entityId(shard, realm, currentSet.at(-1));
-                      const rangeString =
+                      const accountStart: string = entityId(shard, realm, currentSet[0]);
+                      const accountEnd: string = entityId(shard, realm, currentSet.at(-1));
+                      const rangeString: string =
                         accountStart === accountEnd
                           ? `${chalk.yellow(accountStart)}`
                           : `${chalk.yellow(accountStart)} to ${chalk.yellow(accountEnd)}`;
 
                       subTasks.push({
                         title: `Updating accounts [${rangeString}]`,
-                        task: async context_ => {
+                        task: async (context_: Context): Promise<void> => {
+                          const config: Config = context_.config;
+
                           context_.resultTracker = await self.accountManager.updateSpecialAccountsKeys(
-                            context_.config.namespace,
+                            config.namespace,
                             currentSet,
                             context_.updateSecrets,
                             context_.resultTracker,
-                            context_.config.deployment,
+                            config.deployment,
                           );
                         },
                       });
@@ -350,46 +365,48 @@ export class AccountCommand extends BaseCommand {
                 },
                 {
                   title: 'Update node admin key',
-                  task: async context_ => {
-                    const adminKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
-                    for (const nodeAlias of context_.config.nodeAliases) {
-                      const nodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
+                  task: async ({config}: Context): Promise<void> => {
+                    const adminKey: PrivateKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
+
+                    for (const nodeAlias of config.nodeAliases) {
+                      const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
                       const nodeClient = await self.accountManager.refreshNodeClient(
-                        context_.config.namespace,
+                        config.namespace,
                         self.remoteConfig.getClusterRefs(),
                         nodeAlias,
-                        context_.config.deployment,
+                        config.deployment,
                       );
 
                       try {
-                        let nodeUpdateTx = new NodeUpdateTransaction().setNodeId(new Long(nodeId));
-                        const newPrivateKey = PrivateKey.generateED25519();
+                        let nodeUpdateTx: NodeUpdateTransaction = new NodeUpdateTransaction().setNodeId(
+                          new Long(nodeId),
+                        );
+
+                        const newPrivateKey: PrivateKey = PrivateKey.generateED25519();
 
                         nodeUpdateTx = nodeUpdateTx.setAdminKey(newPrivateKey.publicKey);
                         nodeUpdateTx = nodeUpdateTx.freezeWith(nodeClient);
                         nodeUpdateTx = await nodeUpdateTx.sign(newPrivateKey);
-                        const signedTx = await nodeUpdateTx.sign(adminKey);
-                        const txResp = await signedTx.execute(nodeClient);
-                        const nodeUpdateReceipt = await txResp.getReceipt(nodeClient);
+                        const signedTx: NodeUpdateTransaction = await nodeUpdateTx.sign(adminKey);
+                        const txResp: TransactionResponse = await signedTx.execute(nodeClient);
+                        const nodeUpdateReceipt: TransactionReceipt = await txResp.getReceipt(nodeClient);
 
                         self.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()} for node ${nodeAlias}`);
 
                         // save new key in k8s secret
-                        const data = {
+                        const data: {privateKey: string; publicKey: string} = {
                           privateKey: Base64.encode(newPrivateKey.toString()),
                           publicKey: Base64.encode(newPrivateKey.publicKey.toString()),
                         };
                         await this.k8Factory
-                          .getK8(context_.config.contextName)
+                          .getK8(config.contextName)
                           .secrets()
                           .create(
-                            context_.config.namespace,
+                            config.namespace,
                             Templates.renderNodeAdminKeyName(nodeAlias),
                             SecretType.OPAQUE,
                             data,
-                            {
-                              'solo.hedera.com/node-admin-key': 'true',
-                            },
+                            {'solo.hedera.com/node-admin-key': 'true'},
                           );
                       } catch (error) {
                         throw new SoloError(`Error updating admin key for node ${nodeAlias}: ${error.message}`, error);
@@ -399,26 +416,21 @@ export class AccountCommand extends BaseCommand {
                 },
                 {
                   title: 'Display results',
-                  task: context_ => {
-                    self.logger.showUser(
-                      chalk.green(`Account keys updated SUCCESSFULLY: ${context_.resultTracker.fulfilledCount}`),
-                    );
-                    if (context_.resultTracker.skippedCount > 0) {
-                      self.logger.showUser(
-                        chalk.cyan(`Account keys updates SKIPPED: ${context_.resultTracker.skippedCount}`),
-                      );
+                  task: ({resultTracker: {fulfilledCount, skippedCount, rejectedCount}}: Context): void => {
+                    self.logger.showUser(chalk.green(`Account keys updated SUCCESSFULLY: ${fulfilledCount}`));
+
+                    if (skippedCount > 0) {
+                      self.logger.showUser(chalk.cyan(`Account keys updates SKIPPED: ${skippedCount}`));
                     }
-                    if (context_.resultTracker.rejectedCount > 0) {
-                      self.logger.showUser(
-                        chalk.yellowBright(`Account keys updates with ERROR: ${context_.resultTracker.rejectedCount}`),
-                      );
+
+                    if (rejectedCount > 0) {
+                      self.logger.showUser(chalk.yellowBright(`Account keys updates with ERROR: ${rejectedCount}`));
                     }
+
                     self.logger.showUser(chalk.gray('Waiting for sockets to be closed....'));
 
-                    if (context_.resultTracker.rejectedCount > 0) {
-                      throw new SoloError(
-                        `Account keys updates failed for ${context_.resultTracker.rejectedCount} accounts.`,
-                      );
+                    if (rejectedCount > 0) {
+                      throw new SoloError(`Account keys updates failed for ${rejectedCount} accounts.`);
                     }
                   },
                 },

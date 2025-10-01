@@ -334,4 +334,8 @@ export abstract class BaseCommand extends ShellRunner {
 
     return isLegacyChartInstalled ? constants.MIRROR_NODE_RELEASE_NAME : Templates.renderMirrorNodeName(mirrorNodeId);
   }
+
+  protected async resolveNamespaceFromDeployment(task?: SoloListrTaskWrapper<AnyListrContext>): Promise<NamespaceName> {
+    return await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+  }
 }
