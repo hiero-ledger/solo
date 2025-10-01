@@ -25,17 +25,17 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {TEST_UPGRADE_VERSION} from '../../../version-test.js';
-import {AccountId, AccountInfoQuery} from '@hiero-ledger/sdk';
+import {AccountId, type AccountInfo, AccountInfoQuery} from '@hiero-ledger/sdk';
 import {type Container} from '../../../src/integration/kube/resources/container/container.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {Templates} from '../../../src/core/templates.js';
 import {NodeStatusCodes} from '../../../src/core/enumerations.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 
-const namespace = NamespaceName.of('node-upgrade');
-const realm = 0;
-const shard = hederaPlatformSupportsNonZeroRealms() ? 1 : 0;
-const argv = Argv.getDefaultArgv(namespace);
+const namespace: NamespaceName = NamespaceName.of('node-upgrade');
+const realm: number = 0;
+const shard: number = hederaPlatformSupportsNonZeroRealms() ? 1 : 0;
+const argv: Argv = Argv.getDefaultArgv(namespace);
 argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2');
 argv.setArg(flags.generateGossipKeys, true);
 argv.setArg(flags.generateTlsKeys, true);
@@ -44,16 +44,16 @@ argv.setArg(flags.releaseTag, HEDERA_PLATFORM_VERSION_TAG);
 argv.setArg(flags.namespace, namespace.name);
 argv.setArg(flags.realm, realm);
 argv.setArg(flags.shard, shard);
-const zipFile = 'upgrade.zip';
+const zipFile: string = 'upgrade.zip';
 
-endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
+endToEndTestSuite(namespace.name, argv, {}, (bootstrapResp): void => {
   const {
     opts: {k8Factory, commandInvoker, logger, accountManager, remoteConfig, cacheDir},
-    cmd: {nodeCmd, accountCmd},
+    cmd: {nodeCmd},
   } = bootstrapResp;
 
-  describe('Node upgrade', async () => {
-    after(async function () {
+  describe('Node upgrade', async (): Promise<void> => {
+    after(async function (): Promise<void> {
       this.timeout(Duration.ofMinutes(10).toMillis());
 
       await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
@@ -69,7 +69,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       new AccountId(shard, realm, 1001),
     );
 
-    it('should succeed with upgrade with new version', async () => {
+    it('should succeed with upgrade with new version', async (): Promise<void> => {
       const upgradeWithVersionArgv: Argv = argv.clone();
       upgradeWithVersionArgv.setArg(flags.upgradeVersion, TEST_UPGRADE_VERSION);
       await commandInvoker.invoke({
@@ -81,9 +81,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       });
     }).timeout(Duration.ofMinutes(5).toMillis());
 
-    it('network nodes version file was upgraded', async () => {
+    it('network nodes version file was upgraded', async (): Promise<void> => {
       // copy the version.txt file from the pod data/upgrade/current directory
-      const temporaryDirectory = getTemporaryDirectory();
+      const temporaryDirectory: string = getTemporaryDirectory();
       const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
 
       const container: Container = k8Factory
@@ -98,15 +98,15 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       expect(versionLine).to.equal(`VERSION=${TEST_UPGRADE_VERSION.replace('v', '')}`);
     }).timeout(Duration.ofMinutes(5).toMillis());
 
-    it('should succeed with upgrade with zip file', async () => {
+    it('should succeed with upgrade with zip file', async (): Promise<void> => {
       // Remove the staging directory to make sure the command works if it doesn't exist
-      const stagingDirectory = Templates.renderStagingDir(cacheDir, argv.getArg<string>(flags.releaseTag));
+      const stagingDirectory: string = Templates.renderStagingDir(cacheDir, argv.getArg<string>(flags.releaseTag));
       fs.rmSync(stagingDirectory, {recursive: true, force: true});
 
       const upgradeWithZipArgv: Argv = argv.clone();
 
       // Download application.properties from the pod
-      const temporaryDirectory = getTemporaryDirectory();
+      const temporaryDirectory: string = getTemporaryDirectory();
       const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
       const container: Container = k8Factory
         .default()
@@ -141,16 +141,19 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       expect(modifiedApplicationProperties).to.equal(upgradedApplicationProperties);
     }).timeout(Duration.ofMinutes(5).toMillis());
 
-    it('all network pods should be running', async () => {
+    it('all network pods should be running', async (): Promise<void> => {
       const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
       const response: string = await container
         .resolve<NetworkNodes>(NetworkNodes)
         .getNetworkNodePodStatus(PodReference.of(namespace, pods[0].podReference.name));
 
       expect(response).to.not.be.undefined;
-      const statusLine = response.split('\n').find(line => line.startsWith('platform_PlatformStatus'));
+      const statusLine: string = response
+        .split('\n')
+        .find((line): boolean => line.startsWith('platform_PlatformStatus'));
+
       expect(statusLine).to.not.be.undefined;
-      const statusNumber = Number.parseInt(statusLine.split(' ').pop());
+      const statusNumber: number = Number.parseInt(statusLine.split(' ').pop());
       expect(statusNumber).to.equal(NodeStatusCodes.ACTIVE, 'All network nodes are running');
     });
 
@@ -165,13 +168,13 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       new AccountId(shard, realm, 1002),
     );
 
-    it('should validate created accounts', async () => {
-      const accountInfo1 = await new AccountInfoQuery()
+    it('should validate created accounts', async (): Promise<void> => {
+      const accountInfo1: AccountInfo = await new AccountInfoQuery()
         .setAccountId(new AccountId(shard, realm, 1001))
         .execute(accountManager._nodeClient);
       expect(accountInfo1).not.to.be.null;
 
-      const accountInfo2 = await new AccountInfoQuery()
+      const accountInfo2: AccountInfo = await new AccountInfoQuery()
         .setAccountId(new AccountId(shard, realm, 1002))
         .execute(accountManager._nodeClient);
       expect(accountInfo2).not.to.be.null;

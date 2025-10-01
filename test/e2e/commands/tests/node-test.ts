@@ -27,6 +27,9 @@ import {type NamespaceName} from '../../../../src/types/namespace/namespace-name
 import {type AccountManager} from '../../../../src/core/account-manager.js';
 import {
   AccountCreateTransaction,
+  AccountId,
+  type AccountInfo,
+  AccountInfoQuery,
   Hbar,
   HbarUnit,
   PrivateKey,
@@ -40,9 +43,17 @@ import {type NodeAlias} from '../../../../src/types/aliases.js';
 import {sleep} from '../../../../src/core/helpers.js';
 import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
 import {it} from 'mocha';
-import {accountCreationShouldSucceed, balanceQueryShouldSucceed} from '../../../test-utility.js';
+import {
+  accountCreationShouldSucceed,
+  balanceQueryShouldSucceed,
+  getTemporaryDirectory,
+  getTestCacheDirectory,
+} from '../../../test-utility.js';
 import {type RemoteConfigRuntimeState} from '../../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
+import {TEST_UPGRADE_VERSION} from '../../../../version-test.js';
+import {Zippy} from '../../../../src/core/zippy.js';
+import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
 
 export class NodeTest extends BaseCommandTest {
   private static soloNodeKeysArgv(testName: string, deployment: DeploymentName): string[] {
@@ -174,6 +185,31 @@ export class NodeTest extends BaseCommandTest {
     }
 
     argvPushGlobalFlags(argv, testName, true);
+    return argv;
+  }
+
+  private static soloNodeUpgradeArgv(options: BaseTestOptions, zipFile?: string): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+    const {testName, deployment} = options;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NETWORK_UPGRADE,
+      optionFromFlag(Flags.deployment),
+      deployment,
+
+      optionFromFlag(flags.upgradeVersion),
+      TEST_UPGRADE_VERSION,
+      optionFromFlag(flags.quiet),
+    );
+
+    if (zipFile) {
+      argv.push(optionFromFlag(Flags.upgradeZipFile), zipFile);
+    }
+
+    argvPushGlobalFlags(argv, testName, true, true);
     return argv;
   }
 
@@ -440,6 +476,116 @@ export class NodeTest extends BaseCommandTest {
 
       await sleep(Duration.ofSeconds(15)); // sleep to wait for node to finish starting
     }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  public static upgrade(options: BaseTestOptions): void {
+    const {testName, testLogger, namespace, consensusNodesCount, deployment} = options;
+    const {soloNodeUpgradeArgv} = NodeTest;
+
+    // Does 2 different updates, with and without zip
+    it(`${testName}: consensus node upgrade`, async (): Promise<void> => {
+      const accountManager: AccountManager = container.resolve<AccountManager>(InjectTokens.AccountManager);
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+      const remoteConfig: RemoteConfigRuntimeState = container.resolve<RemoteConfigRuntimeState>(
+        InjectTokens.RemoteConfigRuntimeState,
+      );
+
+      const cacheDirectory: string = getTestCacheDirectory(testName);
+
+      await remoteConfig.load(namespace);
+
+      // Created before upgrade
+      const firstAccount: AccountId = new AccountId(0, 0, 1001);
+
+      // Created after upgrade
+      const secondAccount: AccountId = new AccountId(0, 0, 1002);
+
+      accountCreationShouldSucceed(accountManager, namespace, remoteConfig, testLogger, undefined, firstAccount);
+
+      //! Run upgrade without zip file
+      await main(soloNodeUpgradeArgv(options));
+
+      await NodeTest.validateNetworkVersionFileWasUpgraded(k8Factory, namespace);
+
+      // Remove the staging directory to make sure the command works if it doesn't exist
+      const stagingDirectory: string = Templates.renderStagingDir(cacheDirectory, TEST_UPGRADE_VERSION);
+      fs.rmSync(stagingDirectory, {recursive: true, force: true});
+
+      // Download application.properties from the pod
+      const temporaryDirectory: string = getTemporaryDirectory();
+      const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
+      const containerReference: Container = k8Factory
+        .default()
+        .containers()
+        .readByRef(ContainerReference.of(PodReference.of(namespace, pods[0].podReference.name), ROOT_CONTAINER));
+      await containerReference.copyFrom(`${HEDERA_HAPI_PATH}/data/config/application.properties`, temporaryDirectory);
+
+      const applicationPropertiesPath: string = PathEx.join(temporaryDirectory, 'application.properties');
+      const applicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
+      const updatedContent: string = applicationProperties.replaceAll('contracts.chainId=298', 'contracts.chainId=299');
+      fs.writeFileSync(applicationPropertiesPath, updatedContent);
+
+      // create upgrade.zip file from tmp directory using zippy.ts
+      const zipFile: string = 'upgrade.zip';
+      const zipper: Zippy = new Zippy(testLogger);
+      await zipper.zip(cacheDirectory, zipFile);
+
+      //! RUN UPGRADE WITH ZIP
+      await main(soloNodeUpgradeArgv(options, zipFile));
+
+      const modifiedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
+
+      await containerReference.copyFrom(
+        `${HEDERA_HAPI_PATH}/data/upgrade/current/application.properties`,
+        temporaryDirectory,
+      );
+      const upgradedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
+
+      expect(modifiedApplicationProperties).to.equal(upgradedApplicationProperties);
+
+      for (const nodeAlias of Templates.renderNodeAliasesFromCount(consensusNodesCount, 0)) {
+        this.verifyPodShouldBeRunning(namespace, nodeAlias);
+        this.verifyPodShouldNotBeActive(namespace, nodeAlias);
+      }
+
+      balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, testLogger);
+
+      accountCreationShouldSucceed(accountManager, namespace, remoteConfig, testLogger, undefined, secondAccount);
+
+      await accountManager.loadNodeClient(namespace, remoteConfig.getClusterRefs(), deployment);
+
+      it('should validate created accounts', async (): Promise<void> => {
+        const accountInfo1: AccountInfo = await new AccountInfoQuery()
+          .setAccountId(firstAccount)
+          .execute(accountManager._nodeClient);
+        expect(accountInfo1).not.to.be.null;
+
+        const accountInfo2: AccountInfo = await new AccountInfoQuery()
+          .setAccountId(secondAccount)
+          .execute(accountManager._nodeClient);
+        expect(accountInfo2).not.to.be.null;
+      }).timeout(Duration.ofMinutes(2).toMillis());
+    }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  private static async validateNetworkVersionFileWasUpgraded(
+    k8Factory: K8Factory,
+    namespace: NamespaceName,
+  ): Promise<void> {
+    // copy the version.txt file from the pod data/upgrade/current directory
+    const temporaryDirectory: string = getTemporaryDirectory();
+    const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
+
+    const containerReference: Container = k8Factory
+      .default()
+      .containers()
+      .readByRef(ContainerReference.of(PodReference.of(namespace, pods[0].podReference.name), ROOT_CONTAINER));
+
+    await containerReference.copyFrom(`${HEDERA_HAPI_PATH}/VERSION`, temporaryDirectory);
+    const versionFile: string = fs.readFileSync(`${temporaryDirectory}/VERSION`, 'utf8');
+
+    const versionLine: string = versionFile.split('\n')[0].trim();
+    expect(versionLine).to.equal(`VERSION=${TEST_UPGRADE_VERSION.replace('v', '')}`);
   }
 
   private static verifyPodShouldBeRunning(namespace: NamespaceName, nodeAlias: NodeAlias): void {

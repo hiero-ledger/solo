@@ -129,6 +129,7 @@ import {SemVer, lt} from 'semver';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
 import {Version} from '../../business/utils/version.js';
+import {NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-class.js';
 
 export type LeaseWrapper = {lease: Lock};
 
@@ -683,12 +684,11 @@ export class NodeCommandTasks {
     }
   }
 
-  public prepareUpgradeZip() {
-    const self = this;
+  public prepareUpgradeZip(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Prepare upgrade zip file for node upgrade process',
-      task: async context_ => {
-        const config = context_.config;
+      task: async (context_: NodeUpgradeContext): Promise<void> => {
+        const config: NodeUpgradeConfigClass = context_.config;
         const {upgradeZipFile, deployment} = context_.config;
         if (upgradeZipFile) {
           context_.upgradeZipFile = upgradeZipFile;
@@ -697,16 +697,16 @@ export class NodeCommandTasks {
           // download application.properties from the first node in the deployment
           const nodeAlias: NodeAlias = config.existingNodeAliases[0];
 
-          const nodeFullyQualifiedPodName = Templates.renderNetworkPodName(nodeAlias);
-          const podReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
-          const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+          const nodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(nodeAlias);
+          const podReference: PodReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
+          const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
 
-          const context = helpers.extractContextFromConsensusNodes(
-            (context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias,
+          const context: Context = helpers.extractContextFromConsensusNodes(
+            (context_ as any).config.nodeAlias,
             context_.config.consensusNodes,
           );
 
-          const templatesDirectory = PathEx.join(config.stagingDir, 'templates');
+          const templatesDirectory: string = PathEx.join(config.stagingDir, 'templates');
           fs.mkdirSync(templatesDirectory, {recursive: true});
 
           await this.k8Factory
@@ -715,9 +715,9 @@ export class NodeCommandTasks {
             .readByRef(containerReference)
             .copyFrom(`${constants.HEDERA_HAPI_PATH}/data/config/application.properties`, templatesDirectory);
 
-          context_.upgradeZipFile = await self._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
+          context_.upgradeZipFile = await this._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
         }
-        context_.upgradeZipHash = await self._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
+        context_.upgradeZipHash = await this._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
       },
     };
   }

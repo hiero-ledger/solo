@@ -15,7 +15,6 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 import {testSeparateNodeUpdate} from './separate-node-update.test.js';
 import {testSeparateNodeDelete} from './separate-node-destroy.test.js';
-import {ADD_EXECUTE_FLAGS} from '../../../src/commands/node/flags.js';
 import {testSeperateNodeUpgrade} from './separate-node-upgrade.test.js';
 
 describe('Node add with hedera local build', (): void => {
