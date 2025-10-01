@@ -11,6 +11,7 @@ import {type K8} from '../../../src/integration/kube/k8.js';
 import {DEFAULT_LOCAL_CONFIG_FILE} from '../../../src/core/constants.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
+import * as dotenv from 'dotenv';
 
 import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
 import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
@@ -35,8 +36,14 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
       before(async (): Promise<void> => {
-        process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true'; // enable block-node for metrics gathering during various configurations
-        process.env.MIRROR_NODE_PINGER_TPS = '50'; // set pinger TPS to 50 to create a small load for metrics gathering
+        dotenv.populate(
+          process.env,
+          {
+            ONE_SHOT_WITH_BLOCK_NODE: 'true', // enable block-node for metrics gathering during various configurations
+            MIRROR_NODE_PINGER_TPS: '50', // set pinger TPS to 50 to create a small load for metrics gathering
+          },
+          {override: true},
+        );
 
         fs.rmSync(testCacheDirectory, {recursive: true, force: true});
         try {
