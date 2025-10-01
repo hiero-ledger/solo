@@ -85,6 +85,8 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deploy,
               DefaultOneShotCommand.ADD_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
+              true,
             ),
           )
           .addSubcommand(
@@ -109,6 +111,8 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deployFalcon,
               DefaultOneShotCommand.FALCON_ADD_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
+              true,
             ),
           )
           .addSubcommand(

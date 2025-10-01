@@ -26,15 +26,6 @@ tasks:
             echo "Skipping npm install - using development version"
           fi
 
-      # Create Kind cluster
-      - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
-
-      # Wait for control plane
-      - cmd: sleep 10 # wait for control plane to come up
-
-      # Set kubectl context
-      - cmd: kubectl config set-context {{ .CONTEXT }}
-
       # Solo one-shot falcon deploy
       - cmd: |
           $SOLO_COMMAND one-shot falcon deploy \

@@ -223,15 +223,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             },
           },
           this.invokeSoloCommand(
-            `solo ${InitCommand.INIT_COMMAND_NAME}`,
-            InitCommand.INIT_COMMAND_NAME,
-            (): string[] => {
-              const argv: string[] = this.newArgv();
-              argv.push(InitCommand.COMMAND_NAME);
-              return this.argvPushGlobalFlags(argv, config.cacheDir);
-            },
-          ),
-          this.invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.CONNECT_COMMAND}`,
             ClusterReferenceCommandDefinition.CONNECT_COMMAND,
             (): string[] => {
