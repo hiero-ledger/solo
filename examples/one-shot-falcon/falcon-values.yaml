@@ -67,7 +67,6 @@ setup:
 consensusNode:
   --app: ""
   --quiet-mode: false
-  --node-aliases: "node1"
   --debug-node-alias: ""
   --state-file: ""
   --stake-amounts: ""
