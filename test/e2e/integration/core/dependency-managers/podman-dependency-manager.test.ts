@@ -124,6 +124,7 @@ describe('PodmanDependencyManager', () => {
       undefined,
       undefined,
       undefined,
+      undefined,
     );
     expect(podmanDependencyManager.getRequiredVersion()).to.equal(version.PODMAN_VERSION);
   });
@@ -136,6 +137,7 @@ describe('PodmanDependencyManager', () => {
       undefined,
       undefined,
       undefined,
+      undefined,
     );
     expect(podmanDependencyManager.isInstalledLocally()).not.to.be.ok;
   });
@@ -144,6 +146,7 @@ describe('PodmanDependencyManager', () => {
     const podmanDependencyManager = new PodmanDependencyManager(
       undefined,
       temporaryDirectory,
+      undefined,
       undefined,
       undefined,
       undefined,
@@ -164,6 +167,7 @@ describe('PodmanDependencyManager', () => {
         temporaryDirectory,
         process.platform,
         process.arch,
+        undefined,
         undefined,
         undefined,
       );
@@ -208,16 +212,12 @@ describe('PodmanDependencyManager', () => {
 
     it('shouldInstall should return false when Docker is installed', async () => {
       runStub.withArgs(`${constants.DOCKER} --version`).resolves(['Docker version 20.10.8']);
-
-      // @ts-expect-error TS2341: Property shouldInstall is protected
       const result: boolean = await podmanDependencyManager.shouldInstall();
       expect(result).to.be.false;
     });
 
     it('shouldInstall should return true when Docker is not installed', async () => {
       runStub.withArgs(`${constants.DOCKER} --version`).rejects(new Error('Docker not found'));
-
-      // @ts-expect-error TS2341: Property shouldInstall is protected
       const result: boolean = await podmanDependencyManager.shouldInstall();
       expect(result).to.be.true;
     });
@@ -231,17 +231,34 @@ describe('PodmanDependencyManager', () => {
         'x64',
         undefined,
         undefined,
+        undefined,
       );
       // @ts-expect-error TS2341: Property getArch is protected
       expect(manager.getArch()).to.equal('amd64');
 
       // Test arm64 conversion
-      manager = new PodmanDependencyManager(undefined, temporaryDirectory, 'linux', 'arm64', undefined, undefined);
+      manager = new PodmanDependencyManager(
+        undefined,
+        temporaryDirectory,
+        'linux',
+        'arm64',
+        undefined,
+        undefined,
+        undefined,
+      );
       // @ts-expect-error TS2341: Property getArch is protected
       expect(manager.getArch()).to.equal('arm64');
 
       // Test aarch64 to arm64 conversion
-      manager = new PodmanDependencyManager(undefined, temporaryDirectory, 'linux', 'aarch64', undefined, undefined);
+      manager = new PodmanDependencyManager(
+        undefined,
+        temporaryDirectory,
+        'linux',
+        'aarch64',
+        undefined,
+        undefined,
+        undefined,
+      );
       // @ts-expect-error TS2341: Property getArch is protected
       expect(manager.getArch()).to.equal('arm64');
     });
@@ -254,6 +271,7 @@ describe('PodmanDependencyManager', () => {
         temporaryDirectory,
         'linux',
         'x64',
+        undefined,
         undefined,
         undefined,
       );
@@ -321,6 +339,7 @@ describe('PodmanDependencyManager', () => {
         process.arch,
         undefined,
         undefined,
+        undefined,
       );
       podmanDependencyManager.uninstallLocal();
       runStub = sinon.stub(podmanDependencyManager, 'run');
@@ -349,7 +368,6 @@ describe('PodmanDependencyManager', () => {
     });
 
     it('should prefer the global installation if it meets the requirements', async () => {
-      // @ts-expect-error TS2345: Argument of type 'shouldInstall' is not assignable to parameter of type keyof PodmanDependencyManager
       sinon.stub(podmanDependencyManager, 'shouldInstall').resolves(true);
 
       runStub.withArgs('which podman').resolves(['/usr/local/bin/podman']);

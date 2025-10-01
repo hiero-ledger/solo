@@ -11,19 +11,28 @@ import {type SoloListrTask} from '../../types/index.js';
 import {KindDependencyManager} from './kind-dependency-manager.js';
 import {KubectlDependencyManager} from './kubectl-dependency-manager.js';
 import {PodmanDependencyManager} from './podman-dependency-manager.js';
+import {VfkitDependencyManager} from './vfkit-dependency-manager.js';
+import {GvproxyDependencyManager} from './gvproxy-dependency-manager.js';
+
+export type DependencyManagerType =
+  | HelmDependencyManager
+  | KindDependencyManager
+  | KubectlDependencyManager
+  | PodmanDependencyManager
+  | VfkitDependencyManager
+  | GvproxyDependencyManager;
 
 @injectable()
 export class DependencyManager extends ShellRunner {
-  private readonly dependancyManagerMap: Map<
-    string,
-    HelmDependencyManager | KindDependencyManager | KubectlDependencyManager | PodmanDependencyManager
-  >;
+  private readonly dependancyManagerMap: Map<string, DependencyManagerType>;
 
   public constructor(
     @inject(InjectTokens.HelmDependencyManager) helmDepManager?: HelmDependencyManager,
     @inject(InjectTokens.KindDependencyManager) kindDepManager?: KindDependencyManager,
     @inject(InjectTokens.KubectlDependencyManager) kubectlDependencyManager?: KubectlDependencyManager,
     @inject(InjectTokens.PodmanDependencyManager) podmanDependencyManager?: PodmanDependencyManager,
+    @inject(InjectTokens.VfkitDependencyManager) vfkitDependencyManager?: VfkitDependencyManager,
+    @inject(InjectTokens.GvproxyDependencyManager) gvproxyDependencyManager?: GvproxyDependencyManager,
   ) {
     super();
     this.dependancyManagerMap = new Map();
@@ -50,6 +59,26 @@ export class DependencyManager extends ShellRunner {
     } else {
       this.dependancyManagerMap.set(constants.PODMAN, container.resolve(InjectTokens.PodmanDependencyManager));
     }
+
+    if (vfkitDependencyManager) {
+      this.dependancyManagerMap.set(constants.VFKIT, vfkitDependencyManager);
+    } else {
+      this.dependancyManagerMap.set(constants.VFKIT, container.resolve(InjectTokens.VfkitDependencyManager));
+    }
+
+    if (gvproxyDependencyManager) {
+      this.dependancyManagerMap.set(constants.GVPROXY, gvproxyDependencyManager);
+    } else {
+      this.dependancyManagerMap.set(constants.GVPROXY, container.resolve(InjectTokens.GvproxyDependencyManager));
+    }
+  }
+
+  public async getDependency(dep: string): Promise<DependencyManagerType> {
+    const manager: DependencyManagerType = this.dependancyManagerMap.get(dep);
+    if (manager) {
+      return manager;
+    }
+    throw new SoloError(`Dependency manager for '${dep}' is not found`);
   }
 
   /**
@@ -60,8 +89,7 @@ export class DependencyManager extends ShellRunner {
     this.logger.debug(`Checking for dependency: ${dep}`);
 
     let status: boolean = false;
-    const manager: HelmDependencyManager | KindDependencyManager | KubectlDependencyManager | PodmanDependencyManager =
-      this.dependancyManagerMap.get(dep);
+    const manager: DependencyManagerType = this.dependancyManagerMap.get(dep);
     if (manager) {
       status = await manager.install();
     }
@@ -74,18 +102,30 @@ export class DependencyManager extends ShellRunner {
     return true;
   }
 
+  public async skipDependency(dep: string): Promise<boolean> {
+    let skip: boolean = false;
+    const manager: DependencyManagerType = this.dependancyManagerMap.get(dep);
+
+    if (manager) {
+      skip = !(await manager.shouldInstall());
+    }
+
+    this.logger.debug(`Skipping install of for dependency: ${dep}: ${skip}`);
+    return skip;
+  }
+
   public taskCheckDependencies<T>(deps: string[]): SoloListrTask<T>[] {
     return deps.map(dep => {
       return {
         title: `Check dependency: ${dep} [OS: ${os.platform()}, Release: ${os.release()}, Arch: ${os.arch()}]`,
         task: () => this.checkDependency(dep),
+        skip: (): Promise<boolean> => this.skipDependency(dep),
       };
     });
   }
 
   public async getExecutablePath(dep: string): Promise<string> {
-    const manager: HelmDependencyManager | KindDependencyManager | KubectlDependencyManager | PodmanDependencyManager =
-      this.dependancyManagerMap.get(dep);
+    const manager: DependencyManagerType = this.dependancyManagerMap.get(dep);
     if (manager) {
       return await manager.getExecutablePath();
     }

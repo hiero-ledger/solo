@@ -36,6 +36,8 @@ export class ArgumentProcessor {
         middlewares.setLoggerDevFlag(),
         // @ts-expect-error - TS2322: To assign middlewares
         middlewares.processArgumentsAndDisplayHeader(),
+        // @ts-expect-error - TS2322: To assign middlewares
+        middlewares.initSystemFiles(),
       ],
       false, // applyBeforeValidate is false as otherwise middleware is called twice
     );
