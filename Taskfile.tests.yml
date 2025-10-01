@@ -101,27 +101,6 @@ tasks:
         {{ .mocha_bin }} 'test/e2e/commands/node-add-local.test.ts'
         {{ .reporter_options_prefix }}-e2e-node-add-local.xml"
 
-  test-e2e-node-add-separate:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Add - Separate commands Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-add-separate'
-        {{ .mocha_bin }} 'test/e2e/commands/separate-node-add.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-add-separate.xml"
-
-  test-e2e-node-update-separate:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Update - Separate commands Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-update-separate'
-        {{ .mocha_bin }} 'test/e2e/commands/separate-node-update.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-update-separate.xml"
-
-  test-e2e-node-destroy-separate:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Destroy - Separate commands Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-destroy-separate'
-        {{ .mocha_bin }} 'test/e2e/commands/separate-node-destroy.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-destroy-separate.xml"
-
   test-e2e-node-upgrade:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Node Upgrade Tests\"

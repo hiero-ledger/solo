@@ -1,87 +1,65 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {it, describe, after} from 'mocha';
+import {it, describe} from 'mocha';
 import {expect} from 'chai';
 
 import {Flags as flags} from '../../../src/commands/flags.js';
 import {
   accountCreationShouldSucceed,
   balanceQueryShouldSucceed,
-  endToEndTestSuite,
+  type BootstrapResponse,
   getNodeAliasesPrivateKeysHash,
   getTemporaryDirectory,
-  HEDERA_PLATFORM_VERSION_TAG,
 } from '../../test-utility.js';
 import {Duration} from '../../../src/core/time/duration.js';
-import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
+import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
-import {Argv} from '../../helpers/argv-wrapper.js';
+import {type Argv} from '../../helpers/argv-wrapper.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
 import {type DeploymentName} from '../../../src/types/index.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 import {LedgerCommandDefinition} from '../../../src/commands/command-definitions/ledger-command-definition.js';
+import {
+  type AccountBalance,
+  AccountBalanceQuery,
+  AccountCreateTransaction,
+  Hbar,
+  HbarUnit,
+  PrivateKey,
+  type TransactionReceipt,
+  type TransactionResponse,
+} from '@hiero-ledger/sdk';
+import {sleep} from '../../../src/core/helpers.js';
+import {PathEx} from '../../../src/business/utils/path-ex.js';
+import {SOLO_LOGS_DIR} from '../../../src/core/constants.js';
 
-const defaultTimeout = Duration.ofMinutes(2).toMillis();
-const namespace = NamespaceName.of('node-add-separated');
-const argv = Argv.getDefaultArgv(namespace);
-argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2');
-argv.setArg(flags.stakeAmounts, '1500,1');
-argv.setArg(flags.generateGossipKeys, true);
-argv.setArg(flags.generateTlsKeys, true);
-argv.setArg(flags.releaseTag, HEDERA_PLATFORM_VERSION_TAG);
-argv.setArg(flags.namespace, namespace.name);
-argv.setArg(flags.force, true);
-argv.setArg(flags.persistentVolumeClaims, true);
+export function testSeparateNodeAdd(
+  argv: Argv,
+  bootstrapResp: BootstrapResponse,
+  namespace: NamespaceName,
+  timeout: number,
+): void {
+  const temporaryDirectory: string = 'contextDir';
 
-const argvPrepare = argv.clone();
+  const argvPrepare: Argv = argv.clone();
+  argvPrepare.setArg(flags.outputDir, temporaryDirectory);
 
-const temporaryDirectory = 'contextDir';
-argvPrepare.setArg(flags.outputDir, temporaryDirectory);
-argvPrepare.setArg(flags.outputDir, temporaryDirectory);
+  const argvExecute: Argv = argv.clone();
+  argvExecute.setArg(flags.inputDir, temporaryDirectory);
 
-const argvExecute = Argv.getDefaultArgv(namespace);
-argvExecute.setArg(flags.inputDir, temporaryDirectory);
-argvExecute.setArg(flags.inputDir, temporaryDirectory);
-
-endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
   const {
     opts: {k8Factory, commandInvoker, accountManager, remoteConfig, logger},
-    cmd: {nodeCmd, accountCmd, networkCmd},
+    cmd: {nodeCmd, accountCmd},
   } = bootstrapResp;
 
-  describe('Node add via separated commands should success', async () => {
+  describe('Node add via separated commands should success', async (): Promise<void> => {
     let existingServiceMap: NodeServiceMapping;
     let existingNodeIdsPrivateKeysHash: Map<NodeAlias, Map<string, string>>;
 
-    after(async function () {
-      this.timeout(Duration.ofMinutes(10).toMillis());
-
-      await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
-      await accountManager.close();
-
-      await commandInvoker.invoke({
-        argv: argv,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.NODE_STOP,
-        callback: async (argv): Promise<boolean> => nodeCmd.handlers.stop(argv),
-      });
-
-      await commandInvoker.invoke({
-        argv: argv,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.NETWORK_DESTROY,
-        callback: async (argv): Promise<boolean> => networkCmd.destroy(argv),
-      });
-
-      await k8Factory.default().namespaces().delete(namespace);
-    });
-
-    it('cache current version of private keys', async () => {
+    it('cache current version of private keys', async (): Promise<void> => {
       existingServiceMap = await accountManager.getNodeServiceMap(
         namespace,
         remoteConfig.getClusterRefs(),
@@ -92,9 +70,9 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
         k8Factory,
         getTemporaryDirectory(),
       );
-    }).timeout(defaultTimeout);
+    }).timeout(timeout);
 
-    it('should succeed with init command', async () => {
+    it('should succeed with init command', async (): Promise<void> => {
       await commandInvoker.invoke({
         argv: argv,
         command: LedgerCommandDefinition.COMMAND_NAME,
@@ -104,7 +82,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       });
     }).timeout(Duration.ofMinutes(8).toMillis());
 
-    it('should add a new node to the network via the segregated commands successfully', async () => {
+    it('should add a new node to the network successfully', async (): Promise<void> => {
       await commandInvoker.invoke({
         argv: argvPrepare,
         command: ConsensusCommandDefinition.COMMAND_NAME,
@@ -133,19 +111,29 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
     }).timeout(Duration.ofMinutes(12).toMillis());
 
+    it('should be able to create account after a separated consensus node add commands', async (): Promise<void> => {
+      await commandInvoker.invoke({
+        argv: argv,
+        command: LedgerCommandDefinition.COMMAND_NAME,
+        subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+        action: LedgerCommandDefinition.ACCOUNT_CREATE,
+        callback: async (argv): Promise<boolean> => accountCmd.create(argv),
+      });
+    });
+
     balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
 
     accountCreationShouldSucceed(accountManager, namespace, remoteConfig, logger);
 
-    it('existing nodes private keys should not have changed', async () => {
-      const currentNodeIdsPrivateKeysHash = await getNodeAliasesPrivateKeysHash(
+    it('existing nodes private keys should not have changed', async (): Promise<void> => {
+      const currentNodeIdsPrivateKeysHash: Map<NodeAlias, Map<string, string>> = await getNodeAliasesPrivateKeysHash(
         existingServiceMap,
         k8Factory,
         getTemporaryDirectory(),
       );
 
       for (const [nodeAlias, existingKeyHashMap] of existingNodeIdsPrivateKeysHash.entries()) {
-        const currentNodeKeyHashMap = currentNodeIdsPrivateKeysHash.get(nodeAlias);
+        const currentNodeKeyHashMap: Map<string, string> = currentNodeIdsPrivateKeysHash.get(nodeAlias);
 
         for (const [keyFileName, existingKeyHash] of existingKeyHashMap.entries()) {
           expect(`${nodeAlias}:${keyFileName}:${currentNodeKeyHashMap.get(keyFileName)}`).to.equal(
@@ -153,6 +141,95 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
           );
         }
       }
-    }).timeout(defaultTimeout);
+    }).timeout(timeout);
+
+    it('should save the state, restart node, and preserve account balances', async (): Promise<void> => {
+      // create account before stopping
+      await accountManager.loadNodeClient(
+        namespace,
+        remoteConfig.getClusterRefs(),
+        argv.getArg<DeploymentName>(flags.deployment),
+        argv.getArg<boolean>(flags.forcePortForward),
+      );
+
+      const privateKey: PrivateKey = PrivateKey.generate();
+      // get random integer between 100 and 1000
+      const amount: number = Math.floor(Math.random() * (1000 - 100) + 100);
+
+      const newAccount: TransactionResponse = await new AccountCreateTransaction()
+        .setKeyWithoutAlias(privateKey.publicKey)
+        .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
+        .execute(accountManager._nodeClient);
+
+      // Get the new account ID
+      const getReceipt: TransactionReceipt = await newAccount.getReceipt(accountManager._nodeClient);
+      const accountInfo: {accountId: string; balance: number} = {
+        accountId: getReceipt.accountId.toString(),
+        balance: amount,
+      };
+
+      // create more transactions to save more round of states
+      await commandInvoker.invoke({
+        argv: argv,
+        command: LedgerCommandDefinition.COMMAND_NAME,
+        subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+        action: LedgerCommandDefinition.ACCOUNT_CREATE,
+        callback: async (argv): Promise<boolean> => accountCmd.create(argv),
+      });
+
+      await sleep(Duration.ofSeconds(1));
+
+      await commandInvoker.invoke({
+        argv: argv,
+        command: LedgerCommandDefinition.COMMAND_NAME,
+        subcommand: LedgerCommandDefinition.ACCOUNT_SUBCOMMAND_NAME,
+        action: LedgerCommandDefinition.ACCOUNT_CREATE,
+        callback: async (argv): Promise<boolean> => accountCmd.create(argv),
+      });
+
+      await commandInvoker.invoke({
+        argv: argv,
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NETWORK_FREEZE,
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.freeze(argv),
+      });
+
+      await commandInvoker.invoke({
+        argv,
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.STATE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.STATE_DOWNLOAD,
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.states(argv),
+      });
+
+      await commandInvoker.invoke({
+        argv: argv,
+        command: ConsensusCommandDefinition.COMMAND_NAME,
+        subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: ConsensusCommandDefinition.NODE_RESTART,
+        callback: async (argv): Promise<boolean> => nodeCmd.handlers.restart(argv),
+      });
+
+      argv.setArg(flags.stateFile, PathEx.joinWithRealPath(SOLO_LOGS_DIR, namespace.name, 'network-node1-0-state.zip'));
+
+      // check balance of accountInfo.accountId
+      await accountManager.loadNodeClient(
+        namespace,
+        remoteConfig.getClusterRefs(),
+        argv.getArg<DeploymentName>(flags.deployment),
+        argv.getArg<boolean>(flags.forcePortForward),
+      );
+
+      const balance: AccountBalance = await new AccountBalanceQuery()
+        .setAccountId(accountInfo.accountId)
+        .execute(accountManager._nodeClient);
+
+      expect(balance.hbars).to.be.eql(Hbar.from(accountInfo.balance, HbarUnit.Hbar));
+    }).timeout(Duration.ofMinutes(10).toMillis());
+
+    it('get the logs', async (): Promise<void> => {
+      await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
+    }).timeout(Duration.ofMinutes(10).toMillis());
   }).timeout(Duration.ofMinutes(3).toMillis());
-});
+}
