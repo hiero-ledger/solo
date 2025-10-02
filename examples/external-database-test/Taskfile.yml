@@ -81,11 +81,11 @@ tasks:
 
       # Install PostgreSQL using Helm"
       - cmd: |
-          {{ .SOLO_USER_DIR }}/bin/helm install {{ .POSTGRES_NAME }} https://charts.bitnami.com/bitnami/postgresql-12.1.2.tgz \
-          --set image.tag=16.4.0 \
+          {{ .SOLO_USER_DIR }}/bin/helm repo add postgresql-helm https://leverages.github.io/helm
+          {{ .SOLO_USER_DIR }}/bin/helm install {{ .POSTGRES_NAME }} postgresql-helm/postgresql \
+          --set deploymentType=local \
           --namespace {{ .POSTGRES_DATABASE_NAMESPACE }} --create-namespace \
-          --set global.postgresql.auth.postgresPassword={{ .POSTGRES_PASSWORD }} \
-          --set primary.persistence.enabled=false --set secondary.enabled=false
+          --set postgresql.auth.password={{ .POSTGRES_PASSWORD }}
 
       # Wait for PostgreSQL pod to be ready"
       - cmd: |
