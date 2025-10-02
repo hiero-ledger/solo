@@ -8,6 +8,7 @@ import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-
 import {DeploymentCommand} from '../deployment.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
+import * as constants from '../../core/constants.js';
 
 @injectable()
 export class DeploymentCommandDefinition extends BaseCommandDefinition {
@@ -67,6 +68,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
             this.deploymentCommand,
             this.deploymentCommand.addCluster,
             DeploymentCommand.ADD_CLUSTER_FLAGS_LIST,
+            [constants.KUBECTL],
           ),
         ),
       )
@@ -82,6 +84,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               this.deploymentCommand,
               this.deploymentCommand.list,
               DeploymentCommand.LIST_DEPLOYMENTS_FLAGS_LIST,
+              [],
             ),
           )
           .addSubcommand(
@@ -91,6 +94,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               this.deploymentCommand,
               this.deploymentCommand.create,
               DeploymentCommand.CREATE_FLAGS_LIST,
+              [],
             ),
           )
           .addSubcommand(
@@ -100,6 +104,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               this.deploymentCommand,
               this.deploymentCommand.delete,
               DeploymentCommand.DESTROY_FLAGS_LIST,
+              [],
             ),
           ),
       )

@@ -49,6 +49,7 @@ import fs from 'node:fs';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {createDirectoryIfNotExists, entityId} from '../../core/helpers.js';
+import {BlockCommandDefinition} from '../command-definitions/block-command-definition.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -108,9 +109,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     return argv;
   }
 
-  private invokeSoloCommand(title: string, commandName: string, callback: () => string[]) {
+  private invokeSoloCommand(
+    title: string,
+    commandName: string,
+    callback: () => string[],
+    skipCallback: () => boolean = (): boolean => false,
+  ) {
     return {
       title,
+      skip: skipCallback(),
       task: async (_, taskListWrapper) => {
         return this.subTaskSoloCommand(commandName, this.taskList, taskListWrapper, callback);
       },
@@ -254,6 +261,20 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               );
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
+          ),
+          this.invokeSoloCommand(
+            `solo ${BlockCommandDefinition.ADD_COMMAND}`,
+            BlockCommandDefinition.ADD_COMMAND,
+            (): string[] => {
+              const argv: string[] = this.newArgv();
+              argv.push(
+                ...BlockCommandDefinition.ADD_COMMAND.split(' '),
+                this.optionFromFlag(Flags.deployment),
+                config.deployment,
+              );
+              return this.argvPushGlobalFlags(argv);
+            },
+            (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
           ),
           this.invokeSoloCommand(
             `solo ${ConsensusCommandDefinition.DEPLOY_COMMAND}`,
@@ -754,6 +775,23 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             );
             return this.argvPushGlobalFlags(argv);
           },
+        ),
+        this.invokeSoloCommand(
+          `solo ${BlockCommandDefinition.DESTROY_COMMAND}`,
+          BlockCommandDefinition.DESTROY_COMMAND,
+          (): string[] => {
+            const argv: string[] = this.newArgv();
+            argv.push(
+              ...BlockCommandDefinition.DESTROY_COMMAND.split(' '),
+              this.optionFromFlag(Flags.deployment),
+              config.deployment,
+              this.optionFromFlag(flags.clusterRef),
+              config.clusterRef,
+              this.optionFromFlag(flags.quiet),
+            );
+            return this.argvPushGlobalFlags(argv);
+          },
+          (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
         ),
         this.invokeSoloCommand(
           `solo ${ConsensusCommandDefinition.DESTROY_COMMAND}`,

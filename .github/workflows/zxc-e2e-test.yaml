@@ -250,7 +250,7 @@ jobs:
 
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
-        uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
         with:
           cache-read-only: false
 
@@ -313,12 +313,58 @@ jobs:
               export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
           fi
           echo SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1 > .env
+          if [[ "${{ inputs.test-script }}" == "test-e2e-one-shot-single" ]]; then
+            echo ONE_SHOT_WITH_BLOCK_NODE=true >> .env
+            echo MIRROR_NODE_PINGER_TPS=50 >> .env
+          fi
           cat .env
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
 
       - name: Log Metrics
+        id: log-metrics
         run: |
-          for logFile in $(ls -1 ~/.solo/logs/*.json); do cat $logFile | jq; done
+          for logFile in ~/.solo/logs/*.json; do 
+            if [[ -f "$logFile" ]]; then
+              cat $logFile | jq
+              echo "json_log=$(cat $logFile)" >> $GITHUB_OUTPUT
+            else
+              echo "json_log={}" >> $GITHUB_OUTPUT
+            fi
+          done
+          echo "-----------------------------------------------------------------"
+          for logFile in ~/.solo/logs/*.yaml; do 
+            if [[ -f "$logFile" ]]; then
+              cat $logFile
+            fi
+          done
+          echo "solo_log_dir=$(cd ~/.solo/logs && pwd)" >> $GITHUB_OUTPUT
+
+      - name: Write Log Metrics Message File
+        id: log-metrics-file
+        if: ${{ !cancelled() && !failure() && steps.log-metrics.outputs.json_log != '{}' }}
+        env:
+          LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
+          JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
+        run: |
+          echo "## Log Metrics - ${{ inputs.custom-job-label }}" >> $LOG_FILE
+          echo "" >> $LOG_FILE
+          echo "<details>" >> $LOG_FILE
+          echo "<summary>" >> $LOG_FILE
+          echo "JSON Log Metrics" >> $LOG_FILE
+          echo "</summary>" >> $LOG_FILE
+          echo '<pre><code class="JSON">' >> $LOG_FILE
+          echo "$JSON_INPUT" >> $LOG_FILE
+          echo "</code></pre>" >> $LOG_FILE
+          echo "</details>" >> $LOG_FILE
+          echo "log_file=$LOG_FILE" >> $GITHUB_OUTPUT
+
+      - name: Comment PR with Log Metrics
+        if: ${{ !cancelled() && !failure() && steps.log-metrics.outputs.json_log != '{}' }}
+        uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
+        with:
+          mode: recreate
+          file-path: ${{ steps.log-metrics-file.outputs.log_file }}
+          comment-tag: log-metrics-${{ inputs.test-script }}
 
       - name: Upload E2E Logs to GitHub
         if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && !cancelled() }}

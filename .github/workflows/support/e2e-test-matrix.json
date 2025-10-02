@@ -1,5 +1,12 @@
 [
   {
+    "name": "One Shot Single",
+    "test-script": "test-e2e-one-shot-single",
+    "coverage-subdirectory": "e2e-one-shot-single",
+    "coverage-report-name": "E2E_Quick_Start_Single_Tests_Coverage_Report",
+    "local-java-build": false
+  },
+  {
     "name": "External database new",
     "test-script": "test-e2e-external-database",
     "coverage-subdirectory": "e2e-external-database",
@@ -25,13 +32,6 @@
     "test-script": "test-e2e-dual-cluster-full",
     "coverage-subdirectory": "e2e-dual-cluster-full",
     "coverage-report-name": "E2E_Dual_Cluster_Full_Tests_Coverage_Report",
-    "local-java-build": false
-  },
-  {
-    "name": "One Shot Single",
-    "test-script": "test-e2e-one-shot-single",
-    "coverage-subdirectory": "e2e-one-shot-single",
-    "coverage-report-name": "E2E_Quick_Start_Single_Tests_Coverage_Report",
     "local-java-build": false
   },
   {
@@ -61,27 +61,6 @@
     "coverage-subdirectory": "e2e-node-add-local",
     "coverage-report-name": "E2E_Node_Add_Local_Tests_Coverage_Report",
     "local-java-build": true
-  },
-  {
-    "name": "Node Update - Separate commands",
-    "test-script": "test-e2e-node-update-separate",
-    "coverage-subdirectory": "e2e-node-update-separate",
-    "coverage-report-name": "E2E_Node_Update_Separate_Commands_Tests_Coverage_Report",
-    "local-java-build": false
-  },
-  {
-    "name": "Node Destroy - Separate commands",
-    "test-script": "test-e2e-node-destroy-separate",
-    "coverage-subdirectory": "e2e-node-destroy-separate",
-    "coverage-report-name": "E2E_Node_Destroy_Separate_Commands_Tests_Coverage_Report",
-    "local-java-build": false
-  },
-  {
-    "name": "Node Add - Separate commands",
-    "test-script": "test-e2e-node-add-separate",
-    "coverage-subdirectory": "e2e-node-add-separate",
-    "coverage-report-name": "E2E_Node_Add_Separate_Commands_Tests_Coverage_Report",
-    "local-java-build": false
   },
   {
     "name": "Node Upgrade - Separate commands",

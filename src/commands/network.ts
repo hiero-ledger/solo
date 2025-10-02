@@ -1165,28 +1165,32 @@ export class NetworkCommand extends BaseCommand {
             const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'block-nodes.json');
             const targetDirectory: string = '/opt/hgcapp/data/config';
 
-            for (const consensusNode of config.consensusNodes) {
-              const podReference: PodReference = await this.k8Factory
-                .getK8(consensusNode.cluster)
-                .pods()
-                .list(config.namespace, [
-                  `solo.hedera.com/node-name=${consensusNode.name}`,
-                  'solo.hedera.com/type=network-node',
-                ])
-                .then((pods: Pod[]): PodReference => pods[0].podReference);
+            try {
+              for (const consensusNode of config.consensusNodes) {
+                const podReference: PodReference = await this.k8Factory
+                  .getK8(consensusNode.context)
+                  .pods()
+                  .list(config.namespace, [
+                    `solo.hedera.com/node-name=${consensusNode.name}`,
+                    'solo.hedera.com/type=network-node',
+                  ])
+                  .then((pods: Pod[]): PodReference => pods[0].podReference);
 
-              const rootContainer: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+                const rootContainer: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
 
-              const container: Container = this.k8Factory
-                .getK8(consensusNode.context)
-                .containers()
-                .readByRef(rootContainer);
+                const container: Container = this.k8Factory
+                  .getK8(consensusNode.context)
+                  .containers()
+                  .readByRef(rootContainer);
 
-              await container.execContainer('pwd');
+                await container.execContainer('pwd');
 
-              await container.execContainer(`mkdir -p ${targetDirectory}`);
+                await container.execContainer(`mkdir -p ${targetDirectory}`);
 
-              await container.copyTo(blockNodesJsonPath, targetDirectory);
+                await container.copyTo(blockNodesJsonPath, targetDirectory);
+              }
+            } catch (error) {
+              throw new SoloError(`Failed while creating block-nodes configuration: ${error.message}`, error);
             }
           },
         },
