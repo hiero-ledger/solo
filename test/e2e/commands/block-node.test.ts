@@ -25,6 +25,7 @@ import * as constants from '../../../src/core/constants.js';
 import {BlockCommandDefinition} from '../../../src/commands/command-definitions/block-command-definition.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
+import {SoloError} from '../../../src/core/errors/solo-error.js';
 
 // eslint-disable-next-line @typescript-eslint/typedef
 const execAsync = promisify(exec);
@@ -76,7 +77,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
     afterEach(async (): Promise<void> => await sleep(Duration.ofMillis(5)));
 
     it("Should succeed deploying block node with 'add' command", async function (): Promise<void> {
-      this.timeout(Duration.ofMinutes(30).toMillis());
+      this.timeout(Duration.ofMinutes(5).toMillis());
 
       await commandInvoker.invoke({
         argv: argv,
@@ -119,25 +120,25 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
       await new MetricsServerImpl().logMetrics(testName, PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`));
     });
 
-    // it("Should succeed with removing block node with 'destroy' command", async function (): Promise<void> {
-    //   this.timeout(Duration.ofMinutes(2).toMillis());
-    //
-    //   configManager.reset();
-    //
-    //   await commandInvoker.invoke({
-    //     argv: argv,
-    //     command: BlockCommandDefinition.COMMAND_NAME,
-    //     subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
-    //     action: BlockCommandDefinition.NODE_DESTROY,
-    //     callback: async (argv: {_: string[]} & Record<string, any>): Promise<boolean> => blockNodeCommand.destroy(argv),
-    //   });
-    //
-    //   try {
-    //     remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(ComponentTypes.BlockNode, 0);
-    //     expect.fail();
-    //   } catch (error) {
-    //     expect(error).to.be.instanceof(SoloError);
-    //   }
-    // });
+    it("Should succeed with removing block node with 'destroy' command", async function (): Promise<void> {
+      this.timeout(Duration.ofMinutes(2).toMillis());
+
+      configManager.reset();
+
+      await commandInvoker.invoke({
+        argv: argv,
+        command: BlockCommandDefinition.COMMAND_NAME,
+        subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
+        action: BlockCommandDefinition.NODE_DESTROY,
+        callback: async (argv: {_: string[]} & Record<string, any>): Promise<boolean> => blockNodeCommand.destroy(argv),
+      });
+
+      try {
+        remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(ComponentTypes.BlockNode, 0);
+        expect.fail();
+      } catch (error) {
+        expect(error).to.be.instanceof(SoloError);
+      }
+    });
   });
 });
