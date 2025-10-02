@@ -716,7 +716,7 @@ export class BlockNodeCommand extends BaseCommand {
                 .containers()
                 .readByRef(containerReference)
                 .execContainer(['bash', '-c', `curl -s http://localhost:${config.livenessCheckPort}/healthz/readyz`]),
-              Duration.ofMillis(constants.BLOCK_NODE_ACTIVE_TIMEOUT),
+              Duration.ofSeconds(constants.BLOCK_NODE_ACTIVE_TIMEOUT),
               'Healthcheck timed out',
             );
 
@@ -726,8 +726,10 @@ export class BlockNodeCommand extends BaseCommand {
 
             success = true;
             break;
-          } catch {
-            // Guard
+          } catch (error) {
+            this.logger.debug(
+              `Waiting for block node health check to come back with OK status: ${error.message}, [attempts: ${attempt}/${maxAttempts}`,
+            );
           }
 
           attempt++;
