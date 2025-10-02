@@ -26,6 +26,7 @@ import {BlockCommandDefinition} from '../../../src/commands/command-definitions/
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
+import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 
 // eslint-disable-next-line @typescript-eslint/typedef
 const execAsync = promisify(exec);
@@ -68,11 +69,11 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
       }
     });
 
-    // after(async function (): Promise<void> {
-    //   this.timeout(Duration.ofMinutes(5).toMillis());
-    //   await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
-    //   await k8Factory.default().namespaces().delete(namespace);
-    // });
+    after(async function (): Promise<void> {
+      this.timeout(Duration.ofMinutes(5).toMillis());
+      await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
+      await k8Factory.default().namespaces().delete(namespace);
+    });
 
     afterEach(async (): Promise<void> => await sleep(Duration.ofMillis(5)));
 
