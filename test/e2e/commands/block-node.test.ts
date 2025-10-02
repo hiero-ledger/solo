@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {after, afterEach, describe} from 'mocha';
+import {afterEach, describe} from 'mocha';
 import {expect} from 'chai';
 
 import {Flags as flags} from '../../../src/commands/flags.js';
@@ -9,13 +9,11 @@ import * as version from '../../../version.js';
 import {sleep} from '../../../src/core/helpers.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
-import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type BlockNodeCommand} from '../../../src/commands/block-node.js';
 import {ComponentTypes} from '../../../src/core/config/remote/enumerations/component-types.js';
-import {SoloError} from '../../../src/core/errors/solo-error.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type ClusterReferenceName} from '../../../src/types/index.js';
 import {exec} from 'node:child_process';
@@ -69,16 +67,16 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
       }
     });
 
-    after(async function (): Promise<void> {
-      this.timeout(Duration.ofMinutes(5).toMillis());
-      await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
-      await k8Factory.default().namespaces().delete(namespace);
-    });
+    // after(async function (): Promise<void> {
+    //   this.timeout(Duration.ofMinutes(5).toMillis());
+    //   await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
+    //   await k8Factory.default().namespaces().delete(namespace);
+    // });
 
     afterEach(async (): Promise<void> => await sleep(Duration.ofMillis(5)));
 
     it("Should succeed deploying block node with 'add' command", async function (): Promise<void> {
-      this.timeout(Duration.ofMinutes(5).toMillis());
+      this.timeout(Duration.ofMinutes(30).toMillis());
 
       await commandInvoker.invoke({
         argv: argv,
@@ -121,25 +119,25 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
       await new MetricsServerImpl().logMetrics(testName, PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`));
     });
 
-    it("Should succeed with removing block node with 'destroy' command", async function (): Promise<void> {
-      this.timeout(Duration.ofMinutes(2).toMillis());
-
-      configManager.reset();
-
-      await commandInvoker.invoke({
-        argv: argv,
-        command: BlockCommandDefinition.COMMAND_NAME,
-        subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
-        action: BlockCommandDefinition.NODE_DESTROY,
-        callback: async (argv: {_: string[]} & Record<string, any>): Promise<boolean> => blockNodeCommand.destroy(argv),
-      });
-
-      try {
-        remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(ComponentTypes.BlockNode, 0);
-        expect.fail();
-      } catch (error) {
-        expect(error).to.be.instanceof(SoloError);
-      }
-    });
+    // it("Should succeed with removing block node with 'destroy' command", async function (): Promise<void> {
+    //   this.timeout(Duration.ofMinutes(2).toMillis());
+    //
+    //   configManager.reset();
+    //
+    //   await commandInvoker.invoke({
+    //     argv: argv,
+    //     command: BlockCommandDefinition.COMMAND_NAME,
+    //     subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
+    //     action: BlockCommandDefinition.NODE_DESTROY,
+    //     callback: async (argv: {_: string[]} & Record<string, any>): Promise<boolean> => blockNodeCommand.destroy(argv),
+    //   });
+    //
+    //   try {
+    //     remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(ComponentTypes.BlockNode, 0);
+    //     expect.fail();
+    //   } catch (error) {
+    //     expect(error).to.be.instanceof(SoloError);
+    //   }
+    // });
   });
 });

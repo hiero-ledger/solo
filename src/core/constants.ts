@@ -127,7 +127,7 @@ export const BLOCK_NODE_CHART_URL =
   getEnvironmentVariable('BLOCK_NODE_CHART_URL') ?? 'oci://ghcr.io/hiero-ledger/hiero-block-node';
 export const BLOCK_NODE_CHART: string = getEnvironmentVariable('BLOCK_NODE_CHART') ?? 'block-node-server';
 export const BLOCK_NODE_RELEASE_NAME = 'block-node';
-export const BLOCK_NODE_CONTAINER_NAME: ContainerName = ContainerName.of('block-node-helm-chart');
+export const BLOCK_NODE_CONTAINER_NAME: ContainerName = ContainerName.of(BLOCK_NODE_CHART);
 
 // TODO: remove after migrated to resources/solo-config.yaml
 export const CERT_MANAGER_NAME_SPACE = 'cert-manager';
@@ -287,10 +287,9 @@ export const RELAY_PODS_READY_DELAY = +getEnvironmentVariable('RELAY_PODS_READY_
 export const BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS') || 900;
 export const BLOCK_NODE_PODS_RUNNING_DELAY: number = +getEnvironmentVariable('BLOCK_NODE_PODS_RUNNING_DELAY') || 1000;
-export const BLOCK_NODE_ACTIVE_MAX_ATTEMPTS: number =
-  +getEnvironmentVariable('NETWORK_NODE_ACTIVE_MAX_ATTEMPTS') || 100;
-export const BLOCK_NODE_ACTIVE_DELAY: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_DELAY') || 1000;
-export const BLOCK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_TIMEOUT') || 1000;
+export const BLOCK_NODE_ACTIVE_MAX_ATTEMPTS: number = +getEnvironmentVariable('BLOCK_NODE_ACTIVE_MAX_ATTEMPTS') || 100;
+export const BLOCK_NODE_ACTIVE_DELAY: number = +getEnvironmentVariable('BLOCK_NODE_ACTIVE_DELAY') || 60;
+export const BLOCK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('BLOCK_NODE_ACTIVE_TIMEOUT') || 60;
 
 export const BLOCK_NODE_PORT: number = +getEnvironmentVariable('BLOCK_NODE_PORT') || 40_840;
 export const BLOCK_NODE_PORT_LEGACY: number = +getEnvironmentVariable('BLOCK_NODE_PORT_LEGACY') || 8080;
