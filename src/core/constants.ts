@@ -189,6 +189,7 @@ export const MIRROR_NODE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'm
 export const MIRROR_NODE_VALUES_FILE_HEDERA = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values-hedera.yaml');
 export const INGRESS_CONTROLLER_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'ingress-controller-values.yaml');
 export const BLOCK_NODE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
+export const POD_MONITOR_ROLE_TEMPLATE = PathEx.joinWithRealPath(RESOURCES_DIR, 'templates', 'pod-monitor-role.yaml');
 export const NODE_LOG_FAILURE_MSG = 'failed to download logs from pod';
 export const ONE_SHOT_WITH_BLOCK_NODE = getEnvironmentVariable('ONE_SHOT_WITH_BLOCK_NODE') || 'false';
 /**
