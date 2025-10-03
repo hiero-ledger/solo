@@ -23,6 +23,7 @@ const mockLogger = {
   showMessageGroup: (): void => {},
   getMessageGroupKeys: (): string[] => [],
   showAllMessageGroups: (): void => {},
+  getMessageGroup: (): string[] => [],
 };
 
 describe('Port Utils', (): void => {
