@@ -1,0 +1,11 @@
+appName: nlg
+loadGenerator:
+  test:
+    className: com.hedera.benchmark.CryptoTransferLoadTest
+    args:
+      - -c
+      - "4"
+      - -a
+      - "2000"
+      - -t
+      - "3600"

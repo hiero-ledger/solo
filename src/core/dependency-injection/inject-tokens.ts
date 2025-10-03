@@ -72,6 +72,7 @@ export class InjectTokens {
   public static CommandInvoker: symbol = Symbol.for('CommandInvoker');
   public static ConfigProvider: symbol = Symbol.for('ConfigProvider');
   public static BlockNodeCommand: symbol = Symbol.for('BlockNodeCommand');
+  public static RapidFireCommand: symbol = Symbol.for('RapidFireCommand');
   public static LocalConfigFileName: symbol = Symbol.for('LocalConfigFileName');
   public static LocalConfigSource: symbol = Symbol.for('LocalConfigSource');
   public static LocalConfigRuntimeState: symbol = Symbol.for('LocalConfigRuntimeState');
@@ -92,4 +93,5 @@ export class InjectTokens {
   public static MirrorCommandDefinition: symbol = Symbol.for('MirrorCommandDefinition');
   public static RelayCommandDefinition: symbol = Symbol.for('RelayCommandDefinition');
   public static OneShotCommandDefinition: symbol = Symbol.for('OneShotCommandDefinition');
+  public static RapidFireCommandDefinition: symbol = Symbol.for('RapidFireCommandDefinition');
 }
