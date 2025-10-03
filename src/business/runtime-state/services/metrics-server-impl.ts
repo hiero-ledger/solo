@@ -93,7 +93,7 @@ export class MetricsServerImpl implements MetricsServer {
       }
       return this.createClusterMetrics(
         context ?? 'default',
-        NamespaceName.of(clusterNamespace),
+        clusterNamespace ? NamespaceName.of(clusterNamespace) : undefined,
         podMetrics,
         mirrorNodePostgresPodName ? PodName.of(mirrorNodePostgresPodName) : undefined,
       );
@@ -184,6 +184,9 @@ export class MetricsServerImpl implements MetricsServer {
   }
 
   private async getNetworkNodeRuntime(namespace: NamespaceName, context: Context): Promise<number> {
+    if (!namespace) {
+      return 0;
+    }
     const contextParameter: string = context && context !== 'default' ? `--context ${context}` : '';
     const cmd: string = `kubectl get pod network-node1-0 -n ${namespace.name} --no-headers ${contextParameter} | awk '{print $5}'`;
     const results: string[] = await new ShellRunner().run(cmd, [], true, false);
@@ -198,6 +201,10 @@ export class MetricsServerImpl implements MetricsServer {
     context: Context,
     postgresPodName: PodName,
   ): Promise<number> {
+    if (!namespace) {
+      return 0;
+    }
+
     try {
       const result: string = await this.k8Factory
         .getK8(context && context !== 'default' ? context : undefined)
