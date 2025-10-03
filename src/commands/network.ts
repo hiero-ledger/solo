@@ -588,13 +588,13 @@ export class NetworkCommand extends BaseCommand {
         if (config.blockNodeCfg && config.blockNodeCfg.trim() !== '') {
           try {
             let blockNodeCfgContent: string = config.blockNodeCfg;
-            
+
             // Check if the input is a file path
             if (fs.existsSync(config.blockNodeCfg)) {
               this.logger.debug(`Reading blockNodeCfg from file: ${config.blockNodeCfg}`);
               blockNodeCfgContent = fs.readFileSync(config.blockNodeCfg, 'utf8');
             }
-            
+
             config.consensusNodeToBlockNodesMap = JSON.parse(blockNodeCfgContent);
           } catch (error) {
             throw new SoloError(`Failed to parse blockNodeCfg JSON: ${error.message}`, error);
