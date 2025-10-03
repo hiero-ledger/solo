@@ -30,7 +30,6 @@ import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remo
 import * as versions from '../../../version.js';
 import * as fs from 'node:fs';
 import * as yaml from 'yaml';
-import {PathEx} from '../../business/utils/path-ex.js';
 
 @injectable()
 export class ClusterCommandTasks {
@@ -365,8 +364,7 @@ export class ClusterCommandTasks {
         } catch {
           // ClusterRole doesn't exist, create it
           try {
-            const templatePath = PathEx.join(process.cwd(), 'resources', 'templates', 'pod-monitor-role.yaml');
-            const yamlContent = fs.readFileSync(templatePath, 'utf8');
+            const yamlContent = fs.readFileSync(constants.POD_MONITOR_ROLE_TEMPLATE, 'utf8');
             const clusterRole = yaml.parse(yamlContent);
 
             await k8.rbac().createClusterRole(clusterRole);
