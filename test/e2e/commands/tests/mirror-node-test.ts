@@ -272,7 +272,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     const {testName, deployment, clusterReferenceNameArray} = options;
     const {soloMirrorNodeDestroyArgv} = MirrorNodeTest;
 
-    it(`${testName}: mirror node add`, async (): Promise<void> => {
+    it(`${testName}: mirror node destroy`, async (): Promise<void> => {
       await main(soloMirrorNodeDestroyArgv(testName, deployment, clusterReferenceNameArray[1]));
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
@@ -351,11 +351,11 @@ export class MirrorNodeTest extends BaseCommandTest {
     const {contexts} = options;
     it('should install postgres chart', async (): Promise<void> => {
       await new ShellRunner().run(`kubectl config use-context "${contexts[1]}"`);
-      const installPostgresChartCommand: string = `helm install my-postgresql https://charts.bitnami.com/bitnami/postgresql-12.1.2.tgz \
-        --set image.tag=16.4.0 \
+      const installPostgresChartCommand: string = `helm repo add postgresql-helm https://leverages.github.io/helm; \
+        helm install my-postgresql postgresql-helm/postgresql \
+        --set deploymentType=local \
         --namespace ${this.nameSpace} --create-namespace \
-        --set global.postgresql.auth.postgresPassword=${this.postgresPassword} \
-        --set primary.persistence.enabled=false --set secondary.enabled=false`;
+        --set postgresql.auth.password=${this.postgresPassword}`;
 
       await new ShellRunner().run(installPostgresChartCommand);
 

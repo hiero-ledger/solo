@@ -23,6 +23,8 @@ import {NetworkTest} from './tests/network-test.js';
 import {MirrorNodeTest} from './tests/mirror-node-test.js';
 import {ExplorerTest} from './tests/explorer-test.js';
 import {RelayTest} from './tests/relay-test.js';
+import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
+import * as constants from '../../../src/core/constants.js';
 
 const testName: string = 'dual-cluster-full';
 
@@ -69,14 +71,32 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       ClusterReferenceTest.connect(options);
       DeploymentTest.create(options);
       DeploymentTest.addCluster(options);
-      ClusterReferenceTest.setup(options);
       NodeTest.keys(options);
       NetworkTest.deploy(options);
       NodeTest.setup(options);
       NodeTest.start(options);
+
+      NodeTest.PemKill(options);
+      NodeTest.PemStop(options);
+
       MirrorNodeTest.add(options);
+
+      NodeTest.add(options);
+      NodeTest.update(options);
+      NodeTest.destroy(options);
+
       ExplorerTest.add(options);
       RelayTest.add(options);
+
+      it('Should write log metrics', async (): Promise<void> => {
+        await new MetricsServerImpl().logMetrics(
+          testName,
+          PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`),
+          undefined,
+          undefined,
+          contexts,
+        );
+      });
 
       RelayTest.destroy(options);
       ExplorerTest.destroy(options);

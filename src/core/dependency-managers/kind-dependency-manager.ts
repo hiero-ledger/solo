@@ -63,13 +63,17 @@ export class KindDependencyManager extends BaseDependencyManager {
         const output: string[] = await this.run(`${executablePath} --version`);
         if (output.length > 0) {
           const match: RegExpMatchArray | null = output[0].trim().match(/(\d+\.\d+\.\d+)/);
-          return match[1];
+          if (match && match[1]) {
+            return match[1];
+          }
         }
       } catch (error: any) {
-        throw new SoloError('Failed to check kind version', error);
+        throw new SoloError(`Failed to check kind version for input ${executablePath}`, error);
       }
     }
-    throw new SoloError('Failed to check kind version');
+    throw new SoloError(
+      'Failed to check kind version - no output received after multiple attempts for ' + executablePath,
+    );
   }
 
   protected getDownloadURL(): string {

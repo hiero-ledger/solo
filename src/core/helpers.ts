@@ -25,26 +25,18 @@ import {type ConfigManager} from './config-manager.js';
 import {Flags as flags} from '../commands/flags.js';
 import {type Realm, type Shard} from './../types/index.js';
 import {execSync} from 'node:child_process';
+import {type Service} from '../integration/kube/resources/service/service.js';
+import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
 
 export function getInternalAddress(
   releaseVersion: semver.SemVer | string,
   namespaceName: NamespaceName,
   nodeAlias: NodeAlias,
-) {
-  //? Explanation: for v0.59.x the internal IP address is set to 127.0.0.1 to avoid an ISS
-  let internalIp = '';
-
-  // for versions that satisfy 0.58.5+
+): string {
   // @ts-expect-error TS2353: Object literal may only specify known properties
-  if (semver.gte(releaseVersion, '0.58.5', {includePrerelease: true})) {
-    internalIp = '127.0.0.1';
-  }
-  // versions less than 0.58.5
-  else {
-    internalIp = Templates.renderFullyQualifiedNetworkPodName(namespaceName, nodeAlias);
-  }
-
-  return internalIp;
+  return semver.gte(releaseVersion, '0.58.5', {includePrerelease: true})
+    ? '127.0.0.1'
+    : Templates.renderFullyQualifiedNetworkPodName(namespaceName, nodeAlias);
 }
 
 export async function getExternalAddress(
@@ -60,21 +52,21 @@ export async function getExternalAddress(
 }
 
 async function resolveLoadBalancerAddress(consensusNode: ConsensusNode, k8: K8): Promise<string> {
-  const ns = NamespaceName.of(consensusNode.namespace);
-  const serviceList = await k8
+  const namespace: NamespaceName = NamespaceName.of(consensusNode.namespace);
+  const serviceList: Service[] = await k8
     .services()
-    .list(ns, [`solo.hedera.com/node-id=${consensusNode.nodeId},solo.hedera.com/type=network-node-svc`]);
+    .list(namespace, [`solo.hedera.com/node-id=${consensusNode.nodeId},solo.hedera.com/type=network-node-svc`]);
 
   if (serviceList && serviceList.length > 0) {
-    const svc = serviceList[0];
+    const svc: Service = serviceList[0];
 
     if (!svc.metadata.name.startsWith('network-node')) {
       throw new SoloError(`Service found is not a network node service: ${svc.metadata.name}`);
     }
 
     if (svc.status?.loadBalancer?.ingress && svc.status.loadBalancer.ingress.length > 0) {
-      for (let index = 0; index < svc.status.loadBalancer.ingress.length; index++) {
-        const ingress = svc.status.loadBalancer.ingress[index];
+      for (let index: number = 0; index < svc.status.loadBalancer.ingress.length; index++) {
+        const ingress: LoadBalancerIngress = svc.status.loadBalancer.ingress[index];
         if (ingress.hostname) {
           return ingress.hostname;
         } else if (ingress.ip) {
@@ -513,7 +505,12 @@ function printPaddedMessage(message: string, totalWidth: number): string {
  * @param type The action that was performed such as 'Installed' or 'Upgraded'
  */
 // TODO convert usages to leverage the logger.addMessageGroupMessage()
-export function showVersionBanner(logger: SoloLogger, chartName: string, version: string, type: string = 'Installed') {
+export function showVersionBanner(
+  logger: SoloLogger,
+  chartName: string,
+  version: string,
+  type: 'Installed' | 'Upgraded' = 'Installed',
+): void {
   logger.showUser(chalk.cyan(` - ${type} ${chartName} chart, version:`, chalk.yellow(version)));
 }
 

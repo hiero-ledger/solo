@@ -507,7 +507,7 @@ export class ExplorerCommand extends BaseCommand {
           this.logger,
           ComponentTypes.Explorer,
           'Explorer',
-          false, // config.isChartInstalled, // Reuse existing port if chart is already installed
+          config.isChartInstalled, // Reuse existing port if chart is already installed
         );
         await this.remoteConfig.persist();
       },
@@ -766,7 +766,7 @@ export class ExplorerCommand extends BaseCommand {
             const clusterContext: Context = this.getClusterContext(clusterReference);
 
             const {id, releaseName, ingressReleaseName, isChartInstalled, isLegacyChartInstalled} =
-              await this.inferExplorerData(namespace, clusterReference);
+              await this.inferExplorerData(namespace, clusterContext);
 
             context_.config = {
               namespace,

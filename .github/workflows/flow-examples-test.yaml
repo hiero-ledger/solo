@@ -17,6 +17,10 @@
 name: "Test Examples"
 
 on:
+  schedule:
+    # Run every midnight US Central Time (6 AM UTC during DST, 7 AM UTC during standard time)
+    # Using 6 AM UTC to cover Central Daylight Time
+    - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
       node-version:
@@ -101,7 +105,7 @@ jobs:
           cache: npm
 
       - name: Install Kubectl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # pinned to v4.0.0
+        uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
         with:
           version: 'v1.27.3'
         id: install
@@ -123,7 +127,7 @@ jobs:
 
       - name: Install Dependencies
         id: npm-deps
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
+        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 10
           timeout_minutes: 10
@@ -145,7 +149,7 @@ jobs:
 
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
-        uses: gradle/gradle-build-action@ac2d340dc04d9e1113182899e983b5400c17cda1 # v3.5.0
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
         with:
           cache-read-only: false
 

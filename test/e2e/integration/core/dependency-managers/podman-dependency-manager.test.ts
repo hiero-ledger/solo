@@ -16,9 +16,9 @@ const PODMAN_LOW_VERSION: string = '0.1.0';
 const MOCK_RELEASE_TAG: string = `v${PODMAN_VERSION}`;
 const MOCK_RELEASE_URL: string = `https://github.com/containers/podman/releases/tag/${MOCK_RELEASE_TAG}`;
 const MOCK_DOWNLOAD_URL_BASE: string = `https://github.com/containers/podman/releases/download/${MOCK_RELEASE_TAG}`;
-const MOCK_LINUX_ASSET_NAME: string = `podman-remote-static-linux_amd64.tar.gz`;
-const MOCK_WINDOWS_ASSET_NAME: string = `podman-remote-release-windows_amd64.zip`;
-const MOCK_DARWIN_ARM64_ASSET_NAME: string = `podman-remote-release-darwin_arm64.zip`;
+const MOCK_LINUX_ASSET_NAME: string = 'podman-remote-static-linux_amd64.tar.gz';
+const MOCK_WINDOWS_ASSET_NAME: string = 'podman-remote-release-windows_amd64.zip';
+const MOCK_DARWIN_ARM64_ASSET_NAME: string = 'podman-remote-release-darwin_arm64.zip';
 const MOCK_LINUX_DOWNLOAD_URL: string = `${MOCK_DOWNLOAD_URL_BASE}/${MOCK_LINUX_ASSET_NAME}`;
 const MOCK_WINDOWS_DOWNLOAD_URL: string = `${MOCK_DOWNLOAD_URL_BASE}/${MOCK_WINDOWS_ASSET_NAME}`;
 const MOCK_DARWIN_ARM64_DOWNLOAD_URL: string = `${MOCK_DOWNLOAD_URL_BASE}/${MOCK_DARWIN_ARM64_ASSET_NAME}`;
@@ -124,6 +124,7 @@ describe('PodmanDependencyManager', () => {
       undefined,
       undefined,
       undefined,
+      undefined,
     );
     expect(podmanDependencyManager.getRequiredVersion()).to.equal(version.PODMAN_VERSION);
   });
@@ -136,11 +137,12 @@ describe('PodmanDependencyManager', () => {
       undefined,
       undefined,
       undefined,
+      undefined,
     );
     expect(podmanDependencyManager.isInstalledLocally()).not.to.be.ok;
   });
 
-  it('should be able to check when podman is installed', () => {
+  it('should be able to check when podman is installed', async () => {
     const podmanDependencyManager = new PodmanDependencyManager(
       undefined,
       temporaryDirectory,
@@ -148,8 +150,9 @@ describe('PodmanDependencyManager', () => {
       undefined,
       undefined,
       undefined,
+      undefined,
     );
-    fs.writeFileSync(podmanDependencyManager.getExecutablePath(), '');
+    fs.writeFileSync(await podmanDependencyManager.getExecutablePath(), '');
     expect(podmanDependencyManager.isInstalledLocally()).to.be.ok;
   });
 
@@ -164,6 +167,7 @@ describe('PodmanDependencyManager', () => {
         temporaryDirectory,
         process.platform,
         process.arch,
+        undefined,
         undefined,
         undefined,
       );
@@ -208,16 +212,12 @@ describe('PodmanDependencyManager', () => {
 
     it('shouldInstall should return false when Docker is installed', async () => {
       runStub.withArgs(`${constants.DOCKER} --version`).resolves(['Docker version 20.10.8']);
-
-      // @ts-expect-error TS2341: Property shouldInstall is protected
       const result: boolean = await podmanDependencyManager.shouldInstall();
       expect(result).to.be.false;
     });
 
     it('shouldInstall should return true when Docker is not installed', async () => {
       runStub.withArgs(`${constants.DOCKER} --version`).rejects(new Error('Docker not found'));
-
-      // @ts-expect-error TS2341: Property shouldInstall is protected
       const result: boolean = await podmanDependencyManager.shouldInstall();
       expect(result).to.be.true;
     });
@@ -231,17 +231,34 @@ describe('PodmanDependencyManager', () => {
         'x64',
         undefined,
         undefined,
+        undefined,
       );
       // @ts-expect-error TS2341: Property getArch is protected
       expect(manager.getArch()).to.equal('amd64');
 
       // Test arm64 conversion
-      manager = new PodmanDependencyManager(undefined, temporaryDirectory, 'linux', 'arm64', undefined, undefined);
+      manager = new PodmanDependencyManager(
+        undefined,
+        temporaryDirectory,
+        'linux',
+        'arm64',
+        undefined,
+        undefined,
+        undefined,
+      );
       // @ts-expect-error TS2341: Property getArch is protected
       expect(manager.getArch()).to.equal('arm64');
 
       // Test aarch64 to arm64 conversion
-      manager = new PodmanDependencyManager(undefined, temporaryDirectory, 'linux', 'aarch64', undefined, undefined);
+      manager = new PodmanDependencyManager(
+        undefined,
+        temporaryDirectory,
+        'linux',
+        'aarch64',
+        undefined,
+        undefined,
+        undefined,
+      );
       // @ts-expect-error TS2341: Property getArch is protected
       expect(manager.getArch()).to.equal('arm64');
     });
@@ -254,6 +271,7 @@ describe('PodmanDependencyManager', () => {
         temporaryDirectory,
         'linux',
         'x64',
+        undefined,
         undefined,
         undefined,
       );
@@ -321,6 +339,7 @@ describe('PodmanDependencyManager', () => {
         process.arch,
         undefined,
         undefined,
+        undefined,
       );
       podmanDependencyManager.uninstallLocal();
       runStub = sinon.stub(podmanDependencyManager, 'run');
@@ -349,7 +368,6 @@ describe('PodmanDependencyManager', () => {
     });
 
     it('should prefer the global installation if it meets the requirements', async () => {
-      // @ts-expect-error TS2345: Argument of type 'shouldInstall' is not assignable to parameter of type keyof PodmanDependencyManager
       sinon.stub(podmanDependencyManager, 'shouldInstall').resolves(true);
 
       runStub.withArgs('which podman').resolves(['/usr/local/bin/podman']);
@@ -365,7 +383,8 @@ describe('PodmanDependencyManager', () => {
 
       // Verify that the file system operations were called
       expect(cpSyncStub.calledOnce).to.be.true;
-      expect(podmanDependencyManager.getExecutablePath()).to.equal(PathEx.join(temporaryDirectory, 'podman'));
+      // Should return global path since it meets requirements
+      expect(await podmanDependencyManager.getExecutablePath()).to.equal('/usr/local/bin/podman');
     });
 
     it('should install podman locally if the global installation does not meet the requirements', async () => {
@@ -382,7 +401,7 @@ describe('PodmanDependencyManager', () => {
 
       expect(await podmanDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(fs.existsSync(PathEx.join(temporaryDirectory, 'podman'))).to.be.ok;
-      expect(podmanDependencyManager.getExecutablePath()).to.equal(PathEx.join(temporaryDirectory, 'podman'));
+      expect(await podmanDependencyManager.getExecutablePath()).to.equal(PathEx.join(temporaryDirectory, 'podman'));
     });
   });
 });

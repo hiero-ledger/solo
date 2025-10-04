@@ -5,8 +5,8 @@ import {SoloError} from '../../core/errors/solo-error.js';
 import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
 import {Flags as flags, Flags} from '../flags.js';
-import {type ArgvStruct} from '../../types/aliases.js';
-import {SoloListr, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
+import {AnyObject, type ArgvStruct} from '../../types/aliases.js';
+import {type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {injectable, inject} from 'tsyringe-neo';
 import {v4 as uuid4} from 'uuid';
@@ -17,8 +17,6 @@ import {OneShotCommand} from './one-shot.js';
 import {OneShotSingleDeployConfigClass} from './one-shot-single-deploy-config-class.js';
 import {OneShotSingleDeployContext} from './one-shot-single-deploy-context.js';
 import {OneShotSingleDestroyConfigClass} from './one-shot-single-destroy-config-class.js';
-import {OneShotSingleDestroyContext} from './one-shot-single-destroy-context.js';
-import {InitCommand} from '../init/init.js';
 import {TaskList} from '../../core/task-list/task-list.js';
 import {TaskListWrapper} from '../../core/task-list/task-list-wrapper.js';
 import * as version from '../../../version.js';
@@ -45,6 +43,8 @@ import * as helpers from '../../core/helpers.js';
 import {Duration} from '../../core/time/duration.js';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import fs from 'node:fs';
+import yaml from 'yaml';
+import {BlockCommandDefinition} from '../command-definitions/block-command-definition.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -52,35 +52,24 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   private static readonly SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';
 
-  public static readonly SINGLE_ADD_FLAGS_LIST: CommandFlags = {
+  public static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [
-      flags.cacheDir,
-      flags.clusterRef,
-      flags.clusterSetupNamespace,
-      flags.context,
-      flags.deployment,
-      flags.devMode,
-      flags.namespace,
-      flags.numberOfConsensusNodes,
-      flags.predefinedAccounts,
-      flags.quiet,
-      // TODO add flag for consensus node version
-    ],
+    optional: [flags.quiet, flags.numberOfConsensusNodes],
   };
 
-  public static readonly SINGLE_DESTROY_FLAGS_LIST: CommandFlags = {
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [
-      flags.cacheDir,
-      flags.clusterRef,
-      flags.context,
-      flags.deployment,
-      flags.namespace,
-      flags.quiet,
-      flags.force,
-      flags.devMode,
-    ],
+    optional: [flags.quiet],
+  };
+
+  public static readonly FALCON_ADD_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [flags.quiet, flags.valuesFile, flags.numberOfConsensusNodes],
+  };
+
+  public static readonly FALCON_DESTROY_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [...DefaultOneShotCommand.DESTROY_FLAGS_LIST.optional],
   };
 
   public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {
@@ -96,6 +85,22 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     return `--${flag.name}`;
   }
 
+  /**
+   * Appends non-empty config entries to the argv array as CLI flags.
+   * @param argv - The argument array to append to
+   * @param configSection - The config object to extract key-value pairs from
+   */
+  private appendConfigToArgv(argv: string[], configSection: AnyObject): void {
+    if (!configSection) {
+      return;
+    }
+    for (const [key, value] of Object.entries(configSection)) {
+      if (value !== undefined && value !== null && value !== StringEx.EMPTY) {
+        argv.push(`${key}`, value.toString());
+      }
+    }
+  }
+
   private argvPushGlobalFlags(argv: string[], cacheDirectory: string = StringEx.EMPTY): string[] {
     argv.push(this.optionFromFlag(Flags.devMode), this.optionFromFlag(Flags.quiet));
     if (cacheDirectory) {
@@ -104,9 +109,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     return argv;
   }
 
-  private invokeSoloCommand(title: string, commandName: string, callback: () => string[]) {
+  private invokeSoloCommand(
+    title: string,
+    commandName: string,
+    callback: () => string[],
+    skipCallback: () => boolean = (): boolean => false,
+  ) {
     return {
       title,
+      skip: skipCallback(),
       task: async (_, taskListWrapper) => {
         return this.subTaskSoloCommand(commandName, this.taskList, taskListWrapper, callback);
       },
@@ -126,6 +137,14 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   public async deploy(argv: ArgvStruct): Promise<boolean> {
+    return this.deployInternal(argv, DefaultOneShotCommand.ADD_FLAGS_LIST);
+  }
+
+  public async deployFalcon(argv: ArgvStruct): Promise<boolean> {
+    return this.deployInternal(argv, DefaultOneShotCommand.FALCON_ADD_FLAGS_LIST);
+  }
+
+  private async deployInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
     let config: OneShotSingleDeployConfigClass | null = null;
 
     const tasks: Listr<OneShotSingleDeployContext, ListrRendererValue, ListrRendererValue> =
@@ -139,12 +158,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             ): Promise<void> => {
               this.configManager.update(argv);
 
-              flags.disablePrompts(DefaultOneShotCommand.SINGLE_ADD_FLAGS_LIST.optional);
+              flags.disablePrompts(flagsList.optional);
 
-              const allFlags: CommandFlag[] = [
-                ...DefaultOneShotCommand.SINGLE_ADD_FLAGS_LIST.required,
-                ...DefaultOneShotCommand.SINGLE_ADD_FLAGS_LIST.optional,
-              ];
+              const allFlags: CommandFlag[] = [...flagsList.required, ...flagsList.optional];
 
               await this.configManager.executePrompt(task, allFlags);
 
@@ -156,6 +172,44 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
               const uniquePostfix: string = uuid4().slice(-8);
 
+              // Initialize component config sections to empty objects to prevent undefined errors
+              config.consensusNodeCfg = {};
+              config.mirrorNodeCfg = {};
+              config.blockNodeCfg = {};
+              config.explorerNodeCfg = {};
+              config.relayNodeCfg = {};
+              config.networkCfg = {};
+              config.setupCfg = {};
+
+              // if valuesFile is set, read the yaml file and save flags to different config sections to be used
+              // later for consensus node, mirror node, block node, explorer node, relay node
+              if (context_.config.valuesFile) {
+                const valuesFileContent: string = fs.readFileSync(context_.config.valuesFile, 'utf8');
+                const profileItems = yaml.parse(valuesFileContent) as Record<string, AnyObject>;
+
+                // Override with values from file if they exist
+                if (profileItems.network) {
+                  config.networkCfg = profileItems.network;
+                }
+                if (profileItems.setup) {
+                  config.setupCfg = profileItems.setup;
+                }
+                if (profileItems.consensusNode) {
+                  config.consensusNodeCfg = profileItems.consensusNode;
+                }
+                if (profileItems.mirrorNode) {
+                  config.mirrorNodeCfg = profileItems.mirrorNode;
+                }
+                if (profileItems.blockNode) {
+                  config.blockNodeCfg = profileItems.blockNode;
+                }
+                if (profileItems.explorerNode) {
+                  config.explorerNodeCfg = profileItems.explorerNode;
+                }
+                if (profileItems.relayNode) {
+                  config.relayNodeCfg = profileItems.relayNode;
+                }
+              }
               context_.config.clusterRef = context_.config.clusterRef || `solo-${uniquePostfix}`;
               context_.config.context = context_.config.context || this.k8Factory.default().contexts().readCurrent();
               context_.config.deployment = context_.config.deployment || `solo-deployment-${uniquePostfix}`;
@@ -163,18 +217,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               context_.config.numberOfConsensusNodes = context_.config.numberOfConsensusNodes || 1;
 
               context_.createdAccounts = [];
+
               return;
             },
           },
-          this.invokeSoloCommand(
-            `solo ${InitCommand.INIT_COMMAND_NAME}`,
-            InitCommand.INIT_COMMAND_NAME,
-            (): string[] => {
-              const argv: string[] = this.newArgv();
-              argv.push(InitCommand.COMMAND_NAME);
-              return this.argvPushGlobalFlags(argv, config.cacheDir);
-            },
-          ),
           this.invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.CONNECT_COMMAND}`,
             ClusterReferenceCommandDefinition.CONNECT_COMMAND,
@@ -252,6 +298,20 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             },
           ),
           this.invokeSoloCommand(
+            `solo ${BlockCommandDefinition.ADD_COMMAND}`,
+            BlockCommandDefinition.ADD_COMMAND,
+            (): string[] => {
+              const argv: string[] = this.newArgv();
+              argv.push(
+                ...BlockCommandDefinition.ADD_COMMAND.split(' '),
+                this.optionFromFlag(Flags.deployment),
+                config.deployment,
+              );
+              return this.argvPushGlobalFlags(argv);
+            },
+            (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
+          ),
+          this.invokeSoloCommand(
             `solo ${ConsensusCommandDefinition.DEPLOY_COMMAND}`,
             ConsensusCommandDefinition.DEPLOY_COMMAND,
             (): string[] => {
@@ -261,6 +321,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,
               );
+              if (config.networkCfg) {
+                this.appendConfigToArgv(argv, config.networkCfg);
+              }
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
           ),
@@ -274,6 +337,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,
               );
+              this.appendConfigToArgv(argv, config.setupCfg);
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
           ),
@@ -287,6 +351,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,
               );
+              this.appendConfigToArgv(argv, config.consensusNodeCfg);
               return this.argvPushGlobalFlags(argv);
             },
           ),
@@ -305,6 +370,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 this.optionFromFlag(Flags.pinger),
                 this.optionFromFlag(Flags.enableIngress),
               );
+              this.appendConfigToArgv(argv, config.mirrorNodeCfg);
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
           ),
@@ -320,6 +386,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 this.optionFromFlag(Flags.clusterRef),
                 config.clusterRef,
               );
+              this.appendConfigToArgv(argv, config.explorerNodeCfg);
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
           ),
@@ -337,6 +404,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 this.optionFromFlag(Flags.nodeAliasesUnparsed),
                 'node1',
               );
+              this.appendConfigToArgv(argv, config.relayNodeCfg);
               return this.argvPushGlobalFlags(argv);
             },
           ),
@@ -439,12 +507,22 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     return true;
   }
 
-  private showOneShotUserNotes(context_: OneShotSingleDeployContext): void {
-    const messageGroupKey: string = 'one-shot-user-notes';
-    this.logger.addMessageGroup(messageGroupKey, 'One Shot User Notes');
+  private showOneShotUserNotes(context_: OneShotSingleDeployContext, isMultiple: boolean = false): void {
+    const messageGroupKey: string = isMultiple ? 'one-shot-multiple-user-notes' : 'one-shot-user-notes';
+    const title: string = isMultiple ? 'One Shot Multiple User Notes' : 'One Shot User Notes';
+
+    this.logger.addMessageGroup(messageGroupKey, title);
     this.logger.addMessageGroupMessage(messageGroupKey, `Cluster Reference: ${context_.config.clusterRef}`);
     this.logger.addMessageGroupMessage(messageGroupKey, `Deployment Name: ${context_.config.deployment}`);
     this.logger.addMessageGroupMessage(messageGroupKey, `Namespace Name: ${context_.config.namespace.name}`);
+
+    if (isMultiple) {
+      this.logger.addMessageGroupMessage(
+        messageGroupKey,
+        `Number of Consensus Nodes: ${context_.config.numberOfConsensusNodes}`,
+      );
+    }
+
     this.logger.addMessageGroupMessage(
       messageGroupKey,
       'To quickly delete the deployed resources, run the following command:\n' +
@@ -491,22 +569,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       const ecdsaAliasGroupKey: string = 'accounts-created-ecdsa-alias';
       const ed25519GroupKey: string = 'accounts-created-ed25519';
       this.logger.addMessageGroup(messageGroupKey, 'Created Accounts');
-      this.logger.addMessageGroup(ecdsaGroupKey, 'ECDSA Accounts:');
-      this.logger.addMessageGroup(ecdsaAliasGroupKey, 'ECDSA Alias Accounts:');
-      this.logger.addMessageGroup(ed25519GroupKey, 'ED25519 Accounts:');
+      this.logger.addMessageGroup(ecdsaGroupKey, 'ECDSA Accounts (Not EVM compatible, See ECDSA Alias Accounts above)');
+      this.logger.addMessageGroup(ecdsaAliasGroupKey, 'ECDSA Alias Accounts (EVM compatible)');
+      this.logger.addMessageGroup(ed25519GroupKey, 'ED25519 Accounts');
 
       this.logger.showMessageGroup(messageGroupKey);
-
-      if (ecdsaAccounts.length > 0) {
-        for (const account of ecdsaAccounts) {
-          this.logger.addMessageGroupMessage(
-            ecdsaGroupKey,
-            `Account ID: ${account.accountId.toString()}, Private Key: 0x${account.data.privateKey.toStringRaw()}, Balance: ${account.data.balance.toString()}`,
-          );
-        }
-
-        this.logger.showMessageGroup(ecdsaGroupKey);
-      }
 
       if (aliasAccounts.length > 0) {
         for (const account of aliasAccounts) {
@@ -530,6 +597,16 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         this.logger.showMessageGroup(ed25519GroupKey);
       }
 
+      if (ecdsaAccounts.length > 0) {
+        for (const account of ecdsaAccounts) {
+          this.logger.addMessageGroupMessage(
+            ecdsaGroupKey,
+            `Account ID: ${account.accountId.toString()}, Private Key: 0x${account.data.privateKey.toStringRaw()}, Balance: ${account.data.balance.toString()}`,
+          );
+        }
+
+        this.logger.showMessageGroup(ecdsaGroupKey);
+      }
       this.logger.showUser(
         'for more information on public and private keys see: https://docs.hedera.com/hedera/core-concepts/keys-and-signatures',
       );
@@ -541,157 +618,179 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
+    return this.destroyInternal(argv, DefaultOneShotCommand.DESTROY_FLAGS_LIST);
+  }
+
+  public async destroyFalcon(argv: ArgvStruct): Promise<boolean> {
+    return this.destroyInternal(argv, DefaultOneShotCommand.FALCON_DESTROY_FLAGS_LIST);
+  }
+
+  private async destroyInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
     let config: OneShotSingleDestroyConfigClass;
 
-    const tasks: SoloListr<OneShotSingleDestroyContext> = this.taskList.newOneShotSingleDestroyTaskList(
-      [
-        {
-          title: 'Initialize',
-          task: async (context_, task): Promise<void> => {
-            this.configManager.update(argv);
-
-            flags.disablePrompts(DefaultOneShotCommand.SINGLE_DESTROY_FLAGS_LIST.optional);
-
-            const allFlags: CommandFlag[] = [
-              ...DefaultOneShotCommand.SINGLE_DESTROY_FLAGS_LIST.required,
-              ...DefaultOneShotCommand.SINGLE_DESTROY_FLAGS_LIST.optional,
-            ];
-
-            await this.configManager.executePrompt(task, allFlags);
-
-            context_.config = this.configManager.getConfig(
-              DefaultOneShotCommand.SINGLE_DESTROY_CONFIGS_NAME,
-              allFlags,
-            ) as OneShotSingleDestroyConfigClass;
-
-            config = context_.config;
-
-            await this.localConfig.load();
-
-            if (!config.cacheDir) {
-              config.cacheDir = constants.SOLO_CACHE_DIR;
-            }
-
-            if (!config.clusterRef) {
-              config.clusterRef = this.localConfig.configuration.clusterRefs.keys().next().value;
-            }
-
-            if (!config.context) {
-              config.context = this.localConfig.configuration.clusterRefs.get(config.clusterRef).toString();
-            }
-
-            if (!config.deployment) {
-              if (this.localConfig.configuration.deployments.length === 0) {
-                throw new SoloError('Deployments name is not found in local config');
-              }
-              config.deployment = this.localConfig.configuration.deployments.get(0).name;
-              this.configManager.setFlag(flags.deployment, config.deployment);
-            }
-
-            if (!config.namespace) {
-              config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
-            }
-          },
-        },
-        this.invokeSoloCommand(
-          `solo ${ExplorerCommandDefinition.DESTROY_COMMAND}`,
-          ExplorerCommandDefinition.DESTROY_COMMAND,
-          (): string[] => {
-            const argv: string[] = this.newArgv();
-            argv.push(
-              ...ExplorerCommandDefinition.DESTROY_COMMAND.split(' '),
-              this.optionFromFlag(flags.clusterRef),
-              config.clusterRef,
-              this.optionFromFlag(flags.deployment),
-              config.deployment,
-              this.optionFromFlag(flags.quiet),
-              this.optionFromFlag(flags.force),
-            );
-            return this.argvPushGlobalFlags(argv);
-          },
-        ),
-        this.invokeSoloCommand(
-          `solo ${MirrorCommandDefinition.DESTROY_COMMAND}`,
-          MirrorCommandDefinition.DESTROY_COMMAND,
-          (): string[] => {
-            const argv: string[] = this.newArgv();
-            argv.push(
-              ...MirrorCommandDefinition.DESTROY_COMMAND.split(' '),
-              this.optionFromFlag(flags.clusterRef),
-              config.clusterRef,
-              this.optionFromFlag(flags.deployment),
-              config.deployment,
-              this.optionFromFlag(flags.quiet),
-              this.optionFromFlag(flags.force),
-              this.optionFromFlag(flags.devMode),
-            );
-            return this.argvPushGlobalFlags(argv);
-          },
-        ),
-        this.invokeSoloCommand(
-          `solo ${RelayCommandDefinition.DESTROY_COMMAND}`,
-          RelayCommandDefinition.DESTROY_COMMAND,
-          (): string[] => {
-            const argv: string[] = this.newArgv();
-            argv.push(
-              ...RelayCommandDefinition.DESTROY_COMMAND.split(' '),
-              this.optionFromFlag(flags.clusterRef),
-              config.clusterRef,
-              this.optionFromFlag(flags.deployment),
-              config.deployment,
-              this.optionFromFlag(flags.nodeAliasesUnparsed),
-              'node1',
-              this.optionFromFlag(flags.quiet),
-            );
-            return this.argvPushGlobalFlags(argv);
-          },
-        ),
-        this.invokeSoloCommand(
-          `solo ${ConsensusCommandDefinition.DESTROY_COMMAND}`,
-          ConsensusCommandDefinition.DESTROY_COMMAND,
-          (): string[] => {
-            const argv: string[] = this.newArgv();
-            argv.push(
-              ...ConsensusCommandDefinition.DESTROY_COMMAND.split(' '),
-              this.optionFromFlag(flags.deployment),
-              config.deployment,
-              this.optionFromFlag(flags.quiet),
-              this.optionFromFlag(flags.force),
-              this.optionFromFlag(flags.deletePvcs),
-              this.optionFromFlag(flags.deleteSecrets),
-              this.optionFromFlag(flags.enableTimeout),
-            );
-            return this.argvPushGlobalFlags(argv);
-          },
-        ),
-        this.invokeSoloCommand(
-          `solo ${ClusterReferenceCommandDefinition.RESET_COMMAND}`,
-          ClusterReferenceCommandDefinition.RESET_COMMAND,
-          (): string[] => {
-            const argv: string[] = this.newArgv();
-            argv.push(
-              ...ClusterReferenceCommandDefinition.RESET_COMMAND.split(' '),
-              this.optionFromFlag(flags.clusterRef),
-              config.clusterRef,
-              this.optionFromFlag(flags.quiet),
-              this.optionFromFlag(flags.force),
-            );
-            return this.argvPushGlobalFlags(argv);
-          },
-        ),
-        {
-          title: 'Delete cache folder',
-          task: async (): Promise<void> => {
-            fs.rmSync(config.cacheDir, {recursive: true, force: true});
-          },
-        },
-        {title: 'Finish', task: async (): Promise<void> => {}},
-      ],
+    const taskArray = [
       {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        title: 'Initialize',
+        task: async (context_, task): Promise<void> => {
+          this.configManager.update(argv);
+
+          flags.disablePrompts(flagsList.optional);
+
+          const allFlags: CommandFlag[] = [...flagsList.required, ...flagsList.optional];
+
+          await this.configManager.executePrompt(task, allFlags);
+
+          context_.config = this.configManager.getConfig(
+            DefaultOneShotCommand.SINGLE_DESTROY_CONFIGS_NAME,
+            allFlags,
+          ) as OneShotSingleDestroyConfigClass;
+
+          config = context_.config;
+
+          await this.localConfig.load();
+
+          if (!config.cacheDir) {
+            config.cacheDir = constants.SOLO_CACHE_DIR;
+          }
+
+          if (!config.clusterRef) {
+            config.clusterRef = this.localConfig.configuration.clusterRefs.keys().next().value;
+          }
+
+          if (!config.context) {
+            config.context = this.localConfig.configuration.clusterRefs.get(config.clusterRef).toString();
+          }
+
+          if (!config.deployment) {
+            if (this.localConfig.configuration.deployments.length === 0) {
+              throw new SoloError('Deployments name is not found in local config');
+            }
+            config.deployment = this.localConfig.configuration.deployments.get(0).name;
+            this.configManager.setFlag(flags.deployment, config.deployment);
+          }
+
+          if (!config.namespace) {
+            config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+          }
+        },
       },
-    );
+      this.invokeSoloCommand(
+        `solo ${ExplorerCommandDefinition.DESTROY_COMMAND}`,
+        ExplorerCommandDefinition.DESTROY_COMMAND,
+        (): string[] => {
+          const argv: string[] = this.newArgv();
+          argv.push(
+            ...ExplorerCommandDefinition.DESTROY_COMMAND.split(' '),
+            this.optionFromFlag(flags.clusterRef),
+            config.clusterRef,
+            this.optionFromFlag(flags.deployment),
+            config.deployment,
+            this.optionFromFlag(flags.quiet),
+            this.optionFromFlag(flags.force),
+          );
+          return this.argvPushGlobalFlags(argv);
+        },
+      ),
+      this.invokeSoloCommand(
+        `solo ${MirrorCommandDefinition.DESTROY_COMMAND}`,
+        MirrorCommandDefinition.DESTROY_COMMAND,
+        (): string[] => {
+          const argv: string[] = this.newArgv();
+          argv.push(
+            ...MirrorCommandDefinition.DESTROY_COMMAND.split(' '),
+            this.optionFromFlag(flags.clusterRef),
+            config.clusterRef,
+            this.optionFromFlag(flags.deployment),
+            config.deployment,
+            this.optionFromFlag(flags.quiet),
+            this.optionFromFlag(flags.force),
+            this.optionFromFlag(flags.devMode),
+          );
+          return this.argvPushGlobalFlags(argv);
+        },
+      ),
+      this.invokeSoloCommand(
+        `solo ${RelayCommandDefinition.DESTROY_COMMAND}`,
+        RelayCommandDefinition.DESTROY_COMMAND,
+        (): string[] => {
+          const argv: string[] = this.newArgv();
+          argv.push(
+            ...RelayCommandDefinition.DESTROY_COMMAND.split(' '),
+            this.optionFromFlag(flags.clusterRef),
+            config.clusterRef,
+            this.optionFromFlag(flags.deployment),
+            config.deployment,
+            this.optionFromFlag(flags.nodeAliasesUnparsed),
+            'node1',
+            this.optionFromFlag(flags.quiet),
+          );
+          return this.argvPushGlobalFlags(argv);
+        },
+      ),
+      this.invokeSoloCommand(
+        `solo ${BlockCommandDefinition.DESTROY_COMMAND}`,
+        BlockCommandDefinition.DESTROY_COMMAND,
+        (): string[] => {
+          const argv: string[] = this.newArgv();
+          argv.push(
+            ...BlockCommandDefinition.DESTROY_COMMAND.split(' '),
+            this.optionFromFlag(Flags.deployment),
+            config.deployment,
+            this.optionFromFlag(flags.clusterRef),
+            config.clusterRef,
+            this.optionFromFlag(flags.quiet),
+          );
+          return this.argvPushGlobalFlags(argv);
+        },
+        (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
+      ),
+
+      this.invokeSoloCommand(
+        `solo ${ConsensusCommandDefinition.DESTROY_COMMAND}`,
+        ConsensusCommandDefinition.DESTROY_COMMAND,
+        (): string[] => {
+          const argv: string[] = this.newArgv();
+          argv.push(
+            ...ConsensusCommandDefinition.DESTROY_COMMAND.split(' '),
+            this.optionFromFlag(flags.deployment),
+            config.deployment,
+            this.optionFromFlag(flags.quiet),
+            this.optionFromFlag(flags.force),
+            this.optionFromFlag(flags.deletePvcs),
+            this.optionFromFlag(flags.deleteSecrets),
+            this.optionFromFlag(flags.enableTimeout),
+          );
+          return this.argvPushGlobalFlags(argv);
+        },
+      ),
+      this.invokeSoloCommand(
+        `solo ${ClusterReferenceCommandDefinition.RESET_COMMAND}`,
+        ClusterReferenceCommandDefinition.RESET_COMMAND,
+        (): string[] => {
+          const argv: string[] = this.newArgv();
+          argv.push(
+            ...ClusterReferenceCommandDefinition.RESET_COMMAND.split(' '),
+            this.optionFromFlag(flags.clusterRef),
+            config.clusterRef,
+            this.optionFromFlag(flags.quiet),
+            this.optionFromFlag(flags.force),
+          );
+          return this.argvPushGlobalFlags(argv);
+        },
+      ),
+      {
+        title: 'Delete cache folder',
+        task: async (): Promise<void> => {
+          fs.rmSync(config.cacheDir, {recursive: true, force: true});
+        },
+      },
+      {title: 'Finish', task: async (): Promise<void> => {}},
+    ];
+
+    const tasks = this.taskList.newOneShotSingleDestroyTaskList(taskArray, {
+      concurrent: false,
+      rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+    });
 
     try {
       await tasks.run();

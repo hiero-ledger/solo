@@ -156,6 +156,7 @@ interface MirrorNodeDestroyConfigClass {
   releaseName: string;
   ingressReleaseName: string;
   isLegacyChartInstalled: boolean;
+  isIngressControllerChartInstalled: boolean;
 }
 
 interface MirrorNodeDestroyContext {
@@ -421,6 +422,11 @@ export class MirrorNodeCommand extends BaseCommand {
       );
       // patch ingressClassName of mirror ingress, so it can be recognized by haproxy ingress controller
       const updated: object = {
+        metadata: {
+          annotations: {
+            'haproxy-ingress.github.io/path-type': 'regex',
+          },
+        },
         spec: {
           ingressClassName: `${constants.MIRROR_INGRESS_CLASS_NAME}`,
           tls: [
@@ -500,7 +506,9 @@ export class MirrorNodeCommand extends BaseCommand {
                 const config: MirrorNodeDeployConfigClass = context_.config;
 
                 let mirrorIngressControllerValuesArgument: string = ' --install ';
-
+                mirrorIngressControllerValuesArgument += helpers.prepareValuesFiles(
+                  constants.INGRESS_CONTROLLER_VALUES_FILE,
+                );
                 if (config.mirrorStaticIp !== '') {
                   mirrorIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${context_.config.mirrorStaticIp}`;
                 }
@@ -850,7 +858,7 @@ export class MirrorNodeCommand extends BaseCommand {
             }
 
             if (config.pinger) {
-              config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=5`;
+              config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=${constants.MIRROR_NODE_PINGER_TPS}`;
 
               const operatorId: string =
                 config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
@@ -1234,6 +1242,11 @@ export class MirrorNodeCommand extends BaseCommand {
               releaseName,
               ingressReleaseName,
               isLegacyChartInstalled,
+              isIngressControllerChartInstalled: await this.chartManager.isChartInstalled(
+                namespace,
+                constants.INGRESS_CONTROLLER_RELEASE_NAME,
+                clusterContext,
+              ),
             };
 
             await this.accountManager.loadNodeClient(
@@ -1280,6 +1293,7 @@ export class MirrorNodeCommand extends BaseCommand {
         },
         {
           title: 'Uninstall mirror ingress controller',
+          skip: (context_): boolean => !context_.config.isIngressControllerChartInstalled,
           task: async (context_): Promise<void> => {
             await this.k8Factory
               .getK8(context_.config.clusterContext)

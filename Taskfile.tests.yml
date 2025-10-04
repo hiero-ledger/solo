@@ -81,25 +81,11 @@ tasks:
           --ignore 'test/e2e/commands/dual-*.ts'
           --ignore 'test/e2e/commands/external-*.ts'
           --ignore 'test/e2e/commands/one-shot-single.test.ts'
+          --ignore 'test/e2e/commands/separate-node-update.test.ts' 
           --ignore 'test/e2e/commands/separate-node-add.test.ts' 
           --ignore 'test/e2e/commands/separate-node-destroy.test.ts' 
-          --ignore 'test/e2e/commands/separate-node-update.test.ts' 
           --ignore 'test/e2e/commands/separate-node-upgrade.test.ts' 
         {{ .reporter_options_prefix }}-e2e-standard.xml --timeout 30000"
-
-  test-e2e-node-pem-stop:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node PEM Stop Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-pem-stop'
-        {{ .mocha_bin }} 'test/e2e/commands/node-pem-stop.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-pem-stop.xml"
-
-  test-e2e-node-pem-kill:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node PEM Kill Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-pem-kill'
-        {{ .mocha_bin }} 'test/e2e/commands/node-pem-kill.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-pem-kill.xml"
 
   test-e2e-node-local-ptt:
     cmds:
@@ -108,54 +94,12 @@ tasks:
         {{ .mocha_bin }} 'test/e2e/commands/node-local-ptt.test.ts'
         {{ .reporter_options_prefix }}-e2e-node-local-ptt.xml"
 
-  test-e2e-node-add:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Add Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-add'
-        {{ .mocha_bin }} 'test/e2e/commands/node-add.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-add.xml"
-
   test-e2e-node-add-local:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Node Add Local Tests\"
         {{ .reporter_prefix }}='coverage/e2e-node-add-local'
         {{ .mocha_bin }} 'test/e2e/commands/node-add-local.test.ts'
         {{ .reporter_options_prefix }}-e2e-node-add-local.xml"
-
-  test-e2e-node-add-separate:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Add - Separate commands Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-add-separate'
-        {{ .mocha_bin }} 'test/e2e/commands/separate-node-add.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-add-separate.xml"
-
-  test-e2e-node-update:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Update Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-update'
-        {{ .mocha_bin }} 'test/e2e/commands/node-update.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-update.xml"
-
-  test-e2e-node-update-separate:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Update - Separate commands Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-update-separate'
-        {{ .mocha_bin }} 'test/e2e/commands/separate-node-update.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-update-separate.xml"
-
-  test-e2e-node-destroy:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Destroy Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-destroy'
-        {{ .mocha_bin }} 'test/e2e/commands/node-destroy.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-destroy.xml"
-
-  test-e2e-node-destroy-separate:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Node Destroy - Separate commands Tests\"
-        {{ .reporter_prefix }}='coverage/e2e-node-destroy-separate'
-        {{ .mocha_bin }} 'test/e2e/commands/separate-node-destroy.test.ts'
-        {{ .reporter_options_prefix }}-e2e-node-destroy-separate.xml"
 
   test-e2e-node-upgrade:
     cmds:

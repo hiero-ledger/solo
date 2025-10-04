@@ -55,6 +55,16 @@ export abstract class BaseDependencyManager extends ShellRunner {
     this.checksumURL = this.getChecksumURL();
   }
 
+  protected getArch(): string {
+    let arch: string = this.osArch;
+    if (arch === 'x64') {
+      arch = 'amd64';
+    } else if (arch === 'arm64' || arch === 'aarch64') {
+      arch = 'arm64';
+    }
+    return arch;
+  }
+
   /**
    * Child classes must implement this to generate the correct artifact name
    * based on version, platform, and architecture
@@ -82,7 +92,14 @@ export abstract class BaseDependencyManager extends ShellRunner {
   /**
    * Get the path to the executable (global or local)
    */
-  public getExecutablePath(): string {
+  public async getExecutablePath(): Promise<string> {
+    // First check if global installation exists and meets requirements
+    const globalPath: false | string = await this.getGlobalExecutablePath();
+    if (globalPath && (await this.installationMeetsRequirements(globalPath))) {
+      return globalPath;
+    }
+
+    // Fall back to local installation
     return this.localExecutablePath;
   }
 
@@ -153,7 +170,15 @@ export abstract class BaseDependencyManager extends ShellRunner {
    * Hook to determine if installation should proceed
    * Child classes can override this for custom logic
    */
-  protected async shouldInstall(): Promise<boolean> {
+  public async shouldInstall(): Promise<boolean> {
+    return true;
+  }
+
+  /**
+   * Determine if checksum verification should be performed
+   * Child classes can override this if needed
+   */
+  public getVerifyChecksum(): boolean {
     return true;
   }
 
@@ -190,6 +215,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
       this.getDownloadURL(),
       this.getChecksumURL(),
       temporaryDirectory,
+      this.getVerifyChecksum(),
     );
     const processedFiles: string[] = await this.processDownloadedPackage(packageFile, temporaryDirectory);
 
@@ -220,4 +246,10 @@ export abstract class BaseDependencyManager extends ShellRunner {
   public getRequiredVersion(): string {
     return this.requiredVersion as string;
   }
+
+  /**
+   * Hook for setting up any configuration after installation
+   * Child classes can override this if needed
+   */
+  public setupConfig(): void {}
 }

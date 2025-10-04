@@ -12,6 +12,8 @@ export interface NodeCommonConfigClass {
   consensusNodes: ConsensusNode[];
   contexts: string[];
   quiet: boolean;
+  keysDir: string;
+  stagingDir: string;
 }
 
 export interface NodeCommonConfigWithNodeAliases extends NodeCommonConfigClass {

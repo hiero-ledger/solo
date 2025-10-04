@@ -87,7 +87,7 @@ One thing to consider, old installs can really hamper your ability to get a new 
 Open your terminal and install Solo globally using npm:
 
 ```bash
-npm install -g @hashgraph/solo
+npx @hashgraph/solo
 
 # Verify the installation
 solo --version
@@ -176,6 +176,10 @@ kubectl config use-context <context-name>
 
 ## One Shot Deployment
 
+Solo provides three one-shot deployment options to quickly set up your Hedera test network:
+
+### Single Node Deployment (Recommended for Development)
+
 For a simple setup with a single node with a mirror node, explorer, and JSON RPC relay, you can follow these quick steps. This is ideal for testing and development purposes.
 
 ```bash
@@ -187,6 +191,82 @@ When you're finished, you can tear down your Solo network just as easily:
 ```bash
 solo one-shot single destroy
 ```
+
+### Multiple Node Deployment (For Consensus Testing)
+
+For testing consensus scenarios or multi-node behavior, you can deploy a network with multiple consensus nodes. This setup includes all the same components as the single node deployment but with multiple consensus nodes for testing consensus mechanisms.
+
+```bash
+solo one-shot multiple deploy --num-consensus-nodes 2
+```
+
+This command will:
+
+* Deploy multiple consensus nodes (configurable number)
+* Set up mirror node, explorer, and JSON RPC relay
+* Generate appropriate keys for all nodes
+* Create predefined accounts for testing
+
+When you're finished with the multiple node network:
+
+```bash
+solo one-shot multiple destroy
+```
+
+> 📝 **Note**: Multiple node deployments require more system resources. Ensure you have adequate memory and CPU allocated to Docker (recommended: 16GB+ RAM, 8+ CPU cores).
+
+### Falcon Deployment (Advanced Configuration)
+
+For advanced users who need fine-grained control over all network components, the falcon deployment uses a YAML configuration file to customize every aspect of the network.
+
+```bash
+solo one-shot falcon deploy --values-file falcon-values.yaml
+```
+
+The falcon deployment allows you to:
+
+* Configure all network components through a single YAML file
+* Customize consensus nodes, mirror node, explorer, relay, and block node settings
+* Set specific versions, resource allocations, and feature flags
+* Perfect for CI/CD pipelines and automated testing scenarios
+
+**Example Configuration File** (`falcon-values.yaml`):
+
+```yaml
+network:
+  --deployment: "my-network"
+  --release-tag: "v0.65.0"
+  --node-aliases: "node1"
+
+setup:
+  --release-tag: "v0.65.0"
+  --node-aliases: "node1"
+
+consensusNode:
+  --deployment: "my-network"
+  --node-aliases: "node1"
+  --force-port-forward: true
+
+mirrorNode:
+  --enable-ingress: true
+  --pinger: true
+
+explorerNode:
+  --enable-ingress: true
+
+relayNode:
+  --node-aliases: "node1"
+```
+
+See the [falcon example](https://github.com/hashgraph/solo/tree/main/examples/one-shot-falcon) for a complete configuration template.
+
+When you're finished with the falcon deployment:
+
+```bash
+solo one-shot falcon destroy
+```
+
+> 📝 **Note**: The falcon deployment reads deployment name and other shared settings from the values file, so you don't need to specify `--deployment` on the command line.
 
 ## Step-by-Step Solo Network Deployment
 
@@ -359,7 +439,7 @@ This step downloads the hedera platform code and sets up your node/nodes.
 
 ```bash
 # consensus node setup
-export CONSENSUS_NODE_VERSION=v0.63.9 # or whatever version you are trying to deploy starting with a `v`
+export CONSENSUS_NODE_VERSION=v0.65.1 # or whatever version you are trying to deploy starting with a `v`
 solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}"
 ```
 

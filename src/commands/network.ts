@@ -875,23 +875,6 @@ export class NetworkCommand extends BaseCommand {
             !context_.config.grpcTlsCertificatePath && !context_.config.grpcWebTlsCertificatePath,
         },
         {
-          title: 'Check if cluster setup chart is installed',
-          task: async (context_): Promise<void> => {
-            for (const context of context_.config.contexts) {
-              const isChartInstalled: boolean = await this.chartManager.isChartInstalled(
-                null,
-                constants.SOLO_CLUSTER_SETUP_CHART,
-                context,
-              );
-              if (!isChartInstalled) {
-                throw new SoloError(
-                  `Chart ${constants.SOLO_CLUSTER_SETUP_CHART} is not installed for cluster: ${context}. Run 'solo cluster-ref config setup'`,
-                );
-              }
-            }
-          },
-        },
-        {
           title: 'Prepare staging directory',
           task: (_, parentTask): SoloListr<NetworkDeployContext> => {
             return parentTask.newListr(
@@ -1182,28 +1165,32 @@ export class NetworkCommand extends BaseCommand {
             const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'block-nodes.json');
             const targetDirectory: string = '/opt/hgcapp/data/config';
 
-            for (const consensusNode of config.consensusNodes) {
-              const podReference: PodReference = await this.k8Factory
-                .getK8(consensusNode.cluster)
-                .pods()
-                .list(config.namespace, [
-                  `solo.hedera.com/node-name=${consensusNode.name}`,
-                  'solo.hedera.com/type=network-node',
-                ])
-                .then((pods: Pod[]): PodReference => pods[0].podReference);
+            try {
+              for (const consensusNode of config.consensusNodes) {
+                const podReference: PodReference = await this.k8Factory
+                  .getK8(consensusNode.context)
+                  .pods()
+                  .list(config.namespace, [
+                    `solo.hedera.com/node-name=${consensusNode.name}`,
+                    'solo.hedera.com/type=network-node',
+                  ])
+                  .then((pods: Pod[]): PodReference => pods[0].podReference);
 
-              const rootContainer: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+                const rootContainer: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
 
-              const container: Container = this.k8Factory
-                .getK8(consensusNode.context)
-                .containers()
-                .readByRef(rootContainer);
+                const container: Container = this.k8Factory
+                  .getK8(consensusNode.context)
+                  .containers()
+                  .readByRef(rootContainer);
 
-              await container.execContainer('pwd');
+                await container.execContainer('pwd');
 
-              await container.execContainer(`mkdir -p ${targetDirectory}`);
+                await container.execContainer(`mkdir -p ${targetDirectory}`);
 
-              await container.copyTo(blockNodesJsonPath, targetDirectory);
+                await container.copyTo(blockNodesJsonPath, targetDirectory);
+              }
+            } catch (error) {
+              throw new SoloError(`Failed while creating block-nodes configuration: ${error.message}`, error);
             }
           },
         },
@@ -1302,17 +1289,14 @@ export class NetworkCommand extends BaseCommand {
                 this.logger.showUser(chalk.red(message));
                 networkDestroySuccess = false;
 
-                if (context_.config.deletePvcs && context_.config.deleteSecrets) {
-                  await Promise.all(
-                    context_.config.contexts.map(context =>
-                      this.k8Factory.getK8(context).namespaces().delete(context_.config.namespace),
-                    ),
-                  );
-                } else {
-                  // If the namespace is not being deleted,
-                  // remove all components data from the remote configuration
-                  await this.remoteConfig.deleteComponents();
-                }
+                await (context_.config.deletePvcs && context_.config.deleteSecrets
+                  ? Promise.all(
+                      context_.config.contexts.map(
+                        (context: string): Promise<boolean> =>
+                          this.k8Factory.getK8(context).namespaces().delete(context_.config.namespace),
+                      ),
+                    )
+                  : this.remoteConfig.deleteComponents());
               }, constants.NETWORK_DESTROY_WAIT_TIMEOUT * 1000);
 
               await this.destroyTask(context_, task);

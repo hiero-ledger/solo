@@ -12,7 +12,7 @@ import {Duration} from '../../../../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';
 import {expect} from 'chai';
 import {type Context, type DeploymentName} from '../../../../src/types/index.js';
-import {Flags} from '../../../../src/commands/flags.js';
+import {Flags as flags, Flags} from '../../../../src/commands/flags.js';
 import {type BaseTestOptions} from './base-test-options.js';
 import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
 import {it} from 'mocha';
@@ -37,6 +37,7 @@ export class NetworkTest extends BaseCommandTest {
       ConsensusCommandDefinition.NETWORK_DEPLOY,
       optionFromFlag(Flags.deployment),
       deployment,
+      optionFromFlag(flags.persistentVolumeClaims),
     );
 
     // have to enable load balancer to resolve cross cluster in multi-cluster

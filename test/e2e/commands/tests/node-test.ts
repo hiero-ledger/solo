@@ -2,8 +2,13 @@
 
 import {BaseCommandTest} from './base-command-test.js';
 import {main} from '../../../../src/index.js';
-import {type ClusterReferences, type DeploymentName} from '../../../../src/types/index.js';
-import {Flags} from '../../../../src/commands/flags.js';
+import {
+  type ClusterReferenceName,
+  type ClusterReferences,
+  type DeploymentName,
+  type SoloListrTaskWrapper,
+} from '../../../../src/types/index.js';
+import {Flags as flags, Flags} from '../../../../src/commands/flags.js';
 import fs from 'node:fs';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
 import {expect} from 'chai';
@@ -31,6 +36,13 @@ import {
 import {type BaseTestOptions} from './base-test-options.js';
 import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
 import {KeysCommandDefinition} from '../../../../src/commands/command-definitions/keys-command-definition.js';
+import {type NodeAlias} from '../../../../src/types/aliases.js';
+import {sleep} from '../../../../src/core/helpers.js';
+import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
+import {it} from 'mocha';
+import {accountCreationShouldSucceed, balanceQueryShouldSucceed} from '../../../test-utility.js';
+import {type RemoteConfigRuntimeState} from '../../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
+import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 
 export class NodeTest extends BaseCommandTest {
   private static soloNodeKeysArgv(testName: string, deployment: DeploymentName): string[] {
@@ -92,6 +104,166 @@ export class NodeTest extends BaseCommandTest {
       );
     }
     argvPushGlobalFlags(argv, testName, true);
+    return argv;
+  }
+
+  private static soloNodeAddArgv(options: BaseTestOptions): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+    const {testName} = options;
+
+    const firstClusterReference: ClusterReferenceName = [...options.clusterReferences.keys()][0];
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_ADD,
+      optionFromFlag(Flags.deployment),
+      options.deployment,
+      optionFromFlag(flags.persistentVolumeClaims),
+      optionFromFlag(Flags.clusterRef),
+      firstClusterReference,
+      optionFromFlag(flags.generateGossipKeys),
+      optionFromFlag(flags.generateTlsKeys),
+    );
+
+    if (options.enableLocalBuildPathTesting) {
+      argv.push(
+        optionFromFlag(Flags.localBuildPath),
+        options.localBuildPath,
+        optionFromFlag(Flags.releaseTag),
+        options.localBuildReleaseTag,
+      );
+    }
+
+    argvPushGlobalFlags(argv, testName, true, true);
+    return argv;
+  }
+
+  private static soloNodeUpdateArgv(options: BaseTestOptions): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+    const {
+      testName,
+      deployment,
+      enableLocalBuildPathTesting,
+      localBuildPath,
+      localBuildReleaseTag,
+      consensusNodesCount,
+    } = options;
+
+    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(consensusNodesCount + 1);
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_UPDATE,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(Flags.nodeAlias),
+      nodeAlias,
+    );
+
+    if (enableLocalBuildPathTesting) {
+      argv.push(
+        optionFromFlag(Flags.localBuildPath),
+        localBuildPath,
+        optionFromFlag(Flags.releaseTag),
+        localBuildReleaseTag,
+      );
+    }
+
+    argvPushGlobalFlags(argv, testName, true);
+    return argv;
+  }
+
+  private static soloNodeDestroyArgv(options: BaseTestOptions): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+    const {
+      testName,
+      deployment,
+      consensusNodesCount,
+      enableLocalBuildPathTesting,
+      localBuildPath,
+      localBuildReleaseTag,
+    } = options;
+
+    const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(consensusNodesCount + 1);
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_DESTROY,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(flags.nodeAlias),
+      nodeAlias,
+      optionFromFlag(flags.force),
+      optionFromFlag(flags.quiet),
+    );
+
+    if (enableLocalBuildPathTesting) {
+      argv.push(
+        optionFromFlag(Flags.localBuildPath),
+        localBuildPath,
+        optionFromFlag(Flags.releaseTag),
+        localBuildReleaseTag,
+      );
+    }
+
+    argvPushGlobalFlags(argv, testName, true);
+    return argv;
+  }
+
+  private static soloNodeRefreshArgv(options: BaseTestOptions): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+    const {testName, deployment, enableLocalBuildPathTesting, localBuildPath, localBuildReleaseTag} = options;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_REFRESH,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(flags.quiet),
+      optionFromFlag(flags.nodeAliasesUnparsed),
+    );
+
+    if (enableLocalBuildPathTesting) {
+      argv.push(
+        optionFromFlag(Flags.localBuildPath),
+        localBuildPath,
+        optionFromFlag(Flags.releaseTag),
+        localBuildReleaseTag,
+      );
+    }
+
+    argvPushGlobalFlags(argv, testName, true, true);
+
+    return argv;
+  }
+
+  private static soloNodeStopArgv(options: BaseTestOptions, nodeAlias?: NodeAlias): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+    const {testName, deployment} = options;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.NODE_STOP,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(flags.quiet),
+    );
+
+    if (nodeAlias) {
+      argv.push(optionFromFlag(Flags.nodeAliasesUnparsed), nodeAlias);
+    }
+
+    argvPushGlobalFlags(argv, testName, false);
     return argv;
   }
 
@@ -230,5 +402,139 @@ export class NodeTest extends BaseCommandTest {
       // create one more account to make sure that the last one gets pushed to mirror node
       await verifyAccountCreateWasSuccessful(namespace, clusterReferences, deployment);
     }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  public static add(options: BaseTestOptions): void {
+    const {testName} = options;
+    const {soloNodeAddArgv} = NodeTest;
+
+    it(`${testName}: consensus node add`, async (): Promise<void> => {
+      await main(soloNodeAddArgv(options));
+    }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  public static update(options: BaseTestOptions): void {
+    const {testName} = options;
+    const {soloNodeUpdateArgv} = NodeTest;
+
+    it(`${testName}: consensus node update`, async (): Promise<void> => {
+      await main(soloNodeUpdateArgv(options));
+    }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  public static destroy(options: BaseTestOptions): void {
+    const {testName} = options;
+    const {soloNodeDestroyArgv} = NodeTest;
+
+    it(`${testName}: consensus node destroy`, async (): Promise<void> => {
+      await main(soloNodeDestroyArgv(options));
+    }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  public static refresh(options: BaseTestOptions): void {
+    const {testName} = options;
+    const {soloNodeRefreshArgv} = NodeTest;
+
+    it(`${testName}: consensus node refresh`, async (): Promise<void> => {
+      await main(soloNodeRefreshArgv(options));
+
+      await sleep(Duration.ofSeconds(15)); // sleep to wait for node to finish starting
+    }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  private static verifyPodShouldBeRunning(namespace: NamespaceName, nodeAlias: NodeAlias): void {
+    it(`${nodeAlias} should be running`, async (): Promise<void> => {
+      const podName: string = await container
+        .resolve(NodeCommandTasks)
+        // @ts-expect-error - TS2341: to access private property
+        .checkNetworkNodePod(namespace, nodeAlias)
+        .then((pod): string => pod.name.toString());
+
+      expect(podName).to.equal(`network-${nodeAlias}-0`);
+    }).timeout(Duration.ofMinutes(5).toMillis());
+  }
+
+  private static verifyPodShouldNotBeActive(namespace: NamespaceName, nodeAlias: NodeAlias): void {
+    it(`${nodeAlias} should not be ACTIVE`, async (): Promise<void> => {
+      await expect(
+        container
+          .resolve(NodeCommandTasks)
+          // @ts-expect-error - TS2341: to access private property
+          ._checkNetworkNodeActiveness(
+            namespace,
+            nodeAlias,
+            {title: ''} as SoloListrTaskWrapper<any>,
+            '',
+            undefined,
+            15,
+          ),
+      ).to.be.rejected;
+    }).timeout(Duration.ofMinutes(2).toMillis());
+  }
+
+  public static PemKill(options: BaseTestOptions): void {
+    const {namespace, testName, testLogger} = options;
+
+    const nodeAlias: NodeAlias = 'node1';
+
+    it(`${testName}: perform PEM kill`, async (): Promise<void> => {
+      const pods: Pod[] = await container
+        .resolve<K8Factory>(InjectTokens.K8Factory)
+        .default()
+        .pods()
+        .list(namespace, ['solo.hedera.com/type=network-node', `solo.hedera.com/node-name=${nodeAlias}`]);
+
+      await container
+        .resolve<K8Factory>(InjectTokens.K8Factory)
+        .default()
+        .pods()
+        .readByReference(pods[0].podReference)
+        .killPod();
+
+      await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
+
+      this.verifyPodShouldBeRunning(namespace, nodeAlias);
+      this.verifyPodShouldNotBeActive(namespace, nodeAlias);
+    }).timeout(Duration.ofMinutes(10).toMillis());
+
+    this.refresh(options);
+
+    this.checkNetwork(testName, namespace, testLogger);
+  }
+
+  public static PemStop(options: BaseTestOptions): void {
+    const {namespace, testName, testLogger, consensusNodesCount} = options;
+    const {soloNodeStopArgv} = NodeTest;
+
+    const nodeAlias: NodeAlias = 'node2';
+
+    it(`${testName}: perform PEM stop`, async (): Promise<void> => {
+      await main(soloNodeStopArgv(options, nodeAlias));
+
+      await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
+
+      for (const nodeAlias of Templates.renderNodeAliasesFromCount(consensusNodesCount, 0)) {
+        this.verifyPodShouldBeRunning(namespace, nodeAlias);
+        this.verifyPodShouldNotBeActive(namespace, nodeAlias);
+      }
+    }).timeout(Duration.ofMinutes(10).toMillis());
+
+    this.refresh(options);
+
+    this.checkNetwork(testName, namespace, testLogger);
+  }
+
+  private static checkNetwork(testName: string, namespace: NamespaceName, logger: SoloLogger): void {
+    it(`${testName}: check network`, async (): Promise<void> => {
+      const accountManager: AccountManager = container.resolve<AccountManager>(InjectTokens.AccountManager);
+      const remoteConfig: RemoteConfigRuntimeState = container.resolve<RemoteConfigRuntimeState>(
+        InjectTokens.RemoteConfigRuntimeState,
+      );
+
+      await remoteConfig.load(namespace);
+
+      balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
+      accountCreationShouldSucceed(accountManager, namespace, remoteConfig, logger);
+    });
   }
 }

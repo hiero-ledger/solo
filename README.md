@@ -22,10 +22,10 @@ Every quarter a version will be designated as LTS (Long-Term Support) and will b
 
 ### Current Releases
 
-| Solo Version | Node.js                   | Kind       | Solo Chart | Hedera    | Kubernetes | Kubectl    | Helm    | k9s        | Docker Resources         | Release Date | End of Support |
-|--------------|---------------------------|------------|------------|-----------|------------|------------|---------|------------|--------------------------|--------------|----------------|
-| 0.43.0       | >= 20.18.0 (lts/iron)     | >= v0.26.0 | v0.54.5    | v0.63.9+  | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU >= 4 | 2025-08-15   | 2025-09-15     |
-| 0.42.0 (LTS) | >= 20.18.0 (lts/iron)     | >= v0.26.0 | v0.54.5    | v0.63.9+  | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU >= 4 | 2025-08-11   | 2025-11-11     |
+| Solo Version | Node.js                   | Kind       | Solo Chart | Hedera   | Kubernetes | Kubectl    | Helm    | k9s        | Docker Resources         | Release Date | End of Support |
+|--------------|---------------------------|------------|------------|----------|------------|------------|---------|------------|--------------------------|--------------|----------------|
+| 0.46.0 (LTS) | >= 20.18.0 (lts/iron)     | >= v0.26.0 | v0.56.0    | v0.65.1+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU >= 4 | 2025-10-02   | 2026-01-02     |
+| 0.45.0       | >= 20.18.0 (lts/iron)     | >= v0.26.0 | v0.56.0    | v0.65.1+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU >= 4 | 2025-09-24   | 2025-10-24     |
 
 To see a list of legacy releases, please check the [legacy versions documentation page](docs/legacy-versions.md).
 
@@ -62,7 +62,7 @@ nvm use v20.18.0
 
 ## Install Solo
 
-* Run `npm install -g @hashgraph/solo`
+* Run `npx @hashgraph/solo`
 
 ## Documentation
 

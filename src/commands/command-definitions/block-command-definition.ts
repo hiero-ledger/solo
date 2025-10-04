@@ -8,6 +8,7 @@ import {BaseCommandDefinition} from './base-command-definition.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
+import * as constants from '../../core/constants.js';
 
 @injectable()
 export class BlockCommandDefinition extends BaseCommandDefinition {
@@ -33,6 +34,13 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
   public static readonly NODE_DESTROY = 'destroy';
   public static readonly NODE_UPGRADE = 'upgrade';
 
+  public static readonly ADD_COMMAND: string =
+    `${BlockCommandDefinition.COMMAND_NAME} ${BlockCommandDefinition.NODE_SUBCOMMAND_NAME} ${BlockCommandDefinition.NODE_ADD}` as const;
+  public static readonly DESTROY_COMMAND: string =
+    `${BlockCommandDefinition.COMMAND_NAME} ${BlockCommandDefinition.NODE_SUBCOMMAND_NAME} ${BlockCommandDefinition.NODE_DESTROY}` as const;
+  public static readonly UPGRADE_COMMAND: string =
+    `${BlockCommandDefinition.COMMAND_NAME} ${BlockCommandDefinition.NODE_SUBCOMMAND_NAME} ${BlockCommandDefinition.NODE_UPGRADE}` as const;
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(BlockCommandDefinition.COMMAND_NAME, BlockCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(
@@ -49,6 +57,8 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand,
               this.blockNodeCommand.add,
               BlockNodeCommand.ADD_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
+              false,
             ),
           )
           .addSubcommand(
@@ -59,6 +69,8 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand,
               this.blockNodeCommand.destroy,
               BlockNodeCommand.DESTROY_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
+              false,
             ),
           )
           .addSubcommand(
@@ -69,6 +81,8 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand,
               this.blockNodeCommand.upgrade,
               BlockNodeCommand.UPGRADE_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
+              false,
             ),
           ),
       )

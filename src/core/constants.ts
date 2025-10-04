@@ -7,6 +7,7 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {PrivateKey} from '@hiero-ledger/sdk';
+import 'dotenv/config';
 
 export function getEnvironmentVariable(environmentVariableName: string): string {
   if (process.env[environmentVariableName]) {
@@ -27,6 +28,8 @@ export const DEFAULT_CERT_MANAGER_NAMESPACE = NamespaceName.of('cert-manager');
 export const HELM = 'helm';
 export const KIND = 'kind';
 export const PODMAN = 'podman';
+export const VFKIT = 'vfkit';
+export const GVPROXY = 'gvproxy';
 export const DOCKER = 'docker';
 export const KUBECTL = 'kubectl';
 export const DEFAULT_CLUSTER = 'solo-cluster';
@@ -72,8 +75,6 @@ export const SOLO_SETUP_NAMESPACE = NamespaceName.of('solo-setup');
 // TODO: remove after migrated to resources/solo-config.yaml
 export const SOLO_TESTING_CHART_URL = 'oci://ghcr.io/hashgraph/solo-charts';
 // TODO: remove after migrated to resources/solo-config.yaml
-export const SOLO_CLUSTER_SETUP_CHART = 'solo-cluster-setup';
-// TODO: remove after migrated to resources/solo-config.yaml
 export const SOLO_DEPLOYMENT_CHART = 'solo-deployment';
 // TODO: remove after migrated to resources/solo-config.yaml
 export const SOLO_CERT_MANAGER_CHART = 'solo-cert-manager';
@@ -87,6 +88,23 @@ export const MIRROR_NODE_CHART_URL =
   getEnvironmentVariable('MIRROR_NODE_CHART_URL') ?? 'https://hashgraph.github.io/hedera-mirror-node/charts';
 export const MIRROR_NODE_CHART = 'hedera-mirror';
 export const MIRROR_NODE_RELEASE_NAME = 'mirror';
+export const MIRROR_NODE_PINGER_TPS: number = +getEnvironmentVariable('MIRROR_NODE_PINGER_TPS') || 5;
+export const PROMETHEUS_STACK_CHART_URL =
+  getEnvironmentVariable('PROMETHEUS_STACK_CHART_URL') ?? 'https://prometheus-community.github.io/helm-charts';
+export const PROMETHEUS_STACK_CHART = 'kube-prometheus-stack';
+export const PROMETHEUS_RELEASE_NAME = 'kube-prometheus-stack';
+
+export const GRAFANA_AGENT_CHART_URL =
+  getEnvironmentVariable('GRAFANA_AGENT_CHART_URL') ?? 'https://grafana.github.io/helm-charts';
+export const GRAFANA_AGENT_CHART = 'grafana-agent';
+export const GRAFANA_AGENT_RELEASE_NAME = 'grafana-agent';
+
+export const POD_MONITOR_ROLE = 'pod-monitor-role';
+
+export const MINIO_OPERATOR_CHART_URL =
+  getEnvironmentVariable('MINIO_OPERATOR_CHART_URL') ?? 'https://operator.min.io/';
+export const MINIO_OPERATOR_CHART = 'operator';
+export const MINIO_OPERATOR_RELEASE_NAME = 'operator';
 
 export const EXPLORER_CHART_URL =
   getEnvironmentVariable('EXPLORER_CHART_URL') ??
@@ -107,9 +125,9 @@ export const INGRESS_CONTROLLER_PREFIX = 'haproxy-ingress.github.io/controller/'
 
 export const BLOCK_NODE_CHART_URL =
   getEnvironmentVariable('BLOCK_NODE_CHART_URL') ?? 'oci://ghcr.io/hiero-ledger/hiero-block-node';
-export const BLOCK_NODE_CHART = 'block-node-helm-chart';
+export const BLOCK_NODE_CHART: string = getEnvironmentVariable('BLOCK_NODE_CHART') ?? 'block-node-server';
 export const BLOCK_NODE_RELEASE_NAME = 'block-node';
-export const BLOCK_NODE_CONTAINER_NAME: ContainerName = ContainerName.of('block-node-helm-chart');
+export const BLOCK_NODE_CONTAINER_NAME: ContainerName = ContainerName.of(BLOCK_NODE_CHART);
 
 // TODO: remove after migrated to resources/solo-config.yaml
 export const CERT_MANAGER_NAME_SPACE = 'cert-manager';
@@ -121,6 +139,9 @@ export const SOLO_HEDERA_MIRROR_IMPORTER = [
 export const DEFAULT_CHART_REPO: Map<string, string> = new Map()
   .set(JSON_RPC_RELAY_CHART, JSON_RPC_RELAY_CHART_URL)
   .set(MIRROR_NODE_RELEASE_NAME, MIRROR_NODE_CHART_URL)
+  .set(PROMETHEUS_RELEASE_NAME, PROMETHEUS_STACK_CHART_URL)
+  .set(GRAFANA_AGENT_RELEASE_NAME, GRAFANA_AGENT_CHART_URL)
+  .set(MINIO_OPERATOR_RELEASE_NAME, MINIO_OPERATOR_CHART_URL)
   .set(INGRESS_CONTROLLER_RELEASE_NAME, INGRESS_CONTROLLER_CHART_URL);
 
 export const MIRROR_INGRESS_CLASS_NAME = 'mirror-ingress-class';
@@ -166,9 +187,11 @@ export const POD_CONDITION_STATUS_TRUE = 'True';
 export const EXPLORER_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'hiero-explorer-values.yaml');
 export const MIRROR_NODE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values.yaml');
 export const MIRROR_NODE_VALUES_FILE_HEDERA = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values-hedera.yaml');
+export const INGRESS_CONTROLLER_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'ingress-controller-values.yaml');
 export const BLOCK_NODE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
+export const POD_MONITOR_ROLE_TEMPLATE = PathEx.joinWithRealPath(RESOURCES_DIR, 'templates', 'pod-monitor-role.yaml');
 export const NODE_LOG_FAILURE_MSG = 'failed to download logs from pod';
-
+export const ONE_SHOT_WITH_BLOCK_NODE = getEnvironmentVariable('ONE_SHOT_WITH_BLOCK_NODE') || 'false';
 /**
  * Listr related
  * @returns a object that defines the default color options
@@ -265,10 +288,9 @@ export const RELAY_PODS_READY_DELAY = +getEnvironmentVariable('RELAY_PODS_READY_
 export const BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS') || 900;
 export const BLOCK_NODE_PODS_RUNNING_DELAY: number = +getEnvironmentVariable('BLOCK_NODE_PODS_RUNNING_DELAY') || 1000;
-export const BLOCK_NODE_ACTIVE_MAX_ATTEMPTS: number =
-  +getEnvironmentVariable('NETWORK_NODE_ACTIVE_MAX_ATTEMPTS') || 100;
-export const BLOCK_NODE_ACTIVE_DELAY: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_DELAY') || 1000;
-export const BLOCK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_TIMEOUT') || 1000;
+export const BLOCK_NODE_ACTIVE_MAX_ATTEMPTS: number = +getEnvironmentVariable('BLOCK_NODE_ACTIVE_MAX_ATTEMPTS') || 100;
+export const BLOCK_NODE_ACTIVE_DELAY: number = +getEnvironmentVariable('BLOCK_NODE_ACTIVE_DELAY') || 60;
+export const BLOCK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('BLOCK_NODE_ACTIVE_TIMEOUT') || 60;
 
 export const BLOCK_NODE_PORT: number = +getEnvironmentVariable('BLOCK_NODE_PORT') || 40_840;
 export const BLOCK_NODE_PORT_LEGACY: number = +getEnvironmentVariable('BLOCK_NODE_PORT_LEGACY') || 8080;
