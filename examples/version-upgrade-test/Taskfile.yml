@@ -94,6 +94,7 @@ tasks:
 
       # Deploy block node with previous version
       - cmd: |
+          export BLOCK_NODE_CHART=block-node-helm-chart
           $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }} \
           --chart-version {{ .PREV_BLOCK_VERSION }} --cluster-ref {{ .CLUSTER_REFERENCE }}
 
