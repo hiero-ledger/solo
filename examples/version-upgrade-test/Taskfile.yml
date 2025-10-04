@@ -193,10 +193,6 @@ tasks:
           kubectl port-forward --namespace {{ .NAMESPACE }} svc/block-node-1 40840:40840 &
           cd ../../test/data
           
-          if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-            curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
-          fi
-          
           OUTPUT=$(./get-block.sh 1)
           echo "$OUTPUT"
           if echo "$OUTPUT" | grep -q '"status": "SUCCESS"'; then
