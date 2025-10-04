@@ -9,6 +9,8 @@ export class AggregatedMetrics extends Metrics {
     public readonly clusterMetrics: ClusterMetrics[],
     cpuInMillicores: number,
     memoryInMebibytes: number,
+    public readonly runtimeInMinutes: number,
+    public readonly transactionCount: number,
     public readonly date?: Date,
     public readonly gitHubSha?: string,
   ) {
@@ -24,6 +26,8 @@ export class AggregatedMetrics extends Metrics {
       `"gitHubSha": "${this.gitHubSha}", ` +
       `"cpuInMillicores": ${this.cpuInMillicores}, ` +
       `"memoryInMebibytes": ${this.memoryInMebibytes}, ` +
+      `"runtimeInMinutes": ${this.runtimeInMinutes}, ` +
+      `"transactionCount": ${this.transactionCount}, ` +
       '"clusterMetrics": [';
     for (let index: number = 0; index < this.clusterMetrics?.length; index++) {
       outputString += this.clusterMetrics[index].toString();

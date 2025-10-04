@@ -20,7 +20,7 @@ vars:
 
   # Previous versions (current minus one)
   PREV_CN_VERSION: "v0.64.0"
-  PREV_MIRROR_VERSION: "v0.136.0"
+  PREV_MIRROR_VERSION: "v0.138.0"
   PREV_EXPLORER_VERSION: "25.0.0"
   PREV_RELAY_VERSION: "0.69.0"
   PREV_BLOCK_VERSION: "v0.17.0"
@@ -94,6 +94,7 @@ tasks:
 
       # Deploy block node with previous version
       - cmd: |
+          # set env var since old version of block node chart using different chart name
           export BLOCK_NODE_CHART=block-node-helm-chart
           $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }} \
           --chart-version {{ .PREV_BLOCK_VERSION }} --cluster-ref {{ .CLUSTER_REFERENCE }}

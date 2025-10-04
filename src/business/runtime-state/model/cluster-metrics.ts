@@ -3,11 +3,15 @@
 import {Metrics} from './metrics.js';
 import {type PodMetrics} from './pod-metrics.js';
 import {type Context} from '../../../types/index.js';
+import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
+import {type PodName} from '../../../integration/kube/resources/pod/pod-name.js';
 
 export class ClusterMetrics extends Metrics {
   public constructor(
     public readonly context: Context,
+    public readonly namespace: NamespaceName,
     public readonly podMetrics: PodMetrics[],
+    public readonly postgresPodName: PodName,
     cpuInMillicores: number,
     memoryInMebibytes: number,
   ) {
