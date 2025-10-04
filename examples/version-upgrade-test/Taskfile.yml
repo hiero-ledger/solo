@@ -121,7 +121,8 @@ tasks:
     cmds:
       # Upgrade mirror node
       - cmd: |
-          $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }}
+          $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          --mirror-node-version v0.139.0
 
       # Upgrade block node
       - cmd: |
