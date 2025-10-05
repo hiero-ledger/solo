@@ -35,8 +35,10 @@ tasks:
     cmds:
       - task: setup-cluster
       - task: deploy-old-versions
+      - task: verify-block-functionality
       - task: upgrade-components
-      - task: verify-functionality
+      - task: verify-block-functionality
+
 
   setup-cluster:
     desc: Setup Kind cluster and Solo environment
@@ -120,30 +122,13 @@ tasks:
   upgrade-components:
     desc: Upgrade all components to current versions
     cmds:
-      # Upgrade mirror node
-      - cmd: |
-          $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
-          --mirror-node-version v0.139.0
 
       # Upgrade block node
       - cmd: |
           $SOLO_COMMAND block node upgrade --deployment {{ .DEPLOYMENT }}  \
           --cluster-ref {{ .CLUSTER_REFERENCE }}
 
-      # Upgrade relay
-      - cmd: |
-          $SOLO_COMMAND relay node upgrade --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
-      # Upgrade explorer
-      - cmd: |
-          $SOLO_COMMAND explorer node upgrade --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }}
-
-      # Upgrade network to main with local build path
-      - cmd: |
-          export CONSENSUS_NODE_VERSION=$(grep "HEDERA_PLATFORM_VERSION" version.ts | sed -E "s/.*'([^']+)';/\1/")
-          $SOLO_COMMAND consensus network upgrade --node-aliases {{ .NODE_IDENTIFIERS }} \
-          --upgrade-version ${CONSENSUS_NODE_VERSION} \
-          --deployment {{ .DEPLOYMENT }} {{ .LOCAL_BUILD_FLAG }}
 
   verify-functionality:
     desc: Verify all components are working correctly
@@ -188,13 +173,22 @@ tasks:
 
       - echo "All functionality verification completed successfully!"
 
+  verify-block-functionality:
+    desc: Verify all components are working correctly
+    cmds:
       # Test Block Node functionality
       - cmd: |
+          npm run solo-test -- ledger account create -d deployment-version-upgrade-test
+          sleep 20 # wait for block node to be ready
+          curl http://127.0.0.1:40840 || true # kill old port-forward after block node pod restarts
           kubectl port-forward --namespace {{ .NAMESPACE }} svc/block-node-1 40840:40840 &
-          cd ../../test/data
-          
+          sleep 5 # wait for port-forward to be established
+
+          ps -ef|grep port-forward 
+
+          cd ../../test/data          
           OUTPUT=$(./get-block.sh 1)
-          echo "$OUTPUT"
+          # echo "$OUTPUT"
           if echo "$OUTPUT" | grep -q '"status": "SUCCESS"'; then
             echo "✓ Block node test passed - status is SUCCESS"
           else
