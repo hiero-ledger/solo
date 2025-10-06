@@ -631,7 +631,10 @@ export class NodeCommandConfigs {
     ]) as NodeSetupConfigClass;
 
     const savedVersion: SemVer = this.remoteConfig.configuration.versions.consensusNode;
-    if (!eq(savedVersion, new SemVer(context_.config.releaseTag))) {
+    if (
+      !eq(savedVersion, new SemVer(context_.config.releaseTag)) && // allow different versions only for local builds
+      !context_.config.localBuildPath
+    ) {
       throw new SoloError(
         `Consensus node version saved in remote config ${savedVersion} is different from ${context_.config.releaseTag}`,
       );

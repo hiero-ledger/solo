@@ -8,6 +8,7 @@ import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {RelayCommand} from '../relay.js';
+import * as constants from '../../core/constants.js';
 
 @injectable()
 export class RelayCommandDefinition extends BaseCommandDefinition {
@@ -56,6 +57,7 @@ export class RelayCommandDefinition extends BaseCommandDefinition {
               this.relayCommand,
               this.relayCommand.add,
               RelayCommand.DEPLOY_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
             ),
           )
           .addSubcommand(
@@ -65,6 +67,7 @@ export class RelayCommandDefinition extends BaseCommandDefinition {
               this.relayCommand,
               this.relayCommand.destroy,
               RelayCommand.DESTROY_FLAGS_LIST,
+              [constants.HELM],
             ),
           )
           .addSubcommand(
@@ -74,6 +77,7 @@ export class RelayCommandDefinition extends BaseCommandDefinition {
               this.relayCommand,
               this.relayCommand.upgrade,
               RelayCommand.UPGRADE_FLAGS_LIST,
+              [constants.HELM, constants.KUBECTL],
             ),
           ),
       )

@@ -17,6 +17,10 @@
 name: "Test Examples"
 
 on:
+  schedule:
+    # Run every midnight US Central Time (6 AM UTC during DST, 7 AM UTC during standard time)
+    # Using 6 AM UTC to cover Central Daylight Time
+    - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
       node-version:
@@ -123,7 +127,7 @@ jobs:
 
       - name: Install Dependencies
         id: npm-deps
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
+        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 10
           timeout_minutes: 10
@@ -145,7 +149,7 @@ jobs:
 
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
-        uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
         with:
           cache-read-only: false
 

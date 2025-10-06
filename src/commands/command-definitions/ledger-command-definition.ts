@@ -56,6 +56,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
             this.accountCommand,
             this.accountCommand.init,
             AccountCommand.INIT_FLAGS_LIST,
+            [],
           ),
         ),
       )
@@ -71,6 +72,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
               this.accountCommand,
               this.accountCommand.update,
               AccountCommand.UPDATE_FLAGS_LIST,
+              [],
             ),
           )
           .addSubcommand(
@@ -80,6 +82,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
               this.accountCommand,
               this.accountCommand.create,
               AccountCommand.CREATE_FLAGS_LIST,
+              [],
             ),
           )
           .addSubcommand(
@@ -89,6 +92,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
               this.accountCommand,
               this.accountCommand.get,
               AccountCommand.GET_FLAGS_LIST,
+              [],
             ),
           ),
       )

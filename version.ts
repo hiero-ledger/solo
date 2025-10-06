@@ -16,6 +16,8 @@ import * as constants from './src/core/constants.js';
 export const HELM_VERSION: string = 'v3.14.2';
 export const KIND_VERSION: string = 'v0.29.0';
 export const PODMAN_VERSION: string = '5.6.0';
+export const VFKIT_VERSION: string = 'v0.6.1';
+export const GVPROXY_VERSION: string = 'v0.8.7';
 export const KUBECTL_VERSION: string = 'v1.32.2';
 export const SOLO_CHART_VERSION: string = constants.getEnvironmentVariable('SOLO_CHART_VERSION') || '0.56.0';
 export const HEDERA_PLATFORM_VERSION: string = constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.65.1';
@@ -24,7 +26,7 @@ export const EXPLORER_VERSION: string = constants.getEnvironmentVariable('EXPLOR
 export const HEDERA_JSON_RPC_RELAY_VERSION: string = constants.getEnvironmentVariable('RELAY_VERSION') || '0.70.0';
 export const INGRESS_CONTROLLER_VERSION: string =
   constants.getEnvironmentVariable('INGRESS_CONTROLLER_VERSION') || '0.14.5';
-export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_VERSION') || 'v0.18.0';
+export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_VERSION') || 'v0.19.0';
 
 export const MINIO_OPERATOR_VERSION: string = constants.getEnvironmentVariable('MINIO_OPERATOR_VERSION') || '7.1.1';
 export const PROMETHEUS_STACK_VERSION: string =

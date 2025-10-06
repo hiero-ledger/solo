@@ -36,6 +36,8 @@ export class ArgumentProcessor {
         middlewares.setLoggerDevFlag(),
         // @ts-expect-error - TS2322: To assign middlewares
         middlewares.processArgumentsAndDisplayHeader(),
+        // @ts-expect-error - TS2322: To assign middlewares
+        middlewares.initSystemFiles(),
       ],
       false, // applyBeforeValidate is false as otherwise middleware is called twice
     );
@@ -54,13 +56,17 @@ export class ArgumentProcessor {
           rootCmd.showHelp(output => {
             helpRenderer.render(rootCmd, output);
           });
+          if (message.includes('Select')) {
+            // show use what subcommands are available then exit normally
+            rootCmd.exit(0, error);
+          }
+          // Set exit code but don't exit immediately - allows I/O buffers to flush
+          process.exitCode = 1;
+          // Throw error to propagate through async call chains if given unknown argument
+          throw new SoloError(message, error);
         } else {
-          logger.showUserError(new SoloError(`Error running Solo CLI, failure occurred: ${message ? message : ''}`));
-        }
-        if (message.includes('Unknown argument') || message.includes('Missing required argument')) {
-          rootCmd.exit(1, error);
-        } else {
-          rootCmd.exit(0, error);
+          logger.showUserError(new SoloError(`Error running Solo CLI, failure occurred: ${message ?? ''}`));
+          throw new SoloError(message, error);
         }
       }
     });
