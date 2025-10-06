@@ -3,6 +3,8 @@ set -eo pipefail
 
 # Function to verify block node functionality
 verify_block_node() {
+  # test create account 
+  npm run solo-test -- ledger account create -d "${SOLO_DEPLOYMENT}"
   cd test/data
   OUTPUT=$(./get-block.sh 1)
   # only show last few lines of OUTPUT
