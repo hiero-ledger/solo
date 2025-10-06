@@ -19,73 +19,42 @@ tasks:
     desc: Run full block node test scenario
     cmds:
       - task: setup-cluster
-      - task: deploy-network
-      - task: verify-block-functionality
-      - task: upgrade-block-node
-      - task: verify-block-functionality
+
 
   setup-cluster:
     desc: Setup Kind cluster and Solo environment
     cmds:
-      # Delete existing Kind cluster if it exists
-      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }} || true
-      
-      # Create Kind cluster
-      - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
-
-      # Cleanup solo data
-      - cmd: rm -rf ~/.solo/* || true
-      - cmd: rm -rf test/data/tmp/* || true
-
-      # Solo cluster-ref config connect
-      - cmd: npm run solo-test -- cluster-ref config connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
-
-      # Solo deployment config create
-      - cmd: npm run solo-test -- deployment config create -n {{ .NAMESPACE }} --deployment {{ .DEPLOYMENT }}
-
-      # Solo deployment cluster attach
       - cmd: |
-          npm run solo-test -- deployment cluster attach --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
-          --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
+          export SOLO_CLUSTER_NAME=solo-e2e
+          export SOLO_NAMESPACE=solo-e2e
+          export SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
+          export SOLO_DEPLOYMENT=solo-deployment
 
-      # Solo cluster-ref config setup
-      - cmd: npm run solo-test -- cluster-ref config setup -s {{ .CLUSTER_SETUP_NAMESPACE }}
+          kind delete cluster -n "${SOLO_CLUSTER_NAME}"
+          kind create cluster -n "${SOLO_CLUSTER_NAME}"
 
-  deploy-network:
-    desc: Deploy block nodes and consensus network
-    cmds:
-      # Deploy block node with specific chart name for older versions
-      - cmd: |
-          export BLOCK_NODE_CHART={{ .BLOCK_NODE_CHART }}
-          npm run solo-test -- block node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
-          --chart-version {{ .BLOCK_NODE_CHART_VERSION }}
+          rm -rf ~/.solo/*; rm -rf test/data/tmp/*;
 
-      # Generate consensus keys
-      - cmd: |
-          npm run solo-test -- keys consensus generate --gossip-keys --tls-keys -i {{ .NODE_IDENTIFIERS }} \
-          --deployment {{ .DEPLOYMENT }}
 
-      # Deploy consensus network
-      - cmd: |
-          npm run solo-test -- consensus network deploy --deployment {{ .DEPLOYMENT }} -i {{ .NODE_IDENTIFIERS }}
+          npm run solo-test -- cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+          npm run solo-test -- deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+          npm run solo-test -- deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 2
+          npm run solo-test -- cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
 
-      # Setup consensus nodes
-      - cmd: npm run solo-test -- consensus node setup -i {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
+          export BLOCK_NODE_CHART=block-node-helm-chart
+          npm run solo-test -- block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-"${SOLO_CLUSTER_NAME}" --chart-version 0.18.0
+          unset BLOCK_NODE_CHART
 
-      # Start consensus nodes
-      - cmd: npm run solo-test -- consensus node start -i {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
 
-  verify-block-functionality:
-    desc: Verify block node is working correctly
-    cmds:
-      # Setup port-forward to block node
-      - cmd: |
-          curl http://127.0.0.1:40840 || true
-          kubectl port-forward --namespace {{ .NAMESPACE }} svc/block-node-1 40840:40840 &
-          sleep 5
+          npm run solo-test -- keys consensus generate --gossip-keys --tls-keys -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 
-      # Test block node functionality
-      - cmd: |
+          npm run solo-test -- consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2
+          #-block-node-cfg block.json
+          npm run solo-test -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
+          npm run solo-test -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
+
+          kubectl port-forward --namespace "${SOLO_NAMESPACE}" svc/block-node-1 40840:40840 &
+
           cd ../../test/data
           OUTPUT=$(./get-block.sh 1)
           echo "$OUTPUT"
@@ -95,13 +64,24 @@ tasks:
             echo "✗ Block node test failed - status is not SUCCESS"
             exit 1
           fi
-          cd ../..
+          cd -
 
-  upgrade-block-node:
-    desc: Upgrade block node to latest version
-    cmds:
-      # Stop consensus nodes, upgrade block node, and restart consensus nodes
-      - cmd: |
-          npm run solo-test -- consensus node stop -i {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
-          npm run solo-test -- block node upgrade --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }}
-          npm run solo-test -- consensus node start -i {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
+          npm run solo-test -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
+          npm run solo-test -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-"${SOLO_CLUSTER_NAME}"
+          npm run solo-test -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
+
+          curl http://127.0.0.1:40840 || true # kill old port-forward after block node pod restarts
+          kubectl port-forward --namespace "${SOLO_NAMESPACE}" svc/block-node-1 40840:40840 &
+
+
+          cd ../../test/data
+          OUTPUT=$(./get-block.sh 1)
+          echo "$OUTPUT"
+          if echo "$OUTPUT" | grep -q '"status": "SUCCESS"'; then
+            echo "✓ Block node test passed - status is SUCCESS"
+          else
+            echo "✗ Block node test failed - status is not SUCCESS"
+            exit 1
+          fi
+          cd -
+
