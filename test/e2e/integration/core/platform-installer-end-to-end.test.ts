@@ -87,15 +87,15 @@ endToEndTestSuite(namespace.name, argv, {startNodes: false}, bootstrapResp => {
 
       it('should fail with invalid tag', async () => {
         try {
-          await installer.fetchPlatform(podReference, 'INVALID');
+          await installer.fetchPlatform(podReference, 'INVALID', undefined as any);
           throw new Error(); // fail-safe, should not reach here
         } catch (error) {
           expect(error).to.be.instanceOf(SoloError);
         }
       }).timeout(defaultTimeout);
 
-      it('should succeed with valid tag and pod', async () => {
-        expect(await installer.fetchPlatform(podReference, packageVersion)).to.be.true;
+      it('should succeed with valid tag and pod', async (): Promise<void> => {
+        expect(await installer.fetchPlatform(podReference, packageVersion, undefined as any)).to.be.true;
         const outputs = await k8Factory
           .default()
           .containers()

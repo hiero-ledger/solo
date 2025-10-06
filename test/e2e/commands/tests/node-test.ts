@@ -5,7 +5,6 @@ import {main} from '../../../../src/index.js';
 import {
   type ClusterReferenceName,
   type ClusterReferences,
-  type Context,
   type DeploymentName,
   type SoloListrTaskWrapper,
 } from '../../../../src/types/index.js';
@@ -55,6 +54,8 @@ import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {TEST_UPGRADE_VERSION} from '../../../../version-test.js';
 import {Zippy} from '../../../../src/core/zippy.js';
 import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
+import {type ConsensusNode} from '../../../../src/core/model/consensus-node.js';
+import {type LocalConfigRuntimeState} from '../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 
 export class NodeTest extends BaseCommandTest {
   private static soloNodeKeysArgv(testName: string, deployment: DeploymentName): string[] {
@@ -320,7 +321,7 @@ export class NodeTest extends BaseCommandTest {
       await main(
         soloNodeSetupArgv(testName, deployment, enableLocalBuildPathTesting, localBuildPath, localBuildReleaseTag),
       );
-      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+      const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
       for (const context_ of contexts) {
         const k8: K8 = k8Factory.getK8(context_);
         const pods: Pod[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
@@ -373,7 +374,7 @@ export class NodeTest extends BaseCommandTest {
     clusterReferences: ClusterReferences,
     deployment: DeploymentName,
   ): Promise<string> {
-    const accountManager: AccountManager = container.resolve<AccountManager>(InjectTokens.AccountManager);
+    const accountManager: AccountManager = container.resolve(InjectTokens.AccountManager);
     try {
       await accountManager.refreshNodeClient(namespace, clusterReferences, undefined, deployment);
       expect(accountManager._nodeClient).not.to.be.null;
@@ -415,7 +416,7 @@ export class NodeTest extends BaseCommandTest {
     it(`${testName}: consensus node start`, async (): Promise<void> => {
       await main(soloNodeStartArgv(testName, deployment));
       for (const context_ of contexts) {
-        const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+        const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
         const k8: K8 = k8Factory.getK8(context_);
         const networkNodePod: Pod[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
         expect(networkNodePod).to.have.lengthOf(1);
@@ -480,19 +481,19 @@ export class NodeTest extends BaseCommandTest {
   }
 
   public static upgrade(options: BaseTestOptions): void {
-    const {testName, testLogger, namespace, consensusNodesCount, deployment} = options;
+    const {testName, testLogger, namespace, deployment} = options;
     const {soloNodeUpgradeArgv} = NodeTest;
 
     // Does 2 different updates, with and without zip
     it(`${testName}: consensus node upgrade`, async (): Promise<void> => {
-      const accountManager: AccountManager = container.resolve<AccountManager>(InjectTokens.AccountManager);
-      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-      const remoteConfig: RemoteConfigRuntimeState = container.resolve<RemoteConfigRuntimeState>(
-        InjectTokens.RemoteConfigRuntimeState,
-      );
+      const accountManager: AccountManager = container.resolve(InjectTokens.AccountManager);
+      const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
+      const remoteConfig: RemoteConfigRuntimeState = container.resolve(InjectTokens.RemoteConfigRuntimeState);
+      const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
 
       const cacheDirectory: string = getTestCacheDirectory(testName);
 
+      await localConfig.load();
       await remoteConfig.load(namespace);
 
       // Created before upgrade
@@ -503,30 +504,32 @@ export class NodeTest extends BaseCommandTest {
 
       accountCreationShouldSucceed(accountManager, namespace, remoteConfig, testLogger, undefined, firstAccount);
 
-      //! Run upgrade without zip file
-      await main(soloNodeUpgradeArgv(options));
+      it('Should upgrade without zip-file', async (): Promise<void> => {
+        await main(soloNodeUpgradeArgv(options));
+      });
 
-      await NodeTest.validateNetworkVersionFileWasUpgraded(k8Factory, namespace);
+      it('should validate network version file was upgraded', async (): Promise<void> => {
+        await NodeTest.validateNetworkVersionFileWasUpgraded(k8Factory, namespace, remoteConfig);
+      });
 
       // Remove the staging directory to make sure the command works if it doesn't exist
       const stagingDirectory: string = Templates.renderStagingDir(cacheDirectory, TEST_UPGRADE_VERSION);
       fs.rmSync(stagingDirectory, {recursive: true, force: true});
 
-      const nodeAlias: NodeAlias = remoteConfig.getConsensusNodes()[0].name;
-      const context: Context = remoteConfig.getConsensusNodes()[0].context;
+      const node1: ConsensusNode = remoteConfig.getConsensusNodes()[0];
 
       // Download application.properties from the pod
       const temporaryDirectory: string = getTemporaryDirectory();
 
-      const pods: Pod[] = await k8Factory
-        .getK8(context)
-        .pods()
-        .list(namespace, [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node']);
+      const k8: K8 = k8Factory.getK8(node1.context);
 
-      const containerReference: Container = k8Factory
-        .getK8(context)
-        .containers()
-        .readByRef(ContainerReference.of(PodReference.of(namespace, pods[0].podReference.name), ROOT_CONTAINER));
+      const containerReference: Container = await k8
+        .pods()
+        .list(namespace, [`solo.hedera.com/node-name=${node1.name}`, 'solo.hedera.com/type=network-node'])
+        .then((pods): Pod => pods[0])
+        .then((pod): PodReference => pod.podReference)
+        .then((podReference): ContainerReference => ContainerReference.of(podReference, ROOT_CONTAINER))
+        .then((containerReference): Container => k8.containers().readByRef(containerReference));
 
       await containerReference.copyFrom(`${HEDERA_HAPI_PATH}/data/config/application.properties`, temporaryDirectory);
 
@@ -549,13 +552,14 @@ export class NodeTest extends BaseCommandTest {
         `${HEDERA_HAPI_PATH}/data/upgrade/current/application.properties`,
         temporaryDirectory,
       );
+
       const upgradedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
 
       expect(modifiedApplicationProperties).to.equal(upgradedApplicationProperties);
 
-      for (const nodeAlias of Templates.renderNodeAliasesFromCount(consensusNodesCount, 0)) {
-        this.verifyPodShouldBeRunning(namespace, nodeAlias);
-        this.verifyPodShouldNotBeActive(namespace, nodeAlias);
+      for (const node of remoteConfig.getConsensusNodes()) {
+        this.verifyPodShouldBeRunning(namespace, node.name);
+        this.verifyPodShouldNotBeActive(namespace, node.name);
       }
 
       balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, testLogger);
@@ -578,32 +582,41 @@ export class NodeTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
+  /**
+   * copy the version.txt file from the pod data/upgrade/current directory
+   */
   private static async validateNetworkVersionFileWasUpgraded(
     k8Factory: K8Factory,
     namespace: NamespaceName,
+    remoteConfig: RemoteConfigRuntimeState,
   ): Promise<void> {
-    // copy the version.txt file from the pod data/upgrade/current directory
     const temporaryDirectory: string = getTemporaryDirectory();
-    const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
 
-    const containerReference: Container = k8Factory
-      .default()
-      .containers()
-      .readByRef(ContainerReference.of(PodReference.of(namespace, pods[0].podReference.name), ROOT_CONTAINER));
+    for (const node of remoteConfig.getConsensusNodes()) {
+      const containerReference: ContainerReference = await k8Factory
+        .getK8(node.context)
+        .pods()
+        .list(namespace, [`solo.hedera.com/node-name=${node.name}`, 'solo.hedera.com/type=network-node'])
+        .then((pods): Pod => pods[0])
+        .then((pod): ContainerReference => ContainerReference.of(pod.podReference, ROOT_CONTAINER));
 
-    await containerReference.copyFrom(`${HEDERA_HAPI_PATH}/VERSION`, temporaryDirectory);
-    const versionFile: string = fs.readFileSync(`${temporaryDirectory}/VERSION`, 'utf8');
+      await k8Factory
+        .getK8(node.context)
+        .containers()
+        .readByRef(containerReference)
+        .copyFrom(`${HEDERA_HAPI_PATH}/VERSION`, temporaryDirectory);
 
-    const versionLine: string = versionFile.split('\n')[0].trim();
-    expect(versionLine).to.equal(`VERSION=${TEST_UPGRADE_VERSION.replace('v', '')}`);
+      const versionLine: string = fs.readFileSync(`${temporaryDirectory}/VERSION`, 'utf8').split('\n')[0].trim();
+
+      expect(versionLine).to.equal(`VERSION=${TEST_UPGRADE_VERSION.replace('v', '')}`);
+    }
   }
 
   private static verifyPodShouldBeRunning(namespace: NamespaceName, nodeAlias: NodeAlias): void {
     it(`${nodeAlias} should be running`, async (): Promise<void> => {
       const podName: string = await container
         .resolve(NodeCommandTasks)
-        // @ts-expect-error - TS2341: to access private property
-        .checkNetworkNodePod(namespace, nodeAlias)
+        .checkNetworkNodePod(namespace, nodeAlias, constants.PODS_RUNNING_MAX_ATTEMPTS, constants.PODS_RUNNING_DELAY)
         .then((pod): string => pod.name.toString());
 
       expect(podName).to.equal(`network-${nodeAlias}-0`);
@@ -615,7 +628,6 @@ export class NodeTest extends BaseCommandTest {
       await expect(
         container
           .resolve(NodeCommandTasks)
-          // @ts-expect-error - TS2341: to access private property
           ._checkNetworkNodeActiveness(
             namespace,
             nodeAlias,
@@ -682,10 +694,8 @@ export class NodeTest extends BaseCommandTest {
 
   private static checkNetwork(testName: string, namespace: NamespaceName, logger: SoloLogger): void {
     it(`${testName}: check network`, async (): Promise<void> => {
-      const accountManager: AccountManager = container.resolve<AccountManager>(InjectTokens.AccountManager);
-      const remoteConfig: RemoteConfigRuntimeState = container.resolve<RemoteConfigRuntimeState>(
-        InjectTokens.RemoteConfigRuntimeState,
-      );
+      const accountManager: AccountManager = container.resolve(InjectTokens.AccountManager);
+      const remoteConfig: RemoteConfigRuntimeState = container.resolve(InjectTokens.RemoteConfigRuntimeState);
 
       await remoteConfig.load(namespace);
 
