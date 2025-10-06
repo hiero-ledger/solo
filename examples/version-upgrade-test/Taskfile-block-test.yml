@@ -1,0 +1,107 @@
+version: 3
+
+vars:
+  NODE_IDENTIFIERS: "node1,node2"
+  SOLO_NETWORK_SIZE: "2"
+  DEPLOYMENT: "solo-deployment"
+  NAMESPACE: "solo-e2e"
+  CLUSTER_NAME: "solo-e2e"
+  CONTEXT: "kind-solo-e2e"
+  CLUSTER_REFERENCE: "kind-solo-e2e"
+  CLUSTER_SETUP_NAMESPACE: "solo-setup"
+  
+  # Block node configuration
+  BLOCK_NODE_CHART_VERSION: "0.18.0"
+  BLOCK_NODE_CHART: "block-node-helm-chart"
+
+tasks:
+  default:
+    desc: Run full block node test scenario
+    cmds:
+      - task: setup-cluster
+      - task: deploy-network
+      - task: verify-block-functionality
+      - task: upgrade-block-node
+      - task: verify-block-functionality
+
+  setup-cluster:
+    desc: Setup Kind cluster and Solo environment
+    cmds:
+      # Delete existing Kind cluster if it exists
+      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }} || true
+      
+      # Create Kind cluster
+      - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
+
+      # Cleanup solo data
+      - cmd: rm -rf ~/.solo/* || true
+      - cmd: rm -rf test/data/tmp/* || true
+
+      # Solo cluster-ref config connect
+      - cmd: npm run solo-test -- cluster-ref config connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
+
+      # Solo deployment config create
+      - cmd: npm run solo-test -- deployment config create -n {{ .NAMESPACE }} --deployment {{ .DEPLOYMENT }}
+
+      # Solo deployment cluster attach
+      - cmd: |
+          npm run solo-test -- deployment cluster attach --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
+
+      # Solo cluster-ref config setup
+      - cmd: npm run solo-test -- cluster-ref config setup -s {{ .CLUSTER_SETUP_NAMESPACE }}
+
+  deploy-network:
+    desc: Deploy block nodes and consensus network
+    cmds:
+      # Deploy block node with specific chart name for older versions
+      - cmd: |
+          export BLOCK_NODE_CHART={{ .BLOCK_NODE_CHART }}
+          npm run solo-test -- block node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          --chart-version {{ .BLOCK_NODE_CHART_VERSION }}
+
+      # Generate consensus keys
+      - cmd: |
+          npm run solo-test -- keys consensus generate --gossip-keys --tls-keys -i {{ .NODE_IDENTIFIERS }} \
+          --deployment {{ .DEPLOYMENT }}
+
+      # Deploy consensus network
+      - cmd: |
+          npm run solo-test -- consensus network deploy --deployment {{ .DEPLOYMENT }} -i {{ .NODE_IDENTIFIERS }}
+
+      # Setup consensus nodes
+      - cmd: npm run solo-test -- consensus node setup -i {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
+
+      # Start consensus nodes
+      - cmd: npm run solo-test -- consensus node start -i {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
+
+  verify-block-functionality:
+    desc: Verify block node is working correctly
+    cmds:
+      # Setup port-forward to block node
+      - cmd: |
+          curl http://127.0.0.1:40840 || true
+          kubectl port-forward --namespace {{ .NAMESPACE }} svc/block-node-1 40840:40840 &
+          sleep 5
+
+      # Test block node functionality
+      - cmd: |
+          cd ../../test/data
+          OUTPUT=$(./get-block.sh 1)
+          echo "$OUTPUT"
+          if echo "$OUTPUT" | grep -q '"status": "SUCCESS"'; then
+            echo "✓ Block node test passed - status is SUCCESS"
+          else
+            echo "✗ Block node test failed - status is not SUCCESS"
+            exit 1
+          fi
+          cd ../..
+
+  upgrade-block-node:
+    desc: Upgrade block node to latest version
+    cmds:
+      # Stop consensus nodes, upgrade block node, and restart consensus nodes
+      - cmd: |
+          npm run solo-test -- consensus node stop -i {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}
+          npm run solo-test -- block node upgrade --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }}
+          npm run solo-test -- consensus node start -i {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }}

@@ -3,20 +3,17 @@ version: 3
 env:
   SOLO_COMMAND:
     sh: |
-      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
-        echo "npx @hashgraph/solo"
-      else
-        echo "npm run solo --"
-      fi
+      echo "npm run solo --"
 
 vars:
   NODE_IDENTIFIERS: "node1,node2"
   SOLO_NETWORK_SIZE: "2"
-  DEPLOYMENT: "deployment-version-upgrade-test"
-  NAMESPACE: "namespace-version-upgrade-test"
-  CLUSTER_NAME: "version-upgrade-test-cluster"
-  CONTEXT: "kind-version-upgrade-test-cluster"
-  CLUSTER_REFERENCE: "kind-version-upgrade-test-cluster"
+  DEPLOYMENT: "solo-deployment"
+  NAMESPACE: "solo-e2e"
+  CLUSTER_NAME: "solo-e2e"
+  CONTEXT: "kind-solo-e2e"
+  CLUSTER_REFERENCE: "kind-solo-e2e"
+  CLUSTER_SETUP_NAMESPACE: "solo-setup"
 
   # Previous versions (current minus one)
   PREV_CN_VERSION: "v0.65.1"
@@ -25,48 +22,29 @@ vars:
   PREV_RELAY_VERSION: "0.69.0"
   PREV_BLOCK_VERSION: "v0.18.0"
 
-  # Local build path for network upgrade
-  CN_LOCAL_BUILD_PATH: "../hiero-consensus-node/hedera-node/data"
-  LOCAL_BUILD_FLAG: "--local-build-path {{.CN_LOCAL_BUILD_PATH}}"
 
 tasks:
   default:
-    desc: Run full version upgrade test scenario
+    desc: Run full block node test scenario
     cmds:
       - task: setup-cluster
-      - task: deploy-old-versions
+      - task: deploy-network
       - task: verify-block-functionality
-      - task: upgrade-components
+      - task: upgrade-block-node
       - task: verify-block-functionality
 
 
   setup-cluster:
     desc: Setup Kind cluster and Solo environment
     cmds:
-      # Install Solo CLI
-      - cmd: |
-          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
-            npm i @hashgraph/solo@latest
-          else
-            echo "Skipping npm install - using development version"
-          fi
-
       # Delete existing Kind cluster if it exists
       - cmd: kind delete cluster -n {{ .CLUSTER_NAME }} || true
       # Create Kind cluster
       - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
 
-      # Wait for control plane
-      - cmd: sleep 10
-
-      # Set kubectl context
-      - cmd: kubectl config set-context {{ .CONTEXT }}
-
-      # Solo init
-      - cmd: $SOLO_COMMAND init
-
-      # Solo cluster-ref config setup
-      - cmd: $SOLO_COMMAND cluster-ref config setup --quiet-mode --dev
+      # Cleanup solo data
+      - cmd: rm -rf ~/.solo/* || true
+      - cmd: rm -rf test/data/tmp/* || true
 
       # Solo cluster-ref config connect
       - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
@@ -79,11 +57,13 @@ tasks:
           $SOLO_COMMAND deployment cluster attach --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
           --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
 
+      # Solo cluster-ref config setup
+      - cmd: $SOLO_COMMAND cluster-ref config setup -s {{ .CLUSTER_SETUP_NAMESPACE }}
 
-  deploy-old-versions:
-    desc: Deploy network with previous versions of all components
+  deploy-network:
+    desc: Deploy block nodes and consensus network
     cmds:
-      # Deploy consensus network with previous version
+      # Deploy block node with specific chart name for older versions
       - cmd: |
           $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
           --node-aliases {{ .NODE_IDENTIFIERS }}
@@ -104,22 +84,8 @@ tasks:
 
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
-
-  upgrade-components:
-    desc: Upgrade all components to current versions
-    cmds:
-
-      # Upgrade block node
-      - cmd: |
-          npm run solo-test -- consensus node stop -i node1,node2 --deployment {{ .DEPLOYMENT }}
-          helm get all block-node-1 -n {{ .NAMESPACE }} > fail_before_upgrade.log
-          $SOLO_COMMAND block node upgrade --deployment {{ .DEPLOYMENT }}  \
-          --cluster-ref {{ .CLUSTER_REFERENCE }}
-          helm get all block-node-1 -n {{ .NAMESPACE }} > fail_after_upgrade.log
-          npm run solo-test -- consensus node start -i node1,node2 --deployment {{ .DEPLOYMENT }}
-
   verify-block-functionality:
-    desc: Verify all components are working correctly
+    desc: Verify block node is working correctly
     cmds:
       # Test Block Node functionality
       - cmd: |
@@ -133,47 +99,21 @@ tasks:
 
           cd ../../test/data          
           OUTPUT=$(./get-block.sh 1)
-          cd -
-          # echo "$OUTPUT"
+          echo "$OUTPUT"
           if echo "$OUTPUT" | grep -q '"status": "SUCCESS"'; then
             echo "✓ Block node test passed - status is SUCCESS"
           else
             echo "✗ Block node test failed - status is not SUCCESS"
             exit 1
           fi
+          cd ../..
 
-  destroy:
-    desc: Destroy the Solo network and cleanup
+  upgrade-block-node:
+    desc: Upgrade block node to latest version
     cmds:
-      # Stop consensus nodes
-      - cmd: $SOLO_COMMAND consensus node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
-      # Destroy explorer
-      - cmd: $SOLO_COMMAND explorer node destroy --deployment {{ .DEPLOYMENT }} --force
-
-      # Destroy relay
-      - cmd: $SOLO_COMMAND relay node destroy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
-
-      # Destroy mirror node
-      - cmd: $SOLO_COMMAND mirror node destroy --deployment {{ .DEPLOYMENT }} --force
-
-      # Destroy block node
-      - cmd: $SOLO_COMMAND block node destroy --deployment {{ .DEPLOYMENT }}
-
-      # Destroy consensus network
-      - cmd: $SOLO_COMMAND consensus network destroy --deployment {{ .DEPLOYMENT }} --force
-
-      # Delete Kind cluster
-      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
-
-      # Cleanup temp files
-      - cmd: rm -f /tmp/first_account_id.txt
-
-      - echo "Cleanup completed"
-
-  status:
-    desc: Check status of all components
-    cmds:
-      - cmd: kubectl get pods -n {{ .NAMESPACE }}
-      - cmd: kubectl get services -n {{ .NAMESPACE }}
-      - echo "Status check completed"
+      # Upgrade block node
+      - cmd: |
+          $SOLO_COMMAND -- consensus node stop -i node1,node2 --deployment {{ .DEPLOYMENT }}
+          $SOLO_COMMAND block node upgrade --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }}
+          $SOLO_COMMAND -- consensus node start -i node1,node2 --deployment {{ .DEPLOYMENT }}
