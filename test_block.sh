@@ -5,6 +5,7 @@ set -eo pipefail
 verify_block_node() {
   # test create account 
   npm run solo-test -- ledger account create -d "${SOLO_DEPLOYMENT}"
+  ps -ef | grep port-forward
   cd test/data
   OUTPUT=$(./get-block.sh 1)
   # only show last few lines of OUTPUT
@@ -49,9 +50,15 @@ kubectl port-forward --namespace "${SOLO_NAMESPACE}" svc/block-node-1 40840:4084
 verify_block_node
 
 npm run solo-test -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-"${SOLO_CLUSTER_NAME}"
+sleep 25
+echo "Wait old block pod termination"
+kubectl get pods -n "${SOLO_NAMESPACE}" | grep block-node-1
 
 curl http://127.0.0.1:40840 || true # kill old port-forward after block node pod restarts
 kubectl port-forward --namespace "${SOLO_NAMESPACE}" svc/block-node-1 40840:40840 &
+sleep 4
 
 verify_block_node
+verify_block_node
+
 
