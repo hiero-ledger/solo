@@ -5,7 +5,8 @@ set -eo pipefail
 verify_block_node() {
   cd test/data
   OUTPUT=$(./get-block.sh 1)
-  # echo "$OUTPUT"
+  # only show last few lines of OUTPUT
+  echo "$OUTPUT" | tail -n 30
   if echo "$OUTPUT" | grep -q '"status": "SUCCESS"'; then
     echo "✓ Block node test passed - status is SUCCESS"
   else
@@ -45,9 +46,7 @@ kubectl port-forward --namespace "${SOLO_NAMESPACE}" svc/block-node-1 40840:4084
 
 verify_block_node
 
-npm run solo-test -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 npm run solo-test -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-"${SOLO_CLUSTER_NAME}"
-npm run solo-test -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
 
 curl http://127.0.0.1:40840 || true # kill old port-forward after block node pod restarts
 kubectl port-forward --namespace "${SOLO_NAMESPACE}" svc/block-node-1 40840:40840 &
