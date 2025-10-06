@@ -118,7 +118,6 @@ import {type NodeStartConfigClass} from './config-interfaces/node-start-config-c
 import {
   type CheckedNodesConfigClass,
   type CheckedNodesContext,
-  NodeCommonConfigClass,
   NodeCommonContext,
 } from './config-interfaces/node-common-config-class.js';
 import {type NetworkNodeServices} from '../../core/network-node-services.js';
