@@ -6,7 +6,7 @@ import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
 import {Flags as flags, Flags} from '../flags.js';
 import {AnyObject, type ArgvStruct} from '../../types/aliases.js';
-import {type Realm, type Shard, SoloListr, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
+import {type Realm, type Shard, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {injectable, inject} from 'tsyringe-neo';
 import {v4 as uuid4} from 'uuid';
@@ -484,7 +484,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 constants.SOLO_HOME_DIR,
                 `one-shot-${context_.config.deployment}`,
               );
-              this.showOneShotUserNotes(context_, PathEx.join(outputDirectory, 'notes'));
+              this.showOneShotUserNotes(context_, false, PathEx.join(outputDirectory, 'notes'));
               this.showVersions(PathEx.join(outputDirectory, 'versions'));
               this.showPortForwards(PathEx.join(outputDirectory, 'forwards'));
               this.showAccounts(context_.createdAccounts, context_, PathEx.join(outputDirectory, 'accounts.json'));
@@ -515,7 +515,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     return true;
   }
 
-  private showOneShotUserNotes(context_: OneShotSingleDeployContext, isMultiple: boolean = false, outputFile?: string): void {
+  private showOneShotUserNotes(
+    context_: OneShotSingleDeployContext,
+    isMultiple: boolean = false,
+    outputFile?: string,
+  ): void {
     const messageGroupKey: string = isMultiple ? 'one-shot-multiple-user-notes' : 'one-shot-user-notes';
     const title: string = isMultiple ? 'One Shot Multiple User Notes' : 'One Shot User Notes';
 
