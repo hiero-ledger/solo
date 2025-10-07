@@ -21,6 +21,8 @@ import {
   Long,
   PrivateKey,
   Status,
+  TransactionReceipt,
+  TransactionResponse,
   TransferTransaction,
 } from '@hiero-ledger/sdk';
 import {MissingArgumentError} from './errors/missing-argument-error.js';
@@ -980,20 +982,20 @@ export class AccountManager {
    * @param hbarAmount - the amount of HBAR
    * @returns if the transaction was successfully posted
    */
-  async transferAmount(
+  public async transferAmount(
     fromAccountId: AccountId | string,
     toAccountId: AccountId | string,
     hbarAmount: number,
   ): Promise<boolean> {
     try {
-      const transaction: any = new TransferTransaction()
+      const transaction: TransferTransaction = new TransferTransaction()
         .addHbarTransfer(fromAccountId, new Hbar(-1 * hbarAmount))
         .addHbarTransfer(toAccountId, new Hbar(hbarAmount))
         .freezeWith(this._nodeClient);
 
-      const txResponse: any = await transaction.execute(this._nodeClient);
+      const txResponse: TransactionResponse = await transaction.execute(this._nodeClient);
 
-      const receipt: any = await txResponse.getReceipt(this._nodeClient);
+      const receipt: TransactionReceipt = await txResponse.getReceipt(this._nodeClient);
 
       this.logger.debug(
         `The transfer from account ${fromAccountId} to account ${toAccountId} for amount ${hbarAmount} was ${receipt.status.toString()} `,

@@ -25,7 +25,6 @@ import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {PathEx} from '../business/utils/path-ex.js';
-import {Container} from '../integration/kube/resources/container/container.js';
 
 /** PlatformInstaller install platform code in the root-container of a network pod */
 @injectable()
@@ -104,30 +103,31 @@ export class PlatformInstaller {
       throw new MissingArgumentError('tag is required');
     }
 
-    const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-    const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
-
     try {
-      const scriptName: string = 'extract-platform.sh';
-      const sourcePath: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, scriptName); // script source path
+      const scriptName = 'extract-platform.sh';
+      const sourcePath = PathEx.joinWithRealPath(constants.RESOURCES_DIR, scriptName); // script source path
       await this.copyFiles(podReference, [sourcePath], constants.HEDERA_USER_HOME_DIR, undefined, context);
 
-      const extractScript: string = `${constants.HEDERA_USER_HOME_DIR}/${scriptName}`; // inside the container
+      const extractScript = `${constants.HEDERA_USER_HOME_DIR}/${scriptName}`; // inside the container
+      const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
 
-      await k8Container.execContainer('sync'); // ensure all writes are flushed before executing the script
-      await k8Container.execContainer(`chmod +x ${extractScript}`);
-      await k8Container.execContainer(`chown root:root ${extractScript}`);
-      await k8Container.execContainer([extractScript, tag]);
+      const k8Containers = this.k8Factory.getK8(context).containers();
+
+      const container = k8Containers.readByRef(containerReference);
+
+      await container.execContainer('sync'); // ensure all writes are flushed before executing the script
+      await container.execContainer(`chmod +x ${extractScript}`);
+      await container.execContainer(`chown root:root ${extractScript}`);
+      await container.execContainer([extractScript, tag]);
 
       return true;
     } catch (error) {
       const logFile: string = `${constants.HEDERA_HAPI_PATH}/output/extract-platform.log`;
-      const response: string = await k8Container.execContainer([
-        'bash',
-        '-c',
-        `cat ${logFile} || echo "Log file not found or empty"`,
-      ]);
-
+      const response = await this.k8Factory
+        .getK8(context)
+        .containers()
+        .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
+        .execContainer(['bash', '-c', `cat ${logFile} || echo "Log file not found or empty"`]);
       this.logger.showUser(`Log file content from ${logFile}:\n${response}`);
 
       const message: string = `failed to extract platform code in this pod '${podReference}' while using the '${context}' context: ${error.message}`;

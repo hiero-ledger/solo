@@ -84,6 +84,8 @@ import {
   type ComponentId,
   type Context,
   type DeploymentName,
+  Realm,
+  Shard,
   type SoloListr,
   type SoloListrTask,
   type SoloListrTaskWrapper,
@@ -169,8 +171,8 @@ export class NodeCommandTasks {
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
-    const realm = this.localConfig.configuration.realmForDeployment(deploymentName);
-    const shard = this.localConfig.configuration.shardForDeployment(deploymentName);
+    const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
+    const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
     return FileId.fromString(entityId(shard, realm, constants.UPGRADE_FILE_ID_NUM));
   }
 
@@ -214,28 +216,32 @@ export class NodeCommandTasks {
     deploymentName: DeploymentName,
   ): Promise<string> {
     // get byte value of the zip file
-    const zipBytes = fs.readFileSync(upgradeZipFile);
-    const zipHash = crypto.createHash('sha384').update(zipBytes).digest('hex');
+    const zipBytes: NonSharedBuffer = fs.readFileSync(upgradeZipFile);
+    const zipHash: string = crypto.createHash('sha384').update(zipBytes).digest('hex');
     this.logger.debug(
       `loaded upgrade zip file [ zipHash = ${zipHash} zipBytes.length = ${zipBytes.length}, zipPath = ${upgradeZipFile}]`,
     );
 
+    const fileId: FileId = this.getFileUpgradeId(deploymentName);
+
     // create a file upload transaction to upload file to the network
     try {
-      let start = 0;
+      let start: number = 0;
 
       while (start < zipBytes.length) {
-        const zipBytesChunk = new Uint8Array(zipBytes.subarray(start, start + constants.UPGRADE_FILE_CHUNK_SIZE));
-        let fileTransaction = null;
+        const zipBytesChunk: Uint8Array = new Uint8Array(
+          zipBytes.subarray(start, start + constants.UPGRADE_FILE_CHUNK_SIZE),
+        );
 
-        fileTransaction =
+        const fileTransaction: FileUpdateTransaction | FileAppendTransaction =
           start === 0
-            ? new FileUpdateTransaction().setFileId(this.getFileUpgradeId(deploymentName)).setContents(zipBytesChunk)
-            : new FileAppendTransaction().setFileId(this.getFileUpgradeId(deploymentName)).setContents(zipBytesChunk);
-        const resp = await fileTransaction.execute(nodeClient);
-        const receipt = await resp.getReceipt(nodeClient);
+            ? new FileUpdateTransaction().setFileId(fileId).setContents(zipBytesChunk)
+            : new FileAppendTransaction().setFileId(fileId).setContents(zipBytesChunk);
+
+        const resp: TransactionResponse = await fileTransaction.execute(nodeClient);
+        const receipt: TransactionReceipt = await resp.getReceipt(nodeClient);
         this.logger.debug(
-          `updated file ${this.getFileUpgradeId(deploymentName)} [chunkSize= ${zipBytesChunk.length}, txReceipt = ${receipt.toString()}]`,
+          `updated file ${fileId} [chunkSize= ${zipBytesChunk.length}, txReceipt = ${receipt.toString()}]`,
         );
 
         start += constants.UPGRADE_FILE_CHUNK_SIZE;
@@ -254,9 +260,8 @@ export class NodeCommandTasks {
     configManager: ConfigManager,
     localDataLibraryBuildPath: string,
   ): Promise<void> {
-    const filterFunction = (path: string | string[]): boolean => {
-      return !(path.includes('data/keys') || path.includes('data/config'));
-    };
+    const filterFunction: (path: string | string[]) => boolean = (path: string | string[]): boolean =>
+      !(path.includes('data/keys') || path.includes('data/config'));
 
     await k8
       .containers()
@@ -312,10 +317,6 @@ export class NodeCommandTasks {
         throw new SoloError(`local build path does not exist: ${localDataLibraryBuildPath}`);
       }
 
-      const self = this;
-
-      const k8 = self.k8Factory.getK8(context);
-
       subTasks.push({
         title: `Copy local build to Node: ${chalk.yellow(nodeAlias)} from ${localDataLibraryBuildPath}`,
         task: async (): Promise<void> => {
@@ -350,7 +351,12 @@ export class NodeCommandTasks {
             storedError = null;
             try {
               // filter the data/config and data/keys to avoid failures due to config and secret mounts
-              await this.copyLocalBuildPathToNode(k8, podReference, self.configManager, localDataLibraryBuildPath);
+              await this.copyLocalBuildPathToNode(
+                this.k8Factory.getK8(context),
+                podReference,
+                this.configManager,
+                localDataLibraryBuildPath,
+              );
             } catch (error) {
               storedError = error;
             }
@@ -379,10 +385,10 @@ export class NodeCommandTasks {
     const subTasks: SoloListrTask<AnyListrContext>[] = [];
     for (const nodeAlias of nodeAliases) {
       const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
-      const podReference: PodReference = podReferences[nodeAlias];
+      const podReference = podReferences[nodeAlias];
       subTasks.push({
         title: `Update node: ${chalk.yellow(nodeAlias)} [ platformVersion = ${releaseTag}, context = ${context} ]`,
-        task: async (): Promise<boolean> => await platformInstaller.fetchPlatform(podReference, releaseTag, context),
+        task: async () => await platformInstaller.fetchPlatform(podReference, releaseTag, context),
       });
     }
 
@@ -396,45 +402,42 @@ export class NodeCommandTasks {
   }
 
   private _checkNodeActivenessTask(
-    context_: AnyListrContext,
+    {config}: AnyListrContext,
     task: SoloListrTaskWrapper<AnyListrContext>,
     nodeAliases: NodeAliases,
-    status = NodeStatusCodes.ACTIVE,
+    status: NodeStatusCodes = NodeStatusCodes.ACTIVE,
   ): SoloListr<AnyListrContext> {
-    const {
-      config: {namespace},
-    } = context_;
+    const enableDebugger: boolean = config.debugNodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
+    const debugNodeAlias: NodeAlias | undefined = config.debugNodeAlias;
 
-    const enableDebugger: boolean = context_.config.debugNodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
-    const debugNodeAlias: NodeAlias | undefined = context_.config.debugNodeAlias;
-
-    const subTasks = nodeAliases.map(nodeAlias => {
+    const subTasks: SoloListrTask<AnyListrContext>[] = nodeAliases.map((nodeAlias): SoloListrTask<AnyListrContext> => {
       const isDebugNode: boolean = debugNodeAlias === nodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
       const reminder: string = isDebugNode ? 'Please attach JVM debugger now.' : '';
       const title: string = `Check network pod: ${chalk.yellow(nodeAlias)} ${chalk.red(reminder)}`;
-      const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+      const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
-      const subTask = async (context_: AnyListrContext, task: SoloListrTaskWrapper<AnyListrContext>) => {
-        if (enableDebugger && isDebugNode) {
-          await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
-            message: `JVM debugger setup for ${nodeAlias}. Continue when debugging is complete?`,
-            default: false,
-          });
-        }
-        context_.config.podRefs[nodeAlias] = await this._checkNetworkNodeActiveness(
-          namespace,
-          nodeAlias,
-          task,
-          title,
-          status,
-          undefined,
-          undefined,
-          undefined,
-          context,
-        );
+      return {
+        title,
+        task: async (context_: AnyListrContext, task: SoloListrTaskWrapper<AnyListrContext>): Promise<void> => {
+          if (enableDebugger && isDebugNode) {
+            await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
+              message: `JVM debugger setup for ${nodeAlias}. Continue when debugging is complete?`,
+              default: false,
+            });
+          }
+          context_.config.podRefs[nodeAlias] = await this._checkNetworkNodeActiveness(
+            config.namespace,
+            nodeAlias,
+            task,
+            title,
+            status,
+            undefined,
+            undefined,
+            undefined,
+            context,
+          );
+        },
       };
-
-      return {title, task: subTask};
     });
 
     return task.newListr(subTasks, {

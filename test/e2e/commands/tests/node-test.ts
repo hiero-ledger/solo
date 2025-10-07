@@ -508,6 +508,10 @@ export class NodeTest extends BaseCommandTest {
         await main(soloNodeUpgradeArgv(options));
       });
 
+      it('Should wait for network to be ready', async (): Promise<void> => {
+        await sleep(Duration.ofSeconds(15));
+      });
+
       it('should validate network version file was upgraded', async (): Promise<void> => {
         await NodeTest.validateNetworkVersionFileWasUpgraded(k8Factory, namespace, remoteConfig);
       });
@@ -515,6 +519,8 @@ export class NodeTest extends BaseCommandTest {
       // Remove the staging directory to make sure the command works if it doesn't exist
       const stagingDirectory: string = Templates.renderStagingDir(cacheDirectory, TEST_UPGRADE_VERSION);
       fs.rmSync(stagingDirectory, {recursive: true, force: true});
+
+      console.log({consensusNodes: remoteConfig.getConsensusNodes()});
 
       const node1: ConsensusNode = remoteConfig.getConsensusNodes()[0];
 
