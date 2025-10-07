@@ -616,7 +616,13 @@ export class NodeTest extends BaseCommandTest {
     it(`${nodeAlias} should be running`, async (): Promise<void> => {
       const podName: string = await container
         .resolve(NodeCommandTasks)
-        .checkNetworkNodePod(namespace, nodeAlias, constants.PODS_RUNNING_MAX_ATTEMPTS, constants.PODS_RUNNING_DELAY)
+        .checkNetworkNodePod(
+          namespace,
+          nodeAlias,
+          constants.PODS_RUNNING_MAX_ATTEMPTS,
+          constants.PODS_RUNNING_DELAY,
+          undefined as any,
+        )
         .then((pod): string => pod.name.toString());
 
       expect(podName).to.equal(`network-${nodeAlias}-0`);
