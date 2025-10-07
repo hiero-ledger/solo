@@ -105,6 +105,7 @@ export class PlatformInstaller {
     }
 
     const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+    const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
     try {
       const scriptName: string = 'extract-platform.sh';
@@ -113,21 +114,19 @@ export class PlatformInstaller {
 
       const extractScript: string = `${constants.HEDERA_USER_HOME_DIR}/${scriptName}`; // inside the container
 
-      const container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
-
-      await container.execContainer('sync'); // ensure all writes are flushed before executing the script
-      await container.execContainer(`chmod +x ${extractScript}`);
-      await container.execContainer(`chown root:root ${extractScript}`);
-      await container.execContainer([extractScript, tag]);
+      await k8Container.execContainer('sync'); // ensure all writes are flushed before executing the script
+      await k8Container.execContainer(`chmod +x ${extractScript}`);
+      await k8Container.execContainer(`chown root:root ${extractScript}`);
+      await k8Container.execContainer([extractScript, tag]);
 
       return true;
     } catch (error) {
       const logFile: string = `${constants.HEDERA_HAPI_PATH}/output/extract-platform.log`;
-      const response: string = await this.k8Factory
-        .getK8(context)
-        .containers()
-        .readByRef(containerReference)
-        .execContainer(['bash', '-c', `cat ${logFile} || echo "Log file not found or empty"`]);
+      const response: string = await k8Container.execContainer([
+        'bash',
+        '-c',
+        `cat ${logFile} || echo "Log file not found or empty"`,
+      ]);
 
       this.logger.showUser(`Log file content from ${logFile}:\n${response}`);
 
