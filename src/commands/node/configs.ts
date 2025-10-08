@@ -222,6 +222,8 @@ export class NodeCommandConfigs {
       context_.config.namespace,
     );
     context_.config.freezeAdminPrivateKey = accountKeys.privateKey;
+
+    console.log(context_.config);
     return context_.config;
   }
 

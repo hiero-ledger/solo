@@ -504,23 +504,15 @@ export class NodeTest extends BaseCommandTest {
 
       accountCreationShouldSucceed(accountManager, namespace, remoteConfig, testLogger, undefined, firstAccount);
 
-      it('Should upgrade without zip-file', async (): Promise<void> => {
-        await main(soloNodeUpgradeArgv(options));
-      });
+      await main(soloNodeUpgradeArgv(options));
 
-      it('Should wait for network to be ready', async (): Promise<void> => {
-        await sleep(Duration.ofSeconds(15));
-      });
+      await sleep(Duration.ofSeconds(15));
 
-      it('should validate network version file was upgraded', async (): Promise<void> => {
-        await NodeTest.validateNetworkVersionFileWasUpgraded(k8Factory, namespace, remoteConfig);
-      });
+      await NodeTest.validateNetworkVersionFileWasUpgraded(k8Factory, namespace, remoteConfig);
 
       // Remove the staging directory to make sure the command works if it doesn't exist
       const stagingDirectory: string = Templates.renderStagingDir(cacheDirectory, TEST_UPGRADE_VERSION);
       fs.rmSync(stagingDirectory, {recursive: true, force: true});
-
-      console.log({consensusNodes: remoteConfig.getConsensusNodes()});
 
       const node1: ConsensusNode = remoteConfig.getConsensusNodes()[0];
 
@@ -541,7 +533,10 @@ export class NodeTest extends BaseCommandTest {
 
       const applicationPropertiesPath: string = PathEx.join(temporaryDirectory, 'application.properties');
       const applicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
-      const updatedContent: string = applicationProperties.replaceAll('contracts.chainId=298', 'contracts.chainId=299');
+      const updatedContent: string = applicationProperties.replaceAll(
+        'contracts.chainId=298',
+        'contracts.chainId=299',
+      );
       fs.writeFileSync(applicationPropertiesPath, updatedContent);
 
       // create upgrade.zip file from tmp directory using zippy.ts
@@ -574,17 +569,15 @@ export class NodeTest extends BaseCommandTest {
 
       await accountManager.loadNodeClient(namespace, remoteConfig.getClusterRefs(), deployment);
 
-      it('should validate created accounts', async (): Promise<void> => {
-        const accountInfo1: AccountInfo = await new AccountInfoQuery()
-          .setAccountId(firstAccount)
-          .execute(accountManager._nodeClient);
-        expect(accountInfo1).not.to.be.null;
+      const accountInfo1: AccountInfo = await new AccountInfoQuery()
+        .setAccountId(firstAccount)
+        .execute(accountManager._nodeClient);
+      expect(accountInfo1).not.to.be.null;
 
-        const accountInfo2: AccountInfo = await new AccountInfoQuery()
-          .setAccountId(secondAccount)
-          .execute(accountManager._nodeClient);
-        expect(accountInfo2).not.to.be.null;
-      }).timeout(Duration.ofMinutes(2).toMillis());
+      const accountInfo2: AccountInfo = await new AccountInfoQuery()
+        .setAccountId(secondAccount)
+        .execute(accountManager._nodeClient);
+      expect(accountInfo2).not.to.be.null;
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 

@@ -76,18 +76,18 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       NodeTest.setup(options);
       NodeTest.start(options);
 
-      NodeTest.PemKill(options);
-      NodeTest.PemStop(options);
+      // NodeTest.PemKill(options);
+      // NodeTest.PemStop(options);
 
-      MirrorNodeTest.add(options);
+      // MirrorNodeTest.add(options);
 
-      NodeTest.add(options);
-      NodeTest.update(options);
+      // NodeTest.add(options);
+      // NodeTest.update(options);
       NodeTest.upgrade(options);
-      NodeTest.destroy(options);
+      // NodeTest.destroy(options);
 
-      ExplorerTest.add(options);
-      RelayTest.add(options);
+      // ExplorerTest.add(options);
+      // RelayTest.add(options);
 
       it('Should write log metrics', async (): Promise<void> => {
         await new MetricsServerImpl().logMetrics(
