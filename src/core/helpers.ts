@@ -589,3 +589,10 @@ export function checkDockerImageExists(imageName: string, imageTag: string): boo
     return false;
   }
 }
+
+export function createDirectoryIfNotExists(file: string): void {
+  const directory: string = file.slice(0, Math.max(0, file.lastIndexOf('/')));
+  if (!fs.existsSync(directory)) {
+    fs.mkdirSync(directory, {recursive: true});
+  }
+}

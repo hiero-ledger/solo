@@ -25,6 +25,8 @@ export interface SoloLogger {
 
   addMessageGroup(key: string, title: string): void;
 
+  getMessageGroup(key: string): string[];
+
   addMessageGroupMessage(key: string, message: string): void;
 
   showMessageGroup(key: string): void;
