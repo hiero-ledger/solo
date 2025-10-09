@@ -10,10 +10,10 @@ import {IllegalArgumentError} from '../../../src/core/errors/illegal-argument-er
 import {MissingArgumentError} from '../../../src/core/errors/missing-argument-error.js';
 import {ResourceNotFoundError} from '../../../src/core/errors/resource-not-found-error.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
-import {SoloWinstonLogger} from '../../../src/core/logging/solo-winston-logger.js';
+import {SoloPinoLogger} from '../../../src/core/logging/solo-pino-logger.js';
 
 describe('PackageDownloader', () => {
-  const testLogger = new SoloWinstonLogger('debug', true);
+  const testLogger = new SoloPinoLogger('debug', true);
   const downloader = new PackageDownloader(testLogger);
 
   describe('urlExists', () => {

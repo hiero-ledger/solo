@@ -51,7 +51,7 @@ import {NetworkCommand} from '../../commands/network.js';
 import {NodeCommand} from '../../commands/node/index.js';
 import {ClusterCommand} from '../../commands/cluster/index.js';
 import {Middlewares} from '../middlewares.js';
-import {SoloWinstonLogger} from '../logging/solo-winston-logger.js';
+import {SoloPinoLogger} from '../logging/solo-pino-logger.js';
 import {SingletonContainer} from './singleton-container.js';
 import {ValueContainer} from './value-container.js';
 import {BlockNodeCommand} from '../../commands/block-node.js';
@@ -107,7 +107,7 @@ export class Container {
 
   private static singletonContainers(): SingletonContainer[] {
     return [
-      new SingletonContainer(InjectTokens.SoloLogger, SoloWinstonLogger),
+      new SingletonContainer(InjectTokens.SoloLogger, SoloPinoLogger),
       new SingletonContainer(InjectTokens.LockRenewalService, IntervalLockRenewalService),
       new SingletonContainer(InjectTokens.LockManager, LockManager),
       new SingletonContainer(InjectTokens.K8Factory, K8ClientFactory),

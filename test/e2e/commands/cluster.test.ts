@@ -20,7 +20,7 @@ import {Argv} from '../../helpers/argv-wrapper.js';
 import * as fs from 'node:fs';
 import * as yaml from 'yaml';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
-import {SoloWinstonLogger} from '../../../src/core/logging/solo-winston-logger.js';
+import {SoloPinoLogger} from '../../../src/core/logging/solo-pino-logger.js';
 import {container} from 'tsyringe-neo';
 import {ClusterCommandHandlers} from '../../../src/commands/cluster/handlers.js';
 import {ClusterCommandTasks} from '../../../src/commands/cluster/tasks.js';
@@ -30,8 +30,8 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 describe('ClusterCommand', () => {
   // mock showUser and showJSON to silent logging during tests
   before(async (): Promise<void> => {
-    sinon.stub(SoloWinstonLogger.prototype, 'showUser');
-    sinon.stub(SoloWinstonLogger.prototype, 'showJSON');
+    sinon.stub(SoloPinoLogger.prototype, 'showUser');
+    sinon.stub(SoloPinoLogger.prototype, 'showJSON');
     const localConfig = container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState);
     await localConfig.load();
   });
@@ -58,9 +58,9 @@ describe('ClusterCommand', () => {
 
   after(async function () {
     // @ts-expect-error: TS2339 - to restore
-    SoloWinstonLogger.prototype.showUser.restore();
+    SoloPinoLogger.prototype.showUser.restore();
     // @ts-expect-error: TS2339 - to restore
-    SoloWinstonLogger.prototype.showJSON.restore();
+    SoloPinoLogger.prototype.showJSON.restore();
 
     this.timeout(Duration.ofMinutes(3).toMillis());
 
