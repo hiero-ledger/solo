@@ -12,10 +12,10 @@ import os from 'node:os';
 import fs from 'node:fs';
 import {Zippy} from '../../../src/core/zippy.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
-import {SoloWinstonLogger} from '../../../src/core/logging/solo-winston-logger.js';
+import {SoloPinoLogger} from '../../../src/core/logging/solo-pino-logger.js';
 
 describe('Zippy', () => {
-  const testLogger = new SoloWinstonLogger('debug', true);
+  const testLogger = new SoloPinoLogger('debug', true);
   const zippy = new Zippy(testLogger);
 
   describe('unzip', () => {

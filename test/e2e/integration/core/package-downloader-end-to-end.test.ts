@@ -9,10 +9,10 @@ import * as fs from 'node:fs';
 import {PackageDownloader} from '../../../../src/core/package-downloader.js';
 import {Templates} from '../../../../src/core/templates.js';
 import {Duration} from '../../../../src/core/time/duration.js';
-import {SoloWinstonLogger} from '../../../../src/core/logging/solo-winston-logger.js';
+import {SoloPinoLogger} from '../../../../src/core/logging/solo-pino-logger.js';
 
 describe('PackageDownloaderE2E', () => {
-  const testLogger = new SoloWinstonLogger('debug', true);
+  const testLogger = new SoloPinoLogger('debug', true);
   const downloader = new PackageDownloader(testLogger);
 
   it('should succeed with a valid Hedera release tag', async () => {
