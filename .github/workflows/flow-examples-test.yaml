@@ -140,6 +140,15 @@ jobs:
           version: 3.39.2
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Setup Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: '1.22.3'
+
+      - name: Install grpcurl
+        run: |
+          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+
       - name: Setup Java
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
         uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0

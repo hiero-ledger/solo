@@ -1104,6 +1104,18 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly blockNodeCfg: CommandFlag = {
+    constName: 'blockNodeCfg',
+    name: 'block-node-cfg',
+    definition: {
+      describe:
+        'JSON configuration mapping consensus node names to block node IDs, or path to JSON file (e.g., {"node1":[1],"node2":[2,3]} or block.json)',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly applicationProperties: CommandFlag = {
     constName: 'applicationProperties',
     name: 'application-properties',
@@ -2682,6 +2694,7 @@ export class Flags {
     Flags.domainName,
     Flags.domainNames,
     Flags.blockNodeChartVersion,
+    Flags.blockNodeCfg,
     Flags.realm,
     Flags.shard,
     Flags.username,
