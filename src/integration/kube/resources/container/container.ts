@@ -2,6 +2,7 @@
 
 import {type TarCreateFilter} from '../../../../types/aliases.js';
 import {type TDirectoryData} from '../../t-directory-data.js';
+import stream from 'node:stream';
 
 export interface Container {
   /**
@@ -27,9 +28,10 @@ export interface Container {
   /**
    * Invoke sh command within a container and return the console output as string
    * @param command - sh commands as an array to be run within the containerName (e.g 'ls -la /opt/hgcapp')
+   * @param errorPassthroughStream
    * @returns console output as string
    */
-  execContainer(command: string | string[]): Promise<string>;
+  execContainer(command: string | string[], errorPassthroughStream?: stream.PassThrough): Promise<string>;
 
   /**
    * Check if a directory exists in the specified container
