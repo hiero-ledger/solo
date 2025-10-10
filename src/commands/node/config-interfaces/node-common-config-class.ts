@@ -14,6 +14,11 @@ export interface NodeCommonConfigClass {
   quiet: boolean;
   keysDir: string;
   stagingDir: string;
+  nodeAliases: NodeAliases;
+}
+
+export interface NodeCommonContext {
+  config: NodeCommonConfigClass;
 }
 
 export interface NodeCommonConfigWithNodeAliases extends NodeCommonConfigClass {
