@@ -68,5 +68,12 @@
     "coverage-subdirectory": "e2e-node-upgrade-separate",
     "coverage-report-name": "E2E_Node_Upgrade_Separate_Commands_Tests_Coverage_Report",
     "local-java-build": false
+  },
+  {
+    "name": "Podman & Kind Cluster Setup",
+    "test-script": "test-e2e-podman-kind-cluster",
+    "coverage-subdirectory": "e2e-podman-kind-cluster",
+    "coverage-report-name": "E2E_Podman_Kind_Cluster_Tests_Coverage_Report",
+    "local-java-build": false
   }
 ]
