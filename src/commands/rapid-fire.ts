@@ -12,7 +12,8 @@ import {
   type DeploymentName,
   type Optional,
   type SoloListr,
-  type SoloListrTask, type SoloListrTaskWrapper,
+  type SoloListrTask,
+  type SoloListrTaskWrapper,
 } from '../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type Lock} from '../core/lock/lock.js';

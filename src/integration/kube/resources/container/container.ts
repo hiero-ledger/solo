@@ -2,7 +2,7 @@
 
 import {type TarCreateFilter} from '../../../../types/aliases.js';
 import {type TDirectoryData} from '../../t-directory-data.js';
-import stream from 'node:stream';
+import type stream from 'node:stream';
 
 export interface Container {
   /**
