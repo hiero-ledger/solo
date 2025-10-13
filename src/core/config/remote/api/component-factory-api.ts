@@ -11,6 +11,7 @@ import {type EnvoyProxyStateSchema} from '../../../../data/schema/model/remote/s
 import {type ConsensusNodeStateSchema} from '../../../../data/schema/model/remote/state/consensus-node-state-schema.js';
 import {type RelayNodeStateSchema} from '../../../../data/schema/model/remote/state/relay-node-state-schema.js';
 import {type BlockNodeStateSchema} from '../../../../data/schema/model/remote/state/block-node-state-schema.js';
+import {type TransactionToolStateSchema} from '../../../../data/schema/model/remote/state/transaction-tool-state-schema.js';
 
 export interface ComponentFactoryApi {
   createNewRelayComponent(
@@ -28,6 +29,11 @@ export interface ComponentFactoryApi {
   createNewEnvoyProxyComponent(clusterReference: ClusterReferenceName, namespace: NamespaceName): EnvoyProxyStateSchema;
 
   createNewBlockNodeComponent(clusterReference: ClusterReferenceName, namespace: NamespaceName): BlockNodeStateSchema;
+
+  createNewTransactionToolComponent(
+    clusterReference: ClusterReferenceName,
+    namespace: NamespaceName,
+  ): TransactionToolStateSchema;
 
   createNewConsensusNodeComponent(
     id: ComponentId,

@@ -82,6 +82,8 @@ import {DefaultKindClientBuilder} from '../../integration/kind/impl/default-kind
 import {MetricsServerImpl} from '../../business/runtime-state/services/metrics-server-impl.js';
 import {VfkitDependencyManager} from '../dependency-managers/vfkit-dependency-manager.js';
 import {GvproxyDependencyManager} from '../dependency-managers/gvproxy-dependency-manager.js';
+import {TransactionToolCommandDefinition} from '../../commands/command-definitions/transaction-tool-definition.js';
+import {TransactionToolCommand} from '../../commands/transaction-tool.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -138,6 +140,15 @@ export class Container {
       new SingletonContainer(InjectTokens.Middlewares, Middlewares),
       new SingletonContainer(InjectTokens.HelpRenderer, HelpRenderer),
       new SingletonContainer(InjectTokens.ConfigProvider, LayeredConfigProvider),
+      new SingletonContainer(InjectTokens.ErrorHandler, ErrorHandler),
+      new SingletonContainer(InjectTokens.ObjectMapper, ClassToObjectMapper),
+      new SingletonContainer(InjectTokens.ComponentFactory, ComponentFactory),
+      new SingletonContainer(InjectTokens.RemoteConfigValidator, RemoteConfigValidator),
+      new SingletonContainer(InjectTokens.TaskList, DefaultTaskList),
+      new SingletonContainer(InjectTokens.Commands, Commands),
+      new SingletonContainer(InjectTokens.MetricsServer, MetricsServerImpl),
+
+      // Commands
       new SingletonContainer(InjectTokens.AccountCommand, AccountCommand),
       new SingletonContainer(InjectTokens.ClusterCommand, ClusterCommand),
       new SingletonContainer(InjectTokens.NodeCommand, NodeCommand),
@@ -154,14 +165,8 @@ export class Container {
       new SingletonContainer(InjectTokens.NodeCommandHandlers, NodeCommandHandlers),
       new SingletonContainer(InjectTokens.ClusterCommandConfigs, ClusterCommandConfigs),
       new SingletonContainer(InjectTokens.NodeCommandConfigs, NodeCommandConfigs),
-      new SingletonContainer(InjectTokens.ErrorHandler, ErrorHandler),
-      new SingletonContainer(InjectTokens.ObjectMapper, ClassToObjectMapper),
-      new SingletonContainer(InjectTokens.ComponentFactory, ComponentFactory),
-      new SingletonContainer(InjectTokens.RemoteConfigValidator, RemoteConfigValidator),
       new SingletonContainer(InjectTokens.OneShotCommand, DefaultOneShotCommand),
-      new SingletonContainer(InjectTokens.TaskList, DefaultTaskList),
-      new SingletonContainer(InjectTokens.Commands, Commands),
-      new SingletonContainer(InjectTokens.MetricsServer, MetricsServerImpl),
+      new SingletonContainer(InjectTokens.TransactionToolCommand, TransactionToolCommand),
 
       // Command Definitions
       new SingletonContainer(InjectTokens.BlockCommandDefinition, BlockCommandDefinition),
@@ -174,6 +179,7 @@ export class Container {
       new SingletonContainer(InjectTokens.MirrorCommandDefinition, MirrorCommandDefinition),
       new SingletonContainer(InjectTokens.RelayCommandDefinition, RelayCommandDefinition),
       new SingletonContainer(InjectTokens.OneShotCommandDefinition, OneShotCommandDefinition),
+      new SingletonContainer(InjectTokens.TransactionToolCommandDefinition, TransactionToolCommandDefinition),
     ];
   }
 

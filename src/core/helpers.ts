@@ -589,3 +589,7 @@ export function checkDockerImageExists(imageName: string, imageTag: string): boo
     return false;
   }
 }
+
+export function isValidString(value: string): boolean {
+  return typeof value === 'string' && value.trim().length > 0;
+}

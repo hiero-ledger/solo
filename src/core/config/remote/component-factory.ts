@@ -20,6 +20,7 @@ import {EnvoyProxyStateSchema} from '../../../data/schema/model/remote/state/env
 import {ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
 import {BlockNodeStateSchema} from '../../../data/schema/model/remote/state/block-node-state-schema.js';
 import {Templates} from '../../templates.js';
+import {TransactionToolStateSchema} from '../../../data/schema/model/remote/state/transaction-tool-state-schema.js';
 
 @injectable()
 export class ComponentFactory implements ComponentFactoryApi {
@@ -70,6 +71,15 @@ export class ComponentFactory implements ComponentFactoryApi {
     namespace: NamespaceName,
   ): BlockNodeStateSchema {
     return new BlockNodeStateSchema(this.getMetadata(ComponentTypes.BlockNode, clusterReference, namespace));
+  }
+
+  public createNewTransactionToolComponent(
+    clusterReference: ClusterReferenceName,
+    namespace: NamespaceName,
+  ): TransactionToolStateSchema {
+    return new TransactionToolStateSchema(
+      this.getMetadata(ComponentTypes.TransactionTools, clusterReference, namespace),
+    );
   }
 
   public createNewConsensusNodeComponent(

@@ -1,0 +1,14 @@
+stackgres:
+  enabled: false
+
+rabbitmq:
+  enabled: true
+
+redis:
+  enabled: true
+
+otp:
+  createSecrets: true
+
+traefik:
+  enabled: true

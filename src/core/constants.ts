@@ -123,11 +123,19 @@ export const EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME = 'explorer-haproxy-ingres
 // TODO: remove after migrated to resources/solo-config.yaml
 export const INGRESS_CONTROLLER_PREFIX = 'haproxy-ingress.github.io/controller/';
 
+// ----- Block Node Chart Data ----- //
 export const BLOCK_NODE_CHART_URL =
   getEnvironmentVariable('BLOCK_NODE_CHART_URL') ?? 'oci://ghcr.io/hiero-ledger/hiero-block-node';
 export const BLOCK_NODE_CHART: string = getEnvironmentVariable('BLOCK_NODE_CHART') ?? 'block-node-server';
 export const BLOCK_NODE_RELEASE_NAME = 'block-node';
 export const BLOCK_NODE_CONTAINER_NAME: ContainerName = ContainerName.of(BLOCK_NODE_CHART);
+
+// ----- Transaction Tool Chart Data ----- //
+export const TRANSACTION_TOOL_CHART_URL: string =
+  getEnvironmentVariable('TRANSACTION_TOOL_CHART_URL') ?? 'oci://ghcr.io/hiero-ledger/hedera-transaction-tool';
+export const TRANSACTION_TOOL_CHART: string = getEnvironmentVariable('TRANSACTION_TOOL_CHART') ?? 'transaction-tool';
+export const TRANSACTION_TOOL_RELEASE_NAME = 'transaction-tool';
+export const TRANSACTION_TOOL_CONTAINER_NAME: ContainerName = ContainerName.of(TRANSACTION_TOOL_CHART);
 
 // TODO: remove after migrated to resources/solo-config.yaml
 export const CERT_MANAGER_NAME_SPACE = 'cert-manager';
@@ -189,6 +197,7 @@ export const MIRROR_NODE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'm
 export const MIRROR_NODE_VALUES_FILE_HEDERA = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values-hedera.yaml');
 export const INGRESS_CONTROLLER_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'ingress-controller-values.yaml');
 export const BLOCK_NODE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
+export const TRANSACTION_TOOL_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'transaction-tool-values.yaml');
 export const POD_MONITOR_ROLE_TEMPLATE = PathEx.joinWithRealPath(RESOURCES_DIR, 'templates', 'pod-monitor-role.yaml');
 export const NODE_LOG_FAILURE_MSG = 'failed to download logs from pod';
 export const ONE_SHOT_WITH_BLOCK_NODE = getEnvironmentVariable('ONE_SHOT_WITH_BLOCK_NODE') || 'false';
@@ -285,15 +294,27 @@ export const RELAY_PODS_RUNNING_MAX_ATTEMPTS = +getEnvironmentVariable('RELAY_PO
 export const RELAY_PODS_RUNNING_DELAY = +getEnvironmentVariable('RELAY_PODS_RUNNING_DELAY') || 1000;
 export const RELAY_PODS_READY_MAX_ATTEMPTS = +getEnvironmentVariable('RELAY_PODS_READY_MAX_ATTEMPTS') || 100;
 export const RELAY_PODS_READY_DELAY = +getEnvironmentVariable('RELAY_PODS_READY_DELAY') || 1000;
+
+// ----- Block Node ----- //
 export const BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS') || 900;
 export const BLOCK_NODE_PODS_RUNNING_DELAY: number = +getEnvironmentVariable('BLOCK_NODE_PODS_RUNNING_DELAY') || 1000;
 export const BLOCK_NODE_ACTIVE_MAX_ATTEMPTS: number = +getEnvironmentVariable('BLOCK_NODE_ACTIVE_MAX_ATTEMPTS') || 100;
 export const BLOCK_NODE_ACTIVE_DELAY: number = +getEnvironmentVariable('BLOCK_NODE_ACTIVE_DELAY') || 60;
 export const BLOCK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('BLOCK_NODE_ACTIVE_TIMEOUT') || 60;
-
 export const BLOCK_NODE_PORT: number = +getEnvironmentVariable('BLOCK_NODE_PORT') || 40_840;
 export const BLOCK_NODE_PORT_LEGACY: number = +getEnvironmentVariable('BLOCK_NODE_PORT_LEGACY') || 8080;
+
+// ----- Transaction Tool ----- //
+export const TRANSACTION_TOOL_PODS_RUNNING_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('TRANSACTION_TOOL_PODS_RUNNING_MAX_ATTEMPTS') || 900;
+export const TRANSACTION_TOOL_PODS_RUNNING_DELAY: number =
+  +getEnvironmentVariable('TRANSACTION_TOOL_PODS_RUNNING_DELAY') || 1000;
+export const TRANSACTION_TOOL_ACTIVE_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('TRANSACTION_TOOL_ACTIVE_MAX_ATTEMPTS') || 100;
+export const TRANSACTION_TOOL_ACTIVE_DELAY: number = +getEnvironmentVariable('TRANSACTION_TOOL_ACTIVE_DELAY') || 60;
+export const TRANSACTION_TOOL_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('TRANSACTION_TOOL_ACTIVE_TIMEOUT') || 60;
+export const TRANSACTION_TOOL_PORT: number = +getEnvironmentVariable('TRANSACTION_TOOL_PORT') || 40_840;
 
 export const BLOCK_ITEM_BATCH_SIZE: number = +getEnvironmentVariable('BLOCK_ITEM_BATCH_SIZE') || 256;
 
@@ -320,6 +341,7 @@ export const MIRROR_INGRESS_TLS_SECRET_NAME = 'ca-secret-mirror-node';
 export const EXPLORER_INGRESS_TLS_SECRET_NAME = 'ca-secret-hiero-explorer';
 
 export const BLOCK_NODE_IMAGE_NAME: string = 'block-node-server';
+export const TRANSACTION_TOOL_IMAGE_NAME: string = 'transaction-tool'; // TODO: review
 export const enum StorageType {
   MINIO_ONLY = 'minio_only',
   AWS_ONLY = 'aws_only',

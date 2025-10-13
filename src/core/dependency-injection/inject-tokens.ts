@@ -49,6 +49,23 @@ export class InjectTokens {
   public static RemoteConfigRuntimeState: symbol = Symbol.for('RemoteConfigRuntimeState');
   public static ClusterChecks: symbol = Symbol.for('ClusterChecks');
   public static NetworkNodes: symbol = Symbol.for('NetworkNodes');
+  public static ErrorHandler: symbol = Symbol.for('ErrorHandler');
+  public static ObjectMapper: symbol = Symbol.for('ObjectMapper');
+  public static HelpRenderer: symbol = Symbol.for('HelpRenderer');
+  public static Middlewares: symbol = Symbol.for('Middlewares');
+  public static KeyFormatter: symbol = Symbol.for('KeyFormatter');
+  public static CommandInvoker: symbol = Symbol.for('CommandInvoker');
+  public static ConfigProvider: symbol = Symbol.for('ConfigProvider');
+  public static LocalConfigFileName: symbol = Symbol.for('LocalConfigFileName');
+  public static LocalConfigSource: symbol = Symbol.for('LocalConfigSource');
+  public static LocalConfigRuntimeState: symbol = Symbol.for('LocalConfigRuntimeState');
+  public static HomeDirectory: symbol = Symbol.for('HomeDirectory');
+  public static TaskList: symbol = Symbol.for('TaskList');
+  public static Commands: symbol = Symbol.for('Commands');
+  public static MetricsServer: symbol = Symbol.for('MetricsServer');
+
+  // Commands
+  public static TransactionToolCommand: symbol = Symbol.for('TransactionToolCommand');
   public static AccountCommand: symbol = Symbol.for('AccountCommand');
   public static ClusterCommand: symbol = Symbol.for('ClusterCommand');
   public static NodeCommand: symbol = Symbol.for('NodeCommand');
@@ -64,22 +81,8 @@ export class InjectTokens {
   public static NodeCommandHandlers: symbol = Symbol.for('NodeCommandHandlers');
   public static ClusterCommandConfigs: symbol = Symbol.for('ClusterCommandConfigs');
   public static NodeCommandConfigs: symbol = Symbol.for('NodeCommandConfigs');
-  public static ErrorHandler: symbol = Symbol.for('ErrorHandler');
-  public static ObjectMapper: symbol = Symbol.for('ObjectMapper');
-  public static HelpRenderer: symbol = Symbol.for('HelpRenderer');
-  public static Middlewares: symbol = Symbol.for('Middlewares');
-  public static KeyFormatter: symbol = Symbol.for('KeyFormatter');
-  public static CommandInvoker: symbol = Symbol.for('CommandInvoker');
-  public static ConfigProvider: symbol = Symbol.for('ConfigProvider');
   public static BlockNodeCommand: symbol = Symbol.for('BlockNodeCommand');
-  public static LocalConfigFileName: symbol = Symbol.for('LocalConfigFileName');
-  public static LocalConfigSource: symbol = Symbol.for('LocalConfigSource');
-  public static LocalConfigRuntimeState: symbol = Symbol.for('LocalConfigRuntimeState');
-  public static HomeDirectory: symbol = Symbol.for('HomeDirectory');
   public static OneShotCommand: symbol = Symbol.for('OneShotCommand');
-  public static TaskList: symbol = Symbol.for('TaskList');
-  public static Commands: symbol = Symbol.for('Commands');
-  public static MetricsServer: symbol = Symbol.for('MetricsServer');
 
   // Command Definitions
   public static BlockCommandDefinition: symbol = Symbol.for('BlockCommandDefinition');
@@ -92,4 +95,5 @@ export class InjectTokens {
   public static MirrorCommandDefinition: symbol = Symbol.for('MirrorCommandDefinition');
   public static RelayCommandDefinition: symbol = Symbol.for('RelayCommandDefinition');
   public static OneShotCommandDefinition: symbol = Symbol.for('OneShotCommandDefinition');
+  public static TransactionToolCommandDefinition: symbol = Symbol.for('TransactionToolCommandDefinition');
 }

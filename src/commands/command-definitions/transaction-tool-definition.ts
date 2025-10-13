@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
-import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {BaseCommandDefinition} from './base-command-definition.js';
 import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';
+
+import * as constants from '../../core/constants.js';
+import {TransactionToolCommand} from '../transaction-tool.js';
+
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
-import * as constants from '../../core/constants.js';
 
 @injectable()
 export class TransactionToolCommandDefinition extends BaseCommandDefinition {
@@ -33,9 +36,9 @@ export class TransactionToolCommandDefinition extends BaseCommandDefinition {
   public static readonly BACKEND_ADD = 'add';
   public static readonly BACKEND_DESTROY = 'destroy';
 
-  public static readonly ADD_COMMAND: string =
+  public static readonly ADD_COMMAND =
     `${TransactionToolCommandDefinition.COMMAND_NAME} ${TransactionToolCommandDefinition.BACKEND_SUBCOMMAND_NAME} ${TransactionToolCommandDefinition.BACKEND_ADD}` as const;
-  public static readonly DESTROY_COMMAND: string =
+  public static readonly DESTROY_COMMAND =
     `${TransactionToolCommandDefinition.COMMAND_NAME} ${TransactionToolCommandDefinition.BACKEND_SUBCOMMAND_NAME} ${TransactionToolCommandDefinition.BACKEND_DESTROY}` as const;
 
   public getCommandDefinition(): CommandDefinition {
@@ -52,9 +55,7 @@ export class TransactionToolCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               TransactionToolCommandDefinition.BACKEND_ADD,
-              'Creates and configures a new block node instance for the specified ' +
-                'deployment using the specified Kubernetes cluster. ' +
-                'The cluster must be accessible and attached to the specified deployment.',
+              '', // TODO
               this.transactionToolCommand,
               this.transactionToolCommand.add,
               TransactionToolCommand.ADD_FLAGS_LIST,
@@ -65,8 +66,7 @@ export class TransactionToolCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               TransactionToolCommandDefinition.BACKEND_DESTROY,
-              'Destroys a single block node instance in the specified deployment. ' +
-                'Requires access to all Kubernetes clusters attached to the deployment.',
+              '', // TODO
               this.transactionToolCommand,
               this.transactionToolCommand.destroy,
               TransactionToolCommand.DESTROY_FLAGS_LIST,

@@ -11,4 +11,5 @@ export enum ComponentTypes {
   MirrorNode = 'mirrorNodes',
   Explorer = 'explorers',
   RelayNodes = 'relayNodes',
+  TransactionTools = 'transactionTools',
 }

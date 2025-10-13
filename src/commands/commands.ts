@@ -15,6 +15,8 @@ import {KeysCommandDefinition} from './command-definitions/keys-command-definiti
 import {ExplorerCommandDefinition} from './command-definitions/explorer-command-definition.js';
 import {DeploymentCommandDefinition} from './command-definitions/deployment-command-definition.js';
 import {RelayCommandDefinition} from './command-definitions/relay-command-definition.js';
+import {TransactionToolCommand} from './transaction-tool.js';
+import {TransactionToolCommandDefinition} from './command-definitions/transaction-tool-definition.js';
 
 /**
  * Return a list of Yargs command builder to be exposed through CLI
@@ -35,6 +37,8 @@ export class Commands {
     @inject(InjectTokens.MirrorCommandDefinition) private readonly mirror?: MirrorCommandDefinition,
     @inject(InjectTokens.RelayCommandDefinition) private readonly relay?: RelayCommandDefinition,
     @inject(InjectTokens.OneShotCommandDefinition) private readonly oneShot?: OneShotCommandDefinition,
+    @inject(InjectTokens.TransactionToolCommandDefinition)
+    private readonly transactionTool?: TransactionToolCommandDefinition,
   ) {
     this.init = patchInject(init, InjectTokens.InitCommand, this.constructor.name);
     this.block = patchInject(block, InjectTokens.BlockCommandDefinition, this.constructor.name);
@@ -46,6 +50,7 @@ export class Commands {
     this.ledger = patchInject(ledger, InjectTokens.LedgerCommandDefinition, this.constructor.name);
     this.mirror = patchInject(mirror, InjectTokens.MirrorCommandDefinition, this.constructor.name);
     this.oneShot = patchInject(oneShot, InjectTokens.OneShotCommandDefinition, this.constructor.name);
+    this.transactionTool = patchInject(transactionTool, InjectTokens.TransactionToolCommand, this.constructor.name);
   }
 
   public getCommandDefinitions(): CommandDefinition[] {
@@ -61,6 +66,7 @@ export class Commands {
       this.mirror.getCommandDefinition(),
       this.relay.getCommandDefinition(),
       this.oneShot.getCommandDefinition(),
+      this.transactionTool.getCommandDefinition(),
     ];
   }
 }
