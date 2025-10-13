@@ -2551,6 +2551,21 @@ export class Flags {
     prompt: undefined,
   };
 
+  // --------------- Rapid Fire --------------- //
+
+  public static readonly nlgArguments: CommandFlag = {
+    constName: 'nlgArguments',
+    name: 'args',
+    definition: {
+      describe:
+        'All arguments to be passed to the NLG load test class. Value MUST be wrapped in 2 sets of different quotes. ' +
+        'Example: \'"-c 100 -a 40 -t 3600"\'',
+      type: 'string',
+      defaultValue: '',
+    },
+    prompt: undefined,
+  };
+
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.adminKey,
@@ -2690,6 +2705,7 @@ export class Flags {
     Flags.mirrorNodeId,
     Flags.serviceMonitor,
     Flags.podLog,
+    Flags.nlgArguments,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

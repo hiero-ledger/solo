@@ -21,16 +21,13 @@ import {injectable} from 'tsyringe-neo';
 import {NETWORK_LOAD_GENERATOR_CHART_VERSION} from '../../version.js';
 import * as helpers from '../core/helpers.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
-import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {Containers} from '../integration/kube/resources/container/containers.js';
 import {Container} from '../integration/kube/resources/container/container.js';
 import chalk from 'chalk';
-import {NetworkDeployConfigClass} from './network.js';
-import fs from 'node:fs';
 import {PassThrough} from 'node:stream';
 
-interface RapidFireCryptoTransferStartConfigClass {
+interface RapidFireStartConfigClass {
   chartDirectory: string;
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
@@ -40,6 +37,8 @@ interface RapidFireCryptoTransferStartConfigClass {
   namespace: NamespaceName;
   context: string;
   valuesArg: string;
+  nlgArguments: string;
+  parsedNlgArguments: string;
 }
 
 interface RapidFireStopConfigClass {
@@ -50,19 +49,22 @@ interface RapidFireStopConfigClass {
   context: string;
 }
 
-interface RapidFireCryptoTransferStartContext {
-  config: RapidFireCryptoTransferStartConfigClass;
+interface RapidFireStartContext {
+  config: RapidFireStartConfigClass;
 }
 
 interface RapidFireStopContext {
   config: RapidFireStopConfigClass;
 }
 
-export enum NLGTestClasses {
+export enum NLGTestClass {
   HCSLoadTest = 'HCSLoadTest',
   CryptoTransferLoadTest = 'CryptoTransferLoadTest',
   NftTransferLoadTest = 'NftTransferLoadTest',
   TokenTransferLoadTest = 'TokenTransferLoadTest',
+  SmartContractLoadTest = 'SmartContractLoadTest',
+  HeliSwapLoadTest = 'HeliSwapLoadTest',
+  LongevityLoadTest = 'LongevityLoadTest',
 }
 
 @injectable()
@@ -74,9 +76,14 @@ export class RapidFireCommand extends BaseCommand {
   private static readonly CRYPTO_TRANSFER_START_CONFIG_NAME: string = 'cryptoTransferStartConfig';
   private static readonly STOP_CONFIG_NAME: string = 'stopConfig';
 
-  public static readonly CRYPTO_TRANSFER_START_FLAGS_LIST: CommandFlags = {
+  private static readonly COMMON_START_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.devMode, flags.force, flags.quiet, flags.valuesFile, flags.chartDirectory],
+    optional: [flags.devMode, flags.force, flags.quiet, flags.valuesFile, flags.chartDirectory, flags.nlgArguments],
+  };
+
+  public static readonly START_FLAGS_LIST: CommandFlags = {
+    required: [...RapidFireCommand.COMMON_START_FLAGS_LIST.required],
+    optional: [...RapidFireCommand.COMMON_START_FLAGS_LIST.optional],
   };
 
   public static readonly STOP_FLAGS_LIST: CommandFlags = {
@@ -84,7 +91,7 @@ export class RapidFireCommand extends BaseCommand {
     optional: [flags.devMode, flags.force, flags.quiet],
   };
 
-  private nglChartIsDeployed(context_: RapidFireCryptoTransferStartContext): Promise<boolean> {
+  private nglChartIsDeployed(context_: RapidFireStartContext): Promise<boolean> {
     return this.chartManager.isChartInstalled(
       context_.config.namespace,
       constants.NETWORK_LOAD_GENERATOR_RELEASE_NAME,
@@ -92,11 +99,11 @@ export class RapidFireCommand extends BaseCommand {
     );
   }
 
-  private deployNlgChart(): SoloListrTask<RapidFireCryptoTransferStartContext> {
+  private deployNlgChart(): SoloListrTask<RapidFireStartContext> {
     return {
       title: 'Deploy Network Load Generator chart',
-      task: (context_, task): SoloListr<RapidFireCryptoTransferStartContext> => {
-        const subTasks: SoloListrTask<RapidFireCryptoTransferStartContext>[] = [];
+      task: (context_, task): SoloListr<RapidFireStartContext> => {
+        const subTasks: SoloListrTask<RapidFireStartContext>[] = [];
         subTasks.push(
           {
             title: 'Install Network Load Generator chart',
@@ -124,7 +131,7 @@ export class RapidFireCommand extends BaseCommand {
                 constants.NETWORK_LOAD_GENERATOR_RELEASE_NAME,
                 constants.NETWORK_LOAD_GENERATOR_CHART,
                 constants.NETWORK_LOAD_GENERATOR_CHART_URL,
-                NETWORK_LOAD_GENERATOR_CHART_VERSION, // TODO add flag to override
+                NETWORK_LOAD_GENERATOR_CHART_VERSION,
                 valuesArgument,
                 context_.config.context,
               );
@@ -159,9 +166,9 @@ export class RapidFireCommand extends BaseCommand {
                   constants.NETWORK_LOAD_GENERATOR_CONTAINER,
                 );
                 const container: Container = k8Containers.readByRef(containerReference);
-                await container.execContainer('apt-get update');
+                await container.execContainer('apt-get update -qq');
                 await container.execContainer('apt-get install -y libsodium23');
-                await container.execContainer('apt-get clean');
+                await container.execContainer('apt-get clean -qq');
               }
             },
           },
@@ -179,12 +186,12 @@ export class RapidFireCommand extends BaseCommand {
     };
   }
 
-  private startLoadTest(testClass: NLGTestClasses): SoloListrTask<RapidFireCryptoTransferStartContext> {
+  private startLoadTest(testClass: NLGTestClass): SoloListrTask<RapidFireStartContext> {
     return {
       title: `Start ${testClass} load test`,
       task: async (
-        context_: RapidFireCryptoTransferStartContext,
-        task: SoloListrTaskWrapper<RapidFireCryptoTransferStartContext>,
+        context_: RapidFireStartContext,
+        task: SoloListrTaskWrapper<RapidFireStartContext>,
       ): Promise<void> => {
         const nlgPods: Pod[] = await this.k8Factory
           .getK8(context_.config.context)
@@ -206,7 +213,7 @@ export class RapidFireCommand extends BaseCommand {
 
           try {
             await container.execContainer(
-              '/usr/bin/env java -Xmx8g -cp /app/lib/*:/app/network-load-generator-0.7.0.jar com.hedera.benchmark.CryptoTransferLoadTest -c 1 -a 4 -t 5',
+              `/usr/bin/env java -Xmx8g -cp /app/lib/*:/app/network-load-generator-${NETWORK_LOAD_GENERATOR_CHART_VERSION}.jar com.hedera.benchmark.${testClass} ${context_.config.parsedNlgArguments}`,
               outputStream,
             );
           } catch (error) {
@@ -222,10 +229,10 @@ export class RapidFireCommand extends BaseCommand {
     };
   }
 
-  public async cryptoTransferStart(argv: ArgvStruct): Promise<boolean> {
+  private async start(testClass: NLGTestClass, argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
-    const tasks: Listr<RapidFireCryptoTransferStartContext> = new Listr<RapidFireCryptoTransferStartContext>(
+    const tasks: Listr<RapidFireStartContext> = new Listr<RapidFireStartContext>(
       [
         {
           title: 'Initialize',
@@ -236,19 +243,20 @@ export class RapidFireCommand extends BaseCommand {
 
             this.configManager.update(argv);
 
-            flags.disablePrompts(RapidFireCommand.CRYPTO_TRANSFER_START_FLAGS_LIST.optional);
+            flags.disablePrompts(RapidFireCommand.START_FLAGS_LIST.optional);
 
             const allFlags: CommandFlag[] = [
-              ...RapidFireCommand.CRYPTO_TRANSFER_START_FLAGS_LIST.required,
-              ...RapidFireCommand.CRYPTO_TRANSFER_START_FLAGS_LIST.optional,
+              ...RapidFireCommand.START_FLAGS_LIST.required,
+              ...RapidFireCommand.START_FLAGS_LIST.optional,
             ];
 
             await this.configManager.executePrompt(task, allFlags);
 
-            const config: RapidFireCryptoTransferStartConfigClass = this.configManager.getConfig(
+            const config: RapidFireStartConfigClass = this.configManager.getConfig(
               RapidFireCommand.CRYPTO_TRANSFER_START_CONFIG_NAME,
               allFlags,
-            ) as RapidFireCryptoTransferStartConfigClass;
+              ['parsedNlgArguments'],
+            ) as RapidFireStartConfigClass;
 
             context_.config = config;
 
@@ -256,11 +264,14 @@ export class RapidFireCommand extends BaseCommand {
             config.clusterRef = this.getClusterReference();
             config.context = this.getClusterContext(config.clusterRef);
 
+            // Parse nlgArguments to remove any surrounding quotes
+            config.parsedNlgArguments = config.nlgArguments.replaceAll("'", '').replaceAll('"', '');
+
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
         this.deployNlgChart(),
-        this.startLoadTest(NLGTestClasses.CryptoTransferLoadTest),
+        this.startLoadTest(testClass),
       ],
       {
         concurrent: false,
@@ -277,6 +288,34 @@ export class RapidFireCommand extends BaseCommand {
     }
 
     return true;
+  }
+
+  public async cryptoTransferStart(argv: ArgvStruct): Promise<boolean> {
+    return this.start(NLGTestClass.CryptoTransferLoadTest, argv);
+  }
+
+  public async nftTransferStart(argv: ArgvStruct): Promise<boolean> {
+    return this.start(NLGTestClass.NftTransferLoadTest, argv);
+  }
+
+  public async tokenTransferStart(argv: ArgvStruct): Promise<boolean> {
+    return this.start(NLGTestClass.TokenTransferLoadTest, argv);
+  }
+
+  public async hcsLoadStart(argv: ArgvStruct): Promise<boolean> {
+    return this.start(NLGTestClass.HCSLoadTest, argv);
+  }
+
+  public async smartContractStart(argv: ArgvStruct): Promise<boolean> {
+    return this.start(NLGTestClass.SmartContractLoadTest, argv);
+  }
+
+  public async heliSwapStart(argv: ArgvStruct): Promise<boolean> {
+    return this.start(NLGTestClass.HeliSwapLoadTest, argv);
+  }
+
+  public async longevityStart(argv: ArgvStruct): Promise<boolean> {
+    return this.start(NLGTestClass.LongevityLoadTest, argv);
   }
 
   public async stop(argv: ArgvStruct): Promise<boolean> {
@@ -302,10 +341,10 @@ export class RapidFireCommand extends BaseCommand {
 
             await this.configManager.executePrompt(task, allFlags);
 
-            const config: RapidFireCryptoTransferStartConfigClass = this.configManager.getConfig(
+            const config: RapidFireStartConfigClass = this.configManager.getConfig(
               RapidFireCommand.STOP_CONFIG_NAME,
               allFlags,
-            ) as RapidFireCryptoTransferStartConfigClass;
+            ) as RapidFireStartConfigClass;
 
             config.namespace = await this.getNamespace(task);
             config.clusterRef = this.getClusterReference();
