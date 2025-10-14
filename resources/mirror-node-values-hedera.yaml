@@ -48,6 +48,9 @@ importer:
             # for s3 configuration of mirror node look at uploader-mirror-secrets.yaml
           parser:
             record:
+              entity:
+                persist:
+                  pendingReward: false
               sidecar:
                 enabled: true
 grpc:
