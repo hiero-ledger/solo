@@ -78,14 +78,9 @@ export class RapidFireCommand extends BaseCommand {
   private static readonly CRYPTO_TRANSFER_START_CONFIG_NAME: string = 'cryptoTransferStartConfig';
   private static readonly STOP_CONFIG_NAME: string = 'stopConfig';
 
-  private static readonly COMMON_START_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.devMode, flags.force, flags.quiet, flags.valuesFile, flags.chartDirectory, flags.nlgArguments],
-  };
-
   public static readonly START_FLAGS_LIST: CommandFlags = {
-    required: [...RapidFireCommand.COMMON_START_FLAGS_LIST.required],
-    optional: [...RapidFireCommand.COMMON_START_FLAGS_LIST.optional],
+    required: [flags.deployment, flags.nlgArguments],
+    optional: [flags.devMode, flags.force, flags.quiet, flags.valuesFile, flags.chartDirectory],
   };
 
   public static readonly STOP_FLAGS_LIST: CommandFlags = {
