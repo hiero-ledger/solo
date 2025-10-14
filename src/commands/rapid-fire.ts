@@ -29,7 +29,6 @@ import chalk from 'chalk';
 import {PassThrough} from 'node:stream';
 
 interface RapidFireStartConfigClass {
-  chartDirectory: string;
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
   devMode: boolean;
@@ -81,7 +80,7 @@ export class RapidFireCommand extends BaseCommand {
 
   public static readonly START_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.nlgArguments],
-    optional: [flags.devMode, flags.force, flags.quiet, flags.valuesFile, flags.chartDirectory, flags.javaHeap],
+    optional: [flags.devMode, flags.force, flags.quiet, flags.valuesFile, flags.javaHeap],
   };
 
   public static readonly STOP_FLAGS_LIST: CommandFlags = {
@@ -107,6 +106,11 @@ export class RapidFireCommand extends BaseCommand {
             title: 'Install Network Load Generator chart',
             task: async (context_, task): Promise<void> => {
               let valuesArgument: string = helpers.prepareValuesFiles(constants.RAPID_FIRE_VALUES_FILE);
+
+              if (context_.config.valuesFile) {
+                valuesArgument += helpers.prepareValuesFiles(context_.config.valuesFile);
+              }
+
               const haproxyPods: Pod[] = await this.k8Factory
                 .getK8(context_.config.context)
                 .pods()
