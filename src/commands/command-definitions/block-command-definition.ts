@@ -22,12 +22,12 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
   }
 
   public static override readonly COMMAND_NAME = 'block';
-  protected static override readonly DESCRIPTION =
+  protected static override readonly DESCRIPTION: string =
     'Block Node operations for creating, modifying, and destroying resources. ' +
     'These commands require the presence of an existing deployment.';
 
   public static readonly NODE_SUBCOMMAND_NAME = 'node';
-  private static readonly NODE_SUBCOMMAND_DESCRIPTION =
+  private static readonly NODE_SUBCOMMAND_DESCRIPTION: string =
     'Create, manage, or destroy block node instances. Operates on a single block node instance at a time.';
 
   public static readonly NODE_ADD = 'add';
