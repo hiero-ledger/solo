@@ -27,12 +27,14 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
   public static readonly CRYPTO_TRANSFER_SUBCOMMAND_NAME = 'crypto-transfer';
   public static readonly NFT_TRANSFER_SUBCOMMAND_NAME = 'nft-transfer';
   public static readonly TOKEN_TRANSFER_SUBCOMMAND_NAME = 'token-transfer';
-  public static readonly SMART_CONTRACT_SUBCOMMAND_NAME = 'smart-conract';
+  public static readonly SMART_CONTRACT_SUBCOMMAND_NAME = 'smart-contract';
   public static readonly HELI_SWAP_SUBCOMMAND_NAME = 'heli-swap';
   public static readonly LONGEVITY_SUBCOMMAND_NAME = 'longevity';
+  public static readonly DESTROY_SUBCOMMAND_NAME = 'destroy';
 
   public static readonly START = 'start';
   public static readonly STOP = 'stop';
+  public static readonly ALL = 'all';
 
   public static readonly RAPID_FIRE_HCS_START_COMMAND: string =
     `${RapidFireCommandDefinition.COMMAND_NAME} ${RapidFireCommandDefinition.HCS_SUBCOMMAND_NAME} ${RapidFireCommandDefinition.START}` as const;
@@ -62,15 +64,20 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
     `${RapidFireCommandDefinition.COMMAND_NAME} ${RapidFireCommandDefinition.LONGEVITY_SUBCOMMAND_NAME} ${RapidFireCommandDefinition.START}` as const;
   public static readonly RAPID_FIRE_LONGEVITY_STOP_COMMAND: string =
     `${RapidFireCommandDefinition.COMMAND_NAME} ${RapidFireCommandDefinition.LONGEVITY_SUBCOMMAND_NAME} ${RapidFireCommandDefinition.STOP}` as const;
+  public static readonly RAPID_FIRE_DESTROY_ALL_COMMAND: string =
+    `${RapidFireCommandDefinition.COMMAND_NAME} ${RapidFireCommandDefinition.DESTROY_SUBCOMMAND_NAME} ${RapidFireCommandDefinition.ALL}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(RapidFireCommandDefinition.COMMAND_NAME, 'TODO', this.logger)
       .addCommandGroup(
-        new CommandGroup(RapidFireCommandDefinition.HCS_SUBCOMMAND_NAME, 'TODO')
+        new CommandGroup(
+          RapidFireCommandDefinition.HCS_SUBCOMMAND_NAME,
+          'Run load tests using the network load generator with the HCSLoadTest class.',
+        )
           .addSubcommand(
             new Subcommand(
               RapidFireCommandDefinition.START,
-              'TODO',
+              'Start a rapid-fire HCS load test using the HCSLoadTest class.',
               this.rapidFireCommand,
               this.rapidFireCommand.hcsLoadStart,
               RapidFireCommand.START_FLAGS_LIST,
@@ -81,9 +88,9 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               RapidFireCommandDefinition.STOP,
-              'TODO',
+              'Stop any running processes using the HCSLoadTest class.',
               this.rapidFireCommand,
-              this.rapidFireCommand.stop,
+              this.rapidFireCommand.hcsLoadStop,
               RapidFireCommand.STOP_FLAGS_LIST,
               [constants.HELM, constants.KUBECTL],
               false,
@@ -91,11 +98,14 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
           ),
       )
       .addCommandGroup(
-        new CommandGroup(RapidFireCommandDefinition.CRYPTO_TRANSFER_SUBCOMMAND_NAME, 'TODO')
+        new CommandGroup(
+          RapidFireCommandDefinition.CRYPTO_TRANSFER_SUBCOMMAND_NAME,
+          'Run load tests using the network load generator with the CryptoTransferLoadTest class',
+        )
           .addSubcommand(
             new Subcommand(
               RapidFireCommandDefinition.START,
-              'TODO',
+              'Start a rapid-fire crypto transfer load test using the CryptoTransferLoadTest class.',
               this.rapidFireCommand,
               this.rapidFireCommand.cryptoTransferStart,
               RapidFireCommand.START_FLAGS_LIST,
@@ -106,9 +116,9 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               RapidFireCommandDefinition.STOP,
-              'TODO',
+              'Stop any running processes using the CryptoTransferLoadTest class.',
               this.rapidFireCommand,
-              this.rapidFireCommand.stop,
+              this.rapidFireCommand.cryptoTransferStop,
               RapidFireCommand.STOP_FLAGS_LIST,
               [constants.HELM, constants.KUBECTL],
               false,
@@ -116,11 +126,14 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
           ),
       )
       .addCommandGroup(
-        new CommandGroup(RapidFireCommandDefinition.NFT_TRANSFER_SUBCOMMAND_NAME, 'TODO')
+        new CommandGroup(
+          RapidFireCommandDefinition.NFT_TRANSFER_SUBCOMMAND_NAME,
+          'Run load tests using the network load generator with the NftTransferLoadTest class',
+        )
           .addSubcommand(
             new Subcommand(
               RapidFireCommandDefinition.START,
-              'TODO',
+              'Start a rapid-fire NFT transfer load test using the NftTransferLoadTest class.',
               this.rapidFireCommand,
               this.rapidFireCommand.nftTransferStart,
               RapidFireCommand.START_FLAGS_LIST,
@@ -131,9 +144,9 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               RapidFireCommandDefinition.STOP,
-              'TODO',
+              'Stop any running processes using the NftTransferLoadTest class.',
               this.rapidFireCommand,
-              this.rapidFireCommand.stop,
+              this.rapidFireCommand.nftTransferStop,
               RapidFireCommand.STOP_FLAGS_LIST,
               [constants.HELM, constants.KUBECTL],
               false,
@@ -141,11 +154,14 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
           ),
       )
       .addCommandGroup(
-        new CommandGroup(RapidFireCommandDefinition.TOKEN_TRANSFER_SUBCOMMAND_NAME, 'TODO')
+        new CommandGroup(
+          RapidFireCommandDefinition.TOKEN_TRANSFER_SUBCOMMAND_NAME,
+          'Run load tests using the network load generator with the TokenTransferLoadTest class',
+        )
           .addSubcommand(
             new Subcommand(
               RapidFireCommandDefinition.START,
-              'TODO',
+              'Start a rapid-fire token transfer load test using the TokenTransferLoadTest class.',
               this.rapidFireCommand,
               this.rapidFireCommand.tokenTransferStart,
               RapidFireCommand.START_FLAGS_LIST,
@@ -156,9 +172,9 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               RapidFireCommandDefinition.STOP,
-              'TODO',
+              'Stop any running processes using the TokenTransferLoadTest class.',
               this.rapidFireCommand,
-              this.rapidFireCommand.stop,
+              this.rapidFireCommand.tokenTransferStop,
               RapidFireCommand.STOP_FLAGS_LIST,
               [constants.HELM, constants.KUBECTL],
               false,
@@ -166,11 +182,14 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
           ),
       )
       .addCommandGroup(
-        new CommandGroup(RapidFireCommandDefinition.SMART_CONTRACT_SUBCOMMAND_NAME, 'TODO')
+        new CommandGroup(
+          RapidFireCommandDefinition.SMART_CONTRACT_SUBCOMMAND_NAME,
+          'Run load tests using the network load generator with the SmartContractLoadTest class',
+        )
           .addSubcommand(
             new Subcommand(
               RapidFireCommandDefinition.START,
-              'TODO',
+              'Start a rapid-fire smart contract load test using the SmartContractLoadTest class.',
               this.rapidFireCommand,
               this.rapidFireCommand.smartContractStart,
               RapidFireCommand.START_FLAGS_LIST,
@@ -181,9 +200,9 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               RapidFireCommandDefinition.STOP,
-              'TODO',
+              'Stop any running processes using the SmartContractLoadTest class.',
               this.rapidFireCommand,
-              this.rapidFireCommand.stop,
+              this.rapidFireCommand.smartContractStop,
               RapidFireCommand.STOP_FLAGS_LIST,
               [constants.HELM, constants.KUBECTL],
               false,
@@ -191,11 +210,14 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
           ),
       )
       .addCommandGroup(
-        new CommandGroup(RapidFireCommandDefinition.HELI_SWAP_SUBCOMMAND_NAME, 'TODO')
+        new CommandGroup(
+          RapidFireCommandDefinition.HELI_SWAP_SUBCOMMAND_NAME,
+          'Run load tests using the network load generator with the HeliSwapLoadTest class',
+        )
           .addSubcommand(
             new Subcommand(
               RapidFireCommandDefinition.START,
-              'TODO',
+              'Start a rapid-fire HeliSwap load test using the HeliSwapLoadTest class.',
               this.rapidFireCommand,
               this.rapidFireCommand.heliSwapStart,
               RapidFireCommand.START_FLAGS_LIST,
@@ -206,9 +228,9 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               RapidFireCommandDefinition.STOP,
-              'TODO',
+              'Stop any running processes using the HeliSwapLoadTest class.',
               this.rapidFireCommand,
-              this.rapidFireCommand.stop,
+              this.rapidFireCommand.heliSwapStop,
               RapidFireCommand.STOP_FLAGS_LIST,
               [constants.HELM, constants.KUBECTL],
               false,
@@ -216,11 +238,14 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
           ),
       )
       .addCommandGroup(
-        new CommandGroup(RapidFireCommandDefinition.LONGEVITY_SUBCOMMAND_NAME, 'TODO')
+        new CommandGroup(
+          RapidFireCommandDefinition.LONGEVITY_SUBCOMMAND_NAME,
+          'Run load tests using the network load generator with the LongevityLoadTest class',
+        )
           .addSubcommand(
             new Subcommand(
               RapidFireCommandDefinition.START,
-              'TODO',
+              'Start a rapid-fire longevity load test using the LongevityLoadTest class.',
               this.rapidFireCommand,
               this.rapidFireCommand.longevityStart,
               RapidFireCommand.START_FLAGS_LIST,
@@ -231,14 +256,30 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               RapidFireCommandDefinition.STOP,
-              'TODO',
+              'Stop any running processes using the LongevityLoadTest class.',
               this.rapidFireCommand,
-              this.rapidFireCommand.stop,
+              this.rapidFireCommand.longevityStop,
               RapidFireCommand.STOP_FLAGS_LIST,
               [constants.HELM, constants.KUBECTL],
               false,
             ),
           ),
+      )
+      .addCommandGroup(
+        new CommandGroup(
+          RapidFireCommandDefinition.DESTROY_SUBCOMMAND_NAME,
+          'Uninstall the Network Load Generator Helm chart and clean up resources.',
+        ).addSubcommand(
+          new Subcommand(
+            RapidFireCommandDefinition.ALL,
+            'Uninstall the Network Load Generator Helm chart and remove all related resources.',
+            this.rapidFireCommand,
+            this.rapidFireCommand.destroy,
+            RapidFireCommand.STOP_FLAGS_LIST,
+            [constants.HELM, constants.KUBECTL],
+            false,
+          ),
+        ),
       )
       .build();
   }
