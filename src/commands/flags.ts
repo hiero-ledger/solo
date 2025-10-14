@@ -2566,6 +2566,17 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly javaHeap: CommandFlag = {
+    constName: 'javaHeap',
+    name: 'javaHeap',
+    definition: {
+      describe: 'Max Java heap size in GB for the NLG load test class, defaults to 8',
+      type: 'number',
+      defaultValue: 8,
+    },
+    prompt: undefined,
+  };
+
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.adminKey,
@@ -2706,6 +2717,7 @@ export class Flags {
     Flags.serviceMonitor,
     Flags.podLog,
     Flags.nlgArguments,
+    Flags.javaHeap,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

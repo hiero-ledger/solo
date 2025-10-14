@@ -40,6 +40,7 @@ interface RapidFireStartConfigClass {
   valuesArg: string;
   nlgArguments: string;
   parsedNlgArguments: string;
+  javaHeap: number;
 }
 
 interface RapidFireStopConfigClass {
@@ -80,7 +81,7 @@ export class RapidFireCommand extends BaseCommand {
 
   public static readonly START_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.nlgArguments],
-    optional: [flags.devMode, flags.force, flags.quiet, flags.valuesFile, flags.chartDirectory],
+    optional: [flags.devMode, flags.force, flags.quiet, flags.valuesFile, flags.chartDirectory, flags.javaHeap],
   };
 
   public static readonly STOP_FLAGS_LIST: CommandFlags = {
@@ -211,7 +212,7 @@ export class RapidFireCommand extends BaseCommand {
           try {
             await leaseReference.lease?.release();
             await container.execContainer(
-              `/usr/bin/env java -Xmx8g -cp /app/lib/*:/app/network-load-generator-${NETWORK_LOAD_GENERATOR_CHART_VERSION}.jar com.hedera.benchmark.${testClass} ${context_.config.parsedNlgArguments}`,
+              `/usr/bin/env java -Xmx${context_.config.javaHeap}g -cp /app/lib/*:/app/network-load-generator-${NETWORK_LOAD_GENERATOR_CHART_VERSION}.jar com.hedera.benchmark.${testClass} ${context_.config.parsedNlgArguments}`,
               outputStream,
             );
           } catch (error) {
