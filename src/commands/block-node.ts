@@ -655,7 +655,7 @@ export class BlockNodeCommand extends BaseCommand {
   /** Adds the block node component to remote config. */
   private removeBlockNodeComponent(): SoloListrTask<BlockNodeDestroyContext> {
     return {
-      title: 'Disable block node component in remote config',
+      title: 'Remove block node component in remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async ({config}): Promise<void> => {
         this.remoteConfig.configuration.components.removeComponent(config.id, ComponentTypes.BlockNode);

@@ -7,11 +7,17 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import * as helpers from '../core/helpers.js';
 import * as constants from '../core/constants.js';
-
 import chalk from 'chalk';
 import {injectable} from 'tsyringe-neo';
 import {checkDockerImageExists, isValidString, showVersionBanner, sleep} from '../core/helpers.js';
-
+import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
+import {Duration} from '../core/time/duration.js';
+import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
+import {Templates} from '../core/templates.js';
+import {Version} from '../business/utils/version.js';
+import {TransactionToolStateSchema} from '../data/schema/model/remote/state/transaction-tool-state-schema.js';
+import {ContainerName} from '../integration/kube/resources/container/container-name.js';
+import {ComponentsDataWrapperApi} from '../core/config/remote/api/components-data-wrapper-api.js';
 import {type Lock} from '../core/lock/lock.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
@@ -27,12 +33,6 @@ import {
 } from '../types/index.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
-import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
-import {Duration} from '../core/time/duration.js';
-import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {Templates} from '../core/templates.js';
-import {Version} from '../business/utils/version.js';
-import {TransactionToolStateSchema} from '../data/schema/model/remote/state/transaction-tool-state-schema.js';
 
 interface TransactionToolAddConfigClass {
   chartVersion: string;
@@ -51,6 +51,7 @@ interface TransactionToolAddConfigClass {
   valuesArg: string;
   newTransactionToolComponent: TransactionToolStateSchema;
   releaseName: string;
+  id: ComponentId;
 }
 
 interface TransactionToolAddContext {
@@ -105,6 +106,8 @@ export class TransactionToolCommand extends BaseCommand {
     optional: [flags.chartDirectory, flags.clusterRef, flags.devMode, flags.force, flags.quiet, flags.id],
   };
 
+  public async close(): Promise<void> {} // no-op
+
   private async prepareValuesArgs(config: TransactionToolAddConfigClass): Promise<string> {
     let valuesArgument: string = ' --install ';
 
@@ -116,24 +119,14 @@ export class TransactionToolCommand extends BaseCommand {
 
     valuesArgument += helpers.populateHelmArguments({nameOverride: config.releaseName});
 
-    // Only handle domainName and imageTag for deploy config (not upgrade config)
-    if (isValidString(config.domainName)) {
-      valuesArgument += helpers.populateHelmArguments({
-        'ingress.enabled': true,
-        'ingress.hosts[0].host': config.domainName,
-        'ingress.hosts[0].paths[0].path': '/',
-        'ingress.hosts[0].paths[0].pathType': 'ImplementationSpecific',
-      });
-    }
-
+    // TODO: might not be exposed for override
     if (isValidString(config.imageTag)) {
-      config.imageTag = Version.getValidSemanticVersion(config.imageTag, false, 'Block node image tag');
+      config.imageTag = Version.getValidSemanticVersion(config.imageTag, false, 'Transaction tool image tag');
 
       if (!checkDockerImageExists(constants.TRANSACTION_TOOL_IMAGE_NAME, config.imageTag)) {
-        throw new SoloError(`Local block node image with tag "${config.imageTag}" does not exist.`);
+        throw new SoloError(`Local transaction tool image tag "${config.imageTag}" does not exist.`);
       }
 
-      // use local image from docker engine
       valuesArgument += helpers.populateHelmArguments({
         'image.repository': constants.TRANSACTION_TOOL_IMAGE_NAME,
         'image.tag': config.imageTag,
@@ -146,20 +139,14 @@ export class TransactionToolCommand extends BaseCommand {
 
   private getReleaseName(): string {
     return this.renderReleaseName(
-      this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.BlockNode),
+      this.remoteConfig.configuration.components.getNewComponentId(ComponentTypes.TransactionTools),
     );
   }
 
-  private renderReleaseName(id: ComponentId): string {
-    if (typeof id !== 'number') {
-      throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
-    }
-    return `${constants.TRANSACTION_TOOL_RELEASE_NAME}-${id}`;
-  }
+  private renderReleaseName: (id: ComponentId) => string = (id: ComponentId): string =>
+    `${constants.TRANSACTION_TOOL_RELEASE_NAME}-${id}`;
 
   public async add(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     let lease: Lock;
 
     const tasks: Listr<TransactionToolAddContext> = new Listr<TransactionToolAddContext>(
@@ -167,9 +154,9 @@ export class TransactionToolCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
-            await self.localConfig.load();
-            await self.remoteConfig.loadAndValidate(argv);
-            lease = await self.leaseManager.create();
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            lease = await this.leaseManager.create();
 
             this.configManager.update(argv);
 
@@ -197,21 +184,23 @@ export class TransactionToolCommand extends BaseCommand {
             config.chartVersion = Version.getValidSemanticVersion(
               config.chartVersion,
               false,
-              'Block node chart version',
+              'Transaction tool chart version',
             );
 
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
         {
-          title: 'Prepare release name and block node name',
+          title: 'Prepare release name',
           task: async ({config}): Promise<void> => {
             config.releaseName = this.getReleaseName();
 
-            config.newTransactionToolComponent = this.componentFactory.createNewBlockNodeComponent(
+            config.newTransactionToolComponent = this.componentFactory.createNewTransactionToolComponent(
               config.clusterRef,
               config.namespace,
             );
+
+            config.id = config.newTransactionToolComponent.metadata.id;
           },
         },
         {
@@ -222,12 +211,12 @@ export class TransactionToolCommand extends BaseCommand {
         },
         {
           title: 'Deploy transaction tool',
-          task: async ({config}, task): Promise<void> => {
+          task: async ({config}): Promise<void> => {
             await this.chartManager.upgrade(
               config.namespace,
               config.releaseName,
               constants.TRANSACTION_TOOL_CHART,
-              config.chartDirectory ? config.chartDirectory : constants.TRANSACTION_TOOL_CHART_URL,
+              config.chartDirectory || constants.TRANSACTION_TOOL_CHART_URL,
               config.chartVersion,
               config.valuesArg,
               config.context,
@@ -237,14 +226,14 @@ export class TransactionToolCommand extends BaseCommand {
           },
         },
         {
-          title: 'Check block node pod is running',
-          task: async ({config}): Promise<void> => {
+          title: 'Check transaction tool pod is running',
+          task: async ({config: {context, namespace, id}}): Promise<void> => {
             await this.k8Factory
-              .getK8(config.context)
+              .getK8(context)
               .pods()
               .waitForRunningPhase(
-                config.namespace,
-                Templates.renderBlockNodeLabels(config.newTransactionToolComponent.metadata.id),
+                namespace,
+                Templates.renderTransactionToolLabels(id),
                 constants.TRANSACTION_TOOL_PODS_RUNNING_MAX_ATTEMPTS,
                 constants.TRANSACTION_TOOL_PODS_RUNNING_DELAY,
               );
@@ -252,39 +241,36 @@ export class TransactionToolCommand extends BaseCommand {
         },
         {
           title: 'Check software',
-          task: async ({config}): Promise<void> => {
-            const labels: string[] = Templates.renderBlockNodeLabels(config.newTransactionToolComponent.metadata.id);
-
-            const blockNodePods: Pod[] = await this.k8Factory
-              .getK8(config.context)
+          task: async ({config: {context, namespace, id}}): Promise<void> => {
+            const pods: Pod[] = await this.k8Factory
+              .getK8(context)
               .pods()
-              .list(config.namespace, labels);
+              .list(namespace, Templates.renderTransactionToolLabels(id));
 
-            if (blockNodePods.length === 0) {
-              throw new SoloError('Failed to list block node pod');
+            if (pods.length === 0) {
+              throw new SoloError('Failed to list transaction tool pod');
             }
           },
         },
         {
-          title: 'Check block node pod is ready',
-          task: async ({config}): Promise<void> => {
-            try {
-              await this.k8Factory
-                .getK8(config.context)
-                .pods()
-                .waitForReadyStatus(
-                  config.namespace,
-                  Templates.renderBlockNodeLabels(config.newTransactionToolComponent.metadata.id),
-                  constants.TRANSACTION_TOOL_PODS_RUNNING_MAX_ATTEMPTS,
-                  constants.TRANSACTION_TOOL_PODS_RUNNING_DELAY,
-                );
-            } catch (error) {
-              throw new SoloError(`Block node ${config.releaseName} is not ready: ${error.message}`, error);
-            }
+          title: 'Check transaction tool pod is ready',
+          task: async ({config: {id, context, namespace, releaseName}}): Promise<void> => {
+            await this.k8Factory
+              .getK8(context)
+              .pods()
+              .waitForReadyStatus(
+                namespace,
+                Templates.renderBlockNodeLabels(id),
+                constants.TRANSACTION_TOOL_PODS_RUNNING_MAX_ATTEMPTS,
+                constants.TRANSACTION_TOOL_PODS_RUNNING_DELAY,
+              )
+              .catch((error): never => {
+                throw new SoloError(`Transaction tool ${releaseName} is not ready: ${error.message}`, error);
+              });
           },
         },
-        this.checkBlockNodeReadiness(),
-        this.addBlockNodeComponent(),
+        this.checkTransactionToolReadiness(),
+        this.addTransactionToolComponent(),
       ],
       {
         concurrent: false,
@@ -295,7 +281,7 @@ export class TransactionToolCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error deploying block node: ${error.message}`, error);
+      throw new SoloError(`Error deploying transaction tool: ${error.message}`, error);
     } finally {
       await lease?.release();
     }
@@ -304,8 +290,6 @@ export class TransactionToolCommand extends BaseCommand {
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     let lease: Lock;
 
     const tasks: Listr<TransactionToolDestroyContext> = new Listr<TransactionToolDestroyContext>(
@@ -313,9 +297,9 @@ export class TransactionToolCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
-            await self.localConfig.load();
-            await self.remoteConfig.loadAndValidate(argv);
-            lease = await self.leaseManager.create();
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            lease = await this.leaseManager.create();
 
             this.configManager.update(argv);
 
@@ -355,13 +339,13 @@ export class TransactionToolCommand extends BaseCommand {
           },
         },
         {
-          title: 'Destroy block node',
-          task: async ({config}): Promise<void> => {
-            await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
+          title: 'Destroy transaction tool',
+          task: async ({config: {namespace, releaseName, context}}): Promise<void> => {
+            await this.chartManager.uninstall(namespace, releaseName, context);
           },
-          skip: ({config}): boolean => !config.isChartInstalled,
+          skip: ({config: {isChartInstalled}}): boolean => !isChartInstalled,
         },
-        this.removeBlockNodeComponent(),
+        this.removeTransactionToolComponent(),
       ],
       {
         concurrent: false,
@@ -380,27 +364,28 @@ export class TransactionToolCommand extends BaseCommand {
     return true;
   }
 
-  private addBlockNodeComponent(): SoloListrTask<TransactionToolAddContext> {
+  private addTransactionToolComponent(): SoloListrTask<TransactionToolAddContext> {
     return {
-      title: 'Add block node component in remote config',
+      title: 'Add transaction tool component in remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
-      task: async ({config}): Promise<void> => {
-        this.remoteConfig.configuration.components.addNewComponent(
-          config.newTransactionToolComponent,
-          ComponentTypes.BlockNode,
-        );
+      task: async ({config: {newTransactionToolComponent}}): Promise<void> => {
+        const components: ComponentsDataWrapperApi = this.remoteConfig.configuration.components;
+
+        components.addNewComponent(newTransactionToolComponent, ComponentTypes.TransactionTools);
 
         await this.remoteConfig.persist();
       },
     };
   }
 
-  private removeBlockNodeComponent(): SoloListrTask<TransactionToolDestroyContext> {
+  private removeTransactionToolComponent(): SoloListrTask<TransactionToolDestroyContext> {
     return {
-      title: 'Disable block node component in remote config',
+      title: 'Remove transaction tool component in remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
-      task: async ({config}): Promise<void> => {
-        this.remoteConfig.configuration.components.removeComponent(config.id, ComponentTypes.BlockNode);
+      task: async ({config: {id}}): Promise<void> => {
+        const components: ComponentsDataWrapperApi = this.remoteConfig.configuration.components;
+
+        components.removeComponent(id, ComponentTypes.TransactionTools);
 
         await this.remoteConfig.persist();
       },
@@ -422,10 +407,10 @@ export class TransactionToolCommand extends BaseCommand {
     };
   }
 
-  private checkBlockNodeReadiness(): SoloListrTask<TransactionToolAddContext> {
+  private checkTransactionToolReadiness(): SoloListrTask<TransactionToolAddContext> {
     return {
-      title: 'Check block node readiness',
-      task: async ({config}, task): Promise<void> => {
+      title: 'Check transaction tool readiness',
+      task: async ({config: {id, context, namespace}}, task): Promise<void> => {
         const displayHealthcheckCallback: (
           attempt: number,
           maxAttempt: number,
@@ -433,16 +418,14 @@ export class TransactionToolCommand extends BaseCommand {
           additionalData?: string,
         ) => void = this.displayHealthCheckData(task);
 
-        const blockNodePodReference: PodReference = await this.k8Factory
-          .getK8(config.context)
-          .pods()
-          .list(config.namespace, Templates.renderBlockNodeLabels(config.newTransactionToolComponent.metadata.id))
-          .then((pods: Pod[]): PodReference => pods[0].podReference);
+        const containerName: ContainerName = constants.TRANSACTION_TOOL_CONTAINER_NAME;
 
-        const containerReference: ContainerReference = ContainerReference.of(
-          blockNodePodReference,
-          constants.TRANSACTION_TOOL_CONTAINER_NAME,
-        );
+        const containerReference: ContainerReference = await this.k8Factory
+          .getK8(context)
+          .pods()
+          .list(namespace, Templates.renderBlockNodeLabels(id))
+          .then((pods): PodReference => pods[0].podReference)
+          .then((reference): ContainerReference => ContainerReference.of(reference, containerName));
 
         const maxAttempts: number = constants.TRANSACTION_TOOL_ACTIVE_MAX_ATTEMPTS;
         let attempt: number = 1;
@@ -454,7 +437,7 @@ export class TransactionToolCommand extends BaseCommand {
           try {
             const response: string = await helpers.withTimeout(
               this.k8Factory
-                .getK8(config.context)
+                .getK8(context)
                 .containers()
                 .readByRef(containerReference)
                 .execContainer([
@@ -474,7 +457,7 @@ export class TransactionToolCommand extends BaseCommand {
             break;
           } catch (error) {
             this.logger.debug(
-              `Waiting for block node health check to come back with OK status: ${error.message}, [attempts: ${attempt}/${maxAttempts}`,
+              `Waiting for transaction tool health check to come back with OK status: ${error.message}, [attempts: ${attempt}/${maxAttempts}`,
             );
           }
 
@@ -493,18 +476,16 @@ export class TransactionToolCommand extends BaseCommand {
     };
   }
 
-  public async close(): Promise<void> {} // no-op
-
-  private inferBlockNodeId(id: Optional<ComponentId>): ComponentId {
+  private inferTransactionToolId(id: Optional<ComponentId>): ComponentId {
     if (typeof id === 'number') {
       return id;
     }
 
-    if (this.remoteConfig.configuration.components.state.blockNodes.length === 0) {
-      throw new SoloError('Block node not found in remote config');
+    if (this.remoteConfig.configuration.components.state.transactionTools.length === 0) {
+      throw new SoloError('Transaction tool not found in remote config');
     }
 
-    return this.remoteConfig.configuration.components.state.blockNodes[0].metadata.id;
+    return this.remoteConfig.configuration.components.state.transactionTools[0].metadata.id;
   }
 
   private async inferDestroyData(
@@ -512,7 +493,7 @@ export class TransactionToolCommand extends BaseCommand {
     namespace: NamespaceName,
     context: Context,
   ): Promise<{id: ComponentId; releaseName: string; isChartInstalled: boolean}> {
-    id = this.inferBlockNodeId(id);
+    id = this.inferTransactionToolId(id);
 
     const releaseName: string = this.renderReleaseName(id);
     return {

@@ -5,7 +5,7 @@ import {ComponentTypes} from './enumerations/component-types.js';
 import {BaseStateSchema} from '../../../data/schema/model/remote/state/base-state-schema.js';
 import {isValidEnum} from '../../util/validation-helpers.js';
 import {type DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
-import {type ClusterReferenceName, type ComponentId} from '../../../types/index.js';
+import {type ClusterReferenceName, type ComponentId, Optional} from '../../../types/index.js';
 import {type ComponentsDataWrapperApi} from './api/components-data-wrapper-api.js';
 import {type DeploymentStateSchema} from '../../../data/schema/model/remote/deployment-state-schema.js';
 import {type ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
@@ -154,44 +154,42 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     callback: (components: BaseStateSchema[]) => void,
     componentId?: ComponentId,
   ): void {
+    const componentGroup: Optional<BaseStateSchema[]> = this.matchComponentGroup(componentType);
+    if (componentGroup) {
+      callback(componentGroup);
+    } else {
+      throw new SoloError(`Unknown component type ${componentType}, component id: ${componentId}`);
+    }
+  }
+
+  private matchComponentGroup(componentType: ComponentTypes): Optional<BaseStateSchema[]> {
     switch (componentType) {
       case ComponentTypes.RelayNodes: {
-        callback(this.state.relayNodes);
-        break;
+        return this.state.relayNodes;
       }
-
       case ComponentTypes.HaProxy: {
-        callback(this.state.haProxies);
-        break;
+        return this.state.haProxies;
       }
-
       case ComponentTypes.MirrorNode: {
-        callback(this.state.mirrorNodes);
-        break;
+        return this.state.mirrorNodes;
       }
-
       case ComponentTypes.EnvoyProxy: {
-        callback(this.state.envoyProxies);
-        break;
+        return this.state.envoyProxies;
       }
-
       case ComponentTypes.ConsensusNode: {
-        callback(this.state.consensusNodes);
-        break;
+        return this.state.consensusNodes;
       }
-
       case ComponentTypes.Explorer: {
-        callback(this.state.explorers);
-        break;
+        return this.state.explorers;
       }
-
       case ComponentTypes.BlockNode: {
-        callback(this.state.blockNodes);
-        break;
+        return this.state.blockNodes;
       }
-
+      case ComponentTypes.TransactionTools: {
+        return this.state.blockNodes;
+      }
       default: {
-        throw new SoloError(`Unknown component type ${componentType}, component id: ${componentId}`);
+        return undefined;
       }
     }
   }

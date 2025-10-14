@@ -382,6 +382,10 @@ export class Templates {
     return [`app.kubernetes.io/name=${releaseName}`];
   }
 
+  public static renderTransactionToolLabels(id: ComponentId): string[] {
+    return [`app.kubernetes.io/part-of=${constants.TRANSACTION_TOOL_RELEASE_NAME}`];
+  }
+
   public static renderBlockNodeName(id: ComponentId): string {
     return `${constants.BLOCK_NODE_RELEASE_NAME}-${id}`;
   }
