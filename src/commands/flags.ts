@@ -1104,6 +1104,18 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly blockNodeCfg: CommandFlag = {
+    constName: 'blockNodeCfg',
+    name: 'block-node-cfg',
+    definition: {
+      describe:
+        'JSON configuration mapping consensus node names to block node IDs, or path to JSON file (e.g., {"node1":[1],"node2":[2,3]} or block.json)',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly applicationProperties: CommandFlag = {
     constName: 'applicationProperties',
     name: 'application-properties',
@@ -2064,7 +2076,7 @@ export class Flags {
       describe:
         'TLS Certificate key path for the gRPC ' +
         '(e.g. "node1=/Users/username/node1-grpc.key" ' +
-        'with multiple nodes comma seperated)',
+        'with multiple nodes comma separated)',
       defaultValue: '',
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
@@ -2091,7 +2103,7 @@ export class Flags {
       describe:
         'TLC Certificate key path for gRPC Web ' +
         '(e.g. "node1=/Users/username/node1-grpc-web.key" ' +
-        'with multiple nodes comma seperated)',
+        'with multiple nodes comma separated)',
       defaultValue: '',
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
@@ -2116,7 +2128,7 @@ export class Flags {
     name: 'stake-amounts',
     definition: {
       describe:
-        'The amount to be staked in the same order you list the node aliases with multiple node staked values comma seperated',
+        'The amount to be staked in the same order you list the node aliases with multiple node staked values comma separated',
       defaultValue: '',
       type: 'string',
     },
@@ -2523,7 +2535,7 @@ export class Flags {
       describe:
         'Custom domain names for consensus nodes mapping for the' +
         `${chalk.gray('(e.g. node0=domain.name where key is node alias and value is domain name)')}` +
-        'with multiple nodes comma seperated',
+        'with multiple nodes comma separated',
       type: 'string',
     },
     prompt: undefined,
@@ -2708,6 +2720,7 @@ export class Flags {
     Flags.domainName,
     Flags.domainNames,
     Flags.blockNodeChartVersion,
+    Flags.blockNodeCfg,
     Flags.realm,
     Flags.shard,
     Flags.username,
