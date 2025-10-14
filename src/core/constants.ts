@@ -341,7 +341,9 @@ export const MIRROR_INGRESS_TLS_SECRET_NAME = 'ca-secret-mirror-node';
 export const EXPLORER_INGRESS_TLS_SECRET_NAME = 'ca-secret-hiero-explorer';
 
 export const BLOCK_NODE_IMAGE_NAME: string = 'block-node-server';
+export const BLOCK_NODES_JSON_FILE: string = 'block-nodes.json';
 export const TRANSACTION_TOOL_IMAGE_NAME: string = 'transaction-tool'; // TODO: review
+
 export const enum StorageType {
   MINIO_ONLY = 'minio_only',
   AWS_ONLY = 'aws_only',

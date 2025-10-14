@@ -568,6 +568,7 @@ export class BlockNodeCommand extends BaseCommand {
               validatedUpgradeVersion,
               config.valuesArg,
               context,
+              false,
             );
 
             showVersionBanner(this.logger, constants.BLOCK_NODE_CHART, config.upgradeVersion);
