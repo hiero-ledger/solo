@@ -4,6 +4,12 @@ set -eo pipefail
 ##
 # Setup script for Podman + Kind E2E Test
 # This script creates a single Kind cluster using Podman as the container runtime
+#
+# Prerequisites:
+#   - Podman must be installed (script will verify)
+#   - Kind must be available
+#   - kubectl and helm must be installed
+#
 # Usage: ./test/e2e/podman-kind/setup-podman-kind-e2e.sh
 ##
 
@@ -30,71 +36,62 @@ echo "Cluster Name: ${SOLO_CLUSTER_NAME}-c1"
 echo "=========================================="
 
 # **********************************************************************************************************************
-# Step 1: Install Podman (if not already installed)
+# Step 1: Verify Podman installation
 # **********************************************************************************************************************
-echo "Step 1: Checking Podman installation..."
+echo "Step 1: Verifying Podman installation..."
 
 if ! command -v podman &> /dev/null; then
-    echo "Podman not found. Installing Podman..."
-    
-    # Detect OS
-    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        # Linux
-        if command -v apt-get &> /dev/null; then
-            # Debian/Ubuntu
-            sudo apt-get update
-            sudo apt-get install -y podman
-        elif command -v yum &> /dev/null; then
-            # RHEL/CentOS
-            sudo yum install -y podman
-        else
-            echo "ERROR: Unsupported Linux distribution"
-            exit 1
-        fi
-    elif [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS
-        if command -v brew &> /dev/null; then
-            brew install podman
-        else
-            echo "ERROR: Homebrew not found. Please install Homebrew first."
-            exit 1
-        fi
-    else
-        echo "ERROR: Unsupported operating system: $OSTYPE"
-        exit 1
-    fi
-    
-    echo "Podman installed successfully"
-else
-    echo "Podman already installed"
+    echo "ERROR: Podman not found. Please install Podman first."
+    echo "For macOS: brew install podman"
+    echo "For Linux: sudo apt-get install -y podman (or equivalent)"
+    exit 1
 fi
 
+echo "Podman found:"
 podman --version
 
 # Configure Podman based on OS
 if [[ "$OSTYPE" == "linux-gnu" ]]; then
     echo "Configuring Podman for Linux..."
     
-    # On Linux CI (GitHub Actions), use rootful Podman with sudo
+    # On Linux CI (GitHub Actions), configure Podman for rootful mode with special storage settings
     # Check if we're in a CI environment
     if [[ -n "${CI}" || -n "${GITHUB_ACTIONS}" ]]; then
-        echo "Running in CI environment, using rootful Podman"
+        echo "Running in CI environment, configuring Podman for GitHub Actions"
         
-        # Start Podman system service (rootful)
-        sudo systemctl enable --now podman.socket || true
-        sudo systemctl start podman.socket || true
+        # Create storage configuration directory
+        sudo mkdir -p /etc/containers
         
-        # Enable Podman socket for rootful mode
-        export DOCKER_HOST=unix:///run/podman/podman.sock
+        # Configure Podman storage to avoid filesystem permission issues
+        # Use overlay driver with specific options for CI environment
+        sudo tee /etc/containers/storage.conf > /dev/null << 'EOF'
+[storage]
+driver = "overlay"
+runroot = "/run/containers/storage"
+graphroot = "/var/lib/containers/storage"
+
+[storage.options]
+# Disable user namespace remapping which causes permission issues in CI
+mount_program = "/usr/bin/fuse-overlayfs"
+
+[storage.options.overlay]
+# Use non-native overlay diff for better compatibility
+mountopt = "nodev,metacopy=on"
+EOF
+
+        echo "Podman storage configuration created"
+        cat /etc/containers/storage.conf
         
-        # Test rootful Podman connection
-        sudo podman info | head -n 20
+        # Start Podman system service (rootful) - ignore systemd errors
+        sudo systemctl enable podman.socket 2>/dev/null || true
+        sudo systemctl start podman.socket 2>/dev/null || true
         
         # Create a wrapper that runs podman with sudo for Kind
         # Kind expects 'podman' command to work without sudo
         cat > /tmp/podman << 'EOF'
 #!/bin/bash
-exec sudo /usr/bin/podman "$@"
+# Run podman with sudo and CI-friendly options
+exec sudo /usr/bin/podman --storage-driver overlay "$@"
 EOF
         chmod +x /tmp/podman
         
@@ -111,7 +108,14 @@ EOF
         echo "Testing Podman wrapper..."
         /tmp/podman --version
         
-        echo "Podman configured for CI (rootful mode)"
+        # Test image pull with sudo and proper options
+        echo "Testing Podman image pull..."
+        sudo /usr/bin/podman --storage-driver overlay pull busybox:latest || {
+            echo "Warning: Podman image pull test failed"
+            echo "This may indicate Podman compatibility issues on this runner"
+        }
+        
+        echo "Podman configured for CI (rootful mode with overlay storage)"
     else
         # On local Linux, try rootless mode
         echo "Setting up rootless Podman"

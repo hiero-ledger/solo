@@ -244,19 +244,40 @@ jobs:
       - name: Install Podman
         if: ${{ inputs.test-script == 'test-e2e-node-local-ptt' }}
         run: |
-          echo "::group::Install Podman"
-          # Update package list
-          sudo apt-get update
+          # Detect distro and install Podman
+          if [ -f /etc/debian_version ]; then
+            # Debian/Ubuntu
+            sudo apt-get update
+            sudo apt-get install -y podman podman-docker containers-storage crun uidmap slirp4netns fuse-overlayfs
+          elif [ -f /etc/redhat-release ]; then
+            # RHEL/Fedora/CentOS
+            sudo dnf install -y podman podman-docker containers-storage crun
+            # Enable lingering for rootless (if needed)
+            sudo loginctl enable-linger $USER
+          else
+            echo "Unsupported distro; add custom install logic"
+            exit 1
+          fi
           
-          # Install Podman and fuse-overlayfs for better storage compatibility
-          sudo apt-get install -y podman fuse-overlayfs
-          
-          # Verify installations
+          # Verify installation
           podman --version
-          fuse-overlayfs --version
           
-          echo "Podman and fuse-overlayfs installed successfully"
-          echo "::endgroup::"
+          # Setup rootless mappings if missing (requires sudo)
+          if ! grep -q "^$USER:" /etc/subuid || ! grep -q "^$USER:" /etc/subgid; then
+            sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 $USER
+          fi
+          
+          # Optional: Init Podman machine for VM-backed performance (uses qemu/kvm if available)
+          podman machine init --cpus 2 --memory 2048 --disk 20
+          podman machine start
+          
+          # Install/Enable Docker socket proxy for Kind
+          if ! command -v docker &> /dev/null; then
+            # podman-docker provides 'docker' CLI alias
+            sudo systemctl enable --now podman.socket  # Enables socket for proxy
+          fi
+          docker version | grep Podman  # Verify proxy works
+
 
       - name: Setup Java
         if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
