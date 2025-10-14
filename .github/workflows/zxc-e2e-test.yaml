@@ -242,7 +242,7 @@ jobs:
         run: docker image pull kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
 
       - name: Install Podman
-        if: ${{ inputs.test-script == 'test-e2e-podman-kind-cluster' }}
+        if: ${{ inputs.test-script == 'test-e2e-node-local-ptt' }}
         run: |
           echo "::group::Install Podman"
           # Update package list
@@ -297,7 +297,7 @@ jobs:
           cd ../solo
 
       - name: Setup E2E Tests
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && inputs.test-script != 'test-e2e-node-local-ptt' }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 3
@@ -306,6 +306,17 @@ jobs:
             npm link
             echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
             SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${{ env.CG_EXEC }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
+
+      - name: Setup Podman & Kind Cluster for E2E Tests
+        if: ${{ !cancelled() && inputs.test-script == 'test-e2e-node-local-ptt' }}
+        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        with:
+          max_attempts: 3
+          timeout_minutes: 15
+          command: |
+            npm link
+            echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
+            SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${{ env.CG_EXEC }} ./test/e2e/podman-kind/setup-podman-kind-e2e.sh
 
       - name: Build Block code locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
