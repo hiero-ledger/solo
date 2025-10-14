@@ -87,6 +87,8 @@ tasks:
       # Deploy block node with previous version
       # Must deploy block node before deploying consensus network due to dependency
       - cmd: |
+          # set env var since old version of block node chart using different chart name
+          export BLOCK_NODE_CHART=block-node-helm-chart
           $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }} \
           --chart-version {{ .PREV_BLOCK_VERSION }} --cluster-ref {{ .CLUSTER_REFERENCE }}
 

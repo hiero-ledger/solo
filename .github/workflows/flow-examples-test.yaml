@@ -203,6 +203,22 @@ jobs:
           
           echo "Task completed successfully"
 
+      - name: Send Slack Notification on Failure
+        if: failure()
+        uses: rtCamp/action-slack-notify@4e5fb42d249be6a45a298f3c9543b111b02f7907 # v2.3.0
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
+          SLACK_COLOR: danger
+          SLACK_TITLE: Example Test Failed
+          SLACK_MESSAGE: |
+            *Example:* ${{ matrix.example.name }}
+            *Directory:* `examples/${{ matrix.example.directory }}`
+            *Branch:* `${{ github.ref_name }}`
+            *Commit:* ${{ github.sha }}
+            
+            :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Job Logs>
+          SLACK_FOOTER: ${{ github.workflow }}
+
       - name: Cleanup Example - ${{ matrix.example.name }}
         if: always()
         timeout-minutes: 10
