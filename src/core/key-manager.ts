@@ -86,6 +86,7 @@ export class KeyManager {
     // a certificate bundle)
     const lastItem = items.at(-1);
 
+    // eslint-disable-next-line n/no-unsupported-features/node-builtins
     return await crypto.subtle.importKey('pkcs8', lastItem, algo, false, keyUsages);
   }
 
@@ -279,6 +280,7 @@ export class KeyManager {
 
       this.logger.debug(`generating ${keyPrefix}-key for node: ${nodeAlias}`, {friendlyName});
 
+      // eslint-disable-next-line n/no-unsupported-features/node-builtins
       const keypair = await crypto.subtle.generateKey(KeyManager.SigningKeyAlgo, true, KeyManager.SigningKeyUsage);
 
       const cert = await x509.X509CertificateGenerator.createSelfSigned({
@@ -361,6 +363,7 @@ export class KeyManager {
 
       this.logger.debug(`generating gRPC TLS for node: ${nodeAlias}`, {distinguishedName});
 
+      // eslint-disable-next-line n/no-unsupported-features/node-builtins
       const keypair = await crypto.subtle.generateKey(KeyManager.TLSKeyAlgo, true, KeyManager.TLSKeyUsage);
 
       const cert = await x509.X509CertificateGenerator.createSelfSigned({
