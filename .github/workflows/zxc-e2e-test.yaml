@@ -241,6 +241,26 @@ jobs:
       - name: Pull Kind Docker Image
         run: docker image pull kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
 
+      - name: Install Podman
+        if: ${{ inputs.test-script == 'test-e2e-podman-kind-cluster' }}
+        run: |
+          echo "::group::Install Podman"
+          # Update package list
+          sudo apt-get update
+          
+          # Install Podman
+          sudo apt-get install -y podman
+          
+          # Verify Podman installation
+          podman --version
+          
+          # Start Podman socket (required for API access)
+          systemctl --user start podman.socket || true
+          
+          # Show Podman info
+          podman info
+          echo "::endgroup::"
+
       - name: Setup Java
         if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
         uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0

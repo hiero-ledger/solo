@@ -19,19 +19,33 @@ const testName: string = 'podman-kind-cluster';
 const testTitle: string = 'Podman Installation & Kind Cluster Creation E2E Test';
 
 /**
- * E2E Test Suite for Podman Installation and Kind Cluster Creation
+ * E2E Test Suite for Podman Installation, Kind Cluster Creation, and Node Deployment
  *
- * This test validates:
- * 1. Podman dependency installation (if Docker is not available)
+ * **IMPORTANT:** This test ALWAYS uses Podman, regardless of Docker availability.
+ * This is intentional to specifically test Podman installation and Kind with Podman.
+ *
+ * This test validates the infrastructure setup workflow:
+ * 1. Podman dependency installation (FORCED - even if Docker is available)
  * 2. Kind dependency installation
- * 3. Automatic creation of a Kind cluster
- * 4. Cluster cleanup
+ * 3. Kind configured to use Podman (KIND_EXPERIMENTAL_PROVIDER=podman)
+ * 4. Verify Kind cluster exists (created by setup script)
+ * 5. Verify cluster is accessible and ready
+ * 6. Cluster cleanup
+ *
+ * This is a focused infrastructure test that validates:
+ * - Podman installation and configuration
+ * - Kind installation and Podman integration
+ * - Cluster creation via setup script
+ * - Cluster accessibility and readiness
+ * - Proper cleanup of resources
+ *
+ * NOTE: This test assumes the cluster is already created by running:
+ *   ./test/e2e/podman-kind/setup-podman-kind-e2e.sh
  */
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
   .withTestSuiteName(`${testTitle} Suite`)
   .withNamespace(testName)
-  .withDeployment(`${testName}-deployment`)
   .withClusterCount(1)
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe(testTitle, (): void => {
@@ -92,7 +106,14 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         testLogger,
       });
 
-      // Test 3: Cluster Cleanup
+      // Test 3: Verify Cluster Readiness
+      PodmanKindSetupTest.testNodeDeployment({
+        ...options,
+        testName,
+        testLogger,
+      });
+
+      // Test 4: Cluster Cleanup
       PodmanKindSetupTest.testClusterCleanup({
         ...options,
         testName,
