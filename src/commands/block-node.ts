@@ -3,7 +3,7 @@
 import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
 import * as helpers from '../core/helpers.js';
-import {checkDockerImageExists, showVersionBanner, sleep} from '../core/helpers.js';
+import {checkDockerImageExists, isValidString, showVersionBanner, sleep} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -155,14 +155,14 @@ export class BlockNodeCommand extends BaseCommand {
 
     valuesArgument += helpers.prepareValuesFiles(constants.BLOCK_NODE_VALUES_FILE);
 
-    if (config.valuesFile) {
+    if (isValidString(config.valuesFile)) {
       valuesArgument += helpers.prepareValuesFiles(config.valuesFile);
     }
 
     valuesArgument += helpers.populateHelmArguments({nameOverride: config.releaseName});
 
     // Only handle domainName and imageTag for deploy config (not upgrade config)
-    if ('domainName' in config && config.domainName) {
+    if ('domainName' in config && isValidString(config.domainName)) {
       valuesArgument += helpers.populateHelmArguments({
         'ingress.enabled': true,
         'ingress.hosts[0].host': config.domainName,
@@ -171,11 +171,13 @@ export class BlockNodeCommand extends BaseCommand {
       });
     }
 
-    if ('imageTag' in config && config.imageTag) {
+    if ('imageTag' in config && isValidString(config.imageTag)) {
       config.imageTag = Version.getValidSemanticVersion(config.imageTag, false, 'Block node image tag');
+
       if (!checkDockerImageExists(BLOCK_NODE_IMAGE_NAME, config.imageTag)) {
         throw new SoloError(`Local block node image with tag "${config.imageTag}" does not exist.`);
       }
+
       // use local image from docker engine
       valuesArgument += helpers.populateHelmArguments({
         'image.repository': BLOCK_NODE_IMAGE_NAME,
@@ -309,7 +311,7 @@ export class BlockNodeCommand extends BaseCommand {
               config.context,
             );
 
-            if (config.imageTag) {
+            if (isValidString(config.imageTag)) {
               // update config map with new VERSION info since
               // it will be used as a critical environment variable by block node
               const blockNodeStateSchema: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
@@ -521,7 +523,7 @@ export class BlockNodeCommand extends BaseCommand {
 
             config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
 
-            if (!config.upgradeVersion) {
+            if (isValidString(config.upgradeVersion)) {
               config.upgradeVersion = versions.BLOCK_NODE_VERSION;
             }
 
