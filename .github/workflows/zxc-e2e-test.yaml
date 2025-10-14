@@ -248,17 +248,14 @@ jobs:
           # Update package list
           sudo apt-get update
           
-          # Install Podman
-          sudo apt-get install -y podman
+          # Install Podman and fuse-overlayfs for better storage compatibility
+          sudo apt-get install -y podman fuse-overlayfs
           
-          # Verify Podman installation
+          # Verify installations
           podman --version
+          fuse-overlayfs --version
           
-          # Start Podman socket (required for API access)
-          systemctl --user start podman.socket || true
-          
-          # Show Podman info
-          podman info
+          echo "Podman and fuse-overlayfs installed successfully"
           echo "::endgroup::"
 
       - name: Setup Java
