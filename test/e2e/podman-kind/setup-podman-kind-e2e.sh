@@ -71,10 +71,58 @@ fi
 
 podman --version
 
-# Start Podman socket (required for API access)
+# Configure Podman based on OS
 if [[ "$OSTYPE" == "linux-gnu" ]]; then
-    systemctl --user start podman.socket || true
+    echo "Configuring Podman for Linux..."
+    
+    # On Linux CI (GitHub Actions), use rootful Podman with sudo
+    # Check if we're in a CI environment
+    if [[ -n "${CI}" || -n "${GITHUB_ACTIONS}" ]]; then
+        echo "Running in CI environment, using rootful Podman"
+        
+        # Start Podman system service (rootful)
+        sudo systemctl enable --now podman.socket || true
+        sudo systemctl start podman.socket || true
+        
+        # Enable Podman socket for rootful mode
+        export DOCKER_HOST=unix:///run/podman/podman.sock
+        
+        # Test rootful Podman connection
+        sudo podman info | head -n 20
+        
+        # Create a wrapper that runs podman with sudo for Kind
+        # Kind expects 'podman' command to work without sudo
+        cat > /tmp/podman << 'EOF'
+#!/bin/bash
+exec sudo /usr/bin/podman "$@"
+EOF
+        chmod +x /tmp/podman
+        
+        # Add wrapper to PATH before real podman
+        export PATH="/tmp:${PATH}"
+        
+        # Persist environment variables for GitHub Actions
+        if [[ -n "${GITHUB_ENV}" ]]; then
+            echo "PATH=/tmp:${PATH}" >> "${GITHUB_ENV}"
+            echo "KIND_EXPERIMENTAL_PROVIDER=podman" >> "${GITHUB_ENV}"
+        fi
+        
+        # Verify wrapper works
+        echo "Testing Podman wrapper..."
+        /tmp/podman --version
+        
+        echo "Podman configured for CI (rootful mode)"
+    else
+        # On local Linux, try rootless mode
+        echo "Setting up rootless Podman"
+        systemctl --user enable --now podman.socket || true
+        systemctl --user start podman.socket || true
+        export DOCKER_HOST=unix://${XDG_RUNTIME_DIR}/podman/podman.sock
+        
+        podman info | head -n 20
+    fi
 elif [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS - requires Podman machine
     # Check if podman machine exists
     if podman machine list | grep -q "podman-machine-default"; then
         echo "Podman machine exists, checking resources..."
@@ -97,10 +145,10 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then
         podman machine init --cpus 4 --memory 8192 --disk-size 100 podman-machine-default
         podman machine start
     fi
+    
+    echo "Podman info:"
+    podman info | head -n 20
 fi
-
-echo "Podman info:"
-podman info | head -n 20
 
 # **********************************************************************************************************************
 # Step 2: Configure Kind to use Podman
