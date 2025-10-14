@@ -1,9 +1,9 @@
 [
   {
-    "name": "Podman & Kind Cluster Setup",
-    "test-script": "test-e2e-podman-kind-cluster",
-    "coverage-subdirectory": "e2e-podman-kind-cluster",
-    "coverage-report-name": "E2E_Podman_Kind_Cluster_Tests_Coverage_Report",
-    "local-java-build": false
+    "name": "Node Local PTT",
+    "test-script": "test-e2e-node-local-ptt",
+    "coverage-subdirectory": "e2e-node-local-ptt",
+    "coverage-report-name": "E2E_Node_Local_PTT_Tests_Coverage_Report",
+    "local-java-build": true
   }
 ]
