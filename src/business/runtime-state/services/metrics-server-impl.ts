@@ -131,7 +131,7 @@ export class MetricsServerImpl implements MetricsServer {
         clusterMetric.context,
         clusterMetric.postgresPodName,
       );
-      namespace = clusterMetric.namespace;
+      namespace = clusterMetric.namespace?.name ? clusterMetric.namespace : namespace;
     }
 
     const remoteConfigRuntimeState: RemoteConfigRuntimeState = container.resolve(InjectTokens.RemoteConfigRuntimeState);
