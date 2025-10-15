@@ -23,7 +23,7 @@ vars:
   PREV_MIRROR_VERSION: "v0.138.0"
   PREV_EXPLORER_VERSION: "25.0.0"
   PREV_RELAY_VERSION: "0.69.0"
-  PREV_BLOCK_VERSION: "v0.17.0"
+  PREV_BLOCK_VERSION: "v0.19.0"
 
   # Local build path for network upgrade
   CN_LOCAL_BUILD_PATH: "../hiero-consensus-node/hedera-node/data"
@@ -84,6 +84,12 @@ tasks:
           $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
           --node-aliases {{ .NODE_IDENTIFIERS }}
 
+      # Deploy block node with previous version
+      # Must deploy block node before deploying consensus network due to dependency
+      - cmd: |
+          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }} \
+          --chart-version {{ .PREV_BLOCK_VERSION }} --cluster-ref {{ .CLUSTER_REFERENCE }}
+
       - cmd: |
           $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
           --release-tag {{ .PREV_CN_VERSION }}
@@ -91,13 +97,6 @@ tasks:
       - cmd: $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }}
 
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
-
-      # Deploy block node with previous version
-      - cmd: |
-          # set env var since old version of block node chart using different chart name
-          export BLOCK_NODE_CHART=block-node-helm-chart
-          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }} \
-          --chart-version {{ .PREV_BLOCK_VERSION }} --cluster-ref {{ .CLUSTER_REFERENCE }}
 
       # Deploy mirror node with previous version
       - cmd: |
@@ -121,7 +120,8 @@ tasks:
     cmds:
       # Upgrade mirror node
       - cmd: |
-          $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }}
+          $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
+          --mirror-node-version v0.139.0
 
       # Upgrade block node
       - cmd: |
@@ -185,6 +185,20 @@ tasks:
       - echo "Relay API verification completed"
 
       - echo "All functionality verification completed successfully!"
+
+      # Test Block Node functionality
+      - cmd: |
+          kubectl port-forward --namespace {{ .NAMESPACE }} svc/block-node-1 40840:40840 &
+          cd ../../test/data
+          
+          OUTPUT=$(./get-block.sh 1)
+          echo "$OUTPUT"
+          if echo "$OUTPUT" | grep -q '"status": "SUCCESS"'; then
+            echo "✓ Block node test passed - status is SUCCESS"
+          else
+            echo "✗ Block node test failed - status is not SUCCESS"
+            exit 1
+          fi
 
   destroy:
     desc: Destroy the Solo network and cleanup

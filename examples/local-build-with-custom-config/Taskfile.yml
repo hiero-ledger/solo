@@ -23,7 +23,7 @@ vars:
 
   CN_VERSION: "0.63.0"
   RELAY_RELEASE_FLAG: "--relay-release 0.70.1"
-  MIRROR_NODE_VERSION_FLAG: "--mirror-node-version v0.138.0"
+  MIRROR_NODE_VERSION_FLAG: "--mirror-node-version v0.140.0"
   EXPLORER_VERSION_FLAG: "--explorer-version 25.0.0"
 
   BLOCK_NODE_VALUE_FILE_FLAG: "--values-file {{ .USER_WORKING_DIR }}/block-node-values.yaml"

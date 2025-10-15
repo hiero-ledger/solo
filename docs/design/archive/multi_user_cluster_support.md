@@ -93,7 +93,7 @@ Each solo state will be stored with team level access control in the cluster (pr
 Actual configuration of the deployed component can be found the the Kubernetes manifest. Therefore `solo` state is designed to store the details about where different components are deployed across different clusters and namespaces so that relevant leases can be acquired before updating the deployed network.
 
 ```yaml
-version: 1.0.32 # solo state maintaines its own version increments, not same as solo version
+version: 1.0.32 # solo state maintains its own version increments, not same as solo version
 metadata:
   name: my-network-1 # name of the network that this state represents. This is also the name of the lock. This shouldn't be changed once set.
   lastUpdatedAt: 2024-04-25T13:03:32Z

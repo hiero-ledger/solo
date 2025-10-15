@@ -99,7 +99,7 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Setup Node
-        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
         with:
           node-version: ${{ inputs.node-version || '22' }}
           cache: npm
@@ -139,6 +139,15 @@ jobs:
         with:
           version: 3.39.2
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: '1.22.3'
+
+      - name: Install grpcurl
+        run: |
+          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 
       - name: Setup Java
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
@@ -193,6 +202,22 @@ jobs:
           task
           
           echo "Task completed successfully"
+
+      - name: Send Slack Notification on Failure
+        if: failure()
+        uses: rtCamp/action-slack-notify@4e5fb42d249be6a45a298f3c9543b111b02f7907 # v2.3.0
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
+          SLACK_COLOR: danger
+          SLACK_TITLE: Example Test Failed
+          SLACK_MESSAGE: |
+            *Example:* ${{ matrix.example.name }}
+            *Directory:* `examples/${{ matrix.example.directory }}`
+            *Branch:* `${{ github.ref_name }}`
+            *Commit:* ${{ github.sha }}
+            
+            :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Job Logs>
+          SLACK_FOOTER: ${{ github.workflow }}
 
       - name: Cleanup Example - ${{ matrix.example.name }}
         if: always()
