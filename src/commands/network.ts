@@ -581,7 +581,7 @@ export class NetworkCommand extends BaseCommand {
     }
 
     if (config.blockNodeComponents.length > 0) {
-      // Parse blockNodeCfg once and store in config for reuse in copy step
+      // Parse blockNodeConfiguration once and store in config for reuse in copy step
       if (!config.consensusNodeToBlockNodesMap) {
         config.consensusNodeToBlockNodesMap = {};
 
@@ -639,7 +639,7 @@ export class NetworkCommand extends BaseCommand {
       }
 
       // For cluster-level configuration, use all block nodes (backward compatibility)
-      // Skip this if blockNodeCfg is provided, as we're using node-specific files
+      // Skip this if blockNodeConfiguration is provided, as we're using node-specific files
       if (!config.blockNodeCfg || config.blockNodeCfg.trim() === '') {
         for (const clusterReference of clusterReferences) {
           const blockNodesJsonData: string = new BlockNodesJsonWrapper(
@@ -657,7 +657,7 @@ export class NetworkCommand extends BaseCommand {
         }
       } else {
         this.logger.debug(
-          'Skipping cluster-level block-nodes.json generation - using node-specific files from blockNodeCfg',
+          'Skipping cluster-level block-nodes.json generation - using node-specific files from blockNodeConfiguration',
         );
       }
     }
@@ -1245,7 +1245,7 @@ export class NetworkCommand extends BaseCommand {
                 // Determine which file to copy
                 let blockNodesJsonPath: string;
                 if (useNodeSpecificFiles) {
-                  // Use node-specific file if blockNodeCfg is provided
+                  // Use node-specific file if blockNodeConfiguration is provided
                   const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${consensusNodeId}.json`;
                   blockNodesJsonPath = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
 
