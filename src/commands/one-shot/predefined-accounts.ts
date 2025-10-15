@@ -13,6 +13,7 @@ export type CreatedPredefinedAccount = {
   accountId: AccountId;
   data: PredefinedAccount;
   alias?: string;
+  publicKey: string;
 };
 
 export type SystemAccount = {

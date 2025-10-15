@@ -460,6 +460,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         accountId: AccountId.fromString(createdAccount.accountId),
                         data: account,
                         alias: createdAccount.accountAlias,
+                        publicKey: createdAccount.publicKey,
                       });
 
                       subTask.title = `Account created: ${createdAccount.accountId.toString()}`;
@@ -682,6 +683,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           const formattedAccount = {
             accountId: account.accountId.toString(),
             privateKey: `0x${account.data.privateKey.toStringRaw()}`,
+            publicKey: account.publicKey,
             balance: account.data.balance.toString(),
             group: account.data.group,
           };
