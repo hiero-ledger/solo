@@ -714,6 +714,50 @@ export class Flags {
     },
   };
 
+  public static readonly relayChartDirectory: CommandFlag = {
+    constName: 'relayChartDirectory',
+    name: 'relay-chart-dir',
+    definition: {
+      describe: 'Relay local chart directory path (e.g. ~/relay/charts',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly explorerChartDirectory: CommandFlag = {
+    constName: 'explorerChartDirectory',
+    name: 'explorer-chart-dir',
+    definition: {
+      describe: 'Explorer local chart directory path (e.g. ~/explorer/charts',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly blockNodeChartDirectory: CommandFlag = {
+    constName: 'blockNodeChartDirectory',
+    name: 'block-node-chart-dir',
+    definition: {
+      describe: 'Block node local chart directory path (e.g. ~/block-node/charts',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly mirrorNodeChartDirectory: CommandFlag = {
+    constName: 'mirrorNodeChartDirectory',
+    name: 'mirror-node-chart-dir',
+    definition: {
+      describe: 'Mirror node local chart directory path (e.g. ~/mirror-node/charts',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly replicaCount: CommandFlag = {
     constName: 'replicaCount',
     name: 'replica-count',
@@ -2576,7 +2620,14 @@ export class Flags {
     Flags.bootstrapProperties,
     Flags.cacheDir,
     Flags.chainId,
+
+    //* Chart directories
     Flags.chartDirectory,
+    Flags.relayChartDirectory,
+    Flags.explorerChartDirectory,
+    Flags.blockNodeChartDirectory,
+    Flags.mirrorNodeChartDirectory,
+
     Flags.clusterRef,
     Flags.clusterSetupNamespace,
     Flags.context,
