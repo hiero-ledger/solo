@@ -684,7 +684,7 @@ export class Flags {
     constName: 'chartDirectory',
     name: 'chart-dir',
     definition: {
-      describe: 'Local chart directory path (e.g. ~/solo-charts/charts',
+      describe: 'Local chart directory path (e.g. ~/solo-charts/charts)',
       defaultValue: '',
       type: 'string',
     },
@@ -718,7 +718,7 @@ export class Flags {
     constName: 'relayChartDirectory',
     name: 'relay-chart-dir',
     definition: {
-      describe: 'Relay local chart directory path (e.g. ~/relay/charts',
+      describe: 'Relay local chart directory path (e.g. ~/hiero-json-rpc-relay/charts)',
       defaultValue: '',
       type: 'string',
     },
@@ -729,7 +729,7 @@ export class Flags {
     constName: 'explorerChartDirectory',
     name: 'explorer-chart-dir',
     definition: {
-      describe: 'Explorer local chart directory path (e.g. ~/explorer/charts',
+      describe: 'Explorer local chart directory path (e.g. ~/hiero-mirror-node-explorer/charts)',
       defaultValue: '',
       type: 'string',
     },
@@ -740,7 +740,7 @@ export class Flags {
     constName: 'blockNodeChartDirectory',
     name: 'block-node-chart-dir',
     definition: {
-      describe: 'Block node local chart directory path (e.g. ~/block-node/charts',
+      describe: 'Block node local chart directory path (e.g. ~/hiero-block-node/charts)',
       defaultValue: '',
       type: 'string',
     },
@@ -751,7 +751,7 @@ export class Flags {
     constName: 'mirrorNodeChartDirectory',
     name: 'mirror-node-chart-dir',
     definition: {
-      describe: 'Mirror node local chart directory path (e.g. ~/mirror-node/charts',
+      describe: 'Mirror node local chart directory path (e.g. ~/hiero-mirror-node/charts)',
       defaultValue: '',
       type: 'string',
     },
