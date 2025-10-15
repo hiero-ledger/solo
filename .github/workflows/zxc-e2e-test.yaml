@@ -244,49 +244,61 @@ jobs:
       - name: Install Podman
         if: ${{ inputs.test-script == 'test-e2e-node-local-ptt' }}
         run: |
-          # Detect distro and install Podman
+          # Detect distro and install Podman + extras
           if [ -f /etc/debian_version ]; then
-            # Debian/Ubuntu
             sudo apt-get update
-            sudo apt-get install -y podman podman-docker containers-storage crun uidmap slirp4netns fuse-overlayfs
+            sudo apt-get install -y podman containers-storage crun uidmap slirp4netns fuse-overlayfs iptables
           elif [ -f /etc/redhat-release ]; then
-            # RHEL/Fedora/CentOS
-            sudo dnf install -y podman podman-docker containers-storage crun
-            # Enable lingering for rootless (if needed)
-            sudo loginctl enable-linger $USER
+            # Check if RHEL7/CentOS7 (yum) or newer (dnf)
+            if command -v yum &> /dev/null; then
+              sudo yum update -y
+              sudo yum install -y podman containers-storage crun uidmap slirp4netns fuse-overlayfs iptables
+            else
+              sudo dnf install -y podman containers-storage crun uidmap slirp4netns fuse-overlayfs iptables
+            fi
+            sudo loginctl enable-linger $USER || sudo systemctl enable --now systemd-logind
           else
-            echo "Unsupported distro; add custom install logic"
+            echo "Unsupported distro"
             exit 1
           fi
           
-          # Verify installation
           podman --version
           
-          # Setup rootless mappings if missing (requires sudo)
-          # Check both files and add ranges only if not present
-          if ! grep -q "^$USER:" /etc/subuid || ! grep -q "^$USER:" /etc/subgid; then
-            echo "Adding subuid/subgid ranges for $USER"
-            sudo usermod --add-subuids 100000-165535 $USER
-            sudo usermod --add-subgids 100000-165535 $USER
-            # Migrate Podman storage to apply changes
-            podman system migrate || true
-          else
-            echo "Subuid/subgid already configured for $USER"
+          # Enable shared mounts for rootless
+          echo "Enabling shared mount propagation on /"
+          sudo mount --make-rshared / || echo "Mount already shared or failed"
+          
+          # Enhanced SubUID/SubGID using short flags for old usermod
+          SUBUID_RANGE="100000-165535"  # Stick to smaller for compat; or "100000-2000000" if needed
+          SUBGID_RANGE="100000-165535"
+          if ! grep -q "^$USER:" /etc/subuid; then
+            echo "Adding subuid range via usermod -v"
+            sudo usermod -v $SUBUID_RANGE $USER || {
+              echo "usermod failed; appending to file directly"
+              echo "$USER:100000:65536" | sudo tee -a /etc/subuid
+            }
+          fi
+          if ! grep -q "^$USER:" /etc/subgid; then
+            echo "Adding subgid range via usermod -w"
+            sudo usermod -w $SUBGID_RANGE $USER || {
+              echo "usermod failed; appending to file directly"
+              echo "$USER:100000:65536" | sudo tee -a /etc/subgid
+            }
           fi
           
-          # Optional: Init Podman machine for VM-backed performance
-          # Use rootful if machine init fails (e.g., no KVM)
-          if ! podman machine init --cpus 2 --memory 2048 --disk 20; then
-            echo "Podman machine init failed; falling back to rootful mode"
-            podman machine init --rootful
-          fi
+          # Apply changes and test mapping
+          podman system migrate || true
+          newuidmap --version || echo "newuidmap missing; install shadow-utils-newxidmap or upgrade"
+          podman unshare id  # Test namespace setup
+          
+          # Init machine: Force rootful for old Podman stability (bypasses newuidmap issues)
+          echo "Initializing Podman machine in rootful mode"
+          podman machine init --rootful --cpus 2 --memory 2048 --disk 20 || echo "Init failed; proceed cautiously"
           podman machine start
           
-          # Install/Enable Docker socket proxy for Kind
-          if ! command -v docker &> /dev/null; then
-            sudo systemctl enable --now podman.socket  # Enables socket for proxy
-          fi
-          docker version | grep Podman  # Verify proxy works
+          # Verify Podman works
+          podman info || echo "Podman info failed; check logs"
+          podman ps && echo "Podman ready"
 
 
       - name: Setup Java
