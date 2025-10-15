@@ -78,7 +78,7 @@ solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" \
 ```
 
 This configuration maps consensus node names to arrays of block node IDs. For example:
-- `node1` sends blocks to block nodes 1 and 3
-- `node2` sends blocks to block node 2
-- `node3` sends blocks to block nodes 1 and 2
 
+* `node1` sends blocks to block nodes 1 and 3
+* `node2` sends blocks to block node 2
+* `node3` sends blocks to block nodes 1 and 2

@@ -48,7 +48,7 @@ You can adjust the number of nodes and other settings by editing the `vars:` sec
 
 ### Advanced: Block Node Routing Configuration
 
-The `--block-node-cfg` flag allows you to configure how each consensus node sends blocks to specific block nodes. 
+The `--block-node-cfg` flag allows you to configure how each consensus node sends blocks to specific block nodes.
 
 #### Usage
 
@@ -63,7 +63,7 @@ The flag accepts either:
    ```bash
    # Create block-config.json
    echo '{"node1":[1,3],"node2":[2]}' > block-config.json
-   
+
    # Use the file
    solo consensus network deploy --block-node-cfg block-config.json
    ```
@@ -80,9 +80,9 @@ The JSON configuration maps consensus node names to arrays of block node IDs:
 ```
 
 This example means:
-- Consensus node `node1` sends blocks to block nodes 1 and 3
-- Consensus node `node2` sends blocks to block node 2
 
+* Consensus node `node1` sends blocks to block nodes 1 and 3
+* Consensus node `node2` sends blocks to block node 2
 
 #### Example: Multi-Node Setup with Custom Routing
 
