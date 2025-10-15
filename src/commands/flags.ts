@@ -684,7 +684,7 @@ export class Flags {
     constName: 'chartDirectory',
     name: 'chart-dir',
     definition: {
-      describe: 'Local chart directory path (e.g. ~/solo-charts/charts',
+      describe: 'Local chart directory path (e.g. ~/solo-charts/charts)',
       defaultValue: '',
       type: 'string',
     },
@@ -712,6 +712,50 @@ export class Flags {
         throw new SoloError(`input failed: ${Flags.chartDirectory.name}`, error);
       }
     },
+  };
+
+  public static readonly relayChartDirectory: CommandFlag = {
+    constName: 'relayChartDirectory',
+    name: 'relay-chart-dir',
+    definition: {
+      describe: 'Relay local chart directory path (e.g. ~/hiero-json-rpc-relay/charts)',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly explorerChartDirectory: CommandFlag = {
+    constName: 'explorerChartDirectory',
+    name: 'explorer-chart-dir',
+    definition: {
+      describe: 'Explorer local chart directory path (e.g. ~/hiero-mirror-node-explorer/charts)',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly blockNodeChartDirectory: CommandFlag = {
+    constName: 'blockNodeChartDirectory',
+    name: 'block-node-chart-dir',
+    definition: {
+      describe: 'Block node local chart directory path (e.g. ~/hiero-block-node/charts)',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly mirrorNodeChartDirectory: CommandFlag = {
+    constName: 'mirrorNodeChartDirectory',
+    name: 'mirror-node-chart-dir',
+    definition: {
+      describe: 'Mirror node local chart directory path (e.g. ~/hiero-mirror-node/charts)',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
   };
 
   public static readonly replicaCount: CommandFlag = {
@@ -2576,7 +2620,14 @@ export class Flags {
     Flags.bootstrapProperties,
     Flags.cacheDir,
     Flags.chainId,
+
+    //* Chart directories
     Flags.chartDirectory,
+    Flags.relayChartDirectory,
+    Flags.explorerChartDirectory,
+    Flags.blockNodeChartDirectory,
+    Flags.mirrorNodeChartDirectory,
+
     Flags.clusterRef,
     Flags.clusterSetupNamespace,
     Flags.context,

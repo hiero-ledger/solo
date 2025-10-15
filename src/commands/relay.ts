@@ -65,6 +65,7 @@ interface RelayDestroyContext {
 interface RelayDeployConfigClass {
   chainId: string;
   chartDirectory: string;
+  relayChartDirectory: string;
   namespace: NamespaceName;
   deployment: string;
   nodeAliasesUnparsed: string;
@@ -102,6 +103,7 @@ interface RelayDeployContext {
 interface RelayUpgradeConfigClass {
   chainId: string;
   chartDirectory: string;
+  relayChartDirectory: string;
   namespace: NamespaceName;
   deployment: string;
   nodeAliasesUnparsed: string;
@@ -156,6 +158,7 @@ export class RelayCommand extends BaseCommand {
     optional: [
       flags.chainId,
       flags.chartDirectory,
+      flags.relayChartDirectory,
       flags.clusterRef,
       flags.nodeAliasesUnparsed,
       flags.operatorId,
@@ -181,6 +184,7 @@ export class RelayCommand extends BaseCommand {
     optional: [
       flags.chainId,
       flags.chartDirectory,
+      flags.relayChartDirectory,
       flags.clusterRef,
       flags.nodeAliasesUnparsed,
       flags.operatorId,
@@ -402,7 +406,7 @@ export class RelayCommand extends BaseCommand {
           config.namespace,
           config.releaseName,
           constants.JSON_RPC_RELAY_CHART,
-          constants.JSON_RPC_RELAY_CHART,
+          config.relayChartDirectory || constants.JSON_RPC_RELAY_CHART,
           '', // relay.image.tag is used to set the version
           config.valuesArg,
           config.context,

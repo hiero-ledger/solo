@@ -44,6 +44,7 @@ import {SemVer} from 'semver';
 interface ExplorerDeployConfigClass {
   cacheDir: string;
   chartDirectory: string;
+  explorerChartDirectory: string;
   clusterRef: ClusterReferenceName;
   clusterContext: string;
   enableIngress: boolean;
@@ -85,6 +86,7 @@ interface ExplorerDeployContext {
 interface ExplorerUpgradeConfigClass {
   cacheDir: string;
   chartDirectory: string;
+  explorerChartDirectory: string;
   clusterRef: ClusterReferenceName;
   clusterContext: string;
   enableIngress: boolean;
@@ -156,6 +158,7 @@ export class ExplorerCommand extends BaseCommand {
     optional: [
       flags.cacheDir,
       flags.chartDirectory,
+      flags.explorerChartDirectory,
       flags.clusterRef,
       flags.enableIngress,
       flags.ingressControllerValueFile,
@@ -185,6 +188,7 @@ export class ExplorerCommand extends BaseCommand {
     optional: [
       flags.cacheDir,
       flags.chartDirectory,
+      flags.explorerChartDirectory,
       flags.enableIngress,
       flags.ingressControllerValueFile,
       flags.enableExplorerTls,
@@ -328,7 +332,7 @@ export class ExplorerCommand extends BaseCommand {
             NamespaceName.of(constants.CERT_MANAGER_NAME_SPACE),
             constants.SOLO_CERT_MANAGER_CHART,
             constants.SOLO_CERT_MANAGER_CHART,
-            config.chartDirectory ? config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
+            config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
             soloChartVersion,
             ' --install --create-namespace --set cert-manager.installCRDs=true',
             config.clusterContext,
@@ -354,7 +358,7 @@ export class ExplorerCommand extends BaseCommand {
           NamespaceName.of(constants.CERT_MANAGER_NAME_SPACE),
           constants.SOLO_CERT_MANAGER_CHART,
           constants.SOLO_CERT_MANAGER_CHART,
-          config.chartDirectory ? config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
+          config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
           soloChartVersion,
           soloCertManagerValuesArgument,
           config.clusterContext,
@@ -378,7 +382,7 @@ export class ExplorerCommand extends BaseCommand {
           config.namespace,
           config.releaseName,
           '',
-          constants.EXPLORER_CHART_URL,
+          config.explorerChartDirectory || constants.EXPLORER_CHART_URL,
           config.explorerVersion,
           exploreValuesArgument,
           config.clusterContext,
