@@ -264,7 +264,7 @@ jobs:
           
           # Setup rootless mappings if missing (requires sudo)
           if ! grep -q "^$USER:" /etc/subuid || ! grep -q "^$USER:" /etc/subgid; then
-            sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 $USER
+            sudo usermod -v 100000-165535 -w 100000-165535 $USER
           fi
           
           # Optional: Init Podman machine for VM-backed performance (uses qemu/kvm if available)
