@@ -1153,7 +1153,10 @@ export class Flags {
     name: 'block-node-cfg',
     definition: {
       describe:
-        'JSON configuration mapping consensus node names to block node IDs, or path to JSON file (e.g., {"node1":[1],"node2":[2,3]} or block.json)',
+        'Configure block node routing for each consensus node. ' +
+        'Maps consensus node names to block node IDs. ' +
+        'Accepts: (1) JSON string: \'{"node1":[1,3],"node2":[2]}\' or (2) path to JSON file: \'block.json\'. ' +
+        'Example: node1 sends blocks to block nodes 1 and 3, node2 sends blocks to block node 2',
       defaultValue: '',
       type: 'string',
     },
