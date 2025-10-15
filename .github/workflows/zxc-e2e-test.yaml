@@ -263,17 +263,27 @@ jobs:
           podman --version
           
           # Setup rootless mappings if missing (requires sudo)
+          # Check both files and add ranges only if not present
           if ! grep -q "^$USER:" /etc/subuid || ! grep -q "^$USER:" /etc/subgid; then
-            sudo usermod -v 100000-165535 -w 100000-165535 $USER
+            echo "Adding subuid/subgid ranges for $USER"
+            sudo usermod --add-subuids 100000-165535 $USER
+            sudo usermod --add-subgids 100000-165535 $USER
+            # Migrate Podman storage to apply changes
+            podman system migrate || true
+          else
+            echo "Subuid/subgid already configured for $USER"
           fi
           
-          # Optional: Init Podman machine for VM-backed performance (uses qemu/kvm if available)
-          podman machine init --cpus 2 --memory 2048 --disk 20
+          # Optional: Init Podman machine for VM-backed performance
+          # Use rootful if machine init fails (e.g., no KVM)
+          if ! podman machine init --cpus 2 --memory 2048 --disk 20; then
+            echo "Podman machine init failed; falling back to rootful mode"
+            podman machine init --rootful
+          fi
           podman machine start
           
           # Install/Enable Docker socket proxy for Kind
           if ! command -v docker &> /dev/null; then
-            # podman-docker provides 'docker' CLI alias
             sudo systemctl enable --now podman.socket  # Enables socket for proxy
           fi
           docker version | grep Podman  # Verify proxy works
