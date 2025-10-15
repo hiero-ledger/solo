@@ -1,0 +1,51 @@
+version: 3
+
+env:
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx @hashgraph/solo"
+      else
+        echo "npm run solo --"
+      fi
+
+vars:
+  DEPLOYMENT: "rapid-fire-deployment"
+  CLUSTER_NAME: "rapid-fire-cluster"
+  CONTEXT: "kind-rapid-fire-cluster"
+
+tasks:
+  deploy:
+    desc: Deploy a complete Hiero network using one-shot falcon deploy
+    cmds:
+      # Install Solo CLI
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Skipping npm install - using development version"
+          fi
+
+      # Solo one-shot falcon deploy
+      - cmd: |
+          $SOLO_COMMAND one-shot single deploy
+
+      # Solo rapid-fire crypto-transfer start
+      - cmd: |
+          $SOLO_COMMAND rapid-fire crypto-transfer start --deployment {{ .DEPLOYMENT }} \
+          --values-file {{ .USER_WORKING_DIR }}/nlg-values.yaml \
+          --args '"-c 5 -a 10 -t 60"'
+
+  destroy:
+    desc: Destroy the Solo network using one-shot single destroy
+    cmds:
+      - cmd: $SOLO_COMMAND rapid-shot destroy all --deployment {{ .DEPLOYMENT }}
+      - cmd: $SOLO_COMMAND one-shot single destroy --deployment {{ .DEPLOYMENT }}
+
+      # Delete Kind cluster
+      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
+
+  default:
+    desc: Run the default deploy task
+    cmds:
+      - task: deploy
