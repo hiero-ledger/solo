@@ -533,10 +533,7 @@ export class NodeTest extends BaseCommandTest {
 
       const applicationPropertiesPath: string = PathEx.join(temporaryDirectory, 'application.properties');
       const applicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
-      const updatedContent: string = applicationProperties.replaceAll(
-        'contracts.chainId=298',
-        'contracts.chainId=299',
-      );
+      const updatedContent: string = applicationProperties.replaceAll('contracts.chainId=298', 'contracts.chainId=299');
       fs.writeFileSync(applicationPropertiesPath, updatedContent);
 
       // create upgrade.zip file from tmp directory using zippy.ts

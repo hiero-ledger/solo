@@ -930,11 +930,12 @@ export class NodeCommandTasks {
             ? config.existingNodeAliases[1]
             : config.existingNodeAliases[0];
 
-        const nodeFullyQualifiedPodName = Templates.renderNetworkPodName(nodeAlias);
-        const podReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
-        const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+        const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
 
-        const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+        const nodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(nodeAlias);
+        const podReference: PodReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
+        const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+
         const k8 = self.k8Factory.getK8(context);
 
         // copy the config.txt file from the node1 upgrade directory
@@ -975,10 +976,8 @@ export class NodeCommandTasks {
           : k8
               .containers()
               .readByRef(containerReference)
-              .copyFrom(
-                `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`,
-                `${config.stagingDir}/templates`,
-              ));
+              .copyFrom(applicationPropertiesSourceDirectory, `${config.stagingDir}/templates`)
+        );
       },
     };
   }
