@@ -30,13 +30,15 @@ export class AggregatedMetrics extends Metrics {
     this.date = new Date();
     this.gitHubSha = process.env.GITHUB_SHA;
     const remoteConfigRuntimeState: RemoteConfigRuntimeState = container.resolve(InjectTokens.RemoteConfigRuntimeState);
-    this.soloVersion = remoteConfigRuntimeState.getComponentVersion(ComponentTypes.Cli);
-    this.soloChartVersion = remoteConfigRuntimeState.getComponentVersion(ComponentTypes.Chart);
-    this.consensusNodeVersion = remoteConfigRuntimeState.getComponentVersion(ComponentTypes.ConsensusNode);
-    this.mirrorNodeVersion = remoteConfigRuntimeState.getComponentVersion(ComponentTypes.MirrorNode);
-    this.blockNodeVersion = remoteConfigRuntimeState.getComponentVersion(ComponentTypes.BlockNode);
-    this.relayVersion = remoteConfigRuntimeState.getComponentVersion(ComponentTypes.RelayNodes);
-    this.explorerVersion = remoteConfigRuntimeState.getComponentVersion(ComponentTypes.Explorer);
+    if (remoteConfigRuntimeState.isLoaded()) {
+      this.soloVersion = remoteConfigRuntimeState.getComponentVersion(ComponentTypes.Cli);
+      this.soloChartVersion = remoteConfigRuntimeState.getComponentVersion(ComponentTypes.Chart);
+      this.consensusNodeVersion = remoteConfigRuntimeState.getComponentVersion(ComponentTypes.ConsensusNode);
+      this.mirrorNodeVersion = remoteConfigRuntimeState.getComponentVersion(ComponentTypes.MirrorNode);
+      this.blockNodeVersion = remoteConfigRuntimeState.getComponentVersion(ComponentTypes.BlockNode);
+      this.relayVersion = remoteConfigRuntimeState.getComponentVersion(ComponentTypes.RelayNodes);
+      this.explorerVersion = remoteConfigRuntimeState.getComponentVersion(ComponentTypes.Explorer);
+    }
   }
 
   public override toString(): string {

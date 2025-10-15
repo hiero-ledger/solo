@@ -135,7 +135,9 @@ export class MetricsServerImpl implements MetricsServer {
     }
 
     const remoteConfigRuntimeState: RemoteConfigRuntimeState = container.resolve(InjectTokens.RemoteConfigRuntimeState);
-    await remoteConfigRuntimeState.load(namespace);
+    if (namespace && namespace.name) {
+      await remoteConfigRuntimeState.load(namespace);
+    }
 
     return new AggregatedMetrics(
       snapshotName,
