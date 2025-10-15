@@ -13,7 +13,6 @@ import {type SoloLogger} from './core/logging/solo-logger.js';
 import {Container} from './core/dependency-injection/container-init.js';
 import {InjectTokens} from './core/dependency-injection/inject-tokens.js';
 import {SoloError} from './core/errors/solo-error.js';
-import {UserBreak} from './core/errors/user-break.js';
 import {SilentBreak} from './core/errors/silent-break.js';
 import {getSoloVersion} from '../version.js';
 import {ArgumentProcessor} from './argument-processor.js';
@@ -48,13 +47,15 @@ export async function main(argv: string[], context?: {logger: SoloLogger}) {
   constants.LISTR_DEFAULT_RENDERER_OPTION.logger = new ListrLogger({processOutput: new CustomProcessOutput(logger)});
   if (argv.length >= 3 && ['-version', '--version', '-v', '--v'].includes(argv[2])) {
     // Check for --output flag (K8s ecosystem standard)
-    const outputFlagIndex = argv.findIndex(arg => arg.startsWith('--output=') || arg === '--output' || arg === '-o');
+    const outputFlagIndex = argv.findIndex(
+      argument => argument.startsWith('--output=') || argument === '--output' || argument === '-o',
+    );
     let outputFormat = '';
 
     if (outputFlagIndex !== -1) {
-      const outputArg = argv[outputFlagIndex];
-      if (outputArg.startsWith('--output=')) {
-        outputFormat = outputArg.split('=')[1];
+      const outputArgument = argv[outputFlagIndex];
+      if (outputArgument.startsWith('--output=')) {
+        outputFormat = outputArgument.split('=')[1];
       } else if (outputFlagIndex + 1 < argv.length) {
         outputFormat = argv[outputFlagIndex + 1];
       }
@@ -64,21 +65,29 @@ export async function main(argv: string[], context?: {logger: SoloLogger}) {
 
     // Handle different output formats
     switch (outputFormat) {
-      case 'json':
+      case 'json': {
         logger.showUser(JSON.stringify({version}, null, 2));
         break;
-      case 'yaml':
+      }
+      case 'yaml': {
         logger.showUser(`version: ${version}`);
         break;
-      case 'wide':
+      }
+      case 'wide': {
         logger.showUser(version);
         break;
-      default:
+      }
+      default: {
         // Default: full formatted banner
-        logger.showUser(chalk.cyan('\n******************************* Solo *********************************************'));
+        logger.showUser(
+          chalk.cyan('\n******************************* Solo *********************************************'),
+        );
         logger.showUser(chalk.cyan('Version\t\t\t:'), chalk.yellow(version));
-        logger.showUser(chalk.cyan('**********************************************************************************'));
+        logger.showUser(
+          chalk.cyan('**********************************************************************************'),
+        );
         break;
+      }
     }
     throw new SilentBreak('displayed version information, exiting');
   }
