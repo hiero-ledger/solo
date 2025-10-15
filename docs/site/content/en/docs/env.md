@@ -1,6 +1,6 @@
 ---
 title: "Using Environment Variables"
-weight: 110
+weight: 120
 description: >
     Environment variables are used to customize the behavior of Solo. This document provides a list of environment variables that can be configured to change the default behavior.
 type: docs
