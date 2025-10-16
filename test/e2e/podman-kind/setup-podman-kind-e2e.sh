@@ -67,8 +67,20 @@ echo ""
 echo "Step 5: Creating Kind cluster with Podman..."
 sudo kind create cluster -n "${SOLO_CLUSTER_NAME}-c1" --image "${KIND_IMAGE}" --config "${SCRIPT_PATH}/kind-cluster.yaml" || exit 1
 
+# Export kubeconfig from root (sudo context) to current user
+echo "Exporting kubeconfig for user access..."
+sudo kind export kubeconfig -n "${SOLO_CLUSTER_NAME}-c1" --kubeconfig /home/runner/.kube/config
+sudo chown $(whoami):$(whoami) /home/runner/.kube/config  # Dynamic ownership for runner user
+echo "Kubeconfig exported to /home/runner/.kube/config"
+
 echo "Cluster created successfully"
-sudo kind get clusters
+kind get clusters  # Non-sudo check (should see cluster name without kind-)
+
+# Debug: Show available contexts (will reveal exact name)
+echo "Available kubectl contexts:"
+kubectl config get-contexts
+echo "Current kubeconfig path: $KUBECONFIG or default ~/.kube/config"
+cat /home/runner/.kube/config | grep -A 5 -B 5 "name:"  # Partial dump for logs (redact if sensitive)
 
 # **********************************************************************************************************************
 # Step 6: Build and Initialize Solo
@@ -78,10 +90,13 @@ echo "Step 6: Building Solo and initializing..."
 
 SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 task build
-#npm run solo -- init || exit 1 # cache args for subsequent commands
+#npm run solo -- init || exit 1
 
-# Switch to the cluster context
-kubectl config use-context "${SOLO_CLUSTER_NAME}-c1"
+# Use the non-prefixed context name from your logs (Podman provider behavior in experimental mode)
+KIND_CONTEXT="${SOLO_CLUSTER_NAME}-c1"
+echo "Switching to kubectl context: ${KIND_CONTEXT}"
+export KUBECONFIG=/home/runner/.kube/config  # Ensure path
+kubectl config use-context "${KIND_CONTEXT}"
 
 # Setup cluster reference
 npm run solo -- cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" || exit 1
