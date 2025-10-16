@@ -96,7 +96,7 @@ task build
 #npm run solo -- init || exit 1
 
 # Use the non-prefixed context name from your logs
-KIND_CONTEXT="${SOLO_CLUSTER_NAME}-c1"
+KIND_CONTEXT="kind-${SOLO_CLUSTER_NAME}-c1"
 echo "Switching to kubectl context: ${KIND_CONTEXT}"
 export KUBECONFIG=/home/runner/.kube/config  # Ensure path
 kubectl config use-context "${KIND_CONTEXT}"
