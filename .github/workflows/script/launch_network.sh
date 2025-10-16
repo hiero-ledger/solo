@@ -104,7 +104,12 @@ kubectl rollout restart deployment/mirror-ingress-controller -n solo-e2e
 sleep 40;
 
 # restart consensus nodes nodes after mirror nodes are restarted to avoid mirror nodes missing any stream files during restart
-npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev || result=$?
+if [[ $result -ne 0 ]]; then
+  echo "Starting consensus nodes failed with exit code $result"
+  npm run solo -- consensus diagnostics all --deployment "${SOLO_DEPLOYMENT}" -q --dev
+  exit $result
+fi
 
 npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} -q --dev
 
