@@ -13,6 +13,7 @@ import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {type SoloLogger} from './solo-logger.js';
 import {SoloError} from '../errors/solo-error.js';
+import stripAnsi from 'strip-ansi';
 
 /**
  * Pino-based implementation of the SoloLogger interface.
@@ -55,9 +56,20 @@ export class SoloPinoLogger implements SoloLogger {
       target: 'pino/file',
       options: {destination: PathEx.join(logsDirectory, 'solo.ndjson')},
     };
+
     const prettyTarget: TransportSingleOptions = {
       target: 'pino-pretty',
-      options: {destination: PathEx.join(logsDirectory, 'solo.log')},
+      options: {
+        destination: PathEx.join(logsDirectory, 'solo.log'), // write formatted logs to <logsDirectory>/solo.log
+        translateTime: 'HH:MM:ss.l', // prepend timestamp as [HH:MM:ss.ms]
+        colorize: false, // disable pino-pretty color output (avoid ANSI codes)
+        messageKey: 'msg', // use the 'msg' property as the main log message
+        messageFormat: '{msg} [traceId="{traceId}"]', // format line: message + traceId suffix
+        ignore: 'pid,hostname,traceId', // exclude these fields from printed output
+        colorizeObjects: false, // don't colorize objects or nested values
+        crlf: false, // use '\n' (Unix newlines) instead of '\r\n' (Windows)
+        hideObject: false, // don't hide full object payloads after message
+      },
     };
 
     const transport: pino.ThreadStream = pino.transport({targets: [ndjsonTarget, prettyTarget]});
