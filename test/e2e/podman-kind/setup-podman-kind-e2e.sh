@@ -96,8 +96,10 @@ kubectl config get-contexts
 echo "Raw kubeconfig contents:"
 cat "${KUBECONFIG}"
 
-# Dynamically detect context name from kubeconfig (searches for cluster name pattern)
-KIND_CONTEXT=$(grep 'name:' "${KUBECONFIG}" -A 5 | grep -E "name:.*${SOLO_CLUSTER_NAME}-c1" | awk '{print} $2' || echo "")
+# Dynamically detect the exact context name (yaml may have duplicates, take first match after 'name:')
+KIND_CONTEXT=$(yq eval '.contexts[]?.name | select(. == "*'"${SOLO_CLUSTER_NAME}-c1"'*")' "${KUBECONFIG}" 2>/dev/null || \
+               grep -A 1 'name: .*'"${SOLO_CLUSTER_NAME}-c1"'$' "${KUBECONFIG}" | tail -1 | awk '{print $NF}' || \
+               echo "")
 if [[ -z "${KIND_CONTEXT}" ]]; then
   # Fallback patterns: try without kind-, or kind- prefixed
   KIND_CONTEXT="${SOLO_CLUSTER_NAME}-c1"  # No prefix common in Podman exp

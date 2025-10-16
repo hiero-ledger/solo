@@ -361,6 +361,10 @@ jobs:
             echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
             SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${{ env.CG_EXEC }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
 
+      - name: Setup Posix Dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq yq  # Add yq for YAML parsing
+          
       - name: Setup Podman & Kind Cluster for E2E Tests
         if: ${{ !cancelled() && inputs.test-script == 'test-e2e-node-local-ptt' }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
