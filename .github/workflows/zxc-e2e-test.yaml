@@ -304,6 +304,16 @@ jobs:
             echo "Machine init failed; using direct sudo podman for rootful"
           }
           podman machine start
+          
+          # Verify Podman in rootful (use sudo if needed)
+          podman info || sudo podman info
+          podman ps && echo "Podman ready"
+          
+          # Rootful test: Run a container privileged
+          sudo podman run --rm docker.io/library/hello-world && echo "Rootful Podman test passed" || {
+            echo "Test failed; check sudo permissions or Podman logs"
+            podman system logs || true
+          }
 
 
       - name: Setup Java
