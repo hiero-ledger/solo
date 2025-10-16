@@ -263,7 +263,7 @@ export class K8ClientContainer implements Container {
     }
   }
 
-  public async execContainer(command: string | string[]): Promise<string> {
+  public async execContainer(command: string | string[], errorPassthroughStream?: stream.PassThrough): Promise<string> {
     const self = this;
     const namespace = this.containerReference.parentReference.namespace;
     const guid = uuid4();
@@ -289,7 +289,7 @@ export class K8ClientContainer implements Container {
       const temporaryFile = self.tempFileFor(`${this.containerReference.parentReference.name}-output.txt`);
       const outputFileStream = fs.createWriteStream(temporaryFile);
       const outputPassthroughStream = new stream.PassThrough({highWaterMark: 10 * 1024 * 1024});
-      const errorPassthroughStream = new stream.PassThrough();
+      errorPassthroughStream = errorPassthroughStream ?? new stream.PassThrough();
 
       // Use pipe() to automatically handle backpressure between streams
       outputPassthroughStream.pipe(outputFileStream);
@@ -324,19 +324,17 @@ export class K8ClientContainer implements Container {
 
           conn.on('close', (code, reason) => {
             self.logger.debug(`${messagePrefix} connection closed`);
-            if (!localContext.errorMessage) {
-              if (code !== 1000) {
-                // code 1000 is the success code
-                return self.exitWithError(localContext, `${messagePrefix} failed with code=${code}, reason=${reason}`);
-              }
-
-              outputFileStream.end();
-              outputFileStream.close(() => {
-                self.logger.debug(`${messagePrefix} finished`);
-                const outData = fs.readFileSync(temporaryFile);
-                return resolve(outData.toString());
-              });
+            if (code !== 1000) {
+              // code 1000 is the success code
+              return self.exitWithError(localContext, `${messagePrefix} failed with code=${code}, reason=${reason}`);
             }
+
+            outputFileStream.end();
+            outputFileStream.close(() => {
+              self.logger.debug(`${messagePrefix} finished`);
+              const outData = fs.readFileSync(temporaryFile);
+              return resolve(outData.toString());
+            });
           });
         })
         .catch(error => {

@@ -78,4 +78,4 @@ This example demonstrates how to use the node add-prepare/prepare-upgrade/freeze
 * This example is **self-contained** and does not require files from outside this directory.
 * All steps in the workflow are named for clear logging and troubleshooting.
 * You can extend the Taskfile to add more custom resources or steps as needed.
-* For more advanced usage, see the main [Solo documentation](https://github.com/hashgraph/solo).
+* For more advanced usage, see the main [Solo documentation](https://github.com/hiero-ledger/solo).
