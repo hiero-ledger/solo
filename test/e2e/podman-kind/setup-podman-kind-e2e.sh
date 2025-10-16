@@ -74,7 +74,10 @@ sudo chown $(whoami):$(whoami) /home/runner/.kube/config  # Dynamic ownership fo
 echo "Kubeconfig exported to /home/runner/.kube/config"
 
 echo "Cluster created successfully"
-kind get clusters  # Non-sudo check (should see cluster name without kind-)
+
+# Use sudo for 'kind get clusters' to avoid rootless errors in non-sudo calls
+echo "Clusters (via sudo):"
+sudo kind get clusters
 
 # Debug: Show available contexts (will reveal exact name)
 echo "Available kubectl contexts:"
@@ -92,7 +95,7 @@ SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 task build
 #npm run solo -- init || exit 1
 
-# Use the non-prefixed context name from your logs (Podman provider behavior in experimental mode)
+# Use the non-prefixed context name from your logs
 KIND_CONTEXT="${SOLO_CLUSTER_NAME}-c1"
 echo "Switching to kubectl context: ${KIND_CONTEXT}"
 export KUBECONFIG=/home/runner/.kube/config  # Ensure path
