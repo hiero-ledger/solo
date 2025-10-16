@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as x509 from '@peculiar/x509';
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {SoloError} from './errors/solo-error.js';
@@ -22,13 +21,15 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import * as selfsigned from 'selfsigned';
+import {webcrypto} from 'node:crypto';
+type NodeCryptoKey = webcrypto.CryptoKey;
 
-// @ts-ignore
+// eslint-disable-next-line n/no-unsupported-features/node-builtins
 x509.cryptoProvider.set(crypto);
 
 @injectable()
 export class KeyManager {
-  static SigningKeyAlgo = {
+  private static SigningKeyAlgo = {
     name: 'RSASSA-PKCS1-v1_5',
     hash: 'SHA-384',
     publicExponent: new Uint8Array([1, 0, 1]),
@@ -60,14 +61,14 @@ export class KeyManager {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  /** Convert CryptoKey into PEM string */
-  async convertPrivateKeyToPem(privateKey: CryptoKey) {
-    const ab = await crypto.subtle.exportKey('pkcs8', privateKey);
+  /** Convert NodeCryptoKey into PEM string */
+  async convertPrivateKeyToPem(privateKey: NodeCryptoKey) {
+    const ab = await webcrypto.subtle.exportKey('pkcs8', privateKey);
     return x509.PemConverter.encode(ab, 'PRIVATE KEY');
   }
 
   /**
-   * Convert PEM private key into CryptoKey
+   * Convert PEM private key into NodeCryptoKey
    * @param pemStr - PEM string
    * @param algo - key algorithm
    * @param [keyUsages]
@@ -85,6 +86,7 @@ export class KeyManager {
     // a certificate bundle)
     const lastItem = items.at(-1);
 
+    // eslint-disable-next-line n/no-unsupported-features/node-builtins
     return await crypto.subtle.importKey('pkcs8', lastItem, algo, false, keyUsages);
   }
 
@@ -278,6 +280,7 @@ export class KeyManager {
 
       this.logger.debug(`generating ${keyPrefix}-key for node: ${nodeAlias}`, {friendlyName});
 
+      // eslint-disable-next-line n/no-unsupported-features/node-builtins
       const keypair = await crypto.subtle.generateKey(KeyManager.SigningKeyAlgo, true, KeyManager.SigningKeyUsage);
 
       const cert = await x509.X509CertificateGenerator.createSelfSigned({
@@ -360,6 +363,7 @@ export class KeyManager {
 
       this.logger.debug(`generating gRPC TLS for node: ${nodeAlias}`, {distinguishedName});
 
+      // eslint-disable-next-line n/no-unsupported-features/node-builtins
       const keypair = await crypto.subtle.generateKey(KeyManager.TLSKeyAlgo, true, KeyManager.TLSKeyUsage);
 
       const cert = await x509.X509CertificateGenerator.createSelfSigned({

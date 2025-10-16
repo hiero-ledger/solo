@@ -60,6 +60,7 @@ interface MirrorNodeDeployConfigClass {
   isChartInstalled: boolean;
   cacheDir: string;
   chartDirectory: string;
+  mirrorNodeChartDirectory: string;
   clusterContext: string;
   clusterReference: ClusterReferenceName;
   namespace: NamespaceName;
@@ -106,6 +107,7 @@ interface MirrorNodeUpgradeConfigClass {
   isChartInstalled: boolean;
   cacheDir: string;
   chartDirectory: string;
+  mirrorNodeChartDirectory: string;
   clusterContext: string;
   clusterReference: ClusterReferenceName;
   namespace: NamespaceName;
@@ -184,6 +186,7 @@ export class MirrorNodeCommand extends BaseCommand {
     optional: [
       flags.cacheDir,
       flags.chartDirectory,
+      flags.mirrorNodeChartDirectory,
       flags.clusterRef,
       flags.enableIngress,
       flags.ingressControllerValueFile,
@@ -219,6 +222,7 @@ export class MirrorNodeCommand extends BaseCommand {
     optional: [
       flags.cacheDir,
       flags.chartDirectory,
+      flags.mirrorNodeChartDirectory,
       flags.enableIngress,
       flags.ingressControllerValueFile,
       flags.mirrorStaticIp,
@@ -393,7 +397,7 @@ export class MirrorNodeCommand extends BaseCommand {
       config.namespace,
       config.releaseName,
       constants.MIRROR_NODE_CHART,
-      constants.MIRROR_NODE_RELEASE_NAME,
+      config.mirrorNodeChartDirectory || constants.MIRROR_NODE_RELEASE_NAME,
       config.mirrorNodeVersion,
       config.valuesArg,
       config.clusterContext,

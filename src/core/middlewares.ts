@@ -148,8 +148,12 @@ export class Middlewares {
       const commandArguments: string = flags.stringifyArgv(argv);
       const commandData: string = (currentCommand + ' ' + commandArguments).trim();
 
-      if (this.taskList.parentTaskListMap.size === 0) {
-        // Display command header
+      // Check if output format is set (machine-readable modes: json, yaml, wide)
+      const outputFormat = configManager.getFlag<string>(flags.output) || '';
+      const isMachineReadable = ['json', 'yaml', 'wide'].includes(outputFormat);
+
+      if (this.taskList.parentTaskListMap.size === 0 && !isMachineReadable) {
+        // Display command header (skip in machine-readable output modes)
         logger.showUser(
           chalk.cyan('\n******************************* Solo *********************************************'),
         );

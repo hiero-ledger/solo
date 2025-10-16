@@ -91,9 +91,16 @@ npx @hashgraph/solo
 
 # Verify the installation
 solo --version
+
+# Or use different output formats (Kubernetes-style)
+solo --version -o json    # JSON format: {"version": "0.46.1"}
+solo --version -o yaml    # YAML format: version: 0.46.1
+solo --version -o wide    # Plain text: 0.46.1
 ```
 
 You should see output showing the latest version which should match our NPM package version: <https://www.npmjs.com/package/@hashgraph/solo>
+
+The `--output` (or `-o`) flag can be used with various Solo commands to produce machine-readable output in formats like `json`, `yaml`, or `wide`.
 
 {{< /details >}}<br/>
 
