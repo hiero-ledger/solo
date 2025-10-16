@@ -78,7 +78,7 @@ echo "Step 6: Building Solo and initializing..."
 
 SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 task build
-npm run solo -- init || exit 1 # cache args for subsequent commands
+#npm run solo -- init || exit 1 # cache args for subsequent commands
 
 # Switch to the cluster context
 kubectl config use-context "kind-${SOLO_CLUSTER_NAME}-c1"
