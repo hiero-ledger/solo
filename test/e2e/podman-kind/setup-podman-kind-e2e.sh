@@ -95,11 +95,11 @@ SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 task build
 #npm run solo -- init || exit 1
 
-# Use the non-prefixed context name from your logs
+# Detected context name from logs: kind- prefixed (switch to match actual)
 KIND_CONTEXT="kind-${SOLO_CLUSTER_NAME}-c1"
 echo "Switching to kubectl context: ${KIND_CONTEXT}"
 export KUBECONFIG=/home/runner/.kube/config  # Ensure path
-kubectl config use-context "${KIND_CONTEXT}"
+sudo kubectl config use-context "${KIND_CONTEXT}"
 
 # Setup cluster reference
 npm run solo -- cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" || exit 1
