@@ -78,6 +78,7 @@ tasks:
           --ignore 'test/e2e/commands/separate-node*.ts' 
           --ignore 'test/e2e/commands/relay*.ts' 
           --ignore 'test/e2e/commands/block-node.test.ts' 
+          --ignore 'test/e2e/commands/transaction-tool.test.ts' 
           --ignore 'test/e2e/commands/dual-*.ts'
           --ignore 'test/e2e/commands/external-*.ts'
           --ignore 'test/e2e/commands/one-shot-single.test.ts'
@@ -121,6 +122,13 @@ tasks:
         {{ .reporter_prefix }}='coverage/e2e-block-node'
         {{ .mocha_bin }} 'test/e2e/commands/block-node.test.ts'
         {{ .reporter_options_prefix }}-e2e-block-node.xml"
+
+  test-e2e-transaction-tool:
+    cmds:
+      - "{{ .test_prefix }}=\"Mocha E2E Transaction Tool Tests\"
+        {{ .reporter_prefix }}='coverage/e2e-transaction-tool'
+        {{ .mocha_bin }} 'test/e2e/commands/transaction-tool.test.ts'
+        {{ .reporter_options_prefix }}-e2e-transaction-tool.xml"
 
   test-e2e-dual-cluster-full:
     cmds:

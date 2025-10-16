@@ -21,6 +21,13 @@
     "local-java-build": true
   },
   {
+    "name": "Transaction Tool",
+    "test-script": "test-e2e-transaction-tool",
+    "coverage-subdirectory": "e2e-transaction-tool",
+    "coverage-report-name": "E2E_Transaction_Tool_Tests_Coverage_Report",
+    "local-java-build": false
+  },
+  {
     "name": "Integration",
     "test-script": "test-e2e-integration",
     "coverage-subdirectory": "e2e-integration",

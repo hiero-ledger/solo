@@ -2,44 +2,29 @@
 
 import {afterEach, describe} from 'mocha';
 import {expect} from 'chai';
-
-import {Flags as flags} from '../../../src/commands/flags.js';
-import {deployNetworkTest, endToEndTestSuite, getTestCluster, startNodesTest} from '../../test-utility.js';
-import * as version from '../../../version.js';
 import {sleep} from '../../../src/core/helpers.js';
-import {Duration} from '../../../src/core/time/duration.js';
-import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {container} from 'tsyringe-neo';
-import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
-import {Argv} from '../../helpers/argv-wrapper.js';
-import {type BlockNodeCommand} from '../../../src/commands/block-node.js';
-import {ComponentTypes} from '../../../src/core/config/remote/enumerations/component-types.js';
-import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
-import {type ClusterReferenceName} from '../../../src/types/index.js';
-import {exec} from 'node:child_process';
-import {promisify} from 'node:util';
-import * as SemVer from 'semver';
-import {type BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
-import {Templates} from '../../../src/core/templates.js';
+import * as version from '../../../version.js';
 import * as constants from '../../../src/core/constants.js';
-import {BlockCommandDefinition} from '../../../src/commands/command-definitions/block-command-definition.js';
-import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
+import * as TestUtilities from '../../test-utility.js';
+import {Flags as flags} from '../../../src/commands/flags.js';
+import {Argv} from '../../helpers/argv-wrapper.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
+import {Duration} from '../../../src/core/time/duration.js';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
+import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
+import {ComponentTypes} from '../../../src/core/config/remote/enumerations/component-types.js';
+import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
+import {TransactionToolCommandDefinition} from '../../../src/commands/command-definitions/transaction-tool-definition.js';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';
-import {TransactionToolCommand} from '../../../src/commands/transaction-tool.js';
-import {
-  TransactionToolCommandDefinition
-} from '../../../src/commands/command-definitions/transaction-tool-definition.js';
-import {TransactionToolStateSchema} from '../../../src/data/schema/model/remote/state/transaction-tool-state-schema.js';
-
-// eslint-disable-next-line @typescript-eslint/typedef
-const execAsync = promisify(exec);
+import {type TransactionToolCommand} from '../../../src/commands/transaction-tool.js';
+import {type ClusterReferenceName} from '../../../src/types/index.js';
 
 const testName: string = 'transction tool-cmd-e2e';
 const namespace: NamespaceName = NamespaceName.of(testName);
 const argv: Argv = Argv.getDefaultArgv(namespace);
-const clusterReference: ClusterReferenceName = getTestCluster();
+const clusterReference: ClusterReferenceName = TestUtilities.getTestCluster();
 argv.setArg(flags.namespace, namespace.name);
 argv.setArg(flags.nodeAliasesUnparsed, 'node1');
 argv.setArg(flags.generateGossipKeys, true);
@@ -48,7 +33,7 @@ argv.setArg(flags.clusterRef, clusterReference);
 argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
 argv.setArg(flags.force, true);
 
-endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, (bootstrapResp): void => {
+TestUtilities.endToEndTestSuite(testName, argv, {}, (bootstrapResp): void => {
   describe('TransactionToolCommand', async (): Promise<void> => {
     const {
       opts: {k8Factory, commandInvoker, remoteConfig, configManager},
@@ -83,9 +68,9 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, (bo
       remoteConfig.configuration.components.getComponent(ComponentTypes.TransactionTools, 1);
     });
 
-    deployNetworkTest(argv, commandInvoker, networkCmd);
+    TestUtilities.deployNetworkTest(argv, commandInvoker, networkCmd);
 
-    startNodesTest(argv, commandInvoker, nodeCmd);
+    TestUtilities.startNodesTest(argv, commandInvoker, nodeCmd);
 
     it('Should write log metrics', async (): Promise<void> => {
       await new MetricsServerImpl().logMetrics(testName, PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`));
