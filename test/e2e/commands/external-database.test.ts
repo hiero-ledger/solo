@@ -103,10 +103,16 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           });
 
           // Stream stdout in real-time
-          process.stdout.on('data', (data): void => console.log(`${data}`.trim()));
+          process.stdout.on('data', (data): void => {
+            data.toString().replaceAll('::group::', '\r::group::').replaceAll('::endgroup::', '\r::endgroup::');
+            console.log(`${data}`.trim());
+          });
 
           // Stream stderr in real-time
-          process.stderr.on('data', (data): void => console.error(`${data}`.trim()));
+          process.stderr.on('data', (data): void => {
+            data.toString().replaceAll('::group::', '\r::group::').replaceAll('::endgroup::', '\r::endgroup::');
+            console.log(`${data}`.trim());
+          });
 
           // Handle process completion
           process.on('close', (code): void => {
