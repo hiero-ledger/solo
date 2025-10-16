@@ -19,6 +19,11 @@ readonly SCRIPT_PATH
 
 readonly KIND_IMAGE="kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30"
 
+# Unique kubeconfig per run to avoid locks/conflicts
+UNIQUE_KUBECONFIG="/tmp/kube-solo-${GITHUB_RUN_ID}.yaml"
+export KUBECONFIG="${UNIQUE_KUBECONFIG}"
+echo "Using unique KUBECONFIG: ${KUBECONFIG}"
+
 echo "SOLO_CHARTS_DIR: ${SOLO_CHARTS_DIR}"
 export PATH=${PATH}:~/.solo/bin
 
@@ -65,13 +70,11 @@ sudo podman network create kind --subnet 172.19.0.0/16 || true
 # **********************************************************************************************************************
 echo ""
 echo "Step 5: Creating Kind cluster with Podman..."
-sudo kind create cluster -n "${SOLO_CLUSTER_NAME}-c1" --image "${KIND_IMAGE}" --config "${SCRIPT_PATH}/kind-cluster.yaml" || exit 1
+sudo kind create cluster -n "${SOLO_CLUSTER_NAME}-c1" --image "${KIND_IMAGE}" --config "${SCRIPT_PATH}/kind-cluster.yaml" --kubeconfig "${KUBECONFIG}" || exit 1
 
-# Export kubeconfig from root (sudo context) to current user
-echo "Exporting kubeconfig for user access..."
-sudo kind export kubeconfig -n "${SOLO_CLUSTER_NAME}-c1" --kubeconfig /home/runner/.kube/config
-sudo chown $(whoami):$(whoami) /home/runner/.kube/config  # Dynamic ownership for runner user
-echo "Kubeconfig exported to /home/runner/.kube/config"
+# Export to unique path (already via flag); ensure user ownership
+sudo chown $(whoami):$(whoami) "${KUBECONFIG}" || true
+sudo chmod 600 "${KUBECONFIG}"
 
 echo "Cluster created successfully"
 
