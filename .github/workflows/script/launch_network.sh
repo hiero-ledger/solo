@@ -14,15 +14,6 @@ then
     exit 1
 fi
 
-if [[ "$(printf '%s\n' "0.43.3" "${releaseTag}" | sort -V | head -n1)" == "0.43.3" ]]; then
-  IS_OLD_VERSION=false
-  echo "New version detected: ${releaseTag} (> 0.43.2)"
-else
-  IS_OLD_VERSION=true
-  echo "Old version detected: ${releaseTag} (<= 0.43.2)"
-fi
-
-
 echo "::group::Prerequisites"
 npm install -g @hashgraph/solo@"${releaseTag}" --force
 solo --version
@@ -31,7 +22,8 @@ export SOLO_CLUSTER_NAME=solo-e2e
 export SOLO_NAMESPACE=solo-e2e
 export SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 export SOLO_DEPLOYMENT=solo-e2e
-export USE_MIRROR_NODE_LEGACY_RELEASE_NAME=true
+export USE_MIRROR_NODE_LEGACY_RELEASE_NAME=false
+export MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE=v0.139.0
 
 kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 kind create cluster -n "${SOLO_CLUSTER_NAME}"
@@ -43,40 +35,23 @@ echo "::group::Launch solo using released Solo version ${releaseTag}"
 
 export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
 echo "Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
-solo init
+solo init --dev
 
 
-if [[ $IS_OLD_VERSION == false ]]; then
-  solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
-  solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-  solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 2
-  solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
-  solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+solo cluster-ref config connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} --dev
+solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --dev
+solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 2 --dev
+solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" --dev
+solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --dev
 
-  solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q
-  solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
-  solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -q
-  solo ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
+solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
+solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
+solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -q --dev
+solo ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
-  solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --mirror-node-version v0.138.0
-  solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q
-  solo relay node add -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
-else
-  solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
-  solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-  solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 2
-  solo node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
-  solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
-
-  solo network deploy --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q
-  solo node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
-  solo node start --deployment "${SOLO_DEPLOYMENT}" -q
-  solo account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
-
-  solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --mirror-node-version v0.138.0
-  solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q
-  solo relay deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
-fi
+solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --mirror-node-version ${MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE} --dev
+solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} -q --dev
+solo relay node add -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --dev
 
 echo "::endgroup::"
 
@@ -87,7 +62,7 @@ kubectl get ConfigMap solo-remote-config -n ${SOLO_NAMESPACE} -o yaml | yq '.dat
 cat remote-config-before.yaml
 
 # trigger migration
-npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}"
+npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --dev
 
 cp ~/.solo/local-config.yaml ./local-config-after.yaml
 cat ./local-config-after.yaml
@@ -109,12 +84,12 @@ echo "::endgroup::"
 
 echo "::group::Upgrade Solo"
 # need to add ingress controller helm repo
-npm run solo -- init
+npm run solo -- init --dev
 # using new solo to redeploy solo deployment chart to new version
 # freeze network instead of using "node stop" to make sure the network is stopped elegantly
-npm run solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}"
-npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q
-npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q
+npm run solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
+npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
+npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
 
 # force mirror importer restart to pick up changes of secretes due to upgrade of solo chart
 # even mirror chart version might not change, but the secrets it depends on might have changed
@@ -129,22 +104,17 @@ kubectl rollout restart deployment/mirror-ingress-controller -n solo-e2e
 sleep 40;
 
 # restart consensus nodes nodes after mirror nodes are restarted to avoid mirror nodes missing any stream files during restart
-npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q
+npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 
-npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} -q --dev
+npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} -q --dev
+
 # force restart relay pod to pick up changes of configMap
-if [[ $IS_OLD_VERSION == true ]]; then
-  kubectl rollout restart deployment/relay-node1-node2 -n solo-e2e
-else
-  kubectl rollout restart deployment/relay-1 -n solo-e2e
-  kubectl rollout restart deployment/relay-1-ws -n solo-e2e
-fi
-
+kubectl rollout restart deployment/relay-1 -n solo-e2e
+kubectl rollout restart deployment/relay-1-ws -n solo-e2e
 
 # redeploy mirror node to upgrade to a newer version
-npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --dev
-npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
-
+npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --dev
+npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
 # wait a few seconds for the pods to be ready before running transactions against them
 sleep 10
@@ -165,7 +135,6 @@ mirrorPodName=$(kubectl get pods -n solo-e2e  | grep mirror-ingress-controller |
 echo "Mirror Ingress Controller Pod Name: ${mirrorPodName}"
 kubectl port-forward -n solo-e2e --context kind-solo-e2e pods/"${mirrorPodName}" 8081:80 &
 
-
 # Test transaction can still be sent and processed
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 echo "::endgroup::"
@@ -177,8 +146,8 @@ ps -ef |grep port-forward
 # HEDERA_PLATFORM_VERSION is no longer a hardcoded value in version.ts,
 export CONSENSUS_NODE_VERSION=$(grep "HEDERA_PLATFORM_VERSION" version.ts | sed -E "s/.*'([^']+)';/\1/")
 echo "Upgrade to Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
-npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q
-npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
+npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q --dev
+npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 echo "::endgroup::"
 
 echo "::group::Final Verification"
@@ -190,9 +159,9 @@ echo "::endgroup::"
 
 echo "::group::Cleanup"
 # uninstall components using current Solo version
-npm run solo -- explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --force
-npm run solo -- relay node destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME}
-npm run solo -- mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force
-npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
-npm run solo -- consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force
+npm run solo -- explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
+npm run solo -- relay node destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --dev
+npm run solo -- mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
+npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
+npm run solo -- consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
 echo "::endgroup::"
