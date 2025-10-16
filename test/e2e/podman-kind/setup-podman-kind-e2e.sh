@@ -76,13 +76,13 @@ echo ""
 echo "Step 5: Creating Kind cluster with Podman..."
 sudo kind create cluster -n "${SOLO_CLUSTER_NAME}-c1" --image "${KIND_IMAGE}" --config "${SCRIPT_PATH}/kind-cluster.yaml" --kubeconfig "${KUBECONFIG}" || exit 1
 
-# Export to unique path (already via flag); ensure user ownership
+# Fix ownership after sudo write
 sudo chown $(whoami):$(whoami) "${KUBECONFIG}" || true
-sudo chmod 600 "${KUBECONFIG}"
+chmod 600 "${KUBECONFIG}"
 
 echo "Cluster created successfully"
 
-# Use sudo for 'kind get clusters' to avoid rootless errors in non-sudo calls
+# Use sudo for 'kind get clusters'
 echo "Clusters (via sudo):"
 sudo kind get clusters
 
@@ -90,9 +90,28 @@ sudo kind get clusters
 rm -f "${KUBECONFIG}.lock" || true
 sudo rm -f /root/.kube/config.lock || true
 
-# Debug: Show available contexts (will reveal exact name)
+# Debug: Show available contexts and raw config to determine exact context name
 echo "Available kubectl contexts:"
 kubectl config get-contexts
+echo "Raw kubeconfig contents:"
+cat "${KUBECONFIG}"
+
+# Dynamically detect context name from kubeconfig (searches for cluster name pattern)
+KIND_CONTEXT=$(grep 'name:' "${KUBECONFIG}" -A 5 | grep -E "name:.*${SOLO_CLUSTER_NAME}-c1" | awk '{print} $2' || echo "")
+if [[ -z "${KIND_CONTEXT}" ]]; then
+  # Fallback patterns: try without kind-, or kind- prefixed
+  KIND_CONTEXT="${SOLO_CLUSTER_NAME}-c1"  # No prefix common in Podman exp
+  echo "Fallback to non-prefixed context: ${KIND_CONTEXT}"
+else
+  echo "Detected context: ${KIND_CONTEXT}"
+fi
+
+# Verify context exists before switch
+if ! kubectl config get-contexts -o name | grep -q "^${KIND_CONTEXT}$"; then
+  echo "Error: Context ${KIND_CONTEXT} not found. Available:"
+  kubectl config get-contexts
+  exit 1
+fi
 
 # **********************************************************************************************************************
 # Step 6: Build and Initialize Solo
@@ -103,10 +122,8 @@ echo "Step 6: Building Solo and initializing..."
 SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 task build
 
-# Detected context name from logs: kind- prefixed (switch to match actual)
-KIND_CONTEXT="kind-${SOLO_CLUSTER_NAME}-c1"
 echo "Switching to kubectl context: ${KIND_CONTEXT}"
-sudo kubectl config use-context "${KIND_CONTEXT}"
+kubectl config use-context "${KIND_CONTEXT}"  # Non-sudo, as file is user-owned
 
 # Setup cluster reference
 npm run solo -- cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" || exit 1
