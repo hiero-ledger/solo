@@ -93,8 +93,6 @@ sudo rm -f /root/.kube/config.lock || true
 # Debug: Show available contexts (will reveal exact name)
 echo "Available kubectl contexts:"
 kubectl config get-contexts
-echo "Current kubeconfig path: $KUBECONFIG or default ~/.kube/config"
-cat /home/runner/.kube/config | grep -A 5 -B 5 "name:"  # Partial dump for logs (redact if sensitive)
 
 # **********************************************************************************************************************
 # Step 6: Build and Initialize Solo
@@ -104,12 +102,10 @@ echo "Step 6: Building Solo and initializing..."
 
 SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 task build
-#npm run solo -- init || exit 1
 
 # Detected context name from logs: kind- prefixed (switch to match actual)
 KIND_CONTEXT="kind-${SOLO_CLUSTER_NAME}-c1"
 echo "Switching to kubectl context: ${KIND_CONTEXT}"
-export KUBECONFIG=/home/runner/.kube/config  # Ensure path
 sudo kubectl config use-context "${KIND_CONTEXT}"
 
 # Setup cluster reference
