@@ -475,3 +475,21 @@ jobs:
         with:
           name: ${{ inputs.coverage-report-name }}
           path: 'coverage/${{ inputs.coverage-subdirectory }}'
+
+      - name: Fix Kubeconfig Permissions for Cleanup
+        if: ${{ always() && runner.os == 'Linux' }}
+        run: |
+          # Fix kubeconfig permissions that may have been changed by sudo commands during Podman setup
+          if [ -f ~/.kube/config ]; then
+            sudo chown $(whoami):$(whoami) ~/.kube/config || true
+            sudo chown $(whoami):$(whoami) ~/.kube/config.lock 2>/dev/null || true
+            sudo chmod 600 ~/.kube/config || true
+          fi
+          
+          if [ -f /home/runner/.kube/config ]; then
+            sudo chown runner:runner /home/runner/.kube/config || true
+            sudo chown runner:runner /home/runner/.kube/config.lock 2>/dev/null || true
+            sudo chmod 600 /home/runner/.kube/config || true
+          fi
+          
+          echo "Kubeconfig permissions fixed for cleanup"
