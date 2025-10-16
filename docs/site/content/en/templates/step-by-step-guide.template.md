@@ -258,7 +258,7 @@ relayNode:
   --node-aliases: "node1"
 ```
 
-See the [falcon example](https://github.com/hashgraph/solo/tree/main/examples/one-shot-falcon) for a complete configuration template.
+See the [falcon example](https://github.com/hiero-ledger/solo/tree/main/examples/one-shot-falcon) for a complete configuration template.
 
 When you're finished with the falcon deployment:
 

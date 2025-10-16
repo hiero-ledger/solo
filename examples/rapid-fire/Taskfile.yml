@@ -10,13 +10,16 @@ env:
       fi
 
 vars:
-  DEPLOYMENT: "rapid-fire-deployment"
-  CLUSTER_NAME: "rapid-fire-cluster"
-  CONTEXT: "kind-rapid-fire-cluster"
+  SOLO_NAMESPACE: "solo-ns"
+  SOLO_DEPLOYMENT: "solo-rapid-fire-deployment"
+  SOLO_CLUSTER_NAME: "rapid-fire-cluster"
+  SOLO_CLUSTER_REF: "rapid-fire-cluster-reference"
+  SOLO_CLUSTER_SETUP_NAMESPACE: "{{.SOLO_NAMESPACE}}"
 
 tasks:
   deploy:
-    desc: Deploy a complete Hiero network using one-shot falcon deploy
+    desc: Deploy a complete Hiero network with a single consensus node and run rapid-fire tests
+    dir: ../..
     cmds:
       # Install Solo CLI
       - cmd: |
@@ -26,21 +29,100 @@ tasks:
             echo "Skipping npm install - using development version"
           fi
 
-      # Solo one-shot falcon deploy
       - cmd: |
-          $SOLO_COMMAND one-shot single deploy
+          # Clean up any existing Kind clusters
+          for cluster in $(kind get clusters); do
+            kind delete cluster -n $cluster
+          done
+
+      - cmd: |
+          # Clean up Solo data
+          rm -Rf ~/.solo
+
+      - cmd: |
+          # Create Kind cluster
+          kind create cluster -n {{ .SOLO_CLUSTER_NAME }}
+
+      - cmd: |
+          # Solo init
+          $SOLO_COMMAND init --dev
+
+      - cmd: |
+          # Solo cluster-ref config connect
+          $SOLO_COMMAND cluster-ref config connect --cluster-ref {{ .SOLO_CLUSTER_REF }} --context kind-{{.SOLO_CLUSTER_NAME}} --dev
+
+      - cmd: |
+          # Solo deployment config create
+          $SOLO_COMMAND deployment config create -n {{ .SOLO_NAMESPACE }} --deployment {{ .SOLO_DEPLOYMENT }} --dev
+
+      - cmd: |
+          # Solo deployment cluster attach
+          $SOLO_COMMAND deployment cluster attach --deployment {{ .SOLO_DEPLOYMENT }} --cluster-ref {{ .SOLO_CLUSTER_REF }} \
+          --num-consensus-nodes 1 --dev
+
+      - cmd: |
+          # Solo keys consensus generate
+          $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --deployment {{ .SOLO_DEPLOYMENT }} --dev
+
+      - cmd: |
+          # Solo cluster-ref config setup
+          $SOLO_COMMAND cluster-ref config setup -s {{ .SOLO_CLUSTER_SETUP_NAMESPACE }} --dev
+
+      - cmd: |
+          # Solo consensus network deploy
+          $SOLO_COMMAND consensus network deploy --deployment {{ .SOLO_DEPLOYMENT }} \
+          --pvcs {{.APPLICATION_PROPERTIES_FLAG}} --dev
+
+      - cmd: |
+          # Solo consensus node setup
+          $SOLO_COMMAND consensus node setup --deployment {{ .SOLO_DEPLOYMENT }} --dev
+
+      - cmd: |
+          # Solo consensus node start
+          $SOLO_COMMAND consensus node start --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
       # Solo rapid-fire crypto-transfer start
+      # Args: [-c <clients>] [-a <accounts>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [transfer|query|mixed] [-metrics]
       - cmd: |
-          $SOLO_COMMAND rapid-fire crypto-transfer start --deployment {{ .DEPLOYMENT }} \
+          $SOLO_COMMAND rapid-fire crypto-transfer start --deployment {{ .SOLO_DEPLOYMENT }} \
           --values-file {{ .USER_WORKING_DIR }}/nlg-values.yaml \
-          --args '"-c 5 -a 10 -t 60"'
+          --args '"-c 5 -a 10 -R -t 10"'
+
+      # Solo rapid-fire nft-transfer start
+      # Args: [-c <clients>] [-a <accounts>] [-T <tokens>] [-n <NFTs/token>] [-S flat|hot -p <percent>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
+      - cmd: |
+          $SOLO_COMMAND rapid-fire nft-transfer start --deployment {{ .SOLO_DEPLOYMENT }} \
+          --args '"-c 5 -a 10 -T 2 -n 3 -S flat -p 50 -R -t 10"'
+
+      # Solo rapid-fire smart-contract start
+      # Args: [-c <clients>] [-a <accounts>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
+      - cmd: |
+          $SOLO_COMMAND rapid-fire smart-contract start --deployment {{ .SOLO_DEPLOYMENT }} \
+          --args '"-c 5 -a 10 -R -t 10"'
+
+      # Solo rapid-fire heli-swap start
+      # Args: HeliSwapLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
+      - cmd: |
+          $SOLO_COMMAND rapid-fire heli-swap start --deployment {{ .SOLO_DEPLOYMENT }} \
+          --args '"-c 5 -a 10 -R -t 10"'
+
+      # Solo rapid-fire longevity start
+      # Args: LongevityLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
+      - cmd: |
+          $SOLO_COMMAND rapid-fire longevity start --deployment {{ .SOLO_DEPLOYMENT }} \
+          --args '"-c 5 -a 10 -R -t 10"'
+
+      # Solo rapid-fire token-transfer start
+      # Args: [-c <clients>] [-a <accounts>] [-T <tokens>] [-A <associations>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
+  #      - cmd: |
+  #          $SOLO_COMMAND rapid-fire token-transfer start --deployment {{ .SOLO_DEPLOYMENT }} \
+  #          --args '"-c 5 -a 10 -T 2 -A 5 -R -t 10"'
 
   destroy:
     desc: Destroy the Solo network using one-shot single destroy
     cmds:
-      - cmd: $SOLO_COMMAND rapid-shot destroy all --deployment {{ .DEPLOYMENT }}
-      - cmd: $SOLO_COMMAND one-shot single destroy --deployment {{ .DEPLOYMENT }}
+      - cmd: $SOLO_COMMAND rapid-shot destroy all --deployment {{ .SOLO_DEPLOYMENT }}
+      - cmd: $SOLO_COMMAND one-shot single destroy --deployment {{ .SOLO_DEPLOYMENT }}
 
       # Delete Kind cluster
       - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
