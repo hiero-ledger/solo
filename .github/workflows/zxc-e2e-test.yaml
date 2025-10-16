@@ -53,6 +53,11 @@ on:
         type: string
         required: false
         default: "E2E Tests Coverage Report"
+      local-java-build:
+        description: "Build Local Java Code:"
+        type: boolean
+        required: false
+        default: false
       cluster-name:
         description: "Cluster Name:"
         type: string
