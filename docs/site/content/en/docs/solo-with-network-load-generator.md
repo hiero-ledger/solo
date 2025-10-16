@@ -49,10 +49,9 @@ A full list of all available `rapid-fire` commands can be found in [Solo CLI Com
 
 | Class                  | Argument                                                                                                                                                                                               |
 |------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| CryptoTransferLoadTest | [-c <clients>] [-a <accounts>] [-K ED25519 / ECDSA] [-R] [-t / tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [transfer / query / mixed] [-metrics]                                   |
-| TokenTransferLoadTest  | [-c <clients>] [-a <accounts>] [-T <tokens>] [-A <associations>] [-K ED25519 / ECDSA] [-R] [-t / tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]                            |
-| NftTransferLoadTest    | [-c <clients>] [-a <accounts>] [-T <tokens>] [-n <NFTs/token>] [-S flat / hot -p <percent>] [-K ED25519 / ECDSA] [-R] [-t / tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics] |
-| SmartContractLoadTest  | [-c <clients>] [-a <accounts>] [-K ED25519 / ECDSA] [-R] [-t / tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]                                                              |
-| HeliSwapLoadTest       | [-c <clients>] [-a <accounts>] [-R] [-t / tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]                                                                                   |
-| LongevityLoadTest      | [-c <clients>] [-a <accounts>] [-R] [-t / tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]                                                                                   |
-
+| CryptoTransferLoadTest | \[-c <clients>] \[-a <accounts>] \[-K ED25519 / ECDSA] \[-R] \[-t / tt <time>] \[-host <host>] \[-port <port>] \[-endpoint <endpoint>] \[transfer / query / mixed] \[-metrics]                                   |
+| TokenTransferLoadTest  | \[-c <clients>] \[-a <accounts>] \[-T <tokens>] \[-A <associations>] \[-K ED25519 / ECDSA] \[-R] \[-t / tt <time>] \[-host <host>] \[-port <port>] \[-endpoint <endpoint>] \[-metrics]                            |
+| NftTransferLoadTest    | \[-c <clients>] \[-a <accounts>] \[-T <tokens>] \[-n \<NFTs/token>] \[-S flat / hot -p <percent>] \[-K ED25519 / ECDSA] \[-R] \[-t / tt <time>] \[-host <host>] \[-port <port>] \[-endpoint <endpoint>] \[-metrics] |
+| SmartContractLoadTest  | \[-c <clients>] \[-a <accounts>] \[-K ED25519 / ECDSA] \[-R] \[-t / tt <time>] \[-host <host>] \[-port <port>] \[-endpoint <endpoint>] \[-metrics]                                                              |
+| HeliSwapLoadTest       | \[-c <clients>] \[-a <accounts>] \[-R] \[-t / tt <time>] \[-host <host>] \[-port <port>] \[-endpoint <endpoint>] \[-metrics]                                                                                   |
+| LongevityLoadTest      | \[-c <clients>] \[-a <accounts>] \[-R] \[-t / tt <time>] \[-host <host>] \[-port <port>] \[-endpoint <endpoint>] \[-metrics]                                                                                   |
