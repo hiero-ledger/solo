@@ -13,7 +13,6 @@ import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {type SoloLogger} from './solo-logger.js';
 import {SoloError} from '../errors/solo-error.js';
-import stripAnsi from 'strip-ansi';
 
 /**
  * Pino-based implementation of the SoloLogger interface.
