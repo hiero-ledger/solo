@@ -19,10 +19,14 @@ readonly SCRIPT_PATH
 
 readonly KIND_IMAGE="kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30"
 
-# Unique kubeconfig per run to avoid locks/conflicts
-UNIQUE_KUBECONFIG="/tmp/kube-solo-${GITHUB_RUN_ID}.yaml"
+UNIQUE_KUBECONFIG="/home/runner/.kube/solo-${GITHUB_RUN_ID}.yaml"
+mkdir -p "$(dirname "${UNIQUE_KUBECONFIG}")"
 export KUBECONFIG="${UNIQUE_KUBECONFIG}"
 echo "Using unique KUBECONFIG: ${KUBECONFIG}"
+
+# Pre-create file as user to ensure writability
+touch "${KUBECONFIG}"
+chmod 600 "${KUBECONFIG}"
 
 echo "SOLO_CHARTS_DIR: ${SOLO_CHARTS_DIR}"
 export PATH=${PATH}:~/.solo/bin
@@ -81,6 +85,10 @@ echo "Cluster created successfully"
 # Use sudo for 'kind get clusters' to avoid rootless errors in non-sudo calls
 echo "Clusters (via sudo):"
 sudo kind get clusters
+
+# Clean locks
+rm -f "${KUBECONFIG}.lock" || true
+sudo rm -f /root/.kube/config.lock || true
 
 # Debug: Show available contexts (will reveal exact name)
 echo "Available kubectl contexts:"
