@@ -14,6 +14,24 @@ User can get help information by running with the following methods:
 `solo --help` will return the help information for the `solo` command to show which commands
 are available.
 
+### Version Information
+
+Check the Solo version using:
+
+```bash
+solo --version
+```
+
+For machine-readable output formats (Kubernetes ecosystem standard), use the `--output` or `-o` flag:
+
+```bash
+solo --version -o json    # JSON format: {"version": "0.46.1"}
+solo --version -o yaml    # YAML format: version: 0.46.1
+solo --version -o wide    # Plain text: 0.46.1
+```
+
+The `--output` flag can also be used with other Solo commands to suppress banners and produce machine-readable output, making it ideal for scripts and CI/CD pipelines.
+
 `solo command --help` will return the help information for the specific command to show which options
 
 ```text

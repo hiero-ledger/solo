@@ -1729,6 +1729,19 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly output: CommandFlag = {
+    constName: 'output',
+    name: 'output',
+    definition: {
+      describe: 'Output format. One of: json|yaml|wide',
+      defaultValue: '',
+      alias: 'o',
+      type: 'string',
+      disablePrompt: true,
+    },
+    prompt: undefined,
+  };
+
   public static readonly mirrorNodeVersion: CommandFlag = {
     constName: 'mirrorNodeVersion',
     name: 'mirror-node-version',
@@ -2692,6 +2705,7 @@ export class Flags {
     Flags.profileFile,
     Flags.profileName,
     Flags.quiet,
+    Flags.output,
     Flags.imageTag,
     Flags.relayReleaseTag,
     Flags.releaseTag,
