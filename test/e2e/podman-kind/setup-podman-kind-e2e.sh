@@ -48,27 +48,27 @@ echo "KIND_EXPERIMENTAL_PROVIDER set to: ${KIND_EXPERIMENTAL_PROVIDER}"
 # **********************************************************************************************************************
 echo ""
 echo "Step 3: Cleaning up existing cluster..."
-kind delete cluster -n "${SOLO_CLUSTER_NAME}-c1" || true
+sudo kind delete cluster -n "${SOLO_CLUSTER_NAME}-c1" || true
 
 # Clean up Podman network if exists
-podman network rm -f kind || true
+sudo podman network rm -f kind || true
 
 # **********************************************************************************************************************
 # Step 4: Create Podman network for Kind
 # **********************************************************************************************************************
 echo ""
 echo "Step 4: Creating Podman network..."
-podman network create kind --subnet 172.19.0.0/16 || true
+sudo podman network create kind --subnet 172.19.0.0/16 || true
 
 # **********************************************************************************************************************
 # Step 5: Create Kind cluster using Podman
 # **********************************************************************************************************************
 echo ""
 echo "Step 5: Creating Kind cluster with Podman..."
-kind create cluster -n "${SOLO_CLUSTER_NAME}-c1" --image "${KIND_IMAGE}" --config "${SCRIPT_PATH}/kind-cluster.yaml" || exit 1
+sudo kind create cluster -n "${SOLO_CLUSTER_NAME}-c1" --image "${KIND_IMAGE}" --config "${SCRIPT_PATH}/kind-cluster.yaml" || exit 1
 
 echo "Cluster created successfully"
-kind get clusters
+sudo kind get clusters
 
 # **********************************************************************************************************************
 # Step 6: Build and Initialize Solo
