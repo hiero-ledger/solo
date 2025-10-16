@@ -479,7 +479,7 @@ jobs:
       - name: Post-Job Cleanup
         if: always()
         run: |
-          rm -f /home/runner/.kube/config.lock || true
+          sudo rm -f /home/runner/.kube/config.lock || true
           sudo rm -f /root/.kube/config.lock || true
           sudo kind delete cluster --name chart-testing || true
           sudo kind delete cluster -n solo-e2e-c1 || true  # Adjust name
