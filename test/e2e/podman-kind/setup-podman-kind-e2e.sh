@@ -90,28 +90,32 @@ sudo kind get clusters
 rm -f "${KUBECONFIG}.lock" || true
 sudo rm -f /root/.kube/config.lock || true
 
-# Debug: Show available contexts and raw config to determine exact context name
+# Debug: Show available contexts and raw config
 echo "Available kubectl contexts:"
 kubectl config get-contexts
 echo "Raw kubeconfig contents:"
 cat "${KUBECONFIG}"
 
-# Dynamically detect the exact context name (yaml may have duplicates, take first match after 'name:')
-KIND_CONTEXT=$(yq eval '.contexts[]?.name | select(. == "*'"${SOLO_CLUSTER_NAME}-c1"'*")' "${KUBECONFIG}" 2>/dev/null || \
-               grep -A 1 'name: .*'"${SOLO_CLUSTER_NAME}-c1"'$' "${KUBECONFIG}" | tail -1 | awk '{print $NF}' || \
-               echo "")
+# Improved detection: Search for context block and extract name containing cluster suffix
+KIND_CONTEXT=$(awk '/- context:/ || /contexts:/ {found=0} /name: kind-' "${SOLO_CLUSTER_NAME}" '-c1/ {print $2; found=1} /name: '"${SOLO_CLUSTER_NAME}"'-c1/ {print $2; found=1}' "${KUBECONFIG}" | head -1)
 if [[ -z "${KIND_CONTEXT}" ]]; then
-  # Fallback patterns: try without kind-, or kind- prefixed
-  KIND_CONTEXT="${SOLO_CLUSTER_NAME}-c1"  # No prefix common in Podman exp
-  echo "Fallback to non-prefixed context: ${KIND_CONTEXT}"
+  # Fallback: List all context names and grep
+  KIND_CONTEXT=$(kubectl config get-contexts -o name | grep -E "(kind-)?${SOLO_CLUSTER_NAME}-c1" | head -1)
+  echo "Fallback detection from get-contexts: ${KIND_CONTEXT}"
 else
-  echo "Detected context: ${KIND_CONTEXT}"
+  echo "Detected context from config: ${KIND_CONTEXT}"
 fi
 
-# Verify context exists before switch
+# Final fallback if still empty
+if [[ -z "${KIND_CONTEXT}" ]]; then
+  KIND_CONTEXT="kind-${SOLO_CLUSTER_NAME}-c1"
+  echo "Final fallback to: ${KIND_CONTEXT}"
+fi
+
+# Verify context exists
 if ! kubectl config get-contexts -o name | grep -q "^${KIND_CONTEXT}$"; then
-  echo "Error: Context ${KIND_CONTEXT} not found. Available:"
-  kubectl config get-contexts
+  echo "Error: Context ${KIND_CONTEXT} not found. Available contexts:"
+  kubectl config get-contexts -o name
   exit 1
 fi
 
@@ -125,7 +129,7 @@ SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 task build
 
 echo "Switching to kubectl context: ${KIND_CONTEXT}"
-kubectl config use-context "${KIND_CONTEXT}"  # Non-sudo, as file is user-owned
+kubectl config use-context "${KIND_CONTEXT}"
 
 # Setup cluster reference
 npm run solo -- cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" || exit 1
