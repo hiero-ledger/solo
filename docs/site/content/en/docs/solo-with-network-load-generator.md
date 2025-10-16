@@ -20,13 +20,13 @@ npx @hashgraph/solo:@latest one-shot single deploy
 2. Use the `rapid-fire` commands to install the NLG chart and start a load test:
 
 ```bash
-@hashgraph/solo:@latest rapid-fire crypto-transfer start --deployment my-deployment '"-c 3 -a 10 -t 60"'
+@hashgraph/solo:@latest rapid-fire crypto-transfer start --deployment my-deployment --args '"-c 3 -a 10 -t 60"'
 ```
 
 3. In a separate terminal, you can start a different load test:
 
 ```bash
-@hashgraph/solo:@latest rapid-fire nft-transfer start --deployment my-deployment '"-c 3 -a 10 -t 60"'
+@hashgraph/solo:@latest rapid-fire nft-transfer start --deployment my-deployment --args '"-c 3 -a 10 -t 60"'
 ```
 
 4. To stop the load test early use the `stop` command:
@@ -43,7 +43,7 @@ npx @hashgraph/solo:@latest one-shot single deploy
 
 See this example for more details: [examples/network-load-generator/README.md](../../examples/network-load-generator/README.md)
 
-A full list of all available `rapid-fire` commands can be found in [Solo CLI Commands](solo-commands.md)
+A full list of all available `rapid-fire` commands can be found in [Solo CLI Commands](solo-commands.md/#rapid-fire)
 
 ## Argument list for every NLG class
 

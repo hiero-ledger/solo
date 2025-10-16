@@ -68,7 +68,11 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
     `${RapidFireCommandDefinition.COMMAND_NAME} ${RapidFireCommandDefinition.DESTROY_SUBCOMMAND_NAME} ${RapidFireCommandDefinition.ALL}` as const;
 
   public getCommandDefinition(): CommandDefinition {
-    return new CommandBuilder(RapidFireCommandDefinition.COMMAND_NAME, 'TODO', this.logger)
+    return new CommandBuilder(
+      RapidFireCommandDefinition.COMMAND_NAME,
+      'Commands for performing load tests a Solo deployment',
+      this.logger,
+    )
       .addCommandGroup(
         new CommandGroup(
           RapidFireCommandDefinition.HCS_SUBCOMMAND_NAME,
