@@ -2296,7 +2296,7 @@ export class NodeCommandTasks {
               config.namespace,
               constants.SOLO_DEPLOYMENT_CHART,
               constants.SOLO_DEPLOYMENT_CHART,
-              context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
+              context_.config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
               config.soloChartVersion,
               valuesArguments,
               context,
