@@ -40,6 +40,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withPinger(true)
   .withShard(3)
   .withRealm(2)
+  .withPodLog(true)
+  .withPodLog(true)
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe('External Database E2E Test', (): void => {
       const {testCacheDirectory, testLogger, namespace, contexts} = options;

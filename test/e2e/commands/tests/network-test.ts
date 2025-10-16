@@ -98,6 +98,8 @@ export class NetworkTest extends BaseCommandTest {
       deployment,
       optionFromFlag(Flags.deletePvcs),
       optionFromFlag(Flags.deleteSecrets),
+      optionFromFlag(Flags.serviceMonitor),
+      optionFromFlag(Flags.podLog),
       optionFromFlag(Flags.force),
       optionFromFlag(Flags.quiet),
     );
