@@ -38,8 +38,8 @@ export class NetworkTest extends BaseCommandTest {
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(flags.persistentVolumeClaims),
-      optionFromFlag(Flags.deleteSecrets),
       optionFromFlag(Flags.serviceMonitor),
+      optionFromFlag(Flags.podLog),
     );
 
     // have to enable load balancer to resolve cross cluster in multi-cluster
@@ -99,7 +99,7 @@ export class NetworkTest extends BaseCommandTest {
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(Flags.deletePvcs),
-      optionFromFlag(Flags.podLog),
+      optionFromFlag(Flags.deleteSecrets),
       optionFromFlag(Flags.force),
       optionFromFlag(Flags.quiet),
     );
