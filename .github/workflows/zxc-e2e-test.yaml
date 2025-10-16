@@ -481,7 +481,6 @@ jobs:
         run: |
           sudo rm -f /home/runner/.kube/config.lock || true
           sudo rm -f /root/.kube/config.lock || true
-          sudo kind delete cluster --name chart-testing || true
           sudo kind delete cluster -n solo-e2e-c1 || true  # Adjust name
           sudo podman rm -f kind-registry || true
           sudo podman network rm kind || true
