@@ -81,7 +81,7 @@ task build
 #npm run solo -- init || exit 1 # cache args for subsequent commands
 
 # Switch to the cluster context
-kubectl config use-context "kind-${SOLO_CLUSTER_NAME}-c1"
+kubectl config use-context "${SOLO_CLUSTER_NAME}-c1"
 
 # Setup cluster reference
 npm run solo -- cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" || exit 1
@@ -117,7 +117,7 @@ echo "=========================================="
 echo "✅ Podman + Kind E2E Test Setup Complete!"
 echo "=========================================="
 echo "Cluster: ${SOLO_CLUSTER_NAME}-c1"
-echo "Context: kind-${SOLO_CLUSTER_NAME}-c1"
+echo "Context: ${SOLO_CLUSTER_NAME}-c1"
 echo "Container Runtime: Podman"
 echo ""
 echo "Next step: Run the E2E test with:"
