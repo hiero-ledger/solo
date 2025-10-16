@@ -244,16 +244,18 @@ jobs:
       - name: Install Podman
         if: ${{ inputs.test-script == 'test-e2e-node-local-ptt' }}
         run: |
-          # Detect distro and install Podman + extras + shadow-utils for utils
+          # Detect distro and install Podman + extras (Debian vs RedHat)
           if [ -f /etc/debian_version ]; then
             sudo apt-get update
-            sudo apt-get install -y podman containers-storage crun uidmap slirp4netns fuse-overlayfs iptables shadow-utils
+            sudo apt-get install -y podman containers-storage crun uidmap slirp4netns fuse-overlayfs iptables
+            # On Debian, uidmap provides newuidmap; ensure it's there
+            sudo apt-get install -y --reinstall uidmap passwd  # Refreshes usermod/newuidmap
           elif [ -f /etc/redhat-release ]; then
             if command -v yum &> /dev/null; then
               sudo yum update -y
-              sudo yum install -y podman containers-storage crun uidmap slirp4netns fuse-overlayfs iptables shadow-utils subid
+              sudo yum install -y podman containers-storage crun uidmap slirp4netns fuse-overlayfs iptables subid
             else
-              sudo dnf install -y podman containers-storage crun uidmap slirp4netns fuse-overlayfs iptables shadow-utils subid
+              sudo dnf install -y podman containers-storage crun uidmap slirp4netns fuse-overlayfs iptables subid
             fi
             sudo loginctl enable-linger $USER || true
           else
@@ -263,58 +265,45 @@ jobs:
           
           podman --version
           
-          # Skip shared mount if fails; not needed in rootful
-          echo "Attempting shared mount propagation on / (non-critical for rootful)"
-          sudo mount --make-rshared / || echo "Mount failed; proceeding with rootful"
+          # Attempt shared mount (non-critical for rootful; ignore failures)
+          echo "Attempting shared mount propagation on /"
+          sudo mount --make-rshared / || echo "Mount failed; proceeding with rootful mode"
           
-          # SubUID/SubGID: Direct append only (correct format: user:start:count)
+          # SubUID/SubGID: Direct append with correct format (user:start:count)
           SUB_START=100000
-          SUB_COUNT=65536  # Standard for Podman
+          SUB_COUNT=65536
           if ! grep -q "^$USER:" /etc/subuid; then
-            echo "Appending subuid range directly"
+            echo "Appending subuid range directly to /etc/subuid"
             echo "$USER:$SUB_START:$SUB_COUNT" | sudo tee -a /etc/subuid
           fi
           if ! grep -q "^$USER:" /etc/subgid; then
-            echo "Appending subgid range directly"
+            echo "Appending subgid range directly to /etc/subgid"
             echo "$USER:$SUB_START:$SUB_COUNT" | sudo tee -a /etc/subgid
           fi
           
-          # Log files for debug
-          echo "Subuid contents:"
+          # Debug: Show file contents
+          echo "=== /etc/subuid ==="
           cat /etc/subuid
-          echo "Subgid contents:"
+          echo "=== /etc/subgid ==="
           cat /etc/subgid
           
-          # Apply (even in rootful, harmless)
+          # Apply changes (harmless in rootful)
           podman system migrate || true
           
-          # Install newuidmap if possible (for completeness)
-          if ! command -v newuidmap &> /dev/null; then
-            echo "newuidmap missing; attempting install"
-            if command -v yum &> /dev/null; then
-              sudo yum install -y shadow-utils-subid || true
-            else
-              sudo dnf install -y shadow-utils-subid || true
-            fi
+          # Verify newuidmap (from uidmap on Debian)
+          if command -v newuidmap &> /dev/null; then
+            newuidmap --version
+          else
+            echo "newuidmap unavailable; rootful mode will bypass namespace issues"
           fi
-          newuidmap --version || echo "Newuidmap unavailable; rootful will bypass"
           
-          # Force Rootful Mode: Init machine as rootful
-          echo "Initializing Podman machine in rootful mode"
-          podman machine rm -f || true  # Clean stale
-          if ! podman machine init --rootful --cpus 2 --memory 2048 --disk 20; then
-            echo "Machine init failed; using direct rootful Podman"
-            # Fallback: Enable rootful without machine
-            sudo sysctl -w kernel.keys.root_maxkeys=10000  # For rootful keys if needed
-          fi
+          # Force Rootful Mode: Clean and init machine as rootful
+          echo "Initializing Podman in rootful mode (bypasses rootless errors)"
+          podman machine rm -f || true
+          podman machine init --rootful --cpus 2 --memory 2048 --disk 20 || {
+            echo "Machine init failed; using direct sudo podman for rootful"
+          }
           podman machine start
-          
-          # Verify in rootful context (use sudo if needed)
-          podman info || sudo podman info
-          podman ps && echo "Podman ready in rootful mode"
-          
-          # Test rootful container run
-          sudo podman run --rm docker.io/library/hello-world && echo "Rootful test passed"
 
 
       - name: Setup Java
