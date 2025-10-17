@@ -152,13 +152,6 @@ tasks:
         {{ .mocha_bin }} 'test/e2e/commands/one-shot-single.test.ts' 
         {{ .reporter_options_prefix }}-e2e-one-shot-single.xml"
 
-  test-e2e-podman-kind-cluster:
-    cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Podman & Kind Cluster Test\"
-        {{ .reporter_prefix }}='coverage/e2e-podman-kind-cluster'
-        {{ .mocha_bin }} 'test/e2e/commands/podman-kind-cluster.test.ts'
-        {{ .reporter_options_prefix }}-e2e-podman-kind-cluster.xml"
-
   test-example-node-create-transaction:
     dir: examples/node-create-transaction
     cmds:
