@@ -74,7 +74,9 @@ sudo podman network create kind --subnet 172.19.0.0/16 || true
 # **********************************************************************************************************************
 echo ""
 echo "Step 5: Creating Kind cluster with Podman..."
-sudo kind create cluster -n "${SOLO_CLUSTER_NAME}-c1" --image "${KIND_IMAGE}" --config "${SCRIPT_PATH}/kind-cluster.yaml" --kubeconfig "${KUBECONFIG}" || exit 1
+# Reuse standard Kind cluster config (not Podman-specific)
+KIND_CONFIG="${SCRIPT_PATH}/../kind-cluster.yaml"
+sudo kind create cluster -n "${SOLO_CLUSTER_NAME}-c1" --image "${KIND_IMAGE}" --config "${KIND_CONFIG}" --kubeconfig "${KUBECONFIG}" || exit 1
 
 # Fix ownership after sudo write
 sudo chown $(whoami):$(whoami) "${KUBECONFIG}" || true
@@ -162,5 +164,5 @@ echo "Context: ${SOLO_CLUSTER_NAME}-c1"
 echo "Container Runtime: Podman"
 echo ""
 echo "Next step: Run the E2E test with:"
-echo "  SOLO_TEST_CLUSTER=${SOLO_CLUSTER_NAME}-c1 task test-e2e-podman-kind-cluster"
+echo "  SOLO_TEST_CLUSTER=${SOLO_CLUSTER_NAME}-c1 task test-e2e-node-local-ptt"
 echo "=========================================="
