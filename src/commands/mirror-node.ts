@@ -23,6 +23,7 @@ import {
   type ComponentId,
   type Context,
   type DeploymentName,
+  NamespaceNameAsString,
   type Optional,
   type Realm,
   type Shard,
@@ -54,6 +55,11 @@ import {Version} from '../business/utils/version.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {SemVer} from 'semver';
+import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
+import {Templates} from '../core/templates.js';
+import {RemoteConfig} from '../business/runtime-state/config/remote/remote-config.js';
+import {ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
+import yaml from 'yaml';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -258,6 +264,83 @@ export class MirrorNodeCommand extends BaseCommand {
     optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.devMode, flags.id],
   };
 
+  private prepareBlockNodeIntegrationValues(
+    config: MirrorNodeUpgradeConfigClass | MirrorNodeDeployConfigClass,
+  ): string {
+    const configuration: RemoteConfig = this.remoteConfig.configuration;
+    const blockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = configuration.components.state.blockNodes;
+    const clusterSchemas: ReadonlyArray<Readonly<ClusterSchema>> = configuration.clusters;
+
+    if (blockNodeSchemas.length === 0) {
+      this.logger.debug('No block nodes found in remote config configuration');
+      return '';
+    }
+
+    this.logger.debug('Preparing mirror node values args overrides for block nodes integration');
+
+    const blockNodeFqdnList: {host: string; port: number}[] = [];
+
+    for (const blockNode of blockNodeSchemas) {
+      const id: ComponentId = blockNode.metadata.id;
+      const clusterReference: ClusterReferenceName = blockNode.metadata.cluster;
+
+      const cluster: Readonly<ClusterSchema> = clusterSchemas.find(
+        (cluster): boolean => cluster.name === clusterReference,
+      );
+
+      if (!cluster) {
+        throw new SoloError(`Cluster ${clusterReference} not found in remote config`);
+      }
+
+      const serviceName: string = Templates.renderBlockNodeName(id);
+      const namespace: NamespaceNameAsString = blockNode.metadata.namespace;
+      const dnsBaseDomain: string = cluster.dnsBaseDomain;
+
+      const fqdn: string = Templates.renderSvcFullyQualifiedDomainName(serviceName, namespace, dnsBaseDomain);
+
+      blockNodeFqdnList.push({
+        host: fqdn,
+        port: constants.BLOCK_NODE_PORT,
+      });
+    }
+
+    const mirrorNodeBlockNodeValues: Record<string, unknown> = {
+      importer: {
+        config: {
+          hiero: {
+            mirror: {
+              importer: {
+                block: {
+                  enabled: true,
+                  nodes: blockNodeFqdnList,
+                },
+                sourceType: 'BLOCK_NODE',
+                downloader: {
+                  record: {
+                    enabled: false,
+                  },
+                },
+                startDate: '1970-01-01T00:00:00Z',
+                stream: {
+                  maxSubscribeAttempts: 10,
+                  responseTimeout: '10s',
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const mirrorNodeBlockNodeValuesYaml: string = yaml.stringify(mirrorNodeBlockNodeValues);
+
+    const valuesFilePath: string = PathEx.join(config.cacheDir, 'mirror-bn-values.yaml');
+
+    fs.writeFileSync(valuesFilePath, mirrorNodeBlockNodeValuesYaml);
+
+    return ` --values ${valuesFilePath}`;
+  }
+
   private async prepareValuesArg(config: MirrorNodeDeployConfigClass | MirrorNodeUpgradeConfigClass): Promise<string> {
     let valuesArgument: string = '';
 
@@ -366,6 +449,8 @@ export class MirrorNodeCommand extends BaseCommand {
         'rest.db.password': readonlyPassword,
       });
     }
+
+    valuesArgument += this.prepareBlockNodeIntegrationValues(config);
 
     return valuesArgument;
   }
