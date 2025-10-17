@@ -36,11 +36,11 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withDeployment(`${testName}-deployment`)
   .withClusterCount(2)
   .withConsensusNodesCount(2)
-  .withLoadBalancerEnabled(true)
+  .withLoadBalancerEnabled(false)
   .withPinger(true)
   .withShard(3)
   .withRealm(2)
-  .withPodLog(true)
+  .withServiceMonitor(true)
   .withPodLog(true)
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe('External Database E2E Test', (): void => {
