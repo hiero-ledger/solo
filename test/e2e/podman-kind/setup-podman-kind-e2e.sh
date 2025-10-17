@@ -96,26 +96,19 @@ kubectl config get-contexts
 echo "Raw kubeconfig contents:"
 cat "${KUBECONFIG}"
 
-# Improved detection: Search for context block and extract name containing cluster suffix
-KIND_CONTEXT=$(awk '/- context:/ || /contexts:/ {found=0} /name: kind-' "${SOLO_CLUSTER_NAME}" '-c1/ {print $2; found=1} /name: '"${SOLO_CLUSTER_NAME}"'-c1/ {print $2; found=1}' "${KUBECONFIG}" | head -1)
+# Reliable detection: Use kubectl to list context names and grep for pattern
+KIND_CONTEXT=$(kubectl config get-contexts -o name | grep -E "(kind-)?${SOLO_CLUSTER_NAME}-c1$" | head -1)
 if [[ -z "${KIND_CONTEXT}" ]]; then
-  # Fallback: List all context names and grep
-  KIND_CONTEXT=$(kubectl config get-contexts -o name | grep -E "(kind-)?${SOLO_CLUSTER_NAME}-c1" | head -1)
-  echo "Fallback detection from get-contexts: ${KIND_CONTEXT}"
-else
-  echo "Detected context from config: ${KIND_CONTEXT}"
-fi
-
-# Final fallback if still empty
-if [[ -z "${KIND_CONTEXT}" ]]; then
-  KIND_CONTEXT="kind-${SOLO_CLUSTER_NAME}-c1"
-  echo "Final fallback to: ${KIND_CONTEXT}"
-fi
-
-# Verify context exists
-if ! kubectl config get-contexts -o name | grep -q "^${KIND_CONTEXT}$"; then
-  echo "Error: Context ${KIND_CONTEXT} not found. Available contexts:"
+  echo "Error: No matching context found for pattern ${SOLO_CLUSTER_NAME}-c1. Available:"
   kubectl config get-contexts -o name
+  exit 1
+else
+  echo "Detected context: ${KIND_CONTEXT}"
+fi
+
+# Verify (redundant but safe)
+if ! kubectl config get-contexts -o name | grep -q "^${KIND_CONTEXT}$"; then
+  echo "Error: Verified context ${KIND_CONTEXT} missing."
   exit 1
 fi
 
