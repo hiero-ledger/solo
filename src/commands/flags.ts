@@ -2623,6 +2623,32 @@ export class Flags {
     prompt: undefined,
   };
 
+  // --------------- Rapid Fire --------------- //
+
+  public static readonly nlgArguments: CommandFlag = {
+    constName: 'nlgArguments',
+    name: 'args',
+    definition: {
+      describe:
+        'All arguments to be passed to the NLG load test class. Value MUST be wrapped in 2 sets of different quotes. ' +
+        'Example: \'"-c 100 -a 40 -t 3600"\'',
+      type: 'string',
+      defaultValue: '',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly javaHeap: CommandFlag = {
+    constName: 'javaHeap',
+    name: 'javaHeap',
+    definition: {
+      describe: 'Max Java heap size in GB for the NLG load test class, defaults to 8',
+      type: 'number',
+      defaultValue: 8,
+    },
+    prompt: undefined,
+  };
+
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.adminKey,
@@ -2771,6 +2797,8 @@ export class Flags {
     Flags.mirrorNodeId,
     Flags.serviceMonitor,
     Flags.podLog,
+    Flags.nlgArguments,
+    Flags.javaHeap,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

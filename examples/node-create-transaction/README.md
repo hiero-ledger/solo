@@ -31,7 +31,7 @@ This example demonstrates how to use the node add-prepare/prepare-upgrade/freeze
    * You can download a copy here: <https://github.com/hiero-ledger/solo/blob/main/resources/templates/application.properties>
    * If you want you can download a copy, add your configurations, (be careful changing existing configurations as it could break Solo's network), and then update the variable at the top to point to the new location: `APPLICATION_PROPERTIES: "{{ .TEMPORARY_DIR }}/application.properties"`
 4. **CN\_VERSION:**
-   * The following is only used for certain decision logic.  It is best to have it as close to possible as the local build you are using of consensus node: `CN_VERSION: "v0.65.1"`
+   * The following is only used for certain decision logic.  It is best to have it as close to possible as the local build you are using of consensus node: `CN_VERSION: "v0.66.0"`
    * The script is configured to leverage a local build of the Consensus Node, for example the `main` branch.  You will need to clone the Hiero Consensus Node yourself and then from its root directory run `./gradlew assemble`, this assumes you have all its prerequisites configured, see: <https://github.com/hiero-ledger/hiero-consensus-node/blob/main/docs/README.md>
 5. **Updating Directory Locations**
    * The script was designed to run from this directory and so if you copy down the example without the repository or change other locations you might need to make changes
@@ -78,4 +78,4 @@ This example demonstrates how to use the node add-prepare/prepare-upgrade/freeze
 * This example is **self-contained** and does not require files from outside this directory.
 * All steps in the workflow are named for clear logging and troubleshooting.
 * You can extend the Taskfile to add more custom resources or steps as needed.
-* For more advanced usage, see the main [Solo documentation](https://github.com/hashgraph/solo).
+* For more advanced usage, see the main [Solo documentation](https://github.com/hiero-ledger/solo).
