@@ -24,23 +24,26 @@ const testTitle: string = 'Podman Installation & Kind Cluster Creation E2E Test'
  * **IMPORTANT:** This test ALWAYS uses Podman, regardless of Docker availability.
  * This is intentional to specifically test Podman installation and Kind with Podman.
  *
- * This test validates the infrastructure setup workflow:
+ * This test validates the complete end-to-end workflow:
  * 1. Podman dependency installation (FORCED - even if Docker is available)
  * 2. Kind dependency installation
  * 3. Kind configured to use Podman (KIND_EXPERIMENTAL_PROVIDER=podman)
- * 4. Verify Kind cluster exists (created by setup script)
- * 5. Verify cluster is accessible and ready
- * 6. Cluster cleanup
+ * 4. Kind cluster creation using Podman
+ * 5. Cluster-ref configuration setup
+ * 6. Network deployment (deploy network with 1 node)
+ * 7. Node setup and start (verify nodes run on the cluster)
+ * 8. Network destruction
+ * 9. Cluster cleanup
  *
- * This is a focused infrastructure test that validates:
- * - Podman installation and configuration
- * - Kind installation and Podman integration
- * - Cluster creation via setup script
- * - Cluster accessibility and readiness
- * - Proper cleanup of resources
+ * This is a comprehensive test that validates Solo can:
+ * - Install Podman and use it as the container runtime
+ * - Configure Kind to work with Podman
+ * - Create a Kubernetes cluster from scratch using Podman
+ * - Deploy and run Hedera consensus nodes on Podman-based clusters
+ * - Clean up all resources properly
  *
- * NOTE: This test assumes the cluster is already created by running:
- *   ./test/e2e/podman-kind/setup-podman-kind-e2e.sh
+ * NOTE: This test is fully self-contained and does NOT require the setup script.
+ * All cluster creation and configuration is handled within the TypeScript test.
  */
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
@@ -106,14 +109,21 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         testLogger,
       });
 
-      // Test 3: Verify Cluster Readiness
+      // Test 3: Cluster-Ref Setup and Network Deployment
       PodmanKindSetupTest.testNodeDeployment({
         ...options,
         testName,
         testLogger,
       });
 
-      // Test 4: Cluster Cleanup
+      // Test 4: Network Destruction
+      PodmanKindSetupTest.testNetworkDestroy({
+        ...options,
+        testName,
+        testLogger,
+      });
+
+      // Test 5: Cluster Cleanup
       PodmanKindSetupTest.testClusterCleanup({
         ...options,
         testName,
