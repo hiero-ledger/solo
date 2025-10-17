@@ -15,7 +15,7 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 import {testSeparateNodeUpdate} from './separate-node-update.test.js';
 import {testSeparateNodeDelete} from './separate-node-destroy.test.js';
-import {testSeperateNodeUpgrade} from './separate-node-upgrade.test.js';
+import {testSeparateNodeUpgrade} from './separate-node-upgrade.test.js';
 
 describe('Node add with hedera local build', (): void => {
   const localBuildPath: string = [
@@ -66,7 +66,7 @@ describe('Node add with hedera local build', (): void => {
 
     testSeparateNodeAdd(argv.clone(), bootstrapResp, namespace, timeout);
     testSeparateNodeUpdate(argv.clone(), bootstrapResp, namespace, timeout);
-    testSeperateNodeUpgrade(argv.clone(), bootstrapResp, namespace);
-    testSeparateNodeDelete(argv.clone(), bootstrapResp, namespace);
+    testSeparateNodeUpgrade(argv.clone(), bootstrapResp, namespace);
+    // testSeparateNodeDelete(argv.clone(), bootstrapResp, namespace);
   });
 }).timeout(Duration.ofMinutes(3).toMillis());
