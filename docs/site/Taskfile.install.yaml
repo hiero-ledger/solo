@@ -63,7 +63,7 @@ tasks:
         }
         "
     cmds:
-      - printf "\r::group::Installing Hugo extended version"
+      - printf "\r::group::Installing Hugo extended version\n"
       - CGO_ENABLED=1 go install -tags extended github.com/gohugoio/hugo@v0.145.0
       - printf "\r::endgroup::--------------\n"
 
@@ -80,7 +80,7 @@ tasks:
       - package.json
       - package-lock.json
     cmds:
-      - printf "\r::group::Installing Solo"
+      - printf "\r::group::Installing Solo\n"
       - npm install
       - printf "\r::endgroup::--------------\n"
 

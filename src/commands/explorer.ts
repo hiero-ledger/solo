@@ -683,7 +683,7 @@ export class ExplorerCommand extends BaseCommand {
             config.clusterContext = this.getClusterContext(config.clusterRef);
 
             const {id, releaseName, ingressReleaseName, isChartInstalled, isLegacyChartInstalled} =
-              await this.inferExplorerData(config.namespace, config.clusterRef);
+              await this.inferExplorerData(config.namespace, config.clusterContext);
 
             config.id = id;
             config.releaseName = releaseName;

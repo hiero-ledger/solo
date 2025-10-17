@@ -82,6 +82,8 @@ import {DefaultKindClientBuilder} from '../../integration/kind/impl/default-kind
 import {MetricsServerImpl} from '../../business/runtime-state/services/metrics-server-impl.js';
 import {VfkitDependencyManager} from '../dependency-managers/vfkit-dependency-manager.js';
 import {GvproxyDependencyManager} from '../dependency-managers/gvproxy-dependency-manager.js';
+import {RapidFireCommand} from '../../commands/rapid-fire.js';
+import {RapidFireCommandDefinition} from '../../commands/command-definitions/rapid-fire-command-definition.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -148,6 +150,7 @@ export class Container {
       new SingletonContainer(InjectTokens.NetworkCommand, NetworkCommand),
       new SingletonContainer(InjectTokens.RelayCommand, RelayCommand),
       new SingletonContainer(InjectTokens.BlockNodeCommand, BlockNodeCommand),
+      new SingletonContainer(InjectTokens.RapidFireCommand, RapidFireCommand),
       new SingletonContainer(InjectTokens.ClusterCommandTasks, ClusterCommandTasks),
       new SingletonContainer(InjectTokens.ClusterCommandHandlers, ClusterCommandHandlers),
       new SingletonContainer(InjectTokens.NodeCommandTasks, NodeCommandTasks),
@@ -174,6 +177,7 @@ export class Container {
       new SingletonContainer(InjectTokens.MirrorCommandDefinition, MirrorCommandDefinition),
       new SingletonContainer(InjectTokens.RelayCommandDefinition, RelayCommandDefinition),
       new SingletonContainer(InjectTokens.OneShotCommandDefinition, OneShotCommandDefinition),
+      new SingletonContainer(InjectTokens.RapidFireCommandDefinition, RapidFireCommandDefinition),
     ];
   }
 

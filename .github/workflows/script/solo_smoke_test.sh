@@ -30,8 +30,10 @@ function setup_smart_contract_test ()
   echo "Remove previous .env file"
   rm -f .env
 
+  printf "\r::group::Install dependencies and compile smart contract\n"
   npm install
   npx hardhat compile || log_and_exit 1
+  printf "\r::endgroup::\n"
 
   echo "Build .env file"
 
@@ -74,9 +76,11 @@ function start_contract_test ()
   cd -
 
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    printf "\r::group::Test local network connection using nc\n"
     echo "Test local network connection using nc"
     sudo apt-get update && sudo apt-get install -y netcat-traditional
     nc -zv 127.0.0.1 50211
+    printf "\r::endgroup::\n"
   fi
 
   if [[ $result -ne 0 ]]; then
@@ -115,12 +119,14 @@ function check_monitor_log()
 
   if grep -q "ERROR" mirror-monitor.log; then
     echo "mirror-monitor.log contains ERROR"
+    printf "\r::group::mirror-monitor log dump\n"
 
     echo "------- BEGIN LOG DUMP -------"
     echo
     cat mirror-monitor.log
     echo
     echo "------- END LOG DUMP -------"
+    printf "\r::endgroup::\n"
 
     log_and_exit 1
   fi
@@ -148,11 +154,13 @@ function check_importer_log()
 
   if grep -q "ERROR" mirror-importer.log; then
     echo "mirror-importer.log contains ERROR"
+    printf "\r::group::mirror-importer log dump\n"
     echo "------- BEGIN LOG DUMP -------"
     echo
     cat mirror-importer.log
     echo
     echo "------- END LOG DUMP -------"
+    printf "\r::endgroup::\n"
     log_and_exit 1
   fi
 }
@@ -161,22 +169,28 @@ function log_and_exit()
 {
   echo "load_log_and_exit begin with rc=$1"
 
+  printf "\r::group::Relay log dump\n"
   echo "------- BEGIN RELAY DUMP -------"
   kubectl get services -n "${SOLO_NAMESPACE}" --output=name | grep relay-node | grep -v '\-ws' | xargs -IRELAY kubectl logs -n "${SOLO_NAMESPACE}" RELAY > relay.log || true
   cat relay.log || true
   echo "------- END RELAY DUMP -------"
+  printf "\r::endgroup::\n"
 
+  printf "\r::group::Mirror REST log dump\n"
   echo "------- BEGIN MIRROR REST DUMP -------"
   kubectl get services -n "${SOLO_NAMESPACE}" --output=name | grep rest | grep -v '\-restjava' | xargs -IREST kubectl logs -n "${SOLO_NAMESPACE}" REST > rest.log || true
   cat rest.log || true
   echo "------- END MIRROR REST DUMP -------"
+  printf "\r::endgroup::\n"
 
+  printf "\r::group::Port-forward log dump\n"
   echo "------- Last port-forward check -------" >> port-forward.log
   ps -ef |grep port-forward >> port-forward.log
 
   echo "------- BEGIN PORT-FORWARD DUMP -------"
   cat port-forward.log
   echo "------- END PORT-FORWARD DUMP -------"
+  printf "\r::endgroup::\n"
 
   # sleep for a few seconds to give time for stdout to stream back in case it was called using nodejs
   sleep 5
