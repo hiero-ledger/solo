@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: "Test Migration Process"
+name: "flow-migration-test.yaml"
 
 on:
   workflow_dispatch:
