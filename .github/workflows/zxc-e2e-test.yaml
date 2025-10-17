@@ -249,11 +249,10 @@ jobs:
       - name: Install Podman
         if: ${{ inputs.test-script == 'test-e2e-node-local-ptt' }}
         run: |
-          # Detect distro and install Podman + extras
+          # Detect distro and install Podman + essential dependencies for rootful mode
           if [ -f /etc/debian_version ]; then
             sudo apt-get update
-            sudo apt-get install -y podman containers-storage crun uidmap slirp4netns fuse-overlayfs iptables qemu-kvm  # Add qemu for potential future
-            sudo apt-get install -y --reinstall uidmap passwd
+            sudo apt-get install -y podman iptables
           elif [ -f /etc/redhat-release ]; then
             # Keep your RedHat logic if needed
             true
@@ -264,55 +263,11 @@ jobs:
           
           podman --version
           
-          # Attempt shared mount (ignore)
-          sudo mount --make-rshared / || echo "Mount failed; OK for rootful"
-          
-          # Get actual user (fallback to 'runner' from logs if whoami fails)
-          CURRENT_USER=$(whoami || echo "runner")
-          echo "Detected user: $CURRENT_USER"
-          
-          # Clean subuid/subgid: Remove blanks, duplicates, and re-add for detected user + app
-          echo "Cleaning and setting subuid/subgid for $CURRENT_USER and app"
-          sudo sed -i '/^:/d' /etc/subuid /etc/subgid  # Remove invalid blanks
-          sudo sed -i "/^${CURRENT_USER}:/d" /etc/subuid /etc/subgid  # Remove existing for user
-          sudo sed -i '/^app:/d' /etc/subuid /etc/subgid  # Remove app if conflicting
-          
-          # Re-add standard ranges
-          echo "${CURRENT_USER}:100000:65536" | sudo tee -a /etc/subuid
-          echo "${CURRENT_USER}:100000:65536" | sudo tee -a /etc/subgid
-          echo "app:165536:65536" | sudo tee -a /etc/subuid  # Keep app if needed, or skip
-          echo "app:165536:65536" | sudo tee -a /etc/subgid
-          
-          # Debug
-          echo "=== /etc/subuid ==="
-          cat /etc/subuid
-          echo "=== /etc/subgid ==="
-          cat /etc/subgid
-          
-          # No migrate/unshare - irrelevant for rootful
-          
-          # Verify newuidmap (bypass in rootful)
-          newuidmap --version || echo "Bypassed"
-          
-          # NO podman machine - Unsupported in v3.4.4; Use direct rootful sudo podman
-          echo "Enabling direct rootful Podman (no VM machine needed)"
-          # Enable rootful storage if needed (v3 config)
-          sudo mkdir -p /etc/containers
-          echo "[engine]" | sudo tee /etc/containers/podman.conf
-          echo "cgroup_manager = \"systemd\"" | sudo tee -a /etc/containers/podman.conf  # Or cgroupfs
-          
-          # Rootful verification and test (use sudo for privilege)
-          sudo podman info && echo "Podman info succeeded in rootful mode"
-          sudo podman ps && echo "Podman ready"
-          
-          # Rootful test: Run hello-world privileged
-          sudo podman run --rm --privileged docker.io/library/hello-world && echo "Rootful Podman test passed" || {
-            echo "Test failed; check sudo or install: sudo apt-get install -y podman"
-            sudo podman system logs || true
-          }
-          
-          # Additional: Enable Podman socket for proxy if falling back later
-          sudo systemctl enable --now podman.socket || true
+          # Verify Podman works in rootful mode
+          echo "Verifying Podman in rootful mode..."
+          sudo podman info
+          sudo podman ps
+          echo "Podman is ready"
 
 
       - name: Setup Java
