@@ -67,6 +67,6 @@ describe('Node add with hedera local build', (): void => {
     testSeparateNodeAdd(argv.clone(), bootstrapResp, namespace, timeout);
     testSeparateNodeUpdate(argv.clone(), bootstrapResp, namespace, timeout);
     testSeparateNodeUpgrade(argv.clone(), bootstrapResp, namespace);
-    // testSeparateNodeDelete(argv.clone(), bootstrapResp, namespace);
+    testSeparateNodeDelete(argv.clone(), bootstrapResp, namespace);
   });
 }).timeout(Duration.ofMinutes(3).toMillis());
