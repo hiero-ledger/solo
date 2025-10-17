@@ -501,16 +501,4 @@ jobs:
           name: ${{ inputs.coverage-report-name }}
           path: 'coverage/${{ inputs.coverage-subdirectory }}'
 
-      - name: Post-Job Cleanup
-        if: always()
-        run: |
-          echo "Post-job cleanup..."
-          rm -f /home/runner/.kube/solo-* /home/runner/.kube/config* || true
-          sudo rm -f /root/.kube/config* || true
-          
-          for cluster in $(sudo kind get clusters); do
-            sudo kind delete cluster --name "$cluster" || true
-          done
-          
-          sudo podman system prune -f || true
 
