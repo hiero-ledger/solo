@@ -963,8 +963,7 @@ export class NodeCommandTasks {
           : k8
               .containers()
               .readByRef(containerReference)
-              .copyFrom(applicationPropertiesSourceDirectory, `${config.stagingDir}/templates`)
-        );
+              .copyFrom(applicationPropertiesSourceDirectory, `${config.stagingDir}/templates`));
       },
     };
   }
