@@ -83,7 +83,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       NodeTest.add(options);
       NodeTest.update(options);
-      NodeTest.upgrade(options);
       NodeTest.destroy(options);
 
       ExplorerTest.add(options);

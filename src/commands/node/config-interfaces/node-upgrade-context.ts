@@ -6,5 +6,4 @@ export interface NodeUpgradeContext {
   config: NodeUpgradeConfigClass;
   upgradeZipHash: string;
   upgradeVersion: string;
-  upgradeZipFile: string;
 }

@@ -24,5 +24,4 @@ export interface NodeUpgradeConfigClass extends NodeCommonConfigWithNodeAliases,
   treasuryKey: PrivateKey;
   curDate: Date;
   upgradeVersion: string;
-  upgradeZipFile?: string;
 }

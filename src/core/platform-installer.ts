@@ -95,7 +95,7 @@ export class PlatformInstaller {
   }
 
   /** Fetch and extract platform code into the container */
-  public async fetchPlatform(podReference: PodReference, tag: string, context: string): Promise<boolean> {
+  async fetchPlatform(podReference: PodReference, tag: string, context?: string) {
     if (!podReference) {
       throw new MissingArgumentError('podReference is required');
     }

@@ -80,16 +80,13 @@ describe('PackageInstaller', () => {
 
   describe('extractPlatform', () => {
     it('should fail for missing pod name', async () => {
-      await expect(installer.fetchPlatform(null as PodReference, 'v0.42.5', undefined as any)).to.be.rejectedWith(
-        MissingArgumentError,
-      );
+      await expect(installer.fetchPlatform(null as PodReference, 'v0.42.5')).to.be.rejectedWith(MissingArgumentError);
     });
     it('should fail for missing tag', async () => {
       await expect(
         installer.fetchPlatform(
           PodReference.of(NamespaceName.of('platform-installer-test'), PodName.of('network-node1-0')),
           '',
-          undefined as any,
         ),
       ).to.be.rejectedWith(MissingArgumentError);
     });

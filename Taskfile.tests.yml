@@ -101,6 +101,13 @@ tasks:
         {{ .mocha_bin }} 'test/e2e/commands/node-add-local.test.ts'
         {{ .reporter_options_prefix }}-e2e-node-add-local.xml"
 
+  test-e2e-node-upgrade:
+    cmds:
+      - "{{ .test_prefix }}=\"Mocha E2E Node Upgrade Tests\"
+        {{ .reporter_prefix }}='coverage/e2e-node-upgrade'
+        {{ .mocha_bin }} 'test/e2e/commands/node-upgrade.test.ts'
+        {{ .reporter_options_prefix }}-e2e-node-upgrade.xml"
+
   test-e2e-block-node:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Block Nodes Tests\"
