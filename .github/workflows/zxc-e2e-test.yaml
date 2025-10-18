@@ -346,7 +346,7 @@ jobs:
         run: |
           # Set KUBECONFIG to the unique config for Podman-based test only
           if [[ "${{ inputs.test-script }}" == "test-e2e-node-local-ptt" ]]; then
-            UNIQUE_KUBECONFIG="/home/runner/.kube/solo-${{ github.run_id }}.yaml"
+            UNIQUE_KUBECONFIG="${HOME}/.kube/solo-${{ github.run_id }}.yaml"
             if [[ -f "${UNIQUE_KUBECONFIG}" ]]; then
               export KUBECONFIG="${UNIQUE_KUBECONFIG}"
               echo "Using unique KUBECONFIG for Podman test: ${KUBECONFIG}"

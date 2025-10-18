@@ -19,17 +19,42 @@ readonly SCRIPT_PATH
 
 readonly KIND_IMAGE="kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30"
 
-UNIQUE_KUBECONFIG="/home/runner/.kube/solo-${GITHUB_RUN_ID}.yaml"
-mkdir -p "$(dirname "${UNIQUE_KUBECONFIG}")"
-export KUBECONFIG="${UNIQUE_KUBECONFIG}"
-echo "Using unique KUBECONFIG: ${KUBECONFIG}"
-
-# Pre-create file as user to ensure writability
-touch "${KUBECONFIG}"
-chmod 600 "${KUBECONFIG}"
+# Create KUBECONFIG path (unique for CI, default for local macOS)
+if [[ -n "${GITHUB_RUN_ID}" ]]; then
+  # CI environment - use unique config to avoid conflicts
+  export KUBECONFIG="${HOME}/.kube/solo-${GITHUB_RUN_ID}.yaml"
+  mkdir -p "$(dirname "${KUBECONFIG}")"
+  echo "CI Mode: Using unique KUBECONFIG: ${KUBECONFIG}"
+  
+  # Pre-create file as user to ensure writability
+  touch "${KUBECONFIG}"
+  chmod 600 "${KUBECONFIG}"
+else
+  # Local development (macOS) - use default config
+  export KUBECONFIG="${HOME}/.kube/config"
+  mkdir -p "$(dirname "${KUBECONFIG}")"
+  echo "Local Mode: Using default KUBECONFIG: ${KUBECONFIG}"
+fi
 
 echo "SOLO_CHARTS_DIR: ${SOLO_CHARTS_DIR}"
 export PATH=${PATH}:~/.solo/bin
+
+# Detect OS and set sudo usage accordingly
+OS_TYPE="$(uname -s)"
+case "${OS_TYPE}" in
+  Linux*)
+    USE_SUDO="sudo"
+    echo "Detected OS: Linux (using rootful mode with sudo)"
+    ;;
+  Darwin*)
+    USE_SUDO=""
+    echo "Detected OS: macOS (using rootless mode)"
+    ;;
+  *)
+    echo "Warning: Unknown OS ${OS_TYPE}, attempting without sudo"
+    USE_SUDO=""
+    ;;
+esac
 
 # Determine cluster name
 if [[ -n "${SOLO_TEST_CLUSTER}" ]]; then
@@ -42,6 +67,7 @@ echo "=========================================="
 echo "Podman + Kind E2E Test Setup"
 echo "=========================================="
 echo "Cluster Name: ${SOLO_CLUSTER_NAME}-c1"
+echo "OS: ${OS_TYPE}"
 echo "=========================================="
 
 # **********************************************************************************************************************
@@ -57,17 +83,17 @@ echo "KIND_EXPERIMENTAL_PROVIDER set to: ${KIND_EXPERIMENTAL_PROVIDER}"
 # **********************************************************************************************************************
 echo ""
 echo "Step 3: Cleaning up existing cluster..."
-sudo kind delete cluster -n "${SOLO_CLUSTER_NAME}-c1" || true
+${USE_SUDO} kind delete cluster -n "${SOLO_CLUSTER_NAME}-c1" || true
 
 # Clean up Podman network if exists
-sudo podman network rm -f kind || true
+${USE_SUDO} podman network rm -f kind || true
 
 # **********************************************************************************************************************
 # Step 4: Create Podman network for Kind
 # **********************************************************************************************************************
 echo ""
 echo "Step 4: Creating Podman network..."
-sudo podman network create kind --subnet 172.19.0.0/16 || true
+${USE_SUDO} podman network create kind --subnet 172.19.0.0/16 || true
 
 # **********************************************************************************************************************
 # Step 5: Create Kind cluster using Podman
@@ -76,21 +102,25 @@ echo ""
 echo "Step 5: Creating Kind cluster with Podman..."
 # Reuse standard Kind cluster config (not Podman-specific)
 KIND_CONFIG="${SCRIPT_PATH}/../kind-cluster.yaml"
-sudo kind create cluster -n "${SOLO_CLUSTER_NAME}-c1" --image "${KIND_IMAGE}" --config "${KIND_CONFIG}" --kubeconfig "${KUBECONFIG}" || exit 1
+${USE_SUDO} kind create cluster -n "${SOLO_CLUSTER_NAME}-c1" --image "${KIND_IMAGE}" --config "${KIND_CONFIG}" --kubeconfig "${KUBECONFIG}" || exit 1
 
-# Fix ownership after sudo write
-sudo chown $(whoami):$(whoami) "${KUBECONFIG}" || true
+# Fix ownership after sudo write (Linux only)
+if [[ -n "${USE_SUDO}" ]]; then
+  ${USE_SUDO} chown $(whoami):$(whoami) "${KUBECONFIG}" || true
+fi
 chmod 600 "${KUBECONFIG}"
 
 echo "Cluster created successfully"
 
-# Use sudo for 'kind get clusters'
-echo "Clusters (via sudo):"
-sudo kind get clusters
+# List kind clusters
+echo "Clusters:"
+${USE_SUDO} kind get clusters
 
 # Clean locks
 rm -f "${KUBECONFIG}.lock" || true
-sudo rm -f /root/.kube/config.lock || true
+if [[ -n "${USE_SUDO}" ]]; then
+  ${USE_SUDO} rm -f /root/.kube/config.lock || true
+fi
 
 # Debug: Show available contexts and raw config
 echo "Available kubectl contexts:"
@@ -160,9 +190,16 @@ echo "=========================================="
 echo "✅ Podman + Kind E2E Test Setup Complete!"
 echo "=========================================="
 echo "Cluster: ${SOLO_CLUSTER_NAME}-c1"
-echo "Context: ${SOLO_CLUSTER_NAME}-c1"
+echo "Context: ${KIND_CONTEXT}"
 echo "Container Runtime: Podman"
+echo "KUBECONFIG: ${KUBECONFIG}"
 echo ""
-echo "Next step: Run the E2E test with:"
+if [[ -n "${GITHUB_RUN_ID}" ]]; then
+  echo "CI: KUBECONFIG exported for workflow"
+else
+  echo "Local: Using default kubeconfig - no extra setup needed!"
+fi
+echo ""
+echo "Run the E2E test:"
 echo "  SOLO_TEST_CLUSTER=${SOLO_CLUSTER_NAME}-c1 task test-e2e-node-local-ptt"
 echo "=========================================="
