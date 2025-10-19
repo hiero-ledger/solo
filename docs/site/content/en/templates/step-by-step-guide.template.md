@@ -91,9 +91,16 @@ npx @hashgraph/solo
 
 # Verify the installation
 solo --version
+
+# Or use different output formats (Kubernetes-style)
+solo --version -o json    # JSON format: {"version": "0.46.1"}
+solo --version -o yaml    # YAML format: version: 0.46.1
+solo --version -o wide    # Plain text: 0.46.1
 ```
 
 You should see output showing the latest version which should match our NPM package version: <https://www.npmjs.com/package/@hashgraph/solo>
+
+The `--output` (or `-o`) flag can be used with various Solo commands to produce machine-readable output in formats like `json`, `yaml`, or `wide`.
 
 {{< /details >}}<br/>
 
@@ -258,7 +265,7 @@ relayNode:
   --node-aliases: "node1"
 ```
 
-See the [falcon example](https://github.com/hashgraph/solo/tree/main/examples/one-shot-falcon) for a complete configuration template.
+See the [falcon example](https://github.com/hiero-ledger/solo/tree/main/examples/one-shot-falcon) for a complete configuration template.
 
 When you're finished with the falcon deployment:
 
@@ -439,7 +446,7 @@ This step downloads the hedera platform code and sets up your node/nodes.
 
 ```bash
 # consensus node setup
-export CONSENSUS_NODE_VERSION=v0.65.1 # or whatever version you are trying to deploy starting with a `v`
+export CONSENSUS_NODE_VERSION=v0.66.0 # or whatever version you are trying to deploy starting with a `v`
 solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}"
 ```
 

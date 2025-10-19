@@ -136,6 +136,7 @@ docker run --rm -it --privileged hashgraph/solo:latest sh
 Inside the container, you can:
 
 * Check Solo installation: `solo --version`
+  * Use `--output` or `-o` flag for different formats: `solo --version -o json`, `solo --version -o yaml`, `solo --version -o wide`
 * Verify tools: `kind version`, `kubectl version`, `helm version`
 * Run Solo commands manually: `solo init`, `solo cluster list`, etc.
 

@@ -64,6 +64,10 @@ enum RuntimeStatePhase {
   NotLoaded = 'not_loaded',
 }
 
+interface VersionField {
+  value: SemVer;
+}
+
 @injectable()
 export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   private static readonly SOLO_REMOTE_CONFIGMAP_DATA_KEY: string = 'remote-config-data';
@@ -586,7 +590,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   public updateComponentVersion(type: ComponentTypes, version: SemVer): void {
-    const updateVersionCallback = (versionField: {value: SemVer}): void => {
+    const updateVersionCallback: (versionField: VersionField) => void = (versionField: VersionField): void => {
       versionField.value = version;
     };
 
@@ -599,37 +603,49 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
    */
   private applyCallbackToVersionField(
     componentType: ComponentTypes,
-    callback: (versionField: {value: SemVer}) => void,
+    callback: (versionField: VersionField) => void,
   ): void {
     switch (componentType) {
       case ComponentTypes.ConsensusNode: {
-        const versionField = {value: this.configuration.versions.consensusNode};
+        const versionField: VersionField = {value: this.configuration.versions.consensusNode};
         callback(versionField);
         this.configuration.versions.consensusNode = versionField.value;
         break;
       }
       case ComponentTypes.MirrorNode: {
-        const versionField = {value: this.configuration.versions.mirrorNodeChart};
+        const versionField: VersionField = {value: this.configuration.versions.mirrorNodeChart};
         callback(versionField);
         this.configuration.versions.mirrorNodeChart = versionField.value;
         break;
       }
       case ComponentTypes.Explorer: {
-        const versionField = {value: this.configuration.versions.explorerChart};
+        const versionField: VersionField = {value: this.configuration.versions.explorerChart};
         callback(versionField);
         this.configuration.versions.explorerChart = versionField.value;
         break;
       }
       case ComponentTypes.RelayNodes: {
-        const versionField = {value: this.configuration.versions.jsonRpcRelayChart};
+        const versionField: VersionField = {value: this.configuration.versions.jsonRpcRelayChart};
         callback(versionField);
         this.configuration.versions.jsonRpcRelayChart = versionField.value;
         break;
       }
       case ComponentTypes.BlockNode: {
-        const versionField = {value: this.configuration.versions.blockNodeChart};
+        const versionField: VersionField = {value: this.configuration.versions.blockNodeChart};
         callback(versionField);
         this.configuration.versions.blockNodeChart = versionField.value;
+        break;
+      }
+      case ComponentTypes.Cli: {
+        const versionField: VersionField = {value: this.configuration.versions.cli};
+        callback(versionField);
+        this.configuration.versions.cli = versionField.value;
+        break;
+      }
+      case ComponentTypes.Chart: {
+        const versionField: VersionField = {value: this.configuration.versions.chart};
+        callback(versionField);
+        this.configuration.versions.chart = versionField.value;
         break;
       }
       default: {
@@ -641,7 +657,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   public getComponentVersion(type: ComponentTypes): SemVer {
     let version: SemVer;
 
-    const getVersionCallback = (versionField: {value: SemVer}): void => {
+    const getVersionCallback: (versionField: VersionField) => void = (versionField: VersionField): void => {
       version = versionField.value;
     };
 

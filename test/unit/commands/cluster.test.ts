@@ -19,14 +19,14 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {DefaultHelmClient} from '../../../src/integration/helm/impl/default-helm-client.js';
 import {ClusterCommandHandlers} from '../../../src/commands/cluster/handlers.js';
-import {SoloWinstonLogger} from '../../../src/core/logging/solo-winston-logger.js';
+import {SoloPinoLogger} from '../../../src/core/logging/solo-pino-logger.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {ClusterCommandTasks} from '../../../src/commands/cluster/tasks.js';
 
 const getBaseCommandOptions = (context: string) => {
   const options = {
-    logger: sandbox.createStubInstance<SoloLogger>(SoloWinstonLogger),
+    logger: sandbox.createStubInstance<SoloLogger>(SoloPinoLogger),
     helm: sandbox.createStubInstance(DefaultHelmClient),
     k8Factory: sandbox.createStubInstance(K8ClientFactory),
     chartManager: sandbox.createStubInstance(ChartManager),

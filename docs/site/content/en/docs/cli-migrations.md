@@ -1,6 +1,14 @@
+---
+title: "Updated CLI Command Mappings"
+weight: 35
+description: >
+    A mapping of CLI commands from < v0.44.0 to >= v0.44.0
+type: docs
+---
+
 # Updated CLI Command Mappings
 
-> The following tables provide a complete mapping of previous CLI commands to their updated three-level structure.
+> The following tables provide a complete mapping of previous (< v0.44.0) CLI commands to their updated three-level structure.
 > Entries marked as No changes retain their original form.
 
 ## Init

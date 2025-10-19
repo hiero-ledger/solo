@@ -18,6 +18,7 @@ import {
 } from '../core/helpers.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import fs from 'node:fs';
+import path from 'node:path';
 import {type KeyManager} from '../core/key-manager.js';
 import {type PlatformInstaller} from '../core/platform-installer.js';
 import {type ProfileManager} from '../core/profile-manager.js';
@@ -121,6 +122,8 @@ export interface NetworkDeployConfigClass {
   domainNames?: string;
   domainNamesMapping?: Record<NodeAlias, string>;
   blockNodeComponents: BlockNodeStateSchema[];
+  blockNodeCfg: string;
+  consensusNodeToBlockNodesMap?: Record<string, number[]>;
   debugNodeAlias: NodeAlias;
   app: string;
   serviceMonitor: string;
@@ -218,6 +221,7 @@ export class NetworkCommand extends BaseCommand {
       flags.backupRegion,
       flags.backupProvider,
       flags.domainNames,
+      flags.blockNodeCfg,
       flags.serviceMonitor,
       flags.podLog,
     ],
@@ -577,17 +581,84 @@ export class NetworkCommand extends BaseCommand {
     }
 
     if (config.blockNodeComponents.length > 0) {
-      for (const clusterReference of clusterReferences) {
-        const blockNodesJsonData: string = new BlockNodesJsonWrapper(
-          config.blockNodeComponents,
-          this.remoteConfig.configuration.clusters,
-          this.remoteConfig.configuration.versions,
-        ).toJSON();
+      // Parse blockNodeConfiguration once and store in config for reuse in copy step
+      if (!config.consensusNodeToBlockNodesMap) {
+        config.consensusNodeToBlockNodesMap = {};
 
-        const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'block-nodes.json');
-        fs.writeFileSync(blockNodesJsonPath, blockNodesJsonData);
+        if (config.blockNodeCfg && config.blockNodeCfg.trim() !== '') {
+          try {
+            let blockNodeCfgContent: string = config.blockNodeCfg;
 
-        valuesArguments[clusterReference] += ` --set-file "hedera.configMaps.blockNodesJson=${blockNodesJsonPath}"`;
+            // Check if the input is a file path
+            if (fs.existsSync(config.blockNodeCfg)) {
+              this.logger.debug(`Reading blockNodeCfg from file: ${config.blockNodeCfg}`);
+              blockNodeCfgContent = fs.readFileSync(config.blockNodeCfg, 'utf8');
+            }
+
+            config.consensusNodeToBlockNodesMap = JSON.parse(blockNodeCfgContent);
+          } catch (error) {
+            throw new SoloError(`Failed to parse blockNodeCfg JSON: ${error.message}`, error);
+          }
+        } else {
+          // Default behavior: all consensus nodes get all block nodes (use node name as key)
+          for (const consensusNode of config.consensusNodes) {
+            config.consensusNodeToBlockNodesMap[consensusNode.name] = config.blockNodeComponents.map(
+              (bn): number => bn.metadata.id,
+            );
+          }
+        }
+      }
+
+      // Generate separate block-nodes.json files for each consensus node
+      for (const consensusNode of config.consensusNodes) {
+        const consensusNodeId: string = consensusNode.nodeId.toString();
+        // Use node name as the key for lookup (e.g., "node1", "node2")
+        const blockNodeIds: number[] = config.consensusNodeToBlockNodesMap[consensusNode.name] || [];
+
+        if (blockNodeIds.length > 0) {
+          // Filter block node components based on the mapping
+          const filteredBlockNodes: BlockNodeStateSchema[] = config.blockNodeComponents.filter((bn): boolean =>
+            blockNodeIds.includes(bn.metadata.id),
+          );
+
+          const blockNodesJsonData: string = new BlockNodesJsonWrapper(
+            filteredBlockNodes,
+            this.remoteConfig.configuration.clusters,
+            this.remoteConfig.configuration.versions,
+          ).toJSON();
+
+          // Create a unique filename for each consensus node
+          const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${consensusNodeId}.json`;
+          const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
+          // Format JSON with indentation for readability
+          const formattedJson: string = JSON.stringify(JSON.parse(blockNodesJsonData), null, 2);
+          fs.writeFileSync(blockNodesJsonPath, formattedJson);
+
+          this.logger.debug(`Generated ${blockNodesJsonFilename} for consensus node ${consensusNodeId}`);
+        }
+      }
+
+      // For cluster-level configuration, use all block nodes (backward compatibility)
+      // Skip this if blockNodeConfiguration is provided, as we're using node-specific files
+      if (!config.blockNodeCfg || config.blockNodeCfg.trim() === '') {
+        for (const clusterReference of clusterReferences) {
+          const blockNodesJsonData: string = new BlockNodesJsonWrapper(
+            config.blockNodeComponents,
+            this.remoteConfig.configuration.clusters,
+            this.remoteConfig.configuration.versions,
+          ).toJSON();
+
+          const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.BLOCK_NODES_JSON_FILE);
+          // Format JSON with indentation for readability
+          const formattedJson: string = JSON.stringify(JSON.parse(blockNodesJsonData), null, 2);
+          fs.writeFileSync(blockNodesJsonPath, formattedJson);
+
+          valuesArguments[clusterReference] += ` --set-file "hedera.configMaps.blockNodesJson=${blockNodesJsonPath}"`;
+        }
+      } else {
+        this.logger.debug(
+          'Skipping cluster-level block-nodes.json generation - using node-specific files from blockNodeConfiguration',
+        );
       }
     }
 
@@ -952,7 +1023,7 @@ export class NetworkCommand extends BaseCommand {
                 config.namespace,
                 constants.SOLO_DEPLOYMENT_CHART,
                 constants.SOLO_DEPLOYMENT_CHART,
-                context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
+                context_.config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
                 config.soloChartVersion,
                 config.valuesArgMap[clusterReference],
                 config.clusterRefs.get(clusterReference),
@@ -1037,7 +1108,7 @@ export class NetworkCommand extends BaseCommand {
                     config.namespace,
                     constants.SOLO_DEPLOYMENT_CHART,
                     constants.SOLO_DEPLOYMENT_CHART,
-                    context_.config.chartDirectory ? context_.config.chartDirectory : constants.SOLO_TESTING_CHART_URL,
+                    context_.config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
                     config.soloChartVersion,
                     config.valuesArgMap[clusterReference],
                     config.clusterRefs.get(clusterReference),
@@ -1157,16 +1228,48 @@ export class NetworkCommand extends BaseCommand {
         },
         this.addNodesAndProxies(),
         {
-          title: 'Copy block-nodes.json',
+          title: `Copy ${constants.BLOCK_NODES_JSON_FILE}`,
           skip: (context_): boolean => context_.config.blockNodeComponents.length === 0,
           task: async (context_): Promise<void> => {
             const config: NetworkDeployConfigClass = context_.config;
+            const targetDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
 
-            const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'block-nodes.json');
-            const targetDirectory: string = '/opt/hgcapp/data/config';
+            // Reuse the already-parsed consensusNodeToBlockNodesMap from config
+            const consensusNodeToBlockNodesMap: Record<string, number[]> = config.consensusNodeToBlockNodesMap || {};
+            const useNodeSpecificFiles: boolean = config.blockNodeCfg && config.blockNodeCfg.trim() !== '';
 
             try {
               for (const consensusNode of config.consensusNodes) {
+                const consensusNodeId: string = consensusNode.nodeId.toString();
+
+                // Determine which file to copy
+                let blockNodesJsonPath: string;
+                if (useNodeSpecificFiles) {
+                  // Use node-specific file if blockNodeConfiguration is provided
+                  const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${consensusNodeId}.json`;
+                  blockNodesJsonPath = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
+
+                  // Check if the node has block nodes assigned (use node name as key)
+                  if (
+                    !consensusNodeToBlockNodesMap[consensusNode.name] ||
+                    consensusNodeToBlockNodesMap[consensusNode.name].length === 0
+                  ) {
+                    this.logger.debug(
+                      `Skipping consensus node ${consensusNode.name} (nodeId: ${consensusNodeId}) - no block nodes assigned`,
+                    );
+                    continue;
+                  }
+                } else {
+                  // Use default file for backward compatibility
+                  blockNodesJsonPath = PathEx.join(constants.SOLO_CACHE_DIR, constants.BLOCK_NODES_JSON_FILE);
+                }
+
+                // Check if the file exists before copying
+                if (!fs.existsSync(blockNodesJsonPath)) {
+                  this.logger.warn(`Block nodes JSON file not found: ${blockNodesJsonPath}`);
+                  continue;
+                }
+
                 const podReference: PodReference = await this.k8Factory
                   .getK8(consensusNode.context)
                   .pods()
@@ -1187,7 +1290,18 @@ export class NetworkCommand extends BaseCommand {
 
                 await container.execContainer(`mkdir -p ${targetDirectory}`);
 
+                // Copy the file and rename it to block-nodes.json in the destination
                 await container.copyTo(blockNodesJsonPath, targetDirectory);
+
+                // If using node-specific files, rename the copied file to the standard name
+                if (useNodeSpecificFiles) {
+                  const sourceFilename: string = path.basename(blockNodesJsonPath);
+                  await container.execContainer(
+                    `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
+                  );
+                }
+
+                this.logger.debug(`Copied block-nodes configuration to consensus node ${consensusNode.name}`);
               }
             } catch (error) {
               throw new SoloError(`Failed while creating block-nodes configuration: ${error.message}`, error);

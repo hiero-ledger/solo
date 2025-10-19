@@ -48,7 +48,7 @@ This example demonstrates how to use the Solo **one-shot falcon** commands to qu
 * The **one-shot falcon** commands are designed to streamline deployment workflows
 * All network components are configured through a single values file
 * This is perfect for CI/CD pipelines and automated testing
-* For more advanced customization, see the main [Solo documentation](https://github.com/hashgraph/solo)
+* For more advanced customization, see the main [Solo documentation](https://github.com/hiero-ledger/solo)
 
 ## Configuration Sections
 

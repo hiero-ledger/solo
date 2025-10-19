@@ -684,7 +684,7 @@ export class Flags {
     constName: 'chartDirectory',
     name: 'chart-dir',
     definition: {
-      describe: 'Local chart directory path (e.g. ~/solo-charts/charts',
+      describe: 'Local chart directory path (e.g. ~/solo-charts/charts)',
       defaultValue: '',
       type: 'string',
     },
@@ -712,6 +712,50 @@ export class Flags {
         throw new SoloError(`input failed: ${Flags.chartDirectory.name}`, error);
       }
     },
+  };
+
+  public static readonly relayChartDirectory: CommandFlag = {
+    constName: 'relayChartDirectory',
+    name: 'relay-chart-dir',
+    definition: {
+      describe: 'Relay local chart directory path (e.g. ~/hiero-json-rpc-relay/charts)',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly explorerChartDirectory: CommandFlag = {
+    constName: 'explorerChartDirectory',
+    name: 'explorer-chart-dir',
+    definition: {
+      describe: 'Explorer local chart directory path (e.g. ~/hiero-mirror-node-explorer/charts)',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly blockNodeChartDirectory: CommandFlag = {
+    constName: 'blockNodeChartDirectory',
+    name: 'block-node-chart-dir',
+    definition: {
+      describe: 'Block node local chart directory path (e.g. ~/hiero-block-node/charts)',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly mirrorNodeChartDirectory: CommandFlag = {
+    constName: 'mirrorNodeChartDirectory',
+    name: 'mirror-node-chart-dir',
+    definition: {
+      describe: 'Mirror node local chart directory path (e.g. ~/hiero-mirror-node/charts)',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
   };
 
   public static readonly replicaCount: CommandFlag = {
@@ -1099,6 +1143,21 @@ export class Flags {
     definition: {
       describe: 'Block nodes chart version',
       defaultValue: version.BLOCK_NODE_VERSION,
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly blockNodeCfg: CommandFlag = {
+    constName: 'blockNodeCfg',
+    name: 'block-node-cfg',
+    definition: {
+      describe:
+        'Configure block node routing for each consensus node. ' +
+        'Maps consensus node names to block node IDs. ' +
+        'Accepts: (1) JSON string: \'{"node1":[1,3],"node2":[2]}\' or (2) path to JSON file: \'block.json\'. ' +
+        'Example: node1 sends blocks to block nodes 1 and 3, node2 sends blocks to block node 2',
+      defaultValue: '',
       type: 'string',
     },
     prompt: undefined,
@@ -1673,6 +1732,19 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly output: CommandFlag = {
+    constName: 'output',
+    name: 'output',
+    definition: {
+      describe: 'Output format. One of: json|yaml|wide',
+      defaultValue: '',
+      alias: 'o',
+      type: 'string',
+      disablePrompt: true,
+    },
+    prompt: undefined,
+  };
+
   public static readonly mirrorNodeVersion: CommandFlag = {
     constName: 'mirrorNodeVersion',
     name: 'mirror-node-version',
@@ -2064,7 +2136,7 @@ export class Flags {
       describe:
         'TLS Certificate key path for the gRPC ' +
         '(e.g. "node1=/Users/username/node1-grpc.key" ' +
-        'with multiple nodes comma seperated)',
+        'with multiple nodes comma separated)',
       defaultValue: '',
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
@@ -2091,7 +2163,7 @@ export class Flags {
       describe:
         'TLC Certificate key path for gRPC Web ' +
         '(e.g. "node1=/Users/username/node1-grpc-web.key" ' +
-        'with multiple nodes comma seperated)',
+        'with multiple nodes comma separated)',
       defaultValue: '',
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
@@ -2116,7 +2188,7 @@ export class Flags {
     name: 'stake-amounts',
     definition: {
       describe:
-        'The amount to be staked in the same order you list the node aliases with multiple node staked values comma seperated',
+        'The amount to be staked in the same order you list the node aliases with multiple node staked values comma separated',
       defaultValue: '',
       type: 'string',
     },
@@ -2523,7 +2595,7 @@ export class Flags {
       describe:
         'Custom domain names for consensus nodes mapping for the' +
         `${chalk.gray('(e.g. node0=domain.name where key is node alias and value is domain name)')}` +
-        'with multiple nodes comma seperated',
+        'with multiple nodes comma separated',
       type: 'string',
     },
     prompt: undefined,
@@ -2551,6 +2623,32 @@ export class Flags {
     prompt: undefined,
   };
 
+  // --------------- Rapid Fire --------------- //
+
+  public static readonly nlgArguments: CommandFlag = {
+    constName: 'nlgArguments',
+    name: 'args',
+    definition: {
+      describe:
+        'All arguments to be passed to the NLG load test class. Value MUST be wrapped in 2 sets of different quotes. ' +
+        'Example: \'"-c 100 -a 40 -t 3600"\'',
+      type: 'string',
+      defaultValue: '',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly javaHeap: CommandFlag = {
+    constName: 'javaHeap',
+    name: 'javaHeap',
+    definition: {
+      describe: 'Max Java heap size in GB for the NLG load test class, defaults to 8',
+      type: 'number',
+      defaultValue: 8,
+    },
+    prompt: undefined,
+  };
+
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.adminKey,
@@ -2564,7 +2662,14 @@ export class Flags {
     Flags.bootstrapProperties,
     Flags.cacheDir,
     Flags.chainId,
+
+    //* Chart directories
     Flags.chartDirectory,
+    Flags.relayChartDirectory,
+    Flags.explorerChartDirectory,
+    Flags.blockNodeChartDirectory,
+    Flags.mirrorNodeChartDirectory,
+
     Flags.clusterRef,
     Flags.clusterSetupNamespace,
     Flags.context,
@@ -2629,6 +2734,7 @@ export class Flags {
     Flags.profileFile,
     Flags.profileName,
     Flags.quiet,
+    Flags.output,
     Flags.imageTag,
     Flags.relayReleaseTag,
     Flags.releaseTag,
@@ -2682,6 +2788,7 @@ export class Flags {
     Flags.domainName,
     Flags.domainNames,
     Flags.blockNodeChartVersion,
+    Flags.blockNodeCfg,
     Flags.realm,
     Flags.shard,
     Flags.username,
@@ -2690,6 +2797,8 @@ export class Flags {
     Flags.mirrorNodeId,
     Flags.serviceMonitor,
     Flags.podLog,
+    Flags.nlgArguments,
+    Flags.javaHeap,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

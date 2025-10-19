@@ -9,7 +9,7 @@ import {container} from 'tsyringe-neo';
 import {getTestLogger} from '../../test-utility.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
-import {SoloWinstonLogger} from '../../../src/core/logging/solo-winston-logger.js';
+import {SoloPinoLogger} from '../../../src/core/logging/solo-pino-logger.js';
 
 describe('ConfigManager', () => {
   describe('update values using argv', () => {
@@ -17,7 +17,7 @@ describe('ConfigManager', () => {
       container.clearInstances();
       container.register(InjectTokens.LogLevel, {useValue: 'debug'});
       container.register(InjectTokens.DevelopmentMode, {useValue: true});
-      container.register(InjectTokens.SoloLogger, {useValue: new SoloWinstonLogger()});
+      container.register(InjectTokens.SoloLogger, {useValue: new SoloPinoLogger()});
       container.registerInstance(InjectTokens.SoloLogger, getTestLogger());
       container.register(InjectTokens.ConfigManager, {useClass: ConfigManager});
     });
