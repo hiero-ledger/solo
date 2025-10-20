@@ -39,7 +39,7 @@ import {
   predefinedEd25519Accounts,
   SystemAccount,
 } from './predefined-accounts.js';
-import {AccountId, HbarUnit} from '@hiero-ledger/sdk';
+import {AccountId, HbarUnit, PublicKey} from '@hiero-ledger/sdk';
 import * as helpers from '../../core/helpers.js';
 import {Duration} from '../../core/time/duration.js';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
@@ -489,6 +489,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               this.showVersions(PathEx.join(outputDirectory, 'versions'));
               this.showPortForwards(PathEx.join(outputDirectory, 'forwards'));
               this.showAccounts(context_.createdAccounts, context_, PathEx.join(outputDirectory, 'accounts.json'));
+              this.cacheDeploymentName(context_, PathEx.join(constants.SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'));
 
               return;
             },
@@ -581,6 +582,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       fs.writeFileSync(outputFile, fileData);
       this.logger.showUser(chalk.green(`✅ Versions used saved to file: ${outputFile}`));
     }
+  }
+
+  private cacheDeploymentName(context: OneShotSingleDeployContext, outputFile: string): void {
+    fs.writeFileSync(outputFile, context.config.deployment);
+    this.logger.showUser(`Deployment name (${context.config.deployment}) written to file: ${outputFile}`);
   }
 
   private showAccounts(
@@ -683,7 +689,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           const formattedAccount = {
             accountId: account.accountId.toString(),
             privateKey: `0x${account.data.privateKey.toStringRaw()}`,
-            publicKey: account.publicKey,
+            publicKey: `0x${PublicKey.fromString(account.publicKey).toStringRaw()}`,
             balance: account.data.balance.toString(),
             group: account.data.group,
           };
