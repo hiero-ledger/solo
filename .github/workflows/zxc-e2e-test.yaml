@@ -307,7 +307,11 @@ jobs:
               if [[ "${{ inputs.local-java-build }}" != "true" ]]; then
                   echo "No consensus node version provided, using default from version-test.ts"
               else
-                  export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+                  if [[ "${{ inputs.test-script }}" == "test-e2e-block-node" ]]; then
+                    echo "Use default from version.ts for block node test"
+                  else
+                    export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+                  fi
               fi
           else
               export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}

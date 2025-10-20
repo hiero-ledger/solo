@@ -1,0 +1,74 @@
+global:
+  namespace: ""
+
+labels: {}
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: "artifacts.swirldslabs.io/load-generator-docker/network-load-generator"
+  tag: ""
+  imagePullPolicy: Always
+
+serviceAccount:
+  create: true
+  name: ""
+
+replicas: 1
+
+resources:
+  limits:
+    memory: 16Gi
+    cpu: '2'
+  requests:
+    memory: 10Gi
+    cpu: '1'
+
+nodeSelector: {}
+#  scheduling.io/role: performance
+#  scheduling.io/usage: test-client
+
+tolerations: []
+#  - key: "scheduling.io/usage"
+#    operator: "Equal"
+#    value: "test-client"
+#    effect: "NoSchedule"
+#  - key: "scheduling.io/role"
+#    operator: "Exists"
+#    effect: "NoSchedule"
+
+affinity: {}
+
+# -metrics argument
+#  if specified will turn on Prometheus Metrics exports
+#
+loadGenerator:
+  target:
+    port: 9100 # Default target port for the load test
+    endpoint: "/metrics" # Default target endpoint/path for the load test
+  java:
+    maxMemory: '8g'
+
+persistence:
+  enabled: false
+  storageClass: "" # If empty, uses the default StorageClass
+  accessModes:
+    - ReadWriteOnce
+  size: 20Gi
+  existingClaim: "" # If specified, use an existing PVC instead of creating a new one
+  mountPath: /data # The path where the volume will be mounted in the container
+
+serviceMonitor:
+  enabled: false
+  additionalLabels: {}
+  namespace: ""
+  interval: 30s
+  scrapeTimeout: 10s
+
+podMonitor:
+  enabled: false
+  additionalLabels: {}
+  namespace: ""
+  interval: 30s
+  scrapeTimeout: 10s

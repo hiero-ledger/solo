@@ -53,5 +53,10 @@
     "name": "One Shot Falcon",
     "directory": "one-shot-falcon",
     "local-java-build": true
+  },
+  {
+    "name": "Rapid Fire",
+    "directory": "rapid-fire",
+    "local-java-build": false
   }
 ]

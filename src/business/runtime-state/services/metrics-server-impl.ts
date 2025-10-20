@@ -18,6 +18,8 @@ import {type K8Factory} from '../../../integration/kube/k8-factory.js';
 import {ContainerReference} from '../../../integration/kube/resources/container/container-reference.js';
 import {ContainerName} from '../../../integration/kube/resources/container/container-name.js';
 import {PodReference} from '../../../integration/kube/resources/pod/pod-reference.js';
+import {RemoteConfigRuntimeState} from '../config/remote/remote-config-runtime-state.js';
+import {container} from 'tsyringe-neo';
 
 @injectable()
 export class MetricsServerImpl implements MetricsServer {
@@ -110,6 +112,8 @@ export class MetricsServerImpl implements MetricsServer {
     snapshotName: string,
     clusterMetrics: ClusterMetrics[],
   ): Promise<AggregatedMetrics> {
+    let namespace: NamespaceName = undefined;
+
     if (!clusterMetrics || clusterMetrics?.length === 0) {
       return undefined;
     }
@@ -127,6 +131,12 @@ export class MetricsServerImpl implements MetricsServer {
         clusterMetric.context,
         clusterMetric.postgresPodName,
       );
+      namespace = clusterMetric.namespace?.name ? clusterMetric.namespace : namespace;
+    }
+
+    const remoteConfigRuntimeState: RemoteConfigRuntimeState = container.resolve(InjectTokens.RemoteConfigRuntimeState);
+    if (namespace && namespace.name) {
+      await remoteConfigRuntimeState.load(namespace);
     }
 
     return new AggregatedMetrics(

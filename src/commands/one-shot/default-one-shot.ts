@@ -177,13 +177,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               const uniquePostfix: string = uuid4().slice(-8);
 
               // Initialize component config sections to empty objects to prevent undefined errors
-              config.consensusNodeCfg = {};
-              config.mirrorNodeCfg = {};
-              config.blockNodeCfg = {};
-              config.explorerNodeCfg = {};
-              config.relayNodeCfg = {};
-              config.networkCfg = {};
-              config.setupCfg = {};
+              config.consensusNodeConfiguration = {};
+              config.mirrorNodeConfiguration = {};
+              config.blockNodeConfiguration = {};
+              config.explorerNodeConfiguration = {};
+              config.relayNodeConfiguration = {};
+              config.networkConfiguration = {};
+              config.setupConfiguration = {};
 
               // if valuesFile is set, read the yaml file and save flags to different config sections to be used
               // later for consensus node, mirror node, block node, explorer node, relay node
@@ -193,25 +193,25 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
                 // Override with values from file if they exist
                 if (profileItems.network) {
-                  config.networkCfg = profileItems.network;
+                  config.networkConfiguration = profileItems.network;
                 }
                 if (profileItems.setup) {
-                  config.setupCfg = profileItems.setup;
+                  config.setupConfiguration = profileItems.setup;
                 }
                 if (profileItems.consensusNode) {
-                  config.consensusNodeCfg = profileItems.consensusNode;
+                  config.consensusNodeConfiguration = profileItems.consensusNode;
                 }
                 if (profileItems.mirrorNode) {
-                  config.mirrorNodeCfg = profileItems.mirrorNode;
+                  config.mirrorNodeConfiguration = profileItems.mirrorNode;
                 }
                 if (profileItems.blockNode) {
-                  config.blockNodeCfg = profileItems.blockNode;
+                  config.blockNodeConfiguration = profileItems.blockNode;
                 }
                 if (profileItems.explorerNode) {
-                  config.explorerNodeCfg = profileItems.explorerNode;
+                  config.explorerNodeConfiguration = profileItems.explorerNode;
                 }
                 if (profileItems.relayNode) {
-                  config.relayNodeCfg = profileItems.relayNode;
+                  config.relayNodeConfiguration = profileItems.relayNode;
                 }
               }
               context_.config.clusterRef = context_.config.clusterRef || `solo-${uniquePostfix}`;
@@ -325,8 +325,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,
               );
-              if (config.networkCfg) {
-                this.appendConfigToArgv(argv, config.networkCfg);
+              if (config.networkConfiguration) {
+                this.appendConfigToArgv(argv, config.networkConfiguration);
               }
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
@@ -341,7 +341,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,
               );
-              this.appendConfigToArgv(argv, config.setupCfg);
+              this.appendConfigToArgv(argv, config.setupConfiguration);
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
           ),
@@ -355,7 +355,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,
               );
-              this.appendConfigToArgv(argv, config.consensusNodeCfg);
+              this.appendConfigToArgv(argv, config.consensusNodeConfiguration);
               return this.argvPushGlobalFlags(argv);
             },
           ),
@@ -374,7 +374,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 this.optionFromFlag(Flags.pinger),
                 this.optionFromFlag(Flags.enableIngress),
               );
-              this.appendConfigToArgv(argv, config.mirrorNodeCfg);
+              this.appendConfigToArgv(argv, config.mirrorNodeConfiguration);
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
           ),
@@ -390,7 +390,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 this.optionFromFlag(Flags.clusterRef),
                 config.clusterRef,
               );
-              this.appendConfigToArgv(argv, config.explorerNodeCfg);
+              this.appendConfigToArgv(argv, config.explorerNodeConfiguration);
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
           ),
@@ -408,7 +408,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 this.optionFromFlag(Flags.nodeAliasesUnparsed),
                 'node1',
               );
-              this.appendConfigToArgv(argv, config.relayNodeCfg);
+              this.appendConfigToArgv(argv, config.relayNodeConfiguration);
               return this.argvPushGlobalFlags(argv);
             },
           ),

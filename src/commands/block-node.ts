@@ -40,6 +40,7 @@ import {MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT} from '../.
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
   chartDirectory: string;
+  blockNodeChartDirectory: string;
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
   devMode: boolean;
@@ -83,6 +84,7 @@ interface BlockNodeDestroyContext {
 
 interface BlockNodeUpgradeConfigClass {
   chartDirectory: string;
+  blockNodeChartDirectory: string;
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
   devMode: boolean;
@@ -117,6 +119,7 @@ export class BlockNodeCommand extends BaseCommand {
     required: [flags.deployment],
     optional: [
       flags.blockNodeChartVersion,
+      flags.blockNodeChartDirectory,
       flags.chartDirectory,
       flags.clusterRef,
       flags.devMode,
@@ -138,6 +141,7 @@ export class BlockNodeCommand extends BaseCommand {
     required: [flags.deployment],
     optional: [
       flags.chartDirectory,
+      flags.blockNodeChartDirectory,
       flags.clusterRef,
       flags.devMode,
       flags.force,
@@ -303,7 +307,7 @@ export class BlockNodeCommand extends BaseCommand {
               config.namespace,
               config.releaseName,
               constants.BLOCK_NODE_CHART,
-              constants.BLOCK_NODE_CHART_URL,
+              config.blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
               config.chartVersion,
               config.valuesArg,
               config.context,
@@ -562,7 +566,7 @@ export class BlockNodeCommand extends BaseCommand {
               namespace,
               releaseName,
               constants.BLOCK_NODE_CHART,
-              constants.BLOCK_NODE_CHART_URL,
+              config.blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
               validatedUpgradeVersion,
               config.valuesArg,
               context,

@@ -11,4 +11,6 @@ export enum ComponentTypes {
   MirrorNode = 'mirrorNodes',
   Explorer = 'explorers',
   RelayNodes = 'relayNodes',
+  Cli = 'cli',
+  Chart = 'chart',
 }

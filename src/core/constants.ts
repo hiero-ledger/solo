@@ -129,6 +129,18 @@ export const BLOCK_NODE_CHART: string = getEnvironmentVariable('BLOCK_NODE_CHART
 export const BLOCK_NODE_RELEASE_NAME = 'block-node';
 export const BLOCK_NODE_CONTAINER_NAME: ContainerName = ContainerName.of(BLOCK_NODE_CHART);
 
+export const NETWORK_LOAD_GENERATOR_CHART = 'network-load-generator';
+export const NETWORK_LOAD_GENERATOR_RELEASE_NAME = 'network-load-generator';
+export const NETWORK_LOAD_GENERATOR_CHART_URL =
+  getEnvironmentVariable('NETWORK_LOAD_GENERATOR_CHART_URL') ??
+  'oci://swirldslabs.jfrog.io/load-generator-helm-release-local';
+export const NETWORK_LOAD_GENERATOR_POD_LABELS: string[] = [
+  'app.kubernetes.io/instance=network-load-generator',
+  'app.kubernetes.io/name=network-load-generator',
+];
+
+export const NETWORK_LOAD_GENERATOR_CONTAINER: ContainerName = ContainerName.of('nlg');
+
 // TODO: remove after migrated to resources/solo-config.yaml
 export const CERT_MANAGER_NAME_SPACE = 'cert-manager';
 export const SOLO_HEDERA_MIRROR_IMPORTER = [
@@ -192,6 +204,8 @@ export const BLOCK_NODE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'bl
 export const POD_MONITOR_ROLE_TEMPLATE = PathEx.joinWithRealPath(RESOURCES_DIR, 'templates', 'pod-monitor-role.yaml');
 export const NODE_LOG_FAILURE_MSG = 'failed to download logs from pod';
 export const ONE_SHOT_WITH_BLOCK_NODE = getEnvironmentVariable('ONE_SHOT_WITH_BLOCK_NODE') || 'false';
+export const RAPID_FIRE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'rapid-fire', 'nlg-values.yaml');
+
 /**
  * Listr related
  * @returns a object that defines the default color options
@@ -212,6 +226,7 @@ export const LISTR_DEFAULT_RENDERER_OPTION = {
   collapseSubtasks: false,
   timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,
   persistentOutput: true,
+  clearOutput: false,
   collapseErrors: false,
   showErrorMessage: false,
   formatOutput: 'wrap',
@@ -225,6 +240,7 @@ export const LISTR_DEFAULT_RENDERER_OPTION = {
   };
   logger: ListrLogger;
   persistentOutput: boolean;
+  clearOutput: boolean;
   collapseErrors: boolean;
   showErrorMessage: boolean;
   formatOutput: 'wrap' | 'truncate';
@@ -296,6 +312,11 @@ export const BLOCK_NODE_PORT: number = +getEnvironmentVariable('BLOCK_NODE_PORT'
 export const BLOCK_NODE_PORT_LEGACY: number = +getEnvironmentVariable('BLOCK_NODE_PORT_LEGACY') || 8080;
 
 export const BLOCK_ITEM_BATCH_SIZE: number = +getEnvironmentVariable('BLOCK_ITEM_BATCH_SIZE') || 256;
+
+export const NETWORK_LOAD_GENERATOR_POD_RUNNING_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('NETWORK_LOAD_GENERATOR_PODS_RUNNING_MAX_ATTEMPTS') || 900;
+export const NETWORK_LOAD_GENERATOR_POD_RUNNING_DELAY: number =
+  +getEnvironmentVariable('NETWORK_LOAD_GENERATOR_PODS_RUNNING_DELAY') || 1000;
 
 export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
 export const GRPC_PORT: number = +getEnvironmentVariable('GRPC_PORT') || 50_211;
