@@ -586,7 +586,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   private cacheDeploymentName(context: OneShotSingleDeployContext, outputFile: string): void {
     fs.writeFileSync(outputFile, context.config.deployment);
-    this.logger.showUser(`Deployment name (${context.config.deployment}) written to file: ${outputFile}`);
+    this.logger.showUser(chalk.green(`✅ Deployment name (${context.config.deployment}) saved in file: ${outputFile}`));
   }
 
   private showAccounts(
