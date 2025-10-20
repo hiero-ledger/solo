@@ -17,6 +17,10 @@ import {SilentBreak} from './core/errors/silent-break.js';
 import {getSoloVersion} from '../version.js';
 import {ArgumentProcessor} from './argument-processor.js';
 
+if (!process.stdout.isTTY) {
+  chalk.level = 0;
+}
+
 export async function main(argv: string[], context?: {logger: SoloLogger}) {
   try {
     Container.getInstance().init();
