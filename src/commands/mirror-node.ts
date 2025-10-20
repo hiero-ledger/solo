@@ -23,7 +23,7 @@ import {
   type ComponentId,
   type Context,
   type DeploymentName,
-  NamespaceNameAsString,
+  type NamespaceNameAsString,
   type Optional,
   type Realm,
   type Shard,
