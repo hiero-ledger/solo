@@ -53,6 +53,11 @@ on:
         type: string
         required: false
         default: "E2E Tests Coverage Report"
+      local-java-build:
+        description: "Build Local Java Code:"
+        type: boolean
+        required: false
+        default: false
       cluster-name:
         description: "Cluster Name:"
         type: string
@@ -241,6 +246,30 @@ jobs:
       - name: Pull Kind Docker Image
         run: docker image pull kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
 
+      - name: Install Podman
+        if: ${{ inputs.test-script == 'test-e2e-node-local-ptt' }}
+        run: |
+          # Detect distro and install Podman + essential dependencies for rootful mode
+          if [ -f /etc/debian_version ]; then
+            sudo apt-get update
+            sudo apt-get install -y podman iptables
+          elif [ -f /etc/redhat-release ]; then
+            # Keep your RedHat logic if needed
+            true
+          else
+            echo "Unsupported distro"
+            exit 1
+          fi
+          
+          podman --version
+          
+          # Verify Podman works in rootful mode
+          echo "Verifying Podman in rootful mode..."
+          sudo podman info
+          sudo podman ps
+          echo "Podman is ready"
+
+
       - name: Setup Java
         if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
         uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
@@ -277,7 +306,7 @@ jobs:
           cd ../solo
 
       - name: Setup E2E Tests
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && inputs.test-script != 'test-e2e-node-local-ptt' }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 3
@@ -286,6 +315,18 @@ jobs:
             npm link
             echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
             SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${{ env.CG_EXEC }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
+
+      - name: Setup Podman & Kind Cluster for E2E Tests
+        if: ${{ !cancelled() && inputs.test-script == 'test-e2e-node-local-ptt' }}
+        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        with:
+          max_attempts: 3
+          timeout_minutes: 15
+          command: |
+            npm link
+            echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
+            echo "GITHUB_RUN_ID=${{ github.run_id }}"
+            SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} GITHUB_RUN_ID=${{ github.run_id }} ${{ env.CG_EXEC }} ./test/e2e/podman-kind/setup-podman-kind-e2e.sh
 
       - name: Build Block code locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
@@ -303,6 +344,20 @@ jobs:
 
       - name: Run E2E Tests
         run: |
+          # Set KUBECONFIG to the unique config for Podman-based test only
+          if [[ "${{ inputs.test-script }}" == "test-e2e-node-local-ptt" ]]; then
+            UNIQUE_KUBECONFIG="${HOME}/.kube/solo-${{ github.run_id }}.yaml"
+            if [[ -f "${UNIQUE_KUBECONFIG}" ]]; then
+              export KUBECONFIG="${UNIQUE_KUBECONFIG}"
+              echo "Using unique KUBECONFIG for Podman test: ${KUBECONFIG}"
+            else
+              echo "Warning: Expected unique KUBECONFIG not found: ${UNIQUE_KUBECONFIG}"
+              exit 1
+            fi
+          else
+            echo "Using default KUBECONFIG (Kind action setup)"
+          fi
+          
           if [[ -z "${{ inputs.consensus-node-version }}" ]]; then
               if [[ "${{ inputs.local-java-build }}" != "true" ]]; then
                   echo "No consensus node version provided, using default from version-test.ts"
@@ -322,6 +377,16 @@ jobs:
             echo MIRROR_NODE_PINGER_TPS=50 >> .env
           fi
           cat .env
+          
+          # Verify cluster connectivity before running tests
+          echo "Verifying cluster connectivity..."
+          kubectl cluster-info || {
+            echo "Error: Cannot connect to cluster"
+            echo "KUBECONFIG: ${KUBECONFIG:-default}"
+            kubectl config get-contexts || true
+            exit 1
+          }
+          
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
 
       - name: Log Metrics
@@ -394,3 +459,5 @@ jobs:
         with:
           name: ${{ inputs.coverage-report-name }}
           path: 'coverage/${{ inputs.coverage-subdirectory }}'
+
+
