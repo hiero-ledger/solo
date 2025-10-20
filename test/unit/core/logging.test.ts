@@ -2,42 +2,59 @@
 
 import 'sinon-chai';
 
-import {type SinonSpy} from 'sinon';
-import sinon from 'sinon';
+import sinon, {type SinonSpy} from 'sinon';
 import {expect} from 'chai';
 import {describe, it, afterEach, beforeEach} from 'mocha';
 
+import {type Logger as PinoLogger} from 'pino';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
-import winston from 'winston';
-import {SoloWinstonLogger} from '../../../src/core/logging/solo-winston-logger.js';
+import {SoloPinoLogger} from '../../../src/core/logging/solo-pino-logger.js';
 
-describe('Logging', () => {
+type LogMethod = 'error' | 'warn' | 'info' | 'debug';
+
+describe('Logging', (): void => {
   let logger: SoloLogger;
-  let loggerSpy: SinonSpy;
+  let errorSpy: SinonSpy;
+  let warnSpy: SinonSpy;
+  let infoSpy: SinonSpy;
+  let debugSpy: SinonSpy;
 
-  beforeEach(() => {
-    logger = new SoloWinstonLogger('debug');
-    loggerSpy = sinon.spy(winston.Logger.prototype, 'log');
+  let spyByLevel: Record<LogMethod, SinonSpy>;
+
+  beforeEach((): void => {
+    logger = new SoloPinoLogger('debug', false) as SoloLogger;
+    const pinoImpl: PinoLogger = (logger as any).pinoLogger;
+
+    errorSpy = sinon.spy(pinoImpl, 'error');
+    warnSpy = sinon.spy(pinoImpl, 'warn');
+    infoSpy = sinon.spy(pinoImpl, 'info');
+    debugSpy = sinon.spy(pinoImpl, 'debug');
+
+    spyByLevel = {error: errorSpy, warn: warnSpy, info: infoSpy, debug: debugSpy};
   });
 
   // Cleanup after each test
-  afterEach(() => sinon.restore());
+  afterEach((): void => sinon.restore());
 
-  it('should log at correct severity', () => {
-    expect(logger).to.be.instanceof(SoloWinstonLogger);
+  it('should log at correct severity with traceId in meta', (): void => {
+    expect(logger).to.be.instanceof(SoloPinoLogger);
     expect(logger).to.be.not.undefined;
-    const meta = logger.prepMeta();
+
+    // Grab the active traceId from the logger’s meta
+    const meta: {traceId?: string} = logger.prepMeta();
+    const {traceId} = meta;
+    expect(traceId).to.be.a('string');
 
     logger.error('Error log');
-    expect(loggerSpy).to.have.been.calledWith('error', 'Error log', meta);
+    expect(spyByLevel.error).to.have.been.calledWithMatch(sinon.match.has('traceId', traceId), 'Error log');
 
     logger.warn('Warn log');
-    expect(loggerSpy).to.have.been.calledWith('warn', 'Warn log', meta);
+    expect(spyByLevel.warn).to.have.been.calledWithMatch(sinon.match.has('traceId', traceId), 'Warn log');
 
     logger.info('Info log');
-    expect(loggerSpy).to.have.been.calledWith('info', 'Info log', meta);
+    expect(spyByLevel.info).to.have.been.calledWithMatch(sinon.match.has('traceId', traceId), 'Info log');
 
     logger.debug('Debug log');
-    expect(loggerSpy).to.have.been.calledWith('debug', 'Debug log', meta);
+    expect(spyByLevel.debug).to.have.been.calledWithMatch(sinon.match.has('traceId', traceId), 'Debug log');
   });
 });

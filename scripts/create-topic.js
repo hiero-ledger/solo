@@ -36,6 +36,7 @@ async function accountCreate(wallet) {
 }
 
 async function main() {
+  console.log('\r::group::create-topic');
   if (process.env.OPERATOR_ID === null || process.env.OPERATOR_KEY === null || process.env.HEDERA_NETWORK === null) {
     throw new Error('Environment variables OPERATOR_ID, HEDERA_NETWORK, and OPERATOR_KEY are required.');
   }
@@ -52,8 +53,8 @@ async function main() {
     if (process.env.NEW_NODE_ACCOUNT_ID) {
       console.log(`NEW_NODE_ACCOUNT_ID = ${process.env.NEW_NODE_ACCOUNT_ID}`);
       provider._client.setNetwork({
-        "127.0.0.1:50211": AccountId.fromString(process.env.NEW_NODE_ACCOUNT_ID),
-    })
+        '127.0.0.1:50211': AccountId.fromString(process.env.NEW_NODE_ACCOUNT_ID),
+      });
     }
 
     // if process.env.OPERATOR_KEY string size is 100, it is ECDSA key, if 96, it is ED25519 key
@@ -182,6 +183,7 @@ async function main() {
     throw error;
   }
   provider.close();
+  console.log('\r::endgroup::');
   process.exit(0);
 }
 

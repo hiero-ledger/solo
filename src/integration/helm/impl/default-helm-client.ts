@@ -33,6 +33,7 @@ import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js'
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import {AddRepoOptions} from '../model/add/add-repo-options.js';
+import {SoloError} from '../../../core/errors/solo-error.js';
 
 @injectable()
 /**
@@ -47,6 +48,9 @@ export class DefaultHelmClient implements HelmClient {
   constructor(@inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
+
+  private readonly ERROR_401_REGEX: RegExp = /\b401\b.*\bunauthorized\b/i;
+  private readonly ERROR_403_REGEX: RegExp = /\b401\b.*\bunauthorized\b/i;
 
   public async version(): Promise<SemanticVersion> {
     const request = new VersionRequest();
@@ -161,13 +165,38 @@ export class DefaultHelmClient implements HelmClient {
       throw new Error('namespace must not be blank');
     }
 
-    const builder = new HelmExecutionBuilder();
+    const builder: HelmExecutionBuilder = new HelmExecutionBuilder();
+
     this.applyBuilderDefaults(builder);
+
     request.apply(builder);
+
     if (namespace) {
       builder.argument(DefaultHelmClient.NAMESPACE_ARG_NAME, namespace);
     }
-    const execution = builder.build();
-    return responseFunction(execution, responseClass);
+
+    const execution: HelmExecution = builder.build();
+
+    try {
+      return await responseFunction(execution, responseClass);
+    } catch (error) {
+      const errorMessage: string = error?.message ?? '';
+
+      if (!this.ERROR_401_REGEX.test(errorMessage) && !this.ERROR_403_REGEX.test(errorMessage)) {
+        // Throw original for all other cases
+        throw error;
+      }
+
+      this.logger.showUser(
+        [
+          'Detected expired Docker authentication for GHCR (ghcr.io).',
+          'Fix: run one of the following and retry:',
+          '  - docker logout ghcr.io',
+          '  - docker logout http://ghcr.io/',
+        ].join('\n'),
+      );
+
+      throw new SoloError('GHCR stale Docker auth detected');
+    }
   }
 }

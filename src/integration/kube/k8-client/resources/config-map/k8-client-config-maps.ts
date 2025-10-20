@@ -55,7 +55,7 @@ export class K8ClientConfigMaps implements ConfigMaps {
   }
 
   public async read(namespace: NamespaceName, name: string): Promise<ConfigMap> {
-    const {response, body} = await this.kubeClient.readNamespacedConfigMap(name, namespace.name).catch(error => error);
+    const {response, body} = await this.kubeClient.readNamespacedConfigMap(name, namespace?.name).catch(error => error);
     KubeApiResponse.check(response, ResourceOperation.READ, ResourceType.CONFIG_MAP, namespace, name);
     return K8ClientConfigMap.fromV1ConfigMap(body);
   }

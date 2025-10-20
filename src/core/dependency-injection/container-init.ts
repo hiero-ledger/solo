@@ -51,7 +51,7 @@ import {NetworkCommand} from '../../commands/network.js';
 import {NodeCommand} from '../../commands/node/index.js';
 import {ClusterCommand} from '../../commands/cluster/index.js';
 import {Middlewares} from '../middlewares.js';
-import {SoloWinstonLogger} from '../logging/solo-winston-logger.js';
+import {SoloPinoLogger} from '../logging/solo-pino-logger.js';
 import {SingletonContainer} from './singleton-container.js';
 import {ValueContainer} from './value-container.js';
 import {BlockNodeCommand} from '../../commands/block-node.js';
@@ -82,6 +82,8 @@ import {DefaultKindClientBuilder} from '../../integration/kind/impl/default-kind
 import {MetricsServerImpl} from '../../business/runtime-state/services/metrics-server-impl.js';
 import {VfkitDependencyManager} from '../dependency-managers/vfkit-dependency-manager.js';
 import {GvproxyDependencyManager} from '../dependency-managers/gvproxy-dependency-manager.js';
+import {RapidFireCommand} from '../../commands/rapid-fire.js';
+import {RapidFireCommandDefinition} from '../../commands/command-definitions/rapid-fire-command-definition.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -107,7 +109,7 @@ export class Container {
 
   private static singletonContainers(): SingletonContainer[] {
     return [
-      new SingletonContainer(InjectTokens.SoloLogger, SoloWinstonLogger),
+      new SingletonContainer(InjectTokens.SoloLogger, SoloPinoLogger),
       new SingletonContainer(InjectTokens.LockRenewalService, IntervalLockRenewalService),
       new SingletonContainer(InjectTokens.LockManager, LockManager),
       new SingletonContainer(InjectTokens.K8Factory, K8ClientFactory),
@@ -148,6 +150,7 @@ export class Container {
       new SingletonContainer(InjectTokens.NetworkCommand, NetworkCommand),
       new SingletonContainer(InjectTokens.RelayCommand, RelayCommand),
       new SingletonContainer(InjectTokens.BlockNodeCommand, BlockNodeCommand),
+      new SingletonContainer(InjectTokens.RapidFireCommand, RapidFireCommand),
       new SingletonContainer(InjectTokens.ClusterCommandTasks, ClusterCommandTasks),
       new SingletonContainer(InjectTokens.ClusterCommandHandlers, ClusterCommandHandlers),
       new SingletonContainer(InjectTokens.NodeCommandTasks, NodeCommandTasks),
@@ -174,6 +177,7 @@ export class Container {
       new SingletonContainer(InjectTokens.MirrorCommandDefinition, MirrorCommandDefinition),
       new SingletonContainer(InjectTokens.RelayCommandDefinition, RelayCommandDefinition),
       new SingletonContainer(InjectTokens.OneShotCommandDefinition, OneShotCommandDefinition),
+      new SingletonContainer(InjectTokens.RapidFireCommandDefinition, RapidFireCommandDefinition),
     ];
   }
 
