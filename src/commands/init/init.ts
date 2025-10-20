@@ -229,9 +229,6 @@ export class InitCommand extends BaseCommand {
         task: async context_ => {
           context_.repoURLs = await this.chartManager.setup();
         },
-        skip: async (context_): Promise<boolean> => {
-          return this.chartManager.isSetup();
-        },
       });
     }
 
