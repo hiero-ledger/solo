@@ -74,7 +74,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       DeploymentTest.addCluster(options);
       NodeTest.keys(options);
 
-      BlockNodeTest.deploy(options);
+      BlockNodeTest.add(options);
 
       NetworkTest.deploy(options);
       NodeTest.setup(options);
