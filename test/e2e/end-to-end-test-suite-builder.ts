@@ -15,6 +15,8 @@ export class EndToEndTestSuiteBuilder {
   private pinger: boolean;
   private realm: number;
   private shard: number;
+  private serviceMonitor: boolean;
+  private podLog: boolean;
 
   private testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void;
 
@@ -68,6 +70,16 @@ export class EndToEndTestSuiteBuilder {
     return this;
   }
 
+  withServiceMonitor(serviceMonitor: boolean): this {
+    this.serviceMonitor = serviceMonitor;
+    return this;
+  }
+
+  withPodLog(podLog: boolean): this {
+    this.podLog = podLog;
+    return this;
+  }
+
   public withTestSuiteCallback(testSuiteCallback: (endToEndTestSuite: EndToEndTestSuite) => void): this {
     this.testSuiteCallback = testSuiteCallback;
     return this;
@@ -88,6 +100,8 @@ export class EndToEndTestSuiteBuilder {
       this.pinger || false,
       this.realm || 0,
       this.shard || 0,
+      this.serviceMonitor || false,
+      this.podLog || false,
       this.testSuiteCallback,
     );
   }
