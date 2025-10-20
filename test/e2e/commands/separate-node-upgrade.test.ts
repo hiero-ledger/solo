@@ -16,7 +16,6 @@ import {type Argv} from '../../helpers/argv-wrapper.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
 import {TEST_UPGRADE_VERSION} from '../../../version-test.js';
-import {sleep} from '../../../src/core/helpers.js';
 
 export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResponse, namespace: NamespaceName): void {
   argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2');
@@ -89,11 +88,5 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
       const version: string = fs.readFileSync(`${temporaryDirectory}/version.txt`, 'utf8');
       expect(version).to.equal(TEST_UPGRADE_VERSION);
     }).timeout(Duration.ofMinutes(5).toMillis());
-
-    it('should exit after command execution', async (): Promise<void> => {
-      await sleep(Duration.ofSeconds(20));
-      // eslint-disable-next-line unicorn/no-process-exit
-      process.exit(0);
-    });
   });
 }
