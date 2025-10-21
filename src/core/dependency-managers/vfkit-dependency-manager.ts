@@ -79,6 +79,11 @@ export class VfkitDependencyManager extends BaseDependencyManager {
     throw new SoloError('Failed to check vfkit version');
   }
 
+  // Vfkit is only required on macOS
+  public override async shouldInstall(): Promise<boolean> {
+    return this.osPlatform === constants.OS_DARWIN;
+  }
+
   /**
    * Fetches the latest release information from GitHub API
    * @returns Promise with the release base URL, asset name, digest, and version
