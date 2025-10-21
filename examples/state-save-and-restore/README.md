@@ -1,16 +1,16 @@
 # State Save and Restore Example
 
-This example demonstrates how to save network state from a running Solo network, recreate a new network, and load the saved state with a mirror node. It also includes optional external database configuration.
+This example demonstrates how to save network state from a running Solo network, recreate a new network, and load the saved state with a mirror node using an external PostgreSQL database.
 
 ## What it does
 
 * Creates an initial Solo network with consensus nodes and mirror node
+* Uses an external PostgreSQL database for the mirror node
 * Runs transactions to generate state
-* Downloads and saves the network state
+* Downloads and saves the network state and database dump
 * Destroys the initial network
 * Creates a new network with the same configuration
-* Restores the saved state to the new network
-* Optionally uses an external PostgreSQL database for the mirror node
+* Restores the saved state and database to the new network
 
 ## Prerequisites
 
@@ -22,96 +22,68 @@ This example demonstrates how to save network state from a running Solo network,
 
 ## Quick Start
 
-### Basic Workflow (5 commands)
+### Run Complete Workflow (One Command)
 
 ```bash
-task setup          # 1. Deploy initial network (5-10 min)
-task save-state     # 2. Save current state (2-5 min)
+task               # Run entire workflow: setup → save → restore
+task destroy       # Cleanup when done
+```
+
+### Step-by-Step Workflow
+
+```bash
+task setup          # 1. Deploy network with external database (5-10 min)
+task save-state     # 2. Save state and database (2-5 min)
 task restore        # 3. Recreate and restore (3-5 min)
 task status         # 4. Check status
 task destroy        # 5. Cleanup
 ```
 
-### With External Database
-
-```bash
-task setup-with-external-db
-task save-state-with-db
-task restore-with-db
-task destroy
-```
-
 ## Usage
 
-### Option 1: Basic State Save and Restore (with embedded database)
+### 1. Deploy Initial Network
 
-1. **Deploy initial network with state**
-   ```sh
-   task setup
-   ```
-   This will:
-   * Create a Kind cluster
-   * Initialize Solo
-   * Deploy a consensus network with 3 nodes
-   * Deploy mirror node with embedded database
-   * Run sample transactions to generate state
+```sh
+task setup
+```
 
-2. **Save network state**
-   ```sh
-   task save-state
-   ```
-   This will:
-   * Download state from all consensus nodes
-   * Save state files to `./saved-states/` directory
-   * Display saved state information
+This will:
+* Create a Kind cluster
+* Deploy PostgreSQL database
+* Initialize Solo
+* Deploy consensus network with 3 nodes
+* Deploy mirror node connected to external database
+* Run sample transactions to generate state
 
-3. **Recreate network and restore state**
-   ```sh
-   task restore
-   ```
-   This will:
-   * Stop and destroy the existing network
-   * Create a new network with the same configuration
-   * Upload the saved state to the new consensus nodes
-   * Start the nodes with restored state
-   * Verify the restored state
+### 2. Save Network State and Database
 
-### Option 2: With External PostgreSQL Database
+```sh
+task save-state
+```
 
-1. **Deploy initial network with external database**
-   ```sh
-   task setup-with-external-db
-   ```
-   This will:
-   * Create a Kind cluster
-   * Deploy PostgreSQL database
-   * Initialize Solo
-   * Deploy consensus network
-   * Deploy mirror node connected to external database
-   * Run sample transactions
+This will:
+* Download state from all consensus nodes
+* Export PostgreSQL database dump
+* Save both to `./saved-states/` directory
+* Display saved state information
 
-2. **Save state and database**
-   ```sh
-   task save-state-with-db
-   ```
-   This will:
-   * Download consensus node state
-   * Export database dump
-   * Save both to `./saved-states/` directory
+### 3. Restore Network and Database
 
-3. **Restore with database**
-   ```sh
-   task restore-with-db
-   ```
-   This will:
-   * Stop and destroy existing network
-   * Recreate PostgreSQL database
-   * Import database dump
-   * Create new consensus network
-   * Upload saved state
-   * Reconnect mirror node to database
+```sh
+task restore
+```
 
-### Cleanup
+This will:
+* Stop and destroy existing network
+* Recreate PostgreSQL database
+* Import database dump
+* Create new consensus network with same configuration
+* Upload saved state to new nodes
+* Start nodes with restored state
+* Reconnect mirror node to database
+* Verify the restored state
+
+### 4. Cleanup
 
 ```sh
 task destroy
@@ -119,17 +91,16 @@ task destroy
 
 This will delete the Kind cluster and clean up all resources.
 
-## Tasks
+## Available Tasks
 
-* `setup` - Deploy initial network with embedded database
-* `setup-with-external-db` - Deploy initial network with external PostgreSQL
-* `generate-transactions` - Run sample transactions to create state
-* `save-state` - Download and save consensus node state
-* `save-state-with-db` - Save state and export database
-* `restore` - Recreate network and restore saved state
-* `restore-with-db` - Restore network with external database
+* `default` (or just `task`) - Run complete workflow: setup → save-state → restore
+* `setup` - Deploy initial network with external PostgreSQL database
+* `save-state` - Download consensus node state and export database
+* `restore` - Recreate network and restore state with database
+* `status` - Show network and state status
 * `verify-state` - Verify restored state matches original
-* `destroy` - Delete cluster and clean up
+* `destroy` - Delete cluster and clean up all resources
+* `clean-state` - Remove saved state files
 
 ## Customization
 
@@ -149,32 +120,47 @@ saved-states/
 ├── node1-state.zip
 ├── node2-state.zip
 ├── node3-state.zip
-├── metadata.json          # Network configuration metadata
-└── database-dump.sql      # Optional: database export
+└── database-dump.sql       # PostgreSQL database export
 ```
+
+The example also includes:
+
+```
+scripts/
+└── init.sh                 # Database initialization script
+```
+
+The `init.sh` script sets up the PostgreSQL database with:
+* mirror_node database
+* Required schemas (public, temporary)
+* Roles and users (postgres, readonlyuser)
+* PostgreSQL extensions (btree_gist, pg_stat_statements, pg_trgm)
+* Proper permissions and grants
 
 ## How It Works
 
 ### State Saving Process
 
 1. **Download State**: Uses `solo consensus state download` to download signed state from each consensus node
-2. **Save Metadata**: Stores network configuration (node count, aliases, versions) for recreation
-3. **Optional DB Export**: If using external database, exports PostgreSQL database dump
+2. **Export Database**: Uses `pg_dump` with `--clean --if-exists` flags to export the complete database including schema and data
 
 ### State Restoration Process
 
-1. **Network Recreation**: Creates new network with identical configuration
-2. **State Upload**: Uploads saved state files to new consensus nodes using `solo consensus node start --state-file`
-3. **Database Restore**: If using external database, imports database dump before connecting mirror node
-4. **Verification**: Checks that restored state matches original
+1. **Database Recreation**: Deploys fresh PostgreSQL and runs `init.sh` to create database structure (database, schemas, roles, users, extensions)
+2. **Database Restore**: Imports database dump which drops and recreates tables with all data
+3. **Network Recreation**: Creates new network with identical configuration
+4. **State Upload**: Uploads saved state files to new consensus nodes using `solo consensus node start --state-file`
+5. **Mirror Node**: Deploys mirror node connected to restored database and seeds initial data
+6. **Verification**: Checks that restored state matches original
 
 ## Notes
 
 * State files can be large (several GB per node) depending on network activity
 * Ensure sufficient disk space in `./saved-states/` directory
-* External database option provides better data persistence and queryability
+* External PostgreSQL database provides data persistence and queryability
 * State restoration maintains transaction history and account balances
 * Mirror node will resume from the restored state point
+* Database dump includes all mirror node data (transactions, accounts, etc.)
 
 ## Useful Commands
 
