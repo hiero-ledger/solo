@@ -11,7 +11,7 @@ import util from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
 import {GitHubRelease, ReleaseInfo} from '../../types/index.js';
 
-const VFKIT_RELEASES_LIST_URL: string = 'https://api.github.com/repos/crc-org/vfkit/releases';
+const VFKIT_RELEASE_BASE_URL: string = 'https://api.github.com/repos/crc-org/vfkit/releases/tags';
 
 @injectable()
 export class VfkitDependencyManager extends BaseDependencyManager {
@@ -85,13 +85,13 @@ export class VfkitDependencyManager extends BaseDependencyManager {
   }
 
   /**
-   * Fetches the latest release information from GitHub API
+   * Fetches the release information from GitHub API
    * @returns Promise with the release base URL, asset name, digest, and version
    */
-  private async fetchLatestReleaseInfo(): Promise<ReleaseInfo> {
+  private async fetchReleaseInfo(): Promise<ReleaseInfo> {
     try {
       // Make a GET request to GitHub API using fetch
-      const response = await fetch(VFKIT_RELEASES_LIST_URL, {
+      const response = await fetch(`${VFKIT_RELEASE_BASE_URL}/${this.vfkitVersion}`, {
         method: 'GET', // Changed from HEAD to GET to retrieve the body
         headers: {
           'User-Agent': constants.SOLO_USER_AGENT_HEADER,
@@ -104,22 +104,15 @@ export class VfkitDependencyManager extends BaseDependencyManager {
       }
 
       // Parse the JSON response
-      const releases: GitHubRelease[] = await response.json();
-
-      if (!releases || releases.length === 0) {
-        throw new SoloError('No releases found');
-      }
-
-      // Get the latest release
-      const latestRelease = releases[0];
-      const version = latestRelease.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
+      const release: GitHubRelease = await response.json();
+      const version = release.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
 
       // Normalize platform/arch for asset matching
       const platform = this.osPlatform === constants.OS_WIN32 ? constants.OS_WINDOWS : this.osPlatform;
       const arch: string = this.getArch();
 
       const assetName = 'vfkit';
-      const matchingAsset = latestRelease.assets.find(asset => asset.name === assetName);
+      const matchingAsset = release.assets.find(asset => asset.name === assetName);
 
       if (!matchingAsset) {
         throw new SoloError(`No matching asset found for ${platform}-${arch}`);
@@ -149,11 +142,11 @@ export class VfkitDependencyManager extends BaseDependencyManager {
   }
 
   protected override async preInstall(): Promise<void> {
-    const latestReleaseInfo: ReleaseInfo = await this.fetchLatestReleaseInfo();
-    this.checksum = latestReleaseInfo.checksum;
-    this.releaseBaseUrl = latestReleaseInfo.downloadUrl;
-    this.artifactFileName = latestReleaseInfo.assetName;
-    this.artifactVersion = latestReleaseInfo.version;
+    const releaseInfo: ReleaseInfo = await this.fetchReleaseInfo();
+    this.checksum = releaseInfo.checksum;
+    this.releaseBaseUrl = releaseInfo.downloadUrl;
+    this.artifactFileName = releaseInfo.assetName;
+    this.artifactVersion = releaseInfo.version;
   }
 
   protected getDownloadURL(): string {

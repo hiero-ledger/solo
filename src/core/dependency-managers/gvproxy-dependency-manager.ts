@@ -13,7 +13,7 @@ import {GitHubRelease, GitHubReleaseAsset, ReleaseInfo} from '../../types/index.
 import path from 'node:path';
 import fs from 'node:fs';
 
-const GVPROXY_RELEASES_LIST_URL: string = 'https://api.github.com/repos/containers/gvisor-tap-vsock/releases';
+const GVPROXY_RELEASE_BASE_URL: string = 'https://api.github.com/repos/containers/gvisor-tap-vsock/releases/tags';
 
 @injectable()
 export class GvproxyDependencyManager extends BaseDependencyManager {
@@ -111,13 +111,13 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
   }
 
   /**
-   * Fetches the latest release information from GitHub API
+   * Fetches the release information from GitHub API
    * @returns Promise with the release base URL, asset name, digest, and version
    */
-  private async fetchLatestReleaseInfo(): Promise<ReleaseInfo> {
+  private async fetchReleaseInfo(): Promise<ReleaseInfo> {
     try {
       // Make a GET request to GitHub API using fetch
-      const response = await fetch(GVPROXY_RELEASES_LIST_URL, {
+      const response = await fetch(`${GVPROXY_RELEASE_BASE_URL}/${this.gvproxyVersion}`, {
         method: 'GET',
         headers: {
           'User-Agent': constants.SOLO_USER_AGENT_HEADER,
@@ -130,19 +130,10 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
       }
 
       // Parse the JSON response
-      const releases: GitHubRelease[] = await response.json();
-
-      if (!releases || releases.length === 0) {
-        throw new SoloError('No releases found');
-      }
-
-      // Get the latest release
-      const latestRelease = releases[0];
-      const version = latestRelease.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
-
+      const release: GitHubRelease = await response.json();
+      const version: string = release.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
       const assetName: string = this.getAssetName();
-
-      const matchingAsset: GitHubReleaseAsset = latestRelease.assets.find(asset => asset.name === assetName);
+      const matchingAsset: GitHubReleaseAsset = release.assets.find(asset => asset.name === assetName);
 
       if (!matchingAsset) {
         throw new SoloError(`No matching asset found (${assetName})`);
@@ -174,11 +165,11 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
   }
 
   protected override async preInstall(): Promise<void> {
-    const latestReleaseInfo: ReleaseInfo = await this.fetchLatestReleaseInfo();
-    this.checksum = latestReleaseInfo.checksum;
-    this.releaseBaseUrl = latestReleaseInfo.downloadUrl;
-    this.artifactFileName = latestReleaseInfo.assetName;
-    this.artifactVersion = latestReleaseInfo.version;
+    const releaseInfo: ReleaseInfo = await this.fetchReleaseInfo();
+    this.checksum = releaseInfo.checksum;
+    this.releaseBaseUrl = releaseInfo.downloadUrl;
+    this.artifactFileName = releaseInfo.assetName;
+    this.artifactVersion = releaseInfo.version;
   }
 
   protected getDownloadURL(): string {
