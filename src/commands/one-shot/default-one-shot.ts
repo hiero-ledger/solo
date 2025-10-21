@@ -324,6 +324,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
                 this.optionFromFlag(Flags.deployment),
                 config.deployment,
+                this.optionFromFlag(Flags.persistentVolumeClaims),
+                'true',
               );
               if (config.networkConfiguration) {
                 this.appendConfigToArgv(argv, config.networkConfiguration);
