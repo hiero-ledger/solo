@@ -58,5 +58,10 @@
     "name": "Rapid Fire",
     "directory": "rapid-fire",
     "local-java-build": false
+  },
+  {
+    "name": "State Save and Restore",
+    "directory": "state-save-and-restore",
+    "local-java-build": false
   }
 ]

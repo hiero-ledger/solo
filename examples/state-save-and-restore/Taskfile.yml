@@ -1,0 +1,292 @@
+version: 3
+
+env:
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx @hashgraph/solo"
+      else
+        echo "npm run solo --silent --"
+      fi
+
+vars:
+  # Network Configuration
+  NETWORK_SIZE: "3"
+  NODE_ALIASES: "node1,node2,node3"
+  DEPLOYMENT: "state-restore-deployment"
+  NAMESPACE: "state-restore-namespace"
+  
+  # Cluster Configuration
+  CLUSTER_NAME: "state-restore-cluster"
+  CONTEXT: "kind-state-restore-cluster"
+  CLUSTER_REF: "kind-state-restore-cluster"
+  
+  # State Save Configuration
+  STATE_SAVE_DIR: "{{.USER_WORKING_DIR}}/saved-states"
+  
+  # External Database Configuration (Optional)
+  POSTGRES_NAME: "state-restore-postgresql"
+  POSTGRES_USERNAME: "postgres"
+  POSTGRES_PASSWORD: "StateRestore123!"
+  POSTGRES_READONLY_USERNAME: "readonlyuser"
+  POSTGRES_READONLY_PASSWORD: "ReadOnly123!"
+  POSTGRES_MIRROR_NODE_DATABASE_NAME: "mirror_node"
+  POSTGRES_DATABASE_NAMESPACE: "database"
+  POSTGRES_CONTAINER_NAME: "{{.POSTGRES_NAME}}-0"
+  POSTGRES_HOST_FQDN: "{{.POSTGRES_NAME}}.{{.POSTGRES_DATABASE_NAMESPACE}}.svc.cluster.local"
+  
+  SOLO_USER_DIR: "{{default (printf \"%s/.solo\" (env \"HOME\")) }}"
+
+tasks:
+  # ==================== Setup Tasks ====================
+  
+  setup:
+    desc: Deploy initial network with embedded database
+    cmds:
+      - task: create-cluster
+      - task: init-solo
+      - task: deploy-network
+      - task: deploy-mirror-embedded
+      - task: generate-transactions
+      - cmd: echo "✅ Initial network setup complete!"
+      - cmd: echo "Run 'task save-state' to save the current network state"
+
+  setup-with-external-db:
+    desc: Deploy initial network with external PostgreSQL database
+    cmds:
+      - task: create-cluster
+      - task: init-solo
+      - task: deploy-external-database
+      - task: deploy-network
+      - task: deploy-mirror-external
+      - task: generate-transactions
+      - cmd: echo "✅ Initial network with external database setup complete!"
+      - cmd: echo "Run 'task save-state-with-db' to save state and database"
+
+  # ==================== Infrastructure Tasks ====================
+  
+  create-cluster:
+    desc: Create Kind cluster
+    cmds:
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Using development version of Solo"
+          fi
+      - cmd: kind create cluster -n {{.CLUSTER_NAME}}
+      - cmd: sleep 10  # Wait for control plane
+      - cmd: kubectl config set-context {{.CONTEXT}}
+
+  init-solo:
+    desc: Initialize Solo and configure cluster
+    cmds:
+      - cmd: $SOLO_COMMAND init
+      - cmd: $SOLO_COMMAND cluster-ref config setup --cluster-ref {{.CLUSTER_REF}}
+      - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref {{.CLUSTER_REF}} --context {{.CONTEXT}}
+      - cmd: $SOLO_COMMAND deployment config create --namespace {{.NAMESPACE}} --deployment {{.DEPLOYMENT}}
+      - cmd: $SOLO_COMMAND deployment cluster attach --cluster-ref {{.CLUSTER_REF}} --deployment {{.DEPLOYMENT}} --num-consensus-nodes {{.NETWORK_SIZE}}
+
+  # ==================== Network Deployment Tasks ====================
+  
+  deploy-network:
+    desc: Deploy consensus network
+    cmds:
+      - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --node-aliases {{.NODE_ALIASES}} --deployment {{.DEPLOYMENT}}
+      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{.DEPLOYMENT}} --node-aliases {{.NODE_ALIASES}} --pvcs
+      - cmd: $SOLO_COMMAND consensus node setup --deployment {{.DEPLOYMENT}} --node-aliases {{.NODE_ALIASES}}
+      - cmd: $SOLO_COMMAND consensus node start --deployment {{.DEPLOYMENT}} --node-aliases {{.NODE_ALIASES}}
+      - cmd: echo "✅ Consensus network deployed with {{.NETWORK_SIZE}} nodes"
+
+  deploy-mirror-embedded:
+    desc: Deploy mirror node with embedded database
+    cmds:
+      - cmd: $SOLO_COMMAND mirror node add --deployment {{.DEPLOYMENT}} --cluster-ref {{.CLUSTER_REF}} --pinger
+      - cmd: echo "✅ Mirror node deployed with embedded database"
+
+  deploy-mirror-external:
+    desc: Deploy mirror node with external database
+    cmds:
+      - cmd: |
+          $SOLO_COMMAND mirror node add --deployment {{.DEPLOYMENT}} --cluster-ref {{.CLUSTER_REF}} --use-external-database \
+          --external-database-host {{.POSTGRES_HOST_FQDN}} \
+          --external-database-owner-username {{.POSTGRES_USERNAME}} --external-database-owner-password {{.POSTGRES_PASSWORD}} \
+          --external-database-read-username {{.POSTGRES_READONLY_USERNAME}} \
+          --external-database-read-password {{.POSTGRES_READONLY_PASSWORD}} \
+          --pinger
+      - cmd: echo "✅ Mirror node deployed with external PostgreSQL database"
+
+  # ==================== External Database Tasks ====================
+  
+  deploy-external-database:
+    desc: Deploy external PostgreSQL database
+    cmds:
+      - cmd: |
+          {{.SOLO_USER_DIR}}/bin/helm repo add postgresql-helm https://leverages.github.io/helm
+          {{.SOLO_USER_DIR}}/bin/helm install {{.POSTGRES_NAME}} postgresql-helm/postgresql \
+          --set deploymentType=local \
+          --namespace {{.POSTGRES_DATABASE_NAMESPACE}} --create-namespace \
+          --set postgresql.auth.password={{.POSTGRES_PASSWORD}}
+      - cmd: |
+          kubectl wait --for=condition=ready pod/{{.POSTGRES_CONTAINER_NAME}} \
+          -n {{.POSTGRES_DATABASE_NAMESPACE}} --timeout=300s
+      - cmd: |
+          kubectl exec -i {{.POSTGRES_CONTAINER_NAME}} -n {{.POSTGRES_DATABASE_NAMESPACE}} -- \
+          env PGPASSWORD={{.POSTGRES_PASSWORD}} psql -U {{.POSTGRES_USERNAME}} -c \
+          "CREATE USER {{.POSTGRES_READONLY_USERNAME}} WITH PASSWORD '{{.POSTGRES_READONLY_PASSWORD}}';"
+      - cmd: echo "✅ PostgreSQL database deployed"
+
+  # ==================== Transaction Generation ====================
+  
+  generate-transactions:
+    desc: Generate sample transactions to create state
+    cmds:
+      - cmd: echo "Generating sample transactions..."
+      - cmd: |
+          for i in {1..10}; do
+            $SOLO_COMMAND ledger account create --deployment {{.DEPLOYMENT}} --hbar-amount 100 || true
+            sleep 2
+          done
+      - cmd: echo "✅ Sample transactions completed - network state created"
+
+  # ==================== State Save Tasks ====================
+  
+  save-state:
+    desc: Download and save consensus node state
+    cmds:
+      - cmd: mkdir -p {{.STATE_SAVE_DIR}}
+      - cmd: echo "Downloading state from consensus nodes..."
+      - cmd: $SOLO_COMMAND consensus state download --deployment {{.DEPLOYMENT}} --node-aliases {{.NODE_ALIASES}}
+      - cmd: |
+          # Move downloaded state files to save directory
+          for node in $(echo {{.NODE_ALIASES}} | tr ',' ' '); do
+            if [ -f "$HOME/.solo/cache/${node}-state.zip" ]; then
+              cp "$HOME/.solo/cache/${node}-state.zip" "{{.STATE_SAVE_DIR}}/"
+              echo "✅ Saved state for ${node}"
+            fi
+          done
+      - cmd: |
+          # Save metadata
+          cat > {{.STATE_SAVE_DIR}}/metadata.json <<EOF
+          {
+            "network_size": "{{.NETWORK_SIZE}}",
+            "node_aliases": "{{.NODE_ALIASES}}",
+            "deployment": "{{.DEPLOYMENT}}",
+            "namespace": "{{.NAMESPACE}}",
+            "cluster_ref": "{{.CLUSTER_REF}}",
+            "saved_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+      - cmd: echo "✅ Network state saved to {{.STATE_SAVE_DIR}}"
+      - cmd: ls -lh {{.STATE_SAVE_DIR}}
+
+  save-state-with-db:
+    desc: Save state and export database
+    cmds:
+      - task: save-state
+      - cmd: echo "Exporting database..."
+      - cmd: |
+          kubectl exec {{.POSTGRES_CONTAINER_NAME}} -n {{.POSTGRES_DATABASE_NAMESPACE}} -- \
+          env PGPASSWORD={{.POSTGRES_PASSWORD}} pg_dump -U {{.POSTGRES_USERNAME}} \
+          {{.POSTGRES_MIRROR_NODE_DATABASE_NAME}} > {{.STATE_SAVE_DIR}}/database-dump.sql
+      - cmd: echo "✅ Database exported to {{.STATE_SAVE_DIR}}/database-dump.sql"
+
+  # ==================== State Restore Tasks ====================
+  
+  restore:
+    desc: Recreate network and restore saved state (embedded database)
+    cmds:
+      - task: stop-network
+      - task: deploy-network-with-state
+      - task: deploy-mirror-embedded
+      - task: verify-state
+      - cmd: echo "✅ Network restored with saved state!"
+
+  restore-with-db:
+    desc: Restore network with external database
+    cmds:
+      - task: stop-network
+      - task: destroy-database
+      - task: deploy-external-database
+      - task: restore-database
+      - task: deploy-network-with-state
+      - task: deploy-mirror-external
+      - task: verify-state
+      - cmd: echo "✅ Network and database restored!"
+
+  deploy-network-with-state:
+    desc: Deploy network and upload saved state
+    cmds:
+      - cmd: echo "Deploying network with saved state..."
+      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{.DEPLOYMENT}} --node-aliases {{.NODE_ALIASES}} --pvcs
+      - cmd: $SOLO_COMMAND consensus node setup --deployment {{.DEPLOYMENT}} --node-aliases {{.NODE_ALIASES}}
+      - cmd: |
+          # Upload state files to nodes
+          for node in $(echo {{.NODE_ALIASES}} | tr ',' ' '); do
+            if [ -f "{{.STATE_SAVE_DIR}}/${node}-state.zip" ]; then
+              echo "Uploading state to ${node}..."
+              $SOLO_COMMAND consensus node start --deployment {{.DEPLOYMENT}} --node-aliases ${node} \
+                --state-file "{{.STATE_SAVE_DIR}}/${node}-state.zip"
+            else
+              echo "⚠️  State file not found for ${node}, starting without state"
+              $SOLO_COMMAND consensus node start --deployment {{.DEPLOYMENT}} --node-aliases ${node}
+            fi
+          done
+      - cmd: echo "✅ Nodes started with restored state"
+
+  restore-database:
+    desc: Restore database from dump
+    cmds:
+      - cmd: echo "Restoring database from dump..."
+      - cmd: |
+          kubectl cp {{.STATE_SAVE_DIR}}/database-dump.sql \
+          {{.POSTGRES_CONTAINER_NAME}}:/tmp/database-dump.sql -n {{.POSTGRES_DATABASE_NAMESPACE}}
+      - cmd: |
+          kubectl exec {{.POSTGRES_CONTAINER_NAME}} -n {{.POSTGRES_DATABASE_NAMESPACE}} -- \
+          env PGPASSWORD={{.POSTGRES_PASSWORD}} psql -U {{.POSTGRES_USERNAME}} \
+          -d {{.POSTGRES_MIRROR_NODE_DATABASE_NAME}} -f /tmp/database-dump.sql
+      - cmd: echo "✅ Database restored"
+
+  # ==================== Verification ====================
+  
+  verify-state:
+    desc: Verify restored state
+    cmds:
+      - cmd: echo "Verifying restored state..."
+      - cmd: sleep 30  # Wait for nodes to stabilize
+      - cmd: |
+          $SOLO_COMMAND consensus node info --deployment {{.DEPLOYMENT}} --node-aliases {{.NODE_ALIASES}} || \
+          echo "⚠️  Some nodes may still be initializing"
+      - cmd: kubectl get pods -n {{.NAMESPACE}}
+      - cmd: echo "✅ State verification complete"
+
+  # ==================== Cleanup Tasks ====================
+  
+  stop-network:
+    desc: Stop consensus network
+    cmds:
+      - cmd: $SOLO_COMMAND consensus node stop --deployment {{.DEPLOYMENT}} --node-aliases {{.NODE_ALIASES}} || true
+      - cmd: $SOLO_COMMAND mirror node destroy --deployment {{.DEPLOYMENT}} --force || true
+      - cmd: $SOLO_COMMAND consensus network destroy --deployment {{.DEPLOYMENT}} --force || true
+      - cmd: echo "✅ Network stopped and destroyed"
+
+  destroy-database:
+    desc: Destroy external database
+    cmds:
+      - cmd: |
+          {{.SOLO_USER_DIR}}/bin/helm uninstall {{.POSTGRES_NAME}} -n {{.POSTGRES_DATABASE_NAMESPACE}} || true
+      - cmd: kubectl delete namespace {{.POSTGRES_DATABASE_NAMESPACE}} --ignore-not-found=true || true
+      - cmd: echo "✅ Database destroyed"
+
+  destroy:
+    desc: Destroy cluster and clean up all resources
+    cmds:
+      - cmd: kind delete cluster --name {{.CLUSTER_NAME}}
+      - cmd: echo "✅ Cluster destroyed"
+      - cmd: echo "State files preserved in {{.STATE_SAVE_DIR}}"
+
+  clean-state:
+    desc: Remove saved state files
+    cmds:
+      - cmd: rm -rf {{.STATE_SAVE_DIR}}
+      - cmd: echo "✅ Saved state files removed"
