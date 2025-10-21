@@ -129,7 +129,6 @@ export class InitCommand extends BaseCommand {
         task: async (_, task) => {
           const podmanDependency: DependencyManagerType = await self.depManager.getDependency(constants.PODMAN);
           const shouldInstallPodman: boolean = await podmanDependency.shouldInstall();
-
           const podmanDependencies: string[] = shouldInstallPodman
             ? [constants.PODMAN, constants.VFKIT, constants.GVPROXY]
             : [];
