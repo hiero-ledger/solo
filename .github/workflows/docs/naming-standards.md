@@ -18,10 +18,7 @@ It is intended to ensure consistency, readability, and maintainability across al
   |--------|--------------------------------|-----------------------------------|
   | 000    | User-centric workflows         | Sorted by priority/use            |
   | 100    | Operational workflows          | Manual-run RE flows               |
-  | 200    | CITR workflows (all workflows) |                                   |
-  | 200    | CITR manual run                | Adhoc runs                        |
-  | 220    | CITR daily runs                | Automatic daily runs              |
-  | 240    | CITR longer runs               | Multi-day runs                    |
+  | 200    | TBD | |
   | 300    | Trigger-based `main` workflows |                                   |
   | 400    | TBD                            |                                   |
   | 500    | TBD                            |                                   |
@@ -74,10 +71,8 @@ Name of the Workflow: `000: [USER] Status Checks`
   |--------|--------------------------------|-----------------------------------|
   | 000    | User-centric workflows         | Sorted by priority/use            |
   | 100    | Operational workflows          | Manual-run RE flows               |
-  | 200    | CITR workflows (all workflows) |                                   |
-  | 200    | CITR manual run                | Adhoc runs                        |
-  | 220    | CITR daily runs                | Automatic daily runs              |
-  | 240    | CITR longer runs               | Multi-day runs                    |
+  | 200    | TBD |                                   |
+
   | 300    | Trigger-based `main` workflows |                                   |
   | 400    | TBD                            |                                   |
   | 500    | TBD                            |                                   |
