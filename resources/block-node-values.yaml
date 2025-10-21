@@ -29,7 +29,7 @@ blockNode:
     archive:
       size: 1Gi
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
-      existingClaim: "nano-archive-storage"
+      # existingClaim: "nano-archive-storage"
     live:
       size: 1Gi
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
