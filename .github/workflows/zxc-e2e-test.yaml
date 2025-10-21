@@ -374,7 +374,7 @@ jobs:
           echo SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1 > .env
           if [[ "${{ inputs.test-script }}" == "test-e2e-one-shot-single" ]]; then
             echo ONE_SHOT_WITH_BLOCK_NODE=true >> .env
-            echo MIRROR_NODE_PINGER_TPS=50 >> .env
+            echo MIRROR_NODE_PINGER_TPS=0 >> .env
           fi
           cat .env
           
@@ -459,5 +459,3 @@ jobs:
         with:
           name: ${{ inputs.coverage-report-name }}
           path: 'coverage/${{ inputs.coverage-subdirectory }}'
-
-
