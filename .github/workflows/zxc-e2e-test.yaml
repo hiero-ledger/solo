@@ -346,6 +346,13 @@ jobs:
           ${{ env.CG_EXEC }} ./gradlew :block-node-app:createDockerImage
           cd ../solo
 
+      - name: Uninstall Docker (Podman Test Only)
+        if: ${{ inputs.test-script == 'test-e2e-one-shot-single' }}
+        run: |
+          echo "Uninstalling Docker to avoid conflicts with Podman..."
+          sudo apt-get remove -y docker || true
+          echo "Docker uninstalled."
+
       - name: Run E2E Tests
         run: |
           # Set KUBECONFIG to the unique config for Podman-based test only
