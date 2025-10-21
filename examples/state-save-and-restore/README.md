@@ -106,10 +106,10 @@ This will delete the Kind cluster and clean up all resources.
 
 You can adjust settings by editing the `vars:` section in `Taskfile.yml`:
 
-* `NETWORK_SIZE` - Number of consensus nodes (default: 3)
+* `NETWORK_SIZE` - Number of consensus nodes (default: 2)
+* `NODE_ALIASES` - Node identifiers (default: node1,node2)
 * `STATE_SAVE_DIR` - Directory to save state files (default: ./saved-states)
 * `POSTGRES_PASSWORD` - PostgreSQL password for external database
-* `NODE_ALIASES` - Node identifiers
 
 ## State Files
 
@@ -117,11 +117,12 @@ Saved state files are stored in `./saved-states/` with the following structure:
 
 ```
 saved-states/
-├── node1-state.zip
-├── node2-state.zip
-├── node3-state.zip
+├── network-node1-0-state.zip
+├── network-node2-0-state.zip
 └── database-dump.sql       # PostgreSQL database export
 ```
+
+Note: State files are named using the pod naming convention: `network-<node-alias>-0-state.zip`
 
 The example also includes:
 
@@ -141,8 +142,9 @@ The `init.sh` script sets up the PostgreSQL database with:
 
 ### State Saving Process
 
-1. **Download State**: Uses `solo consensus state download` to download signed state from each consensus node
-2. **Export Database**: Uses `pg_dump` with `--clean --if-exists` flags to export the complete database including schema and data
+1. **Download State**: Uses `solo consensus state download` to download signed state from each consensus node to `~/.solo/logs/<namespace>/`
+2. **Copy State Files**: Copies state files from `~/.solo/logs/<namespace>/` to `./saved-states/` directory
+3. **Export Database**: Uses `pg_dump` with `--clean --if-exists` flags to export the complete database including schema and data
 
 ### State Restoration Process
 
@@ -186,11 +188,11 @@ kubectl logs -n database state-restore-postgresql-0 -f
 # Download state manually
 npm run solo --silent -- consensus state download --deployment state-restore-deployment --node-aliases node1
 
-# Check saved state files
-ls -lh ./saved-states/
+# Check downloaded state files (in Solo logs directory)
+ls -lh ~/.solo/logs/state-restore-namespace/
 
-# View metadata
-cat ./saved-states/metadata.json
+# Check saved state files (in saved-states directory)
+ls -lh ./saved-states/
 ```
 
 ## Expected Timeline

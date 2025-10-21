@@ -1389,20 +1389,7 @@ export class NetworkCommand extends BaseCommand {
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
-        {
-          title: 'Remove deployment from local configuration',
-          task: async (context_): Promise<void> => {
-            const deployment: Deployment = this.localConfig.configuration.deployments.find(
-              (d: Deployment): boolean => d.name === context_.config.deployment,
-            );
-
-            if (deployment) {
-              this.localConfig.configuration.deployments.remove(deployment);
-            }
-
-            await this.localConfig.persist();
-          },
-        },
+        // should not remove deployment from local config otherwise next deploy will fail
         {
           title: 'Running sub-tasks to destroy network',
           task: async (context_, task): Promise<void> => {
