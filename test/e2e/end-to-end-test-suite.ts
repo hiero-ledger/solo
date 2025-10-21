@@ -36,6 +36,8 @@ export class EndToEndTestSuite extends Suite {
     public readonly pinger: boolean,
     public readonly realm: number = 0,
     public readonly shard: number = 0,
+    public readonly serviceMonitor: boolean = false,
+    public readonly podLog: boolean = false,
     public readonly testSuiteCallback: (options: BaseTestOptions) => void,
   ) {
     super(testName);

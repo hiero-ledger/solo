@@ -39,6 +39,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withPinger(true)
   .withRealm(2)
   .withShard(3)
+  .withServiceMonitor(true)
+  .withPodLog(true)
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe('Dual Cluster Full E2E Test', (): void => {
       const {testCacheDirectory, testLogger, namespace, contexts} = options;
