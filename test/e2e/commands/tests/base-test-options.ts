@@ -22,4 +22,6 @@ export interface BaseTestOptions {
   readonly pinger: boolean;
   readonly realm: number;
   readonly shard: number;
+  readonly serviceMonitor: boolean;
+  readonly podLog: boolean;
 }

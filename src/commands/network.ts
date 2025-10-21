@@ -128,6 +128,8 @@ export interface NetworkDeployConfigClass {
   app: string;
   serviceMonitor: string;
   podLog: string;
+  singleUseServiceMonitor: string;
+  singleUsePodLog: string;
 }
 
 interface NetworkDeployContext {
@@ -543,10 +545,13 @@ export class NetworkCommand extends BaseCommand {
       valuesArguments[clusterReference] +=
         ' --install' +
         ' --set "telemetry.prometheus.svcMonitor.enabled=false"' + // remove after chart version is bumped
-        ` --set "crds.serviceMonitor.enabled=${config.serviceMonitor}"` +
-        ` --set "crds.podLog.enabled=${config.podLog}"` +
+        ` --set "crds.serviceMonitor.enabled=${config.singleUseServiceMonitor}"` +
+        ` --set "crds.podLog.enabled=${config.singleUsePodLog}"` +
         ` --set "defaults.volumeClaims.enabled=${config.persistentVolumeClaims}"`;
     }
+
+    config.singleUseServiceMonitor = 'false';
+    config.singleUsePodLog = 'false';
 
     // Iterate over each node and set static IPs for HAProxy
     this.addArgForEachRecord(
@@ -776,6 +781,8 @@ export class NetworkCommand extends BaseCommand {
         'consensusNodes',
         'contexts',
         'clusterRefs',
+        'singleUsePodLog',
+        'singleUseServiceMonitor',
       ],
     ) as NetworkDeployConfigClass;
 
@@ -819,6 +826,9 @@ export class NetworkCommand extends BaseCommand {
     argv[flags.nodeAliasesUnparsed.name] = config.nodeAliases.join(',');
 
     config.blockNodeComponents = this.getBlockNodes();
+
+    config.singleUseServiceMonitor = config.serviceMonitor;
+    config.singleUsePodLog = config.podLog;
 
     config.valuesArgMap = await this.prepareValuesArgMap(config);
 

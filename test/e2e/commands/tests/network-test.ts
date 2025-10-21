@@ -38,6 +38,8 @@ export class NetworkTest extends BaseCommandTest {
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(flags.persistentVolumeClaims),
+      optionFromFlag(Flags.serviceMonitor),
+      optionFromFlag(Flags.podLog),
     );
 
     // have to enable load balancer to resolve cross cluster in multi-cluster

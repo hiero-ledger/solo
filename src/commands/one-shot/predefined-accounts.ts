@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type AccountId, Hbar, HbarUnit, PrivateKey} from '@hiero-ledger/sdk';
+import {type AccountId, Hbar, HbarUnit, PrivateKey, type PublicKey} from '@hiero-ledger/sdk';
 
 export type PredefinedAccount = {
   privateKey: PrivateKey;
@@ -13,6 +13,14 @@ export type CreatedPredefinedAccount = {
   accountId: AccountId;
   data: PredefinedAccount;
   alias?: string;
+  publicKey: string;
+};
+
+export type SystemAccount = {
+  name: string;
+  accountId: string;
+  publicKey: PublicKey;
+  privateKey?: string;
 };
 
 const defaultBalance: Hbar = Hbar.from(10_000, HbarUnit.Hbar);
