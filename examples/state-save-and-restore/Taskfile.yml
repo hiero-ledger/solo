@@ -102,7 +102,7 @@ tasks:
     desc: Deploy consensus network
     cmds:
       - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }}
-      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --pvcs
+      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: echo "✅ Consensus network deployed with {{ .NETWORK_SIZE }} nodes"
@@ -226,7 +226,7 @@ tasks:
     desc: Deploy network and upload saved state
     cmds:
       - cmd: echo "Deploying network with saved state..."
-      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --pvcs
+      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       # list files in root-container directory /opt/hgcapp/services-hedera/HapiApp2.0/output
       - cmd: |
@@ -235,9 +235,9 @@ tasks:
           kubectl exec network-node2-0 -n {{ .NAMESPACE }} -c root-container -- \
           ls /opt/hgcapp/services-hedera/HapiApp2.0/output
       - cmd: |
-          # Get first node's state file to use for all nodes
+          # Use first node's state file for all nodes
           FIRST_NODE=$(echo {{ .NODE_ALIASES }} | cut -d',' -f1)
-          FIRST_NODE_STATE_FILE="network-node2-0-state.zip"
+          FIRST_NODE_STATE_FILE="network-${FIRST_NODE}-0-state.zip"
           
           if [ ! -f "{{ .STATE_SAVE_DIR }}/${FIRST_NODE_STATE_FILE}" ]; then
             echo "⚠️  State file not found: {{ .STATE_SAVE_DIR }}/${FIRST_NODE_STATE_FILE}"
@@ -245,13 +245,8 @@ tasks:
           fi
           
           echo "Using ${FIRST_NODE_STATE_FILE} for all nodes..."
-          
-          # Upload first node's state file to all nodes
-          for node in $(echo {{ .NODE_ALIASES }} | tr ',' ' '); do
-            echo "Uploading state to ${node} from ${FIRST_NODE_STATE_FILE}..."
-            $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases ${node} \
-              --state-file "{{ .STATE_SAVE_DIR }}/${FIRST_NODE_STATE_FILE}"
-          done
+          $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} \
+            --state-file "{{ .STATE_SAVE_DIR }}/${FIRST_NODE_STATE_FILE}"
       - cmd: echo "✅ Nodes started with restored state"
 
   restore-database:

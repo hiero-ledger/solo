@@ -125,7 +125,7 @@ saved-states/
 **Notes:**
 - State files are named using the pod naming convention: `network-<node-alias>-0-state.zip`
 - During save: All node state files are downloaded
-- During restore: Only the first node's state file is used for all nodes (for simplicity)
+- During restore: Only the first node's state file is used for all nodes (node IDs are automatically renamed)
 
 The example also includes:
 
@@ -154,8 +154,10 @@ The `init.sh` script sets up the PostgreSQL database with:
 1. **Database Recreation**: Deploys fresh PostgreSQL and runs `init.sh` to create database structure (database, schemas, roles, users, extensions)
 2. **Database Restore**: Imports database dump which drops and recreates tables with all data
 3. **Network Recreation**: Creates new network with identical configuration
-4. **State Upload**: Uploads the first node's saved state file to all consensus nodes using `solo consensus node start --state-file`
-   - Note: For simplicity, all nodes use the same state file from the first node
+4. **State Upload**: Uploads the first node's state file to all nodes using `solo consensus node start --state-file`
+   - State files are extracted to `data/saved/`
+   - Cleanup: Only the latest/biggest round is kept, older rounds are automatically deleted to save disk space
+   - Node ID Renaming: Directory paths containing node IDs are automatically renamed to match each target node
 5. **Mirror Node**: Deploys mirror node connected to restored database and seeds initial data
 6. **Verification**: Checks that restored state matches original
 
@@ -166,6 +168,9 @@ The `init.sh` script sets up the PostgreSQL database with:
 * External PostgreSQL database provides data persistence and queryability
 * State restoration maintains transaction history and account balances
 * Mirror node will resume from the restored state point
+* **Simplified State Restore**: Uses the first node's state file for all nodes with automatic processing:
+  - Old rounds are cleaned up first - only the latest round number is kept to optimize disk usage
+  - Node ID directories are then automatically renamed to match each target node
 * Database dump includes all mirror node data (transactions, accounts, etc.)
 
 ## Useful Commands
