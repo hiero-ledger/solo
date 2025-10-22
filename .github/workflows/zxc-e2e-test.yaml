@@ -351,7 +351,6 @@ jobs:
         run: |
                echo "Uninstalling Docker to avoid conflicts with Podman..."
                dpkg -l | grep -i docker
-          #          sudo apt-get remove -y docker docker-engine docker.io containerd runc || true
                echo "Docker uninstalled."
 
       - name: Run E2E Tests
