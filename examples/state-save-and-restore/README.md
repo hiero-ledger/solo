@@ -117,12 +117,15 @@ Saved state files are stored in `./saved-states/` with the following structure:
 
 ```
 saved-states/
-├── network-node1-0-state.zip
-├── network-node2-0-state.zip
-└── database-dump.sql       # PostgreSQL database export
+├── network-node1-0-state.zip  # Used for all nodes during restore
+├── network-node2-0-state.zip  # Downloaded but not used during restore
+└── database-dump.sql          # PostgreSQL database export
 ```
 
-Note: State files are named using the pod naming convention: `network-<node-alias>-0-state.zip`
+**Notes:**
+- State files are named using the pod naming convention: `network-<node-alias>-0-state.zip`
+- During save: All node state files are downloaded
+- During restore: Only the first node's state file is used for all nodes (for simplicity)
 
 The example also includes:
 
@@ -151,7 +154,8 @@ The `init.sh` script sets up the PostgreSQL database with:
 1. **Database Recreation**: Deploys fresh PostgreSQL and runs `init.sh` to create database structure (database, schemas, roles, users, extensions)
 2. **Database Restore**: Imports database dump which drops and recreates tables with all data
 3. **Network Recreation**: Creates new network with identical configuration
-4. **State Upload**: Uploads saved state files to new consensus nodes using `solo consensus node start --state-file`
+4. **State Upload**: Uploads the first node's saved state file to all consensus nodes using `solo consensus node start --state-file`
+   - Note: For simplicity, all nodes use the same state file from the first node
 5. **Mirror Node**: Deploys mirror node connected to restored database and seeds initial data
 6. **Verification**: Checks that restored state matches original
 
