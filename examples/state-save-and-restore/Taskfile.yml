@@ -303,7 +303,7 @@ tasks:
     cmds:
       - cmd: kind delete cluster --name {{ .CLUSTER_NAME }}
       - cmd: echo "✅ Cluster destroyed"
-      - cmd: echo "State files preserved in {{ .STATE_SAVE_DIR }}"
+      - task: clean-state
 
   clean-state:
     desc: Remove saved state files

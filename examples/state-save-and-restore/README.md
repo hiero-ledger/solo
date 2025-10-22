@@ -48,6 +48,7 @@ task setup
 ```
 
 This will:
+
 * Create a Kind cluster
 * Deploy PostgreSQL database
 * Initialize Solo
@@ -62,6 +63,7 @@ task save-state
 ```
 
 This will:
+
 * Download state from all consensus nodes
 * Export PostgreSQL database dump
 * Save both to `./saved-states/` directory
@@ -74,6 +76,7 @@ task restore
 ```
 
 This will:
+
 * Stop and destroy existing network
 * Recreate PostgreSQL database
 * Import database dump
@@ -123,9 +126,10 @@ saved-states/
 ```
 
 **Notes:**
-- State files are named using the pod naming convention: `network-<node-alias>-0-state.zip`
-- During save: All node state files are downloaded
-- During restore: Only the first node's state file is used for all nodes (node IDs are automatically renamed)
+
+* State files are named using the pod naming convention: `network-<node-alias>-0-state.zip`
+* During save: All node state files are downloaded
+* During restore: Only the first node's state file is used for all nodes (node IDs are automatically renamed)
 
 The example also includes:
 
@@ -135,10 +139,11 @@ scripts/
 ```
 
 The `init.sh` script sets up the PostgreSQL database with:
-* mirror_node database
+
+* mirror\_node database
 * Required schemas (public, temporary)
 * Roles and users (postgres, readonlyuser)
-* PostgreSQL extensions (btree_gist, pg_stat_statements, pg_trgm)
+* PostgreSQL extensions (btree\_gist, pg\_stat\_statements, pg\_trgm)
 * Proper permissions and grants
 
 ## How It Works
@@ -155,9 +160,9 @@ The `init.sh` script sets up the PostgreSQL database with:
 2. **Database Restore**: Imports database dump which drops and recreates tables with all data
 3. **Network Recreation**: Creates new network with identical configuration
 4. **State Upload**: Uploads the first node's state file to all nodes using `solo consensus node start --state-file`
-   - State files are extracted to `data/saved/`
-   - Cleanup: Only the latest/biggest round is kept, older rounds are automatically deleted to save disk space
-   - Node ID Renaming: Directory paths containing node IDs are automatically renamed to match each target node
+   * State files are extracted to `data/saved/`
+   * Cleanup: Only the latest/biggest round is kept, older rounds are automatically deleted to save disk space
+   * Node ID Renaming: Directory paths containing node IDs are automatically renamed to match each target node
 5. **Mirror Node**: Deploys mirror node connected to restored database and seeds initial data
 6. **Verification**: Checks that restored state matches original
 
@@ -169,18 +174,20 @@ The `init.sh` script sets up the PostgreSQL database with:
 * State restoration maintains transaction history and account balances
 * Mirror node will resume from the restored state point
 * **Simplified State Restore**: Uses the first node's state file for all nodes with automatic processing:
-  - Old rounds are cleaned up first - only the latest round number is kept to optimize disk usage
-  - Node ID directories are then automatically renamed to match each target node
+  * Old rounds are cleaned up first - only the latest round number is kept to optimize disk usage
+  * Node ID directories are then automatically renamed to match each target node
 * Database dump includes all mirror node data (transactions, accounts, etc.)
 
 ## Useful Commands
 
 ### Check Status
+
 ```bash
 task status
 ```
 
 ### View Logs
+
 ```bash
 # Consensus node logs
 kubectl logs -n state-restore-namespace network-node1-0 -f
@@ -193,6 +200,7 @@ kubectl logs -n database state-restore-postgresql-0 -f
 ```
 
 ### Manual State Operations
+
 ```bash
 # Download state manually
 npm run solo --silent -- consensus state download --deployment state-restore-deployment --node-aliases node1
@@ -214,6 +222,7 @@ ls -lh ./saved-states/
 ## File Sizes
 
 Typical state file sizes:
+
 * Small network (few transactions): 100-500 MB per node
 * Medium activity: 1-3 GB per node
 * Heavy activity: 5-10+ GB per node
@@ -223,14 +232,17 @@ Ensure you have sufficient disk space in `./saved-states/` directory.
 ## Advanced Usage
 
 ### Save State at Specific Time
+
 Run `task save-state` at any point after running transactions. The state captures the network at that moment.
 
 ### Restore to Different Cluster
+
 1. Save state on cluster A
 2. Copy `./saved-states/` directory to cluster B
 3. Run `task restore` on cluster B
 
 ### Multiple State Snapshots
+
 ```bash
 # Save multiple snapshots
 task save-state
@@ -248,26 +260,31 @@ task restore
 ## Troubleshooting
 
 **State download fails**:
-- Ensure nodes are running and healthy
-- Check pod logs: `kubectl logs -n <namespace> <pod-name>`
-- Increase timeout or download nodes sequentially
+
+* Ensure nodes are running and healthy
+* Check pod logs: `kubectl logs -n <namespace> <pod-name>`
+* Increase timeout or download nodes sequentially
 
 **Restore fails**:
-- Verify state files exist in `./saved-states/`
-- Check file permissions
-- Ensure network configuration matches original
-- Check state file integrity
+
+* Verify state files exist in `./saved-states/`
+* Check file permissions
+* Ensure network configuration matches original
+* Check state file integrity
 
 **Database connection fails**:
-- Verify PostgreSQL pod is ready
-- Check credentials in Taskfile.yml
-- Review PostgreSQL logs
+
+* Verify PostgreSQL pod is ready
+* Check credentials in Taskfile.yml
+* Review PostgreSQL logs
 
 **Out of disk space**:
-- Clean old state files with `task clean-state`
-- Check available disk space before saving state
+
+* Clean old state files with `task clean-state`
+* Check available disk space before saving state
 
 ### Debugging Commands
+
 ```bash
 # Check pod status
 kubectl get pods -n state-restore-namespace

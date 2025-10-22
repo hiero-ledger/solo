@@ -360,7 +360,7 @@ export class DeploymentCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error: Error | unknown) {
-      throw new SoloError(`Error listing deployments for cluster`, error);
+      throw new SoloError('Error listing deployments for cluster', error);
     }
 
     return true;

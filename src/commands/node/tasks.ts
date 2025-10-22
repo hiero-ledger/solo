@@ -1138,10 +1138,10 @@ export class NodeCommandTasks {
 
         const zipFile = config.stateFile;
         self.logger.debug(`zip file: ${zipFile}`);
-        
+
         // Get the source node ID from the first consensus node (the state file's original node)
         const sourceNodeId = config.consensusNodes[0].nodeId;
-        
+
         for (const nodeAlias of context_.config.nodeAliases) {
           const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
           const k8 = this.k8Factory.getK8(context);
@@ -1149,7 +1149,7 @@ export class NodeCommandTasks {
           const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
           const consensusNode = config.consensusNodes.find(node => node.name === nodeAlias);
           const targetNodeId = consensusNode.nodeId;
-          
+
           self.logger.debug(`Uploading state files to pod ${podReference.name}`);
           await k8.containers().readByRef(containerReference).copyTo(zipFile, `${constants.HEDERA_HAPI_PATH}/data`);
 
@@ -1174,13 +1174,16 @@ export class NodeCommandTasks {
           // Clean up old rounds - keep only the latest/biggest round
           self.logger.info(`Cleaning up old rounds in pod ${podReference.name}, keeping only the latest round`);
           const cleanupScriptName = 'cleanup-state-rounds.sh';
-          const cleanupScriptDest = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
-          await k8.containers().readByRef(containerReference).copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
-          await k8.containers().readByRef(containerReference).execContainer(`chmod +x ${cleanupScriptDest}`);
+          const cleanupScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
           await k8
             .containers()
             .readByRef(containerReference)
-            .execContainer([cleanupScriptDest, constants.HEDERA_HAPI_PATH]);
+            .copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
+          await k8.containers().readByRef(containerReference).execContainer(`chmod +x ${cleanupScriptDestination}`);
+          await k8
+            .containers()
+            .readByRef(containerReference)
+            .execContainer([cleanupScriptDestination, constants.HEDERA_HAPI_PATH]);
 
           // Rename node ID directories to match the target node
           if (sourceNodeId !== targetNodeId) {
@@ -1188,15 +1191,22 @@ export class NodeCommandTasks {
               `Renaming node ID directories in pod ${podReference.name} from ${sourceNodeId} to ${targetNodeId}`,
             );
             const renameScriptName = 'rename-state-node-id.sh';
-            const renameScriptDest = `${constants.HEDERA_USER_HOME_DIR}/${renameScriptName}`;
-            await k8.containers().readByRef(containerReference).copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
-            await k8.containers().readByRef(containerReference).execContainer(`chmod +x ${renameScriptDest}`);
+            const renameScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${renameScriptName}`;
             await k8
               .containers()
               .readByRef(containerReference)
-              .execContainer([renameScriptDest, constants.HEDERA_HAPI_PATH, sourceNodeId.toString(), targetNodeId.toString()]);
+              .copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
+            await k8.containers().readByRef(containerReference).execContainer(`chmod +x ${renameScriptDestination}`);
+            await k8
+              .containers()
+              .readByRef(containerReference)
+              .execContainer([
+                renameScriptDestination,
+                constants.HEDERA_HAPI_PATH,
+                sourceNodeId.toString(),
+                targetNodeId.toString(),
+              ]);
           }
-            
         }
       },
       skip,
