@@ -392,6 +392,7 @@ jobs:
       - name: Log Metrics
         id: log-metrics
         run: |
+          echo "::group::JSON Format"
           for logFile in ~/.solo/logs/*.json; do 
             if [[ -f "$logFile" ]]; then
               cat $logFile | jq
@@ -400,13 +401,11 @@ jobs:
               echo "json_log={}" >> $GITHUB_OUTPUT
             fi
           done
-          echo "-----------------------------------------------------------------"
-          for logFile in ~/.solo/logs/*.yaml; do 
-            if [[ -f "$logFile" ]]; then
-              cat $logFile
-            fi
-          done
           echo "solo_log_dir=$(cd ~/.solo/logs && pwd)" >> $GITHUB_OUTPUT
+          echo "::endgroup::" 
+          echo "::group::Spreadsheet Format"
+          ./github/workflows/script/metrics.sh
+          echo "::endgroup::"
 
       - name: Write Log Metrics Message File
         id: log-metrics-file
@@ -459,5 +458,3 @@ jobs:
         with:
           name: ${{ inputs.coverage-report-name }}
           path: 'coverage/${{ inputs.coverage-subdirectory }}'
-
-

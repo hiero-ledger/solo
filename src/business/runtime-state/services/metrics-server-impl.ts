@@ -13,7 +13,6 @@ import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js'
 import fs from 'node:fs';
 import {AggregatedMetrics} from '../model/aggregated-metrics.js';
 import {ClusterMetrics} from '../model/cluster-metrics.js';
-import yaml from 'yaml';
 import {type K8Factory} from '../../../integration/kube/k8-factory.js';
 import {ContainerReference} from '../../../integration/kube/resources/container/container-reference.js';
 import {ContainerName} from '../../../integration/kube/resources/container/container-name.js';
@@ -190,7 +189,6 @@ export class MetricsServerImpl implements MetricsServer {
     );
 
     fs.writeFileSync(`${metricsLogFile}.json`, aggregatedMetrics ? aggregatedMetrics.toString() : '');
-    fs.writeFileSync(`${metricsLogFile}.yaml`, aggregatedMetrics ? yaml.stringify(aggregatedMetrics) : '');
   }
 
   private async getNetworkNodeRuntime(namespace: NamespaceName, context: Context): Promise<number> {
