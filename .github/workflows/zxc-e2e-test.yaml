@@ -349,11 +349,11 @@ jobs:
       - name: Uninstall Docker (Podman Test Only)
         if: ${{ inputs.test-script == 'test-e2e-one-shot-single' }}
         run: |
-               echo "Uninstalling Docker to avoid conflicts with Podman..."
-               docker -v
-               sudo apt-get remove -y docker-compose
-               docker -v 
-               echo "Docker uninstalled."
+          echo "Uninstalling Docker to avoid conflicts with Podman..."
+          sudo systemctl stop docker docker.socket containerd || true
+          sudo apt-get remove -y docker docker-engine docker.io containerd runc || true
+          sudo apt-get autoremove -y
+          echo "Docker uninstalled."
 
       - name: Run E2E Tests
         run: |
