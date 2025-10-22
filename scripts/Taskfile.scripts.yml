@@ -48,8 +48,10 @@ tasks:
       - task: "solo:deployment:create"
       - task: "solo:deployment:attach"
       - task: "solo:keys"
-      - task: "solo:network:deploy"
+      # block node needs to be added before deploying the network otherwise
+      # block-nodes.json will be deployed to consensus nodes with empty block node list
       - task: "solo:block:add"
+      - task: "solo:network:deploy"
 
   destroy:
     deps:
