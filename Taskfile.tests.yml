@@ -144,6 +144,8 @@ tasks:
         {{ .reporter_prefix }}='coverage/e2e-one-shot-single'
         {{ .mocha_bin }} 'test/e2e/commands/one-shot-single.test.ts' 
         {{ .reporter_options_prefix }}-e2e-one-shot-single.xml"
+    env:
+      CONTAINER_ENGINE: podman
 
   test-example-node-create-transaction:
     dir: examples/node-create-transaction
