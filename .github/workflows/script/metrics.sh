@@ -1,4 +1,8 @@
 #!/bin/bash
+if [[ -z "$JSON_FILENAME" ]]; then
+  echo "env var JSON_FILENAME is required"
+  exit 1
+fi
 jq -r .date "$JSON_FILENAME"
 echo "TPS"
 jq .cpuInMillicores "$JSON_FILENAME"
