@@ -336,7 +336,7 @@ jobs:
         if: ${{ inputs.test-script == 'test-e2e-one-shot-single' }}
         run: |
             sudo apt-get update
-            sudo apt-get install -y qemu-utils qemu-system-x86
+            sudo apt-get install -y qemu-utils qemu-system-x86 libcap-ng-dev libseccomp-dev
 
       - name: Build Block code locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
