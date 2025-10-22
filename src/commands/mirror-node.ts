@@ -1248,7 +1248,7 @@ export class MirrorNodeCommand extends BaseCommand {
               isLegacyChartInstalled,
               isIngressControllerChartInstalled: await this.chartManager.isChartInstalled(
                 namespace,
-                constants.INGRESS_CONTROLLER_RELEASE_NAME,
+                ingressReleaseName,
                 clusterContext,
               ),
             };

@@ -174,7 +174,7 @@ tasks:
       - cmd: echo "Generating sample transactions..."
       - cmd: |
           for i in {1..10}; do
-            $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 100 || true
+            $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 100
             sleep 2
           done
       - cmd: echo "✅ Sample transactions completed - network state created"
@@ -265,15 +265,17 @@ tasks:
   # ==================== Verification ====================
 
   verify-state:
-    desc: Verify restored state
+    desc: Verify restored state by generating transactions
     cmds:
-      - cmd: echo "Verifying restored state..."
+      - cmd: echo "Verifying restored state by generating transactions..."
       - cmd: sleep 30  # Wait for nodes to stabilize
       - cmd: |
-          $SOLO_COMMAND consensus node info --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} || \
-          echo "⚠️  Some nodes may still be initializing"
-      - cmd: kubectl get pods -n {{ .NAMESPACE }}
-      - cmd: echo "✅ State verification complete"
+          echo "Generating test transactions to verify network functionality..."
+          for i in {1..5}; do
+            $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }}
+            sleep 2
+          done
+      - cmd: echo "✅ State verification complete - network is processing transactions"
 
   # ==================== Cleanup Tasks ====================
 
@@ -281,7 +283,7 @@ tasks:
     desc: Stop consensus network
     cmds:
       # must destroy mirror node first otherwise will fail due to could not ping network nodes
-      - cmd: $SOLO_COMMAND mirror node destroy --deployment {{ .DEPLOYMENT }} --force || true
+      - cmd: $SOLO_COMMAND mirror node destroy --deployment {{ .DEPLOYMENT }} --force
       # freeze network before download otherwise may get error "file changed as we read it"
       - cmd: echo "Freezing network..."
       - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}      
