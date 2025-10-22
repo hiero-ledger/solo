@@ -131,7 +131,7 @@ export class InitCommand extends BaseCommand {
           const shouldInstallPodman: boolean = await podmanDependency.shouldInstall();
 
           const podmanDependencies: string[] = shouldInstallPodman
-            ? [constants.PODMAN, constants.VFKIT, constants.GVPROXY]
+            ? [constants.PODMAN, constants.VFKIT, constants.GVPROXY, constants.VIRTIOFSD]
             : [];
           const deps: string[] = [...podmanDependencies, constants.KIND];
 

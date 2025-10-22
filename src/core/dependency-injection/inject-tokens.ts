@@ -21,6 +21,7 @@ export class InjectTokens {
   public static PodmanVersion: symbol = Symbol.for('PodmanVersion');
   public static VfkitVersion: symbol = Symbol.for('VfkitVersion');
   public static GvproxyVersion: symbol = Symbol.for('GvproxyVersion');
+  public static VirtiofsdVersion: symbol = Symbol.for('VirtiofsdVersion');
   public static SystemAccounts: symbol = Symbol.for('SystemAccounts');
   public static CacheDir: symbol = Symbol.for('CacheDir');
   public static LockRenewalService: symbol = Symbol.for('LockRenewalService');
@@ -38,6 +39,7 @@ export class InjectTokens {
   public static PodmanDependencyManager: symbol = Symbol.for('PodmanDependencyManager');
   public static VfkitDependencyManager: symbol = Symbol.for('VfkitDependencyManager');
   public static GvproxyDependencyManager: symbol = Symbol.for('GvproxyDependencyManager');
+  public static VirtiofsdDependencyManager: symbol = Symbol.for('VirtiofsdDependencyManager');
   public static KindBuilder: symbol = Symbol.for('KindBuilder');
   public static ChartManager: symbol = Symbol.for('ChartManager');
   public static ConfigManager: symbol = Symbol.for('ConfigManager');

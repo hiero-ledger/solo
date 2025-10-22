@@ -84,6 +84,7 @@ import {VfkitDependencyManager} from '../dependency-managers/vfkit-dependency-ma
 import {GvproxyDependencyManager} from '../dependency-managers/gvproxy-dependency-manager.js';
 import {RapidFireCommand} from '../../commands/rapid-fire.js';
 import {RapidFireCommandDefinition} from '../../commands/command-definitions/rapid-fire-command-definition.js';
+import {VirtiofsdDependencyManager} from '../dependency-managers/virtiofsd-dependency-manager.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -125,6 +126,7 @@ export class Container {
       new SingletonContainer(InjectTokens.PodmanDependencyManager, PodmanDependencyManager),
       new SingletonContainer(InjectTokens.VfkitDependencyManager, VfkitDependencyManager),
       new SingletonContainer(InjectTokens.GvproxyDependencyManager, GvproxyDependencyManager),
+      new SingletonContainer(InjectTokens.VirtiofsdDependencyManager, VirtiofsdDependencyManager),
       new SingletonContainer(InjectTokens.ChartManager, ChartManager),
       new SingletonContainer(InjectTokens.ConfigManager, ConfigManager),
       new SingletonContainer(InjectTokens.AccountManager, AccountManager),
@@ -211,6 +213,7 @@ export class Container {
       new ValueContainer(InjectTokens.PodmanVersion, version.PODMAN_VERSION),
       new ValueContainer(InjectTokens.VfkitVersion, version.VFKIT_VERSION),
       new ValueContainer(InjectTokens.GvproxyVersion, version.GVPROXY_VERSION),
+      new ValueContainer(InjectTokens.VirtiofsdVersion, version.VIRTIOFSD_VERSION),
       new ValueContainer(InjectTokens.SystemAccounts, constants.SYSTEM_ACCOUNTS),
       new ValueContainer(InjectTokens.CacheDir, cacheDirectory),
       new ValueContainer(InjectTokens.LocalConfigFileName, constants.DEFAULT_LOCAL_CONFIG_FILE),

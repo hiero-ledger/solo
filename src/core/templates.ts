@@ -163,6 +163,7 @@ export class Templates {
       case constants.PODMAN:
       case constants.VFKIT:
       case constants.GVPROXY:
+      case constants.VIRTIOFSD:
       case constants.KUBECTL: {
         if (osPlatform === constants.OS_WINDOWS) {
           return PathEx.join(installationDirectory, `${dep}.exe`);
