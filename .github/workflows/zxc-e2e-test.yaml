@@ -397,14 +397,17 @@ jobs:
             if [[ -f "$logFile" ]]; then
               cat $logFile | jq
               echo "json_log=$(cat $logFile)" >> $GITHUB_OUTPUT
+              json_log_file=$logFile
             else
               echo "json_log={}" >> $GITHUB_OUTPUT
+              json_log_file=~/.solo/logs/temp.json
+              echo "{}" > ~/.solo/logs/temp.json 
             fi
           done
           echo "solo_log_dir=$(cd ~/.solo/logs && pwd)" >> $GITHUB_OUTPUT
           echo "::endgroup::" 
           echo "::group::Spreadsheet Format"
-          ./github/workflows/script/metrics.sh
+          JSON_FILENAME=$json_log_file ./github/workflows/script/metrics.sh
           echo "::endgroup::"
 
       - name: Write Log Metrics Message File
