@@ -463,7 +463,7 @@ export class BlockNodeCommand extends BaseCommand {
               .pvcs()
               .list(namespace, [`app.kubernetes.io/instance=${releaseName}`])
               .then((pvcs): PvcName[] => pvcs.map((pvc): PvcName => PvcName.of(pvc)))
-              .then((pvcs): PodReference[] => pvcs.map((pvc): PodReference => PvcReference.of(namespace, pvc)));
+              .then((names): PodReference[] => names.map((pvc): PodReference => PvcReference.of(namespace, pvc)));
 
             for (const podReference of podReferences) {
               await this.k8Factory.getK8(context).pvcs().delete(podReference);

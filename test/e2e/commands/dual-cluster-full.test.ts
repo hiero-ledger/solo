@@ -104,10 +104,10 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         );
       });
 
+      BlockNodeTest.destroy(options);
       RelayTest.destroy(options);
       ExplorerTest.destroy(options);
       MirrorNodeTest.destroy(options);
-      BlockNodeTest.destroy(options);
       NetworkTest.destroy(options);
     }).timeout(Duration.ofMinutes(15).toMillis());
   })
