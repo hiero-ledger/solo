@@ -400,7 +400,7 @@ jobs:
               echo "json_log=$(cat $logFile)" >> $GITHUB_OUTPUT
               echo "::group::Spreadsheet Format"
               echo "logFile=$logFile"
-              JSON_FILENAME=$logFile ./github/workflows/script/metrics.sh
+              JSON_FILENAME=$logFile ./.github/workflows/script/metrics.sh
               echo "::endgroup::"
             else
               echo "json_log={}" >> $GITHUB_OUTPUT
