@@ -337,6 +337,8 @@ jobs:
         run: |
             sudo apt-get update
             sudo apt-get install -y qemu-utils qemu-system-x86 libcap-ng-dev libseccomp-dev
+            virtiofsd --version
+            which virtiofsd
 
       - name: Build Block code locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
