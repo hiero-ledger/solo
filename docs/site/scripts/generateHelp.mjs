@@ -18,7 +18,7 @@ const OUTPUT_FILE = path.join(projectRoot, "docs/site/content/en/docs/solo-comma
  */
 async function getTopLevelCommands() {
   try {
-    const output = await runCapture("npm run solo-test -- --help");
+    const output = await runCapture("npm run solo-test --silent -- --help");
     return output
       .split("\n")
       .reduce(
@@ -49,7 +49,7 @@ async function getTopLevelCommands() {
  */
 async function getSubcommands(cmd) {
   try {
-    const output = await runCapture(`npm run solo-test -- ${cmd} --help`);
+    const output = await runCapture(`npm run solo-test --silent -- ${cmd} --help`);
     return output
       .split("\n")
       .filter((l) => l.trim().startsWith(cmd + " "))
@@ -66,7 +66,7 @@ async function getSubcommands(cmd) {
  */
 async function getThirdLevelCommands(cmd, subcmd) {
   try {
-    const output = await runCapture(`npm run solo-test -- ${cmd} ${subcmd} help`);
+    const output = await runCapture(`npm run solo-test --silent -- ${cmd} ${subcmd} help`);
     return output
       .split("\n")
       .filter((l) => l.trim().startsWith(`${cmd} ${subcmd} `))
@@ -117,7 +117,7 @@ void async function main() {
   // Root help output
   doc += `\n\n## Root Help Output\n\n`;
   doc += "```\n";
-  doc += await runCapture(`npm run solo-test -- --help`);
+  doc += await runCapture(`npm run solo-test --silent -- --help`);
   doc += "\n```\n";
 
   // Detailed sections sequentially
@@ -125,7 +125,7 @@ void async function main() {
     console.log(`#2 Processing command: ${kleur.green(cmd)}`);
 
     let section = `\n## ${cmd}\n\n\`\`\`\n`;
-    section += await runCapture(`npm run solo-test -- ${cmd} --help`);
+    section += await runCapture(`npm run solo-test --silent -- ${cmd} --help`);
     section += `\n\`\`\`\n`;
 
     const subcommands = await getSubcommands(cmd);
@@ -133,7 +133,7 @@ void async function main() {
       console.log(`#2 Processing subcommand: ${kleur.green(cmd)} ${kleur.cyan(subcmd)}`);
 
       let subSection = `\n### ${cmd} ${subcmd}\n\n\`\`\`\n`;
-      subSection += await runCapture(`npm run solo-test -- ${cmd} ${subcmd} --help`);
+      subSection += await runCapture(`npm run solo-test --silent -- ${cmd} ${subcmd} --help`);
       subSection += `\n\`\`\`\n`;
 
       const thirdLevel = await getThirdLevelCommands(cmd, subcmd);
@@ -141,7 +141,7 @@ void async function main() {
         console.log(`#3 Processing third-level command: ${kleur.green(cmd)} ${kleur.cyan(subcmd)} ${kleur.yellow(t)}`);
 
         let third = `\n#### ${cmd} ${subcmd} ${t}\n\n\`\`\`\n`;
-        third += await runCapture(`npm run solo-test -- ${cmd} ${subcmd} ${t} --help`);
+        third += await runCapture(`npm run solo-test --silent -- ${cmd} ${subcmd} ${t} --help`);
         third += `\n\`\`\`\n`;
 
         subSection += third;
