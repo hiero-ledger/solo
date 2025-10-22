@@ -35,7 +35,6 @@ task destroy       # Cleanup when done
 task setup          # 1. Deploy network with external database (5-10 min)
 task save-state     # 2. Save state and database (2-5 min)
 task restore        # 3. Recreate and restore (3-5 min)
-task status         # 4. Check status
 task destroy        # 5. Cleanup
 ```
 
@@ -100,7 +99,6 @@ This will delete the Kind cluster and clean up all resources.
 * `setup` - Deploy initial network with external PostgreSQL database
 * `save-state` - Download consensus node state and export database
 * `restore` - Recreate network and restore state with database
-* `status` - Show network and state status
 * `verify-state` - Verify restored state matches original
 * `destroy` - Delete cluster and clean up all resources
 * `clean-state` - Remove saved state files
@@ -178,13 +176,6 @@ The `init.sh` script sets up the PostgreSQL database with:
   * Node ID directories are then automatically renamed to match each target node
 * Database dump includes all mirror node data (transactions, accounts, etc.)
 
-## Useful Commands
-
-### Check Status
-
-```bash
-task status
-```
 
 ### View Logs
 
