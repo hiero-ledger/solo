@@ -15,7 +15,7 @@ import {Zippy} from '../zippy.js';
 import {GitHubRelease, ReleaseInfo} from '../../types/index.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 
-const PODMAN_RELEASES_LIST_URL: string = 'https://api.github.com/repos/containers/podman/releases';
+const PODMAN_RELEASE_BASE_URL: string = 'https://api.github.com/repos/containers/podman/releases/tags';
 
 @injectable()
 export class PodmanDependencyManager extends BaseDependencyManager {
@@ -88,13 +88,13 @@ export class PodmanDependencyManager extends BaseDependencyManager {
   }
 
   /**
-   * Fetches the latest release information from GitHub API
+   * Fetches the release information from GitHub API
    * @returns Promise with the release base URL, asset name, digest, and version
    */
-  private async fetchLatestReleaseInfo(): Promise<ReleaseInfo> {
+  private async fetchReleaseInfo(): Promise<ReleaseInfo> {
     try {
       // Make a GET request to GitHub API using fetch
-      const response = await fetch(PODMAN_RELEASES_LIST_URL, {
+      const response = await fetch(`${PODMAN_RELEASE_BASE_URL}/${this.podmanVersion}`, {
         method: 'GET', // Changed from HEAD to GET to retrieve the body
         headers: {
           'User-Agent': constants.SOLO_USER_AGENT_HEADER,
@@ -107,15 +107,8 @@ export class PodmanDependencyManager extends BaseDependencyManager {
       }
 
       // Parse the JSON response
-      const releases: GitHubRelease[] = await response.json();
-
-      if (!releases || releases.length === 0) {
-        throw new SoloError('No releases found');
-      }
-
-      // Get the latest release
-      const latestRelease = releases[0];
-      const version = latestRelease.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
+      const release: GitHubRelease = await response.json();
+      const version = release.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
 
       // Normalize platform/arch for asset matching
       const platform = this.osPlatform === constants.OS_WIN32 ? constants.OS_WINDOWS : this.osPlatform;
@@ -135,7 +128,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
       }
 
       // Find the matching asset
-      const matchingAsset = latestRelease.assets.find(asset => assetPattern.test(asset.browser_download_url));
+      const matchingAsset = release.assets.find(asset => assetPattern.test(asset.browser_download_url));
 
       if (!matchingAsset) {
         throw new SoloError(`No matching asset found for ${platform}-${arch}`);
@@ -166,23 +159,23 @@ export class PodmanDependencyManager extends BaseDependencyManager {
     }
   }
 
-  // Podman should only be installed if Docker is not already present on the client system
-  public override async shouldInstall(): Promise<boolean> {
-    // Determine if Docker is already installed
-    try {
-      await this.run(`${constants.DOCKER} --version`);
-      return false;
-    } catch {
-      return true;
-    }
-  }
+  // // Podman should only be installed if Docker is not already present on the client system
+  // public override async shouldInstall(): Promise<boolean> {
+  //   // Determine if Docker is already installed
+  //   try {
+  //     await this.run(`${constants.DOCKER} --version`);
+  //     return false;
+  //   } catch {
+  //     return true;
+  //   }
+  // }
 
   protected override async preInstall(): Promise<void> {
-    const latestReleaseInfo: ReleaseInfo = await this.fetchLatestReleaseInfo();
-    this.checksum = latestReleaseInfo.checksum;
-    this.releaseBaseUrl = latestReleaseInfo.downloadUrl;
-    this.artifactFileName = latestReleaseInfo.assetName;
-    this.artifactVersion = latestReleaseInfo.version;
+    const releaseInfo: ReleaseInfo = await this.fetchReleaseInfo();
+    this.checksum = releaseInfo.checksum;
+    this.releaseBaseUrl = releaseInfo.downloadUrl;
+    this.artifactFileName = releaseInfo.assetName;
+    this.artifactVersion = releaseInfo.version;
   }
 
   protected getDownloadURL(): string {

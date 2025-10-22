@@ -197,12 +197,14 @@ jobs:
 
       - name: Install Kubectl
         uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
+        if: ${{ inputs.test-script != 'test-e2e-one-shot-single' }}
         with:
           version: 'v1.27.3'
         id: install
 
       - name: Setup Kind
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        if: ${{ inputs.test-script != 'test-e2e-one-shot-single' }}
         with:
           install_only: true
           node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
@@ -213,6 +215,7 @@ jobs:
 
       - name: Setup Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        if: ${{ inputs.test-script != 'test-e2e-one-shot-single' }}
         with:
           version: "v3.17.1" # helm version
 
@@ -244,6 +247,7 @@ jobs:
         run: task build
 
       - name: Pull Kind Docker Image
+        if: ${{ inputs.test-script != 'test-e2e-one-shot-single' }}
         run: docker image pull kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
 
       - name: Install Podman
@@ -306,7 +310,7 @@ jobs:
           cd ../solo
 
       - name: Setup E2E Tests
-        if: ${{ !cancelled() && inputs.test-script != 'test-e2e-node-local-ptt' }}
+        if: ${{ !cancelled() && inputs.test-script != 'test-e2e-node-local-ptt' && inputs.test-script != 'test-e2e-one-shot-single' }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 3
@@ -341,6 +345,14 @@ jobs:
           kind load docker-image block-node-server:${TEST_LOCAL_BLOCK_NODE_VERSION} --name ${{ inputs.cluster-name }}-c1
           ${{ env.CG_EXEC }} ./gradlew :block-node-app:createDockerImage
           cd ../solo
+
+      - name: Uninstall Docker (Podman Test Only)
+        if: ${{ inputs.test-script == 'test-e2e-one-shot-single' }}
+        run: |
+               echo "Uninstalling Docker to avoid conflicts with Podman..."
+               dpkg -l | grep -i docker
+          #          sudo apt-get remove -y docker docker-engine docker.io containerd runc || true
+               echo "Docker uninstalled."
 
       - name: Run E2E Tests
         run: |
@@ -379,13 +391,15 @@ jobs:
           cat .env
           
           # Verify cluster connectivity before running tests
-          echo "Verifying cluster connectivity..."
-          kubectl cluster-info || {
-            echo "Error: Cannot connect to cluster"
-            echo "KUBECONFIG: ${KUBECONFIG:-default}"
-            kubectl config get-contexts || true
-            exit 1
-          }
+          if [[ "${{ inputs.test-script }}" != "test-e2e-one-shot-single" ]]; then
+            echo "Verifying cluster connectivity..."
+            kubectl cluster-info || {
+              echo "Error: Cannot connect to cluster"
+              echo "KUBECONFIG: ${KUBECONFIG:-default}"
+              kubectl config get-contexts || true
+              exit 1
+            }
+          fi
           
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
 
@@ -459,5 +473,4 @@ jobs:
         with:
           name: ${{ inputs.coverage-report-name }}
           path: 'coverage/${{ inputs.coverage-subdirectory }}'
-
 
