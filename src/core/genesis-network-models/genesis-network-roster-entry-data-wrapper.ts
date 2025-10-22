@@ -12,7 +12,7 @@ export class GenesisNetworkRosterEntryDataWrapper
     super(nodeId);
   }
 
-  public toObject() {
+  public toObject(): GenesisNetworkRosterStructure {
     return {
       nodeId: this.nodeId,
       gossipEndpoint: this.gossipEndpoint,

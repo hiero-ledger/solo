@@ -36,6 +36,8 @@ import {K8} from '../integration/kube/k8.js';
 import {BLOCK_NODE_IMAGE_NAME} from '../core/constants.js';
 import {Version} from '../business/utils/version.js';
 import {MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT} from '../../version.js';
+import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
+import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -453,8 +455,19 @@ export class BlockNodeCommand extends BaseCommand {
         },
         {
           title: 'Destroy block node',
-          task: async ({config}): Promise<void> => {
-            await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
+          task: async ({config: {namespace, releaseName, context}}): Promise<void> => {
+            await this.chartManager.uninstall(namespace, releaseName, context);
+
+            const podReferences: PodReference[] = await this.k8Factory
+              .getK8(context)
+              .pvcs()
+              .list(namespace, [`app.kubernetes.io/instance=${releaseName}`])
+              .then((pvcs): PvcName[] => pvcs.map((pvc): PvcName => PvcName.of(pvc)))
+              .then((pvcs): PodReference[] => pvcs.map((pvc): PodReference => PvcReference.of(namespace, pvc)));
+
+            for (const podReference of podReferences) {
+              await this.k8Factory.getK8(context).pvcs().delete(podReference);
+            }
           },
           skip: ({config}): boolean => !config.isChartInstalled,
         },

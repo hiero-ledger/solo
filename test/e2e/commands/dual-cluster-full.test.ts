@@ -25,6 +25,7 @@ import {ExplorerTest} from './tests/explorer-test.js';
 import {RelayTest} from './tests/relay-test.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
+import {BlockNodeTest} from './tests/block-node-test.js';
 
 const testName: string = 'dual-cluster-full';
 
@@ -74,12 +75,15 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       DeploymentTest.create(options);
       DeploymentTest.addCluster(options);
       NodeTest.keys(options);
+
+      BlockNodeTest.add(options);
+
       NetworkTest.deploy(options);
       NodeTest.setup(options);
       NodeTest.start(options);
 
-      NodeTest.PemKill(options);
       NodeTest.PemStop(options);
+      NodeTest.PemKill(options);
 
       MirrorNodeTest.add(options);
 
@@ -103,6 +107,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       RelayTest.destroy(options);
       ExplorerTest.destroy(options);
       MirrorNodeTest.destroy(options);
+      BlockNodeTest.destroy(options);
       NetworkTest.destroy(options);
     }).timeout(Duration.ofMinutes(15).toMillis());
   })

@@ -116,12 +116,12 @@ export class NetworkTest extends BaseCommandTest {
     });
 
     it(`${testName}: consensus network destroy should success`, async (): Promise<void> => {
-      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-      const chartManager: ChartManager = container.resolve<ChartManager>(InjectTokens.ChartManager);
-      const {namespace, contexts: contextRecord} = options;
+      const {namespace, contexts: contextRecord, testLogger: logger} = options;
 
-      // convert iterator into array
-      const contexts: string[] = [...contextRecord.values()];
+      const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
+      const chartManager: ChartManager = container.resolve(InjectTokens.ChartManager);
+
+      const contexts: string[] = [...contextRecord.values()]; // get all contexts
 
       async function getPodsCountInMultipleNamespaces(label: string[]): Promise<number> {
         return await Promise.all(
@@ -130,10 +130,11 @@ export class NetworkTest extends BaseCommandTest {
       }
 
       async function waitUntilPodsGone(label: string[]): Promise<void> {
+        logger.showUser(`Waiting for pod ${label} to be gone`);
         while (true) {
           const podsCount: number = await getPodsCountInMultipleNamespaces(label);
           if (podsCount === 0) {
-            return;
+            break;
           }
 
           await sleep(Duration.ofSeconds(3));
@@ -147,13 +148,25 @@ export class NetworkTest extends BaseCommandTest {
 
       expect(isChartInstalled).to.be.false;
 
-      // check if pvc are deleted
-      await expect(k8Factory.getK8(contexts[0]).pvcs().list(namespace, [])).eventually.to.have.lengthOf(0);
-      await expect(k8Factory.getK8(contexts[1]).pvcs().list(namespace, [])).eventually.to.have.lengthOf(0);
+      await expect(
+        k8Factory.getK8(contexts[0]).pvcs().list(namespace, []),
+        'PVCs should be deleted in cluster[0]',
+      ).eventually.to.have.lengthOf(0);
 
-      // check if secrets are deleted
-      await expect(k8Factory.getK8(contexts[0]).secrets().list(namespace)).eventually.to.have.lengthOf(0);
-      await expect(k8Factory.getK8(contexts[1]).secrets().list(namespace)).eventually.to.have.lengthOf(0);
+      await expect(
+        k8Factory.getK8(contexts[1]).pvcs().list(namespace, []),
+        'PVCs should be deleted in cluster[1]',
+      ).eventually.to.have.lengthOf(0);
+
+      await expect(
+        k8Factory.getK8(contexts[0]).secrets().list(namespace),
+        'Secrets should be deleted in cluster[0]',
+      ).eventually.to.have.lengthOf(0);
+
+      await expect(
+        k8Factory.getK8(contexts[1]).secrets().list(namespace),
+        'Secrets should be deleted in cluster[1]',
+      ).eventually.to.have.lengthOf(0);
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 }

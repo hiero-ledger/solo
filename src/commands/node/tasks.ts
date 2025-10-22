@@ -405,7 +405,6 @@ export class NodeCommandTasks {
     const subTasks = nodeAliases.map(nodeAlias => {
       const isDebugNode: boolean = debugNodeAlias === nodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
       const reminder: string = isDebugNode ? 'Please attach JVM debugger now.' : '';
-
       const title: string = `Check network pod: ${chalk.yellow(nodeAlias)} ${chalk.red(reminder)}`;
       const context: string = helpers.extractContextFromConsensusNodes(
         nodeAlias,

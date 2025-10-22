@@ -306,6 +306,10 @@ export class MirrorNodeCommand extends BaseCommand {
 
     const mirrorNodeBlockNodeValues: Record<string, unknown> = {
       importer: {
+        env: {
+          HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST: blockNodeFqdnList[0].host,
+          SPRING_PROFILES_ACTIVE: 'blocknode',
+        },
         config: {
           hiero: {
             mirror: {
