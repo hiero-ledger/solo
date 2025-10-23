@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import pino, {type Logger as PinoLogger, type TransportSingleOptions, type TransportTargetOptions} from 'pino';
+import pino, {type Logger as PinoLogger, type TransportTargetOptions} from 'pino';
 import {mkdirSync} from 'node:fs';
 import {v4 as uuidv4} from 'uuid';
 // eslint-disable-next-line unicorn/import-style

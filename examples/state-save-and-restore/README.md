@@ -176,7 +176,6 @@ The `init.sh` script sets up the PostgreSQL database with:
   * Node ID directories are then automatically renamed to match each target node
 * Database dump includes all mirror node data (transactions, accounts, etc.)
 
-
 ### View Logs
 
 ```bash
