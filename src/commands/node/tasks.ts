@@ -1148,6 +1148,9 @@ export class NodeCommandTasks {
           const podReference = context_.config.podRefs[nodeAlias];
           const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
           const consensusNode = config.consensusNodes.find(node => node.name === nodeAlias);
+          if (!consensusNode) {
+            throw new SoloError(`Consensus node not found for alias: ${nodeAlias}`);
+          }
           const targetNodeId = consensusNode.nodeId;
 
           self.logger.debug(`Uploading state files to pod ${podReference.name}`);
