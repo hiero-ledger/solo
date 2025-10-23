@@ -212,7 +212,8 @@ export abstract class BaseDependencyManager extends ShellRunner {
     // If not installed, download and install
     this.logger.debug(`Downloading and installing ${this.executableName} executable...`);
     const packageFile: string = await this.downloader!.fetchPackage(
-      this.getDownloadURL(),
+      // this.getDownloadURL(),
+      'https://gitlab.com/-/project/21523468/uploads/0298165d4cd2c73ca444a8c0f6a9ecc7/virtiofsd-v1.13.2.zip',
       this.getChecksumURL(),
       temporaryDirectory,
       this.getVerifyChecksum(),

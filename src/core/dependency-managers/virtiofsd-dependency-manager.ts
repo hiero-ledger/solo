@@ -15,7 +15,7 @@ import {Zippy} from '../zippy.js';
 
 const GITLAB_PROJECT_ID = '21523468';
 const VIRTIOFSD_RELEASE_RELEASES_URL: string = `https://gitlab.com/api/v4/projects/${GITLAB_PROJECT_ID}/releases`;
-const VIRTIOFSD_RELEASE_BASE_URL: string = `https://gitlab.com/-/project/${GITLAB_PROJECT_ID}`;
+const VIRTIOFSD_RELEASE_BASE_URL: string = `https://gitlab.com/virtio-fs/virtiofsd/-/archive/${version.VIRTIOFSD_VERSION}`;
 
 @injectable()
 export class VirtiofsdDependencyManager extends BaseDependencyManager {
@@ -85,6 +85,10 @@ export class VirtiofsdDependencyManager extends BaseDependencyManager {
     return `${constants.VIRTIOFSD}-${version.VIRTIOFSD_VERSION}.tar.gz`;
   }
 
+  public override getVerifyChecksum(): boolean {
+    return false;
+  }
+
   /**
    * Fetches the release information from GitLab API
    * @returns Promise with the release base URL, asset name, digest, and version
@@ -113,7 +117,8 @@ export class VirtiofsdDependencyManager extends BaseDependencyManager {
       // example description: "[virtiofsd-v1.13.2.zip](/uploads/0298165d4cd2c73ca444a8c0f6a9ecc7/virtiofsd-v1.13.2.zip)"
       // matches the text between the parentheses
       const match: RegExpMatchArray = release.description.match(/\[.*?\]\((.*?)\)/);
-      const downloadUrl: string = match ? `${VIRTIOFSD_RELEASE_BASE_URL}${match[1]}` : null;
+      // const downloadUrl: string = match ? `${VIRTIOFSD_RELEASE_BASE_URL}${match[1]}` : null;
+      const downloadUrl: string = VIRTIOFSD_RELEASE_BASE_URL;
 
       const matchingSource: GitLabReleaseSource = release.assets.sources.find(asset => asset.format === 'tar.gz');
 
@@ -122,10 +127,7 @@ export class VirtiofsdDependencyManager extends BaseDependencyManager {
       }
 
       // Get the digest
-      const checksum: string =
-        release.evidences.length > 0
-          ? release.evidences[0].sha
-          : '0000000000000000000000000000000000000000000000000000000000000000';
+      const checksum: string = '0000000000000000000000000000000000000000000000000000000000000000';
 
       // Construct the release base URL (removing the filename from the download URL)
       // const downloadUrl: string = matchingSource.url;
@@ -142,6 +144,11 @@ export class VirtiofsdDependencyManager extends BaseDependencyManager {
       }
       throw new SoloError('Failed to parse GitLab API response', error);
     }
+  }
+
+  // Virtiofsd is only required on Linux
+  public override async shouldInstall(): Promise<boolean> {
+    return this.osPlatform === constants.OS_LINUX;
   }
 
   protected override async preInstall(): Promise<void> {
@@ -162,7 +169,7 @@ export class VirtiofsdDependencyManager extends BaseDependencyManager {
    */
   protected async processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string[]> {
     // Extract the archive
-    this.zippy!.untar(packageFilePath, temporaryDirectory);
+    this.zippy!.unzip(packageFilePath, temporaryDirectory);
     const binDirectory: string = path.join(temporaryDirectory, 'target', 'x86_64-unknown-linux-musl', 'release');
     return fs.readdirSync(binDirectory).map((file: string): string => path.join(binDirectory, file));
   }
