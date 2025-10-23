@@ -160,7 +160,7 @@ export class VirtiofsdDependencyManager extends BaseDependencyManager {
   }
 
   protected getDownloadURL(): string {
-    return `${this.releaseBaseUrl}/${this.artifactFileName}`;
+    return 'https://gitlab.com/-/project/21523468/uploads/0298165d4cd2c73ca444a8c0f6a9ecc7/virtiofsd-v1.13.2.zip';
   }
 
   /**
