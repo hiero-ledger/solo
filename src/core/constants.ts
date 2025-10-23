@@ -23,6 +23,7 @@ export const SOLO_HOME_DIR = getEnvironmentVariable('SOLO_HOME') || PathEx.join(
 export const SOLO_LOGS_DIR = PathEx.join(SOLO_HOME_DIR, 'logs');
 export const SOLO_CACHE_DIR = getEnvironmentVariable('SOLO_CACHE_DIR') || PathEx.join(SOLO_HOME_DIR, 'cache');
 export const SOLO_VALUES_DIR = PathEx.join(SOLO_CACHE_DIR, 'values-files');
+export const SOLO_LOG_LEVEL = getEnvironmentVariable('SOLO_LOG_LEVEL') || 'info';
 export const DEFAULT_NAMESPACE = NamespaceName.of('default');
 export const DEFAULT_CERT_MANAGER_NAMESPACE = NamespaceName.of('cert-manager');
 export const HELM = 'helm';
