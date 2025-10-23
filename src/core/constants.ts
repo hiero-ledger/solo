@@ -30,6 +30,7 @@ export const KIND = 'kind';
 export const PODMAN = 'podman';
 export const VFKIT = 'vfkit';
 export const GVPROXY = 'gvproxy';
+export const VIRTIOFSD = 'virtiofsd';
 export const DOCKER = 'docker';
 export const KUBECTL = 'kubectl';
 export const DEFAULT_CLUSTER = 'solo-cluster';

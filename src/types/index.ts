@@ -151,6 +151,33 @@ export interface GitHubRelease {
   assets: GitHubReleaseAsset[];
 }
 
+// GitLab API response interfaces
+export interface GitLabReleaseSource {
+  format: string;
+  url: string;
+}
+
+export interface GitLabReleaseEvidence {
+  sha: string;
+  filepath: string;
+  collected_at: string;
+}
+
+export interface GitLabReleaseAsset {
+  count: number;
+  sources: GitLabReleaseSource[];
+  links: any[];
+}
+
+export interface GitLabRelease {
+  name: string;
+  tag_name: string;
+  tag_path: string;
+  description: string;
+  assets: GitLabReleaseAsset;
+  evidences: GitLabReleaseEvidence[];
+}
+
 export interface ReleaseInfo {
   downloadUrl: string;
   assetName: string;
