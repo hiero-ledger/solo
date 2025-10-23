@@ -48,8 +48,8 @@ tasks:
       - task: "solo:deployment:create"
       - task: "solo:deployment:attach"
       - task: "solo:keys"
-      - task: "solo:network:deploy"
       - task: "solo:block:add"
+      - task: "solo:network:deploy"
 
   destroy:
     deps:
