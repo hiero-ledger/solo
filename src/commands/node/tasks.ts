@@ -1173,8 +1173,9 @@ export class NodeCommandTasks {
           self.logger.info(`Cleaning up old rounds in pod ${podReference.name}, keeping only the latest round`);
           const cleanupScriptName = 'cleanup-state-rounds.sh';
           const cleanupScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
+          await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
           await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
-          await container.execContainer(`chmod +x ${cleanupScriptDestination}`);
+          await container.execContainer(['chmod', '+x', cleanupScriptDestination]);
           await container.execContainer([cleanupScriptDestination, constants.HEDERA_HAPI_PATH]);
 
           // Rename node ID directories to match the target node
@@ -1184,8 +1185,9 @@ export class NodeCommandTasks {
             );
             const renameScriptName = 'rename-state-node-id.sh';
             const renameScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${renameScriptName}`;
+            await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
             await container.copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
-            await container.execContainer(`chmod +x ${renameScriptDestination}`);
+            await container.execContainer(['chmod', '+x', renameScriptDestination]);
             await container.execContainer([
               renameScriptDestination,
               constants.HEDERA_HAPI_PATH,
