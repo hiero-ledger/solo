@@ -310,29 +310,6 @@ export class MirrorNodeCommand extends BaseCommand {
           HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST: blockNodeFqdnList[0].host,
           SPRING_PROFILES_ACTIVE: 'blocknode',
         },
-        config: {
-          hiero: {
-            mirror: {
-              importer: {
-                block: {
-                  enabled: true,
-                  nodes: blockNodeFqdnList,
-                },
-                sourceType: 'BLOCK_NODE',
-                downloader: {
-                  record: {
-                    enabled: false,
-                  },
-                },
-                startDate: '1970-01-01T00:00:00Z',
-                stream: {
-                  maxSubscribeAttempts: 10,
-                  responseTimeout: '10s',
-                },
-              },
-            },
-          },
-        },
       },
     };
 
