@@ -27,11 +27,11 @@ import {type NodeLogsConfigClass} from './config-interfaces/node-logs-config-cla
 import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
 import {type NodeUpdateConfigClass} from './config-interfaces/node-update-config-class.js';
 import {type NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-class.js';
-import {type NodeDownloadGeneratedFilesConfigClass} from './config-interfaces/node-download-generated-files-config-class.js';
+import {type NodeDownloadConfigurationFilesConfigClass} from './config-interfaces/node-download-configuration-files-config-class.js';
 import {type NodePrepareUpgradeConfigClass} from './config-interfaces/node-prepare-upgrade-config-class.js';
 import {type SoloListrTaskWrapper} from '../../types/index.js';
 import {type NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
-import {type NodeDownloadGeneratedFilesContext} from './config-interfaces/node-download-generated-files-context.js';
+import {type NodeDownloadConfigurationFilesContext} from './config-interfaces/node-download-configuration-files-context.js';
 import {type NodeUpdateContext} from './config-interfaces/node-update-context.js';
 import {type NodeDestroyContext} from './config-interfaces/node-destroy-context.js';
 import {type NodeAddContext} from './config-interfaces/node-add-context.js';
@@ -136,11 +136,11 @@ export class NodeCommandConfigs {
     return context_.config;
   }
 
-  public async downloadGeneratedFilesConfigBuilder(
+  public async downloadConfigurationFilesConfigBuilder(
     argv: ArgvStruct,
-    context_: NodeDownloadGeneratedFilesContext,
-    task: SoloListrTaskWrapper<NodeDownloadGeneratedFilesContext>,
-  ): Promise<NodeDownloadGeneratedFilesConfigClass> {
+    context_: NodeDownloadConfigurationFilesContext,
+    task: SoloListrTaskWrapper<NodeDownloadConfigurationFilesContext>,
+  ): Promise<NodeDownloadConfigurationFilesConfigClass> {
     context_.config = this.configManager.getConfig(DOWNLOAD_GENERATED_FILES_CONFIGS_NAME, argv.flags, [
       'allNodeAliases',
       'existingNodeAliases',
@@ -148,7 +148,7 @@ export class NodeCommandConfigs {
       'namespace',
       'consensusNodes',
       'contexts',
-    ]) as NodeDownloadGeneratedFilesConfigClass;
+    ]) as NodeDownloadConfigurationFilesConfigClass;
 
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
     context_.config.existingNodeAliases = [];

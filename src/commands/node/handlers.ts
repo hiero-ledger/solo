@@ -79,7 +79,7 @@ export class NodeCommandHandlers extends CommandHandler {
     return [
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
       this.tasks.stopNodes('existingNodeAliases'),
-      this.tasks.downloadNodeGeneratedFiles(),
+      this.tasks.downloadNodeGeneratedFilesForDynamicAddressBook(),
       this.tasks.prepareStagingDirectory('existingNodeAliases'),
       this.tasks.refreshNodeList(),
       this.tasks.copyNodeKeysToSecrets('refreshedConsensusNodes'),
@@ -135,7 +135,7 @@ export class NodeCommandHandlers extends CommandHandler {
   private addExecuteTasks(): SoloListrTask<NodeAddContext>[] {
     return [
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
-      this.tasks.downloadNodeGeneratedFiles(),
+      this.tasks.downloadNodeGeneratedFilesForDynamicAddressBook(),
       this.tasks.prepareStagingDirectory('allNodeAliases'),
       this.tasks.addNewConsensusNodeToRemoteConfig(),
       this.tasks.copyNodeKeysToSecrets(),
@@ -182,7 +182,7 @@ export class NodeCommandHandlers extends CommandHandler {
   private updateExecuteTasks(): SoloListrTask<NodeUpdateContext>[] {
     return [
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
-      this.tasks.downloadNodeGeneratedFiles(),
+      this.tasks.downloadNodeGeneratedFilesForDynamicAddressBook(),
       this.tasks.prepareStagingDirectory('allNodeAliases'),
       this.tasks.copyNodeKeysToSecrets(),
       this.tasks.getNodeLogsAndConfigs(),
@@ -285,7 +285,10 @@ export class NodeCommandHandlers extends CommandHandler {
     return true;
   }
 
-  public async downloadGeneratedFiles(argv: ArgvStruct): Promise<boolean> {
+  /**
+   * Download configuration files from consensus nodes
+   */
+  public async downloadConfigurationFiles(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DEFAULT_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: null};
 
@@ -295,11 +298,11 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
         this.tasks.initialize(
           argv,
-          this.configs.downloadGeneratedFilesConfigBuilder.bind(this.configs),
+          this.configs.downloadConfigurationFilesConfigBuilder.bind(this.configs),
           leaseWrapper.lease,
         ),
         this.tasks.identifyExistingNodes(),
-        this.tasks.downloadNodeGeneratedFiles(),
+        this.tasks.downloadConsensusNodeConfigFiles(),
       ],
       {
         concurrent: false,

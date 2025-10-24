@@ -113,7 +113,7 @@ import {type NodeFreezeContext} from './config-interfaces/node-freeze-context.js
 import {type NodeStartContext} from './config-interfaces/node-start-context.js';
 import {type NodeRestartContext} from './config-interfaces/node-restart-context.js';
 import {type NodeSetupContext} from './config-interfaces/node-setup-context.js';
-import {type NodeDownloadGeneratedFilesContext} from './config-interfaces/node-download-generated-files-context.js';
+import {type NodeDownloadConfigurationFilesContext} from './config-interfaces/node-download-configuration-files-context.js';
 import {type NodeKeysContext} from './config-interfaces/node-keys-context.js';
 import {type NodeKeysConfigClass} from './config-interfaces/node-keys-config-class.js';
 import {type NodeStartConfigClass} from './config-interfaces/node-start-config-class.js';
@@ -909,9 +909,11 @@ export class NodeCommandTasks {
     };
   }
 
-  /** Download generated config files and key files from the network node */
-  public downloadNodeGeneratedFiles(): SoloListrTask<
-    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeDownloadGeneratedFilesContext
+  /** Download generated config files and key files from the network node,
+   *  This function should only be called when updating or destroying a node
+   * */
+  public downloadNodeGeneratedFilesForDynamicAddressBook(): SoloListrTask<
+    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeDownloadConfigurationFilesContext
   > {
     const self = this;
     return {
@@ -974,6 +976,127 @@ export class NodeCommandTasks {
                 `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`,
                 `${config.stagingDir}/templates`,
               ));
+      },
+    };
+  }
+
+  /** Download consensus node configuration files from HapiApp2.0 directory */
+  public downloadConsensusNodeConfigFiles(): SoloListrTask<
+    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeDownloadConfigurationFilesContext
+  > {
+    const self = this;
+    return {
+      title: 'Download consensus node configuration files',
+      task: async context_ => {
+        const config = context_.config;
+
+        // Download from all existing nodes since each node has different private keys
+        const baseConfigOutputDir = PathEx.join(config.stagingDir, 'node-config');
+        if (!fs.existsSync(baseConfigOutputDir)) {
+          fs.mkdirSync(baseConfigOutputDir, {recursive: true});
+        }
+
+        for (const nodeAlias of config.existingNodeAliases) {
+          self.logger.info(`Downloading configuration files from ${nodeAlias}`);
+
+          const nodeFullyQualifiedPodName = Templates.renderNetworkPodName(nodeAlias);
+          const podReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
+          const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+
+          const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+          const k8 = self.k8Factory.getK8(context);
+
+          // Create output directories for this specific node
+          const nodeConfigOutputDir = PathEx.join(baseConfigOutputDir, nodeAlias.toString());
+          const keysOutputDir = PathEx.join(nodeConfigOutputDir, 'keys');
+          const dataConfigOutputDir = PathEx.join(nodeConfigOutputDir, 'config');
+          const onboardOutputDir = PathEx.join(nodeConfigOutputDir, 'onboard');
+
+          if (!fs.existsSync(nodeConfigOutputDir)) {
+            fs.mkdirSync(nodeConfigOutputDir, {recursive: true});
+          }
+          if (!fs.existsSync(keysOutputDir)) {
+            fs.mkdirSync(keysOutputDir, {recursive: true});
+          }
+          if (!fs.existsSync(dataConfigOutputDir)) {
+            fs.mkdirSync(dataConfigOutputDir, {recursive: true});
+          }
+          if (!fs.existsSync(onboardOutputDir)) {
+            fs.mkdirSync(onboardOutputDir, {recursive: true});
+          }
+
+          // Download hedera.key if it exists
+          const hederaKeyPath = `${constants.HEDERA_HAPI_PATH}/hedera.key`;
+          if (await k8.containers().readByRef(containerReference).hasFile(hederaKeyPath)) {
+            await k8.containers().readByRef(containerReference).copyFrom(hederaKeyPath, nodeConfigOutputDir);
+            self.logger.debug(`Downloaded hedera.key for ${nodeAlias}`);
+          }
+
+          // Download hedera.crt if it exists
+          const hederaCrtPath = `${constants.HEDERA_HAPI_PATH}/hedera.crt`;
+          if (await k8.containers().readByRef(containerReference).hasFile(hederaCrtPath)) {
+            await k8.containers().readByRef(containerReference).copyFrom(hederaCrtPath, nodeConfigOutputDir);
+            self.logger.debug(`Downloaded hedera.crt for ${nodeAlias}`);
+          }
+
+          // Download data/keys/* files
+          const dataKeysDir = `${constants.HEDERA_HAPI_PATH}/data/keys`;
+          if (await k8.containers().readByRef(containerReference).hasDir(dataKeysDir)) {
+            const keyFiles = await k8.containers().readByRef(containerReference).listDir(dataKeysDir);
+            for (const keyFile of keyFiles) {
+              if (keyFile.name !== '.' && keyFile.name !== '..') {
+                await k8
+                  .containers()
+                  .readByRef(containerReference)
+                  .copyFrom(`${dataKeysDir}/${keyFile.name}`, keysOutputDir);
+                self.logger.debug(`Downloaded ${keyFile.name} for ${nodeAlias}`);
+              }
+            }
+            self.logger.info(`Downloaded ${keyFiles.length} files from data/keys for ${nodeAlias}`);
+          }
+
+          // Download data/config/* files
+          const dataConfigDir = `${constants.HEDERA_HAPI_PATH}/data/config`;
+          if (await k8.containers().readByRef(containerReference).hasDir(dataConfigDir)) {
+            const configFiles = await k8.containers().readByRef(containerReference).listDir(dataConfigDir);
+            for (const configFile of configFiles) {
+              // skip hidden files or directories
+              if (configFile.name.startsWith('.') || configFile.name.startsWith('..')) {
+                continue;
+              }
+              if (configFile.name !== '.' && configFile.name !== '..') {
+                await k8
+                  .containers()
+                  .readByRef(containerReference)
+                  .copyFrom(`${dataConfigDir}/${configFile.name}`, dataConfigOutputDir);
+                self.logger.debug(`Downloaded ${configFile.name} for ${nodeAlias}`);
+              }
+            }
+            self.logger.info(`Downloaded ${configFiles.length} files from data/config for ${nodeAlias}`);
+          }
+
+          // Download data/onboard/* files
+          const dataOnboardDir = `${constants.HEDERA_HAPI_PATH}/data/onboard`;
+          if (await k8.containers().readByRef(containerReference).hasDir(dataOnboardDir)) {
+            const onboardFiles = await k8.containers().readByRef(containerReference).listDir(dataOnboardDir);
+            for (const onboardFile of onboardFiles) {
+              if (onboardFile.name !== '.' && onboardFile.name !== '..') {
+                await k8
+                  .containers()
+                  .readByRef(containerReference)
+                  .copyFrom(`${dataOnboardDir}/${onboardFile.name}`, onboardOutputDir);
+                self.logger.debug(`Downloaded ${onboardFile.name} for ${nodeAlias}`);
+              }
+            }
+            self.logger.info(`Downloaded ${onboardFiles.length} files from data/onboard for ${nodeAlias}`);
+          }
+
+          self.logger.info(`Configuration files for ${nodeAlias} downloaded to ${nodeConfigOutputDir}`);
+        }
+
+        self.logger.showUser(
+          `Consensus node configuration files for all nodes downloaded to ${baseConfigOutputDir}`,
+        );
       },
     };
   }

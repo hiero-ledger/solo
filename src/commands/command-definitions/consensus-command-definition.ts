@@ -263,7 +263,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 ConsensusCommandDefinition.DIAGNOSTIC_CONFIGS,
                 'Collects configuration files from consensus nodes.',
                 this.nodeCommand.handlers,
-                this.nodeCommand.handlers.downloadGeneratedFiles,
+                this.nodeCommand.handlers.downloadConfigurationFiles,
                 NodeFlags.DEFAULT_FLAGS,
               ),
             )
