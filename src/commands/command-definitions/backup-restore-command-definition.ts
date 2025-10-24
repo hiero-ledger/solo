@@ -42,7 +42,10 @@ export class BackupRestoreCommandDefinition extends BaseCommandDefinition {
       this.logger,
     )
       .addCommandGroup(
-        new CommandGroup(BackupRestoreCommandDefinition.SUBCOMMAND_NAME, BackupRestoreCommandDefinition.SUBCOMMAND_DESCRIPTION)
+        new CommandGroup(
+          BackupRestoreCommandDefinition.SUBCOMMAND_NAME,
+          BackupRestoreCommandDefinition.SUBCOMMAND_DESCRIPTION,
+        )
           .addSubcommand(
             new Subcommand(
               BackupRestoreCommandDefinition.BACKUP_COMMAND,
