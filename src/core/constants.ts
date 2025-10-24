@@ -35,6 +35,8 @@ export const KUBECTL = 'kubectl';
 export const DEFAULT_CLUSTER = 'solo-cluster';
 export const RESOURCES_DIR = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
 
+export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
+
 export const ROOT_CONTAINER = ContainerName.of('root-container');
 export const SOLO_REMOTE_CONFIGMAP_NAME = 'solo-remote-config';
 export const SOLO_REMOTE_CONFIGMAP_LABELS = {'solo.hedera.com/type': 'remote-config'};
