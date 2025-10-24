@@ -1156,31 +1156,63 @@ export class NodeCommandTasks {
 
         const zipFile = config.stateFile;
         self.logger.debug(`zip file: ${zipFile}`);
+
+        // Get the source node ID from the first consensus node (the state file's original node)
+        const sourceNodeId = config.consensusNodes[0].nodeId;
+
         for (const nodeAlias of context_.config.nodeAliases) {
           const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
           const k8 = this.k8Factory.getK8(context);
           const podReference = context_.config.podRefs[nodeAlias];
           const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+          const consensusNode = config.consensusNodes.find(node => node.name === nodeAlias);
+          if (!consensusNode) {
+            throw new SoloError(`Consensus node not found for alias: ${nodeAlias}`);
+          }
+          const targetNodeId = consensusNode.nodeId;
+          const container = await k8.containers().readByRef(containerReference);
+
           self.logger.debug(`Uploading state files to pod ${podReference.name}`);
-          await k8.containers().readByRef(containerReference).copyTo(zipFile, `${constants.HEDERA_HAPI_PATH}/data`);
+          await container.copyTo(zipFile, `${constants.HEDERA_HAPI_PATH}/data`);
 
           self.logger.info(
             `Deleting the previous state files in pod ${podReference.name} directory ${constants.HEDERA_HAPI_PATH}/data/saved`,
           );
-          await k8
-            .containers()
-            .readByRef(containerReference)
-            .execContainer(['rm', '-rf', `${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
-          await k8
-            .containers()
-            .readByRef(containerReference)
-            .execContainer([
-              'tar',
-              '-xvf',
-              `${constants.HEDERA_HAPI_PATH}/data/${path.basename(zipFile)}`,
-              '-C',
-              `${constants.HEDERA_HAPI_PATH}/data/saved`,
+          await container.execContainer(['rm', '-rf', `${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
+          await container.execContainer([
+            'tar',
+            '-xvf',
+            `${constants.HEDERA_HAPI_PATH}/data/${path.basename(zipFile)}`,
+            '-C',
+            `${constants.HEDERA_HAPI_PATH}/data/saved`,
+          ]);
+
+          // Clean up old rounds - keep only the latest/biggest round
+          self.logger.info(`Cleaning up old rounds in pod ${podReference.name}, keeping only the latest round`);
+          const cleanupScriptName = 'cleanup-state-rounds.sh';
+          const cleanupScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
+          await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
+          await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
+          await container.execContainer(['chmod', '+x', cleanupScriptDestination]);
+          await container.execContainer([cleanupScriptDestination, constants.HEDERA_HAPI_PATH]);
+
+          // Rename node ID directories to match the target node
+          if (sourceNodeId !== targetNodeId) {
+            self.logger.info(
+              `Renaming node ID directories in pod ${podReference.name} from ${sourceNodeId} to ${targetNodeId}`,
+            );
+            const renameScriptName = 'rename-state-node-id.sh';
+            const renameScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${renameScriptName}`;
+            await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
+            await container.copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
+            await container.execContainer(['chmod', '+x', renameScriptDestination]);
+            await container.execContainer([
+              renameScriptDestination,
+              constants.HEDERA_HAPI_PATH,
+              sourceNodeId.toString(),
+              targetNodeId.toString(),
             ]);
+          }
         }
       },
       skip,

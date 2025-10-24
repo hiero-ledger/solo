@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import pino, {type Logger as PinoLogger, type TransportSingleOptions} from 'pino';
+import pino, {type Logger as PinoLogger, type TransportTargetOptions} from 'pino';
 import {mkdirSync} from 'node:fs';
 import {v4 as uuidv4} from 'uuid';
 // eslint-disable-next-line unicorn/import-style
@@ -51,13 +51,15 @@ export class SoloPinoLogger implements SoloLogger {
     }
 
     // Configure dual outputs: NDJSON (machine) + pretty (human)
-    const ndjsonTarget: TransportSingleOptions = {
+    const ndjsonTarget: TransportTargetOptions = {
       target: 'pino/file',
+      level: logLevel,
       options: {destination: PathEx.join(logsDirectory, 'solo.ndjson')},
     };
 
-    const prettyTarget: TransportSingleOptions = {
+    const prettyTarget: TransportTargetOptions = {
       target: 'pino-pretty',
+      level: logLevel,
       options: {
         destination: PathEx.join(logsDirectory, 'solo.log'), // write formatted logs to <logsDirectory>/solo.log
         translateTime: 'HH:MM:ss.l', // prepend timestamp as [HH:MM:ss.ms]
