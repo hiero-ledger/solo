@@ -13,6 +13,7 @@
 | [node-delete-transaction](./node-delete-transaction/)     | Manually write a NodeDeleteTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands. |
 | [node-update-transaction](./node-update-transaction/)     | Manually write a NodeUpdateTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands. |
 | [running-solo-inside-cluster](./running-solo-inside-cluster/) | Example showing how to run Solo inside a Kubernetes cluster                                                         |
+| [state-save-and-restore](./state-save-and-restore/)       | Save network state, recreate network, and restore state with mirror node (with optional external database)         |
 
 ## Prerequisites
 
