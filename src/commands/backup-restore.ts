@@ -14,7 +14,6 @@ import {type Secret} from '../integration/kube/resources/secret/secret.js';
 import {type K8} from '../integration/kube/k8.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {SoloError} from '../core/errors/solo-error.js';
-import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {type Context} from '../types/index.js';
 
 @injectable()
@@ -38,91 +37,105 @@ export class BackupRestoreCommand extends BaseCommand {
   };
 
   /**
-   * Generic export function for Kubernetes resources
+   * Generic export function for Kubernetes resources from multiple clusters
    * @param outputDirectory - directory to export resources to
    * @param resourceType - type of resource ('configmaps' or 'secrets')
-   * @returns number of resources exported
+   * @returns total number of resources exported across all clusters
    */
   private async exportResources(outputDirectory: string, resourceType: 'configmaps' | 'secrets'): Promise<number> {
     try {
-      // Load local config to get cluster reference and namespace
-      await this.localConfig.load();
+      const namespace: NamespaceName = this.remoteConfig.getNamespace();
+      const contexts: Context[] = this.remoteConfig.getContexts();
 
-      // Get namespace from deployment configuration
-      const namespace: NamespaceName = await resolveNamespaceFromDeployment(this.localConfig, this.configManager);
+      this.logger.showUser(
+        chalk.cyan(`\nExporting ${resourceType} from namespace: ${namespace.toString()} across ${contexts.length} cluster(s)`),
+      );
 
-      // Get cluster context from current kubernetes config
-      const context: Context = this.k8Factory.default().contexts().readCurrent();
-      const k8: K8 = this.k8Factory.getK8(context);
+      let totalExportedCount: number = 0;
 
-      // Create output directory if it doesn't exist
-      const resourceDirectory: string = path.join(outputDirectory, resourceType);
-      if (!fs.existsSync(resourceDirectory)) {
-        fs.mkdirSync(resourceDirectory, {recursive: true});
-      }
+      // Iterate through each cluster context
+      for (const context of contexts) {
+        this.logger.showUser(chalk.cyan(`\n  Processing cluster context: ${context}`));
 
-      this.logger.showUser(chalk.cyan(`\nExporting ${resourceType} from namespace: ${namespace.toString()}`));
+        const k8: K8 = this.k8Factory.getK8(context);
 
-      // Fetch resources based on type
-      let resources: (ConfigMap | Secret)[];
-      let totalCount: number;
-
-      if (resourceType === 'configmaps') {
-        resources = await k8.configMaps().list(namespace, []);
-        totalCount = resources.length;
-      } else {
-        // For secrets, filter to only include Opaque type
-        const allSecrets: Secret[] = await k8.secrets().list(namespace, []);
-        resources = allSecrets.filter((secret): boolean => secret.type === 'Opaque');
-        totalCount = allSecrets.length;
-      }
-
-      if (resources.length === 0) {
-        const message: string =
-          resourceType === 'secrets'
-            ? '  No Opaque secrets found in namespace'
-            : `  No ${resourceType} found in namespace`;
-        this.logger.showUser(chalk.yellow(message));
-        return 0;
-      }
-
-      const countMessage: string =
-        resourceType === 'secrets' && totalCount !== resources.length
-          ? `  Found ${resources.length} Opaque secret(s) (filtered from ${totalCount} total)`
-          : `  Found ${resources.length} ${resourceType}`;
-      this.logger.showUser(chalk.white(countMessage));
-
-      // Export each resource as YAML
-      for (const resource of resources) {
-        const fileName: string = `${resource.name}.yaml`;
-        const filePath: string = path.join(resourceDirectory, fileName);
-
-        // Create a Kubernetes-compatible resource object
-        const k8sResource: Record<string, unknown> = {
-          apiVersion: 'v1',
-          kind: resourceType === 'configmaps' ? 'ConfigMap' : 'Secret',
-          metadata: {
-            name: resource.name,
-            namespace: resource.namespace.toString(),
-            labels: resource.labels || {},
-          },
-          data: resource.data || {},
-        };
-
-        // Add type field for secrets
-        if (resourceType === 'secrets') {
-          k8sResource.type = (resource as Secret).type || 'Opaque';
+        // Create output directory for this context
+        const contextDirectory: string = path.join(outputDirectory, context, resourceType);
+        if (!fs.existsSync(contextDirectory)) {
+          fs.mkdirSync(contextDirectory, {recursive: true});
         }
 
-        // Convert to YAML and write to file
-        const yamlContent: string = yaml.stringify(k8sResource, {sortMapEntries: true});
-        fs.writeFileSync(filePath, yamlContent, 'utf8');
+        // Fetch resources based on type
+        let resources: (ConfigMap | Secret)[];
+        let totalCount: number;
 
-        this.logger.showUser(chalk.gray(`  ✓ Exported: ${fileName}`));
+        if (resourceType === 'configmaps') {
+          resources = await k8.configMaps().list(namespace, []);
+          totalCount = resources.length;
+        } else {
+          // For secrets, filter to only include Opaque type
+          const allSecrets: Secret[] = await k8.secrets().list(namespace, []);
+          resources = allSecrets.filter((secret): boolean => secret.type === 'Opaque');
+          totalCount = allSecrets.length;
+        }
+
+        if (resources.length === 0) {
+          const message: string =
+            resourceType === 'secrets'
+              ? '    No Opaque secrets found in this cluster'
+              : `    No ${resourceType} found in this cluster`;
+          this.logger.showUser(chalk.yellow(message));
+          continue;
+        }
+
+        const countMessage: string =
+          resourceType === 'secrets' && totalCount !== resources.length
+            ? `    Found ${resources.length} Opaque secret(s) (filtered from ${totalCount} total)`
+            : `    Found ${resources.length} ${resourceType}`;
+        this.logger.showUser(chalk.white(countMessage));
+
+        // Export each resource as YAML
+        for (const resource of resources) {
+          const fileName: string = `${resource.name}.yaml`;
+          const filePath: string = path.join(contextDirectory, fileName);
+
+          // Create a Kubernetes-compatible resource object
+          const k8sResource: Record<string, unknown> = {
+            apiVersion: 'v1',
+            kind: resourceType === 'configmaps' ? 'ConfigMap' : 'Secret',
+            metadata: {
+              name: resource.name,
+              namespace: resource.namespace.toString(),
+              labels: resource.labels || {},
+              annotations: {
+                'solo.hedera.com/cluster-context': context,
+              },
+            },
+            data: resource.data || {},
+          };
+
+          // Add type field for secrets
+          if (resourceType === 'secrets') {
+            k8sResource.type = (resource as Secret).type || 'Opaque';
+          }
+
+          // Convert to YAML and write to file
+          const yamlContent: string = yaml.stringify(k8sResource, {sortMapEntries: true});
+          fs.writeFileSync(filePath, yamlContent, 'utf8');
+
+          this.logger.showUser(chalk.gray(`    ✓ Exported: ${fileName}`));
+        }
+
+        this.logger.showUser(chalk.green(`  ✓ Exported ${resources.length} ${resourceType} from context: ${context}`));
+        totalExportedCount += resources.length;
       }
 
-      this.logger.showUser(chalk.green(`✓ Exported ${resources.length} ${resourceType} to ${resourceDirectory}`));
-      return resources.length;
+      this.logger.showUser(
+        chalk.green(
+          `\n✓ Total exported: ${totalExportedCount} ${resourceType} from ${contexts.length} cluster(s) to ${outputDirectory}/${resourceType}/`,
+        ),
+      );
+      return totalExportedCount;
     } catch (error) {
       throw new SoloError(`Failed to export ${resourceType}: ${error.message}`, error);
     }
@@ -150,9 +163,12 @@ export class BackupRestoreCommand extends BaseCommand {
    * Backup all component configurations
    */
   public async backup(argv: ArgvStruct): Promise<boolean> {
+    // Load configurations
+    await this.localConfig.load();
+    await this.remoteConfig.loadAndValidate(argv);
+
     this.configManager.update(argv);
 
-    const deployment: string = this.configManager.getFlag<string>(flags.deployment);
     const outputDirectory: string = this.configManager.getFlag<string>(flags.outputDir) || './solo-backup';
     const quiet: boolean = this.configManager.getFlag<boolean>(flags.quiet);
 
@@ -161,8 +177,6 @@ export class BackupRestoreCommand extends BaseCommand {
       this.logger.showUser(chalk.cyan.bold('Backup Command'));
       this.logger.showUser(chalk.cyan('='.repeat(80)));
       this.logger.showUser('');
-      this.logger.showUser(chalk.yellow('This command would backup all component configurations for deployment:'));
-      this.logger.showUser(chalk.white(`  Deployment: ${chalk.green(deployment)}`));
       this.logger.showUser(chalk.white(`  Output Directory: ${chalk.green(outputDirectory)}`));
       this.logger.showUser('');
       this.logger.showUser(chalk.yellow('Components to backup:'));
@@ -177,14 +191,6 @@ export class BackupRestoreCommand extends BaseCommand {
       this.logger.showUser('');
       this.logger.showUser(chalk.blue.bold('Example implementation would execute:'));
       this.logger.showUser(chalk.gray(`  mkdir -p ${outputDirectory}`));
-      this.logger.showUser(
-        chalk.gray(`  solo deployment config export --deployment ${deployment} > ${outputDirectory}/local-config.json`),
-      );
-      this.logger.showUser(
-        chalk.gray(
-          `  kubectl get configmap --namespace solo-${deployment} -o yaml > ${outputDirectory}/k8s-configs.yaml`,
-        ),
-      );
       this.logger.showUser(chalk.gray('  # Copy keys, certificates, and state files...'));
       this.logger.showUser('');
       this.logger.showUser(chalk.green('✓ Backup command structure validated'));
@@ -216,7 +222,6 @@ export class BackupRestoreCommand extends BaseCommand {
   public async restore(argv: ArgvStruct): Promise<boolean> {
     this.configManager.update(argv);
 
-    const deployment: string = this.configManager.getFlag<string>(flags.deployment);
     const inputDirectory: string = this.configManager.getFlag<string>(flags.inputDir) || './solo-backup';
     const quiet: boolean = this.configManager.getFlag<boolean>(flags.quiet);
 
@@ -225,8 +230,6 @@ export class BackupRestoreCommand extends BaseCommand {
       this.logger.showUser(chalk.cyan.bold('Restore Command'));
       this.logger.showUser(chalk.cyan('='.repeat(80)));
       this.logger.showUser('');
-      this.logger.showUser(chalk.yellow('This command would restore all component configurations for deployment:'));
-      this.logger.showUser(chalk.white(`  Deployment: ${chalk.green(deployment)}`));
       this.logger.showUser(chalk.white(`  Input Directory: ${chalk.green(inputDirectory)}`));
       this.logger.showUser('');
       this.logger.showUser(chalk.yellow('Components to restore:'));
@@ -240,10 +243,6 @@ export class BackupRestoreCommand extends BaseCommand {
       this.logger.showUser(chalk.white('  • Network keys and certificates'));
       this.logger.showUser('');
       this.logger.showUser(chalk.blue.bold('Example implementation would execute:'));
-      this.logger.showUser(chalk.gray(`  solo deployment config import --file ${inputDirectory}/local-config.json`));
-      this.logger.showUser(
-        chalk.gray(`  kubectl apply -f ${inputDirectory}/k8s-configs.yaml --namespace solo-${deployment}`),
-      );
       this.logger.showUser(chalk.gray('  # Restore keys, certificates, and state files...'));
       this.logger.showUser('');
       this.logger.showUser(chalk.green('✓ Restore command structure validated'));
