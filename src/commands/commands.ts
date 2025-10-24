@@ -16,6 +16,7 @@ import {ExplorerCommandDefinition} from './command-definitions/explorer-command-
 import {DeploymentCommandDefinition} from './command-definitions/deployment-command-definition.js';
 import {RelayCommandDefinition} from './command-definitions/relay-command-definition.js';
 import {RapidFireCommandDefinition} from './command-definitions/rapid-fire-command-definition.js';
+import {BackupRestoreCommandDefinition} from './command-definitions/backup-restore-command-definition.js';
 
 /**
  * Return a list of Yargs command builder to be exposed through CLI
@@ -25,6 +26,8 @@ import {RapidFireCommandDefinition} from './command-definitions/rapid-fire-comma
 export class Commands {
   public constructor(
     @inject(InjectTokens.InitCommand) private readonly init?: InitCommand,
+    @inject(InjectTokens.BackupRestoreCommandDefinition)
+    private readonly backupRestore?: BackupRestoreCommandDefinition,
     @inject(InjectTokens.BlockCommandDefinition) private readonly block?: BlockCommandDefinition,
     @inject(InjectTokens.ClusterReferenceCommandDefinition)
     private readonly cluster?: ClusterReferenceCommandDefinition,
@@ -39,6 +42,7 @@ export class Commands {
     @inject(InjectTokens.RapidFireCommandDefinition) private readonly rapidFire?: RapidFireCommandDefinition,
   ) {
     this.init = patchInject(init, InjectTokens.InitCommand, this.constructor.name);
+    this.backupRestore = patchInject(backupRestore, InjectTokens.BackupRestoreCommandDefinition, this.constructor.name);
     this.block = patchInject(block, InjectTokens.BlockCommandDefinition, this.constructor.name);
     this.cluster = patchInject(cluster, InjectTokens.ClusterReferenceCommandDefinition, this.constructor.name);
     this.consensus = patchInject(consensus, InjectTokens.ConsensusCommandDefinition, this.constructor.name);
@@ -54,6 +58,7 @@ export class Commands {
   public getCommandDefinitions(): CommandDefinition[] {
     return [
       this.init.getCommandDefinition(),
+      this.backupRestore.getCommandDefinition(),
       this.block.getCommandDefinition(),
       this.cluster.getCommandDefinition(),
       this.consensus.getCommandDefinition(),
