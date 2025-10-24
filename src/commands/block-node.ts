@@ -400,6 +400,10 @@ export class BlockNodeCommand extends BaseCommand {
       } finally {
         await lease?.release();
       }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease?.release();
+      });
     }
 
     return true;
@@ -482,6 +486,10 @@ export class BlockNodeCommand extends BaseCommand {
       } finally {
         await lease?.release();
       }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease?.release();
+      });
     }
 
     return true;
@@ -605,6 +613,10 @@ export class BlockNodeCommand extends BaseCommand {
       } finally {
         await lease?.release();
       }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease?.release();
+      });
     }
 
     return true;
