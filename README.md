@@ -58,9 +58,9 @@ nvm use v20.18.0
 ```
 
 * Useful tools:
-    * Install [kubectl](https://kubernetes.io/docs/tasks/tools/)
-    * Install [k9s](https://k9scli.io/)
-    * Install [kind](https://kind.sigs.k8s.io/)
+  * Install [kubectl](https://kubernetes.io/docs/tasks/tools/)
+  * Install [k9s](https://k9scli.io/)
+  * Install [kind](https://kind.sigs.k8s.io/)
 
 ## Install Solo
 
