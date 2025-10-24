@@ -55,8 +55,8 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
     let platformVersion: SemVer.SemVer;
 
     before(async (): Promise<void> => {
-      blockNodeCommand = container.resolve<BlockNodeCommand>(InjectTokens.BlockNodeCommand);
-      platformVersion = new SemVer.SemVer(argv.getArg<string>(flags.releaseTag));
+      blockNodeCommand = container.resolve(InjectTokens.BlockNodeCommand);
+      platformVersion = new SemVer.SemVer(argv.getArg(flags.releaseTag));
       if (
         SemVer.lt(
           platformVersion,

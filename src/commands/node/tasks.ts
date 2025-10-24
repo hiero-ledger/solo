@@ -13,6 +13,7 @@ import * as constants from '../../core/constants.js';
 import {DEFAULT_NETWORK_NODE_NAME, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
+  AccountBalance,
   AccountBalanceQuery,
   AccountId,
   AccountUpdateTransaction,
@@ -42,6 +43,7 @@ import * as helpers from '../../core/helpers.js';
 import {
   addDebugOptions,
   entityId,
+  extractContextFromConsensusNodes,
   prepareEndpoints,
   renameAndCopyFile,
   showVersionBanner,
@@ -78,6 +80,7 @@ import {ContainerReference} from '../../integration/kube/resources/container/con
 import {NetworkNodes} from '../../core/network-nodes.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import {
+  type AccountIdWithKeyPairObject,
   type ClusterReferenceName,
   type ClusterReferences,
   type ComponentId,
@@ -392,7 +395,7 @@ export class NodeCommandTasks {
     context_: AnyListrContext,
     task: SoloListrTaskWrapper<AnyListrContext>,
     nodeAliases: NodeAliases,
-    status = NodeStatusCodes.ACTIVE,
+    status: NodeStatusCodes = NodeStatusCodes.ACTIVE,
   ): SoloListr<AnyListrContext> {
     const {
       config: {namespace},
@@ -405,29 +408,34 @@ export class NodeCommandTasks {
       const isDebugNode: boolean = debugNodeAlias === nodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
       const reminder: string = isDebugNode ? 'Please attach JVM debugger now.' : '';
       const title: string = `Check network pod: ${chalk.yellow(nodeAlias)} ${chalk.red(reminder)}`;
-      const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+      const context: string = helpers.extractContextFromConsensusNodes(
+        nodeAlias,
+        this.remoteConfig.getConsensusNodes(),
+      );
 
-      const subTask = async (context_: AnyListrContext, task: SoloListrTaskWrapper<AnyListrContext>) => {
-        if (enableDebugger && isDebugNode) {
-          await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
-            message: `JVM debugger setup for ${nodeAlias}. Continue when debugging is complete?`,
-            default: false,
-          });
-        }
-        context_.config.podRefs[nodeAlias] = await this._checkNetworkNodeActiveness(
-          namespace,
-          nodeAlias,
-          task,
-          title,
-          status,
-          undefined,
-          undefined,
-          undefined,
-          context,
-        );
+      return {
+        title,
+        task: async (context_: AnyListrContext, task: SoloListrTaskWrapper<AnyListrContext>): Promise<void> => {
+          if (enableDebugger && isDebugNode) {
+            await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
+              message: `JVM debugger setup for ${nodeAlias}. Continue when debugging is complete?`,
+              default: false,
+            });
+          }
+
+          context_.config.podRefs[nodeAlias] = await this._checkNetworkNodeActiveness(
+            namespace,
+            nodeAlias,
+            task,
+            title,
+            status,
+            undefined,
+            undefined,
+            undefined,
+            context,
+          );
+        },
       };
-
-      return {title, task: subTask};
     });
 
     return task.newListr(subTasks, {
@@ -443,35 +451,34 @@ export class NodeCommandTasks {
     nodeAlias: NodeAlias,
     task: SoloListrTaskWrapper<AnyListrContext>,
     title: string,
-    status = NodeStatusCodes.ACTIVE,
+    status: NodeStatusCodes = NodeStatusCodes.ACTIVE,
     maxAttempts: number = constants.NETWORK_NODE_ACTIVE_MAX_ATTEMPTS,
     delay: number = constants.NETWORK_NODE_ACTIVE_DELAY,
     timeout: number = constants.NETWORK_NODE_ACTIVE_TIMEOUT,
     context?: string,
   ): Promise<PodReference> {
-    const podName = Templates.renderNetworkPodName(nodeAlias);
-    const podReference = PodReference.of(namespace, podName);
+    const podName: PodName = Templates.renderNetworkPodName(nodeAlias);
+    const podReference: PodReference = PodReference.of(namespace, podName);
     task.title = `${title} - status ${chalk.yellow('STARTING')}, attempt ${chalk.blueBright(`0/${maxAttempts}`)}`;
 
-    const consensusNodes = this.remoteConfig.getConsensusNodes();
-    if (!context) {
+    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
+
+    if (typeof context !== 'string' || context.trim().length === 0) {
       context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
     }
 
-    let attempt = 0;
-    let success = false;
+    let attempt: number = 0;
+    let success: boolean = false;
     while (attempt < maxAttempts) {
-      const controller = new AbortController();
+      const controller: AbortController = new AbortController();
 
-      const timeoutId = setTimeout(() => {
+      const timeoutId: NodeJS.Timeout = setTimeout((): void => {
         task.title = `${title} - status ${chalk.yellow('TIMEOUT')}, attempt ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
         controller.abort();
       }, timeout);
 
       try {
-        const response: string = await container
-          .resolve<NetworkNodes>(NetworkNodes)
-          .getNetworkNodePodStatus(podReference, context);
+        const response: string = await container.resolve(NetworkNodes).getNetworkNodePodStatus(podReference, context);
 
         if (!response) {
           task.title = `${title} - status ${chalk.yellow('UNKNOWN')}, attempt ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
@@ -479,7 +486,9 @@ export class NodeCommandTasks {
           throw new SoloError('empty response'); // Guard
         }
 
-        const statusLine = response.split('\n').find(line => line.startsWith('platform_PlatformStatus'));
+        const statusLine: string = response
+          .split('\n')
+          .find((line): boolean => line.startsWith('platform_PlatformStatus'));
 
         if (!statusLine) {
           task.title = `${title} - status ${chalk.yellow('STARTING')}, attempt: ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
@@ -487,7 +496,7 @@ export class NodeCommandTasks {
           throw new SoloError('missing status line'); // Guard
         }
 
-        const statusNumber = Number.parseInt(statusLine.split(' ').pop());
+        const statusNumber: number = Number.parseInt(statusLine.split(' ').pop());
 
         if (statusNumber === status) {
           task.title = `${title} - status ${chalk.green(NodeStatusEnums[status])}, attempt: ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
@@ -636,7 +645,7 @@ export class NodeCommandTasks {
     stakeAmount: number = HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
   ): Promise<void> {
     try {
-      const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+      const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
       await this.accountManager.loadNodeClient(
         namespace,
         this.remoteConfig.getClusterRefs(),
@@ -644,40 +653,43 @@ export class NodeCommandTasks {
         this.configManager.getFlag<boolean>(flags.forcePortForward),
       );
       const client = this.accountManager._nodeClient;
-      const treasuryKey = await this.accountManager.getTreasuryAccountKeys(namespace, deploymentName);
-      const treasuryPrivateKey = PrivateKey.fromStringED25519(treasuryKey.privateKey);
+      const treasuryKey: AccountIdWithKeyPairObject = await this.accountManager.getTreasuryAccountKeys(
+        namespace,
+        deploymentName,
+      );
+
+      const treasuryPrivateKey: PrivateKey = PrivateKey.fromStringED25519(treasuryKey.privateKey);
       const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deploymentName);
       client.setOperator(treasuryAccountId, treasuryPrivateKey);
 
       // check balance
-      const treasuryBalance = await new AccountBalanceQuery().setAccountId(treasuryAccountId).execute(client);
+      const treasuryBalance: AccountBalance = await new AccountBalanceQuery()
+        .setAccountId(treasuryAccountId)
+        .execute(client);
+
       this.logger.debug(`Account ${treasuryAccountId} balance: ${treasuryBalance.hbars}`);
 
       // get some initial balance
       await this.accountManager.transferAmount(treasuryAccountId, accountId, stakeAmount);
 
       // check balance
-      const balance = await new AccountBalanceQuery().setAccountId(accountId).execute(client);
+      const balance: AccountBalance = await new AccountBalanceQuery().setAccountId(accountId).execute(client);
       this.logger.debug(`Account ${accountId} balance: ${balance.hbars}`);
 
       // Create the transaction
-      const transaction = new AccountUpdateTransaction()
+      const transaction: AccountUpdateTransaction = new AccountUpdateTransaction()
         .setAccountId(accountId)
         .setStakedNodeId(Templates.nodeIdFromNodeAlias(nodeAlias))
         .freezeWith(client);
 
       // Sign the transaction with the account's private key
-      const signTx = await transaction.sign(treasuryPrivateKey);
+      const signTransaction: AccountUpdateTransaction = await transaction.sign(treasuryPrivateKey);
 
-      // Submit the transaction to a Hedera network
-      const txResponse = await signTx.execute(client);
+      const transactionResponse: TransactionResponse = await signTransaction.execute(client);
 
-      // Request the receipt of the transaction
-      const receipt = await txResponse.getReceipt(client);
+      const receipt: TransactionReceipt = await transactionResponse.getReceipt(client);
 
-      // Get the transaction status
-      const transactionStatus = receipt.status;
-      this.logger.debug(`The transaction consensus status is ${transactionStatus.toString()}`);
+      this.logger.debug(`The transaction consensus status is ${receipt.status}`);
     } catch (error) {
       throw new SoloError(`Error in adding stake: ${error.message}`, error);
     }
@@ -779,7 +791,6 @@ export class NodeCommandTasks {
   public sendPrepareUpgradeTransaction(): SoloListrTask<
     NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
   > {
-    const self = this;
     return {
       title: 'Send prepare upgrade transaction',
       task: async context_ => {
@@ -791,27 +802,31 @@ export class NodeCommandTasks {
 
           // query the balance
           const balance = await new AccountBalanceQuery().setAccountId(freezeAccountId).execute(nodeClient);
-          self.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
+          this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
 
           // transfer some tiny amount to the freeze admin account
-          await self.accountManager.transferAmount(treasuryAccountId, freezeAccountId, 100_000);
+          await this.accountManager.transferAmount(treasuryAccountId, freezeAccountId, 100_000);
 
           // set operator of freeze transaction as freeze admin account
           nodeClient.setOperator(freezeAccountId, freezeAdminPrivateKey);
 
-          const prepareUpgradeTx: TransactionResponse = await new FreezeTransaction()
+          const prepareUpgradeTransaction: TransactionResponse = await new FreezeTransaction()
             .setFreezeType(FreezeType.PrepareUpgrade)
             .setFileId(this.getFileUpgradeId(deployment))
             .setFileHash(upgradeZipHash)
             .freezeWith(nodeClient)
             .execute(nodeClient);
 
-          const prepareUpgradeReceipt: TransactionReceipt = await prepareUpgradeTx.getReceipt(nodeClient);
+          const prepareUpgradeReceipt: TransactionReceipt = await prepareUpgradeTransaction.getReceipt(nodeClient);
 
-          self.logger.debug(
-            `sent prepare upgrade transaction [id: ${prepareUpgradeTx.transactionId.toString()}]`,
+          this.logger.debug(
+            `sent prepare upgrade transaction [id: ${prepareUpgradeTransaction.transactionId.toString()}]`,
             prepareUpgradeReceipt.status.toString(),
           );
+
+          if (prepareUpgradeReceipt.status !== Status.Success) {
+            throw new SoloError(`Prepare upgrade transaction failed: ${prepareUpgradeReceipt.status}`);
+          }
         } catch (error) {
           throw new SoloError(`Error in prepare upgrade: ${error.message}`, error);
         }
@@ -1028,26 +1043,26 @@ export class NodeCommandTasks {
     maxAttempts?: number,
   ) {
     context_.config.podRefs = {};
-    const consensusNodes = context_.config.consensusNodes;
+    const consensusNodes: ConsensusNode[] = context_.config.consensusNodes;
 
     const subTasks: SoloListrTask<CheckedNodesContext>[] = [];
 
-    const self = this;
     for (const nodeAlias of nodeAliases) {
-      const context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
       subTasks.push({
         title: `Check network pod: ${chalk.yellow(nodeAlias)}`,
-        task: async context_ => {
+        task: async ({config}): Promise<void> => {
           try {
-            context_.config.podRefs[nodeAlias] = await self.checkNetworkNodePod(
-              context_.config.namespace,
+            const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+
+            config.podRefs[nodeAlias] = await this.checkNetworkNodePod(
+              config.namespace,
               nodeAlias,
               maxAttempts,
               undefined,
               context,
             );
           } catch {
-            context_.config.skipStop = true;
+            config.skipStop = true;
           }
         },
       });
@@ -1071,13 +1086,16 @@ export class NodeCommandTasks {
     context?: Optional<string>,
   ): Promise<PodReference> {
     nodeAlias = nodeAlias.trim() as NodeAlias;
-    const podName = Templates.renderNetworkPodName(nodeAlias);
-    const podReference = PodReference.of(namespace, podName);
+    const podName: PodName = Templates.renderNetworkPodName(nodeAlias);
+    const podReference: PodReference = PodReference.of(namespace, podName);
+
+    if (typeof context !== 'string' || context.trim().length === 0) {
+      context = extractContextFromConsensusNodes(nodeAlias, this.remoteConfig.getConsensusNodes());
+    }
 
     try {
-      const k8 = this.k8Factory.getK8(context);
-
-      await k8
+      await this.k8Factory
+        .getK8(context)
         .pods()
         .waitForRunningPhase(
           namespace,
@@ -1138,31 +1156,63 @@ export class NodeCommandTasks {
 
         const zipFile = config.stateFile;
         self.logger.debug(`zip file: ${zipFile}`);
+
+        // Get the source node ID from the first consensus node (the state file's original node)
+        const sourceNodeId = config.consensusNodes[0].nodeId;
+
         for (const nodeAlias of context_.config.nodeAliases) {
           const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
           const k8 = this.k8Factory.getK8(context);
           const podReference = context_.config.podRefs[nodeAlias];
           const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+          const consensusNode = config.consensusNodes.find(node => node.name === nodeAlias);
+          if (!consensusNode) {
+            throw new SoloError(`Consensus node not found for alias: ${nodeAlias}`);
+          }
+          const targetNodeId = consensusNode.nodeId;
+          const container = await k8.containers().readByRef(containerReference);
+
           self.logger.debug(`Uploading state files to pod ${podReference.name}`);
-          await k8.containers().readByRef(containerReference).copyTo(zipFile, `${constants.HEDERA_HAPI_PATH}/data`);
+          await container.copyTo(zipFile, `${constants.HEDERA_HAPI_PATH}/data`);
 
           self.logger.info(
             `Deleting the previous state files in pod ${podReference.name} directory ${constants.HEDERA_HAPI_PATH}/data/saved`,
           );
-          await k8
-            .containers()
-            .readByRef(containerReference)
-            .execContainer(['rm', '-rf', `${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
-          await k8
-            .containers()
-            .readByRef(containerReference)
-            .execContainer([
-              'tar',
-              '-xvf',
-              `${constants.HEDERA_HAPI_PATH}/data/${path.basename(zipFile)}`,
-              '-C',
-              `${constants.HEDERA_HAPI_PATH}/data/saved`,
+          await container.execContainer(['rm', '-rf', `${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
+          await container.execContainer([
+            'tar',
+            '-xvf',
+            `${constants.HEDERA_HAPI_PATH}/data/${path.basename(zipFile)}`,
+            '-C',
+            `${constants.HEDERA_HAPI_PATH}/data/saved`,
+          ]);
+
+          // Clean up old rounds - keep only the latest/biggest round
+          self.logger.info(`Cleaning up old rounds in pod ${podReference.name}, keeping only the latest round`);
+          const cleanupScriptName = 'cleanup-state-rounds.sh';
+          const cleanupScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
+          await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
+          await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
+          await container.execContainer(['chmod', '+x', cleanupScriptDestination]);
+          await container.execContainer([cleanupScriptDestination, constants.HEDERA_HAPI_PATH]);
+
+          // Rename node ID directories to match the target node
+          if (sourceNodeId !== targetNodeId) {
+            self.logger.info(
+              `Renaming node ID directories in pod ${podReference.name} from ${sourceNodeId} to ${targetNodeId}`,
+            );
+            const renameScriptName = 'rename-state-node-id.sh';
+            const renameScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${renameScriptName}`;
+            await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
+            await container.copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
+            await container.execContainer(['chmod', '+x', renameScriptDestination]);
+            await container.execContainer([
+              renameScriptDestination,
+              constants.HEDERA_HAPI_PATH,
+              sourceNodeId.toString(),
+              targetNodeId.toString(),
             ]);
+          }
         }
       },
       skip,
@@ -1401,6 +1451,7 @@ export class NodeCommandTasks {
           if (context_.config.adminKey) {
             updateTransaction = await updateTransaction.sign(context_.config.adminKey);
           }
+
           const transactionResponse: TransactionResponse = await updateTransaction.execute(nodeClient);
           const updateTransactionReceipt: TransactionReceipt = await transactionResponse.getReceipt(nodeClient);
 
@@ -2699,14 +2750,22 @@ export class NodeCommandTasks {
           const accountMap = this.accountManager.getNodeAccountMap(config.existingNodeAliases, deploymentName);
           const deleteAccountId = accountMap.get(config.nodeAlias);
           this.logger.debug(`Deleting node: ${config.nodeAlias} with account: ${deleteAccountId}`);
-          const nodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
-          const nodeDeleteTx = new NodeDeleteTransaction().setNodeId(new Long(nodeId)).freezeWith(config.nodeClient);
 
-          const signedTx = await nodeDeleteTx.sign(config.adminKey);
-          const txResp = await signedTx.execute(config.nodeClient);
-          const nodeDeleteReceipt = await txResp.getReceipt(config.nodeClient);
+          const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+
+          const nodeDeleteTransaction: NodeDeleteTransaction = new NodeDeleteTransaction()
+            .setNodeId(new Long(nodeId))
+            .freezeWith(config.nodeClient);
+
+          const signedTransaction: NodeDeleteTransaction = await nodeDeleteTransaction.sign(config.adminKey);
+          const transactionResponse: TransactionResponse = await signedTransaction.execute(config.nodeClient);
+          const nodeDeleteReceipt: TransactionReceipt = await transactionResponse.getReceipt(config.nodeClient);
 
           this.logger.debug(`NodeDeleteReceipt: ${nodeDeleteReceipt.toString()}`);
+
+          if (nodeDeleteReceipt.status !== Status.Success) {
+            throw new SoloError(`Node delete transaction failed with status: ${nodeDeleteReceipt.status}.`);
+          }
         } catch (error) {
           throw new SoloError(`Error deleting node from network: ${error.message}`, error);
         }
@@ -2721,7 +2780,7 @@ export class NodeCommandTasks {
         const config: NodeAddConfigClass = context_.config;
 
         try {
-          const nodeCreateTx = new NodeCreateTransaction()
+          const nodeCreateTransaction: NodeCreateTransaction = new NodeCreateTransaction()
             .setAccountId(context_.newNode.accountId)
             .setGossipEndpoints(context_.gossipEndpoints)
             .setServiceEndpoints(context_.grpcServiceEndpoints)
@@ -2730,10 +2789,15 @@ export class NodeCommandTasks {
             .setAdminKey(context_.adminKey.publicKey)
             .freezeWith(config.nodeClient);
 
-          const signedTx = await nodeCreateTx.sign(context_.adminKey);
-          const txResp = await signedTx.execute(config.nodeClient);
-          const nodeCreateReceipt = await txResp.getReceipt(config.nodeClient);
+          const signedTransaction: NodeCreateTransaction = await nodeCreateTransaction.sign(context_.adminKey);
+          const txResp: TransactionResponse = await signedTransaction.execute(config.nodeClient);
+          const nodeCreateReceipt: TransactionReceipt = await txResp.getReceipt(config.nodeClient);
+
           this.logger.debug(`NodeCreateReceipt: ${nodeCreateReceipt.toString()}`);
+
+          if (nodeCreateReceipt.status !== Status.Success) {
+            throw new SoloError(`Node Create Transaction failed: ${nodeCreateReceipt.status}`);
+          }
         } catch (error) {
           throw new SoloError(`Error adding node to network: ${error.message}`, error);
         }

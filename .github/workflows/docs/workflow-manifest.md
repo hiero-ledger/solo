@@ -15,4 +15,3 @@
 | zxc-hugo-publish.yaml             | Publish to GitHub Pages                    |                  |                      |
 | zxc-unit-test.yaml                | ZXC: Unit Test                             |                  |                      |
 | zxf-stale-issue-pr-closer.yaml    | ZXF: Stale Issue/PR Closer                 |                  |                      |
-
