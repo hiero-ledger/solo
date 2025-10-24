@@ -37,7 +37,6 @@ import {K8} from '../integration/kube/k8.js';
 import {BLOCK_NODE_IMAGE_NAME} from '../core/constants.js';
 import {Version} from '../business/utils/version.js';
 import {MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT} from '../../version.js';
-import {BlockCommandDefinition} from './command-definitions/block-command-definition.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -389,7 +388,7 @@ export class BlockNodeCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      BlockCommandDefinition.ADD_COMMAND,
+      'block node add',
     );
 
     if (tasks.isRoot()) {
@@ -475,7 +474,7 @@ export class BlockNodeCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      BlockCommandDefinition.DESTROY_COMMAND,
+      'block node destroy',
     );
 
     if (tasks.isRoot()) {
@@ -602,7 +601,7 @@ export class BlockNodeCommand extends BaseCommand {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       undefined,
-      BlockCommandDefinition.UPGRADE_COMMAND,
+      'block node upgrade',
     );
 
     if (tasks.isRoot()) {
