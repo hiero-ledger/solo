@@ -1,4 +1,5 @@
-> 📝 Solo has a new one-shot command!  check it out: [Solo User Guide](https://solo.hiero.org/v0.41.0/docs/step-by-step-guide/#one-shot-deployment), [Solo CLI Commands](https://solo.hiero.org/v0.41.0/docs/solo-commands/#one-shot-single)
+> 📝 Solo has a new one-shot command!  check it
+> out: [Solo User Guide](https://solo.hiero.org/v0.41.0/docs/step-by-step-guide/#one-shot-deployment), [Solo CLI Commands](https://solo.hiero.org/v0.41.0/docs/solo-commands/#one-shot-single)
 
 # Solo
 
@@ -24,8 +25,8 @@ Every quarter a version will be designated as LTS (Long-Term Support) and will b
 
 | Solo Version | Node.js               | Kind       | Solo Chart | Hedera   | Kubernetes | Kubectl    | Helm    | k9s        | Docker Resources         | Release Date | End of Support |
 |--------------|-----------------------|------------|------------|----------|------------|------------|---------|------------|--------------------------|--------------|----------------|
+| 0.48.0 (LTS) | >= 20.19.0 (lts/iron) | >= v0.26.0 | v0.56.0    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU >= 4 | 2025-10-24   | 2026-01-24     |
 | 0.47.0       | >= 20.19.0 (lts/iron) | >= v0.26.0 | v0.56.0    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU >= 4 | 2025-10-16   | 2025-11-16     |
-| 0.46.0 (LTS) | >= 20.19.0 (lts/iron) | >= v0.26.0 | v0.56.0    | v0.65.1+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU >= 4 | 2025-10-02   | 2026-01-02     |
 
 To see a list of legacy releases, please check the [legacy versions documentation page](docs/legacy-versions.md).
 
@@ -37,7 +38,8 @@ To run a one-node network, you will need to set up Docker Desktop with at least 
 
 ## Setup
 
-* Install [Node](https://nodejs.org/en/download). You may also use [nvm](https://github.com/nvm-sh/nvm) to manage different Node versions locally, some examples:
+* Install [Node](https://nodejs.org/en/download). You may also use [nvm](https://github.com/nvm-sh/nvm) to manage
+  different Node versions locally, some examples:
 
 ```
 # install specific nodejs version
@@ -56,9 +58,9 @@ nvm use v20.18.0
 ```
 
 * Useful tools:
-  * Install [kubectl](https://kubernetes.io/docs/tasks/tools/)
-  * Install [k9s](https://k9scli.io/)
-  * Install [kind](https://kind.sigs.k8s.io/)
+    * Install [kubectl](https://kubernetes.io/docs/tasks/tools/)
+    * Install [k9s](https://k9scli.io/)
+    * Install [kind](https://kind.sigs.k8s.io/)
 
 ## Install Solo
 
@@ -70,11 +72,15 @@ nvm use v20.18.0
 
 ## Contributing
 
-Contributions are welcome. Please see the [contributing guide](https://github.com/hiero-ledger/.github/blob/main/CONTRIBUTING.md) to see how you can get involved.
+Contributions are welcome. Please see
+the [contributing guide](https://github.com/hiero-ledger/.github/blob/main/CONTRIBUTING.md) to see how you can get
+involved.
 
 ## Code of Conduct
 
-This project is governed by the [Contributor Covenant Code of Conduct](https://github.com/hiero-ledger/.github/blob/main/CODE_OF_CONDUCT.md). By participating, you are
+This project is governed by
+the [Contributor Covenant Code of Conduct](https://github.com/hiero-ledger/.github/blob/main/CODE_OF_CONDUCT.md). By
+participating, you are
 expected to uphold this code of conduct.
 
 ## License
