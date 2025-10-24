@@ -13,6 +13,7 @@ import * as constants from '../../core/constants.js';
 import {DEFAULT_NETWORK_NODE_NAME, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
+  AccountBalance,
   AccountBalanceQuery,
   AccountId,
   AccountUpdateTransaction,
@@ -79,6 +80,7 @@ import {ContainerReference} from '../../integration/kube/resources/container/con
 import {NetworkNodes} from '../../core/network-nodes.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import {
+  type AccountIdWithKeyPairObject,
   type ClusterReferenceName,
   type ClusterReferences,
   type ComponentId,
@@ -643,7 +645,7 @@ export class NodeCommandTasks {
     stakeAmount: number = HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
   ): Promise<void> {
     try {
-      const deploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+      const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
       await this.accountManager.loadNodeClient(
         namespace,
         this.remoteConfig.getClusterRefs(),
@@ -651,40 +653,43 @@ export class NodeCommandTasks {
         this.configManager.getFlag<boolean>(flags.forcePortForward),
       );
       const client = this.accountManager._nodeClient;
-      const treasuryKey = await this.accountManager.getTreasuryAccountKeys(namespace, deploymentName);
-      const treasuryPrivateKey = PrivateKey.fromStringED25519(treasuryKey.privateKey);
+      const treasuryKey: AccountIdWithKeyPairObject = await this.accountManager.getTreasuryAccountKeys(
+        namespace,
+        deploymentName,
+      );
+
+      const treasuryPrivateKey: PrivateKey = PrivateKey.fromStringED25519(treasuryKey.privateKey);
       const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deploymentName);
       client.setOperator(treasuryAccountId, treasuryPrivateKey);
 
       // check balance
-      const treasuryBalance = await new AccountBalanceQuery().setAccountId(treasuryAccountId).execute(client);
+      const treasuryBalance: AccountBalance = await new AccountBalanceQuery()
+        .setAccountId(treasuryAccountId)
+        .execute(client);
+
       this.logger.debug(`Account ${treasuryAccountId} balance: ${treasuryBalance.hbars}`);
 
       // get some initial balance
       await this.accountManager.transferAmount(treasuryAccountId, accountId, stakeAmount);
 
       // check balance
-      const balance = await new AccountBalanceQuery().setAccountId(accountId).execute(client);
+      const balance: AccountBalance = await new AccountBalanceQuery().setAccountId(accountId).execute(client);
       this.logger.debug(`Account ${accountId} balance: ${balance.hbars}`);
 
       // Create the transaction
-      const transaction = new AccountUpdateTransaction()
+      const transaction: AccountUpdateTransaction = new AccountUpdateTransaction()
         .setAccountId(accountId)
         .setStakedNodeId(Templates.nodeIdFromNodeAlias(nodeAlias))
         .freezeWith(client);
 
       // Sign the transaction with the account's private key
-      const signTx = await transaction.sign(treasuryPrivateKey);
+      const signTransaction: AccountUpdateTransaction = await transaction.sign(treasuryPrivateKey);
 
-      // Submit the transaction to a Hedera network
-      const txResponse = await signTx.execute(client);
+      const transactionResponse: TransactionResponse = await signTransaction.execute(client);
 
-      // Request the receipt of the transaction
-      const receipt = await txResponse.getReceipt(client);
+      const receipt: TransactionReceipt = await transactionResponse.getReceipt(client);
 
-      // Get the transaction status
-      const transactionStatus = receipt.status;
-      this.logger.debug(`The transaction consensus status is ${transactionStatus.toString()}`);
+      this.logger.debug(`The transaction consensus status is ${receipt.status}`);
     } catch (error) {
       throw new SoloError(`Error in adding stake: ${error.message}`, error);
     }
@@ -786,7 +791,6 @@ export class NodeCommandTasks {
   public sendPrepareUpgradeTransaction(): SoloListrTask<
     NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
   > {
-    const self = this;
     return {
       title: 'Send prepare upgrade transaction',
       task: async context_ => {
@@ -798,27 +802,31 @@ export class NodeCommandTasks {
 
           // query the balance
           const balance = await new AccountBalanceQuery().setAccountId(freezeAccountId).execute(nodeClient);
-          self.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
+          this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
 
           // transfer some tiny amount to the freeze admin account
-          await self.accountManager.transferAmount(treasuryAccountId, freezeAccountId, 100_000);
+          await this.accountManager.transferAmount(treasuryAccountId, freezeAccountId, 100_000);
 
           // set operator of freeze transaction as freeze admin account
           nodeClient.setOperator(freezeAccountId, freezeAdminPrivateKey);
 
-          const prepareUpgradeTx: TransactionResponse = await new FreezeTransaction()
+          const prepareUpgradeTransaction: TransactionResponse = await new FreezeTransaction()
             .setFreezeType(FreezeType.PrepareUpgrade)
             .setFileId(this.getFileUpgradeId(deployment))
             .setFileHash(upgradeZipHash)
             .freezeWith(nodeClient)
             .execute(nodeClient);
 
-          const prepareUpgradeReceipt: TransactionReceipt = await prepareUpgradeTx.getReceipt(nodeClient);
+          const prepareUpgradeReceipt: TransactionReceipt = await prepareUpgradeTransaction.getReceipt(nodeClient);
 
-          self.logger.debug(
-            `sent prepare upgrade transaction [id: ${prepareUpgradeTx.transactionId.toString()}]`,
+          this.logger.debug(
+            `sent prepare upgrade transaction [id: ${prepareUpgradeTransaction.transactionId.toString()}]`,
             prepareUpgradeReceipt.status.toString(),
           );
+
+          if (prepareUpgradeReceipt.status !== Status.Success) {
+            throw new SoloError(`Prepare upgrade transaction failed: ${prepareUpgradeReceipt.status}`);
+          }
         } catch (error) {
           throw new SoloError(`Error in prepare upgrade: ${error.message}`, error);
         }
@@ -1411,6 +1419,7 @@ export class NodeCommandTasks {
           if (context_.config.adminKey) {
             updateTransaction = await updateTransaction.sign(context_.config.adminKey);
           }
+
           const transactionResponse: TransactionResponse = await updateTransaction.execute(nodeClient);
           const updateTransactionReceipt: TransactionReceipt = await transactionResponse.getReceipt(nodeClient);
 
@@ -2709,14 +2718,22 @@ export class NodeCommandTasks {
           const accountMap = this.accountManager.getNodeAccountMap(config.existingNodeAliases, deploymentName);
           const deleteAccountId = accountMap.get(config.nodeAlias);
           this.logger.debug(`Deleting node: ${config.nodeAlias} with account: ${deleteAccountId}`);
-          const nodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
-          const nodeDeleteTx = new NodeDeleteTransaction().setNodeId(new Long(nodeId)).freezeWith(config.nodeClient);
 
-          const signedTx = await nodeDeleteTx.sign(config.adminKey);
-          const txResp = await signedTx.execute(config.nodeClient);
-          const nodeDeleteReceipt = await txResp.getReceipt(config.nodeClient);
+          const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+
+          const nodeDeleteTransaction: NodeDeleteTransaction = new NodeDeleteTransaction()
+            .setNodeId(new Long(nodeId))
+            .freezeWith(config.nodeClient);
+
+          const signedTransaction: NodeDeleteTransaction = await nodeDeleteTransaction.sign(config.adminKey);
+          const transactionResponse: TransactionResponse = await signedTransaction.execute(config.nodeClient);
+          const nodeDeleteReceipt: TransactionReceipt = await transactionResponse.getReceipt(config.nodeClient);
 
           this.logger.debug(`NodeDeleteReceipt: ${nodeDeleteReceipt.toString()}`);
+
+          if (nodeDeleteReceipt.status !== Status.Success) {
+            throw new SoloError(`Node delete transaction failed with status: ${nodeDeleteReceipt.status}.`);
+          }
         } catch (error) {
           throw new SoloError(`Error deleting node from network: ${error.message}`, error);
         }
@@ -2731,7 +2748,7 @@ export class NodeCommandTasks {
         const config: NodeAddConfigClass = context_.config;
 
         try {
-          const nodeCreateTx = new NodeCreateTransaction()
+          const nodeCreateTransaction: NodeCreateTransaction = new NodeCreateTransaction()
             .setAccountId(context_.newNode.accountId)
             .setGossipEndpoints(context_.gossipEndpoints)
             .setServiceEndpoints(context_.grpcServiceEndpoints)
@@ -2740,10 +2757,15 @@ export class NodeCommandTasks {
             .setAdminKey(context_.adminKey.publicKey)
             .freezeWith(config.nodeClient);
 
-          const signedTx = await nodeCreateTx.sign(context_.adminKey);
-          const txResp = await signedTx.execute(config.nodeClient);
-          const nodeCreateReceipt = await txResp.getReceipt(config.nodeClient);
+          const signedTransaction: NodeCreateTransaction = await nodeCreateTransaction.sign(context_.adminKey);
+          const txResp: TransactionResponse = await signedTransaction.execute(config.nodeClient);
+          const nodeCreateReceipt: TransactionReceipt = await txResp.getReceipt(config.nodeClient);
+
           this.logger.debug(`NodeCreateReceipt: ${nodeCreateReceipt.toString()}`);
+
+          if (nodeCreateReceipt.status !== Status.Success) {
+            throw new SoloError(`Node Create Transaction failed: ${nodeCreateReceipt.status}`);
+          }
         } catch (error) {
           throw new SoloError(`Error adding node to network: ${error.message}`, error);
         }
