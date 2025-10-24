@@ -304,12 +304,24 @@ export class MirrorNodeCommand extends BaseCommand {
       });
     }
 
-    const mirrorNodeBlockNodeValues: Record<string, unknown> = {
+    const data: {SPRING_PROFILES_ACTIVE: string} & Record<string, string | number> = {
+      SPRING_PROFILES_ACTIVE: 'blocknode',
+    };
+
+    for (const [index, node] of blockNodeFqdnList.entries()) {
+      data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_HOST`] = node.host;
+      if (node.port !== constants.BLOCK_NODE_PORT) {
+        data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_PORT`] = node.port;
+      }
+    }
+
+    const mirrorNodeBlockNodeValues: {
       importer: {
-        env: {
-          HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST: blockNodeFqdnList[0].host,
-          SPRING_PROFILES_ACTIVE: 'blocknode',
-        },
+        env: {SPRING_PROFILES_ACTIVE: string} & Record<string, string | number>;
+      };
+    } = {
+      importer: {
+        env: data,
       },
     };
 
