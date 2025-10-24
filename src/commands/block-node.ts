@@ -15,6 +15,7 @@ import {
   type Context,
   type DeploymentName,
   type Optional,
+  type SoloListr,
   type SoloListrTask,
   type SoloListrTaskWrapper,
 } from '../types/index.js';
@@ -209,7 +210,7 @@ export class BlockNodeCommand extends BaseCommand {
     const self = this;
     let lease: Lock;
 
-    const tasks: Listr<BlockNodeDeployContext> = new Listr<BlockNodeDeployContext>(
+    const tasks: SoloListr<BlockNodeDeployContext> = this.taskList.newTaskList<BlockNodeDeployContext>(
       [
         {
           title: 'Initialize',
@@ -386,14 +387,22 @@ export class BlockNodeCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      'block node add',
     );
 
-    try {
-      await tasks.run();
-    } catch (error) {
-      throw new SoloError(`Error deploying block node: ${error.message}`, error);
-    } finally {
-      await lease?.release();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError(`Error deploying block node: ${error.message}`, error);
+      } finally {
+        await lease?.release();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease?.release();
+      });
     }
 
     return true;
@@ -404,7 +413,7 @@ export class BlockNodeCommand extends BaseCommand {
     const self = this;
     let lease: Lock;
 
-    const tasks: Listr<BlockNodeDestroyContext> = new Listr<BlockNodeDestroyContext>(
+    const tasks: SoloListr<BlockNodeDestroyContext> = this.taskList.newTaskList<BlockNodeDestroyContext>(
       [
         {
           title: 'Initialize',
@@ -464,14 +473,22 @@ export class BlockNodeCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      'block node destroy',
     );
 
-    try {
-      await tasks.run();
-    } catch (error) {
-      throw new SoloError(`Error destroying block node: ${error.message}`, error);
-    } finally {
-      await lease?.release();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError(`Error destroying block node: ${error.message}`, error);
+      } finally {
+        await lease?.release();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease?.release();
+      });
     }
 
     return true;
@@ -480,7 +497,7 @@ export class BlockNodeCommand extends BaseCommand {
   public async upgrade(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
-    const tasks: Listr<BlockNodeUpgradeContext> = new Listr<BlockNodeUpgradeContext>(
+    const tasks: SoloListr<BlockNodeUpgradeContext> = this.taskList.newTaskList<BlockNodeUpgradeContext>(
       [
         {
           title: 'Initialize',
@@ -583,14 +600,22 @@ export class BlockNodeCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      'block node upgrade',
     );
 
-    try {
-      await tasks.run();
-    } catch (error) {
-      throw new SoloError(`Error upgrading block node: ${error.message}`, error);
-    } finally {
-      await lease?.release();
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloError(`Error upgrading block node: ${error.message}`, error);
+      } finally {
+        await lease?.release();
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        await lease?.release();
+      });
     }
 
     return true;
