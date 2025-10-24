@@ -61,7 +61,7 @@ export class NetworkNodes {
     for (const podData of podsData) {
       promises.push(this.getLog(podData.pod, namespace, timeString, podData.context));
     }
-    this.logger.showUser(`Logs saved to ${PathEx.join(SOLO_LOGS_DIR, namespace.name, timeString)}`);
+    this.logger.showUser(`Configurations and logs saved to ${PathEx.join(SOLO_LOGS_DIR, namespace.name, timeString)}`);
     return await Promise.all(promises);
   }
 
