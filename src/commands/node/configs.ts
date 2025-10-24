@@ -27,11 +27,9 @@ import {type NodeLogsConfigClass} from './config-interfaces/node-logs-config-cla
 import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
 import {type NodeUpdateConfigClass} from './config-interfaces/node-update-config-class.js';
 import {type NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-class.js';
-import {type NodeDownloadGeneratedFilesConfigClass} from './config-interfaces/node-download-generated-files-config-class.js';
 import {type NodePrepareUpgradeConfigClass} from './config-interfaces/node-prepare-upgrade-config-class.js';
 import {type SoloListrTaskWrapper} from '../../types/index.js';
 import {type NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
-import {type NodeDownloadGeneratedFilesContext} from './config-interfaces/node-download-generated-files-context.js';
 import {type NodeUpdateContext} from './config-interfaces/node-update-context.js';
 import {type NodeDestroyContext} from './config-interfaces/node-destroy-context.js';
 import {type NodeAddContext} from './config-interfaces/node-add-context.js';
@@ -56,7 +54,6 @@ import {eq, SemVer} from 'semver';
 import {SOLO_USER_AGENT_HEADER} from '../../core/constants.js';
 
 const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
-const DOWNLOAD_GENERATED_FILES_CONFIGS_NAME = 'downloadGeneratedFilesConfig';
 const ADD_CONFIGS_NAME = 'addConfigs';
 const DESTROY_CONFIGS_NAME = 'destroyConfigs';
 const UPDATE_CONFIGS_NAME = 'updateConfigs';
@@ -132,27 +129,6 @@ export class NodeCommandConfigs {
       context_.config.namespace,
     );
     context_.config.freezeAdminPrivateKey = accountKeys.privateKey;
-
-    return context_.config;
-  }
-
-  public async downloadGeneratedFilesConfigBuilder(
-    argv: ArgvStruct,
-    context_: NodeDownloadGeneratedFilesContext,
-    task: SoloListrTaskWrapper<NodeDownloadGeneratedFilesContext>,
-  ): Promise<NodeDownloadGeneratedFilesConfigClass> {
-    context_.config = this.configManager.getConfig(DOWNLOAD_GENERATED_FILES_CONFIGS_NAME, argv.flags, [
-      'allNodeAliases',
-      'existingNodeAliases',
-      'serviceMap',
-      'namespace',
-      'consensusNodes',
-      'contexts',
-    ]) as NodeDownloadGeneratedFilesConfigClass;
-
-    context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
-    context_.config.existingNodeAliases = [];
-    await this.initializeSetup(context_.config, this.k8Factory);
 
     return context_.config;
   }

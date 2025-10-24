@@ -79,7 +79,7 @@ export class NodeCommandHandlers extends CommandHandler {
     return [
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
       this.tasks.stopNodes('existingNodeAliases'),
-      this.tasks.downloadNodeGeneratedFiles(),
+      this.tasks.downloadNodeGeneratedFilesForDynamicAddressBook(),
       this.tasks.prepareStagingDirectory('existingNodeAliases'),
       this.tasks.refreshNodeList(),
       this.tasks.copyNodeKeysToSecrets('refreshedConsensusNodes'),
@@ -135,7 +135,7 @@ export class NodeCommandHandlers extends CommandHandler {
   private addExecuteTasks(): SoloListrTask<NodeAddContext>[] {
     return [
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
-      this.tasks.downloadNodeGeneratedFiles(),
+      this.tasks.downloadNodeGeneratedFilesForDynamicAddressBook(),
       this.tasks.prepareStagingDirectory('allNodeAliases'),
       this.tasks.addNewConsensusNodeToRemoteConfig(),
       this.tasks.copyNodeKeysToSecrets(),
@@ -182,7 +182,7 @@ export class NodeCommandHandlers extends CommandHandler {
   private updateExecuteTasks(): SoloListrTask<NodeUpdateContext>[] {
     return [
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
-      this.tasks.downloadNodeGeneratedFiles(),
+      this.tasks.downloadNodeGeneratedFilesForDynamicAddressBook(),
       this.tasks.prepareStagingDirectory('allNodeAliases'),
       this.tasks.copyNodeKeysToSecrets(),
       this.tasks.getNodeLogsAndConfigs(),
@@ -280,33 +280,6 @@ export class NodeCommandHandlers extends CommandHandler {
       },
       'Error in executing node freeze upgrade',
       null,
-    );
-
-    return true;
-  }
-
-  public async downloadGeneratedFiles(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.DEFAULT_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
-
-    await this.commandAction(
-      argv,
-      [
-        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
-        this.tasks.initialize(
-          argv,
-          this.configs.downloadGeneratedFilesConfigBuilder.bind(this.configs),
-          leaseWrapper.lease,
-        ),
-        this.tasks.identifyExistingNodes(),
-        this.tasks.downloadNodeGeneratedFiles(),
-      ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-      },
-      'Error in downloading generated files',
-      leaseWrapper.lease,
     );
 
     return true;

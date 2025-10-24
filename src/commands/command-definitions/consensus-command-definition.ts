@@ -85,7 +85,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
   public static readonly NETWORK_UPGRADE = 'upgrade';
   public static readonly NETWORK_FREEZE = 'freeze';
 
-  public static readonly DIAGNOSTIC_CONFIGS = 'config';
   public static readonly DIAGNOSTIC_ALL = 'all';
 
   public static readonly STATE_DOWNLOAD = 'download';
@@ -257,25 +256,15 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
           new CommandGroup(
             ConsensusCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
             ConsensusCommandDefinition.DIAGNOSTIC_SUBCOMMAND_DESCRIPTION,
-          )
-            .addSubcommand(
-              new Subcommand(
-                ConsensusCommandDefinition.DIAGNOSTIC_CONFIGS,
-                'Collects configuration files from consensus nodes.',
-                this.nodeCommand.handlers,
-                this.nodeCommand.handlers.downloadGeneratedFiles,
-                NodeFlags.DEFAULT_FLAGS,
-              ),
-            )
-            .addSubcommand(
-              new Subcommand(
-                ConsensusCommandDefinition.DIAGNOSTIC_ALL,
-                'Captures logs, configs, and diagnostic artifacts from all consensus nodes.',
-                this.nodeCommand.handlers,
-                this.nodeCommand.handlers.logs,
-                NodeFlags.LOGS_FLAGS,
-              ),
+          ).addSubcommand(
+            new Subcommand(
+              ConsensusCommandDefinition.DIAGNOSTIC_ALL,
+              'Captures logs, configs, and diagnostic artifacts from all consensus nodes.',
+              this.nodeCommand.handlers,
+              this.nodeCommand.handlers.logs,
+              NodeFlags.LOGS_FLAGS,
             ),
+          ),
         )
         // DEV NODE ADD SUBCOMMANDS
         .addCommandGroup(

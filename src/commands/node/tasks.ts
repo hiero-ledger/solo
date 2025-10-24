@@ -114,7 +114,6 @@ import {type NodeFreezeContext} from './config-interfaces/node-freeze-context.js
 import {type NodeStartContext} from './config-interfaces/node-start-context.js';
 import {type NodeRestartContext} from './config-interfaces/node-restart-context.js';
 import {type NodeSetupContext} from './config-interfaces/node-setup-context.js';
-import {type NodeDownloadGeneratedFilesContext} from './config-interfaces/node-download-generated-files-context.js';
 import {type NodeKeysContext} from './config-interfaces/node-keys-context.js';
 import {type NodeKeysConfigClass} from './config-interfaces/node-keys-config-class.js';
 import {type NodeStartConfigClass} from './config-interfaces/node-start-config-class.js';
@@ -916,9 +915,11 @@ export class NodeCommandTasks {
     };
   }
 
-  /** Download generated config files and key files from the network node */
-  public downloadNodeGeneratedFiles(): SoloListrTask<
-    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeDownloadGeneratedFilesContext
+  /** Download generated config files and key files from the network node,
+   *  This function should only be called when updating or destroying a node
+   * */
+  public downloadNodeGeneratedFilesForDynamicAddressBook(): SoloListrTask<
+    NodeUpdateContext | NodeAddContext | NodeDestroyContext
   > {
     const self = this;
     return {
