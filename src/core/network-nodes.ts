@@ -66,12 +66,7 @@ export class NetworkNodes {
     return await Promise.all(promises);
   }
 
-  private async getLog(
-    pod: Pod,
-    namespace: NamespaceName,
-    baseDirectory: string,
-    context?: string,
-  ) {
+  private async getLog(pod: Pod, namespace: NamespaceName, baseDirectory: string, context?: string) {
     const podReference: PodReference = pod.podReference;
     this.logger.debug(`getNodeLogs(${pod.podReference.name.name}): begin...`);
     const targetDirectory = baseDirectory;

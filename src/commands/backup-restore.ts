@@ -21,11 +21,15 @@ import {NetworkNodes} from '../core/network-nodes.js';
 import * as helpers from '../core/helpers.js';
 import {type ConsensusNode} from '../core/model/consensus-node.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
+import {NodeCommandTasks} from './node/tasks.js';
 
 @injectable()
 export class BackupRestoreCommand extends BaseCommand {
+  private readonly nodeCommandTasks: NodeCommandTasks;
+
   public constructor() {
     super();
+    this.nodeCommandTasks = container.resolve(NodeCommandTasks);
   }
 
   public async close(): Promise<void> {
@@ -304,22 +308,24 @@ export class BackupRestoreCommand extends BaseCommand {
           const resource = yaml.parse(yamlContent);
 
           try {
-            if (resourceType === 'configmaps') {
-              await k8.configMaps().createOrReplace(
-                namespace,
-                resource.metadata.name,
-                resource.metadata.labels || {},
-                resource.data || {},
-              );
-            } else {
-              await k8.secrets().createOrReplace(
-                namespace,
-                resource.metadata.name,
-                resource.type || 'Opaque',
-                resource.data || {},
-                resource.metadata.labels || {},
-              );
-            }
+            await (resourceType === 'configmaps'
+              ? k8
+                  .configMaps()
+                  .createOrReplace(
+                    namespace,
+                    resource.metadata.name,
+                    resource.metadata.labels || {},
+                    resource.data || {},
+                  )
+              : k8
+                  .secrets()
+                  .createOrReplace(
+                    namespace,
+                    resource.metadata.name,
+                    resource.type || 'Opaque',
+                    resource.data || {},
+                    resource.metadata.labels || {},
+                  ));
             this.logger.showUser(chalk.gray(`    ✓ Imported: ${resource.metadata.name}`));
             totalImportedCount++;
           } catch (error) {
@@ -331,9 +337,7 @@ export class BackupRestoreCommand extends BaseCommand {
       }
 
       this.logger.showUser(
-        chalk.green(
-          `\n✓ Total imported: ${totalImportedCount} ${resourceType} to ${contexts.length} cluster(s)`,
-        ),
+        chalk.green(`\n✓ Total imported: ${totalImportedCount} ${resourceType} to ${contexts.length} cluster(s)`),
       );
       return totalImportedCount;
     } catch (error) {
@@ -383,7 +387,9 @@ export class BackupRestoreCommand extends BaseCommand {
       const logFiles = allFiles.filter(file => file.endsWith('.zip'));
 
       if (logFiles.length === 0) {
-        this.logger.showUser(chalk.yellow(`  No log files found in context: ${context} (found ${allFiles.length} file(s))`));
+        this.logger.showUser(
+          chalk.yellow(`  No log files found in context: ${context} (found ${allFiles.length} file(s))`),
+        );
         this.logger.showUser(chalk.gray(`    Available files: ${allFiles.join(', ')}`));
         continue;
       }
@@ -418,78 +424,6 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
-   * Restore state files to consensus nodes
-   * @param inputDirectory - directory containing state files
-   * @returns Promise that resolves when restoration is complete
-   */
-  private async restoreStateFiles(inputDirectory: string): Promise<void> {
-    const namespace: NamespaceName = this.remoteConfig.getNamespace();
-    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
-    const contexts: Context[] = this.remoteConfig.getContexts();
-
-    for (const node of consensusNodes) {
-      const nodeAlias = node.name;
-      const context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
-      const statesDirectory = path.join(inputDirectory, context, 'states');
-
-      // Look for state directory
-      if (!fs.existsSync(statesDirectory)) {
-        this.logger.showUser(chalk.yellow(`  No states directory found for context: ${context}`));
-        continue;
-      }
-
-      // Get pod reference for this node first
-      const k8 = this.k8Factory.getK8(context);
-      const pods = await k8.pods().list(namespace, [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node']);
-
-      if (pods.length === 0) {
-        this.logger.showUser(chalk.red(`  ✗ No pod found for node: ${nodeAlias}`));
-        continue;
-      }
-
-      const pod = pods[0];
-      const podReference = pod.podReference;
-      const podName = podReference.name.name;
-
-      // Look for state file by pod name (e.g., network-node-0-state.zip)
-      const allStateFiles = fs.readdirSync(statesDirectory);
-      const stateFiles = allStateFiles.filter(file => 
-        file.startsWith(podName) && file.endsWith('-state.zip')
-      );
-
-      if (stateFiles.length === 0) {
-        this.logger.showUser(chalk.yellow(`  No state file found for pod: ${podName} (node: ${nodeAlias})`));
-        this.logger.showUser(chalk.gray(`    Looking for: ${podName}-state.zip`));
-        this.logger.showUser(chalk.gray(`    Available files: ${allStateFiles.join(', ')}`));
-        continue;
-      }
-
-      const stateFile = path.join(statesDirectory, stateFiles[0]);
-      this.logger.showUser(chalk.white(`  Restoring state file for node ${nodeAlias} (pod: ${podName}): ${stateFiles[0]}`));
-
-      const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-      const container = await k8.containers().readByRef(containerReference);
-
-      // Upload state file to pod
-      await container.copyTo(stateFile, `${constants.HEDERA_HAPI_PATH}/data`);
-
-      // Delete previous state files
-      await container.execContainer(['rm', '-rf', `${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
-
-      // Extract state file
-      await container.execContainer([
-        'tar',
-        '-xzf',
-        `${constants.HEDERA_HAPI_PATH}/data/${path.basename(stateFile)}`,
-        '-C',
-        `${constants.HEDERA_HAPI_PATH}/data/saved`,
-      ]);
-
-      this.logger.showUser(chalk.green(`  ✓ State file restored for node: ${nodeAlias}`));
-    }
-  }
-
-  /**
    * Restore all component configurations
    */
   public async restore(argv: ArgvStruct): Promise<boolean> {
@@ -502,14 +436,51 @@ export class BackupRestoreCommand extends BaseCommand {
     const inputDirectory: string = this.configManager.getFlag<string>(flags.inputDir) || './solo-backup';
     const quiet: boolean = this.configManager.getFlag<boolean>(flags.quiet);
 
+    // Get configuration data
+    const namespace: NamespaceName = this.remoteConfig.getNamespace();
+    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
+    const nodeAliases = consensusNodes.map(node => node.name);
+
     // Restore configmaps, secrets, and state files
     interface RestoreContext {
       configMapCount: number;
       secretCount: number;
+      config: any;
     }
 
     const tasks = new Listr<RestoreContext>(
       [
+        {
+          title: 'Initialize restore configuration',
+          task: async (context_, task) => {
+            // Build pod references map
+            const podRefs: any = {};
+            
+            for (const nodeAlias of nodeAliases) {
+              const context = helpers.extractContextFromConsensusNodes(nodeAlias as any, consensusNodes);
+              const k8 = this.k8Factory.getK8(context);
+              const pods = await k8.pods().list(namespace, [
+                `solo.hedera.com/node-name=${nodeAlias}`,
+                'solo.hedera.com/type=network-node',
+              ]);
+              
+              if (pods.length > 0) {
+                podRefs[nodeAlias] = pods[0].podReference;
+              }
+            }
+
+            // Initialize config object expected by uploadStateFiles
+            context_.config = {
+              namespace,
+              consensusNodes,
+              nodeAliases,
+              podRefs,
+              stateFile: inputDirectory, // Not used since we pass stateFileDirectory
+            };
+
+            task.title = 'Initialize restore configuration: completed';
+          },
+        },
         {
           title: 'Import ConfigMaps',
           task: async (context_, task) => {
@@ -531,13 +502,7 @@ export class BackupRestoreCommand extends BaseCommand {
             task.title = 'Restore Logs and Configs: completed';
           },
         },
-        {
-          title: 'Restore Node State Files',
-          task: async (context_, task) => {
-            await this.restoreStateFiles(inputDirectory);
-            task.title = 'Restore Node State Files: completed';
-          },
-        },
+        this.nodeCommandTasks.uploadStateFiles(false, inputDirectory),
       ],
       {
         concurrent: false,

@@ -1148,15 +1148,12 @@ export class NodeCommandTasks {
     };
   }
 
-  public uploadStateFiles(skip: SkipCheck | boolean) {
+  public uploadStateFiles(skip: SkipCheck | boolean, stateFileDirectory?: string) {
     const self = this;
     return {
       title: 'Upload state files network nodes',
       task: async context_ => {
         const config = context_.config;
-
-        const zipFile = config.stateFile;
-        self.logger.debug(`zip file: ${zipFile}`);
 
         // Get the source node ID from the first consensus node (the state file's original node)
         const sourceNodeId = config.consensusNodes[0].nodeId;
@@ -1172,6 +1169,34 @@ export class NodeCommandTasks {
           }
           const targetNodeId = consensusNode.nodeId;
           const container = await k8.containers().readByRef(containerReference);
+
+          // Determine the state file to use
+          let zipFile: string;
+          if (stateFileDirectory && fs.existsSync(stateFileDirectory) && fs.statSync(stateFileDirectory).isDirectory()) {
+            // It's a directory - find the state file for this specific pod
+            const podName = podReference.name.name;
+            const statesDirectory = path.join(stateFileDirectory, context, 'states');
+            
+            if (!fs.existsSync(statesDirectory)) {
+              self.logger.info(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
+              continue;
+            }
+
+            const stateFiles = fs.readdirSync(statesDirectory).filter(file => 
+              file.startsWith(podName) && file.endsWith('-state.zip')
+            );
+
+            if (stateFiles.length === 0) {
+              self.logger.info(`No state file found for pod ${podName} (node: ${nodeAlias})`);
+              continue;
+            }
+
+            zipFile = path.join(statesDirectory, stateFiles[0]);
+            self.logger.info(`Using state file for node ${nodeAlias}: ${stateFiles[0]}`);
+          } else {
+            // It's a single file or use default from config
+            zipFile = stateFileDirectory || config.stateFile;
+          }
 
           self.logger.debug(`Uploading state files to pod ${podReference.name}`);
           await container.copyTo(zipFile, `${constants.HEDERA_HAPI_PATH}/data`);
