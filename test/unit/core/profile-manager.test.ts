@@ -265,10 +265,11 @@ describe('ProfileManager', () => {
 
   describe('prepareConfigText', () => {
     it('should write and return the path to the config.txt file', async () => {
-      const nodeAccountMap = new Map<NodeAlias, string>();
-      nodeAccountMap.set('node1', entityId(shard, realm, 3));
-      nodeAccountMap.set('node2', entityId(shard, realm, 4));
-      nodeAccountMap.set('node3', entityId(shard, realm, 5));
+      const nodeAccountMap = new Map<NodeAlias, string>([
+        ['node1', entityId(shard, realm, 3)],
+        ['node2', entityId(shard, realm, 4)],
+        ['node3', entityId(shard, realm, 5)],
+      ]);
       const destinationPath = PathEx.join(temporaryDirectory, 'staging');
       fs.mkdirSync(destinationPath, {recursive: true});
       const renderedConfigFile = await profileManager.prepareConfigTxt(
@@ -309,8 +310,7 @@ describe('ProfileManager', () => {
     });
 
     it('should fail when destPath does not exist', async () => {
-      const nodeAccountMap = new Map<NodeAlias, string>();
-      nodeAccountMap.set('node1', entityId(shard, realm, 3));
+      const nodeAccountMap = new Map<NodeAlias, string>([['node1', entityId(shard, realm, 3)]]);
       const destinationPath = PathEx.join(temporaryDirectory, 'missing-directory');
       try {
         await profileManager.prepareConfigTxt(
