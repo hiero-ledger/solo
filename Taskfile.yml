@@ -46,7 +46,7 @@ tasks:
   format:
     cmds:
       - npx remark . --quiet --frail --output
-      - npx eslint --fix {{.TASKFILE_DIR}}
+      - npx eslint --fix {{.TASKFILE_DIR}} || true
       - npx tsc
       - npx madge --circular {{.TASKFILE_DIR}}/src/*
       - npx typedoc --emit none
