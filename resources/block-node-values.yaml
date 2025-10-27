@@ -1,7 +1,10 @@
 resources:
   requests:
-    cpu: "3"
-    memory: "8Gi"
+    cpu: "500m"
+    memory: "1Gi"
+  limits:
+    cpu: "1"
+    memory: "1.5Gi"
 
 blockNode:
   # NOTE: for Block Node logging, see this link:
@@ -18,13 +21,23 @@ blockNode:
   config:
     # The default, but it can be overridden:
     # JAVA_TOOL_OPTIONS: "-Djava.util.logging.config.file=/opt/hiero/block-node/logs/config/logging.properties"
-    JAVA_OPTS: "-Xms8G -Xmx8G" # if modifying this line also change in BlockNodesCommand
-    MEDIATOR_RING_BUFFER_SIZE: "2048"
+    JAVA_OPTS: '-Xms1G -Xmx1G  -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'
+    MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "128"
+    MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE: "16"
+    BACKFILL_FETCH_BATCH_SIZE: "5"
   persistence:
     archive:
-      size: 6Gi
+      size: 1Gi
+      # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
+      # existingClaim: "nano-archive-storage"
     live:
       size: 1Gi
+      # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
+      # existingClaim: "nano-live-pvc"
+    logging:
+      size: 1Gi
+      # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
+      # existingClaim: "nano-logging-pvc"
 
 kubepromstack:
   enabled: false

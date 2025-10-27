@@ -309,7 +309,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       MirrorNodeTest;
 
     it(`${testName}: mirror node deploy with external database`, async (): Promise<void> => {
-      const argv = soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger);
+      const argv: string[] = soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger);
 
       process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME = 'true';
 
@@ -394,7 +394,7 @@ export class MirrorNodeTest extends BaseCommandTest {
 
   public static runSql(options: BaseTestOptions): void {
     it('should run SQL command', async (): Promise<void> => {
-      const {testCacheDirectory, testLogger} = options;
+      const {testCacheDirectory} = options;
       const copySqlCommand: string = `kubectl cp ${testCacheDirectory}/database-seeding-query.sql ${this.postgresContainerName}:/tmp/database-seeding-query.sql -n ${this.nameSpace}`;
       await new ShellRunner().run(copySqlCommand);
 

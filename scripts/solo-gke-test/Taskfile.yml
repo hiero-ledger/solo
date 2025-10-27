@@ -33,7 +33,8 @@ env:
   MIRROR_NODE_DEPLOY_EXTRA_FLAGS: "--values-file {{.USER_WORKING_DIR}}/mirror-node-values.yaml --mirror-static-ip 34.55.235.252"
   EXPLORER_DEPLOY_EXTRA_FLAGS: "--values-file {{.USER_WORKING_DIR}}/ingress-values.yaml --explorer-static-ip 35.226.75.168"
   EXPLORER_NAME_SPACE: "explorer-name-space"
-  EXPLORER_DEPLOYMENT: "explorer-deployment"
-  EXPLORER_CLUSTER_CONTEXT: "{{ .CLUSTER_CONTEXT }}"
+  # Commented out to avoid creating deployment for the explorer
+  # EXPLORER_DEPLOYMENT: "explorer-deployment"
+  # EXPLORER_CLUSTER_CONTEXT: "{{ .CLUSTER_CONTEXT }}"
   RELAY_NODE_DEPLOY_EXTRA_FLAGS: "--values-file {{.USER_WORKING_DIR}}/relay-values.yaml"
   SKIP_NODE_PING: 'true'
