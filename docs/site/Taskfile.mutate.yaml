@@ -151,7 +151,7 @@ tasks:
         title: "Local Build with Custom Config Example"
         weight: 1
         description: >
-          example of how to create and manage a custom Hiero Hashgraph Solo deployment using locally built consensus nodes with custom configuration settings
+          Example of how to create and manage a custom Hiero Hashgraph Solo deployment using locally built consensus nodes with custom configuration settings
         type: docs
         ---
         EOF
