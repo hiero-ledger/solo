@@ -333,3 +333,47 @@ tasks:
         ---
         EOF
       - cat examples/running-solo-inside-cluster/README.md >> docs/site/build/running-solo-inside-cluster.md
+
+  mutate:state-save-and-restore-example:
+    desc: "Mutate the examples/state-save-and-restore/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/state-save-and-restore/README.md
+    generates:
+      - docs/site/build/state-save-and-restore.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/state-save-and-restore.md << 'EOF'
+        ---
+        title: "State Save and Restore Example"
+        weight: 1
+        description: >
+          Example of how to save network state and restore it later
+        type: docs
+        ---
+        EOF
+      - cat examples/state-save-and-restore/README.md >> docs/site/build/state-save-and-restore.md
+
+  mutate:version-upgrade-test-example:
+    desc: "Mutate the examples/version-upgrade-test/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/version-upgrade-test/README.md
+    generates:
+      - docs/site/build/version-upgrade-test.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/version-upgrade-test.md << 'EOF'
+        ---
+        title: "Version Upgrade Test Example"
+        weight: 1
+        description: >
+          Example of how to upgrade all components of a Hedera network to current versions
+        type: docs
+        ---
+        EOF
+      - cat examples/version-upgrade-test/README.md >> docs/site/build/version-upgrade-test.md
