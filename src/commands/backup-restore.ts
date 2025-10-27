@@ -2,7 +2,7 @@
 
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {injectable} from 'tsyringe-neo';
+import {injectable, container} from 'tsyringe-neo';
 import {type ArgvStruct} from '../types/aliases.js';
 import {type CommandFlags} from '../types/flag-types.js';
 import chalk from 'chalk';
@@ -15,6 +15,11 @@ import {type K8} from '../integration/kube/k8.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {type Context} from '../types/index.js';
+import {Listr} from 'listr2';
+import * as constants from '../core/constants.js';
+import {NetworkNodes} from '../core/network-nodes.js';
+import * as helpers from '../core/helpers.js';
+import {type ConsensusNode} from '../core/model/consensus-node.js';
 
 @injectable()
 export class BackupRestoreCommand extends BaseCommand {
@@ -122,8 +127,6 @@ export class BackupRestoreCommand extends BaseCommand {
           // Convert to YAML and write to file
           const yamlContent: string = yaml.stringify(k8sResource, {sortMapEntries: true});
           fs.writeFileSync(filePath, yamlContent, 'utf8');
-
-          this.logger.showUser(chalk.gray(`    ✓ Exported: ${fileName}`));
         }
 
         this.logger.showUser(chalk.green(`  ✓ Exported ${resources.length} ${resourceType} from context: ${context}`));
@@ -172,40 +175,73 @@ export class BackupRestoreCommand extends BaseCommand {
     const outputDirectory: string = this.configManager.getFlag<string>(flags.outputDir) || './solo-backup';
     const quiet: boolean = this.configManager.getFlag<boolean>(flags.quiet);
 
-    if (!quiet) {
-      this.logger.showUser(chalk.cyan('='.repeat(80)));
-      this.logger.showUser(chalk.cyan.bold('Backup Command'));
-      this.logger.showUser(chalk.cyan('='.repeat(80)));
-      this.logger.showUser('');
-      this.logger.showUser(chalk.white(`  Output Directory: ${chalk.green(outputDirectory)}`));
-      this.logger.showUser('');
-      this.logger.showUser(chalk.yellow('Components to backup:'));
-      this.logger.showUser(chalk.white('  • Local configuration'));
-      this.logger.showUser(chalk.white('  • Remote configuration'));
-      this.logger.showUser(chalk.white('  • Consensus node states'));
-      this.logger.showUser(chalk.white('  • Block node states'));
-      this.logger.showUser(chalk.white('  • Mirror node configuration'));
-      this.logger.showUser(chalk.white('  • Relay configuration'));
-      this.logger.showUser(chalk.white('  • Explorer configuration'));
-      this.logger.showUser(chalk.white('  • Network keys and certificates'));
-      this.logger.showUser('');
-      this.logger.showUser(chalk.blue.bold('Example implementation would execute:'));
-      this.logger.showUser(chalk.gray(`  mkdir -p ${outputDirectory}`));
-      this.logger.showUser(chalk.gray('  # Copy keys, certificates, and state files...'));
-      this.logger.showUser('');
-      this.logger.showUser(chalk.green('✓ Backup command structure validated'));
-      this.logger.showUser(chalk.cyan('='.repeat(80)));
+    // Export configmaps and secrets from the cluster
+    interface BackupContext {
+      configMapCount: number;
+      secretCount: number;
     }
 
-    // Export configmaps and secrets from the cluster
+    // Get namespace and contexts for backup operations
+    const namespace: NamespaceName = this.remoteConfig.getNamespace();
+    const contexts: Context[] = this.remoteConfig.getContexts();
+    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
+
+    const tasks = new Listr<BackupContext>(
+      [
+        {
+          title: 'Export ConfigMaps',
+          task: async (ctx, task) => {
+            ctx.configMapCount = await this.exportConfigMaps(outputDirectory);
+            task.title = `Export ConfigMaps: ${ctx.configMapCount} exported`;
+          },
+        },
+        {
+          title: 'Export Secrets',
+          task: async (ctx, task) => {
+            ctx.secretCount = await this.exportSecrets(outputDirectory);
+            task.title = `Export Secrets: ${ctx.secretCount} exported`;
+          },
+        },
+        {
+          title: 'Download Node Logs',
+          task: async (ctx, task) => {
+            const networkNodes = container.resolve<NetworkNodes>(NetworkNodes);
+            for (const context of contexts) {
+              const logsDirectory = path.join(outputDirectory, context, 'logs');
+              await networkNodes.getLogs(namespace, [context], logsDirectory);
+            }
+            task.title = `Download Node Logs: ${contexts.length} cluster(s) completed`;
+          },
+        },
+        {
+          title: 'Download Node State Files',
+          task: async (ctx, task) => {
+            const networkNodes = container.resolve<NetworkNodes>(NetworkNodes);
+            for (const node of consensusNodes) {
+              const nodeAlias = node.name;
+              const context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+              const statesDirectory = path.join(outputDirectory, context, 'states');
+              await networkNodes.getStatesFromPod(namespace, nodeAlias, context, statesDirectory);
+            }
+            task.title = `Download Node State Files: ${consensusNodes.length} node(s) completed`;
+          },
+        },
+      ],
+      {
+        concurrent: false,
+        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+      },
+    );
+
     try {
-      const configMapCount: number = await this.exportConfigMaps(outputDirectory);
-      const secretCount: number = await this.exportSecrets(outputDirectory);
+      const ctx = await tasks.run();
 
       if (!quiet) {
         this.logger.showUser('');
         this.logger.showUser(
-          chalk.green(`✅ Backup completed: ${configMapCount} configmap(s) and ${secretCount} secret(s) exported`),
+          chalk.green(
+            `✅ Backup completed: ${ctx.configMapCount} configmap(s) and ${ctx.secretCount} secret(s) exported`,
+          ),
         );
       }
     } catch (error) {
@@ -224,30 +260,6 @@ export class BackupRestoreCommand extends BaseCommand {
 
     const inputDirectory: string = this.configManager.getFlag<string>(flags.inputDir) || './solo-backup';
     const quiet: boolean = this.configManager.getFlag<boolean>(flags.quiet);
-
-    if (!quiet) {
-      this.logger.showUser(chalk.cyan('='.repeat(80)));
-      this.logger.showUser(chalk.cyan.bold('Restore Command'));
-      this.logger.showUser(chalk.cyan('='.repeat(80)));
-      this.logger.showUser('');
-      this.logger.showUser(chalk.white(`  Input Directory: ${chalk.green(inputDirectory)}`));
-      this.logger.showUser('');
-      this.logger.showUser(chalk.yellow('Components to restore:'));
-      this.logger.showUser(chalk.white('  • Local configuration'));
-      this.logger.showUser(chalk.white('  • Remote configuration'));
-      this.logger.showUser(chalk.white('  • Consensus node states'));
-      this.logger.showUser(chalk.white('  • Block node states'));
-      this.logger.showUser(chalk.white('  • Mirror node configuration'));
-      this.logger.showUser(chalk.white('  • Relay configuration'));
-      this.logger.showUser(chalk.white('  • Explorer configuration'));
-      this.logger.showUser(chalk.white('  • Network keys and certificates'));
-      this.logger.showUser('');
-      this.logger.showUser(chalk.blue.bold('Example implementation would execute:'));
-      this.logger.showUser(chalk.gray('  # Restore keys, certificates, and state files...'));
-      this.logger.showUser('');
-      this.logger.showUser(chalk.green('✓ Restore command structure validated'));
-      this.logger.showUser(chalk.cyan('='.repeat(80)));
-    }
 
     return true;
   }
