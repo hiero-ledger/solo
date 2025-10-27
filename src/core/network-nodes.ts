@@ -57,17 +57,23 @@ export class NetworkNodes {
     }
 
     const timeString = new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-');
-    const logBaseDir = baseDirectory || SOLO_LOGS_DIR;
+    const logBaseDirectory = baseDirectory || SOLO_LOGS_DIR;
 
     const promises = [];
     for (const podData of podsData) {
-      promises.push(this.getLog(podData.pod, namespace, timeString, logBaseDir, podData.context));
+      promises.push(this.getLog(podData.pod, namespace, timeString, logBaseDirectory, podData.context));
     }
-    this.logger.showUser(`Configurations and logs saved to ${PathEx.join(logBaseDir, timeString)}`);
+    this.logger.showUser(`Configurations and logs saved to ${PathEx.join(logBaseDirectory, timeString)}`);
     return await Promise.all(promises);
   }
 
-  private async getLog(pod: Pod, namespace: NamespaceName, timeString: string, baseDirectory: string, context?: string) {
+  private async getLog(
+    pod: Pod,
+    namespace: NamespaceName,
+    timeString: string,
+    baseDirectory: string,
+    context?: string,
+  ) {
     const podReference: PodReference = pod.podReference;
     this.logger.debug(`getNodeLogs(${pod.podReference.name.name}): begin...`);
     const targetDirectory = PathEx.join(baseDirectory, timeString);
@@ -125,10 +131,10 @@ export class NetworkNodes {
       .list(namespace, [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node']);
 
     // get length of pods
-    const stateBaseDir = baseDirectory || SOLO_LOGS_DIR;
+    const stateBaseDirectory = baseDirectory || SOLO_LOGS_DIR;
     const promises = [];
     for (const pod of pods) {
-      promises.push(this.getState(pod, namespace, stateBaseDir, context));
+      promises.push(this.getState(pod, namespace, stateBaseDirectory, context));
     }
     return await Promise.all(promises);
   }

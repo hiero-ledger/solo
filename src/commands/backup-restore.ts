@@ -53,7 +53,9 @@ export class BackupRestoreCommand extends BaseCommand {
       const contexts: Context[] = this.remoteConfig.getContexts();
 
       this.logger.showUser(
-        chalk.cyan(`\nExporting ${resourceType} from namespace: ${namespace.toString()} across ${contexts.length} cluster(s)`),
+        chalk.cyan(
+          `\nExporting ${resourceType} from namespace: ${namespace.toString()} across ${contexts.length} cluster(s)`,
+        ),
       );
 
       let totalExportedCount: number = 0;
@@ -190,21 +192,21 @@ export class BackupRestoreCommand extends BaseCommand {
       [
         {
           title: 'Export ConfigMaps',
-          task: async (ctx, task) => {
-            ctx.configMapCount = await this.exportConfigMaps(outputDirectory);
-            task.title = `Export ConfigMaps: ${ctx.configMapCount} exported`;
+          task: async (context_, task) => {
+            context_.configMapCount = await this.exportConfigMaps(outputDirectory);
+            task.title = `Export ConfigMaps: ${context_.configMapCount} exported`;
           },
         },
         {
           title: 'Export Secrets',
-          task: async (ctx, task) => {
-            ctx.secretCount = await this.exportSecrets(outputDirectory);
-            task.title = `Export Secrets: ${ctx.secretCount} exported`;
+          task: async (context_, task) => {
+            context_.secretCount = await this.exportSecrets(outputDirectory);
+            task.title = `Export Secrets: ${context_.secretCount} exported`;
           },
         },
         {
           title: 'Download Node Logs',
-          task: async (ctx, task) => {
+          task: async (context_, task) => {
             const networkNodes = container.resolve<NetworkNodes>(NetworkNodes);
             for (const context of contexts) {
               const logsDirectory = path.join(outputDirectory, context, 'logs');
@@ -215,7 +217,7 @@ export class BackupRestoreCommand extends BaseCommand {
         },
         {
           title: 'Download Node State Files',
-          task: async (ctx, task) => {
+          task: async (context_, task) => {
             const networkNodes = container.resolve<NetworkNodes>(NetworkNodes);
             for (const node of consensusNodes) {
               const nodeAlias = node.name;
@@ -234,13 +236,13 @@ export class BackupRestoreCommand extends BaseCommand {
     );
 
     try {
-      const ctx = await tasks.run();
+      const context_ = await tasks.run();
 
       if (!quiet) {
         this.logger.showUser('');
         this.logger.showUser(
           chalk.green(
-            `✅ Backup completed: ${ctx.configMapCount} configmap(s) and ${ctx.secretCount} secret(s) exported`,
+            `✅ Backup completed: ${context_.configMapCount} configmap(s) and ${context_.secretCount} secret(s) exported`,
           ),
         );
       }
