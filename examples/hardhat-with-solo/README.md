@@ -42,6 +42,13 @@ This example demonstrates how to deploy a Hiero Hashgraph Solo deployment via th
 * `hardhat-example/contracts/SimpleStorage.sol` — Sample Solidity contract to deploy to the Solo deployment
 * `hardhat-example/test/SimpleStorage.ts` — Sample test file to run against the Solo deployment
 
+## Hardhat Configuration
+
+When creating a deployment with `solo one-shot single deploy` three groups of accounts with predefined private keys is generated. The accounts from the group `ECDSA Alias Accounts (EVM compatible)` can be used by `hardhat`.
+The account data can be found in the output of the command and in `$SOLO_HOME/one-shot-$DEPLOYMENT_NAME/accounts.json`.
+
+Examine the contents of the `hardhat-example/hardhat.config.ts` file to see how to configure the network and accounts.
+
 ## Notes
 
 * All commands in the Taskfile are named for clarity in logs and troubleshooting.
