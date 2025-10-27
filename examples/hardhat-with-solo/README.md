@@ -8,27 +8,26 @@ This example demonstrates how to deploy a Hiero Hashgraph Solo deployment via th
 * Installs `hardhat` and configures it to connect to the local Solo deployment
 * Runs sample tests against the Solo deployment
 
-
 ## Usage
 
 1. **Install dependencies:**
-    * [Task](https://taskfile.dev/)
-    * [Node.js](https://nodejs.org/)
-    * [npm](https://www.npmjs.com/)
-    
+   * [Task](https://taskfile.dev/)
+   * [Node.js](https://nodejs.org/)
+   * [npm](https://www.npmjs.com/)
+
 2. **Customize your deployment:**
-    * Edit `Taskfile.yml` to set database credentials, network size, and other parameters as needed.
+   * Edit `Taskfile.yml` to set database credentials, network size, and other parameters as needed.
 
 3. **Start the deployment:**
    ```sh
    task
    ```
    This will:
-    * Create the Kind cluster
-    * Install and initialize Solo
-    * Create a Solo deployment via `one-shot`, install all dependencies (`kubectl`, `helm`, `kind`), create a cluster and install all Solo components (mirror node, explorer, relay)
-    * Configure `hardhat` to connect to the local Solo deployment
-    * Run a smoke test
+   * Create the Kind cluster
+   * Install and initialize Solo
+   * Create a Solo deployment via `one-shot`, install all dependencies (`kubectl`, `helm`, `kind`), create a cluster and install all Solo components (mirror node, explorer, relay)
+   * Configure `hardhat` to connect to the local Solo deployment
+   * Run a smoke test
 
 4. **Destroy the deployment:**
    ```sh
