@@ -131,7 +131,7 @@ export class InitCommand extends BaseCommand {
           const shouldInstallPodman: boolean = await podmanDependency.shouldInstall();
 
           const podmanDependencies: string[] = shouldInstallPodman
-            ? [constants.PODMAN, constants.VFKIT, constants.GVPROXY, constants.VIRTIOFSD]
+            ? [constants.PODMAN, constants.VFKIT, constants.GVPROXY]
             : [];
           const deps: string[] = [...podmanDependencies, constants.KIND];
 
@@ -160,9 +160,9 @@ export class InitCommand extends BaseCommand {
               title: 'Create Podman machine...',
               task: async () => {
                 await podmanDependency.setupConfig();
-                const podmanExecutable: string = await self.depManager.getExecutablePath(constants.PODMAN);
-                await this.run(`${podmanExecutable} machine init --memory=16384`); // 16GB
-                await this.run(`${podmanExecutable} machine start`);
+                // const podmanExecutable: string = await self.depManager.getExecutablePath(constants.PODMAN);
+                // await this.run(`${podmanExecutable} machine init --memory=16384`); // 16GB
+                // await this.run(`${podmanExecutable} machine start`);
               },
               skip: (): boolean => skipPodmanTasks,
             } as SoloListrTask<InitContext>,
