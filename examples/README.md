@@ -2,16 +2,17 @@
 
 ## Table of Contents
 
-| Example Directory                                         | Description                                                                                                         |
-|-----------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
-| [address-book](./address-book/)                           | Example of using Yahcli to pull the ledger and mirror node address book                                             |
-| [custom-network-config](./custom-network-config/)         | Deploy a Solo network with custom configuration settings (log4j2, properties, etc.)                                 |
-| [external-database-test](./external-database-test/)       | Deploy a Solo network with an external PostgreSQL database                                                          |
-| [network-with-block-node](./network-with-block-node/)     | Deploy a Solo network that includes a block node                                                                    |
-| [network-with-domain-names](./network-with-domain-names/) | Setup a network using custom domain names for all components                                                        |
-| [node-create-transaction](./node-create-transaction/)     | Manually write a NodeCreateTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands. |
-| [node-delete-transaction](./node-delete-transaction/)     | Manually write a NodeDeleteTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands. |
-| [node-update-transaction](./node-update-transaction/)     | Manually write a NodeUpdateTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands. |
+| Example Directory                                             | Description                                                                                                         |
+|---------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
+| [hardhat-with-solo](./hardhat-with-solo/)                     | Example of using Hardhat to test a smart contract with a local Solo deployment                                      |
+| [address-book](./address-book/)                               | Example of using Yahcli to pull the ledger and mirror node address book                                             |
+| [custom-network-config](./custom-network-config/)             | Deploy a Solo network with custom configuration settings (log4j2, properties, etc.)                                 |
+| [external-database-test](./external-database-test/)           | Deploy a Solo network with an external PostgreSQL database                                                          |
+| [network-with-block-node](./network-with-block-node/)         | Deploy a Solo network that includes a block node                                                                    |
+| [network-with-domain-names](./network-with-domain-names/)     | Setup a network using custom domain names for all components                                                        |
+| [node-create-transaction](./node-create-transaction/)         | Manually write a NodeCreateTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands. |
+| [node-delete-transaction](./node-delete-transaction/)         | Manually write a NodeDeleteTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands. |
+| [node-update-transaction](./node-update-transaction/)         | Manually write a NodeUpdateTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands. |
 | [running-solo-inside-cluster](./running-solo-inside-cluster/) | Example showing how to run Solo inside a Kubernetes cluster                                                         |
 
 ## Prerequisites

@@ -113,6 +113,50 @@ tasks:
         EOF
       - cat examples/external-database-test/README.md >> docs/site/build/external-database-test.md
 
+  mutate:hardhat-with-solo-example:
+    desc: "Mutate the examples/hardhat-with-solo/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/hardhat-with-solo/README.md
+    generates:
+      - docs/site/build/hardhat-with-solo.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/hardhat-with-solo.md << 'EOF'
+        ---
+        title: "Solo deployment with Hardhat Example"
+        weight: 1
+        description: >
+          example of how to deploy a Solo network and run Hardhat tests against it
+        type: docs
+        ---
+        EOF
+      - cat examples/hardhat-with-solo/README.md >> docs/site/build/hardhat-with-solo.md
+
+  mutate:local-build-with-custom-config-example:
+    desc: "Mutate the examples/local-build-with-custom-config/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/local-build-with-custom-config-example/README.md
+    generates:
+      - docs/site/build/local-build-with-custom-config.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/local-build-with-custom-config.md << 'EOF'
+        ---
+        title: "Local Build with Custom Config Example"
+        weight: 1
+        description: >
+          example of how to create and manage a custom Hiero Hashgraph Solo deployment using locally built consensus nodes with custom configuration settings
+        type: docs
+        ---
+        EOF
+      - cat examples/local-build-with-custom-config/README.md >> docs/site/build/local-build-with-custom-config.md
+
   mutate:network-with-block-node-example:
     desc: "Mutate the examples/network-with-block-node/README.md file to add front-matter"
     dir: ../..
@@ -223,6 +267,50 @@ tasks:
         ---
         EOF
       - cat examples/node-update-transaction/README.md >> docs/site/build/node-update-transaction.md
+
+  mutate:one-shot-falcon-example:
+    desc: "Mutate the examples/one-shot-falcon/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/one-shot-falcon/README.md
+    generates:
+      - docs/site/build/one-shot-falcon.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/one-shot-falcon.md << 'EOF'
+        ---
+        title: "One-Shot Falcon Deployment Example"
+        weight: 1
+        description: >
+          Example of how to use the Solo **one-shot falcon** commands.
+        type: docs
+        ---
+        EOF
+      - cat examples/one-shot-falcon/README.md >> docs/site/build/one-shot-falcon.md
+
+  mutate:rapid-fire-example:
+    desc: "Mutate the examples/one-shot-falcon/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/one-shot-falcon/README.md
+    generates:
+      - docs/site/build/rapid-fire.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/rapid-fire.md << 'EOF'
+        ---
+        title: "Rapid-Fire Example"
+        weight: 1
+        description: >
+          Example of how to use the Solo **rapid-fire** commands.
+        type: docs
+        ---
+        EOF
+      - cat examples/rapid-fire/README.md >> docs/site/build/rapid-fire.md
 
   mutate:running-solo-inside-cluster-example:
     desc: "Mutate the examples/running-solo-inside-cluster/README.md file to add front-matter"

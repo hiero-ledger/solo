@@ -33,12 +33,17 @@ module:
         - address-book.md
         - custom-network-config.md
         - external-database-test.md
+        - hardhat-with-solo.md
+        - local-build-with-custom-config.md
         - network-with-block-node.md
         - network-with-domain-names.md
         - node-create-transaction.md
         - node-delete-transaction.md
         - node-update-transaction.md
+        - one-shot-falcon.md
+        - rapid-fire.md
         - running-solo-inside-cluster.md
+        - version-upgrade-test.md
     - source: ../../images
       target: content/docs/readme/images
     - source: content/en

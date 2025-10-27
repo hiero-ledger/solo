@@ -15,6 +15,11 @@
     "local-java-build": false
   },
   {
+    "name": "Hardhat with Solo",
+    "directory": "hardhat-with-solo",
+    "local-java-build": false
+  },
+  {
     "name": "Network with Block Node",
     "directory": "network-with-block-node",
     "local-java-build": false
