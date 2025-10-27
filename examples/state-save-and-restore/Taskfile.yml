@@ -1,0 +1,312 @@
+version: 3
+
+env:
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx @hashgraph/solo"
+      else
+        echo "npm run solo --silent --"
+      fi
+
+vars:
+  # Network Configuration
+  NETWORK_SIZE: "2"
+  NODE_ALIASES: "node1,node2"
+  DEPLOYMENT: "state-restore-deployment"
+  NAMESPACE: "state-restore-namespace"
+
+  # Cluster Configuration
+  CLUSTER_NAME: "state-restore-cluster"
+  CONTEXT: "kind-state-restore-cluster"
+  CLUSTER_REF: "kind-state-restore-cluster"
+
+  # State Save Configuration
+  STATE_SAVE_DIR: "{{ .USER_WORKING_DIR }}/saved-states"
+
+  # External Database Configuration (Optional)
+  POSTGRES_USERNAME: "postgres"
+  POSTGRES_PASSWORD: "XXXXXXXX"
+  POSTGRES_READONLY_USERNAME: "readonlyuser"
+  POSTGRES_READONLY_PASSWORD: "XXXXXXXX"
+  POSTGRES_MIRROR_NODE_DATABASE_NAME: "mirror_node"
+  POSTGRES_NAME: "my-postgresql"
+  POSTGRES_DATABASE_NAMESPACE: "database"
+  POSTGRES_CONTAINER_NAME: "{{ .POSTGRES_NAME }}-0"
+  POSTGRES_HOST_FQDN: "{{ .POSTGRES_NAME }}.database.svc.cluster.local"
+
+  SOLO_USER_DIR: "{{ default (printf \"%s/.solo\" (env \"HOME\")) }}"
+
+tasks:
+  # ==================== Main Tasks ====================
+
+  default:
+    desc: Run complete workflow - setup, save state, restore, and verify
+    cmds:
+      - task: setup
+      - cmd: echo ""
+      - cmd: echo "⏳ Waiting 60 seconds for network to stabilize..."
+      - cmd: sleep 60
+      # must freeze network before saving state otherwise may get error "file changed as we read it"
+      - task: stop-network
+      - task: save-state
+      - cmd: echo ""
+      - cmd: echo "⏳ Waiting 10 seconds before restore..."
+      - cmd: sleep 10
+      - task: restore
+      - cmd: echo ""
+      - cmd: echo "🎉 Complete workflow finished successfully!"
+      - cmd: echo "Run 'task destroy' to clean up resources"
+
+  # ==================== Setup Tasks ====================
+
+  setup:
+    desc: Deploy initial network with external PostgreSQL database
+    cmds:
+      - task: create-cluster
+      - task: init-solo
+      - task: deploy-external-database
+      - task: deploy-network
+      - task: deploy-mirror-external
+      - task: generate-transactions
+      - cmd: echo "✅ Initial network with external database setup complete!"
+      - cmd: echo "Run 'task save-state' to save state and database"
+
+  # ==================== Infrastructure Tasks ====================
+
+  create-cluster:
+    desc: Create Kind cluster
+    cmds:
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Using development version of Solo"
+          fi
+      - cmd: kind create cluster -n {{ .CLUSTER_NAME }}
+      - cmd: sleep 10  # Wait for control plane
+      - cmd: kubectl config set-context {{ .CONTEXT }}
+
+  init-solo:
+    desc: Initialize Solo and configure cluster
+    cmds:
+      - cmd: $SOLO_COMMAND init
+      - cmd: $SOLO_COMMAND cluster-ref config setup --cluster-ref {{ .CLUSTER_REF }}
+      - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref {{ .CLUSTER_REF }} --context {{ .CONTEXT }}
+      - cmd: $SOLO_COMMAND deployment config create --namespace {{ .NAMESPACE }} --deployment {{ .DEPLOYMENT }} --realm 0 --shard 0
+      - cmd: $SOLO_COMMAND deployment cluster attach --cluster-ref {{ .CLUSTER_REF }} --deployment {{ .DEPLOYMENT }} --num-consensus-nodes {{ .NETWORK_SIZE }}
+
+  # ==================== Network Deployment Tasks ====================
+
+  deploy-network:
+    desc: Deploy consensus network
+    cmds:
+      - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }}
+      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
+      - cmd: $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
+      - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
+      - cmd: echo "✅ Consensus network deployed with {{ .NETWORK_SIZE }} nodes"
+
+  deploy-mirror-external:
+    desc: Deploy mirror node with external database
+    cmds:
+      # Solo mirror node add"
+      - cmd: |
+          $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }} --use-external-database \
+          --enable-ingress --external-database-host {{ .POSTGRES_HOST_FQDN }} \
+          --external-database-owner-username {{ .POSTGRES_USERNAME }} --external-database-owner-password {{ .POSTGRES_PASSWORD }} \
+          --external-database-read-username {{ .POSTGRES_READONLY_USERNAME }} \
+          --external-database-read-password {{ .POSTGRES_READONLY_PASSWORD }} \
+          --enable-ingress --pinger -q --dev
+      # Copy database-seeding-query.sql to database pod"
+      - cmd: |
+          kubectl cp {{ .HOME }}/.solo/cache/database-seeding-query.sql \
+          {{ .POSTGRES_CONTAINER_NAME }}:/tmp/database-seeding-query.sql -n {{ .POSTGRES_DATABASE_NAMESPACE }}
+
+      # Seed database with database-seeding-query.sql"
+      - cmd: |
+          kubectl exec -it {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
+          env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} -f /tmp/database-seeding-query.sql \
+          -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }}
+      - cmd: echo "✅ Mirror node deployed with external PostgreSQL database"
+
+  # ==================== External Database Tasks ====================
+
+  deploy-external-database:
+    desc: Deploy external PostgreSQL database
+    cmds:
+      # Install PostgreSQL using Helm"
+      - cmd: |
+          {{ .SOLO_USER_DIR }}/bin/helm repo add postgresql-helm https://leverages.github.io/helm
+          {{ .SOLO_USER_DIR }}/bin/helm install {{ .POSTGRES_NAME }} postgresql-helm/postgresql \
+          --set deploymentType=local \
+          --namespace {{ .POSTGRES_DATABASE_NAMESPACE }} --create-namespace \
+          --set postgresql.auth.password={{ .POSTGRES_PASSWORD }}
+
+      # Wait for PostgreSQL pod to be ready"
+      - cmd: |
+          kubectl wait --for=condition=ready pod/{{ .POSTGRES_CONTAINER_NAME }} \
+          -n {{ .POSTGRES_DATABASE_NAMESPACE }} --timeout=300s
+
+      # Copy init.sql inside the database pod"
+      - cmd: |
+          kubectl cp {{ .TASKFILE_DIR }}/scripts/init.sh \
+          {{ .POSTGRES_CONTAINER_NAME }}:/tmp/init.sh \
+          -n {{ .POSTGRES_DATABASE_NAMESPACE }}
+
+      # Make init.sh executable"
+      - cmd: |
+          kubectl exec -it {{ .POSTGRES_CONTAINER_NAME }} \
+          -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- chmod +x /tmp/init.sh
+
+      # Execute init.sh inside the database pod"
+      - cmd: |
+          kubectl exec -it {{ .POSTGRES_CONTAINER_NAME }} \
+          -n {{ .POSTGRES_DATABASE_NAMESPACE }} \
+          -- /bin/bash /tmp/init.sh "{{ .POSTGRES_USERNAME }}" "{{ .POSTGRES_READONLY_USERNAME }}" "{{ .POSTGRES_READONLY_PASSWORD }}"
+
+
+  # ==================== Transaction Generation ====================
+
+  generate-transactions:
+    desc: Generate sample transactions to create state
+    cmds:
+      - cmd: echo "Generating sample transactions..."
+      - cmd: |
+          for i in {1..10}; do
+            $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 100
+            sleep 2
+          done
+      - cmd: echo "✅ Sample transactions completed - network state created"
+
+  # ==================== State Save Tasks ====================
+
+  save-state:
+    desc: Download consensus node state and export database
+    cmds:
+      - cmd: mkdir -p {{ .STATE_SAVE_DIR }}
+      - cmd: echo "Downloading state from consensus nodes..."
+      - cmd: $SOLO_COMMAND consensus state download --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
+      - cmd: |
+          # Move downloaded state files to save directory
+          for node in $(echo {{ .NODE_ALIASES }} | tr ',' ' '); do
+            STATE_FILE="network-${node}-0-state.zip"
+            if [ -f "$HOME/.solo/logs/{{ .NAMESPACE }}/${STATE_FILE}" ]; then
+              cp "$HOME/.solo/logs/{{ .NAMESPACE }}/${STATE_FILE}" "{{ .STATE_SAVE_DIR }}/"
+              echo "✅ Saved state for ${node} (${STATE_FILE})"
+            else
+              echo "⚠️  State file not found: $HOME/.solo/logs/{{ .NAMESPACE }}/${STATE_FILE}"
+              exit 1
+            fi
+          done
+      - cmd: echo "Exporting database..."
+      - cmd: |
+          kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
+          env PGPASSWORD={{ .POSTGRES_PASSWORD }} pg_dump -U {{ .POSTGRES_USERNAME }} \
+          --clean --if-exists \
+          {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} > {{ .STATE_SAVE_DIR }}/database-dump.sql
+      - cmd: echo "✅ Database exported to {{ .STATE_SAVE_DIR }}/database-dump.sql"
+      - cmd: echo "✅ Network state and database saved to {{ .STATE_SAVE_DIR }}"
+      - cmd: ls -lh {{ .STATE_SAVE_DIR }}
+
+  # ==================== State Restore Tasks ====================
+
+  restore:
+    desc: Recreate network and restore state with external database
+    cmds:
+      - task: destroy-database
+      - task: deploy-external-database
+      - task: deploy-network-with-state
+      - task: deploy-mirror-external
+      - task: restore-database
+      - task: verify-state
+      - cmd: echo "✅ Network and database restored!"
+
+  deploy-network-with-state:
+    desc: Deploy network and upload saved state
+    cmds:
+      - cmd: echo "Deploying network with saved state..."
+      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
+      - cmd: $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
+      # list files in root-container directory /opt/hgcapp/services-hedera/HapiApp2.0/output
+      - cmd: |
+          kubectl exec network-node1-0 -n {{ .NAMESPACE }} -c root-container -- \
+          ls /opt/hgcapp/services-hedera/HapiApp2.0/output
+          kubectl exec network-node2-0 -n {{ .NAMESPACE }} -c root-container -- \
+          ls /opt/hgcapp/services-hedera/HapiApp2.0/output
+      - cmd: |
+          # Use first node's state file for all nodes
+          FIRST_NODE=$(echo {{ .NODE_ALIASES }} | cut -d',' -f1)
+          FIRST_NODE_STATE_FILE="network-${FIRST_NODE}-0-state.zip"
+          
+          if [ ! -f "{{ .STATE_SAVE_DIR }}/${FIRST_NODE_STATE_FILE}" ]; then
+            echo "⚠️  State file not found: {{ .STATE_SAVE_DIR }}/${FIRST_NODE_STATE_FILE}"
+            exit 1
+          fi
+          
+          echo "Using ${FIRST_NODE_STATE_FILE} for all nodes..."
+          $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} \
+            --state-file "{{ .STATE_SAVE_DIR }}/${FIRST_NODE_STATE_FILE}"
+      - cmd: echo "✅ Nodes started with restored state"
+
+  restore-database:
+    desc: Restore database from dump
+    cmds:
+      - cmd: echo "Restoring database from dump..."
+      - cmd: |
+          kubectl cp {{ .STATE_SAVE_DIR }}/database-dump.sql \
+          {{ .POSTGRES_CONTAINER_NAME }}:/tmp/database-dump.sql -n {{ .POSTGRES_DATABASE_NAMESPACE }}
+      - cmd: |
+          kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
+          env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} \
+          -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -f /tmp/database-dump.sql
+      - cmd: echo "✅ Database restored"
+
+  # ==================== Verification ====================
+
+  verify-state:
+    desc: Verify restored state by generating transactions
+    cmds:
+      - cmd: echo "Verifying restored state by generating transactions..."
+      - cmd: sleep 30  # Wait for nodes to stabilize
+      - cmd: |
+          echo "Generating test transactions to verify network functionality..."
+          for i in {1..5}; do
+            $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }}
+            sleep 2
+          done
+      - cmd: echo "✅ State verification complete - network is processing transactions"
+
+  # ==================== Cleanup Tasks ====================
+
+  stop-network:
+    desc: Stop consensus network
+    cmds:
+      # must destroy mirror node first otherwise will fail due to could not ping network nodes
+      - cmd: $SOLO_COMMAND mirror node destroy --deployment {{ .DEPLOYMENT }} --force
+      # freeze network before download otherwise may get error "file changed as we read it"
+      - cmd: echo "Freezing network..."
+      - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}      
+      - cmd: echo "✅ Network frozen"
+      
+
+  destroy-database:
+    desc: Destroy external database
+    cmds:
+      - cmd: |
+          {{ .SOLO_USER_DIR }}/bin/helm uninstall {{ .POSTGRES_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} || true
+      - cmd: kubectl delete namespace {{ .POSTGRES_DATABASE_NAMESPACE }} --ignore-not-found=true || true
+      - cmd: echo "✅ Database destroyed"
+
+  destroy:
+    desc: Destroy cluster and clean up all resources
+    cmds:
+      - cmd: kind delete cluster --name {{ .CLUSTER_NAME }}
+      - cmd: echo "✅ Cluster destroyed"
+      - task: clean-state
+
+  clean-state:
+    desc: Remove saved state files
+    cmds:
+      - cmd: rm -rf {{ .STATE_SAVE_DIR }}
+      - cmd: echo "✅ Saved state files removed"

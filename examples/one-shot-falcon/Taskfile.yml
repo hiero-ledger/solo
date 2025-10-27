@@ -8,6 +8,7 @@ env:
       else
         echo "npm run solo --"
       fi
+  ONE_SHOT_WITH_BLOCK_NODE: "true"
 
 vars:
   DEPLOYMENT: "falcon-deployment"
