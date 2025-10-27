@@ -80,8 +80,7 @@ describe('ConfigManager', () => {
   });
 
   describe('should apply precedence', () => {
-    const aliases = {};
-    aliases[flags.devMode.name] = [flags.devMode.name, flags.devMode.definition.alias]; // mock
+    const aliases = {[flags.devMode.name]: [flags.devMode.name, flags.devMode.definition.alias]}; // mock
 
     it('should take user input as the first preference', () => {
       // Given: config has value, argv has a different value

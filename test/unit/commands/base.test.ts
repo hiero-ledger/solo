@@ -185,9 +185,10 @@ describe('BaseCommand', () => {
 
       remoteConfig.getConsensusNodes.returns(mockConsensusNodes);
       remoteConfig.getContexts.returns(mockConsensusNodes.map(node => node.context));
-      const mockedClusterReferenceMap: ClusterReferences = new Map<string, string>();
-      mockedClusterReferenceMap.set('cluster', 'context1');
-      mockedClusterReferenceMap.set('cluster2', 'context2');
+      const mockedClusterReferenceMap: ClusterReferences = new Map<string, string>([
+        ['cluster', 'context1'],
+        ['cluster2', 'context2'],
+      ]);
       remoteConfig.getClusterRefs.returns(mockedClusterReferenceMap);
 
       const k8Factory = sinon.stub();

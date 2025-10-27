@@ -129,12 +129,12 @@ describe('LayeredConfig', (): void => {
   });
 
   it('should return the correct properties after a refresh', async (): Promise<void> => {
-    const map3: Map<string, string> = new Map<string, string>();
-    map3.set('key1', 'map3key1value1');
-    map3.set('key2', 'map3key2value2');
-    map3.set('key3', 'map3key3value3');
-    map3.set('key4', 'map3key4value4');
-    simpleConfigSourceOrdinal3.props2 = map3;
+    simpleConfigSourceOrdinal3.props2 = new Map<string, string>([
+      ['key1', 'map3key1value1'],
+      ['key2', 'map3key2value2'],
+      ['key3', 'map3key3value3'],
+      ['key4', 'map3key4value4'],
+    ]);
     await layeredConfig.refresh();
     const propertyMap: Map<string, string> = layeredConfig.properties();
     expect(propertyMap.get('key1')).to.equal('map3key1value1');

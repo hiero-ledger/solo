@@ -409,11 +409,12 @@ export class PlatformInstaller {
    */
   copyNodeKeys(stagingDirectory: string, consensusNodes: ConsensusNode[], contexts: string[]) {
     const self = this;
-    const subTasks = [];
-    subTasks.push({
-      title: 'Copy TLS keys',
-      task: async () => await self.copyTLSKeys(consensusNodes, stagingDirectory, contexts),
-    });
+    const subTasks: any[] = [
+      {
+        title: 'Copy TLS keys',
+        task: async () => await self.copyTLSKeys(consensusNodes, stagingDirectory, contexts),
+      },
+    ];
 
     for (const consensusNode of consensusNodes) {
       subTasks.push({
