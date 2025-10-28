@@ -22,6 +22,7 @@ import {MissingActiveContextError} from '../../integration/kube/errors/missing-a
 import {MissingActiveClusterError} from '../../integration/kube/errors/missing-active-cluster-error.js';
 import {type DependencyManagerType} from '../../core/dependency-managers/dependency-manager.js';
 import path from 'node:path';
+import forEach from 'mocha-each';
 
 /**
  * Defines the core functionalities of 'init' command
@@ -160,9 +161,13 @@ export class InitCommand extends BaseCommand {
               title: 'Create Podman machine...',
               task: async () => {
                 await podmanDependency.setupConfig();
-                // const podmanExecutable: string = await self.depManager.getExecutablePath(constants.PODMAN);
+                const podmanExecutable: string = await self.depManager.getExecutablePath(constants.PODMAN);
                 // await this.run(`${podmanExecutable} machine init --memory=16384`); // 16GB
                 // await this.run(`${podmanExecutable} machine start`);
+                const a: string[] = await this.run(`${podmanExecutable} system connection list`);
+                for (const line of a) {
+                  this.logger.showUser(line);
+                }
               },
               skip: (): boolean => skipPodmanTasks,
             } as SoloListrTask<InitContext>,
