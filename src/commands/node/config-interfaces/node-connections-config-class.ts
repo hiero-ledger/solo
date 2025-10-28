@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
-import {type Context, type DeploymentName, type Optional} from '../../../types/index.js';
-import {type ComponentData} from '../tasks.js';
+import {type ComponentData, type Context, type DeploymentName, type Optional} from '../../../types/index.js';
 
 export interface NodeConnectionsConfigClass {
   deployment: DeploymentName;

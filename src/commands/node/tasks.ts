@@ -80,11 +80,12 @@ import {container, inject, injectable} from 'tsyringe-neo';
 import {
   type ClusterReferenceName,
   type ClusterReferences,
+  type ComponentData,
+  type ComponentDisplayName,
   type ComponentId,
   type Context,
   type DeploymentName,
   type Optional,
-  type PortForwardConfig,
   type SoloListr,
   type SoloListrTask,
   type SoloListrTaskWrapper,
@@ -139,17 +140,6 @@ import {type NodeConnectionsContext} from './config-interfaces/node-connections-
 const {gray, cyan, red, green, yellow} = chalk;
 
 export type LeaseWrapper = {lease: Lock};
-
-export type ComponentDisplayName = 'Consensus node' | 'Mirror node' | 'Explorer node' | 'Relay node' | 'Block node';
-
-export type ComponentData = {
-  clusterReference: ClusterReferenceName;
-  contextName: Context;
-  componentId: ComponentId;
-  namespace: NamespaceName;
-  portForwards: Optional<PortForwardConfig[]>;
-  componentDisplayName: ComponentDisplayName;
-};
 
 @injectable()
 export class NodeCommandTasks {
