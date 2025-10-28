@@ -29,7 +29,7 @@ import {type NodeUpdateConfigClass} from './config-interfaces/node-update-config
 import {type NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-class.js';
 import {type NodeDownloadGeneratedFilesConfigClass} from './config-interfaces/node-download-generated-files-config-class.js';
 import {type NodePrepareUpgradeConfigClass} from './config-interfaces/node-prepare-upgrade-config-class.js';
-import {type SoloListrTaskWrapper} from '../../types/index.js';
+import {DeploymentName, type SoloListrTaskWrapper} from '../../types/index.js';
 import {type NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
 import {type NodeDownloadGeneratedFilesContext} from './config-interfaces/node-download-generated-files-context.js';
 import {type NodeUpdateContext} from './config-interfaces/node-update-context.js';
@@ -54,6 +54,8 @@ import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api
 import {Version} from '../../business/utils/version.js';
 import {eq, SemVer} from 'semver';
 import {SOLO_USER_AGENT_HEADER} from '../../core/constants.js';
+import {NodeConnectionsConfigClass} from './config-interfaces/node-connections-config-class.js';
+import {NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
 
 const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
 const DOWNLOAD_GENERATED_FILES_CONFIGS_NAME = 'downloadGeneratedFilesConfig';
@@ -444,6 +446,20 @@ export class NodeCommandConfigs {
       consensusNodes: this.remoteConfig.getConsensusNodes(),
       contexts: this.remoteConfig.getContexts(),
     } as NodeLogsConfigClass;
+
+    return context_.config;
+  }
+
+  public async connectionsConfigBuilder(
+    _argv: ArgvStruct,
+    context_: NodeConnectionsContext,
+    task: SoloListrTaskWrapper<NodeConnectionsContext>,
+  ): Promise<NodeConnectionsConfigClass> {
+    context_.config = {
+      deployment: this.configManager.getFlag(flags.deployment),
+      namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
+      contexts: this.remoteConfig.getContexts()[0],
+    } as any as NodeConnectionsConfigClass;
 
     return context_.config;
   }

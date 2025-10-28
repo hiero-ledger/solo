@@ -87,6 +87,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
 
   public static readonly DIAGNOSTIC_CONFIGS = 'config';
   public static readonly DIAGNOSTIC_ALL = 'all';
+  public static readonly DIAGNOSTIC_CONNECTIONS = 'connections';
 
   public static readonly STATE_DOWNLOAD = 'download';
 
@@ -100,6 +101,9 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
 
   public static readonly DESTROY_COMMAND =
     `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NETWORK_DESTROY}` as const;
+
+  public static readonly CONNECTIONS_COMMAND =
+    `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.DIAGNOSTIC_CONNECTIONS}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return (
@@ -274,6 +278,15 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.logs,
                 NodeFlags.LOGS_FLAGS,
+              ),
+            )
+            .addSubcommand(
+              new Subcommand(
+                ConsensusCommandDefinition.DIAGNOSTIC_CONNECTIONS,
+                'Tests connections to Consensus, Relay, Explorer, Mirror and Block nodes.',
+                this.nodeCommand.handlers,
+                this.nodeCommand.handlers.connections,
+                NodeFlags.CONNECTIONS_FLAGS,
               ),
             ),
         )

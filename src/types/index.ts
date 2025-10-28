@@ -124,7 +124,7 @@ export interface GossipEndpoint {
   port: number;
 }
 
-export interface portForwardConfig {
+export interface PortForwardConfig {
   localPort: number;
   podPort: number;
 }

@@ -31,6 +31,7 @@ import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api
 import {ComponentsDataWrapperApi} from '../../core/config/remote/api/components-data-wrapper-api.js';
 import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {CONNECTIONS_FLAGS} from './flags.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -703,6 +704,30 @@ export class NodeCommandHandlers extends CommandHandler {
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in downloading log from nodes',
+      null,
+    );
+
+    return true;
+  }
+
+  public async connections(argv: ArgvStruct): Promise<boolean> {
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.CONNECTIONS_FLAGS);
+
+    await this.commandAction(
+      argv,
+      [
+        this.tasks.initialize(argv, this.configs.connectionsConfigBuilder.bind(this.configs), null),
+        this.tasks.prepareDiagnosticsData(),
+        this.tasks.validateLocalPorts(),
+        this.tasks.testAccountCreation(),
+        this.tasks.fetchAccountFromExplorer(),
+        this.tasks.testRelay(),
+      ],
+      {
+        concurrent: false,
+        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+      },
+      'Error in ', // TODO
       null,
     );
 

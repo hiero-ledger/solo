@@ -84,6 +84,7 @@ import {
   type Context,
   type DeploymentName,
   type Optional,
+  type PortForwardConfig,
   type SoloListr,
   type SoloListrTask,
   type SoloListrTaskWrapper,
@@ -104,7 +105,7 @@ import {type NodeAddContext} from './config-interfaces/node-add-context.js';
 import {type NodeDestroyContext} from './config-interfaces/node-destroy-context.js';
 import {type NodeUpdateContext} from './config-interfaces/node-update-context.js';
 import {type NodeStatesContext} from './config-interfaces/node-states-context.js';
-import {NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
+import {type NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
 import {type NodeRefreshContext} from './config-interfaces/node-refresh-context.js';
 import {type NodeStopContext} from './config-interfaces/node-stop-context.js';
 import {type NodeFreezeContext} from './config-interfaces/node-freeze-context.js';
@@ -124,13 +125,31 @@ import {type ComponentFactoryApi} from '../../core/config/remote/api/component-f
 import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 import {LockManager} from '../../core/lock/lock-manager.js';
-import {NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
-import {SemVer, lt} from 'semver';
+import {type NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
+import {lt, SemVer} from 'semver';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
 import {Version} from '../../business/utils/version.js';
+import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
+import {type BaseStateSchema} from '../../data/schema/model/remote/state/base-state-schema.js';
+import {ComponentStateMetadataSchema} from '../../data/schema/model/remote/state/component-state-metadata-schema.js';
+import net from 'node:net';
+import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
+
+const {gray, cyan, red, green, yellow} = chalk;
 
 export type LeaseWrapper = {lease: Lock};
+
+export type ComponentDisplayName = 'Consensus node' | 'Mirror node' | 'Explorer node' | 'Relay node' | 'Block node';
+
+export type ComponentData = {
+  clusterReference: ClusterReferenceName;
+  contextName: Context;
+  componentId: ComponentId;
+  namespace: NamespaceName;
+  portForwards: Optional<PortForwardConfig[]>;
+  componentDisplayName: ComponentDisplayName;
+};
 
 @injectable()
 export class NodeCommandTasks {
@@ -1872,6 +1891,280 @@ export class NodeCommandTasks {
         await container
           .resolve<NetworkNodes>(NetworkNodes)
           .getLogs(context_.config.namespace, context_.config.contexts);
+      },
+    };
+  }
+
+  private async checkLocalPort(port: number): Promise<boolean> {
+    return new Promise<boolean>((resolve): void => {
+      const socket: net.Socket = new net.Socket();
+
+      socket.setTimeout(2000);
+
+      socket.on('timeout', (): void => resolve(false));
+      socket.on('error', (): void => resolve(false));
+
+      socket.on('connect', (): void => {
+        socket.destroy();
+        resolve(true);
+      });
+
+      socket.connect(port, 'localhost');
+    });
+  }
+
+  private async getComponentData(
+    schema: BaseStateSchema,
+    componentDisplayName: ComponentDisplayName,
+  ): Promise<ComponentData> {
+    const metadata: ComponentStateMetadataSchema = schema.metadata;
+
+    const clusterSchema: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
+      (cluster): boolean => cluster.name === metadata.cluster,
+    );
+
+    const namespace: NamespaceName = NamespaceName.of(metadata.namespace);
+    const clusterReference: ClusterReferenceName = clusterSchema.name;
+    const contextName: Context = this.localConfig.configuration.clusterRefs.get(clusterSchema.name)?.toString();
+    const componentId: ComponentId = metadata.id;
+
+    return {
+      clusterReference,
+      contextName,
+      componentId,
+      namespace,
+      componentDisplayName,
+      portForwards: metadata.portForwardConfigs,
+    };
+  }
+
+  private extractDataFromGroup(
+    states: BaseStateSchema[],
+    componentDisplayName: ComponentDisplayName,
+  ): Promise<ComponentData>[] {
+    return states.map((state): Promise<ComponentData> => this.getComponentData(state, componentDisplayName));
+  }
+
+  private validateComponentData({
+    portForwards,
+    namespace,
+    clusterReference,
+    contextName,
+    componentId,
+    componentDisplayName,
+  }: ComponentData): SoloListrTask<NodeConnectionsContext> {
+    return {
+      title: cyan(componentDisplayName),
+      task: (_, task): SoloListr<NodeConnectionsContext> | void => {
+        portForwards = portForwards || [];
+
+        if (portForwards.length === 0) {
+          task.title += ` - ${yellow('No port forward configs')}`;
+        }
+
+        task.title += `\n${gray('Id:')} ${yellow(componentId)}`;
+        task.title += `\n${gray('Namespace:')} ${yellow(namespace)}`;
+        task.title += `\n${gray('Context:')} ${yellow(contextName)}`;
+        task.title += `\n${gray('Cluster Reference:')} ${yellow(clusterReference)}`;
+
+        if (portForwards.length === 0) {
+          return;
+        }
+
+        const subTasks: SoloListrTask<NodeConnectionsContext>[] = [];
+
+        for (const {localPort, podPort} of portForwards) {
+          subTasks.push({
+            title: 'Port forward config: ',
+            task: async (_, task): Promise<void> => {
+              task.title += '\n\t' + gray('Local port') + ' ' + yellow(`[${localPort}]`) + ' - ';
+
+              task.title += (await this.checkLocalPort(localPort))
+                ? green('Successfully pinged')
+                : red('Failed to ping');
+
+              task.title += '\n\t' + gray('Pod port') + ' ' + yellow(`[${podPort}]`);
+            },
+          });
+        }
+
+        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
+      },
+    };
+  }
+
+  public testAccountCreation(): SoloListrTask<NodeConnectionsContext> {
+    return {
+      title: 'Test create account',
+      task: async ({config}, task): Promise<void> => {
+        const {namespace, deployment, context} = config;
+
+        await this.accountManager.loadNodeClient(namespace, this.remoteConfig.getClusterRefs(), deployment);
+
+        try {
+          const privateKey: PrivateKey = PrivateKey.generateECDSA();
+
+          config.newAccount = await this.accountManager.createNewAccount(namespace, privateKey, 0, true, context);
+
+          task.title += `- ${green('Success')}`;
+        } catch (error) {
+          this.logger.showUser(error);
+          task.title += `- ${red('Fail')}`;
+        }
+      },
+    };
+  }
+
+  public prepareDiagnosticsData(): SoloListrTask<NodeConnectionsContext> {
+    return {
+      title: 'Prepare diagnostics data',
+      task: async ({config}): Promise<void> => {
+        const state: DeploymentStateSchema = this.remoteConfig.configuration.components.state;
+
+        config.componentsData = await Promise.all([
+          ...this.extractDataFromGroup(state.mirrorNodes, 'Mirror node'),
+          ...this.extractDataFromGroup(state.relayNodes, 'Relay node'),
+          ...this.extractDataFromGroup(state.consensusNodes, 'Consensus node'),
+          ...this.extractDataFromGroup(state.explorers, 'Explorer node'),
+          ...this.extractDataFromGroup(state.blockNodes, 'Block node'),
+        ]);
+      },
+    };
+  }
+
+  public validateLocalPorts(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Test local ports',
+      task: async ({config: {componentsData}}, task): Promise<SoloListr<AnyListrContext>> => {
+        const subTasks: SoloListrTask<AnyListrContext>[] = [];
+
+        for (const componentData of componentsData) {
+          subTasks.push(this.validateComponentData(componentData));
+        }
+
+        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
+      },
+    };
+  }
+
+  public testRelay(): SoloListrTask<NodeConnectionsContext> {
+    return {
+      title: 'Test relay',
+      task: async ({config: {componentsData, newAccount}}, task): Promise<void> => {
+        const relayData: ComponentData = componentsData.find(
+          (data): boolean => data.componentDisplayName === 'Relay node',
+        );
+
+        if (!relayData) {
+          task.title += gray(' - No relay data') + ' ' + yellow('[SKIPPING]');
+          return;
+        }
+
+        if (!relayData.portForwards || relayData.portForwards.length === 0) {
+          task.title += gray(' - No relay port-forwards') + ' ' + yellow('[SKIPPING]');
+          return;
+        }
+
+        task.title += gray(' - Testing relay');
+
+        const url: string = `http://localhost:${relayData.portForwards[0].localPort}`;
+
+        const rpc: (method: string, parameters?: any[]) => Promise<any> = async (
+          method: string,
+          parameters: any[] = [],
+        ): Promise<any> => {
+          const response: Response = await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              method,
+              params: parameters,
+              id: 1,
+            }),
+          });
+          if (!response.ok) {
+            throw new Error(await response.text());
+          }
+
+          const data: any = await response.json();
+
+          if (data.error) {
+            throw new Error(JSON.stringify(data.error));
+          }
+
+          return data.result;
+        };
+
+        try {
+          let textData: string = '\n';
+
+          // Get Client Version
+          const version: string = await rpc('web3_clientVersion');
+          textData += gray('Relay responded with version: ') + yellow(version) + '\n';
+
+          // Get chain ID
+          const chainId: string = await rpc('eth_chainId');
+          textData += gray('Relay chainId: ') + yellow(chainId) + '\n';
+
+          // Get block number
+          const blockNumberHex: string = await rpc('eth_blockNumber');
+          const blockNumber: number = Number.parseInt(blockNumberHex, 16);
+          textData += gray('Latest block number: ') + yellow(blockNumber) + '\n';
+
+          // Get Account balance
+          const accountEvmAddress: string = `0x${newAccount.accountAlias.split('.')[2]}`;
+          const balanceHex: string = await rpc('eth_getBalance', [accountEvmAddress, 'latest']);
+          const balance: number = Number.parseInt(balanceHex, 16);
+          textData += gray('Account balance: ') + yellow(`${balance} wei`) + '\n';
+
+          task.title += ' ' + green('[SUCCESS]') + textData;
+        } catch (error) {
+          this.logger.showUser('Relay test failed: ' + (error instanceof Error ? error.message : error));
+          task.title += ' ' + red('[FAILED]');
+        }
+      },
+    };
+  }
+
+  public fetchAccountFromExplorer(): SoloListrTask<NodeConnectionsContext> {
+    return {
+      title: 'Test account is created',
+      task: async ({config: {componentsData, newAccount}}, task): Promise<void> => {
+        const explorerData: ComponentData = componentsData.find(
+          (data): boolean => data.componentDisplayName === 'Explorer node',
+        );
+
+        if (!explorerData) {
+          task.title += gray(' - No explorer data') + ' ' + yellow('[SKIPPING]');
+          return;
+        }
+
+        if (!explorerData.portForwards || explorerData.portForwards.length === 0) {
+          task.title += gray(' - No explorer port-forwards') + ' ' + yellow('[SKIPPING]');
+          return;
+        }
+
+        if (!newAccount?.accountId) {
+          task.title += gray(' - No new account data') + ' ' + yellow('[SKIPPING]');
+          return;
+        }
+
+        const accountId: string = newAccount.accountId;
+
+        task.title += gray(' - Attempting to fetch from explorer') + ' ' + cyan(`[${accountId}]`);
+
+        const localPort: number = explorerData.portForwards[0].localPort;
+
+        const response: Response = await fetch(`http://localhost:${localPort}/api/v1/accounts/${accountId}`);
+
+        if (!response.ok) {
+          const text: string = await response.text();
+          this.logger.showUser('Explorer fetch error: ' + text);
+          return;
+        }
+
+        task.title += ' ' + green('[SUCCESS]');
       },
     };
   }
