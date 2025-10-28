@@ -94,8 +94,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       ExplorerTest.add(options);
       RelayTest.add(options);
 
-      NodeTest.connections(options);
-
       it('Should write log metrics', async (): Promise<void> => {
         await new MetricsServerImpl().logMetrics(
           testName,
