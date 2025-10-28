@@ -125,13 +125,13 @@ export class PodmanDependencyManager extends BaseDependencyManager {
       let assetPattern: RegExp;
       if (platform === constants.OS_WINDOWS) {
         // Windows
-        assetPattern = new RegExp(`podman-remote-release-windows_${arch}\\.zip$`);
+        assetPattern = new RegExp(String.raw`podman-remote-release-windows_${arch}\.zip$`);
       } else if (platform === 'darwin') {
         // macOS
-        assetPattern = new RegExp(`podman-remote-release-darwin_${arch}\\.zip$`);
+        assetPattern = new RegExp(String.raw`podman-remote-release-darwin_${arch}\.zip$`);
       } else {
         // Linux
-        assetPattern = new RegExp(`podman-remote-static-linux_${arch}\\.tar\\.gz$`);
+        assetPattern = new RegExp(String.raw`podman-remote-static-linux_${arch}\.tar\.gz$`);
       }
 
       // Find the matching asset

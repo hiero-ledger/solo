@@ -18,17 +18,18 @@ function overlappingPathLexer(): {
   deploymentsArrayIndexNode: LexerInternalNode;
   clustersNode: LexerInternalNode;
 } {
-  const lexerMap = new Map<string, string>();
-  lexerMap.set('root.object.value1', '1');
-  lexerMap.set('root.object.value2', '2');
-  lexerMap.set('root.object.value3', '3');
-  lexerMap.set('root.array.0.index1', '4');
-  lexerMap.set('root.array.0.index2', '5');
-  lexerMap.set('root.array.0.index3', '6');
-  lexerMap.set('deployments.0.clusters.0', 'true');
-  lexerMap.set('deployments.0.clusters.1', 'false');
-  lexerMap.set('deployments.0.settings.0.0', 'bob');
-  lexerMap.set('deployments.0.settings.0.1', 'charlie');
+  const lexerMap = new Map<string, string>([
+    ['root.object.value1', '1'],
+    ['root.object.value2', '2'],
+    ['root.object.value3', '3'],
+    ['root.array.0.index1', '4'],
+    ['root.array.0.index2', '5'],
+    ['root.array.0.index3', '6'],
+    ['deployments.0.clusters.0', 'true'],
+    ['deployments.0.clusters.1', 'false'],
+    ['deployments.0.settings.0.0', 'bob'],
+    ['deployments.0.settings.0.1', 'charlie'],
+  ]);
 
   const lexer = new Lexer(lexerMap);
   lexer.renderTrees();
@@ -148,14 +149,15 @@ describe('Lexer', () => {
   });
 
   it('processKeys with an array segment', () => {
-    const lexerMap = new Map<string, string>();
-    lexerMap.set('secret.42.is.everything', 'true');
-    lexerMap.set('everything-is-42', 'true');
-    lexerMap.set('secret.42.is.42', 'true');
-    lexerMap.set('42.is.everything', 'true');
-    lexerMap.set('array.0.is.everything', 'true');
-    lexerMap.set('array.1.is.everything', 'true');
-    lexerMap.set('array.alpha.2.is.everything', 'true');
+    const lexerMap = new Map<string, string>([
+      ['secret.42.is.everything', 'true'],
+      ['everything-is-42', 'true'],
+      ['secret.42.is.42', 'true'],
+      ['42.is.everything', 'true'],
+      ['array.0.is.everything', 'true'],
+      ['array.1.is.everything', 'true'],
+      ['array.alpha.2.is.everything', 'true'],
+    ]);
     let lexer = new Lexer(lexerMap);
 
     expect(() => lexer.rootNodes).to.throw(

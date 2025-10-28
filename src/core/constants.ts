@@ -23,6 +23,7 @@ export const SOLO_HOME_DIR = getEnvironmentVariable('SOLO_HOME') || PathEx.join(
 export const SOLO_LOGS_DIR = PathEx.join(SOLO_HOME_DIR, 'logs');
 export const SOLO_CACHE_DIR = getEnvironmentVariable('SOLO_CACHE_DIR') || PathEx.join(SOLO_HOME_DIR, 'cache');
 export const SOLO_VALUES_DIR = PathEx.join(SOLO_CACHE_DIR, 'values-files');
+export const SOLO_LOG_LEVEL = getEnvironmentVariable('SOLO_LOG_LEVEL') || 'info';
 export const DEFAULT_NAMESPACE = NamespaceName.of('default');
 export const DEFAULT_CERT_MANAGER_NAMESPACE = NamespaceName.of('cert-manager');
 export const HELM = 'helm';
@@ -34,6 +35,8 @@ export const DOCKER = 'docker';
 export const KUBECTL = 'kubectl';
 export const DEFAULT_CLUSTER = 'solo-cluster';
 export const RESOURCES_DIR = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
+
+export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
 
 export const ROOT_CONTAINER = ContainerName.of('root-container');
 export const SOLO_REMOTE_CONFIGMAP_NAME = 'solo-remote-config';
@@ -202,6 +205,8 @@ export const MIRROR_NODE_VALUES_FILE_HEDERA = PathEx.joinWithRealPath(RESOURCES_
 export const INGRESS_CONTROLLER_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'ingress-controller-values.yaml');
 export const BLOCK_NODE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
 export const POD_MONITOR_ROLE_TEMPLATE = PathEx.joinWithRealPath(RESOURCES_DIR, 'templates', 'pod-monitor-role.yaml');
+export const CLEANUP_STATE_ROUNDS_SCRIPT = PathEx.joinWithRealPath(RESOURCES_DIR, 'cleanup-state-rounds.sh');
+export const RENAME_STATE_NODE_ID_SCRIPT = PathEx.joinWithRealPath(RESOURCES_DIR, 'rename-state-node-id.sh');
 export const NODE_LOG_FAILURE_MSG = 'failed to download logs from pod';
 export const ONE_SHOT_WITH_BLOCK_NODE = getEnvironmentVariable('ONE_SHOT_WITH_BLOCK_NODE') || 'false';
 export const RAPID_FIRE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'rapid-fire', 'nlg-values.yaml');

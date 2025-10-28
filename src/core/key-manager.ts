@@ -461,12 +461,12 @@ export class KeyManager {
       );
     }
     const self = this;
-    const subTasks: SoloListrTask<any>[] = [];
-
-    subTasks.push({
-      title: 'Backup old files',
-      task: () => helpers.backupOldPemKeys(nodeAliases, keysDirectory, currentDate),
-    });
+    const subTasks: SoloListrTask<any>[] = [
+      {
+        title: 'Backup old files',
+        task: () => helpers.backupOldPemKeys(nodeAliases, keysDirectory, currentDate),
+      },
+    ];
 
     for (const nodeAlias of nodeAliases) {
       subTasks.push({
@@ -498,12 +498,12 @@ export class KeyManager {
     }
     const self = this;
     const nodeKeyFiles = new Map();
-    const subTasks: SoloListrTask<any>[] = [];
-
-    subTasks.push({
-      title: 'Backup old files',
-      task: () => helpers.backupOldTlsKeys(nodeAliases, keysDirectory, currentDate),
-    });
+    const subTasks: SoloListrTask<any>[] = [
+      {
+        title: 'Backup old files',
+        task: () => helpers.backupOldTlsKeys(nodeAliases, keysDirectory, currentDate),
+      },
+    ];
 
     for (const nodeAlias of nodeAliases) {
       subTasks.push({

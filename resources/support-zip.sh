@@ -13,9 +13,12 @@ readonly FILE_LIST=${HAPI_DIR}/support-zip-file-list.txt
 readonly CONFIG_TXT=config.txt
 readonly SETTINGS_TXT=settings.txt
 readonly SETTINGS_USED_TXT=settingsUsed.txt
+readonly HEDERA_CRT=hedera.crt
+readonly HEDERA_KEY=hedera.key
 readonly ADDRESS_BOOK_DIR=${DATA_DIR}/saved/address_book
 readonly CONFIG_DIR=${DATA_DIR}/config
 readonly KEYS_DIR=${DATA_DIR}/keys
+readonly ONBOARD_DIR=${DATA_DIR}/onboard
 readonly UPGRADE_DIR=${DATA_DIR}/upgrade
 readonly JOURNAL_CTL_LOG=${HAPI_DIR}/${OUTPUT_DIR}/journalctl.log
 readonly LOG_FILE=${HAPI_DIR}/${OUTPUT_DIR}/support-zip.log
@@ -50,10 +53,13 @@ echo -n > ${FILE_LIST}
 AddToFileList ${CONFIG_TXT}
 AddToFileList ${SETTINGS_TXT}
 AddToFileList ${SETTINGS_USED_TXT}
+AddToFileList ${HEDERA_CRT}
+AddToFileList ${HEDERA_KEY}
 AddToFileList ${OUTPUT_DIR}
 AddToFileList ${ADDRESS_BOOK_DIR}
 AddToFileList ${CONFIG_DIR}
 AddToFileList ${KEYS_DIR}
+AddToFileList ${ONBOARD_DIR}
 AddToFileList ${UPGRADE_DIR}
 echo "creating zip file" | tee -a ${LOG_FILE}
 if [[ "$useZip" = "true" ]]; then

@@ -85,7 +85,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
   public static readonly NETWORK_UPGRADE = 'upgrade';
   public static readonly NETWORK_FREEZE = 'freeze';
 
-  public static readonly DIAGNOSTIC_CONFIGS = 'config';
   public static readonly DIAGNOSTIC_ALL = 'all';
   public static readonly DIAGNOSTIC_CONNECTIONS = 'connections';
 
@@ -262,15 +261,6 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
             ConsensusCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
             ConsensusCommandDefinition.DIAGNOSTIC_SUBCOMMAND_DESCRIPTION,
           )
-            .addSubcommand(
-              new Subcommand(
-                ConsensusCommandDefinition.DIAGNOSTIC_CONFIGS,
-                'Collects configuration files from consensus nodes.',
-                this.nodeCommand.handlers,
-                this.nodeCommand.handlers.downloadGeneratedFiles,
-                NodeFlags.DEFAULT_FLAGS,
-              ),
-            )
             .addSubcommand(
               new Subcommand(
                 ConsensusCommandDefinition.DIAGNOSTIC_ALL,

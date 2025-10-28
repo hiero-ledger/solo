@@ -23,7 +23,7 @@ if (!process.stdout.isTTY) {
 
 export async function main(argv: string[], context?: {logger: SoloLogger}) {
   try {
-    Container.getInstance().init();
+    Container.getInstance().init(constants.SOLO_HOME_DIR, constants.SOLO_CACHE_DIR, constants.SOLO_LOG_LEVEL);
   } catch (error) {
     console.error(`Error initializing container: ${error?.message}`, error);
     throw new SoloError('Error initializing container');

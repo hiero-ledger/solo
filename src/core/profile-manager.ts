@@ -672,8 +672,7 @@ export class ProfileManager {
     const releaseVersion = semver.parse(releaseTag, {includePrerelease: true}) as SemVer;
 
     try {
-      const configLines: string[] = [];
-      configLines.push(`swirld, ${chainId}`, `app, ${appName}`);
+      const configLines: string[] = [`swirld, ${chainId}`, `app, ${appName}`];
 
       let nodeSeq = 0;
       for (const consensusNode of consensusNodes) {

@@ -437,7 +437,7 @@ jobs:
 
       - name: Upload E2E Logs to GitHub
         if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && !cancelled() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: solo-${{ inputs.test-script }}.log
           path: ~/.solo/logs/*
@@ -445,7 +445,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload E2E Test Report
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
         with:
           name: e2e_test_report_${{ inputs.test-script }}
@@ -454,7 +454,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish E2E Coverage Report
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && !cancelled() }}
         with:
           name: ${{ inputs.coverage-report-name }}

@@ -139,6 +139,8 @@ else
 
   npm run solo-test -- keys consensus generate --gossip-keys --tls-keys -i node1 --deployment "${SOLO_DEPLOYMENT}"
 
+  npm run solo-test -- block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-"${SOLO_CLUSTER_NAME}"
+
   npm run solo-test -- consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1 \
     --storage-type "${storageType}" \
     "${STORAGE_OPTIONS[@]}"

@@ -57,7 +57,6 @@ import {type Service} from '../integration/kube/resources/service/service.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {lt as SemVersionLessThan, SemVer} from 'semver';
-import {Deployment} from '../business/runtime-state/config/local/deployment.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
@@ -1202,30 +1201,31 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Check auxiliary pods are ready',
           task: (_, task): SoloListr<NetworkDeployContext> => {
-            const subTasks: SoloListrTask<NetworkDeployContext>[] = [];
+            const subTasks: SoloListrTask<NetworkDeployContext>[] = [
+              {
+                title: 'Check MinIO',
+                task: async context_ => {
+                  for (const context of context_.config.contexts) {
+                    await this.k8Factory
+                      .getK8(context)
+                      .pods()
+                      .waitForReadyStatus(
+                        context_.config.namespace,
+                        ['v1.min.io/tenant=minio'],
+                        constants.PODS_RUNNING_MAX_ATTEMPTS,
+                        constants.PODS_RUNNING_DELAY,
+                      );
+                  }
+                },
+                // skip if only cloud storage is/are used
+                skip: context_ =>
+                  context_.config.storageType === constants.StorageType.GCS_ONLY ||
+                  context_.config.storageType === constants.StorageType.AWS_ONLY ||
+                  context_.config.storageType === constants.StorageType.AWS_AND_GCS,
+              },
+            ];
 
             // minio
-            subTasks.push({
-              title: 'Check MinIO',
-              task: async context_ => {
-                for (const context of context_.config.contexts) {
-                  await this.k8Factory
-                    .getK8(context)
-                    .pods()
-                    .waitForReadyStatus(
-                      context_.config.namespace,
-                      ['v1.min.io/tenant=minio'],
-                      constants.PODS_RUNNING_MAX_ATTEMPTS,
-                      constants.PODS_RUNNING_DELAY,
-                    );
-                }
-              },
-              // skip if only cloud storage is/are used
-              skip: context_ =>
-                context_.config.storageType === constants.StorageType.GCS_ONLY ||
-                context_.config.storageType === constants.StorageType.AWS_ONLY ||
-                context_.config.storageType === constants.StorageType.AWS_AND_GCS,
-            });
 
             // set up the subtasks
             return task.newListr(subTasks, {
@@ -1389,20 +1389,7 @@ export class NetworkCommand extends BaseCommand {
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
-        {
-          title: 'Remove deployment from local configuration',
-          task: async (context_): Promise<void> => {
-            const deployment: Deployment = this.localConfig.configuration.deployments.find(
-              (d: Deployment): boolean => d.name === context_.config.deployment,
-            );
-
-            if (deployment) {
-              this.localConfig.configuration.deployments.remove(deployment);
-            }
-
-            await this.localConfig.persist();
-          },
-        },
+        // should not remove deployment from local config otherwise next deploy will fail
         {
           title: 'Running sub-tasks to destroy network',
           task: async (context_, task): Promise<void> => {

@@ -12,11 +12,15 @@ describe('RemoteConfigSource', (): void => {
   let mapper: ObjectMapper;
   let backend: SimpleObjectStorageBackend;
   let source: RemoteConfigSource;
-  const map: Map<string, object> = new Map<string, object>();
-  map.set('local-config', {
-    schemaVersion: 1,
-    deployments: [{name: 'true', namespace: 'false', clusters: ['true', {key: 'value'}, '{"key": "value"}']}],
-  });
+  const map: Map<string, object> = new Map<string, object>([
+    [
+      'local-config',
+      {
+        schemaVersion: 1,
+        deployments: [{name: 'true', namespace: 'false', clusters: ['true', {key: 'value'}, '{"key": "value"}']}],
+      },
+    ],
+  ]);
   beforeEach((): void => {
     mapper = {} as ObjectMapper;
     schema = new RemoteConfigSchemaDefinition(mapper);

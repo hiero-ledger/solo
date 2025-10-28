@@ -145,7 +145,7 @@ export class Flags {
     name: 'dev',
     definition: {
       describe: 'Enable developer mode',
-      defaultValue: false,
+      defaultValue: constants.SOLO_DEV_OUTPUT,
       type: 'boolean',
     },
     prompt: undefined,

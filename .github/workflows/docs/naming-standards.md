@@ -12,7 +12,7 @@ It is intended to ensure consistency, readability, and maintainability across al
 
 ### Workflow Name Description
 
-- 3-digit prefix (000 to 999)
+* 3-digit prefix (000 to 999)
 
   | Prefix |     Category / Description     |        Notes / Subcategory        |
   |--------|--------------------------------|-----------------------------------|
@@ -27,9 +27,9 @@ It is intended to ensure consistency, readability, and maintainability across al
   | 800    | Reusable workflows             |                                   |
   | 900    | Cron tasks                     | Prefixed by 900 to sort to bottom |
 
-- Followed by `: ` (colon and a space)
+* Followed by `: ` (colon and a space)
 
-- Followed by square-bracket notation `[XXXX] ` followed by a space
+* Followed by square-bracket notation `[XXXX] ` followed by a space
 
   | Workflow Code |                                      Description                                      |
   |---------------|---------------------------------------------------------------------------------------|
@@ -39,12 +39,12 @@ It is intended to ensure consistency, readability, and maintainability across al
   | `[CRON]`      | Scheduled workflow (`schedule`)                                                       |
   | `[DISP]`      | Internal dispatchable (workflow dispatch triggered by other workflows, not end users) |
 
-- Followed by the name of the workflow, maximum of 21 characters
+* Followed by the name of the workflow, maximum of 21 characters
 
-- Workflow Naming Notes:
+* Workflow Naming Notes:
 
-  - Use proper casing
-  - Separator used should be spaces
+  * Use proper casing
+  * Separator used should be spaces
 
 ### Example Workflow Name
 
@@ -65,7 +65,7 @@ Name of the Workflow: `000: [USER] Status Checks`
 
 ### File Name Description
 
-- 3-digit prefix (000 to 999)
+* 3-digit prefix (000 to 999)
 
   | Prefix |     Category / Description     |        Notes / Subcategory        |
   |--------|--------------------------------|-----------------------------------|
@@ -81,9 +81,9 @@ Name of the Workflow: `000: [USER] Status Checks`
   | 800    | Reusable workflows             |                                   |
   | 900    | Cron tasks                     | Prefixed by 900 to sort to bottom |
 
-- Followed by a hyphen `-`
+* Followed by a hyphen `-`
 
-- Followed by the workflow code (see table below)
+* Followed by the workflow code (see table below)
 
   | Workflow Code |                                      Description                                      |
   |---------------|---------------------------------------------------------------------------------------|
@@ -93,17 +93,17 @@ Name of the Workflow: `000: [USER] Status Checks`
   | `cron`        | Scheduled workflow (`schedule`)                                                       |
   | `disp`        | Internal dispatchable (workflow dispatch triggered by other workflows, not end users) |
 
-- Followed by a hyphen `-`
+* Followed by a hyphen `-`
 
-- Followed by the workflow name, maximum of 30 characters
+* Followed by the workflow name, maximum of 30 characters
 
-- Followed by`.yaml`
+* Followed by`.yaml`
 
-- File Naming Notes:
+* File Naming Notes:
 
-  - All letters in filename should be lowercase
-  - Separator used should be a hyphen
-  - No special characters are allowed in filename
+  * All letters in filename should be lowercase
+  * Separator used should be a hyphen
+  * No special characters are allowed in filename
 
 ### Example File Name
 

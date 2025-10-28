@@ -494,31 +494,34 @@ export class NodeTest extends BaseCommandTest {
   public static PemKill(options: BaseTestOptions): void {
     const {namespace, testName, testLogger} = options;
 
-    const nodeAlias: NodeAlias = 'node1';
+    const nodeAlias: NodeAlias = 'node2';
 
     it(`${testName}: perform PEM kill`, async (): Promise<void> => {
+      const context: ClusterReferenceName = [...options.clusterReferences.values()][1];
+
       const pods: Pod[] = await container
         .resolve<K8Factory>(InjectTokens.K8Factory)
-        .default()
+        .getK8(context)
         .pods()
         .list(namespace, ['solo.hedera.com/type=network-node', `solo.hedera.com/node-name=${nodeAlias}`]);
 
       await container
         .resolve<K8Factory>(InjectTokens.K8Factory)
-        .default()
+        .getK8(context)
         .pods()
         .readByReference(pods[0].podReference)
         .killPod();
 
+      testLogger.showUser('Sleeping for 20 seconds');
       await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
 
       this.verifyPodShouldBeRunning(namespace, nodeAlias);
       this.verifyPodShouldNotBeActive(namespace, nodeAlias);
+
+      this.refresh(options);
+
+      this.checkNetwork(testName, namespace, testLogger);
     }).timeout(Duration.ofMinutes(10).toMillis());
-
-    this.refresh(options);
-
-    this.checkNetwork(testName, namespace, testLogger);
   }
 
   public static PemStop(options: BaseTestOptions): void {
@@ -536,11 +539,14 @@ export class NodeTest extends BaseCommandTest {
         this.verifyPodShouldBeRunning(namespace, nodeAlias);
         this.verifyPodShouldNotBeActive(namespace, nodeAlias);
       }
+
+      this.refresh(options);
+
+      this.checkNetwork(testName, namespace, testLogger);
+
+      testLogger.showUser('Sleeping for 20 seconds');
+      await sleep(Duration.ofSeconds(20));
     }).timeout(Duration.ofMinutes(10).toMillis());
-
-    this.refresh(options);
-
-    this.checkNetwork(testName, namespace, testLogger);
   }
 
   private static checkNetwork(testName: string, namespace: NamespaceName, logger: SoloLogger): void {
