@@ -670,13 +670,32 @@ export class NodeCommandHandlers extends CommandHandler {
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
         this.tasks.getNodeLogsAndConfigs(),
-        ...this.validateConnectionsTaskList(),
       ],
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
       'Error in downloading log from nodes',
+      null,
+    );
+
+    return true;
+  }
+
+  public async all(argv: ArgvStruct): Promise<boolean> {
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.DEFAULT_FLAGS);
+    await this.commandAction(
+      argv,
+      [
+        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
+        this.tasks.getNodeLogsAndConfigs(),
+        ...this.validateConnectionsTaskList(),
+      ],
+      {
+        concurrent: false,
+        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+      },
+      'Error in diagnosing deployment',
       null,
     );
 
@@ -696,7 +715,7 @@ export class NodeCommandHandlers extends CommandHandler {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
-      'Error in ', // TODO
+      'Error in testing connections to components',
       null,
     );
 

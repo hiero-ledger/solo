@@ -239,6 +239,15 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 NodeFlags.DESTROY_FLAGS,
                 [constants.HELM],
               ),
+            )
+            .addSubcommand(
+              new Subcommand(
+                ConsensusCommandDefinition.NODE_LOGS,
+                'Get logs from consensus node/nodes.',
+                this.nodeCommand.handlers,
+                this.nodeCommand.handlers.logs,
+                NodeFlags.LOGS_FLAGS,
+              ),
             ),
         )
         // STATE SUBCOMMANDS
@@ -264,9 +273,9 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
             .addSubcommand(
               new Subcommand(
                 ConsensusCommandDefinition.DIAGNOSTIC_ALL,
-                'Captures logs, configs, and diagnostic artifacts from all consensus nodes.',
+                'Captures logs, configs, and diagnostic artifacts from all consensus nodes and test connections.',
                 this.nodeCommand.handlers,
-                this.nodeCommand.handlers.logs,
+                this.nodeCommand.handlers.all,
                 NodeFlags.LOGS_FLAGS,
               ),
             )
