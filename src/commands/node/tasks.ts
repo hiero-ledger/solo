@@ -2048,10 +2048,10 @@ export class NodeCommandTasks {
 
           config.newAccount = await this.accountManager.createNewAccount(namespace, privateKey, 0, true, context);
 
-          task.title += `- ${green('Success')}`;
+          task.title += ` - ${green('Success')}`;
         } catch (error) {
           this.logger.showUser(error);
-          task.title += `- ${red('Fail')}`;
+          task.title += ` - ${red('Fail')}`;
         }
       },
     };
