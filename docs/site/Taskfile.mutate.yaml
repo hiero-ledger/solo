@@ -238,7 +238,7 @@ tasks:
         cat > docs/site/build/node-delete-transaction.md << 'EOF'
         ---
         title: "Node Delete Transaction Example"
-        weight: 10
+        weight: 1
         description: >
           Using Solo with a custom NodeDeleteTransaction from an SDK call
         type: docs
@@ -260,7 +260,7 @@ tasks:
         cat > docs/site/build/node-update-transaction.md << 'EOF'
         ---
         title: "Node Update Transaction Example"
-        weight: 20
+        weight: 1
         description: >
           Using Solo with a custom NodeUpdateTransaction from an SDK call
         type: docs
