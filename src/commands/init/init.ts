@@ -161,12 +161,13 @@ export class InitCommand extends BaseCommand {
               title: 'Create Podman machine...',
               task: async () => {
                 await podmanDependency.setupConfig();
-                const podmanExecutable: string = await self.depManager.getExecutablePath(constants.PODMAN);
+                const podmanExecutable: string = 'podman';
+                // const podmanExecutable: string = await self.depManager.getExecutablePath(constants.PODMAN);
                 // await this.run(`${podmanExecutable} machine init --memory=16384`); // 16GB
                 // await this.run(`${podmanExecutable} machine start`);
                 await this.run(`${podmanExecutable} system connection list`);
-                await this.run(`${podmanExecutable} network create kind --subnet 172.19.0.0/16`);
-                await this.run(`${podmanExecutable} system connection list`);
+                // await this.run(`${podmanExecutable} network create kind --subnet 172.19.0.0/16`);
+                // await this.run(`${podmanExecutable} system connection list`);
               },
               skip: (): boolean => skipPodmanTasks,
             } as SoloListrTask<InitContext>,
