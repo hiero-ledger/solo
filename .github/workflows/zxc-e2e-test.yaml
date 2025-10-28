@@ -251,7 +251,7 @@ jobs:
         run: docker image pull kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
 
       - name: Install Podman
-        if: ${{ inputs.test-script == 'test-e2e-node-local-ptt' }}
+        if: ${{ inputs.test-script == 'test-e2e-node-local-ptt' || inputs.test-script == 'test-e2e-one-shot-single' }}
         run: |
           # Detect distro and install Podman + essential dependencies for rootful mode
           if [ -f /etc/debian_version ]; then
