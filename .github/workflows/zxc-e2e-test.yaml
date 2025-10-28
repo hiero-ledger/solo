@@ -321,7 +321,7 @@ jobs:
             SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${{ env.CG_EXEC }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
 
       - name: Setup Podman & Kind Cluster for E2E Tests
-        if: ${{ !cancelled() && inputs.test-script == 'test-e2e-node-local-ptt' }}
+        if: ${{ !cancelled() && inputs.test-script == 'test-e2e-node-local-ptt' || inputs.test-script == 'test-e2e-one-shot-single' }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 3
