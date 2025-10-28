@@ -164,6 +164,7 @@ export class InitCommand extends BaseCommand {
                 const podmanExecutable: string = await self.depManager.getExecutablePath(constants.PODMAN);
                 // await this.run(`${podmanExecutable} machine init --memory=16384`); // 16GB
                 // await this.run(`${podmanExecutable} machine start`);
+                await this.run(`${podmanExecutable} network create kind --subnet 172.19.0.0/16`);
                 const a: string[] = await this.run(`${podmanExecutable} system connection list`);
                 for (const line of a) {
                   this.logger.showUser(line);
