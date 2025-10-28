@@ -683,7 +683,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async connections(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.CONNECTIONS_FLAGS);
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.DEFAULT_FLAGS);
 
     await this.commandAction(
       argv,

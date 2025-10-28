@@ -276,7 +276,7 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
                 'Tests connections to Consensus, Relay, Explorer, Mirror and Block nodes.',
                 this.nodeCommand.handlers,
                 this.nodeCommand.handlers.connections,
-                NodeFlags.CONNECTIONS_FLAGS,
+                NodeFlags.DEFAULT_FLAGS,
               ),
             ),
         )

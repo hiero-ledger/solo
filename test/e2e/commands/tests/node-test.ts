@@ -227,7 +227,6 @@ export class NodeTest extends BaseCommandTest {
       ConsensusCommandDefinition.DIAGNOSTIC_CONNECTIONS,
       optionFromFlag(Flags.deployment),
       deployment,
-      optionFromFlag(flags.force),
       optionFromFlag(flags.quiet),
     );
 
