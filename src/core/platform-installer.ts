@@ -192,16 +192,14 @@ export class PlatformInstaller {
     }
 
     try {
-      const sourceFiles = [];
-
       // copy private keys for the node
-      sourceFiles.push(
+      const sourceFiles = [
         PathEx.joinWithRealPath(
           stagingDirectory,
           'keys',
           Templates.renderGossipPemPrivateKeyFile(consensusNode.name as NodeAlias),
         ),
-      );
+      ];
 
       // copy all public keys for all nodes
       for (const consensusNode of consensusNodes) {
@@ -254,8 +252,7 @@ export class PlatformInstaller {
       const data = {};
 
       for (const consensusNode of consensusNodes) {
-        const sourceFiles = [];
-        sourceFiles.push(
+        const sourceFiles = [
           PathEx.joinWithRealPath(
             stagingDirectory,
             'keys',
@@ -266,7 +263,7 @@ export class PlatformInstaller {
             'keys',
             Templates.renderTLSPemPublicKeyFile(consensusNode.name as NodeAlias),
           ),
-        );
+        ];
 
         for (const sourceFile of sourceFiles) {
           const fileContents = fs.readFileSync(sourceFile);
@@ -409,11 +406,12 @@ export class PlatformInstaller {
    */
   copyNodeKeys(stagingDirectory: string, consensusNodes: ConsensusNode[], contexts: string[]) {
     const self = this;
-    const subTasks = [];
-    subTasks.push({
-      title: 'Copy TLS keys',
-      task: async () => await self.copyTLSKeys(consensusNodes, stagingDirectory, contexts),
-    });
+    const subTasks: any[] = [
+      {
+        title: 'Copy TLS keys',
+        task: async () => await self.copyTLSKeys(consensusNodes, stagingDirectory, contexts),
+      },
+    ];
 
     for (const consensusNode of consensusNodes) {
       subTasks.push({

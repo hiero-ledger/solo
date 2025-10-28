@@ -203,8 +203,7 @@ export class HelmExecutionBuilder {
    * @returns the command array
    */
   private buildCommand(): string[] {
-    const command: string[] = [];
-    command.push(this.helmExecutable, ...this._subcommands, ...this._flags);
+    const command: string[] = [this.helmExecutable, ...this._subcommands, ...this._flags];
 
     for (const [key, value] of this._arguments.entries()) {
       command.push(`--${key}`, value);

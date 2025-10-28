@@ -1201,30 +1201,31 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Check auxiliary pods are ready',
           task: (_, task): SoloListr<NetworkDeployContext> => {
-            const subTasks: SoloListrTask<NetworkDeployContext>[] = [];
+            const subTasks: SoloListrTask<NetworkDeployContext>[] = [
+              {
+                title: 'Check MinIO',
+                task: async context_ => {
+                  for (const context of context_.config.contexts) {
+                    await this.k8Factory
+                      .getK8(context)
+                      .pods()
+                      .waitForReadyStatus(
+                        context_.config.namespace,
+                        ['v1.min.io/tenant=minio'],
+                        constants.PODS_RUNNING_MAX_ATTEMPTS,
+                        constants.PODS_RUNNING_DELAY,
+                      );
+                  }
+                },
+                // skip if only cloud storage is/are used
+                skip: context_ =>
+                  context_.config.storageType === constants.StorageType.GCS_ONLY ||
+                  context_.config.storageType === constants.StorageType.AWS_ONLY ||
+                  context_.config.storageType === constants.StorageType.AWS_AND_GCS,
+              },
+            ];
 
             // minio
-            subTasks.push({
-              title: 'Check MinIO',
-              task: async context_ => {
-                for (const context of context_.config.contexts) {
-                  await this.k8Factory
-                    .getK8(context)
-                    .pods()
-                    .waitForReadyStatus(
-                      context_.config.namespace,
-                      ['v1.min.io/tenant=minio'],
-                      constants.PODS_RUNNING_MAX_ATTEMPTS,
-                      constants.PODS_RUNNING_DELAY,
-                    );
-                }
-              },
-              // skip if only cloud storage is/are used
-              skip: context_ =>
-                context_.config.storageType === constants.StorageType.GCS_ONLY ||
-                context_.config.storageType === constants.StorageType.AWS_ONLY ||
-                context_.config.storageType === constants.StorageType.AWS_AND_GCS,
-            });
 
             // set up the subtasks
             return task.newListr(subTasks, {

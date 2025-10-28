@@ -428,9 +428,10 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
       it('Create client from network config and submit topic/message should succeed', async () => {
         try {
           // Setup network configuration
-          const networkConfig = {};
-          networkConfig['127.0.0.1:30212'] = AccountId.fromString('0.0.3');
-          networkConfig['127.0.0.1:30213'] = AccountId.fromString('0.0.4');
+          const networkConfig = {
+            ['127.0.0.1:30212']: AccountId.fromString('0.0.3'),
+            ['127.0.0.1:30213']: AccountId.fromString('0.0.4'),
+          };
 
           // Instantiate SDK client
           const sdkClient = Client.fromConfig({network: networkConfig, scheduleNetworkUpdate: false});
@@ -466,8 +467,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
             .portForward(10_500, 8080);
 
           // Setup network configuration
-          const networkConfig = {};
-          networkConfig['127.0.0.1:10500'] = AccountId.fromString('0.0.3');
+          const networkConfig = {['127.0.0.1:10500']: AccountId.fromString('0.0.3')};
 
           // Instantiate SDK client
           const sdkClient = Client.fromConfig({network: networkConfig, scheduleNetworkUpdate: false});

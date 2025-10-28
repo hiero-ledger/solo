@@ -72,11 +72,12 @@ describe('LocalConfig', () => {
         new DeploymentSchema('deployment', 'solo-e2e', ['cluster-1'], 0, 0),
       ];
 
-      const clusterReferences: ClusterReferences = new Map<string, string>();
-      clusterReferences.set('cluster-1', 'context-1');
-      clusterReferences.set('cluster-2', 'context-2');
-      clusterReferences.set('e2e-cluster-1', 'kind-solo-e2e-c1');
-      clusterReferences.set('e2e-cluster-2', 'kind-solo-e2e-c2');
+      const clusterReferences: ClusterReferences = new Map<string, string>([
+        ['cluster-1', 'context-1'],
+        ['cluster-2', 'context-2'],
+        ['e2e-cluster-1', 'kind-solo-e2e-c1'],
+        ['e2e-cluster-2', 'kind-solo-e2e-c2'],
+      ]);
 
       const versions = new ApplicationVersionsSchema(
         new SemVer(soloVersion),

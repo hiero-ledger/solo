@@ -409,10 +409,8 @@ export class ClusterCommandTasks {
     return {
       title: 'Install cluster charts',
       task: async (context_, task) => {
-        const subtasks = [];
-
         // Always install pod-monitor-role ClusterRole first
-        subtasks.push(this.installPodMonitorRole(argv));
+        const subtasks = [this.installPodMonitorRole(argv)];
 
         if (context_.config.deployMinio) {
           subtasks.push(this.installMinioOperator(argv));
