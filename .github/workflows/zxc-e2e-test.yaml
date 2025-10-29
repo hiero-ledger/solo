@@ -204,7 +204,7 @@ jobs:
 
       - name: Setup Kind
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
-        if: ${{ inputs.test-script != 'test-e2e-one-shot-single-xxx' }}
+        if: ${{ inputs.test-script != 'test-e2e-one-shot-single' }}
         with:
           install_only: true
           node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
@@ -251,7 +251,7 @@ jobs:
         run: docker image pull kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
 
       - name: Install Podman
-        if: ${{ inputs.test-script == 'test-e2e-node-local-ptt' || inputs.test-script == 'test-e2e-one-shot-single' }}
+        if: ${{ inputs.test-script == 'test-e2e-node-local-ptt' }}
         run: |
           # Detect distro and install Podman + essential dependencies for rootful mode
           if [ -f /etc/debian_version ]; then
@@ -321,7 +321,7 @@ jobs:
             SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${{ env.CG_EXEC }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
 
       - name: Setup Podman & Kind Cluster for E2E Tests
-        if: ${{ !cancelled() && inputs.test-script == 'test-e2e-node-local-ptt' || inputs.test-script == 'test-e2e-one-shot-single' }}
+        if: ${{ !cancelled() && inputs.test-script == 'test-e2e-node-local-ptt' }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 3
