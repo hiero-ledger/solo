@@ -332,13 +332,6 @@ jobs:
             echo "GITHUB_RUN_ID=${{ github.run_id }}"
             SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} GITHUB_RUN_ID=${{ github.run_id }} ${{ env.CG_EXEC }} ./test/e2e/podman-kind/setup-podman-kind-e2e.sh
 
-      - name: Get distribution info
-        if: ${{ inputs.test-script == 'test-e2e-one-shot-single' }}
-        run: |
-          lsb_release -a
-          ls -la /usr/bin
-          cat /etc/*-release
-
 #      - name: Install Qemu Img
 #        if: ${{ inputs.test-script == 'test-e2e-one-shot-single' }}
 #        run: |
