@@ -140,13 +140,20 @@ export class NetworkNodes {
       if (!fs.existsSync(targetDirectory)) {
         fs.mkdirSync(targetDirectory, {recursive: true});
       }
-      // Use zip for compression
-      const archiveCommand = `cd ${HEDERA_HAPI_PATH}/data/saved && zip -r ${HEDERA_HAPI_PATH}/${podReference.name}-state.zip .`;
+      // Use zip for compression, similar to tar -czf with -C flag
       const containerReference = ContainerReference.of(podReference, ROOT_CONTAINER);
 
       const k8 = this.k8Factory.getK8(context);
 
-      await k8.containers().readByRef(containerReference).execContainer(['bash', '-c', archiveCommand]);
+      // Zip doesn't have a -C flag like tar, so we use sh -c with subshell to change directory
+      await k8
+        .containers()
+        .readByRef(containerReference)
+        .execContainer([
+          'sh',
+          '-c',
+          `(cd ${HEDERA_HAPI_PATH}/data/saved && zip -r ${HEDERA_HAPI_PATH}/${podReference.name}-state.zip .)`,
+        ]);
       await k8
         .containers()
         .readByRef(containerReference)
