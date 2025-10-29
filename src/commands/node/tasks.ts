@@ -1206,10 +1206,10 @@ export class NodeCommandTasks {
           );
           await container.execContainer(['rm', '-rf', `${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
           await container.execContainer([
-            'tar',
-            '-xvf',
+            'unzip',
+            '-o',
             `${constants.HEDERA_HAPI_PATH}/data/${path.basename(zipFile)}`,
-            '-C',
+            '-d',
             `${constants.HEDERA_HAPI_PATH}/data/saved`,
           ]);
 

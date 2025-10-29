@@ -316,7 +316,7 @@ log_success "Backup created successfully"
 log_info "Downloading state files to ${STATE_SAVE_DIR}..."
 $SOLO_COMMAND consensus state download --deployment "${SOLO_DEPLOYMENT}" --node-aliases  node1,node2
 # copy from default ~/.solo/logs/ to STATE_SAVE_DIR
-cp -r ~/.solo/logs/*.tar.gz ${STATE_SAVE_DIR} 2>/dev/null || log_warn "No state files found to copy"
+cp -r ~/.solo/logs/*.zip ${STATE_SAVE_DIR} 2>/dev/null || log_warn "No state files found to copy"
 
 # Verify backup contents
 log_info "Backup directory contents:"

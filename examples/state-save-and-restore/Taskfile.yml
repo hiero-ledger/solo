@@ -190,7 +190,7 @@ tasks:
       - cmd: |
           # Move downloaded state files to save directory
           for node in $(echo {{ .NODE_ALIASES }} | tr ',' ' '); do
-            STATE_FILE="network-${node}-0-state.tar.gz"
+            STATE_FILE="network-${node}-0-state.zip"
             if [ -f "$HOME/.solo/logs/${STATE_FILE}" ]; then
               cp "$HOME/.solo/logs/${STATE_FILE}" "{{ .STATE_SAVE_DIR }}/"
               echo "✅ Saved state for ${node} (${STATE_FILE})"
@@ -237,7 +237,7 @@ tasks:
       - cmd: |
           # Use first node's state file for all nodes
           FIRST_NODE=$(echo {{ .NODE_ALIASES }} | cut -d',' -f1)
-          FIRST_NODE_STATE_FILE="network-${FIRST_NODE}-0-state.tar.gz"
+          FIRST_NODE_STATE_FILE="network-${FIRST_NODE}-0-state.zip"
           
           if [ ! -f "{{ .STATE_SAVE_DIR }}/${FIRST_NODE_STATE_FILE}" ]; then
             echo "⚠️  State file not found: {{ .STATE_SAVE_DIR }}/${FIRST_NODE_STATE_FILE}"

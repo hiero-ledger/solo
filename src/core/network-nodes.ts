@@ -140,17 +140,17 @@ export class NetworkNodes {
       if (!fs.existsSync(targetDirectory)) {
         fs.mkdirSync(targetDirectory, {recursive: true});
       }
-      // Use .tar.gz extension since tar -czf creates a gzipped tar archive
-      const archiveCommand = `tar -czf ${HEDERA_HAPI_PATH}/${podReference.name}-state.tar.gz -C ${HEDERA_HAPI_PATH}/data/saved .`;
+      // Use zip for compression
+      const archiveCommand = `cd ${HEDERA_HAPI_PATH}/data/saved && zip -r ${HEDERA_HAPI_PATH}/${podReference.name}-state.zip .`;
       const containerReference = ContainerReference.of(podReference, ROOT_CONTAINER);
 
       const k8 = this.k8Factory.getK8(context);
 
-      await k8.containers().readByRef(containerReference).execContainer(archiveCommand);
+      await k8.containers().readByRef(containerReference).execContainer(['bash', '-c', archiveCommand]);
       await k8
         .containers()
         .readByRef(containerReference)
-        .copyFrom(`${HEDERA_HAPI_PATH}/${podReference.name}-state.tar.gz`, targetDirectory);
+        .copyFrom(`${HEDERA_HAPI_PATH}/${podReference.name}-state.zip`, targetDirectory);
     } catch (error: Error | unknown) {
       this.logger.error(`failed to download state from pod ${podReference.name}`, error);
       this.logger.showUser(`Failed to download state from pod ${podReference.name}` + error);
