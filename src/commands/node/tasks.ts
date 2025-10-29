@@ -1213,6 +1213,17 @@ export class NodeCommandTasks {
             `${constants.HEDERA_HAPI_PATH}/data/saved`,
           ]);
 
+          // Fix ownership of extracted state files to hedera user
+          // NOTE: zip doesn't preserve Unix ownership - files are owned by whoever runs unzip (root).
+          // Unlike tar which preserves UID/GID metadata, zip format doesn't store Unix ownership info.
+          // The chown is required so the hedera process can access the extracted state files.
+          self.logger.info(`Fixing ownership of extracted state files in pod ${podReference.name}`);
+          await container.execContainer([
+            'bash',
+            '-c',
+            `sudo chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
+          ]);
+
           // Clean up old rounds - keep only the latest/biggest round
           self.logger.info(`Cleaning up old rounds in pod ${podReference.name}, keeping only the latest round`);
           const cleanupScriptName = 'cleanup-state-rounds.sh';
