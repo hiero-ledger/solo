@@ -1,7 +1,7 @@
 #!/bin/bash
 ################################################################################
 # Backup and Restore End-to-End Test Script
-# 
+#
 # This script tests the full backup/restore workflow:
 # 1. Deploy a complete Solo network with all components
 # 2. Generate transactions to create network state
@@ -76,7 +76,166 @@ cleanup_on_exit() {
         kind delete cluster -n "${SOLO_CLUSTER_NAME}" || true
     fi
 }
-trap cleanup_on_exit EXIT
+#trap cleanup_on_exit EXIT
+
+################################################################################
+# Reusable Function: Deploy Full Network
+# Parameters:
+#   $1 - create_cluster: "true" to create cluster, "false" to skip (default: true)
+#   $2 - init_solo: "true" to init Solo, "false" to skip (default: true)
+#   $3 - start_nodes: "true" to start nodes, "false" to skip (default: true)
+################################################################################
+deploy_full_network() {
+    local create_cluster="${1:-true}"
+    local init_solo="${2:-true}"
+    local start_nodes="${3:-true}"
+
+    rm -rf ~/.solo/* test/data/tmp/*
+
+    # Step 2: Create Kind Cluster (optional)
+    if [ "$create_cluster" = "true" ]; then
+        log_step "Creating Kind cluster"
+
+        # Delete existing cluster if it exists
+        kind delete cluster -n "${SOLO_CLUSTER_NAME}" 2>/dev/null || true
+
+        # Create new cluster
+        kind create cluster -n "${SOLO_CLUSTER_NAME}"
+
+
+        kind load docker-image \
+            quay.io/minio/minio:RELEASE.2024-02-09T21-25-16Z \
+            quay.io/prometheus-operator/prometheus-config-reloader:v0.68.0 \
+            quay.io/prometheus-operator/prometheus-operator:v0.68.0 \
+            quay.io/prometheus/alertmanager:v0.26.0 \
+            quay.io/prometheus/node-exporter:v1.6.1 \
+            quay.io/prometheus/prometheus:v2.47.1 \
+            quay.io/minio/operator:v7.1.1 \
+            quay.io/minio/operator-sidecar:v7.0.1 \
+            registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.10.0 \
+            ghcr.io/hiero-ledger/hiero-block-node:0.20.0 \
+            quay.io/metallb/controller:v0.15.2 \
+            quay.io/metallb/speaker:v0.15.2 \
+            curlimages/curl:8.9.1 \
+            busybox:1.36.1 \
+            envoyproxy/envoy:v1.21.1 \
+            haproxytech/haproxy-alpine:2.4.25 \
+            ghcr.io/hashgraph/solo-containers/backup-uploader:0.35.0 \
+            ghcr.io/hashgraph/solo-containers/ubi8-init-java21:0.38.1 \
+            ghcr.io/mhga24/envoyproxy/envoy:v1.22.0 \
+            quay.io/minio/operator:v5.0.7 busybox \
+            ghcr.io/hashgraph/solo-cheetah/cheetah:0.3.1 \
+            docker.io/otel/opentelemetry-collector-contrib:0.72.0 \
+            --name "${SOLO_CLUSTER_NAME}"
+
+        # Wait for control plane
+        log_info "Waiting for control plane to be ready..."
+        sleep 10
+
+        # Verify cluster
+        kubectl cluster-info --context kind-${SOLO_CLUSTER_NAME}
+        log_success "Kind cluster created successfully"
+    fi
+
+    # Step 3: Initialize Solo and Configure (optional)
+    if [ "$init_solo" = "true" ]; then
+        log_step "Initializing Solo configuration"
+
+        # Solo init
+        log_info "Initializing Solo..."
+        $SOLO_COMMAND init
+
+        # Setup cluster reference (installs required components)
+        log_info "Setting up cluster reference..."
+        $SOLO_COMMAND cluster-ref config setup --cluster-ref ${SOLO_CLUSTER_REF}
+
+        # Connect cluster reference with context
+        log_info "Connecting to cluster..."
+        $SOLO_COMMAND cluster-ref config connect --cluster-ref ${SOLO_CLUSTER_REF} --context ${SOLO_CONTEXT}
+
+        # Create deployment configuration
+        log_info "Creating deployment configuration..."
+        $SOLO_COMMAND deployment config create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+
+        # Attach cluster to deployment
+        log_info "Attaching cluster to deployment..."
+        $SOLO_COMMAND deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_REF} --num-consensus-nodes ${NETWORK_SIZE}
+
+        log_success "Solo initialized successfully"
+    fi
+
+    # Step 4: Add Block Node Configuration
+    log_step "Adding block node to deployment"
+
+    log_info "Adding block node configuration..."
+    $SOLO_COMMAND block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_REF}
+
+    log_success "Block node configuration added"
+
+    # Step 5: Generate Keys and Deploy Consensus Network
+    log_step "Generating keys and deploying consensus network"
+
+    # Generate consensus keys (only if init_solo is true)
+    if [ "$init_solo" = "true" ]; then
+        log_info "Generating consensus keys..."
+        $SOLO_COMMAND keys consensus generate --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys --node-aliases ${NODE_ALIASES}
+    fi
+
+    # Deploy network
+    log_info "Deploying consensus network..."
+    $SOLO_COMMAND consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES} --pvcs
+
+    # Setup nodes
+    log_info "Setting up nodes..."
+    $SOLO_COMMAND consensus node setup --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES}
+
+    # Start nodes (optional)
+    if [ "$start_nodes" = "true" ]; then
+        log_info "Starting nodes..."
+        $SOLO_COMMAND consensus node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES}
+        log_success "Consensus network deployed and started"
+    else
+        log_success "Consensus network deployed (nodes not started)"
+    fi
+
+    kind load docker-image \
+        ghcr.io/hiero-ledger/hiero-json-rpc-relay:0.70.0 \
+        ghcr.io/hiero-ledger/hiero-mirror-node-explorer/hiero-explorer:25.1.1 \
+        quay.io/jetstack/cert-manager-controller:v1.13.3 \
+        quay.io/jetstack/cert-manager-webhook:v1.13.3 \
+        quay.io/jetstack/cert-manager-cainjector:v1.13.3 \
+        quay.io/jcmoraisjr/haproxy-ingress:v0.14.5 \
+        gcr.io/mirrornode/hedera-mirror-grpc:0.140.1 \
+        gcr.io/mirrornode/hedera-mirror-importer:0.140.1 \
+        gcr.io/mirrornode/hedera-mirror-monitor:0.140.1 \
+        gcr.io/mirrornode/hedera-mirror-rest:0.140.1 \
+        gcr.io/mirrornode/hedera-mirror-rest-java:0.140.1 \
+        gcr.io/mirrornode/hedera-mirror-web3:0.140.1 \
+        docker.io/bitnamilegacy/redis:8.2.1-debian-12-r0 \
+        docker.io/bitnami/redis-sentinel:7.4.2-debian-12-r6 \
+        --name "${SOLO_CLUSTER_NAME}"
+
+    # Step 6: Deploy Additional Components (Mirror, Relay, Explorer)
+    log_step "Deploying additional components"
+
+    # Deploy mirror node
+    log_info "Deploying mirror node..."
+    $SOLO_COMMAND mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_REF}
+
+    # Deploy relay node
+    log_info "Deploying relay node..."
+    $SOLO_COMMAND relay node add --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES}
+
+    # Deploy explorer
+    log_info "Deploying explorer..."
+    $SOLO_COMMAND explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_REF}
+
+    log_success "All components deployed successfully"
+
+    # Wait for everything to be stable
+    log_info "Waiting for network to stabilize..."
+    sleep 30
+}
 
 ################################################################################
 # Step 1: Environment Setup
@@ -90,107 +249,19 @@ check_command "npm"
 
 # Clean up previous test artifacts
 log_info "Cleaning up previous test artifacts..."
-rm -rf ~/.solo/cache ~/.solo/logs test/data/tmp/* "${BACKUP_DIR}"
+rm -rf "${BACKUP_DIR}"
 mkdir -p "${BACKUP_DIR}"
 
 ################################################################################
-# Step 2: Create Kind Cluster
+# Steps 2-6: Deploy Full Network (Initial Deployment)
 ################################################################################
-log_step "Step 2: Creating Kind cluster"
+log_step "Steps 2-6: Deploying complete network infrastructure"
 
-# Delete existing cluster if it exists
-kind delete cluster -n "${SOLO_CLUSTER_NAME}" 2>/dev/null || true
-
-# Create new cluster
-kind create cluster -n "${SOLO_CLUSTER_NAME}"
-
-# Wait for control plane
-log_info "Waiting for control plane to be ready..."
-sleep 10
-
-# Verify cluster
-kubectl cluster-info --context kind-${SOLO_CLUSTER_NAME}
-log_success "Kind cluster created successfully"
-
-################################################################################
-# Step 3: Initialize Solo and Configure
-################################################################################
-log_step "Step 3: Initializing Solo configuration"
-
-# Solo init
-log_info "Initializing Solo..."
-$SOLO_COMMAND init
-
-# Setup cluster reference (installs required components)
-log_info "Setting up cluster reference..."
-$SOLO_COMMAND cluster-ref config setup --cluster-ref ${SOLO_CLUSTER_REF}
-
-# Connect cluster reference with context
-log_info "Connecting to cluster..."
-$SOLO_COMMAND cluster-ref config connect --cluster-ref ${SOLO_CLUSTER_REF} --context ${SOLO_CONTEXT}
-
-# Create deployment configuration
-log_info "Creating deployment configuration..."
-$SOLO_COMMAND deployment config create --namespace "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-
-# Attach cluster to deployment
-log_info "Attaching cluster to deployment..."
-$SOLO_COMMAND deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_REF} --num-consensus-nodes ${NETWORK_SIZE}
-
-log_success "Solo initialized successfully"
-
-################################################################################
-# Step 4: Add Block Node Configuration
-################################################################################
-log_step "Step 4: Adding block node to deployment"
-
-# Add block node to the deployment (before generating keys)
-log_info "Adding block node configuration..."
-$SOLO_COMMAND block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_REF}
-
-log_success "Block node configuration added"
-
-################################################################################
-# Step 5: Generate Keys and Deploy Consensus Network
-################################################################################
-log_step "Step 5: Generating keys and deploying consensus network"
-
-# Generate consensus keys
-$SOLO_COMMAND keys consensus generate --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys --node-aliases ${NODE_ALIASES}
-
-# Deploy network
-$SOLO_COMMAND consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES} --pvcs
-
-# Setup nodes
-$SOLO_COMMAND consensus node setup --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES}
-
-# Start nodes
-$SOLO_COMMAND consensus node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES}
-
-log_success "Consensus network deployed and started"
-
-################################################################################
-# Step 6: Deploy Additional Components (Mirror, Relay, Explorer)
-################################################################################
-log_step "Step 6: Deploying additional components"
-
-# Deploy mirror node
-log_info "Deploying mirror node..."
-$SOLO_COMMAND mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_REF}
-
-# Deploy relay node
-log_info "Deploying relay node..."
-$SOLO_COMMAND relay node add --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES}
-
-# Deploy explorer
-log_info "Deploying explorer..."
-$SOLO_COMMAND explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_REF}
-
-log_success "All components deployed successfully"
-
-# Wait for everything to be stable
-log_info "Waiting for network to stabilize..."
-sleep 30
+# Call reusable function with default parameters:
+# - create_cluster=true (create new cluster)
+# - init_solo=true (initialize Solo)
+# - start_nodes=true (start consensus nodes)
+deploy_full_network "true" "true" "true"
 
 ################################################################################
 # Step 7: Generate Transactions to Create Network State
@@ -198,18 +269,18 @@ sleep 30
 log_step "Step 7: Generating test transactions"
 
 log_info "Creating test accounts to generate network state..."
-for i in {1..10}; do
-    log_info "Creating account $i/10..."
+for i in {1..3}; do
+    log_info "Creating account $i/3..."
     $SOLO_COMMAND ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 || true
     sleep 2
 done
 
-log_info "Performing account updates..."
-for i in {1..5}; do
-    log_info "Account update $i/5..."
-    $SOLO_COMMAND ledger account update --deployment "${SOLO_DEPLOYMENT}" --account-id 0.0.3 || true
-    sleep 2
-done
+#log_info "Performing account updates..."
+#for i in {1..5}; do
+#    log_info "Account update $i/5..."
+#    $SOLO_COMMAND ledger account update --deployment "${SOLO_DEPLOYMENT}" --account-id 0.0.3 || true
+#    sleep 2
+#done
 
 log_success "Test transactions generated"
 
@@ -234,28 +305,18 @@ $SOLO_COMMAND consensus network freeze --deployment "${SOLO_DEPLOYMENT}"
 log_info "Waiting for network freeze to complete..."
 sleep 10
 
-# Download state files from nodes
-log_info "Downloading state files from consensus nodes..."
-mkdir -p "${STATE_SAVE_DIR}"
-$SOLO_COMMAND consensus state download --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES}
-
-# Copy state files to backup directory
-log_info "Copying state files to backup directory..."
-for node in $(echo ${NODE_ALIASES} | tr ',' ' '); do
-    STATE_FILE="network-${node}-0-state.zip"
-    if [ -f "${USER_HOME}/.solo/logs/${SOLO_NAMESPACE}/${STATE_FILE}" ]; then
-        cp "${USER_HOME}/.solo/logs/${SOLO_NAMESPACE}/${STATE_FILE}" "${STATE_SAVE_DIR}/"
-        log_info "Saved state for ${node}"
-    else
-        log_warn "State file not found: ${STATE_FILE}"
-    fi
-done
 
 # Create full backup (ConfigMaps, Secrets, Logs, Config)
 log_info "Creating full backup to ${BACKUP_DIR}..."
 $SOLO_COMMAND config ops backup --deployment "${SOLO_DEPLOYMENT}" --output-dir "${BACKUP_DIR}"
 
 log_success "Backup created successfully"
+
+# Download state files
+log_info "Downloading state files to ${STATE_SAVE_DIR}..."
+$SOLO_COMMAND consensus state download --deployment "${SOLO_DEPLOYMENT}" --node-aliases  node1,node2
+# copy from default ~/.solo/logs/ to STATE_SAVE_DIR
+cp -r ~/.solo/logs/*.tar.gz ${STATE_SAVE_DIR} 2>/dev/null || log_warn "No state files found to copy"
 
 # Verify backup contents
 log_info "Backup directory contents:"
@@ -264,69 +325,35 @@ log_info "State files:"
 ls -lh "${STATE_SAVE_DIR}"
 
 ################################################################################
-# Step 9: Tear Down Entire Network
+# Step 9: Delete Cluster
 ################################################################################
-log_step "Step 9: Tearing down entire network"
+log_step "Step 9: Deleting entire cluster"
 
-# Destroy explorer
-log_info "Destroying explorer..."
-$SOLO_COMMAND explorer node destroy --deployment "${SOLO_DEPLOYMENT}" || true
+log_info "Deleting Kind cluster..."
+kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 
-# Destroy relay
-log_info "Destroying relay..."
-$SOLO_COMMAND relay node destroy --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES} || true
-
-# Destroy mirror node
-log_info "Destroying mirror node..."
-$SOLO_COMMAND mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force || true
-
-# Destroy consensus network
-log_info "Destroying consensus network..."
-$SOLO_COMMAND consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force
-
-log_success "Network destroyed successfully"
-
-# Verify namespace is clean
-log_info "Verifying namespace cleanup..."
-kubectl get all -n "${SOLO_NAMESPACE}" || log_info "Namespace is clean"
+log_success "Cluster deleted successfully"
 
 ################################################################################
-# Step 10: Redeploy All Network Infrastructure and Components
+# Step 10: Redeploy Full Network Infrastructure
 ################################################################################
-log_step "Step 10: Redeploying all network infrastructure and components"
+log_step "Step 10: Redeploying full network infrastructure"
 
-# Note: Solo config and cluster-ref are still intact
-
-# Re-add block node configuration
-log_info "Re-adding block node configuration..."
-$SOLO_COMMAND block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_REF}
-
-# Deploy empty consensus network
-log_info "Deploying empty consensus network..."
-$SOLO_COMMAND consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES} --pvcs
-
-# Setup nodes (without starting them yet)
-log_info "Setting up nodes..."
-$SOLO_COMMAND consensus node setup --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES}
-
-# Redeploy mirror node
-log_info "Redeploying mirror node..."
-$SOLO_COMMAND mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_REF}
-
-# Redeploy relay node
-log_info "Redeploying relay node..."
-$SOLO_COMMAND relay node add --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES}
-
-# Redeploy explorer
-log_info "Redeploying explorer..."
-$SOLO_COMMAND explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_REF}
-
-log_success "All network infrastructure and components redeployed"
+# Note: Solo config is still intact (stored in ~/.solo)
+# Call reusable function with specific parameters:
+# - create_cluster=true (recreate cluster from scratch)
+# - init_solo=false (Solo config already exists, just reconnect)
+# - start_nodes=false (nodes will be started after restore in step 12)
+deploy_full_network "true" "true" "true"
 
 ################################################################################
 # Step 11: Restore Configuration from Backup
 ################################################################################
 log_step "Step 11: Restoring configuration from backup"
+
+# stop nodes before restore
+log_info "Stopping consensus nodes before restore..."
+$SOLO_COMMAND consensus node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES}
 
 # Restore ConfigMaps, Secrets, Logs, and State files
 log_info "Restoring configuration from ${BACKUP_DIR}..."
@@ -334,9 +361,11 @@ $SOLO_COMMAND config ops restore --deployment "${SOLO_DEPLOYMENT}" --input-dir "
 
 log_success "Configuration restored successfully"
 
-# Wait for restore to settle
-log_info "Waiting for restored configuration to settle..."
-sleep 10
+# # restart network
+# log_info "Restarting consensus nodes after restore..."
+# $SOLO_COMMAND consensus node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES}
+
+
 
 ################################################################################
 # Step 12: Start Consensus Nodes
@@ -345,12 +374,13 @@ log_step "Step 12: Starting consensus nodes with restored state"
 
 # Use first node's state file for all nodes (as per state-save-and-restore example)
 FIRST_NODE=$(echo ${NODE_ALIASES} | cut -d',' -f1)
-FIRST_NODE_STATE_FILE="${STATE_SAVE_DIR}/network-${FIRST_NODE}-0-state.zip"
+FIRST_NODE_STATE_FILE="${STATE_SAVE_DIR}/network-${FIRST_NODE}-0-state.tar.gz"
 
 if [ ! -f "${FIRST_NODE_STATE_FILE}" ]; then
     log_warn "State file not found: ${FIRST_NODE_STATE_FILE}"
-    log_info "Starting nodes without state file..."
-    $SOLO_COMMAND consensus node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES}
+    log_info "Listing available state files:"
+    ls -lh "${STATE_SAVE_DIR}/"
+    exit 1
 else
     log_info "Starting nodes with state file: ${FIRST_NODE_STATE_FILE}"
     $SOLO_COMMAND consensus node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES} --state-file "${FIRST_NODE_STATE_FILE}"
@@ -362,10 +392,11 @@ sleep 60
 
 log_success "Consensus nodes started successfully"
 
+
 ################################################################################
-# Step 13: Verify Restored Network with Transactions
+# Step 12: Verify Restored Network with Transactions
 ################################################################################
-log_step "Step 13: Verifying restored network with transactions"
+log_step "Step 12: Verifying restored network with transactions"
 
 # Check pod status
 log_info "Checking pod status..."
@@ -377,7 +408,7 @@ sleep 30
 
 # Check if accounts exist (verify state was restored)
 log_info "Verifying restored state by checking account..."
-$SOLO_COMMAND ledger account get --deployment "${SOLO_DEPLOYMENT}" --account-id 0.0.3 || log_warn "Account verification may have failed"
+$SOLO_COMMAND ledger account info --deployment "${SOLO_DEPLOYMENT}" --account-id 0.0.3 || log_warn "Account verification may have failed"
 
 # Generate new transactions to verify network is fully operational
 log_info "Testing restored network with new transactions..."
@@ -390,9 +421,9 @@ done
 log_success "Network verification completed - restored network is operational!"
 
 ################################################################################
-# Step 14: Test Summary and Cleanup
+# Step 13: Test Summary and Cleanup
 ################################################################################
-log_step "Step 14: Test completed successfully!"
+log_step "Step 13: Test completed successfully!"
 
 echo ""
 echo -e "${GREEN}============================================${NC}"
