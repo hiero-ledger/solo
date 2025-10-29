@@ -361,34 +361,9 @@ $SOLO_COMMAND config ops restore --deployment "${SOLO_DEPLOYMENT}" --input-dir "
 
 log_success "Configuration restored successfully"
 
-# # restart network
-# log_info "Restarting consensus nodes after restore..."
-# $SOLO_COMMAND consensus node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES}
-
-
-
-################################################################################
-# Step 12: Start Consensus Nodes
-################################################################################
-log_step "Step 12: Starting consensus nodes with restored state"
-
-# Use first node's state file for all nodes (as per state-save-and-restore example)
-FIRST_NODE=$(echo ${NODE_ALIASES} | cut -d',' -f1)
-FIRST_NODE_STATE_FILE="${STATE_SAVE_DIR}/network-${FIRST_NODE}-0-state.tar.gz"
-
-if [ ! -f "${FIRST_NODE_STATE_FILE}" ]; then
-    log_warn "State file not found: ${FIRST_NODE_STATE_FILE}"
-    log_info "Listing available state files:"
-    ls -lh "${STATE_SAVE_DIR}/"
-    exit 1
-else
-    log_info "Starting nodes with state file: ${FIRST_NODE_STATE_FILE}"
-    $SOLO_COMMAND consensus node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES} --state-file "${FIRST_NODE_STATE_FILE}"
-fi
-
-# Wait for network to start and stabilize
-log_info "Waiting for consensus network to fully stabilize..."
-sleep 60
+# restart network
+log_info "Restarting consensus nodes after restore..."
+$SOLO_COMMAND consensus node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases ${NODE_ALIASES}
 
 log_success "Consensus nodes started successfully"
 
