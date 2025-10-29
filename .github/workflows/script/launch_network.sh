@@ -107,7 +107,7 @@ sleep 40;
 npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev || result=$?
 if [[ $result -ne 0 ]]; then
   echo "Starting consensus nodes failed with exit code $result"
-  npm run solo -- consensus node logs --deployment "${SOLO_DEPLOYMENT}" -q --dev
+  npm run solo -- consensus diagnostics logs --deployment "${SOLO_DEPLOYMENT}" -q --dev
   exit $result
 fi
 

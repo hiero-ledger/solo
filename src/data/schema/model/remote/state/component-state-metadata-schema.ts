@@ -7,7 +7,7 @@ import {
   type ClusterReferenceName,
   type ComponentId,
   type NamespaceNameAsString,
-  PortForwardConfig,
+  type PortForwardConfig,
 } from '../../../../../types/index.js';
 
 @Exclude()

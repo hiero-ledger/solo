@@ -117,7 +117,7 @@ tasks:
           --cluster-ref {{ .CLUSTER_REFERENCE }} {{ .EXPLORER_VERSION_FLAG }} {{ .EXPLORER_NODE_VALUE_FILE_FLAG }}
 
       - cmd: |
-          $SOLO_COMMAND consensus node logs --deployment {{ .DEPLOYMENT }} 
+          $SOLO_COMMAND consensus diagnostics logs --deployment {{ .DEPLOYMENT }} 
 
   destroy:
     desc: Destroy the Solo network with block node

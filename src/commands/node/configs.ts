@@ -52,8 +52,8 @@ import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api
 import {Version} from '../../business/utils/version.js';
 import {eq, SemVer} from 'semver';
 import {SOLO_USER_AGENT_HEADER} from '../../core/constants.js';
-import {NodeConnectionsConfigClass} from './config-interfaces/node-connections-config-class.js';
-import {NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
+import {type NodeConnectionsConfigClass} from './config-interfaces/node-connections-config-class.js';
+import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
 
 const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
 const ADD_CONFIGS_NAME = 'addConfigs';

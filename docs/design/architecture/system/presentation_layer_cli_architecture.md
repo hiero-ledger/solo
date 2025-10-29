@@ -733,7 +733,7 @@ solo block node upgrade --deployment <name> --id <id> --chart-version <semver>
 ###### Syntax
 
 ```bash
-solo block node logs --deployment <name> --id <id> [--force]
+solo block node destroy --deployment <name> --id <id> [--force]
 ```
 
 ###### Flags
