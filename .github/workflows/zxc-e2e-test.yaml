@@ -341,7 +341,7 @@ jobs:
           sudo apt-get install -y podman iptables
           curl -s https://api.github.com/repos/containers/gvisor-tap-vsock/releases/latest | awk 'BEGIN { FS = "\"\\s*:\\s*" } /browser_download_url/ && /linux-amd64/ {print $2}' | xargs wget -O gvproxy-linux-amd64
           chmod +x ./gvproxy-linux-amd64
-          mkdir -p /usr/local/lib/podman/
+          sudo mkdir -p /usr/local/lib/podman/
           sudo mv gvproxy-linux-amd64 /usr/local/lib/podman/gvproxy
           podman --version
           podman machine init
