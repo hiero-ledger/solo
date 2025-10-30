@@ -1163,6 +1163,20 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly feeSchedulesFile: CommandFlag = {
+    constName: 'feeSchedulesFile',
+    name: 'fee-schedules-file',
+    definition: {
+      describe:
+        'Path to custom feeSchedules.json file. ' +
+        'If provided, this file will be used instead of the default fee schedule. ' +
+        'The file will be copied to the consensus nodes and configured in bootstrap.properties.',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly applicationProperties: CommandFlag = {
     constName: 'applicationProperties',
     name: 'application-properties',
@@ -2789,6 +2803,7 @@ export class Flags {
     Flags.domainNames,
     Flags.blockNodeChartVersion,
     Flags.blockNodeCfg,
+    Flags.feeSchedulesFile,
     Flags.realm,
     Flags.shard,
     Flags.username,

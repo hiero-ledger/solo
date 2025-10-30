@@ -123,6 +123,7 @@ export interface NetworkDeployConfigClass {
   blockNodeComponents: BlockNodeStateSchema[];
   blockNodeCfg: string;
   consensusNodeToBlockNodesMap?: Record<string, number[]>;
+  feeSchedulesFile: string;
   debugNodeAlias: NodeAlias;
   app: string;
   serviceMonitor: string;
@@ -223,6 +224,7 @@ export class NetworkCommand extends BaseCommand {
       flags.backupProvider,
       flags.domainNames,
       flags.blockNodeCfg,
+      flags.feeSchedulesFile,
       flags.serviceMonitor,
       flags.podLog,
     ],
@@ -1149,6 +1151,125 @@ export class NetworkCommand extends BaseCommand {
           },
         },
         this.waitForNetworkPods(),
+        {
+          title: 'Apply custom fee schedules',
+          skip: context_ => !context_.config.feeSchedulesFile || context_.config.feeSchedulesFile.trim() === '',
+          task: (context_, task): SoloListr<NetworkDeployContext> => {
+            const subTasks: SoloListrTask<NetworkDeployContext>[] = [];
+            const config: NetworkDeployConfigClass = context_.config;
+
+            // Validate fee schedules file exists
+            if (!fs.existsSync(config.feeSchedulesFile)) {
+              throw new SoloError(`Fee schedules file not found: ${config.feeSchedulesFile}`);
+            }
+
+            // For each consensus node, update configmap and copy file
+            for (const consensusNode of config.consensusNodes) {
+              subTasks.push({
+                title: `Apply custom fee schedules to: ${chalk.yellow(consensusNode.name)}`,
+                task: async (): Promise<void> => {
+                  const k8: K8 = this.k8Factory.getK8(consensusNode.context);
+
+                  // Read the ConfigMap
+                  this.logger.debug(`Reading ConfigMap network-node-data-config-cm for node ${consensusNode.name}`);
+                  const configMapName = 'network-node-data-config-cm';
+                  const configMap = await k8.configMaps().read(config.namespace, configMapName);
+                  this.logger.debug(`ConfigMap read successfully for node ${consensusNode.name}`);
+
+                  // Modify bootstrap.properties to add feeSchedulesJson.resource
+                  if (configMap.data && configMap.data['bootstrap.properties']) {
+                    this.logger.debug(`Modifying bootstrap.properties for node ${consensusNode.name}`);
+                    let bootstrapProperties = configMap.data['bootstrap.properties'];
+                    
+                    // Add or update the feeSchedulesJson.resource line
+                    const feeScheduleLine = 'feeSchedulesJson.resource=data/config/feeSchedules.json';
+                    if (bootstrapProperties.includes('feeSchedulesJson.resource=')) {
+                      // Replace existing line
+                      this.logger.debug(`Replacing existing feeSchedulesJson.resource line for node ${consensusNode.name}`);
+                      bootstrapProperties = bootstrapProperties.replace(/feeSchedulesJson\.resource=.*/g, feeScheduleLine);
+                    } else {
+                      // Add new line
+                      this.logger.debug(`Adding new feeSchedulesJson.resource line for node ${consensusNode.name}`);
+                      bootstrapProperties += `\n${feeScheduleLine}\n`;
+                    }
+                    
+                    // Update the ConfigMap with modified bootstrap.properties
+                    this.logger.debug(`Updating ConfigMap for node ${consensusNode.name}`);
+                    await k8.configMaps().update(config.namespace, configMapName, {
+                      'bootstrap.properties': bootstrapProperties,
+                    });
+                    this.logger.debug(`ConfigMap updated successfully for node ${consensusNode.name}`);
+                  }
+
+                  // Copy the fee schedules file to the node's root container
+                  this.logger.debug(`Finding pod for node ${consensusNode.name}`);
+                  const pods: Pod[] = await k8
+                    .pods()
+                    .list(config.namespace, [
+                      `solo.hedera.com/node-name=${consensusNode.name}`,
+                      'solo.hedera.com/type=network-node',
+                    ]);
+
+                  if (pods.length === 0) {
+                    throw new SoloError(`No pod found for node: ${consensusNode.name}`);
+                  }
+
+                  const pod: Pod = pods[0];
+                  const podReference: PodReference = pod.podReference;
+                  this.logger.debug(`Found pod ${podReference.name.name} for node ${consensusNode.name}`);
+                  
+                  const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+                  const container: Container = await k8.containers().readByRef(containerReference);
+                  this.logger.debug(`Got container reference for pod ${podReference.name.name}`);
+
+                  // Ensure the target directory exists
+                  this.logger.debug(`Creating directory ${constants.HEDERA_HAPI_PATH}/data/config in pod ${podReference.name.name}`);
+                  await container.execContainer(['mkdir', '-p', `${constants.HEDERA_HAPI_PATH}/data/config`]);
+                  this.logger.debug(`Directory created successfully in pod ${podReference.name.name}`);
+
+                  // Copy the custom feeSchedules.json to the container
+                  const sourceFileName = path.basename(config.feeSchedulesFile);
+                  this.logger.debug(`Copying ${config.feeSchedulesFile} to pod ${podReference.name.name}`);
+                  await container.copyTo(
+                    config.feeSchedulesFile,
+                    `${constants.HEDERA_HAPI_PATH}/data/config`,
+                  );
+                  this.logger.debug(`File copied successfully to pod ${podReference.name.name}`);
+
+                  // Wait for file to sync to the file system
+                  await sleep(Duration.ofSeconds(2));
+
+                  // Rename the file to feeSchedules.json if needed
+                  if (sourceFileName !== 'feeSchedules.json') {
+                    this.logger.debug(`Renaming ${sourceFileName} to feeSchedules.json in pod ${podReference.name.name}`);
+                    await container.execContainer([
+                      'mv',
+                      `${constants.HEDERA_HAPI_PATH}/data/config/${sourceFileName}`,
+                      `${constants.HEDERA_HAPI_PATH}/data/config/feeSchedules.json`,
+                    ]);
+                  }
+
+                  // Set proper ownership
+                  this.logger.debug(`Setting ownership for feeSchedules.json in pod ${podReference.name.name}`);
+                  await container.execContainer([
+                    'bash',
+                    '-c',
+                    `sudo chown hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/config/feeSchedules.json`,
+                  ]);
+                  this.logger.debug(`Ownership set successfully in pod ${podReference.name.name}`);
+                  this.logger.info(`Custom fee schedules applied successfully to node ${consensusNode.name}`);
+                },
+              });
+            }
+
+            return task.newListr(subTasks, {
+              concurrent: false,
+              rendererOptions: {
+                collapseSubtasks: false,
+              },
+            });
+          },
+        },
         {
           title: 'Check proxy pods are running',
           task: (context_, task): SoloListr<NetworkDeployContext> => {
