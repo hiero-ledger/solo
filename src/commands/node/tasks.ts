@@ -1204,7 +1204,7 @@ export class NodeCommandTasks {
           self.logger.info(
             `Deleting the previous state files in pod ${podReference.name} directory ${constants.HEDERA_HAPI_PATH}/data/saved`,
           );
-          await container.execContainer(['rm', '-rf', `${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
+          await container.execContainer(['bash', '-c', `sudo rm -rf ${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
           await container.execContainer([
             'unzip',
             '-o',
@@ -1231,6 +1231,7 @@ export class NodeCommandTasks {
           await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
           await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
           await container.execContainer(['chmod', '+x', cleanupScriptDestination]);
+          await sleep(Duration.ofSeconds(1));
           await container.execContainer([cleanupScriptDestination, constants.HEDERA_HAPI_PATH]);
 
           // Rename node ID directories to match the target node
@@ -1243,6 +1244,7 @@ export class NodeCommandTasks {
             await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
             await container.copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
             await container.execContainer(['chmod', '+x', renameScriptDestination]);
+            await sleep(Duration.ofSeconds(1));
             await container.execContainer([
               renameScriptDestination,
               constants.HEDERA_HAPI_PATH,

@@ -370,7 +370,6 @@ export class BackupRestoreCommand extends BaseCommand {
    */
   private async restoreLogsAndConfigs(inputDirectory: string): Promise<void> {
     const namespace: NamespaceName = this.remoteConfig.getNamespace();
-    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
     const contexts: Context[] = this.remoteConfig.getContexts();
 
     for (const context of contexts) {
@@ -383,8 +382,8 @@ export class BackupRestoreCommand extends BaseCommand {
       }
 
       // Get all log zip files directly from logs directory
-      const allFiles = fs.readdirSync(logsDirectory);
-      const logFiles = allFiles.filter(file => file.endsWith('.zip'));
+      const allFiles: string[] = fs.readdirSync(logsDirectory);
+      const logFiles: string[] = allFiles.filter(file => file.endsWith('.zip'));
 
       if (logFiles.length === 0) {
         this.logger.showUser(
