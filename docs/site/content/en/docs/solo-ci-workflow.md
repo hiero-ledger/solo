@@ -11,12 +11,11 @@ You’ll verify that your runner meets Docker resource requirements, install the
 
 ## Step 1: Verify Runner and Docker Resources
 
-Solo requires a **self-hosted runner** with sufficient CPU and memory resources.  
-GitHub-hosted runners do not meet the minimum resource requirements to deploy Solo successfully.
+You can use GitHub runners or self-hosted runners to deploy Solo.
 
 ### Minimum Requirements
 - 4 CPUs
-- 32 GB Memory
+- 12 GB Memory
 
 If these requirements aren’t met, some Solo components may hang or fail to install during deployment.
 
