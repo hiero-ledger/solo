@@ -133,7 +133,7 @@ export class InitCommand extends BaseCommand {
           const shouldInstallPodman: boolean = await podmanDependency.shouldInstall();
 
           const podmanDependencies: string[] = shouldInstallPodman
-            ? [constants.PODMAN, constants.VFKIT, constants.GVPROXY]
+            ? [constants.PODMAN, constants.VFKIT, constants.GVPROXY, constants.VIRTIOFSD]
             : [];
           const deps: string[] = [...podmanDependencies, constants.KIND];
 
@@ -165,12 +165,15 @@ export class InitCommand extends BaseCommand {
                 // const podmanExecutable: string = 'podman';
                 const podmanExecutable: string = await self.depManager.getExecutablePath(constants.PODMAN);
 
-                if (this.osPlatform !== constants.OS_LINUX) {
-                  await this.run(`${podmanExecutable} machine init --memory=16384`); // 16GB
-                  await this.run(`${podmanExecutable} machine start`);
-                }
+                await this.run(`${podmanExecutable} machine init --memory=16384`); // 16GB
+                await this.run(`${podmanExecutable} machine start`);
 
-                await this.run(`${podmanExecutable} system connection list`);
+                // if (this.osPlatform !== constants.OS_LINUX) {
+                //   await this.run(`${podmanExecutable} machine init --memory=16384`); // 16GB
+                //   await this.run(`${podmanExecutable} machine start`);
+                // }
+                //
+                // await this.run(`${podmanExecutable} system connection list`);
                 // await this.run(`${podmanExecutable} network create kind --subnet 172.19.0.0/16`);
                 // await this.run(`${podmanExecutable} system connection list`);
               },
