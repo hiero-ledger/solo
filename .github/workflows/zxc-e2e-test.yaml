@@ -329,24 +329,35 @@ jobs:
             echo "GITHUB_RUN_ID=${{ github.run_id }}"
             SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} GITHUB_RUN_ID=${{ github.run_id }} ${{ env.CG_EXEC }} ./test/e2e/podman-kind/setup-podman-kind-e2e.sh
 
-      - name: Install Qemu Img
-        if: ${{ inputs.test-script == 'test-e2e-one-shot-single' }}
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu-utils qemu-system-x86
+      #      - name: Install Qemu Img
+      #        if: ${{ inputs.test-script == 'test-e2e-one-shot-single' }}
+      #        run: |
+      #          sudo apt-get update
+      #          sudo apt-get install -y qemu-utils qemu-system-x86
+      #
+      #      - name: Install Podman
+      #        if: ${{ inputs.test-script == 'test-e2e-one-shot-single' }}
+      #        run: |
+      #          sudo apt-get install -y podman iptables
+      #          curl -s https://api.github.com/repos/containers/gvisor-tap-vsock/releases/latest | awk 'BEGIN { FS = "\"\\s*:\\s*" } /browser_download_url/ && /linux-amd64/ {print $2}' | xargs wget -O gvproxy-linux-amd64
+      #          chmod +x ./gvproxy-linux-amd64
+      #          sudo mkdir -p /usr/local/lib/podman/
+      #          sudo mv gvproxy-linux-amd64 /usr/local/lib/podman/gvproxy
+      #          podman --version
+      #          podman machine init
+      #          podman machine start
+      #          KIND_EXPERIMENTAL_PROVIDER=podman kind create cluster
 
-      - name: Install Podman
+      - name: Install and Test Podman
         if: ${{ inputs.test-script == 'test-e2e-one-shot-single' }}
         run: |
           sudo apt-get install -y podman iptables
-          curl -s https://api.github.com/repos/containers/gvisor-tap-vsock/releases/latest | awk 'BEGIN { FS = "\"\\s*:\\s*" } /browser_download_url/ && /linux-amd64/ {print $2}' | xargs wget -O gvproxy-linux-amd64
-          chmod +x ./gvproxy-linux-amd64
-          sudo mkdir -p /usr/local/lib/podman/
-          sudo mv gvproxy-linux-amd64 /usr/local/lib/podman/gvproxy
-          podman --version
-          podman machine init
-          podman machine start
-          KIND_EXPERIMENTAL_PROVIDER=podman kind create cluster
+          sudo podman --version
+          sudo podman info
+          sudo podman run --rm hello-world
+          sudo systemctl enable --now podman.socket
+          sudo loginctl enable-linger $USER
+          podman run --rm hello-world
 
       - name: Build Block code locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
@@ -481,4 +492,3 @@ jobs:
         with:
           name: ${{ inputs.coverage-report-name }}
           path: 'coverage/${{ inputs.coverage-subdirectory }}'
-
