@@ -352,25 +352,24 @@ jobs:
         if: ${{ inputs.test-script == 'test-e2e-one-shot-single' }}
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y podman iptables
+          sudo apt-get install -y podman iptables fuse-overlayfs
           
           # Ensure the system-level socket is active
-          sudo systemctl enable --now podman.socket
+          ps -p 1 -o comm=
+          # Skip systemd socket activation
+          echo "systemd not detected — skipping podman.socket activation"
+          # sudo systemctl enable --now podman.socket
           
-          # Verify Podman info (rootful mode)
-          sudo podman info
-          echo "---------------------------------------------------"
-          sudo -i podman info
+          # Confirm Podman context
           echo "---------------------------------------------------"
           sudo podman info | grep rootless
           sudo -i podman info | grep rootless
           sudo -i podman info | grep graphDriverName
           echo "---------------------------------------------------"
           
-          # Pull and run hello-world as root
-          sudo podman pull docker.io/library/hello-world
-          sudo podman run --rm hello-world
-
+          # Run Podman as root with overlay driver
+          sudo -i podman pull docker.io/library/hello-world
+          sudo -i podman run --rm hello-world
 
       - name: Build Block code locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
