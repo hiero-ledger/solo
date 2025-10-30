@@ -337,9 +337,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y qemu-utils qemu-system-x86
-          cat /proc/cpuinfo
-          echo "\nLoading KVM Modules\n"
-          modprobe kvm-intel
+          modprobe kvm-amd
 
       - name: Build Block code locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
