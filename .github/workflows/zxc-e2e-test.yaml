@@ -338,7 +338,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y qemu-utils qemu-system-x86
           sudo apt-get install -y cpu-checker
-          kvm-ok
+          sudo modprobe kvm_amd
+          sudo /usr/sbin/kvm-ok
 
       - name: Build Block code locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
