@@ -401,6 +401,31 @@ export class NetworkCommand extends BaseCommand {
       'application.properties',
     );
 
+    // Modify bootstrap.properties if custom fee schedules file is provided
+    if (config.feeSchedulesFile && config.feeSchedulesFile.trim() !== '') {
+      const bootstrapPropertiesPath: string = PathEx.joinWithRealPath(
+        config.cacheDir,
+        'templates',
+        'bootstrap.properties',
+      );
+      
+      this.logger.debug(`Updating bootstrap.properties with feeSchedulesJson.resource`);
+      let bootstrapProperties = fs.readFileSync(bootstrapPropertiesPath, 'utf8');
+      
+      // Add or update the feeSchedulesJson.resource line
+      const feeScheduleLine = 'feeSchedulesJson.resource=data/config/feeSchedules.json';
+      if (bootstrapProperties.includes('feeSchedulesJson.resource=')) {
+        // Replace existing line
+        bootstrapProperties = bootstrapProperties.replace(/feeSchedulesJson\.resource=.*/g, feeScheduleLine);
+      } else {
+        // Add new line at the end
+        bootstrapProperties += `\n${feeScheduleLine}\n`;
+      }
+      
+      fs.writeFileSync(bootstrapPropertiesPath, bootstrapProperties);
+      this.logger.debug(`bootstrap.properties updated successfully`);
+    }
+
     this.profileValuesFile = await this.profileManager.prepareValuesForSoloChart(
       profileName,
       config.consensusNodes,
@@ -1163,43 +1188,12 @@ export class NetworkCommand extends BaseCommand {
               throw new SoloError(`Fee schedules file not found: ${config.feeSchedulesFile}`);
             }
 
-            // For each consensus node, update configmap and copy file
+            // For each consensus node, copy fee schedules file to pod
             for (const consensusNode of config.consensusNodes) {
               subTasks.push({
                 title: `Apply custom fee schedules to: ${chalk.yellow(consensusNode.name)}`,
                 task: async (): Promise<void> => {
                   const k8: K8 = this.k8Factory.getK8(consensusNode.context);
-
-                  // Read the ConfigMap
-                  this.logger.debug(`Reading ConfigMap network-node-data-config-cm for node ${consensusNode.name}`);
-                  const configMapName = 'network-node-data-config-cm';
-                  const configMap = await k8.configMaps().read(config.namespace, configMapName);
-                  this.logger.debug(`ConfigMap read successfully for node ${consensusNode.name}`);
-
-                  // Modify bootstrap.properties to add feeSchedulesJson.resource
-                  if (configMap.data && configMap.data['bootstrap.properties']) {
-                    this.logger.debug(`Modifying bootstrap.properties for node ${consensusNode.name}`);
-                    let bootstrapProperties = configMap.data['bootstrap.properties'];
-                    
-                    // Add or update the feeSchedulesJson.resource line
-                    const feeScheduleLine = 'feeSchedulesJson.resource=data/config/feeSchedules.json';
-                    if (bootstrapProperties.includes('feeSchedulesJson.resource=')) {
-                      // Replace existing line
-                      this.logger.debug(`Replacing existing feeSchedulesJson.resource line for node ${consensusNode.name}`);
-                      bootstrapProperties = bootstrapProperties.replace(/feeSchedulesJson\.resource=.*/g, feeScheduleLine);
-                    } else {
-                      // Add new line
-                      this.logger.debug(`Adding new feeSchedulesJson.resource line for node ${consensusNode.name}`);
-                      bootstrapProperties += `\n${feeScheduleLine}\n`;
-                    }
-                    
-                    // Update the ConfigMap with modified bootstrap.properties
-                    this.logger.debug(`Updating ConfigMap for node ${consensusNode.name}`);
-                    await k8.configMaps().update(config.namespace, configMapName, {
-                      'bootstrap.properties': bootstrapProperties,
-                    });
-                    this.logger.debug(`ConfigMap updated successfully for node ${consensusNode.name}`);
-                  }
 
                   // Copy the fee schedules file to the node's root container
                   this.logger.debug(`Finding pod for node ${consensusNode.name}`);
