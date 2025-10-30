@@ -338,7 +338,7 @@ jobs:
       - name: Install Podman
         if: ${{ inputs.test-script == 'test-e2e-one-shot-single' }}
         run: |
-          brew install podman
+          sudo apt-get install -y podman iptables
           podman --version
           podman machine init
           podman machine start
