@@ -120,7 +120,7 @@ export class SoloPinoLogger implements SoloLogger {
       let cause: any = error.cause;
       while (cause && depth < 10) {
         if (cause.stack) {
-          stack.push({message: cause?.message, stacktrace: cause.stack});
+          stack.push({message: cause?.message, stacktrace: cause?.stack});
         }
         cause = cause.cause;
         depth += 1;
