@@ -49,7 +49,8 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
   public static readonly ACCOUNT_UPDATE = 'update';
   public static readonly ACCOUNT_CREATE = 'create';
   public static readonly ACCOUNT_INFO = 'info';
-  public static readonly FILE_UPLOAD = 'upload';
+  public static readonly FILE_CREATE = 'create';
+  public static readonly FILE_UPDATE = 'update';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(LedgerCommandDefinition.COMMAND_NAME, LedgerCommandDefinition.DESCRIPTION, this.logger)
@@ -108,16 +109,27 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
         new CommandGroup(
           LedgerCommandDefinition.FILE_SUBCOMMAND_NAME,
           LedgerCommandDefinition.FILE_SUBCOMMAND_DESCRIPTION,
-        ).addSubcommand(
-          new Subcommand(
-            LedgerCommandDefinition.FILE_UPLOAD,
-            'Upload or update a file on the Hedera network',
-            this.fileCommand,
-            this.fileCommand.upload,
-            FileCommand.UPLOAD_FLAGS_LIST,
-            [],
+        )
+          .addSubcommand(
+            new Subcommand(
+              LedgerCommandDefinition.FILE_CREATE,
+              'Create a new file on the Hedera network',
+              this.fileCommand,
+              this.fileCommand.create,
+              FileCommand.CREATE_FLAGS_LIST,
+              [],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              LedgerCommandDefinition.FILE_UPDATE,
+              'Update an existing file on the Hedera network',
+              this.fileCommand,
+              this.fileCommand.update,
+              FileCommand.UPDATE_FLAGS_LIST,
+              [],
+            ),
           ),
-        ),
       )
       .build();
   }
