@@ -5,6 +5,7 @@
 | Example Directory                                         | Description                                                                                                         |
 |-----------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
 | [address-book](./address-book/)                           | Example of using Yahcli to pull the ledger and mirror node address book                                             |
+| [backup-restore-workflow](./backup-restore-workflow/)     | Complete backup/restore workflow: backup entire network, destroy cluster, redeploy, and restore from backup        |
 | [custom-network-config](./custom-network-config/)         | Deploy a Solo network with custom configuration settings (log4j2, properties, etc.)                                 |
 | [external-database-test](./external-database-test/)       | Deploy a Solo network with an external PostgreSQL database                                                          |
 | [network-with-block-node](./network-with-block-node/)     | Deploy a Solo network that includes a block node                                                                    |
