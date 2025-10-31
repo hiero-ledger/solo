@@ -216,6 +216,24 @@ export class NodeTest extends BaseCommandTest {
     return argv;
   }
 
+  private static soloDiagnosticsConnectionsArgv(options: BaseTestOptions): string[] {
+    const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
+    const {testName, deployment} = options;
+
+    const argv: string[] = newArgv();
+    argv.push(
+      ConsensusCommandDefinition.COMMAND_NAME,
+      ConsensusCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
+      ConsensusCommandDefinition.DIAGNOSTIC_CONNECTIONS,
+      optionFromFlag(Flags.deployment),
+      deployment,
+      optionFromFlag(flags.quiet),
+    );
+
+    argvPushGlobalFlags(argv, testName, false);
+    return argv;
+  }
+
   private static soloNodeRefreshArgv(options: BaseTestOptions): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NodeTest;
     const {testName, deployment, enableLocalBuildPathTesting, localBuildPath, localBuildReleaseTag} = options;
@@ -542,5 +560,14 @@ export class NodeTest extends BaseCommandTest {
       balanceQueryShouldSucceed(accountManager, namespace, remoteConfig, logger);
       accountCreationShouldSucceed(accountManager, namespace, remoteConfig, logger);
     });
+  }
+
+  public static connections(options: BaseTestOptions): void {
+    const {testName} = options;
+    const {soloDiagnosticsConnectionsArgv} = NodeTest;
+
+    it(`${testName}: consensus diagnostics connections`, async (): Promise<void> => {
+      await main(soloDiagnosticsConnectionsArgv(options));
+    }).timeout(Duration.ofMinutes(10).toMillis());
   }
 }

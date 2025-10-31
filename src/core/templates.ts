@@ -382,6 +382,14 @@ export class Templates {
     return [`app.kubernetes.io/name=${releaseName}`];
   }
 
+  public static renderExplorerName(id: ComponentId): string {
+    return `${constants.EXPLORER_RELEASE_NAME}-${id}`;
+  }
+
+  public static renderRelayName(id: ComponentId): string {
+    return `${constants.JSON_RPC_RELAY_RELEASE_NAME}-${id}`;
+  }
+
   public static renderBlockNodeName(id: ComponentId): string {
     return `${constants.BLOCK_NODE_RELEASE_NAME}-${id}`;
   }

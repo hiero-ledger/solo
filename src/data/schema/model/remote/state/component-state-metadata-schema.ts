@@ -7,7 +7,7 @@ import {
   type ClusterReferenceName,
   type ComponentId,
   type NamespaceNameAsString,
-  portForwardConfig,
+  type PortForwardConfig,
 } from '../../../../../types/index.js';
 
 @Exclude()
@@ -26,14 +26,14 @@ export class ComponentStateMetadataSchema {
   public phase: DeploymentPhase;
 
   @Expose()
-  public portForwardConfigs: portForwardConfig[];
+  public portForwardConfigs: PortForwardConfig[];
 
   public constructor(
     id?: ComponentId,
     namespace?: NamespaceNameAsString,
     cluster?: ClusterReferenceName,
     phase?: DeploymentPhase,
-    portForwardConfigs?: portForwardConfig[],
+    portForwardConfigs?: PortForwardConfig[],
   ) {
     this.id = id;
     this.namespace = namespace;
