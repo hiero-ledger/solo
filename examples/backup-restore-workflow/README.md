@@ -12,11 +12,11 @@ This example demonstrates a complete backup and restore workflow for a Hiero net
 
 ## Prerequisites
 
-- [Task](https://taskfile.dev/) installed (`brew install go-task/tap/go-task` on macOS)
-- [Kind](https://kind.sigs.k8s.io/) installed (`brew install kind` on macOS)
-- [kubectl](https://kubernetes.io/docs/tasks/tools/) installed
-- Node.js 20+ and npm installed
-- Docker Desktop running with sufficient resources (8GB+ RAM recommended)
+* [Task](https://taskfile.dev/) installed (`brew install go-task/tap/go-task` on macOS)
+* [Kind](https://kind.sigs.k8s.io/) installed (`brew install kind` on macOS)
+* [kubectl](https://kubernetes.io/docs/tasks/tools/) installed
+* Node.js 20+ and npm installed
+* Docker Desktop running with sufficient resources (8GB+ RAM recommended)
 
 ## Quick Start
 
@@ -29,13 +29,14 @@ task
 ```
 
 This will:
-- ✅ Create a Kind cluster and deploy the complete network
-- ✅ Generate test transactions
-- ✅ Backup the entire network (ConfigMaps, Secrets, Logs, State)
-- ✅ Destroy the cluster completely
-- ✅ Redeploy a fresh network from scratch
-- ✅ Restore all components from backup
-- ✅ Verify the network is operational with new transactions
+
+* ✅ Create a Kind cluster and deploy the complete network
+* ✅ Generate test transactions
+* ✅ Backup the entire network (ConfigMaps, Secrets, Logs, State)
+* ✅ Destroy the cluster completely
+* ✅ Redeploy a fresh network from scratch
+* ✅ Restore all components from backup
+* ✅ Verify the network is operational with new transactions
 
 ### Clean Up
 
@@ -78,11 +79,12 @@ task setup
 ```
 
 This deploys:
-- 2 consensus nodes (node1, node2)
-- 1 block node
-- 1 mirror node
-- Relay nodes for each consensus node
-- 1 explorer node
+
+* 2 consensus nodes (node1, node2)
+* 1 block node
+* 1 mirror node
+* Relay nodes for each consensus node
+* 1 explorer node
 
 ### 2. Generate Network State
 
@@ -99,12 +101,14 @@ task backup
 ```
 
 This will:
-- Destroy the mirror node (required before freeze)
-- Freeze the network
-- Backup ConfigMaps, Secrets, Logs, and State files using `solo config ops backup`
+
+* Destroy the mirror node (required before freeze)
+* Freeze the network
+* Backup ConfigMaps, Secrets, Logs, and State files using `solo config ops backup`
 
 **Backup Location:**
-- All backup files: `./solo-backup/`
+
+* All backup files: `./solo-backup/`
 
 ### 4. Destroy and Redeploy
 
@@ -125,9 +129,10 @@ task restore
 ```
 
 This will:
-- Stop consensus nodes
-- Restore ConfigMaps, Secrets, Logs, and State files using `solo config ops restore`
-- Restart consensus nodes
+
+* Stop consensus nodes
+* Restore ConfigMaps, Secrets, Logs, and State files using `solo config ops restore`
+* Restart consensus nodes
 
 ### 6. Verify Restored Network
 
@@ -136,9 +141,10 @@ task verify
 ```
 
 Verifies:
-- All pods are running
-- Previously created accounts exist (e.g., account 0.0.3)
-- Network can process new transactions
+
+* All pods are running
+* Previously created accounts exist (e.g., account 0.0.3)
+* Network can process new transactions
 
 ## Configuration
 
@@ -159,29 +165,33 @@ vars:
 The `solo config ops backup` command backs up:
 
 ### ConfigMaps
-- Network configuration (`network-node-data-config-cm`)
-- Bootstrap properties
-- Application properties
-- Genesis network configuration
-- Address book
+
+* Network configuration (`network-node-data-config-cm`)
+* Bootstrap properties
+* Application properties
+* Genesis network configuration
+* Address book
 
 ### Secrets
-- Node keys (TLS, signing, agreement)
-- Consensus keys
-- All Opaque secrets in the namespace
+
+* Node keys (TLS, signing, agreement)
+* Consensus keys
+* All Opaque secrets in the namespace
 
 ### Logs (from each pod)
-- Account balances
-- Record streams
-- Statistics
-- Application logs
-- Network logs
+
+* Account balances
+* Record streams
+* Statistics
+* Application logs
+* Network logs
 
 ### State Files (from each consensus node)
-- Consensus state
-- Merkle tree state
-- Platform state
-- Swirlds state
+
+* Consensus state
+* Merkle tree state
+* Platform state
+* Swirlds state
 
 ## Backup Directory Structure
 
@@ -269,26 +279,27 @@ USE_RELEASED_VERSION=true task
 
 This example demonstrates the following Solo commands:
 
-- **`solo config ops backup`** - Backs up ConfigMaps, Secrets, Logs, and State files
-- **`solo config ops restore`** - Restores ConfigMaps, Secrets, Logs, and State files
-- **`solo consensus network freeze`** - Freezes the network before backup
-- **`solo consensus node stop/start`** - Controls node lifecycle during restore
+* **`solo config ops backup`** - Backs up ConfigMaps, Secrets, Logs, and State files
+* **`solo config ops restore`** - Restores ConfigMaps, Secrets, Logs, and State files
+* **`solo consensus network freeze`** - Freezes the network before backup
+* **`solo consensus node stop/start`** - Controls node lifecycle during restore
 
 ## Important Notes
 
-- The network must be **frozen** before backup to ensure consistent state
-- Mirror node must be **destroyed** before freezing the network  
-- Backup process can take several minutes depending on state size
-- Restore requires nodes to be **stopped** to prevent conflicts
-- Backup files can be large - ensure sufficient disk space (1GB+ per node)
+* The network must be **frozen** before backup to ensure consistent state
+* Mirror node must be **destroyed** before freezing the network
+* Backup process can take several minutes depending on state size
+* Restore requires nodes to be **stopped** to prevent conflicts
+* Backup files can be large - ensure sufficient disk space (1GB+ per node)
 
 ## Related Examples
 
-- [state-save-and-restore](../state-save-and-restore/) - State file management with external database
-- [network-with-block-node](../network-with-block-node/) - Basic network with block node
+* [state-save-and-restore](../state-save-and-restore/) - State file management with external database
+* [network-with-block-node](../network-with-block-node/) - Basic network with block node
 
 ## Support
 
 For issues or questions:
-- Solo Documentation: https://github.com/hashgraph/solo
-- Task Documentation: https://taskfile.dev/
+
+* Solo Documentation: https://github.com/hashgraph/solo
+* Task Documentation: https://taskfile.dev/

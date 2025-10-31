@@ -1172,19 +1172,23 @@ export class NodeCommandTasks {
 
           // Determine the state file to use
           let zipFile: string;
-          if (stateFileDirectory && fs.existsSync(stateFileDirectory) && fs.statSync(stateFileDirectory).isDirectory()) {
+          if (
+            stateFileDirectory &&
+            fs.existsSync(stateFileDirectory) &&
+            fs.statSync(stateFileDirectory).isDirectory()
+          ) {
             // It's a directory - find the state file for this specific pod
             const podName = podReference.name.name;
             const statesDirectory = path.join(stateFileDirectory, context, 'states');
-            
+
             if (!fs.existsSync(statesDirectory)) {
               self.logger.info(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
               continue;
             }
 
-            const stateFiles = fs.readdirSync(statesDirectory).filter(file => 
-              file.startsWith(podName) && file.endsWith('-state.zip')
-            );
+            const stateFiles = fs
+              .readdirSync(statesDirectory)
+              .filter(file => file.startsWith(podName) && file.endsWith('-state.zip'));
 
             if (stateFiles.length === 0) {
               self.logger.info(`No state file found for pod ${podName} (node: ${nodeAlias})`);

@@ -213,9 +213,9 @@ export class BackupRestoreCommand extends BaseCommand {
         {
           title: 'Download Node Logs',
           task: async (context_, task) => {
-            const networkNodes = container.resolve<NetworkNodes>(NetworkNodes);
+            const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(NetworkNodes);
             for (const context of contexts) {
-              const logsDirectory = path.join(outputDirectory, context, 'logs');
+              const logsDirectory: string = path.join(outputDirectory, context, 'logs');
               await networkNodes.getLogs(namespace, [context], logsDirectory);
             }
             task.title = `Download Node Logs: ${contexts.length} cluster(s) completed`;
@@ -224,12 +224,12 @@ export class BackupRestoreCommand extends BaseCommand {
         {
           title: 'Download Node State Files',
           task: async (context_, task) => {
-            const networkNodes = container.resolve<NetworkNodes>(NetworkNodes);
+            const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(NetworkNodes);
             for (const node of consensusNodes) {
-              const nodeAlias = node.name;
-              const context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
-              const statesDirectory = path.join(outputDirectory, context, 'states');
-              await networkNodes.getStatesFromPod(namespace, nodeAlias, context, statesDirectory);
+              const nodeAlias: string = node.name;
+              const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as any, consensusNodes);
+              const statesDirectory: string = path.join(outputDirectory, context, 'states');
+              await networkNodes.getStatesFromPod(namespace, nodeAlias as any, context, statesDirectory);
             }
             task.title = `Download Node State Files: ${consensusNodes.length} node(s) completed`;
           },
@@ -242,7 +242,7 @@ export class BackupRestoreCommand extends BaseCommand {
     );
 
     try {
-      const context_ = await tasks.run();
+      const context_: BackupContext = await tasks.run();
 
       if (!quiet) {
         this.logger.showUser('');
@@ -293,7 +293,9 @@ export class BackupRestoreCommand extends BaseCommand {
         }
 
         // Read all YAML files in the directory
-        const files = fs.readdirSync(contextDirectory).filter(file => file.endsWith('.yaml'));
+        const files: string[] = fs
+          .readdirSync(contextDirectory)
+          .filter((file: string): boolean => file.endsWith('.yaml'));
 
         if (files.length === 0) {
           this.logger.showUser(chalk.yellow(`    No ${resourceType} YAML files found in this cluster`));
@@ -306,7 +308,7 @@ export class BackupRestoreCommand extends BaseCommand {
         for (const file of files) {
           const filePath: string = path.join(contextDirectory, file);
           const yamlContent: string = fs.readFileSync(filePath, 'utf8');
-          const resource = yaml.parse(yamlContent);
+          const resource: any = yaml.parse(yamlContent);
 
           try {
             await (resourceType === 'configmaps'
@@ -374,7 +376,7 @@ export class BackupRestoreCommand extends BaseCommand {
     const contexts: Context[] = this.remoteConfig.getContexts();
 
     for (const context of contexts) {
-      const logsDirectory = path.join(inputDirectory, context, 'logs');
+      const logsDirectory: string = path.join(inputDirectory, context, 'logs');
 
       // Check if logs directory exists
       if (!fs.existsSync(logsDirectory)) {
@@ -397,29 +399,29 @@ export class BackupRestoreCommand extends BaseCommand {
       this.logger.showUser(chalk.white(`  Restoring ${logFiles.length} log file(s) to context: ${context}`));
 
       // Get all pods in this context
-      const k8 = this.k8Factory.getK8(context);
-      const pods = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
+      const k8: K8 = this.k8Factory.getK8(context);
+      const pods: any[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
 
       // Upload logs to each pod
       for (const logFile of logFiles) {
         // Extract pod name from log file (e.g., network-node-0.zip -> network-node-0)
-        const podName = logFile.replace('.zip', '');
-        const pod = pods.find(p => p.podReference.name.name === podName);
+        const podName: string = logFile.replace('.zip', '');
+        const pod: any = pods.find((p: any): boolean => p.podReference.name.name === podName);
 
         if (!pod) {
           this.logger.showUser(chalk.yellow(`    No matching pod found for log file: ${logFile}`));
           continue;
         }
 
-        const logFilePath = path.join(logsDirectory, logFile);
-        const podReference = pod.podReference;
-        const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-        const container = await k8.containers().readByRef(containerReference);
+        const logFilePath: string = path.join(logsDirectory, logFile);
+        const podReference: any = pod.podReference;
+        const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+        const container: any = await k8.containers().readByRef(containerReference);
 
         // Upload log file to pod
         this.logger.showUser(chalk.gray(`    Uploading log file: ${logFile}`));
         await container.copyTo(logFilePath, `${constants.HEDERA_HAPI_PATH}`);
-        
+
         // Wait for file to sync to the file system
         await helpers.sleep(Duration.ofSeconds(2));
 
@@ -435,11 +437,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
         // Fix ownership of extracted files to hedera user
         this.logger.showUser(chalk.gray(`    Setting ownership for extracted files in pod: ${podName}`));
-        await container.execContainer([
-          'bash',
-          '-c',
-          `sudo chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}`,
-        ]);
+        await container.execContainer(['bash', '-c', `sudo chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}`]);
 
         this.logger.showUser(chalk.green(`    ✓ Restored log for pod: ${podName}`));
       }
@@ -462,7 +460,7 @@ export class BackupRestoreCommand extends BaseCommand {
     // Get configuration data
     const namespace: NamespaceName = this.remoteConfig.getNamespace();
     const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
-    const nodeAliases = consensusNodes.map(node => node.name);
+    const nodeAliases: string[] = consensusNodes.map((node: ConsensusNode): string => node.name);
 
     // Restore configmaps, secrets, and state files
     interface RestoreContext {
@@ -477,18 +475,17 @@ export class BackupRestoreCommand extends BaseCommand {
           title: 'Initialize restore configuration',
           task: async (context_, task) => {
             // Build pod references map
-            const podRefs: any = {};
-            
+            const podReferences: any = {};
+
             for (const nodeAlias of nodeAliases) {
-              const context = helpers.extractContextFromConsensusNodes(nodeAlias as any, consensusNodes);
-              const k8 = this.k8Factory.getK8(context);
-              const pods = await k8.pods().list(namespace, [
-                `solo.hedera.com/node-name=${nodeAlias}`,
-                'solo.hedera.com/type=network-node',
-              ]);
-              
+              const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as any, consensusNodes);
+              const k8: K8 = this.k8Factory.getK8(context);
+              const pods: any[] = await k8
+                .pods()
+                .list(namespace, [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node']);
+
               if (pods.length > 0) {
-                podRefs[nodeAlias] = pods[0].podReference;
+                podReferences[nodeAlias] = pods[0].podReference;
               }
             }
 
@@ -497,7 +494,7 @@ export class BackupRestoreCommand extends BaseCommand {
               namespace,
               consensusNodes,
               nodeAliases,
-              podRefs,
+              podRefs: podReferences,
               stateFile: inputDirectory, // Not used since we pass stateFileDirectory
             };
 
@@ -534,7 +531,7 @@ export class BackupRestoreCommand extends BaseCommand {
     );
 
     try {
-      const context_ = await tasks.run();
+      const context_: RestoreContext = await tasks.run();
 
       if (!quiet) {
         this.logger.showUser('');
