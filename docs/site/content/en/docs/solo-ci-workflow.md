@@ -70,7 +70,7 @@ Always pin the version to avoid unexpected workflow failures caused by breaking 
   - name: Install Solo CLI
     run: |
       set -euo pipefail
-      npm install -g @hashgraph/solo@0.47.0
+      npm install -g @hashgraph/solo@0.48.0
       solo --version
       kind --version
 ```
