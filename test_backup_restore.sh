@@ -395,55 +395,6 @@ done
 
 log_success "Network verification completed - restored network is operational!"
 
-################################################################################
-# Step 13: Test Summary and Cleanup
-################################################################################
-log_step "Step 13: Test completed successfully!"
-
-echo ""
-echo -e "${GREEN}============================================${NC}"
-echo -e "${GREEN}  BACKUP/RESTORE TEST COMPLETED${NC}"
-echo -e "${GREEN}============================================${NC}"
-echo ""
-echo -e "${CYAN}Test Summary:${NC}"
-echo "  ✓ Network deployed with ${NETWORK_SIZE} consensus nodes"
-echo "  ✓ Block node configured"
-echo "  ✓ Mirror, Relay, and Explorer deployed"
-echo "  ✓ Test transactions generated"
-echo "  ✓ Network frozen and backed up"
-echo "  ✓ Full network destroyed"
-echo "  ✓ All components redeployed (consensus + mirror + relay + explorer)"
-echo "  ✓ Configuration restored from backup"
-echo "  ✓ Consensus nodes started with restored state"
-echo "  ✓ Network verified with new transactions"
-echo ""
-echo -e "${BLUE}Backup Details:${NC}"
-echo "  Location: ${BACKUP_DIR}"
-echo "  State files: ${STATE_SAVE_DIR}"
-echo "  Cluster: ${SOLO_CLUSTER_NAME}"
-echo "  Namespace: ${SOLO_NAMESPACE}"
-echo "  Deployment: ${SOLO_DEPLOYMENT}"
-echo ""
-
-# Offer to keep or destroy cluster
-read -p "Do you want to keep the cluster for inspection? (y/N) " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    log_info "Cleaning up resources..."
-    kind delete cluster -n "${SOLO_CLUSTER_NAME}"
-    rm -rf "${BACKUP_DIR}" "${STATE_SAVE_DIR}"
-    log_success "Cluster and backup files deleted"
-else
-    log_info "Cluster kept for inspection."
-    echo ""
-    echo -e "${YELLOW}To inspect the cluster:${NC}"
-    echo "  kubectl get pods -n ${SOLO_NAMESPACE}"
-    echo "  kubectl logs -n ${SOLO_NAMESPACE} <pod-name>"
-    echo ""
-    echo -e "${YELLOW}To clean up later:${NC}"
-    echo "  kind delete cluster -n ${SOLO_CLUSTER_NAME}"
-    echo "  rm -rf ${BACKUP_DIR} ${STATE_SAVE_DIR}"
-fi
 
 echo ""
 log_success "Test script finished successfully!"

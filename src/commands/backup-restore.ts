@@ -19,6 +19,7 @@ import {Listr} from 'listr2';
 import * as constants from '../core/constants.js';
 import {NetworkNodes} from '../core/network-nodes.js';
 import * as helpers from '../core/helpers.js';
+import {Duration} from '../core/time/duration.js';
 import {type ConsensusNode} from '../core/model/consensus-node.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {NodeCommandTasks} from './node/tasks.js';
@@ -416,7 +417,30 @@ export class BackupRestoreCommand extends BaseCommand {
         const container = await k8.containers().readByRef(containerReference);
 
         // Upload log file to pod
-        await container.copyTo(logFilePath, `${constants.HEDERA_HAPI_PATH}/data`);
+        this.logger.showUser(chalk.gray(`    Uploading log file: ${logFile}`));
+        await container.copyTo(logFilePath, `${constants.HEDERA_HAPI_PATH}`);
+        
+        // Wait for file to sync to the file system
+        await helpers.sleep(Duration.ofSeconds(2));
+
+        // Unzip the log file
+        this.logger.showUser(chalk.gray(`    Extracting log file in pod: ${podName}`));
+        await container.execContainer([
+          'unzip',
+          '-o',
+          `${constants.HEDERA_HAPI_PATH}/${logFile}`,
+          '-d',
+          `${constants.HEDERA_HAPI_PATH}`,
+        ]);
+
+        // Fix ownership of extracted files to hedera user
+        this.logger.showUser(chalk.gray(`    Setting ownership for extracted files in pod: ${podName}`));
+        await container.execContainer([
+          'bash',
+          '-c',
+          `sudo chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}`,
+        ]);
+
         this.logger.showUser(chalk.green(`    ✓ Restored log for pod: ${podName}`));
       }
     }
