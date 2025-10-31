@@ -34,8 +34,8 @@ Add the following step to your workflow to verify your Docker environment:
       echo "Memory: ${mem_gb} GB"
 ```
 Expected Output:
-CPUs: 8
-Memory: 64.0 GB
+CPUs: 4
+Memory: 16 GB
 
 ## Step 2: Set Up Kind
 
