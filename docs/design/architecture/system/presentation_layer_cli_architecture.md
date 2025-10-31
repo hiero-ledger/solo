@@ -133,28 +133,28 @@ flags may be specified at any level of the command hierarchy.
 
 | Group       | Resource               | Operation(s)                                                                                                           |
 |-------------|------------------------|------------------------------------------------------------------------------------------------------------------------|
-| block       | node                   | < list &amp; info &amp; logs &amp; add &amp; upgrade &amp; destroy >                                                   |
-| cluster-ref | config                 | < list &amp; info &amp; connect &amp; disconnect >                                                                     |
-| consensus   | network                | < info &amp; deploy &amp; freeze &amp; upgrade &amp; destroy >                                                         |
-| consensus   | node                   | < list &amp; info &amp; logs &amp; add &amp; update &amp; destroy &amp; start &amp; stop &amp; restart &amp; refresh > |
-| consensus   | state                  | < list &amp; download &amp; upload >                                                                                   |
-| consensus   | diagnostic             | < logs &amp; configs &amp; all >                                                                                       |
-| consensus   | dev-node-add           | < prepare &amp; submit-transactions &amp; execute >                                                                    |
-| consensus   | dev-node-update        | < prepare &amp; submit-transactions &amp; execute >                                                                    |
-| consensus   | dev-node-upgrade       | < prepare &amp; submit-transactions &amp; execute >                                                                    |
-| consensus   | dev-node-delete        | < prepare &amp; submit-transactions &amp; execute >                                                                    |
-| consensus   | dev-freeze             | < prepare-upgrade &amp; freeze-upgrade >                                                                               |
-| deployment  | config                 | < list &amp; info &amp; create &amp; delete &amp; import >                                                             |
-| deployment  | cluster                | < list &amp; info &amp; attach &amp; detach >                                                                          |
-| deployment  | state                  | < info &amp; destroy >                                                                                                 |
-| explorer    | node                   | < list &amp; info &amp; logs &amp; add &amp; upgrade &amp; destroy >                                                   |
+| block       | node                   | < list & info & logs & add & upgrade & destroy >                                                   |
+| cluster-ref | config                 | < list & info & connect & disconnect >                                                                     |
+| consensus   | network                | < info & deploy & freeze & upgrade & destroy >                                                         |
+| consensus   | node                   | < list & info & logs & add & update & destroy & start & stop & restart & refresh > |
+| consensus   | state                  | < list & download & upload >                                                                                   |
+| consensus   | diagnostic             | < logs & configs & all >                                                                                       |
+| consensus   | dev-node-add           | < prepare & submit-transactions & execute >                                                                    |
+| consensus   | dev-node-update        | < prepare & submit-transactions & execute >                                                                    |
+| consensus   | dev-node-upgrade       | < prepare & submit-transactions & execute >                                                                    |
+| consensus   | dev-node-delete        | < prepare & submit-transactions & execute >                                                                    |
+| consensus   | dev-freeze             | < prepare-upgrade & freeze-upgrade >                                                                               |
+| deployment  | config                 | < list & info & create & delete & import >                                                             |
+| deployment  | cluster                | < list & info & attach & detach >                                                                          |
+| deployment  | state                  | < info & destroy >                                                                                                 |
+| explorer    | node                   | < list & info & logs & add & upgrade & destroy >                                                   |
 | keys        | consensus              | < generate >                                                                                                           |
-| ledger      | system                 | < init &amp; accounts-rekey &amp; staking-setup >                                                                      |
-| ledger      | account                | < list &amp; info &amp; create &amp; update &amp; delete &amp; import >                                                |
-| ledger      | crypto                 | < transfer &amp; balance >                                                                                             |
-| mirror      | node                   | < list &amp; info &amp; logs &amp; add &amp; upgrade &amp; destroy >                                                   |
-| relay       | node                   | < list &amp; info &amp; logs &amp; add &amp; upgrade &amp; destroy >                                                   |
-| one-shot | < single &amp; multi > | < info &amp; deploy &amp; destroy >                                                                                    |
+| ledger      | system                 | < init & accounts-rekey & staking-setup >                                                                      |
+| ledger      | account                | < list & info & create & update & delete & import >                                                |
+| ledger      | crypto                 | < transfer & balance >                                                                                             |
+| mirror      | node                   | < list & info & logs & add & upgrade & destroy >                                                   |
+| relay       | node                   | < list & info & logs & add & upgrade & destroy >                                                   |
+| one-shot | < single & multi > | < info & deploy & destroy >                                                                                    |
 
 #### Example Commands
 

@@ -52,9 +52,10 @@ describe('Lexer: Forest', () => {
       });
 
       it('from with data should return forest', () => {
-        const data: Map<string, string> = new Map<string, string>();
-        data.set(convertKey('root.leaf', item.type), 'value');
-        data.set(convertKey('root.internal.leaf2', item.type), 'value2');
+        const data: Map<string, string> = new Map<string, string>([
+          [convertKey('root.leaf', item.type), 'value'],
+          [convertKey('root.internal.leaf2', item.type), 'value2'],
+        ]);
         const forest: Forest = Forest.from(data, item.formatter);
         expect(forest.has(convertKey('root.leaf', item.type))).to.be.true;
         expect(forest.valueFor(convertKey('root.leaf', item.type))).to.equal('value');
@@ -65,15 +66,15 @@ describe('Lexer: Forest', () => {
       });
 
       it('valueFor with a key that does not exist should return null', () => {
-        const data: Map<string, string> = new Map<string, string>();
-        data.set(convertKey('root.leaf', item.type), 'value');
+        const data: Map<string, string> = new Map<string, string>([[convertKey('root.leaf', item.type), 'value']]);
         const forest: Forest = Forest.from(data, item.formatter);
         expect(forest.valueFor(convertKey('root.internal.leaf2', item.type))).to.be.null;
       });
 
       it('valueFor an internal node should return null', () => {
-        const data: Map<string, string> = new Map<string, string>();
-        data.set(convertKey('root.internal.leaf', item.type), 'value');
+        const data: Map<string, string> = new Map<string, string>([
+          [convertKey('root.internal.leaf', item.type), 'value'],
+        ]);
         const forest: Forest = Forest.from(data, item.formatter);
         expect(forest.valueFor(convertKey('root.internal', item.type))).to.be.null;
         expect(forest.valueFor(convertKey('root.internal.leaf2', item.type))).to.be.null;
@@ -85,9 +86,10 @@ describe('Lexer: Forest', () => {
       });
 
       it('toObject with data should return object', () => {
-        const data: Map<string, string> = new Map<string, string>();
-        data.set(convertKey('root.leaf', item.type), 'value');
-        data.set(convertKey('root.internal.leaf2', item.type), 'value2');
+        const data: Map<string, string> = new Map<string, string>([
+          [convertKey('root.leaf', item.type), 'value'],
+          [convertKey('root.internal.leaf2', item.type), 'value2'],
+        ]);
         const forest: Forest = Forest.from(data, item.formatter);
         if (item.type === 'config') {
           expect(forest.toObject()).to.eql({
@@ -111,8 +113,7 @@ describe('Lexer: Forest', () => {
       });
 
       it('toObject with simple data should return object', () => {
-        const data: Map<string, string> = new Map<string, string>();
-        data.set(convertKey('root', item.type), 'stump');
+        const data: Map<string, string> = new Map<string, string>([[convertKey('root', item.type), 'stump']]);
         const forest: Forest = Forest.from(data, item.formatter);
         if (item.type === 'config') {
           expect(forest.toObject()).to.eql({

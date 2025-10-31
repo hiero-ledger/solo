@@ -1,0 +1,45 @@
+version: 3
+
+env:
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx @hashgraph/solo"
+      else
+        echo "npm run solo --"
+      fi
+
+vars:
+  foo: 'bar'
+
+tasks:
+  deploy:
+    desc: Deploy a complete Hiero network using one-shot single deploy
+    cmds:
+      # Install Solo CLI
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Skipping npm install - using development version"
+          fi
+
+      # Create a Solo Deploymen
+      - cmd: $SOLO_COMMAND one-shot single deploy
+
+      - cmd: |
+          cd hardhat-example
+          npm install
+          npx hardhat compile
+          npx hardhat test
+
+  destroy:
+    desc: Destroy the Solo network using one-shot single destroy
+    cmds:
+      # Solo one-shot single destroy
+      - cmd: $SOLO_COMMAND one-shot single destroy
+
+  default:
+    desc: Run the default deploy task
+    cmds:
+      - task: deploy

@@ -100,8 +100,7 @@ export class RapidFireCommand extends BaseCommand {
     return {
       title: 'Deploy Network Load Generator chart',
       task: (context_, task): SoloListr<RapidFireStartContext> => {
-        const subTasks: SoloListrTask<RapidFireStartContext>[] = [];
-        subTasks.push(
+        const subTasks: SoloListrTask<RapidFireStartContext>[] = [
           {
             title: 'Install Network Load Generator chart',
             task: async (context_, task): Promise<void> => {
@@ -121,7 +120,7 @@ export class RapidFireCommand extends BaseCommand {
                 const accountId = pod.labels['solo.hedera.com/account-id'] ?? 'unknown';
                 // Using multiple backslashes to ensure it is not stripped when the network.properties file is generated
                 // Final result should look like: x.x.x.x\:50211=0.0.y
-                return `${pod.podIp}\\\\\\:${port++}=${accountId}`;
+                return String.raw`${pod.podIp}\\\:${port++}=${accountId}`;
               });
 
               for (const row of networkProperties) {
@@ -174,7 +173,7 @@ export class RapidFireCommand extends BaseCommand {
               }
             },
           },
-        );
+        ];
 
         // set up the sub-tasks
         return task.newListr(subTasks, {

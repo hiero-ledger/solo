@@ -38,7 +38,7 @@ tasks:
   check:
     cmds:
       - npx remark . --quiet --frail
-      - set -o pipefail && npx eslint . | tee eslint.log && npx tsx lint-formatter.ts eslint.log
+      - npx eslint . | tee eslint.log && npx tsx lint-formatter.ts eslint.log && npx eslint . --quiet
       - npx tsc
       - npx madge --circular {{.TASKFILE_DIR}}/src/*
       - npx typedoc --emit none
@@ -46,10 +46,11 @@ tasks:
   format:
     cmds:
       - npx remark . --quiet --frail --output
-      - npx eslint --fix {{.TASKFILE_DIR}}
+      - npx eslint --fix {{.TASKFILE_DIR}} || true
       - npx tsc
       - npx madge --circular {{.TASKFILE_DIR}}/src/*
       - npx typedoc --emit none
+      - npx eslint . | tee eslint.log && npx tsx lint-formatter.ts eslint.log && npx eslint . --quiet
 
   build:
     cmds:
