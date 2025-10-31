@@ -1460,6 +1460,52 @@ export class Flags {
     },
   };
 
+  public static readonly fileId: CommandFlag = {
+    constName: 'fileId',
+    name: 'file-id',
+    definition: {
+      describe: 'The Hedera file id, e.g.: 0.0.150',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: async function promptFileId(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: string,
+    ): Promise<string> {
+      return await Flags.promptText(
+        task,
+        input,
+        Flags.fileId.definition.defaultValue as string,
+        'Enter the file id: ',
+        'File ID cannot be empty',
+        Flags.fileId.name,
+      );
+    },
+  };
+
+  public static readonly filePath: CommandFlag = {
+    constName: 'filePath',
+    name: 'file-path',
+    definition: {
+      describe: 'Local path to the file to upload',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: async function promptFilePath(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: string,
+    ): Promise<string> {
+      return await Flags.promptText(
+        task,
+        input,
+        Flags.filePath.definition.defaultValue as string,
+        'Enter the file path: ',
+        'File path cannot be empty',
+        Flags.filePath.name,
+      );
+    },
+  };
+
   public static readonly amount: CommandFlag = {
     constName: 'amount',
     name: 'hbar-amount',
@@ -2651,6 +2697,8 @@ export class Flags {
 
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
+    Flags.fileId,
+    Flags.filePath,
     Flags.adminKey,
     Flags.adminPublicKeys,
     Flags.amount,

@@ -101,6 +101,48 @@ topic sequence number = 1
 
 ```
 
+### Uploading Files to the Network
+
+Solo provides a convenient command to upload or update files on the Hedera network:
+
+```bash
+npm run solo-test -- ledger file upload --deployment solo-deployment --file-id 0.0.150 --file-path ./config.json
+```
+
+This command will:
+- Check if the file already exists on the network
+- Create a new file if it doesn't exist, or update it if it does
+- Automatically handle large files (>4KB) by splitting them into chunks
+- Verify the uploaded content matches the local file
+
+The output would be similar to:
+
+```bash
+✓ Initialize configuration
+  File: config.json
+  Size: 2048 bytes
+  File ID: 0.0.150
+
+✓ Load node client and treasury keys
+✓ Check if file exists
+  File 0.0.150 does not exist. Will create new file.
+
+✓ Upload file to Hedera network
+  ✓ Create new file
+    Creating file with 2048 bytes...
+    ✓ File created: 0.0.150
+
+✓ Verify uploaded file
+  Querying file contents to verify upload...
+  Expected size: 2048 bytes
+  Retrieved size: 2048 bytes
+  ✓ File verification successful
+  ✓ Size: 2048 bytes
+  ✓ Content matches uploaded file
+
+✅ File upload completed successfully!
+```
+
 You can use Hiero Explorer to check transactions and topics created in the Solo network:
 <http://localhost:8080/localnet/dashboard>
 
