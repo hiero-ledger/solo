@@ -59,7 +59,9 @@ export class LockManager {
     } catch {
       // If the namespace is not set in the remote config, we will use the current namespace.
     }
-    namespace ??= await this.currentNamespace();
+    if (!namespace) {
+      namespace = await this.currentNamespace();
+    }
     return new IntervalLock(this.k8Factory, this._renewalService, LockHolder.default(), namespace);
   }
 

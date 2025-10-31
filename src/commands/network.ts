@@ -852,16 +852,19 @@ export class NetworkCommand extends BaseCommand {
   }
 
   private async destroyTask(
-    context_: NetworkDestroyContext,
     task: SoloListrTaskWrapper<NetworkDestroyContext>,
+    namespace: NamespaceName,
+    deletePvcs: boolean,
+    deleteSecrets: boolean,
+    contexts: Context[],
   ): Promise<void> {
     task.title = `Uninstalling chart ${constants.SOLO_DEPLOYMENT_CHART}`;
 
     // Uninstall all 'solo deployment' charts for each cluster using the contexts
     await Promise.all(
-      context_.config.contexts.map(context => {
-        return this.chartManager.uninstall(
-          context_.config.namespace,
+      contexts.map(async (context): Promise<void> => {
+        await this.chartManager.uninstall(
+          namespace,
           constants.SOLO_DEPLOYMENT_CHART,
           this.k8Factory.getK8(context).contexts().readCurrent(),
         );
@@ -869,57 +872,64 @@ export class NetworkCommand extends BaseCommand {
     );
 
     // Delete Remote config inside each cluster
-    task.title = `Deleting the RemoteConfig configmap in namespace ${context_.config.namespace}`;
+    task.title = `Deleting the RemoteConfig configmap in namespace ${namespace}`;
     await Promise.all(
-      context_.config.contexts.map(async context => {
+      contexts.map(async (context): Promise<void> => {
         // Delete all if found
-        await this.k8Factory
-          .getK8(context)
-          .configMaps()
-          .delete(context_.config.namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+        await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
       }),
     );
 
-    // Delete PVCs inside each cluster
-    if (context_.config.deletePvcs) {
-      task.title = `Deleting PVCs in namespace ${context_.config.namespace}`;
-
-      await Promise.all(
-        context_.config.contexts.map(async context => {
-          // Fetch all PVCs inside the namespace using the context
-          const pvcs: string[] = await this.k8Factory.getK8(context).pvcs().list(context_.config.namespace, []);
-
-          // Delete all if found
-          return Promise.all(
-            pvcs.map(pvc =>
-              this.k8Factory
-                .getK8(context)
-                .pvcs()
-                .delete(PvcReference.of(context_.config.namespace, PvcName.of(pvc))),
-            ),
-          );
-        }),
-      );
+    if (deletePvcs) {
+      task.title = `Deleting PVCs in namespace ${namespace}`;
+      await this.deletePvcs(namespace, contexts);
     }
 
-    // Delete Secrets inside each cluster
-    if (context_.config.deleteSecrets) {
-      task.title = `Deleting secrets in namespace ${context_.config.namespace}`;
-
-      await Promise.all(
-        context_.config.contexts.map(async context => {
-          // Fetch all Secrets inside the namespace using the context
-          const secrets: Secret[] = await this.k8Factory.getK8(context).secrets().list(context_.config.namespace);
-
-          // Delete all if found
-          return Promise.all(
-            secrets.map(secret =>
-              this.k8Factory.getK8(context).secrets().delete(context_.config.namespace, secret.name),
-            ),
-          );
-        }),
-      );
+    if (deleteSecrets) {
+      task.title = `Deleting Secrets in namespace ${namespace}`;
+      await this.deleteSecrets(namespace, contexts);
     }
+
+    if (deleteSecrets && deletePvcs) {
+      for (const context of contexts) {
+        await this.k8Factory.getK8(context).namespaces().delete(namespace);
+      }
+    }
+  }
+
+  private async deleteSecrets(namespace: NamespaceName, contexts: Context[]): Promise<void> {
+    await Promise.all(
+      contexts.map(async (context): Promise<void> => {
+        // Fetch all Secrets inside the namespace using the context
+        const secrets: Secret[] = await this.k8Factory.getK8(context).secrets().list(namespace);
+
+        // Delete all if found
+        await Promise.all(
+          secrets.map(async (secret): Promise<void> => {
+            await this.k8Factory.getK8(context).secrets().delete(namespace, secret.name);
+          }),
+        );
+      }),
+    );
+  }
+
+  private async deletePvcs(namespace: NamespaceName, contexts: Context[]): Promise<void> {
+    await Promise.all(
+      contexts.map(async (context): Promise<void> => {
+        // Fetch all PVCs inside the namespace using the context
+        const pvcs: string[] = await this.k8Factory.getK8(context).pvcs().list(namespace, []);
+
+        // Delete all if found
+        await Promise.all(
+          pvcs.map(async (pvc): Promise<void> => {
+            await this.k8Factory
+              .getK8(context)
+              .pvcs()
+              .delete(PvcReference.of(namespace, PvcName.of(pvc)));
+          }),
+        );
+      }),
+    );
   }
 
   /** Run helm install and deploy network components */
@@ -1353,7 +1363,7 @@ export class NetworkCommand extends BaseCommand {
 
     let networkDestroySuccess: boolean = true;
 
-    const tasks = this.taskList.newTaskList(
+    const tasks: SoloListr<NetworkDestroyContext> = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
@@ -1389,33 +1399,36 @@ export class NetworkCommand extends BaseCommand {
             return ListrLock.newAcquireLockTask(lease, task);
           },
         },
-        // should not remove deployment from local config otherwise next deploy will fail
         {
           title: 'Running sub-tasks to destroy network',
-          task: async (context_, task): Promise<void> => {
-            if (context_.config.enableTimeout) {
-              const timeoutId: NodeJS.Timeout = setTimeout(async () => {
-                const message: string = `\n\nUnable to finish consensus network destroy in ${constants.NETWORK_DESTROY_WAIT_TIMEOUT} seconds\n\n`;
-                this.logger.error(message);
-                this.logger.showUser(chalk.red(message));
-                networkDestroySuccess = false;
-
-                await (context_.config.deletePvcs && context_.config.deleteSecrets
-                  ? Promise.all(
-                      context_.config.contexts.map(
-                        (context: string): Promise<boolean> =>
-                          this.k8Factory.getK8(context).namespaces().delete(context_.config.namespace),
-                      ),
-                    )
-                  : this.remoteConfig.deleteComponents());
-              }, constants.NETWORK_DESTROY_WAIT_TIMEOUT * 1000);
-
-              await this.destroyTask(context_, task);
-
-              clearTimeout(timeoutId);
-            } else {
-              await this.destroyTask(context_, task);
+          task: async (
+            {config: {enableTimeout, deletePvcs, deleteSecrets, namespace, contexts}},
+            task,
+          ): Promise<void> => {
+            if (!enableTimeout) {
+              await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
+              return;
             }
+
+            const timeoutId: NodeJS.Timeout = setTimeout(async (): Promise<void> => {
+              const message: string = `\n\nUnable to finish consensus network destroy in ${constants.NETWORK_DESTROY_WAIT_TIMEOUT} seconds\n\n`;
+              this.logger.error(message);
+              this.logger.showUser(chalk.red(message));
+              networkDestroySuccess = false;
+
+              await (deletePvcs && deleteSecrets
+                ? Promise.all(
+                    contexts.map(
+                      (context: string): Promise<boolean> =>
+                        this.k8Factory.getK8(context).namespaces().delete(namespace),
+                    ),
+                  )
+                : this.remoteConfig.deleteComponents());
+            }, constants.NETWORK_DESTROY_WAIT_TIMEOUT * 1000);
+
+            await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
+
+            clearTimeout(timeoutId);
           },
         },
       ],
