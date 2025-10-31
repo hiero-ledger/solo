@@ -19,6 +19,8 @@ You can use GitHub runners or self-hosted runners to deploy Solo.
 
 If these requirements aren’t met, some Solo components may hang or fail to install during deployment.
 
+NOTE: The Kubernetes cluster will never get full access to the memory available to the host.  So, even though we say that 12 GB Memory is a requirement, that is a host requirement, and Solo would be limited to a percentage of the 12 GB limit.  If the host is Docker, then setting Docker to 12 GB of memory, would limit the Kubernetes cluster deployed possibly by Kind (Kubernetes-in-Docker) to less than 12 GB of memory.  Furthermore, the longer Solo runs, and as the transaction load increases, so will its CPU and memory utilization.  These minimum requirements should work with `solo one-shot single deploy` as documented here.
+
 ### Check Docker Resources
 
 Add the following step to your workflow to verify your Docker environment:
