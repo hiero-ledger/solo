@@ -69,9 +69,24 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       }).timeout(Duration.ofMinutes(15).toMillis());
 
       it('Should write log metrics', async (): Promise<void> => {
-        await sleep(Duration.ofMinutes(5)); // sleep 5 minutes for transactions to build up
+        if (process.env.ONE_SHOT_METRICS_SLEEP_MINUTES) {
+          const sleepTimeInMinutes: number = Number.parseInt(process.env.ONE_SHOT_METRICS_SLEEP_MINUTES);
+
+          if (Number.isNaN(sleepTimeInMinutes) || sleepTimeInMinutes <= 0) {
+            throw new Error(
+              `${testName}: invalid ONE_SHOT_METRICS_SLEEP_MINUTES value: ${process.env.ONE_SHOT_METRICS_SLEEP_MINUTES}`,
+            );
+          }
+
+          for (let index: number = 0; index < sleepTimeInMinutes; index++) {
+            testLogger.info(
+              `${testName}: sleeping for metrics collection, ${index + 1} of ${sleepTimeInMinutes} minutes`,
+            );
+            await sleep(Duration.ofMinutes(1));
+          }
+        }
         await new MetricsServerImpl().logMetrics(testName, PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`));
-      }).timeout(Duration.ofMinutes(10).toMillis());
+      }).timeout(Duration.ofMinutes(60).toMillis());
 
       // TODO add verifications
     });
