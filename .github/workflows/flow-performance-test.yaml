@@ -118,7 +118,7 @@ jobs:
         run: |
           echo "solo-e2e-c1" > .env
           echo ONE_SHOT_WITH_BLOCK_NODE=true >> .env
-          echo MIRROR_NODE_PINGER_TPS=50 >> .env
+          echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_SLEEP_MINUTES=30 >> .env
           cat .env
           task test-e2e-one-shot-single
