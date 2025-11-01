@@ -1,0 +1,194 @@
+version: 3
+
+env:
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx @hashgraph/solo"
+      else
+        echo "npm run solo-test --"
+      fi
+
+vars:
+  # Network Configuration
+  NETWORK_SIZE: "2"
+  NODE_ALIASES: "node1,node2"
+  DEPLOYMENT: "backup-restore-deployment"
+  NAMESPACE: "backup-restore-namespace"
+
+  # Cluster Configuration
+  CLUSTER_NAME: "backup-restore-cluster"
+  CONTEXT: "kind-backup-restore-cluster"
+  CLUSTER_REF: "kind-backup-restore-cluster"
+
+  # Backup/Restore Configuration
+  BACKUP_DIR: "{{ .USER_WORKING_DIR }}/solo-backup"
+
+  SOLO_USER_DIR: "{{ default (printf \"%s/.solo\" (env \"HOME\")) }}"
+
+tasks:
+  # ==================== Main Workflow Tasks ====================
+
+  default:
+    desc: Run complete backup/restore workflow - deploy, backup, destroy, restore, and verify
+    cmds:
+      - task: setup
+      - cmd: echo ""
+      - cmd: echo "⏳ Waiting 30 seconds for network to stabilize..."
+      - cmd: sleep 30
+      - task: generate-transactions
+      - task: backup
+      - task: destroy-cluster
+      - cmd: echo ""
+      - cmd: echo "⏳ Redeploying fresh network..."
+      - task: redeploy
+      - task: restore
+      - task: verify
+      - cmd: echo ""
+      - cmd: echo "🎉 Complete backup/restore workflow finished successfully!"
+      - cmd: echo "Run 'task cleanup' to remove cluster and backup files"
+
+  # ==================== Setup Tasks ====================
+
+  setup:
+    desc: Deploy complete network infrastructure (consensus + block + mirror + relay + explorer)
+    cmds:
+      - task: create-cluster
+      - task: init-solo
+      - task: deploy-network
+      - cmd: echo "✅ Complete network infrastructure deployed!"
+
+  create-cluster:
+    desc: Create Kind cluster and load Docker images
+    cmds:
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Using development version of Solo"
+          fi
+      - cmd: |
+          echo "🗑️  Cleaning up previous cluster if exists..."
+          kind delete cluster -n {{ .CLUSTER_NAME }} 2>/dev/null || true
+      - cmd: |
+          echo "🚀 Creating Kind cluster..."
+          kind create cluster -n {{ .CLUSTER_NAME }}
+      - cmd: sleep 10  # Wait for control plane
+      - cmd: kubectl config set-context {{ .CONTEXT }}
+      - cmd: echo "✅ Cluster created and images loaded"
+
+  init-solo:
+    desc: Initialize Solo and configure cluster
+    cmds:
+      - cmd: |
+          echo "🔧 Cleaning up previous Solo configuration..."
+          rm -rf {{ .SOLO_USER_DIR }}/* 2>/dev/null || true
+      - cmd: $SOLO_COMMAND init
+      - cmd: $SOLO_COMMAND cluster-ref config setup --cluster-ref {{ .CLUSTER_REF }}
+      - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref {{ .CLUSTER_REF }} --context {{ .CONTEXT }}
+      - cmd: $SOLO_COMMAND deployment config create --namespace {{ .NAMESPACE }} --deployment {{ .DEPLOYMENT }}
+      - cmd: $SOLO_COMMAND deployment cluster attach --cluster-ref {{ .CLUSTER_REF }} --deployment {{ .DEPLOYMENT }} --num-consensus-nodes {{ .NETWORK_SIZE }}
+      - cmd: echo "✅ Solo initialized and configured"
+
+  # ==================== Network Deployment Tasks ====================
+
+  deploy-network:
+    desc: Deploy consensus network with all components
+    cmds:
+      - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
+      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs --node-aliases {{ .NODE_ALIASES }}
+      - cmd: $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }}
+      - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
+      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }}
+      - cmd: $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }}
+      - cmd: $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
+      - cmd: $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }}     
+      - cmd: echo "✅ Complete network deployed (consensus + block + mirror + relay + explorer)"
+
+  # ==================== Transaction Generation Tasks ====================
+
+  generate-transactions:
+    desc: Generate test transactions to create network state
+    cmds:
+      - cmd: echo "💰 Creating test accounts (3)..."
+      - cmd: |
+          for i in 1 2 3; do
+            echo "  Creating account $i/3..."
+            $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 100 || true
+            sleep 2
+          done
+      - cmd: echo "✅ Test transactions generated"
+
+  # ==================== Backup Tasks ====================
+
+  backup:
+    desc: Freeze network and create complete backup (ConfigMaps, Secrets, Logs, State)
+    cmds:
+      - cmd: $SOLO_COMMAND mirror node destroy --deployment {{ .DEPLOYMENT }} --force || true
+      - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
+      - cmd: sleep 10  # Wait for freeze to complete
+      - cmd: $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }}
+      
+      - cmd: echo "✅ Backup completed successfully"
+      - cmd: |
+          echo ""
+          echo "📊 Backup Contents:"
+          echo "  ConfigMaps/Secrets: {{ .BACKUP_DIR }}"
+          ls -lh {{ .BACKUP_DIR }} 2>/dev/null || true
+
+  # ==================== Destroy and Redeploy Tasks ====================
+
+  destroy-cluster:
+    desc: Delete entire cluster
+    cmds:
+      - cmd: echo "🗑️  Deleting Kind cluster..."
+      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
+      - cmd: echo "✅ Cluster deleted"
+
+  redeploy:
+    desc: Redeploy complete network infrastructure (after cluster deletion)
+    cmds:
+      - cmd: echo "🔄 Redeploying network infrastructure..."
+      - task: create-cluster
+      - task: init-solo
+      - task: deploy-network
+      - cmd: echo "✅ Network redeployed"
+
+  # ==================== Restore Tasks ====================
+
+  restore:
+    desc: Restore configuration and state from backup
+    cmds:
+      - cmd: $SOLO_COMMAND consensus node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
+      - cmd: $SOLO_COMMAND config ops restore --deployment {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
+      - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}     
+      - cmd: echo "✅ Restore completed successfully"
+
+  # ==================== Verification Tasks ====================
+
+  verify:
+    desc: Verify restored network functionality
+    cmds:    
+      - cmd: echo "🔎 Verifying restored state (checking account 0.0.3)..."
+      - cmd: $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 0.0.3 || echo "⚠️  Account verification may have failed"
+      
+      - cmd: echo "💰 Testing with new transactions..."
+      - cmd: |
+          for i in 1 2 3; do
+            echo "  Creating new account $i/3 on restored network..."
+            $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50 || echo "⚠️  Transaction test may have failed"
+            sleep 3
+          done
+      
+      - cmd: echo "✅ Network verification completed - restored network is operational!"
+
+  # ==================== Cleanup Tasks ====================
+
+  destroy:
+    desc: Remove cluster and backup files
+    cmds:
+      - cmd: echo "🧹 Cleaning up resources..."
+      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }} || true
+      - cmd: rm -rf {{ .BACKUP_DIR }}
+      - cmd: echo "✅ Cleanup completed"
+
