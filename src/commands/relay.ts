@@ -172,6 +172,7 @@ export class RelayCommand extends BaseCommand {
       flags.domainName,
       flags.forcePortForward,
       flags.cacheDir,
+      flags.devMode,
 
       // Mirror Node
       flags.mirrorNodeId,
@@ -199,6 +200,7 @@ export class RelayCommand extends BaseCommand {
       flags.forcePortForward,
       flags.cacheDir,
       flags.id,
+      flags.devMode,
 
       // Mirror Node
       flags.mirrorNodeId,

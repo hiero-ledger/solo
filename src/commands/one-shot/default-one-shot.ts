@@ -770,17 +770,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
           await this.localConfig.load();
 
-          if (!config.cacheDir) {
-            config.cacheDir = constants.SOLO_CACHE_DIR;
-          }
+          config.cacheDir ??= constants.SOLO_CACHE_DIR;
 
-          if (!config.clusterRef) {
-            config.clusterRef = this.localConfig.configuration.clusterRefs.keys().next().value;
-          }
+          config.clusterRef ??= this.localConfig.configuration.clusterRefs.keys().next().value;
 
-          if (!config.context) {
-            config.context = this.localConfig.configuration.clusterRefs.get(config.clusterRef).toString();
-          }
+          config.context ??= this.localConfig.configuration.clusterRefs.get(config.clusterRef).toString();
 
           if (!config.deployment) {
             if (this.localConfig.configuration.deployments.length === 0) {
@@ -790,9 +784,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             this.configManager.setFlag(flags.deployment, config.deployment);
           }
 
-          if (!config.namespace) {
-            config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
-          }
+          config.namespace ??= await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
         },
       },
       this.invokeSoloCommand(
@@ -895,6 +887,34 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             config.clusterRef,
             this.optionFromFlag(flags.quiet),
             this.optionFromFlag(flags.force),
+          );
+          return this.argvPushGlobalFlags(argv);
+        },
+      ),
+      this.invokeSoloCommand(
+        `solo ${ClusterReferenceCommandDefinition.DISCONNECT_COMMAND}`,
+        ClusterReferenceCommandDefinition.DISCONNECT_COMMAND,
+        (): string[] => {
+          const argv: string[] = this.newArgv();
+          argv.push(
+            ...ClusterReferenceCommandDefinition.DISCONNECT_COMMAND.split(' '),
+            this.optionFromFlag(flags.clusterRef),
+            config.clusterRef,
+            this.optionFromFlag(flags.quiet),
+          );
+          return this.argvPushGlobalFlags(argv);
+        },
+      ),
+      this.invokeSoloCommand(
+        `solo ${DeploymentCommandDefinition.DELETE_COMMAND}`,
+        DeploymentCommandDefinition.DELETE_COMMAND,
+        (): string[] => {
+          const argv: string[] = this.newArgv();
+          argv.push(
+            ...DeploymentCommandDefinition.DELETE_COMMAND.split(' '),
+            this.optionFromFlag(flags.deployment),
+            config.deployment,
+            this.optionFromFlag(flags.quiet),
           );
           return this.argvPushGlobalFlags(argv);
         },

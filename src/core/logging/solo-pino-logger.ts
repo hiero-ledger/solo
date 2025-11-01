@@ -118,9 +118,9 @@ export class SoloPinoLogger implements SoloLogger {
     if (error?.cause) {
       let depth: number = 0;
       let cause: any = error.cause;
-      while (cause !== undefined && depth < 10) {
+      while (cause && depth < 10) {
         if (cause.stack) {
-          stack.push({message: cause.message, stacktrace: cause.stack});
+          stack.push({message: cause?.message, stacktrace: cause?.stack});
         }
         cause = cause.cause;
         depth += 1;

@@ -90,13 +90,13 @@ export class LockManager {
    * @throws LockAcquisitionError if the namespace does not exist and cannot be created.
    */
   private async currentNamespace(): Promise<NamespaceName> {
-    const deploymentNamespace = this.configManager.getFlag<NamespaceName>(flags.namespace);
-    const clusterSetupNamespace = this.configManager.getFlag<NamespaceName>(flags.clusterSetupNamespace);
+    const deploymentNamespace: NamespaceName = this.configManager.getFlag(flags.namespace);
+    const clusterSetupNamespace: NamespaceName = this.configManager.getFlag(flags.clusterSetupNamespace);
 
     if (!deploymentNamespace && !clusterSetupNamespace) {
       return null;
     }
-    const namespace = deploymentNamespace ? deploymentNamespace : clusterSetupNamespace;
+    const namespace: NamespaceName = deploymentNamespace || clusterSetupNamespace;
 
     if (!(await this.k8Factory.default().namespaces().has(namespace))) {
       await this.k8Factory.default().namespaces().create(namespace);
