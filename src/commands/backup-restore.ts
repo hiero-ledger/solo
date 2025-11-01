@@ -227,7 +227,10 @@ export class BackupRestoreCommand extends BaseCommand {
             const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(NetworkNodes);
             for (const node of consensusNodes) {
               const nodeAlias: string = node.name;
-              const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as any, consensusNodes);
+              const context: Context | undefined = helpers.extractContextFromConsensusNodes(nodeAlias as any, consensusNodes);
+              if (!context) {
+                throw new SoloError(`Could not extract context for node "${nodeAlias}".`);
+              }
               const statesDirectory: string = path.join(outputDirectory, context, 'states');
               await networkNodes.getStatesFromPod(namespace, nodeAlias as any, context, statesDirectory);
             }
