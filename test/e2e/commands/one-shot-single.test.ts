@@ -79,9 +79,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           }
 
           for (let index: number = 0; index < sleepTimeInMinutes; index++) {
-            testLogger.info(
-              `${testName}: sleeping for metrics collection, ${index + 1} of ${sleepTimeInMinutes} minutes`,
-            );
+            console.log(`${testName}: sleeping for metrics collection, ${index + 1} of ${sleepTimeInMinutes} minutes`);
             await sleep(Duration.ofMinutes(1));
           }
         }
