@@ -481,7 +481,10 @@ export class BackupRestoreCommand extends BaseCommand {
             const podReferences: any = {};
 
             for (const nodeAlias of nodeAliases) {
-              const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as any, consensusNodes);
+              const context: Context | undefined = helpers.extractContextFromConsensusNodes(nodeAlias as any, consensusNodes);
+              if (!context) {
+                throw new SoloError(`Failed to extract context for node alias: ${nodeAlias}`);
+              }
               const k8: K8 = this.k8Factory.getK8(context);
               const pods: any[] = await k8
                 .pods()
