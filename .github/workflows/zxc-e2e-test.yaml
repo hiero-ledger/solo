@@ -372,10 +372,6 @@ jobs:
               export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
           fi
           echo SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1 > .env
-          if [[ "${{ inputs.test-script }}" == "test-e2e-one-shot-single" ]]; then
-            echo ONE_SHOT_WITH_BLOCK_NODE=true >> .env
-            echo MIRROR_NODE_PINGER_TPS=50 >> .env
-          fi
           cat .env
           
           # Verify cluster connectivity before running tests
@@ -428,7 +424,9 @@ jobs:
           echo "log_file=$LOG_FILE" >> $GITHUB_OUTPUT
 
       - name: Comment PR with Log Metrics
-        if: ${{ !cancelled() && !failure() && github.event_name == 'pull_request' && steps.log-metrics.outputs.json_log != '{}' }}
+        if: >-
+          ${{ !cancelled() && !failure() && github.event_name == 'pull_request' && 
+          steps.log-metrics.outputs.json_log != '{}' && github.event.pull_request.head.repo.fork == false }}
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
         with:
           mode: recreate
