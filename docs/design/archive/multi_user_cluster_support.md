@@ -195,7 +195,7 @@ cli: # in order to support requirement R9
 
 We are going to use “strict [two-phase locking](https://search.brave.com/search?q=two+phase+locking\&source=desktop\&summary=1\&summary_og=eyJ0aXRsZSI6IlR3byBwaGFzZSBsb2NraW5nIiwiZGVzY3JpcHRpb24iOiJUd28tcGhhc2UgbG9ja2luZyBpcyBhIGNvbmN1cnJlbmN5IGNvbnRyb2wgbWV0aG9kIHVzZWQgaW4gZGF0YWJhc2UgbWFuYWdlbWVudCBzeXN0ZW1zIHRvIGVuc3VyZSBzZXJpYWxpemFiaWxpdHksIHdoaWNoIG1lYW5zIHRoYXQgdGhlIG91dGNvbWUgb2YgYSBzZXQgb2YgdHJhbnNhY3Rpb25zIGlzIGVxdWl2YWxlbnQgdG8gdGhlIG91dGNvbWUgb2YgZeKApiIsImltYWdlIjp7InNyYyI6Imh0dHBzOi8vY2RuLnNlYXJjaC5icmF2ZS5jb20vc2VycC9vZy83MDlhODY5NjFmNDQ5MDljMDdmMWQ5LnBuZyIsIndpZHRoIjo0ODQsImhlaWdodCI6NTAxfX0%3D\&sig=08cd90ccc1babbe4d290cd56061c34ee5985cb6770179cef64ba83231efb72a9\&nonce=67bc94c076c3196de5e7397a70a3d72b)” where each user must acquire leases first before any “write” operation. For “read” operations, no lock is necessary.
 
-When two simultaneous user starts locking, the contention is avoided using “earliest lock wins” strategy where when a user discovers another lock, it inspects all locks and if the earliest lock is not its own, it will will release all of its own locks and wait. User may however retry before the expiry to see if lock still exists or not.
+When two simultaneous user starts locking, the contention is avoided using "earliest lock wins" strategy where when a user discovers another lock, it inspects all locks and if the earliest lock is not its own, it will release all of its own locks and wait. User may however retry before the expiry to see if lock still exists or not.
 
 Q. There seems to be a need of running a `solo-agent` locally on users computer that can retry automatically?
 

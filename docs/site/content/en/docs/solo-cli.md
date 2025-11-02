@@ -43,7 +43,7 @@ Commands:
   system init     Initialize system accounts with new keys
   account create   Creates a new account with a new key and stores the key in th
                    e Kubernetes secrets, if you supply no key one will be genera
-                   ted for you, otherwise you may supply either a ECDSA or ED255
+                   ted for you, otherwise you may supply either an ECDSA or ED255
                    19 private key
   account update   Updates an existing account with the provided info, if you wa
                    nt to update the private key, you can supply either ECDSA or
@@ -66,7 +66,7 @@ solo ledger account create --help
 
 Creates a new account with a new key and stores the key in the Kubernetes secret
 s, if you supply no key one will be generated for you, otherwise you may supply
-either a ECDSA or ED25519 private key
+either an ECDSA or ED25519 private key
 
 Options:
       --dev                  Enable developer mode                     [boolean]
