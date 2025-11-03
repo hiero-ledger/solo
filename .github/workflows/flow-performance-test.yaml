@@ -32,6 +32,10 @@ defaults:
   run:
     shell: bash
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   performance-test:
     timeout-minutes: 60
