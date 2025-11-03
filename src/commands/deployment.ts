@@ -248,6 +248,14 @@ export class DeploymentCommand extends BaseCommand {
                 .list(namespace, ['app.kubernetes.io/managed-by=Helm']);
 
               if (remoteConfigExists || namespaceExists || existingConfigMaps.length > 0) {
+                console.log('------------------------------------------------------------------------');
+                console.log({
+                  remoteConfigExists,
+                  namespaceExists,
+                  existingConfigMaps: existingConfigMaps.length,
+                });
+                console.log('------------------------------------------------------------------------');
+
                 throw new SoloError(`Deployment ${deployment} has remote resources in cluster: ${clusterReference}`);
               }
             }
