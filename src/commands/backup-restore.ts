@@ -227,10 +227,7 @@ export class BackupRestoreCommand extends BaseCommand {
             const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(NetworkNodes);
             for (const node of consensusNodes) {
               const nodeAlias: string = node.name;
-              const context: Context = helpers.extractContextFromConsensusNodes(
-                nodeAlias as any,
-                consensusNodes,
-              );
+              const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as any, consensusNodes);
               const statesDirectory: string = path.join(outputDirectory, context, 'states');
               await networkNodes.getStatesFromPod(namespace, nodeAlias as any, context, statesDirectory);
             }
@@ -481,10 +478,7 @@ export class BackupRestoreCommand extends BaseCommand {
             const podReferences: any = {};
 
             for (const nodeAlias of nodeAliases) {
-              const context: Context = helpers.extractContextFromConsensusNodes(
-                nodeAlias as any,
-                consensusNodes,
-              );
+              const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as any, consensusNodes);
               const k8: K8 = this.k8Factory.getK8(context);
               const pods: any[] = await k8
                 .pods()
