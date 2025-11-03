@@ -449,6 +449,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     this._remoteConfig.state.explorers = [];
     this._remoteConfig.state.mirrorNodes = [];
     this._remoteConfig.state.relayNodes = [];
+    await this.persist();
   }
 
   private async setDefaultNamespaceAndDeploymentIfNotSet(argv: AnyObject): Promise<void> {

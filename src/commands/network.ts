@@ -861,24 +861,20 @@ export class NetworkCommand extends BaseCommand {
     task.title = `Uninstalling chart ${constants.SOLO_DEPLOYMENT_CHART}`;
 
     // Uninstall all 'solo deployment' charts for each cluster using the contexts
-    await Promise.all(
-      contexts.map(async (context): Promise<void> => {
-        await this.chartManager.uninstall(
-          namespace,
-          constants.SOLO_DEPLOYMENT_CHART,
-          this.k8Factory.getK8(context).contexts().readCurrent(),
-        );
-      }),
-    );
+    for (const context of contexts) {
+      await this.chartManager.uninstall(
+        namespace,
+        constants.SOLO_DEPLOYMENT_CHART,
+        this.k8Factory.getK8(context).contexts().readCurrent(),
+      );
+    }
 
     // Delete Remote config inside each cluster
     task.title = `Deleting the RemoteConfig configmap in namespace ${namespace}`;
-    await Promise.all(
-      contexts.map(async (context): Promise<void> => {
-        // Delete all if found
-        await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
-      }),
-    );
+    for (const context of contexts) {
+      // Delete all if found
+      await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+    }
 
     if (deletePvcs) {
       task.title = `Deleting PVCs in namespace ${namespace}`;
@@ -898,38 +894,30 @@ export class NetworkCommand extends BaseCommand {
   }
 
   private async deleteSecrets(namespace: NamespaceName, contexts: Context[]): Promise<void> {
-    await Promise.all(
-      contexts.map(async (context): Promise<void> => {
-        // Fetch all Secrets inside the namespace using the context
-        const secrets: Secret[] = await this.k8Factory.getK8(context).secrets().list(namespace);
+    for (const context of contexts) {
+      // Fetch all Secrets inside the namespace using the context
+      const secrets: Secret[] = await this.k8Factory.getK8(context).secrets().list(namespace);
 
-        // Delete all if found
-        await Promise.all(
-          secrets.map(async (secret): Promise<void> => {
-            await this.k8Factory.getK8(context).secrets().delete(namespace, secret.name);
-          }),
-        );
-      }),
-    );
+      // Delete all if found
+      for (const secret of secrets) {
+        await this.k8Factory.getK8(context).secrets().delete(namespace, secret.name);
+      }
+    }
   }
 
   private async deletePvcs(namespace: NamespaceName, contexts: Context[]): Promise<void> {
-    await Promise.all(
-      contexts.map(async (context): Promise<void> => {
-        // Fetch all PVCs inside the namespace using the context
-        const pvcs: string[] = await this.k8Factory.getK8(context).pvcs().list(namespace, []);
+    for (const context of contexts) {
+      // Fetch all PVCs inside the namespace using the context
+      const pvcs: string[] = await this.k8Factory.getK8(context).pvcs().list(namespace, []);
 
-        // Delete all if found
-        await Promise.all(
-          pvcs.map(async (pvc): Promise<void> => {
-            await this.k8Factory
-              .getK8(context)
-              .pvcs()
-              .delete(PvcReference.of(namespace, PvcName.of(pvc)));
-          }),
-        );
-      }),
-    );
+      // Delete all if found
+      for (const pvc of pvcs) {
+        await this.k8Factory
+          .getK8(context)
+          .pvcs()
+          .delete(PvcReference.of(namespace, PvcName.of(pvc)));
+      }
+    }
   }
 
   /** Run helm install and deploy network components */
@@ -1357,8 +1345,6 @@ export class NetworkCommand extends BaseCommand {
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
     let lease: Lock;
 
     let networkDestroySuccess: boolean = true;
@@ -1368,9 +1354,9 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task): Promise<SoloListr<NetworkDeployContext>> => {
-            await self.localConfig.load();
-            await self.remoteConfig.loadAndValidate(argv);
-            lease = await self.leaseManager.create();
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            lease = await this.leaseManager.create();
 
             if (!argv.force) {
               const confirmResult: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
@@ -1387,12 +1373,12 @@ export class NetworkCommand extends BaseCommand {
             await this.configManager.executePrompt(task, [flags.deletePvcs, flags.deleteSecrets]);
 
             context_.config = {
-              deletePvcs: this.configManager.getFlag<boolean>(flags.deletePvcs) as boolean,
-              deleteSecrets: this.configManager.getFlag<boolean>(flags.deleteSecrets) as boolean,
+              deletePvcs: this.configManager.getFlag(flags.deletePvcs),
+              deleteSecrets: this.configManager.getFlag(flags.deleteSecrets),
               deployment: this.configManager.getFlag(flags.deployment),
               namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
-              enableTimeout: this.configManager.getFlag<boolean>(flags.enableTimeout) as boolean,
-              force: this.configManager.getFlag<boolean>(flags.force) as boolean,
+              enableTimeout: this.configManager.getFlag(flags.enableTimeout),
+              force: this.configManager.getFlag(flags.force),
               contexts: this.remoteConfig.getContexts(),
             };
 
@@ -1410,25 +1396,25 @@ export class NetworkCommand extends BaseCommand {
               return;
             }
 
-            const timeoutId: NodeJS.Timeout = setTimeout(async (): Promise<void> => {
+            const onTimeoutCallback: NodeJS.Timeout = setTimeout(async (): Promise<void> => {
               const message: string = `\n\nUnable to finish consensus network destroy in ${constants.NETWORK_DESTROY_WAIT_TIMEOUT} seconds\n\n`;
               this.logger.error(message);
               this.logger.showUser(chalk.red(message));
               networkDestroySuccess = false;
 
-              await (deletePvcs && deleteSecrets
-                ? Promise.all(
-                    contexts.map(
-                      (context: string): Promise<boolean> =>
-                        this.k8Factory.getK8(context).namespaces().delete(namespace),
-                    ),
-                  )
-                : this.remoteConfig.deleteComponents());
+              if (!deleteSecrets || !deletePvcs) {
+                await this.remoteConfig.deleteComponents();
+                return;
+              }
+
+              for (const context of contexts) {
+                await this.k8Factory.getK8(context).namespaces().delete(namespace);
+              }
             }, constants.NETWORK_DESTROY_WAIT_TIMEOUT * 1000);
 
             await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
 
-            clearTimeout(timeoutId);
+            clearTimeout(onTimeoutCallback);
           },
         },
       ],
