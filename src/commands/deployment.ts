@@ -195,7 +195,7 @@ export class DeploymentCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_, task): Promise<void> => {
+          task: async (context_: Context, task): Promise<void> => {
             await this.localConfig.load();
             try {
               await this.remoteConfig.loadAndValidate(argv);

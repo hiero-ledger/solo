@@ -900,7 +900,7 @@ export class NetworkCommand extends BaseCommand {
 
       // Delete all if found
       for (const secret of secrets) {
-        await this.k8Factory.getK8(context).secrets().delete(namespace, secret.name);
+        await this.k8Factory.getK8(context).secrets().delete(namespace, secret.name).catch();
       }
     }
   }
@@ -915,7 +915,8 @@ export class NetworkCommand extends BaseCommand {
         await this.k8Factory
           .getK8(context)
           .pvcs()
-          .delete(PvcReference.of(namespace, PvcName.of(pvc)));
+          .delete(PvcReference.of(namespace, PvcName.of(pvc)))
+          .catch();
       }
     }
   }
@@ -1415,6 +1416,30 @@ export class NetworkCommand extends BaseCommand {
             await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
 
             clearTimeout(onTimeoutCallback);
+          },
+        },
+        {
+          title: 'test TODO: remove',
+          task: async ({config: {contexts, namespace, deletePvcs, deleteSecrets, deployment}}): Promise<void> => {
+            for (const context of contexts) {
+              const secrets: string[] = await this.k8Factory
+                .getK8(context)
+                .secrets()
+                .list(namespace)
+                .then(data => data.map(secret => secret.name));
+
+              const pvcs: string[] = await this.k8Factory.getK8(context).pvcs().list(namespace, []);
+
+              console.log({
+                secrets,
+                pvcs,
+                namespace,
+                contexts,
+                deletePvcs,
+                deleteSecrets,
+                deployment,
+              });
+            }
           },
         },
       ],
