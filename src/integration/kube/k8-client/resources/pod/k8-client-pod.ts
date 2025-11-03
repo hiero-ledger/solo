@@ -30,6 +30,8 @@ import {type PodCondition} from '../../../resources/pod/pod-condition.js';
 import {ShellRunner} from '../../../../../core/shell-runner.js';
 import chalk from 'chalk';
 import http from 'node:http';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 
 export class K8ClientPod implements Pod {
   private readonly logger: SoloLogger;
@@ -94,10 +96,11 @@ export class K8ClientPod implements Pod {
    * @param localPort The local port to forward from
    * @param podPort The pod port to forward to
    * @param reuse - if true, reuse the port number from previous port forward operation
+   * @param persist - if true, errors in port-forwarding will restart the port-forwarding, even after ts process has ended
    * @returns Promise resolving to the port forwarder server when not detached,
    *          or the port number (which may differ from localPort if it was in use) when detached
    */
-  public async portForward(localPort: number, podPort: number, reuse?: boolean): Promise<number> {
+  public async portForward(localPort: number, podPort: number, reuse?: boolean, persist = false): Promise<number> {
     let availablePort: number = localPort;
 
     try {
@@ -201,8 +204,16 @@ export class K8ClientPod implements Pod {
         'Port-forwarding in detached mode has to be manually stopped or will stop when the Kubernetes pod it ',
         'is connected to terminates.',
       );
-      const cmd: string = `kubectl port-forward -n ${this.podReference.namespace.name} --context ${this.kubeConfig.currentContext} pods/${this.podReference.name} ${availablePort}:${podPort}`;
-      const result = await new ShellRunner().run(cmd, [], true, true);
+
+      // If the persist flag is set, we need to run the port-forward in a detached process that restarts on failure even after the typescript process ends.
+      const __dirname: string = path.dirname(fileURLToPath(import.meta.url));
+      const persistPortForwardScriptPath: string = path.resolve(__dirname, 'persist-port-forward.js');
+
+      const cmd: string = persist
+        ? `node ${persistPortForwardScriptPath} ${this.podReference.namespace.name} pods/${this.podReference.name} ${localPort}:${podPort} ${this.kubeConfig.currentContext} &`
+        : `kubectl port-forward -n ${this.podReference.namespace.name} --context ${this.kubeConfig.currentContext} pods/${this.podReference.name} ${availablePort}:${podPort}`;
+
+      await new ShellRunner().run(cmd, [], true, true);
 
       return availablePort;
     } catch (error) {

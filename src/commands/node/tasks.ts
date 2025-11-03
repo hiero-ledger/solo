@@ -1650,7 +1650,13 @@ export class NodeCommandTasks {
             .getK8(context)
             .pods()
             .readByReference(podReference)
-            .portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT);
+            .portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT, false, true);
+
+          await this.k8Factory
+            .getK8(context)
+            .pods()
+            .readByReference(podReference)
+            .stopPortForward(constants.JVM_DEBUG_PORT);
         }
         if (context_.config.forcePortForward && enablePortForwardHaProxy) {
           const pods: Pod[] = await this.k8Factory

@@ -64,10 +64,11 @@ export interface Pod {
    * @param localPort - the local port to forward to
    * @param podPort - the port on the pod to forward from
    * @param reuse - if true, reuse the port number from previous port forward operation
+   * @param persist - if true, errors in port-forwarding will restart the port-forwarding, even after ts process has ended
    * @returns Promise resolving to the port forwarder server when not detached,
    *          or the port number (which may differ from localPort if it was in use) when detached
    */
-  portForward(localPort: number, podPort: number, reuse?: boolean): Promise<number>;
+  portForward(localPort: number, podPort: number, reuse?: boolean, persist?: boolean): Promise<number>;
 
   /**
    * Stop the port forward
