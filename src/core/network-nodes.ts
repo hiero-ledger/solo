@@ -15,6 +15,7 @@ import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import path from 'node:path';
 
 /**
  * Class to manage network nodes
@@ -69,7 +70,7 @@ export class NetworkNodes {
   private async getLog(pod: Pod, namespace: NamespaceName, baseDirectory: string, context?: string) {
     const podReference: PodReference = pod.podReference;
     this.logger.debug(`getNodeLogs(${pod.podReference.name.name}): begin...`);
-    const targetDirectory = baseDirectory;
+    const targetDirectory = path.join(baseDirectory, namespace.toString());
     try {
       if (!fs.existsSync(targetDirectory)) {
         fs.mkdirSync(targetDirectory, {recursive: true});
@@ -135,7 +136,7 @@ export class NetworkNodes {
   private async getState(pod: Pod, namespace: NamespaceName, baseDirectory: string, context?: string) {
     const podReference: PodReference = pod.podReference;
     this.logger.debug(`getNodeState(${pod.podReference.name.name}): begin...`);
-    const targetDirectory = baseDirectory;
+    const targetDirectory = path.join(baseDirectory, namespace.toString());
     try {
       if (!fs.existsSync(targetDirectory)) {
         fs.mkdirSync(targetDirectory, {recursive: true});

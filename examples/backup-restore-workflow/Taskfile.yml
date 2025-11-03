@@ -134,7 +134,9 @@ tasks:
           echo ""
           echo "📊 Backup Contents:"
           echo "  ConfigMaps/Secrets: {{ .BACKUP_DIR }}"
+          echo "  Logs and States: {{ .BACKUP_DIR }}/{{ .NAMESPACE }}"
           ls -lh {{ .BACKUP_DIR }} 2>/dev/null || true
+          ls -lh "{{ .BACKUP_DIR }}/{{ .NAMESPACE }}" 2>/dev/null || true
 
   # ==================== Destroy and Redeploy Tasks ====================
 
