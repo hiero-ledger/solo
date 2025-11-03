@@ -861,20 +861,22 @@ export class NetworkCommand extends BaseCommand {
     task.title = `Uninstalling chart ${constants.SOLO_DEPLOYMENT_CHART}`;
 
     // Uninstall all 'solo deployment' charts for each cluster using the contexts
-    for (const context of contexts) {
-      await this.chartManager.uninstall(
-        namespace,
-        constants.SOLO_DEPLOYMENT_CHART,
-        this.k8Factory.getK8(context).contexts().readCurrent(),
-      );
-    }
+    await Promise.all(
+      contexts.map(async (context): Promise<void> => {
+        await this.chartManager.uninstall(
+          namespace,
+          constants.SOLO_DEPLOYMENT_CHART,
+          this.k8Factory.getK8(context).contexts().readCurrent(),
+        );
+      }),
+    );
 
-    // Delete Remote config inside each cluster
     task.title = `Deleting the RemoteConfig configmap in namespace ${namespace}`;
-    for (const context of contexts) {
-      // Delete all if found
-      await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
-    }
+    await Promise.all(
+      contexts.map(async (context): Promise<void> => {
+        await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+      }),
+    );
 
     if (deletePvcs) {
       task.title = `Deleting PVCs in namespace ${namespace}`;
@@ -887,38 +889,52 @@ export class NetworkCommand extends BaseCommand {
     }
 
     if (deleteSecrets && deletePvcs) {
-      for (const context of contexts) {
-        await this.k8Factory.getK8(context).namespaces().delete(namespace);
-      }
+      await Promise.all(
+        contexts.map(async (context): Promise<void> => {
+          await this.k8Factory.getK8(context).namespaces().delete(namespace);
+        }),
+      );
     }
   }
 
   private async deleteSecrets(namespace: NamespaceName, contexts: Context[]): Promise<void> {
+    const secretsData: Array<{secret: string; context: Context}> = [];
+
     for (const context of contexts) {
-      // Fetch all Secrets inside the namespace using the context
       const secrets: Secret[] = await this.k8Factory.getK8(context).secrets().list(namespace);
 
-      // Delete all if found
       for (const secret of secrets) {
-        await this.k8Factory.getK8(context).secrets().delete(namespace, secret.name).catch();
+        secretsData.push({secret: secret.name, context: context});
       }
     }
+
+    const promises: Promise<void>[] = secretsData.map(async ({context, secret}): Promise<void> => {
+      await this.k8Factory.getK8(context).secrets().delete(namespace, secret);
+    });
+
+    await Promise.all(promises);
   }
 
   private async deletePvcs(namespace: NamespaceName, contexts: Context[]): Promise<void> {
+    const pvcsData: Array<{pvc: string; context: Context}> = [];
+
     for (const context of contexts) {
-      // Fetch all PVCs inside the namespace using the context
       const pvcs: string[] = await this.k8Factory.getK8(context).pvcs().list(namespace, []);
 
-      // Delete all if found
       for (const pvc of pvcs) {
-        await this.k8Factory
-          .getK8(context)
-          .pvcs()
-          .delete(PvcReference.of(namespace, PvcName.of(pvc)))
-          .catch();
+        pvcsData.push({pvc, context});
       }
     }
+
+    const promises: Promise<void>[] = pvcsData.map(async ({context, pvc}): Promise<void> => {
+      await this.k8Factory
+        .getK8(context)
+        .pvcs()
+        .delete(PvcReference.of(namespace, PvcName.of(pvc)))
+        .catch();
+    });
+
+    await Promise.all(promises);
   }
 
   /** Run helm install and deploy network components */
