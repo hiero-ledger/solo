@@ -110,7 +110,6 @@ jobs:
         run: docker image pull kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
 
       - name: Setup E2E Tests
-        if: ${{ !cancelled() && inputs.test-script != 'test-e2e-node-local-ptt' }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 3
@@ -153,7 +152,7 @@ jobs:
           LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
           JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
         run: |
-          echo "## Log Metrics - ${{ inputs.custom-job-label }}" >> $LOG_FILE
+          echo "## Log Metrics - Performance Test" >> $LOG_FILE
           echo "" >> $LOG_FILE
           echo "<details>" >> $LOG_FILE
           echo "<summary>" >> $LOG_FILE
@@ -166,18 +165,20 @@ jobs:
           echo "log_file=$LOG_FILE" >> $GITHUB_OUTPUT
 
       - name: Comment PR with Log Metrics
-        if: ${{ !cancelled() && !failure() && github.event_name == 'pull_request' && steps.log-metrics.outputs.json_log != '{}' }}
+        if: >-
+          ${{ !cancelled() && !failure() && github.event_name == 'pull_request' && 
+          steps.log-metrics.outputs.json_log != '{}' && github.event.pull_request.head.repo.fork == false }}
         uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
         with:
           mode: recreate
           file-path: ${{ steps.log-metrics-file.outputs.log_file }}
-          comment-tag: log-metrics-${{ inputs.test-script }}
+          comment-tag: log-metrics-performance-test
 
       - name: Upload E2E Logs to GitHub
-        if: ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' && !cancelled() }}
+        if: ${{ github.event_name != 'workflow_dispatch' && !cancelled() }}
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
-          name: solo-${{ inputs.test-script }}.log
+          name: solo-performance-test.log
           path: ~/.solo/logs/*
           overwrite: true
           if-no-files-found: error
