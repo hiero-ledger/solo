@@ -240,22 +240,12 @@ export class DeploymentCommand extends BaseCommand {
                 .remoteConfigExists(namespace, context)
                 .catch((): boolean => false);
 
-              const namespaceExists: boolean = await this.k8Factory.getK8(context).namespaces().has(namespace);
-
               const existingConfigMaps: ConfigMap[] = await this.k8Factory
                 .getK8(context)
                 .configMaps()
                 .list(namespace, ['app.kubernetes.io/managed-by=Helm']);
 
-              if (remoteConfigExists || namespaceExists || existingConfigMaps.length > 0) {
-                console.log('------------------------------------------------------------------------');
-                console.log({
-                  remoteConfigExists,
-                  namespaceExists,
-                  existingConfigMaps: existingConfigMaps.length,
-                });
-                console.log('------------------------------------------------------------------------');
-
+              if (remoteConfigExists || existingConfigMaps.length > 0) {
                 throw new SoloError(`Deployment ${deployment} has remote resources in cluster: ${clusterReference}`);
               }
             }
