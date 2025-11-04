@@ -42,8 +42,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
     'Transfer native crypto tokens or query native token account balances.';
 
   public static readonly FILE_SUBCOMMAND_NAME = 'file';
-  private static readonly FILE_SUBCOMMAND_DESCRIPTION =
-    'Upload or update files on the Hedera network.';
+  private static readonly FILE_SUBCOMMAND_DESCRIPTION = 'Upload or update files on the Hedera network.';
 
   public static readonly SYSTEM_INIT = 'init';
   public static readonly ACCOUNT_UPDATE = 'update';
