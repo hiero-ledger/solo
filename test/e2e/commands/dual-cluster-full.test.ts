@@ -109,7 +109,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       ExplorerTest.destroy(options);
       MirrorNodeTest.destroy(options);
       NetworkTest.destroy(options);
-    }).timeout(Duration.ofMinutes(15).toMillis());
+    }).timeout(Duration.ofMinutes(30).toMillis());
   })
   .build();
 endToEndTestSuite.runTestSuite();

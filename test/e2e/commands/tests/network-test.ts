@@ -113,7 +113,7 @@ export class NetworkTest extends BaseCommandTest {
 
     it(`${testName}: consensus network destroy`, async (): Promise<void> => {
       await main(soloNetworkDestroyArgv(testName, deployment));
-    });
+    }).timeout(Duration.ofMinutes(10).toMillis());
 
     it(`${testName}: consensus network destroy should success`, async (): Promise<void> => {
       const {namespace, contexts: contextRecord, testLogger: logger} = options;

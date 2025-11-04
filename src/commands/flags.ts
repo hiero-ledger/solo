@@ -817,9 +817,9 @@ export class Flags {
 
   public static readonly chainId: CommandFlag = {
     constName: 'chainId',
-    name: 'ledger-id',
+    name: 'chain-id',
     definition: {
-      describe: 'Ledger ID (a.k.a. Chain ID)',
+      describe: 'Chain ID',
       defaultValue: constants.HEDERA_CHAIN_ID, // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay#configuration
       alias: 'l',
       type: 'string',

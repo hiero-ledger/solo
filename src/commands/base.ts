@@ -227,7 +227,7 @@ export abstract class BaseCommand extends ShellRunner {
       directories = [
         constants.SOLO_HOME_DIR,
         constants.SOLO_LOGS_DIR,
-        this.configManager.getFlag<string>(Flags.cacheDir) || constants.SOLO_CACHE_DIR,
+        this.configManager.getFlag(Flags.cacheDir) || constants.SOLO_CACHE_DIR,
         constants.SOLO_VALUES_DIR,
       ];
     }

@@ -133,12 +133,12 @@ export function startNodesTest(argv: Argv, commandInvoker: CommandInvoker, nodeC
     });
   }).timeout(Duration.ofMinutes(30).toMillis());
 
-  it('node log command should work', async (): Promise<void> => {
+  it('consensus diagnostics logs command should work', async (): Promise<void> => {
     await commandInvoker.invoke({
       argv: argv,
       command: ConsensusCommandDefinition.COMMAND_NAME,
       subcommand: ConsensusCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
-      action: ConsensusCommandDefinition.DIAGNOSTIC_ALL,
+      action: ConsensusCommandDefinition.DIAGNOSTIC_LOGS,
       callback: async (argv): Promise<boolean> => nodeCmd.handlers.logs(argv),
     });
 
