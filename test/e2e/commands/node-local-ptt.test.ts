@@ -11,6 +11,9 @@ import {type NetworkNodes} from '../../../src/core/network-nodes.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
+import {BaseCommandTest} from './tests/base-command-test.js';
+import fs from 'node:fs';
+import {main} from '../../../src/index.js';
 
 const namespace = NamespaceName.of('local-ptt-app');
 const argv = Argv.getDefaultArgv(namespace);
@@ -38,6 +41,36 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     const {
       opts: {k8Factory},
     } = bootstrapResp;
+    const deploymentName: string = `${namespace.name}-deployment`;
+    const backupDirectory: string = '/tmp/backup-test';
+
+    after(async () => {
+      fs.rmSync(backupDirectory, {recursive: true, force: true});
+    });
+
+    it('should create a backup of the deployment', async () => {
+      const {newArgv} = BaseCommandTest;
+      const backupCommandArguments: string[] = newArgv();
+      backupCommandArguments.push(
+        'config',
+        'ops',
+        'backup',
+        '--deployment',
+        deploymentName,
+        '--output-dir',
+        backupDirectory,
+      );
+
+      await main(backupCommandArguments);
+    }).timeout(Duration.ofMinutes(5).toMillis());
+
+    it('should restore from backup', async () => {
+      const {newArgv} = BaseCommandTest;
+      const restoreArguments: string[] = newArgv();
+      restoreArguments.push('config', 'ops', 'restore', '--deployment', deploymentName, '--input-dir', backupDirectory);
+
+      await main(restoreArguments);
+    }).timeout(Duration.ofMinutes(5).toMillis());
 
     it('get the logs and delete the namespace', async () => {
       await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
