@@ -51,6 +51,9 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly ATTACH_COMMAND =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CLUSTER_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CLUSTER_ATTACH}` as const;
 
+  public static readonly DELETE_COMMAND =
+    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_DELETE}` as const;
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
       DeploymentCommandDefinition.COMMAND_NAME,
