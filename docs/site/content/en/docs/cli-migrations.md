@@ -38,8 +38,8 @@ type: docs
 
 | **Old Command**            | **New Command**  |
 |----------------------------|------------------|
-| one-shot single deploy  | one shot deploy  |
-| one-shot single destroy | one shot destroy |
+| quick-start single deploy  | one-shot single deploy  |
+| quick-start single destroy | one-shot single destroy |
 
 ## Cluster Reference
 
