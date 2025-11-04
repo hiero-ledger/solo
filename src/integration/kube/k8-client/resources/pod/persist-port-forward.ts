@@ -1,9 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
+/**
+ * Persistently port-forward a local port to a port on a Kubernetes pod.
+ * This solves an issue where a detatched port-forward can be terminated by network issues.
+ * Usage: persist-port-forward <namespace> <pod> <port_map> [context]
+ * Note: The last parameter has to be <port_map>, and it needs to be in the format <local>:<remote>.
+ * This ensures compatibility with existing K8ClientPod port forwarding logic.
+ */
+
 import {spawn, type ChildProcessWithoutNullStreams} from 'node:child_process';
 
 // eslint-disable-next-line unicorn/no-unreadable-array-destructuring
-const [, , NAMESPACE, POD, PORT_MAP, CONTEXT] = process.argv;
+const [, , NAMESPACE, POD, CONTEXT, PORT_MAP] = process.argv;
 
 if (!NAMESPACE || !POD || !PORT_MAP) {
   console.error('Usage: persist-port-forward <namespace> <pod> <local> <remote> [context]');

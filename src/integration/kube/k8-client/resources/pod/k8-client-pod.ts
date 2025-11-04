@@ -210,7 +210,7 @@ export class K8ClientPod implements Pod {
       const persistPortForwardScriptPath: string = path.resolve(__dirname, 'persist-port-forward.js');
 
       const cmd: string = persist
-        ? `node ${persistPortForwardScriptPath} ${this.podReference.namespace.name} pods/${this.podReference.name} ${localPort}:${podPort} ${this.kubeConfig.currentContext} &`
+        ? `node ${persistPortForwardScriptPath} ${this.podReference.namespace.name} pods/${this.podReference.name} ${this.kubeConfig.currentContext} ${availablePort}:${podPort} &`
         : `kubectl port-forward -n ${this.podReference.namespace.name} --context ${this.kubeConfig.currentContext} pods/${this.podReference.name} ${availablePort}:${podPort}`;
 
       await new ShellRunner().run(cmd, [], true, true);
