@@ -70,7 +70,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       it('Should write log metrics', async (): Promise<void> => {
         if (process.env.ONE_SHOT_METRICS_SLEEP_MINUTES) {
-          const sleepTimeInMinutes: number = Number.parseInt(process.env.ONE_SHOT_METRICS_SLEEP_MINUTES);
+          const sleepTimeInMinutes: number = Number.parseInt(process.env.ONE_SHOT_METRICS_SLEEP_MINUTES, 10);
 
           if (Number.isNaN(sleepTimeInMinutes) || sleepTimeInMinutes <= 0) {
             throw new Error(
