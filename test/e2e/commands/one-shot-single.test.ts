@@ -21,6 +21,7 @@ import {OneShotCommandDefinition} from '../../../src/commands/command-definition
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
+import path from 'node:path';
 
 const testName: string = 'one-shot-single';
 const testTitle: string = 'One Shot Single E2E Test';
@@ -57,6 +58,18 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       after(async (): Promise<void> => {
         testLogger.info(`${testName}: beginning ${testName}: destroy`);
+
+        // Clean up backup directory
+        try {
+          const backupDirectory = path.join(testCacheDirectory, 'backup');
+          if (fs.existsSync(backupDirectory)) {
+            fs.rmSync(backupDirectory, {recursive: true, force: true});
+          }
+        } catch (error) {
+          testLogger.warn('Failed to clean up backup directory', {error});
+        }
+
+        // Destroy the deployment
         await main(soloOneShotDestroy(testName));
         testLogger.info(`${testName}: finished ${testName}: destroy`);
       }).timeout(Duration.ofMinutes(5).toMillis());
@@ -73,7 +86,70 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         await new MetricsServerImpl().logMetrics(testName, PathEx.join(constants.SOLO_LOGS_DIR, `${testName}`));
       }).timeout(Duration.ofMinutes(10).toMillis());
 
-      // TODO add verifications
+      it('should create a backup of the deployment', async (): Promise<void> => {
+        testLogger.info(`${testName}: beginning backup`);
+
+        // Create backup directory
+        const backupDirectoryPath = path.join(testCacheDirectory, 'backup');
+        if (!fs.existsSync(backupDirectoryPath)) {
+          fs.mkdirSync(backupDirectoryPath, {recursive: true});
+        }
+
+        // Prepare backup command
+        const backupCommandArguments = [
+          'backup',
+          '--deployment',
+          `${testName}-deployment`,
+          '--output-dir',
+          backupDirectoryPath,
+          '--namespace',
+          namespace.name,
+        ];
+
+        // Execute backup
+        await main(backupCommandArguments);
+
+        // Verify backup was created
+        const expectedBackupDirectories = [
+          path.join(backupDirectoryPath, 'configmaps'),
+          path.join(backupDirectoryPath, 'secrets'),
+        ];
+
+        for (const backupDirectory of expectedBackupDirectories) {
+          if (!fs.existsSync(backupDirectory)) {
+            throw new Error(`Backup directory not created: ${backupDirectory}`);
+          }
+        }
+
+        testLogger.info(`${testName}: backup created successfully`);
+      }).timeout(Duration.ofMinutes(5).toMillis());
+
+      it('should restore from backup', async (): Promise<void> => {
+        testLogger.info(`${testName}: beginning restore`);
+
+        const backupDirectory = path.join(testCacheDirectory, 'backup');
+
+        // Verify backup exists
+        if (!fs.existsSync(backupDirectory)) {
+          throw new Error(`Backup directory not found: ${backupDirectory}`);
+        }
+
+        // Prepare restore command
+        const restoreArguments = [
+          'restore',
+          '--deployment',
+          `${testName}-deployment`,
+          '--input-dir',
+          backupDirectory,
+          '--namespace',
+          namespace.name,
+        ];
+
+        // Execute restore
+        await main(restoreArguments);
+
+        testLogger.info(`${testName}: restore completed successfully`);
+      }).timeout(Duration.ofMinutes(5).toMillis());
     });
   })
   .build();
