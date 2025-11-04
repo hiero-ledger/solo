@@ -10,7 +10,7 @@ cd ./solo || exit
 git checkout "${BRANCH_NAME}"
 
 # Dependencies Versions
-NODE_VERSION="20.17.0"
+NODE_VERSION="22.0.0"
 KIND_VERSION="v0.22.0"
 HELM_VERSION="3.15.4"
 
