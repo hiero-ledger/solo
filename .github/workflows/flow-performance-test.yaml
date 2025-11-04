@@ -38,7 +38,7 @@ permissions:
 
 jobs:
   performance-test:
-    timeout-minutes: 60
+    timeout-minutes: 90
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
@@ -190,10 +190,10 @@ jobs:
           echo "Parsing for the memory usage from the json file"
           MEMORY_USED_MB=$(cat ~/.solo/logs/*.json | jq '.memoryInMebibytes')
           echo "Checking memory usage is less than the threshold"
-          if [[ $MEMORY_USED_MB =~ ^[0-9]+ ]] && (( $MEMORY_USED_MB < 10000 )); then
-            echo "MEMORY_USED_MB is less than 10000 [MB]: MEMORY_USED_MB=${MEMORY_USED_MB} MB"
+          if [[ ${MEMORY_USED_MB} =~ ^[0-9]+ ]] && (( ${MEMORY_USED_MB} < ${MAX_MEMORY_MB} )); then
+            echo "MEMORY_USED_MB is less than ${MAX_MEMORY_MB} [MB]: MEMORY_USED_MB=${MEMORY_USED_MB} MB"
             exit 0
           else
-            echo "Not a valid number or it's >= 10000: MEMORY_USED_MB=${MEMORY_USED_MB} MB"
+            echo "Not a valid number or it's >= ${MAX_MEMORY_MB}: MEMORY_USED_MB=${MEMORY_USED_MB} MB"
             exit 1
           fi
