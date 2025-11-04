@@ -183,4 +183,17 @@ jobs:
           overwrite: true
           if-no-files-found: error
 
-      # TODO pull the metrics total memory minus NLG and ensure that it is below a variable, else fail the job
+      - name: Performance Test Verification
+        run: |
+          echo "Max memory threshold is set to ${MAX_MEMORY_MB} MB"
+          MAX_MEMORY_MB=10000
+          echo "Parsing for the memory usage from the json file"
+          MEMORY_USED_MB=$(cat ~/.solo/logs/*.json | jq '.memoryInMebibytes')
+          echo "Checking memory usage is less than the threshold"
+          if [[ MEMORY_USED_MB =~ ^[0-9]+ ]] && (( MEMORY_USED_MB < 10000 )); then
+            echo "MEMORY_USED_MB is less than 10000 [MB]: MEMORY_USED_MB=${MEMORY_USED_MB} MB"
+            exit 0
+          else
+            echo "Not a valid number or it's >= 10000: MEMORY_USED_MB=${MEMORY_USED_MB} MB"
+            exit 1
+          fi
