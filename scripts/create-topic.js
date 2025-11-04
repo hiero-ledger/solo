@@ -48,8 +48,7 @@ async function main() {
 
   const wallet = new Wallet(process.env.OPERATOR_ID, process.env.OPERATOR_KEY, provider);
 
-  const TEST_MESSAGE = 'Hello World';
-  try {
+ try {
     if (process.env.NEW_NODE_ACCOUNT_ID) {
       console.log(`NEW_NODE_ACCOUNT_ID = ${process.env.NEW_NODE_ACCOUNT_ID}`);
       provider._client.setNetwork({
@@ -81,8 +80,8 @@ async function main() {
       process.env.OPERATOR_KEY,
     );
 
-    let expectedContents = '';
-    let finished = false;
+    let subscriptionReceivedContent = '';
+    let topicSubscriptionReceived = false;
     new TopicMessageQuery()
       .setTopicId(createReceipt.topicId)
       // eslint-disable-next-line no-unused-vars
@@ -91,18 +90,19 @@ async function main() {
         (topic, error) => {
           if (error) {
             console.error(`ERROR: ${error}`, error);
-            finished = true;
+            topicSubscriptionReceived = true;
             return;
           }
         },
         topic => {
-          finished = true;
-          expectedContents = Buffer.from(topic.contents).toString('utf-8');
+          topicSubscriptionReceived = true;
+          subscriptionReceivedContent = Buffer.from(topic.contents).toString('utf-8');
           console.log(`Subscription received message: ${topic.contents}`);
         },
       );
 
     await sleep(3000);
+    const TEST_MESSAGE = 'Hello World for ' + createReceipt.topicId.toString()
 
     // send one message
     let topicMessageSubmitTransaction = await new TopicMessageSubmitTransaction({
@@ -123,30 +123,31 @@ async function main() {
 
     // Check submit message result should success
     const queryURL = `http://localhost:8080/api/v1/topics/${createReceipt.topicId}/messages`;
-    let received = false;
-    let receivedMessage = '';
+    let queryReceived = false;
+    let queryReceivedContent = '';
+    let somethingWrong = false;
 
     // wait until the transaction reached consensus and retrievable from the mirror node API
     let retry = 0;
-    while (!received && retry < 10) {
+    while (!queryReceived && retry < 10) {
       const req = http.request(queryURL, {method: 'GET', timeout: 100, headers: {Connection: 'close'}}, res => {
         res.setEncoding('utf8');
         res.on('data', chunk => {
           // convert chunk to json object
           const obj = JSON.parse(chunk);
           if (obj.messages.length === 0) {
-            console.log('No messages yet');
+            console.log('No messages received through API query yet');
           } else {
             if (obj.messages.length === 0) {
               console.error(`ERROR: No messages found for the topic ${createReceipt.topicId}`);
-              process.exit(1);
+              somethingWrong = true;
             }
             // convert message from base64 to utf-8
             const base64 = obj.messages[0].message;
             const buff = Buffer.from(base64, 'base64');
-            receivedMessage = buff.toString('utf-8');
-            console.log(`Query received message: ${receivedMessage}`);
-            received = true;
+            queryReceivedContent = buff.toString('utf-8');
+            console.log(`API query received message: ${queryReceivedContent}`);
+            queryReceived = true;
           }
         });
       });
@@ -162,26 +163,38 @@ async function main() {
       retry++;
     }
 
-    // wait a few seconds to receive subscription message
-    await sleep(5000);
-    if (!finished) {
-      console.error('ERROR: Not received subscription message');
-      process.exit(1);
-    } else if (expectedContents !== TEST_MESSAGE) {
-      console.error('ERROR: Message received from subscription but not match: ' + expectedContents);
-      process.exit(1);
+    if (!queryReceived) {
+      console.error('ERROR: Not received message through API query');
+      somethingWrong = true;
     }
 
-    if (receivedMessage === TEST_MESSAGE) {
+    // wait a few seconds to receive subscription message
+    await sleep(5000);
+    if (!topicSubscriptionReceived) {
+      console.error('ERROR: Not received subscription message');
+      somethingWrong = true;
+    } else if (subscriptionReceivedContent !== TEST_MESSAGE) {
+      console.error('ERROR: Message received from subscription but not match: ' + subscriptionReceivedContent);
+      somethingWrong = true;
+    }
+
+    if (queryReceivedContent === TEST_MESSAGE) {
       console.log('Message received through query successfully');
     } else {
-      console.error('ERROR: Message received through query but not match: ' + receivedMessage);
-      process.exit(1);
+      console.error('ERROR: Message received through query but not match: ' + queryReceivedContent);
+      somethingWrong = true;
     }
+
+   if (somethingWrong) {
+     process.exit(1)
+   }
+
   } catch (error) {
     console.error(`ERROR: ${error}`, error);
     throw error;
   }
+
+
   provider.close();
   console.log('\r::endgroup::');
   process.exit(0);
