@@ -119,7 +119,7 @@ jobs:
 
       - name: Run E2E Tests
         run: |
-          echo SOLO_TEST_CLUSTER=solo-e2e-c1 > .env
+          echo SOLO_TEST_CLUSTER=solo-e2e > .env
           echo ONE_SHOT_WITH_BLOCK_NODE=true >> .env
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_SLEEP_MINUTES=30 >> .env
