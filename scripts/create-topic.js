@@ -32,7 +32,7 @@ async function accountCreate(wallet) {
   const accountCreationResponse = await accountCreateTransaction.executeWithSigner(wallet);
   await sleep(3500); // wait for consensus on write transactions
   const accountCreationReceipt = await accountCreationResponse.getReceiptWithSigner(wallet);
-  console.log(`account id = ${accountCreationReceipt.accountId.toString()}`);
+  console.log(`newly created account id = ${accountCreationReceipt.accountId.toString()}`);
 }
 
 async function main() {
@@ -166,6 +166,9 @@ async function main() {
     if (!queryReceived) {
       console.error('ERROR: Not received message through API query');
       somethingWrong = true;
+    } else if (queryReceivedContent !== TEST_MESSAGE) {
+      console.error('ERROR: Message received through query but not match: ' + queryReceivedContent);
+      somethingWrong = true;
     }
 
     // wait a few seconds to receive subscription message
@@ -175,13 +178,6 @@ async function main() {
       somethingWrong = true;
     } else if (subscriptionReceivedContent !== TEST_MESSAGE) {
       console.error('ERROR: Message received from subscription but not match: ' + subscriptionReceivedContent);
-      somethingWrong = true;
-    }
-
-    if (queryReceivedContent === TEST_MESSAGE) {
-      console.log('Message received through query successfully');
-    } else {
-      console.error('ERROR: Message received through query but not match: ' + queryReceivedContent);
       somethingWrong = true;
     }
 
