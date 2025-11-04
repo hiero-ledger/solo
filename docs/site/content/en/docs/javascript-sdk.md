@@ -114,10 +114,11 @@ npm run solo-test -- ledger file create --deployment solo-deployment --file-path
 ```
 
 This command will:
-- Create a new file on the network
-- Automatically handle large files (>4KB) by splitting them into chunks
-- Display the system-assigned file ID
-- Verify the uploaded content matches the local file
+
+* Create a new file on the network
+* Automatically handle large files (>4KB) by splitting them into chunks
+* Display the system-assigned file ID
+* Verify the uploaded content matches the local file
 
 The output would be similar to:
 
@@ -154,10 +155,11 @@ npm run solo-test -- ledger file update --deployment solo-deployment --file-id 0
 ```
 
 This command will:
-- Verify the file exists on the network (errors if not found)
-- Update the file content
-- Automatically handle large files (>4KB) by splitting them into chunks
-- Verify the updated content matches the local file
+
+* Verify the file exists on the network (errors if not found)
+* Update the file content
+* Automatically handle large files (>4KB) by splitting them into chunks
+* Verify the updated content matches the local file
 
 The output would be similar to:
 

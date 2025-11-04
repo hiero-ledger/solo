@@ -1468,10 +1468,7 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: async function promptFileId(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: string,
-    ): Promise<string> {
+    prompt: async function promptFileId(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
       return await Flags.promptText(
         task,
         input,
@@ -1491,10 +1488,7 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: async function promptFilePath(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: string,
-    ): Promise<string> {
+    prompt: async function promptFilePath(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
       return await Flags.promptText(
         task,
         input,
