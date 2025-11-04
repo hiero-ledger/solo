@@ -82,7 +82,7 @@ RUN set -eux; \
     tar xzvf ./helm.tgz
 
 # Stage 2: Main application image
-FROM node:20.18.0-alpine
+FROM node:22-alpine3.21
 
 # Install required system packages
 RUN apk add --no-cache python3 jq git
