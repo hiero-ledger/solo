@@ -12,6 +12,7 @@ import {
   Client,
   AccountId,
   TopicId,
+  Timestamp,
 } from '@hiero-ledger/sdk';
 
 import dotenv from 'dotenv';
@@ -143,7 +144,7 @@ async function main() {
     let topicSubscriptionReceived = false;
     new TopicMessageQuery()
       .setTopicId(topicIdString)
-      // eslint-disable-next-line no-unused-vars
+      .setEndTime(Timestamp.fromDate(new Date(Date.now() + 180000)))
       .subscribe(
         mirrorClient,
         (topic, error) => {
@@ -158,8 +159,8 @@ async function main() {
             const receiveTime = Date.now();
             topicSubscriptionReceived = true;
             subscriptionReceivedContent = Buffer.from(topic.contents).toString('utf-8');
-            const elapsedMs = receiveTime - messageSendStart;
-            console.log(`[${new Date().toISOString()}] Subscription received message after ${elapsedMs}ms: ${topic.contents}`);
+            const elapsedSeconds = (receiveTime - messageSendStart) / 1000;
+            console.log(`✅ [${new Date().toISOString()}] Subscription received message after ${elapsedSeconds.toFixed(2)}s: ${topic.contents}`);
           }
         },
       );
@@ -170,7 +171,7 @@ async function main() {
     // Record start time before sending message
     const messageSendStart = Date.now();
     console.log(`Starting to send message at: ${new Date(messageSendStart).toISOString()}`);
-    
+
     // send one message
     let topicMessageSubmitTransaction = await new TopicMessageSubmitTransaction({
       topicId: topicIdString,
@@ -178,7 +179,7 @@ async function main() {
     }).freezeWithSigner(wallet);
     topicMessageSubmitTransaction = await topicMessageSubmitTransaction.signWithSigner(wallet);
     const sendResponse = await topicMessageSubmitTransaction.executeWithSigner(wallet);
-    
+
     await sleep(3500); // wait for consensus on write transactions
 
     const sendReceipt = await sendResponse.getReceiptWithSigner(wallet);
@@ -215,8 +216,8 @@ async function main() {
             const buff = Buffer.from(base64, 'base64');
             queryReceivedContent = buff.toString('utf-8');
             const queryReceiveTime = Date.now();
-            const elapsedMs = queryReceiveTime - messageSendStart;
-            console.log(`[${new Date().toISOString()}] API query received message after ${elapsedMs}ms: ${queryReceivedContent}`);
+            const elapsedSeconds = (queryReceiveTime - messageSendStart) / 1000;
+            console.log(`✅ [${new Date().toISOString()}] API query received message after ${elapsedSeconds.toFixed(2)}s: ${queryReceivedContent}`);
             queryReceived = true;
           }
         });
@@ -233,7 +234,7 @@ async function main() {
     }
 
     if (!queryReceived) {
-      console.error('ERROR: Not received message through API query');
+      console.error('❌ ERROR: Not received message through API query');
       somethingWrong = true;
     } else if (queryReceivedContent !== TEST_MESSAGE) {
       console.error('ERROR: Message received through query but not match: ' + queryReceivedContent);
@@ -243,7 +244,7 @@ async function main() {
     // wait a few seconds to receive subscription message
     await sleep(5000);
     if (!topicSubscriptionReceived) {
-      console.error('ERROR: Not received subscription message');
+      console.error('❌ ERROR: Not received subscription message');
       somethingWrong = true;
     } else if (subscriptionReceivedContent !== TEST_MESSAGE) {
       console.error('ERROR: Message received from subscription but not match: ' + subscriptionReceivedContent);
