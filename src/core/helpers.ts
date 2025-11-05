@@ -15,7 +15,7 @@ import {type SoloLogger} from './logging/solo-logger.js';
 import {type Duration} from './time/duration.js';
 import {type NodeAddConfigClass} from '../commands/node/config-interfaces/node-add-config-class.js';
 import {type ConsensusNode} from './model/consensus-node.js';
-import {type Optional, ReleaseNameData} from '../types/index.js';
+import {type Optional, type ReleaseNameData} from '../types/index.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type K8} from '../integration/kube/k8.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
@@ -27,8 +27,7 @@ import {type Realm, type Shard} from './../types/index.js';
 import {execSync} from 'node:child_process';
 import {type Service} from '../integration/kube/resources/service/service.js';
 import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
-import {ChartManager} from './chart-manager.js';
-import {Pod} from '../integration/kube/resources/pod/pod.js';
+import {type Pod} from '../integration/kube/resources/pod/pod.js';
 
 export function getInternalAddress(
   releaseVersion: semver.SemVer | string,
