@@ -165,44 +165,6 @@ function check_importer_log()
   fi
 }
 
-function log_and_exit()
-{
-  echo "load_log_and_exit begin with rc=$1"
-
-  printf "\r::group::Relay log dump\n"
-  echo "------- BEGIN RELAY DUMP -------"
-  kubectl get services -n "${SOLO_NAMESPACE}" --output=name | grep relay-node | grep -v '\-ws' | xargs -IRELAY kubectl logs -n "${SOLO_NAMESPACE}" RELAY > relay.log || true
-  cat relay.log || true
-  echo "------- END RELAY DUMP -------"
-  printf "\r::endgroup::\n"
-
-  printf "\r::group::Mirror REST log dump\n"
-  echo "------- BEGIN MIRROR REST DUMP -------"
-  kubectl get services -n "${SOLO_NAMESPACE}" --output=name | grep rest | grep -v '\-restjava' | xargs -IREST kubectl logs -n "${SOLO_NAMESPACE}" REST > rest.log || true
-  cat rest.log || true
-  echo "------- END MIRROR REST DUMP -------"
-  printf "\r::endgroup::\n"
-
-  printf "\r::group::Port-forward log dump\n"
-  echo "------- Last port-forward check -------" >> port-forward.log
-  ps -ef |grep port-forward >> port-forward.log
-
-  echo "------- BEGIN PORT-FORWARD DUMP -------"
-  cat port-forward.log
-  echo "------- END PORT-FORWARD DUMP -------"
-  printf "\r::endgroup::\n"
-
-  # sleep for a few seconds to give time for stdout to stream back in case it was called using nodejs
-  sleep 5
-  if [[ "$1" == "0" ]]; then
-    echo "Script completed successfully."
-    return 0
-  else
-    echo "An error occurred while running the script: $1"
-    return 1
-  fi
-}
-
 echo "Change to parent directory"
 
 cd ../

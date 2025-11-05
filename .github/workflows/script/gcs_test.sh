@@ -178,7 +178,11 @@ fi
 
 grpcurl -plaintext -d '{"file_id": {"fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes
 
-node scripts/create-topic.js
+node scripts/create-topic.js || result=$?
+if [[ $result -ne 0 ]]; then
+  echo "JavaScript SDK test failed with exit code $result"
+  log_and_exit $result
+fi
 
 npm run solo-test -- consensus node stop -i node1 --deployment "${SOLO_DEPLOYMENT}"
 
