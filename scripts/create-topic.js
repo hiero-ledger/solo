@@ -11,6 +11,7 @@ import {
   TopicMessageQuery,
   Client,
   AccountId,
+  TopicId,
 } from '@hiero-ledger/sdk';
 
 import dotenv from 'dotenv';
@@ -30,10 +31,10 @@ async function sleep(ms) {
 function startGrpcSubscription(topicId) {
   // Extract just the numeric part from the topic ID (e.g., '0.0.1018' -> '1018')
   const topicNum = topicId.split('.').pop();
-  
+
   // Build the command with properly formatted JSON
   const command = `grpcurl -plaintext -d '{"topicID": {"topicNum": ${topicNum}}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.ConsensusService/subscribeTopic`;
-  
+
   console.log('Executing command:', command);
 
   const grpcurl = spawn(command, {
@@ -110,7 +111,9 @@ async function main() {
     await sleep(3500); // wait for consensus on write transactions
 
     const createReceipt = await createResponse.getReceiptWithSigner(wallet);
-    console.log(`topic id = ${createReceipt.topicId.toString()}`);
+
+    const topicIdString = createReceipt.topicId.toString();
+    console.log(`topic id = ${topicIdString.toString()}`);
 
     console.log('Wait to create subscribe to new topic');
     await sleep(3000);
@@ -122,12 +125,12 @@ async function main() {
     );
 
     // Start gRPC subscription in a separate process
-    startGrpcSubscription(createReceipt.topicId.toString());
+    startGrpcSubscription(topicIdString.toString());
 
     let subscriptionReceivedContent = '';
     let topicSubscriptionReceived = false;
     new TopicMessageQuery()
-      .setTopicId(createReceipt.topicId)
+      .setTopicId(topicIdString)
       // eslint-disable-next-line no-unused-vars
       .subscribe(
         mirrorClient,
@@ -146,11 +149,11 @@ async function main() {
       );
 
     await sleep(3000);
-    const TEST_MESSAGE = 'Hello World for ' + createReceipt.topicId.toString()
+    const TEST_MESSAGE = 'Hello World for ' + topicIdString.toString()
 
     // send one message
     let topicMessageSubmitTransaction = await new TopicMessageSubmitTransaction({
-      topicId: createReceipt.topicId,
+      topicId: topicIdString,
       message: TEST_MESSAGE,
     }).freezeWithSigner(wallet);
     topicMessageSubmitTransaction = await topicMessageSubmitTransaction.signWithSigner(wallet);
@@ -166,14 +169,14 @@ async function main() {
     await sleep(1000); // wait for mirror node to sync
 
     // Check submit message result should success
-    const queryURL = `http://localhost:8080/api/v1/topics/${createReceipt.topicId}/messages`;
+    const queryURL = `http://localhost:8080/api/v1/topics/${topicIdString}/messages`;
     let queryReceived = false;
     let queryReceivedContent = '';
     let somethingWrong = false;
 
     // wait until the transaction reached consensus and retrievable from the mirror node API
     let retry = 0;
-    while (!queryReceived && retry < 10) {
+    while (!queryReceived && retry < 25) {
       const req = http.request(queryURL, {method: 'GET', timeout: 100, headers: {Connection: 'close'}}, res => {
         res.setEncoding('utf8');
         res.on('data', chunk => {
@@ -183,7 +186,7 @@ async function main() {
             console.log('No messages received through API query yet');
           } else {
             if (obj.messages.length === 0) {
-              console.error(`ERROR: No messages found for the topic ${createReceipt.topicId}`);
+              console.error(`ERROR: No messages found for the topic ${topicIdString}`);
               somethingWrong = true;
             }
             // convert message from base64 to utf-8
@@ -202,8 +205,7 @@ async function main() {
       // wait and try again
       // send a create account transaction to push record stream files to mirror node
       await accountCreate(wallet);
-      await sleep(3500); // wait for consensus on write transactions
-      await sleep(1000); // wait for mirror node to sync
+      await sleep(5); // wait for consensus on write transactions and mirror node to sync
       retry++;
     }
 
