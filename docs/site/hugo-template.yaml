@@ -45,6 +45,7 @@ module:
         - running-solo-inside-cluster.md
         - state-save-and-restore.md
         - version-upgrade-test.md
+        - backup-restore-workflow.md
     - source: ../../images
       target: content/docs/readme/images
     - source: content/en

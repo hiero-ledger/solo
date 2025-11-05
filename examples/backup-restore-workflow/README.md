@@ -15,7 +15,7 @@ This example demonstrates a complete backup and restore workflow for a Hiero net
 * [Task](https://taskfile.dev/) installed (`brew install go-task/tap/go-task` on macOS)
 * [Kind](https://kind.sigs.k8s.io/) installed (`brew install kind` on macOS)
 * [kubectl](https://kubernetes.io/docs/tasks/tools/) installed
-* Node.js 20+ and npm installed
+* Node.js 22+ and npm installed
 * Docker Desktop running with sufficient resources (8GB+ RAM recommended)
 
 ## Quick Start
