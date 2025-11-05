@@ -2625,6 +2625,28 @@ export class Flags {
 
   // --------------- Rapid Fire --------------- //
 
+  public static readonly performanceTest: CommandFlag = {
+    constName: 'performanceTest',
+    name: 'test',
+    definition: {
+      describe: 'The class name of the Performance Test to run',
+      type: 'string',
+      defaultValue: '',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly packageName: CommandFlag = {
+    constName: 'packageName',
+    name: 'package',
+    definition: {
+      describe: 'The package name of the Performance Test to run. Defaults to ',
+      type: 'string',
+      defaultValue: 'com.hedera.benchmark',
+    },
+    prompt: undefined,
+  };
+
   public static readonly nlgArguments: CommandFlag = {
     constName: 'nlgArguments',
     name: 'args',
@@ -2799,6 +2821,8 @@ export class Flags {
     Flags.podLog,
     Flags.nlgArguments,
     Flags.javaHeap,
+    Flags.performanceTest,
+    Flags.packageName,
   ];
 
   /** Resets the definition.disablePrompt for all flags */
