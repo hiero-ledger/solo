@@ -74,7 +74,7 @@ export class RapidFireCommandDefinition extends BaseCommandDefinition {
             'Uninstall the Network Load Generator Helm chart and remove all related resources.',
             this.rapidFireCommand,
             this.rapidFireCommand.destroy,
-            RapidFireCommand.STOP_FLAGS_LIST,
+            RapidFireCommand.DESTROY_FLAGS_LIST,
             [constants.HELM, constants.KUBECTL],
             false,
           ),

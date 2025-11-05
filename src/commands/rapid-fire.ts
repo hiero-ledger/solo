@@ -92,6 +92,11 @@ export class RapidFireCommand extends BaseCommand {
     optional: [flags.devMode, flags.force, flags.quiet, flags.packageName],
   };
 
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment],
+    optional: [flags.devMode, flags.force, flags.quiet],
+  };
+
   private nglChartIsDeployed(context_: RapidFireStartContext): Promise<boolean> {
     return this.chartManager.isChartInstalled(
       context_.config.namespace,
