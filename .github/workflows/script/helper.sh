@@ -50,7 +50,7 @@ function log_and_exit()
 
   printf "\r::group::Relay log dump\n"
   echo "------- BEGIN RELAY DUMP -------"
-  kubectl get services -n "${SOLO_NAMESPACE}" --output=name | grep relay-1 | grep -v '\-ws' | xargs -IRELAY kubectl logs -n "${SOLO_NAMESPACE}" RELAY > relay.log
+  kubectl get services -n "${SOLO_NAMESPACE}" --output=name | grep relay-1 | grep -v '\-ws' | xargs -IRELAY kubectl logs -n "${SOLO_NAMESPACE}" RELAY > relay.log || true
   echo "------- END RELAY DUMP -------"
   printf "\r::endgroup::\n"
 
