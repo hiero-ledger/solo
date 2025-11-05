@@ -79,6 +79,7 @@ function log_and_exit()
   printf "\r::group::Port-forward log dump\n"
   echo "------- Last port-forward check -------" >> port-forward.log
   ps -ef |grep port-forward >> port-forward.log
+  printf "\r::endgroup::\n"
 
   # copy all logs to home cache directory
   cp relay.log rest.log importer.log port-forward.log "$HOME"/.solo/ || true
