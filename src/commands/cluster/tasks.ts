@@ -8,7 +8,7 @@ import {ErrorMessages} from '../../core/error-messages.js';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {UserBreak} from '../../core/errors/user-break.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
-import {type ClusterReferenceName, ReleaseNameData, type SoloListrTask} from '../../types/index.js';
+import {type ClusterReferenceName, Context, type ReleaseNameData, type SoloListrTask} from '../../types/index.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
@@ -50,6 +50,10 @@ export class ClusterCommandTasks {
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+  }
+
+  public findMinioOperator(context: Context): Promise<ReleaseNameData> {
+    return findMinioOperator(context, this.k8Factory);
   }
 
   public connectClusterRef(): SoloListrTask<ClusterReferenceConnectContext> {
@@ -208,7 +212,7 @@ export class ClusterCommandTasks {
     return {
       title: 'Install MinIO Operator chart',
       task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
-        const {exists: isMinioInstalled}: ReleaseNameData = await findMinioOperator(context, this.k8Factory);
+        const {exists: isMinioInstalled}: ReleaseNameData = await this.findMinioOperator(context);
 
         if (isMinioInstalled) {
           this.logger.showUser('⏭️  MinIO Operator chart already installed, skipping');
@@ -439,10 +443,7 @@ export class ClusterCommandTasks {
     return {
       title: 'Uninstall MinIO Operator chart',
       task: async ({config: {clusterSetupNamespace: namespace, context}}): Promise<void> => {
-        const {exists: isMinioInstalled, releaseName}: ReleaseNameData = await findMinioOperator(
-          context,
-          this.k8Factory,
-        );
+        const {exists: isMinioInstalled, releaseName}: ReleaseNameData = await this.findMinioOperator(context);
 
         if (isMinioInstalled) {
           await this.chartManager.uninstall(namespace, releaseName, context);

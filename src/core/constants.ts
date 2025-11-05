@@ -107,7 +107,7 @@ export const POD_MONITOR_ROLE = 'pod-monitor-role';
 export const MINIO_OPERATOR_CHART_URL =
   getEnvironmentVariable('MINIO_OPERATOR_CHART_URL') ?? 'https://operator.min.io/';
 export const MINIO_OPERATOR_CHART: string = 'operator';
-export const MINIO_OPERATOR_RELEASE_NAME: string = getEnvironmentVariable('MINIO_OPERATOR_RELEASE_NAME') ?? 'operator';
+export const MINIO_OPERATOR_RELEASE_NAME: string = 'operator';
 
 export const EXPLORER_CHART_URL =
   getEnvironmentVariable('EXPLORER_CHART_URL') ??
