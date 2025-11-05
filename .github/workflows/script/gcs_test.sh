@@ -3,6 +3,8 @@ set -eo pipefail
 
 source .github/workflows/script/helper.sh
 
+rm -rf ~/.solo/* || true
+
 # Check the health of a service endpoint
 # $1: URL to check
 # $2: Expected content in response

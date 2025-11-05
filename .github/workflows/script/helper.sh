@@ -51,32 +51,34 @@ function log_and_exit()
   printf "\r::group::Relay log dump\n"
   echo "------- BEGIN RELAY DUMP -------"
   kubectl get services -n "${SOLO_NAMESPACE}" --output=name | grep relay-1 | grep -v '\-ws' | xargs -IRELAY kubectl logs -n "${SOLO_NAMESPACE}" RELAY > relay.log
-  cat relay.log || true
   echo "------- END RELAY DUMP -------"
   printf "\r::endgroup::\n"
 
   printf "\r::group::Mirror REST log dump\n"
   echo "------- BEGIN MIRROR REST DUMP -------"
   kubectl get services -n "${SOLO_NAMESPACE}" --output=name | grep rest | grep -v '\-restjava' | xargs -IREST kubectl logs -n "${SOLO_NAMESPACE}" REST > rest.log || true
-  cat rest.log || true
   echo "------- END MIRROR REST DUMP -------"
   printf "\r::endgroup::\n"
 
   printf "\r::group::Mirror Importer log dump\n"
   echo "------- BEGIN MIRROR IMPORTER DUMP -------"
   kubectl get pods -n "${SOLO_NAMESPACE}" --output=name | grep importer | xargs -IIMPORTER kubectl logs -n "${SOLO_NAMESPACE}" IMPORTER > importer.log || true
-  cat importer.log || true
   echo "------- END MIRROR IMPORTER DUMP -------"
+  printf "\r::endgroup::\n"
+
+  printf "\r::group::Pod events dump\n"
+  echo "------- BEGIN POD EVENTS DUMP -------"
+  kubectl get pods -n "${SOLO_NAMESPACE}" --output=name | grep block-node
+  for pod in $(kubectl get pods -n "${SOLO_NAMESPACE}" --output=name | grep block-node); do
+    echo "Events for pod: ${pod}"
+    kubectl events --for="${pod}" -n "${SOLO_NAMESPACE}" || true
+  done
+  echo "------- END POD EVENTS DUMP -------"
   printf "\r::endgroup::\n"
 
   printf "\r::group::Port-forward log dump\n"
   echo "------- Last port-forward check -------" >> port-forward.log
   ps -ef |grep port-forward >> port-forward.log
-
-  echo "------- BEGIN PORT-FORWARD DUMP -------"
-  cat port-forward.log
-  echo "------- END PORT-FORWARD DUMP -------"
-  printf "\r::endgroup::\n"
 
   # copy all logs to home cache directory
   cp relay.log rest.log importer.log port-forward.log "$HOME"/.solo/ || true
