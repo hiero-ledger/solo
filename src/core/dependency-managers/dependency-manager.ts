@@ -118,7 +118,7 @@ export class DependencyManager extends ShellRunner {
     return deps.map(dep => {
       return {
         title: `Check dependency: ${dep} [OS: ${os.platform()}, Release: ${os.release()}, Arch: ${os.arch()}]`,
-        task: () => this.checkDependency(dep),
+        task: (): Promise<boolean> => this.checkDependency(dep),
         skip: (): Promise<boolean> => this.skipDependency(dep),
       };
     });
