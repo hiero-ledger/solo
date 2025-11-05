@@ -449,6 +449,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     this._remoteConfig.state.explorers = [];
     this._remoteConfig.state.mirrorNodes = [];
     this._remoteConfig.state.relayNodes = [];
+    await this.persist();
   }
 
   private async setDefaultNamespaceAndDeploymentIfNotSet(argv: AnyObject): Promise<void> {
@@ -457,7 +458,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     }
 
     // TODO: Current quick fix for commands where namespace is not passed
-    let deploymentName: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+    let deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
     let currentDeployment: Deployment = this.localConfig.configuration.deploymentByName(deploymentName);
 
     if (!deploymentName) {
@@ -572,7 +573,8 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
 
     const clusterReference: ClusterReferenceName =
-      this.localConfig.configuration.deploymentByName(deploymentName).clusters[0];
+      this.localConfig.configuration.deploymentByName(deploymentName).clusters[0] ??
+      this.k8Factory.default().clusters().readCurrent();
 
     const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
 

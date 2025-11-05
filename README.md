@@ -23,10 +23,10 @@ Every quarter a version will be designated as LTS (Long-Term Support) and will b
 
 ### Current Releases
 
-| Solo Version | Node.js               | Kind       | Solo Chart | Hedera   | Kubernetes | Kubectl    | Helm    | k9s        | Docker Resources         | Release Date | End of Support |
-|--------------|-----------------------|------------|------------|----------|------------|------------|---------|------------|--------------------------|--------------|----------------|
-| 0.48.0 (LTS) | >= 20.19.0 (lts/iron) | >= v0.26.0 | v0.56.0    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU >= 4 | 2025-10-24   | 2026-01-24     |
-| 0.47.0       | >= 20.19.0 (lts/iron) | >= v0.26.0 | v0.56.0    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU >= 4 | 2025-10-16   | 2025-11-16     |
+| Solo Version | Node.js             | Kind       | Solo Chart | Hedera   | Kubernetes | Kubectl    | Helm    | k9s        | Docker Resources         | Release Date | End of Support |
+|--------------|---------------------|------------|------------|----------|------------|------------|---------|------------|--------------------------|--------------|----------------|
+| 0.48.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.56.0    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU >= 4 | 2025-10-24   | 2026-01-24     |
+| 0.47.0       | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.56.0    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU >= 4 | 2025-10-16   | 2025-11-16     |
 
 To see a list of legacy releases, please check the [legacy versions documentation page](docs/legacy-versions.md).
 
@@ -45,15 +45,15 @@ To run a one-node network, you will need to set up Docker Desktop with at least 
 # install specific nodejs version
 # nvm install <version>
 
-# install nodejs version 20.18.0
-nvm install v20.18.0
+# install nodejs version 22.0.0
+nvm install v22.0.0
 
 # lists available node versions already installed
 nvm ls
 
 # switch to selected node version
 # nvm use <version>
-nvm use v20.18.0
+nvm use v22.0.0
 
 ```
 

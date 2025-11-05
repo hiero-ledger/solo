@@ -12,6 +12,7 @@ import {
   type Context,
   type DeploymentName,
   type NamespaceNameAsString,
+  type Optional,
   type Realm,
   type Shard,
   type SoloListrTask,
@@ -30,6 +31,8 @@ import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
 import {StringFacade} from '../business/runtime-state/facade/string-facade.js';
 import {Deployment} from '../business/runtime-state/config/local/deployment.js';
 import {CommandFlags} from '../types/flag-types.js';
+import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
+import {type FacadeArray} from '../business/runtime-state/collection/facade-array.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -178,8 +181,6 @@ export class DeploymentCommand extends BaseCommand {
    * Delete a deployment from the local config
    */
   public async delete(argv: ArgvStruct): Promise<boolean> {
-    const self = this;
-
     interface Config {
       quiet: boolean;
       namespace: NamespaceName;
@@ -190,48 +191,61 @@ export class DeploymentCommand extends BaseCommand {
       config: Config;
     }
 
-    const tasks = new Listr<Context>(
+    const tasks = this.taskList.newTaskList(
       [
         {
           title: 'Initialize',
-          task: async (context_, task) => {
-            await self.localConfig.load();
-            await self.remoteConfig.loadAndValidate(argv);
+          task: async (context_: Context, task): Promise<void> => {
+            await this.localConfig.load();
+            try {
+              await this.remoteConfig.loadAndValidate(argv);
+            } catch {
+              // Guard
+            }
 
-            self.configManager.update(argv);
+            this.configManager.update(argv);
 
-            await self.configManager.executePrompt(task, [flags.deployment]);
+            await this.configManager.executePrompt(task, [flags.deployment]);
 
             context_.config = {
-              quiet: self.configManager.getFlag<boolean>(flags.quiet),
-              deployment: self.configManager.getFlag<DeploymentName>(flags.deployment),
+              quiet: this.configManager.getFlag(flags.quiet),
+              deployment: this.configManager.getFlag(flags.deployment),
             } as Config;
 
-            if (
-              !self.localConfig.configuration.deployments ||
-              !self.localConfig.configuration.deployments.some(
-                (d: Deployment): boolean => d.name === context_.config.deployment,
-              )
-            ) {
-              throw new SoloError(ErrorMessages.DEPLOYMENT_NAME_ALREADY_EXISTS(context_.config.deployment));
+            const deployment: DeploymentName = context_.config.deployment;
+
+            if (!this.localConfig.configuration.deployments?.some((d): boolean => d.name === deployment)) {
+              throw new SoloError(ErrorMessages.DEPLOYMENT_NAME_ALREADY_EXISTS(deployment));
             }
           },
         },
         {
           title: 'Check for existing remote resources',
-          task: async (context_): Promise<void> => {
-            const {deployment} = context_.config;
-            const clusterReferences = self.localConfig.configuration.deploymentByName(deployment).clusters;
-            for (const clusterReference of clusterReferences) {
-              const context = self.localConfig.configuration.clusterRefs.get(clusterReference.toString()).toString();
-              const namespace = NamespaceName.of(self.localConfig.configuration.deploymentByName(deployment).namespace);
-              const remoteConfigExists: boolean = await self.remoteConfig.remoteConfigExists(namespace, context);
-              const namespaceExists = await self.k8Factory.getK8(context).namespaces().has(namespace);
-              const existingConfigMaps = await self.k8Factory
+          task: async ({config: {deployment}}): Promise<void> => {
+            const clusterReferences: FacadeArray<StringFacade, string> =
+              this.localConfig.configuration.deploymentByName(deployment).clusters;
+
+            for (const clusterReferenceFacade of clusterReferences) {
+              const clusterReference: ClusterReferenceName = clusterReferenceFacade.toString();
+
+              const namespace: NamespaceName = NamespaceName.of(
+                this.localConfig.configuration.deploymentByName(deployment).namespace,
+              );
+
+              const context: Optional<string> = this.localConfig.configuration.clusterRefs
+                .get(clusterReference)
+                ?.toString();
+
+              const remoteConfigExists: boolean = await this.remoteConfig
+                .remoteConfigExists(namespace, context)
+                .catch((): boolean => false);
+
+              const existingConfigMaps: ConfigMap[] = await this.k8Factory
                 .getK8(context)
                 .configMaps()
                 .list(namespace, ['app.kubernetes.io/managed-by=Helm']);
-              if (remoteConfigExists || namespaceExists || existingConfigMaps.length > 0) {
+
+              if (remoteConfigExists || existingConfigMaps.length > 0) {
                 throw new SoloError(`Deployment ${deployment} has remote resources in cluster: ${clusterReference}`);
               }
             }
@@ -239,9 +253,7 @@ export class DeploymentCommand extends BaseCommand {
         },
         {
           title: 'Remove deployment from local config',
-          task: async context_ => {
-            const {deployment} = context_.config;
-
+          task: async ({config: {deployment}}): Promise<void> => {
             const actualDeployment: Deployment = this.localConfig.configuration.deploymentByName(deployment);
             if (actualDeployment) {
               this.localConfig.configuration.deployments.remove(actualDeployment);
@@ -255,12 +267,16 @@ export class DeploymentCommand extends BaseCommand {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
       },
+      undefined,
+      'deployment config delete',
     );
 
-    try {
-      await tasks.run();
-    } catch (error: Error | unknown) {
-      throw new SoloError('Error deleting deployment', error);
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error: Error | unknown) {
+        throw new SoloError('Error deleting deployment', error);
+      }
     }
 
     return true;
