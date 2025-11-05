@@ -15,11 +15,52 @@ import {
 
 import dotenv from 'dotenv';
 import http from 'http';
+import { spawn } from 'child_process';
 
 dotenv.config();
 
 async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Starts a gRPC subscription to the specified topic
+ * @param {string} topicId - The topic ID to subscribe to
+ */
+function startGrpcSubscription(topicId) {
+  // Extract just the numeric part from the topic ID (e.g., '0.0.1018' -> '1018')
+  const topicNum = topicId.split('.').pop();
+  
+  // Build the command with properly formatted JSON
+  const command = `grpcurl -plaintext -d '{"topicID": {"topicNum": ${topicNum}}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.ConsensusService/subscribeTopic`;
+  
+  console.log('Executing command:', command);
+
+  const grpcurl = spawn(command, {
+    shell: true,
+    detached: true
+  });
+
+  // Log stdout
+  grpcurl.stdout?.on('data', (data) => {
+    console.log(`stdout: ${data}`);
+  });
+
+  // Log stderr
+  grpcurl.stderr?.on('data', (data) => {
+    console.error(`stderr: ${data}`);
+  });
+
+  grpcurl.on('error', (error) => {
+    console.error(`Error starting grpcurl: ${error.message}`);
+  });
+
+  grpcurl.on('close', (code) => {
+    console.log(`grpcurl process exited with code ${code}`);
+  });
+
+  // Don't unref immediately, let's see the output first
+  // grpcurl.unref();
 }
 
 async function accountCreate(wallet) {
@@ -79,6 +120,9 @@ async function main() {
       process.env.OPERATOR_ID,
       process.env.OPERATOR_KEY,
     );
+
+    // Start gRPC subscription in a separate process
+    startGrpcSubscription(createReceipt.topicId.toString());
 
     let subscriptionReceivedContent = '';
     let topicSubscriptionReceived = false;
