@@ -18,6 +18,18 @@ import dotenv from 'dotenv';
 import http from 'http';
 import { spawn } from 'child_process';
 
+// Override console.log and console.error to include timestamps
+const originalLog = console.log;
+const originalError = console.error;
+
+console.log = function(...args) {
+  originalLog(`[${new Date().toISOString()}]`, ...args);
+};
+
+console.error = function(...args) {
+  originalError(`[${new Date().toISOString()}] ERROR:`, ...args);
+};
+
 dotenv.config();
 
 async function sleep(ms) {
@@ -142,15 +154,23 @@ async function main() {
           }
         },
         topic => {
-          topicSubscriptionReceived = true;
-          subscriptionReceivedContent = Buffer.from(topic.contents).toString('utf-8');
-          console.log(`Subscription received message: ${topic.contents}`);
+          if (!topicSubscriptionReceived) { // Only log for the first received message
+            const receiveTime = Date.now();
+            topicSubscriptionReceived = true;
+            subscriptionReceivedContent = Buffer.from(topic.contents).toString('utf-8');
+            const elapsedMs = receiveTime - messageSendStart;
+            console.log(`[${new Date().toISOString()}] Subscription received message after ${elapsedMs}ms: ${topic.contents}`);
+          }
         },
       );
 
     await sleep(3000);
     const TEST_MESSAGE = 'Hello World for ' + topicIdString.toString()
 
+    // Record start time before sending message
+    const messageSendStart = Date.now();
+    console.log(`Starting to send message at: ${new Date(messageSendStart).toISOString()}`);
+    
     // send one message
     let topicMessageSubmitTransaction = await new TopicMessageSubmitTransaction({
       topicId: topicIdString,
@@ -158,6 +178,7 @@ async function main() {
     }).freezeWithSigner(wallet);
     topicMessageSubmitTransaction = await topicMessageSubmitTransaction.signWithSigner(wallet);
     const sendResponse = await topicMessageSubmitTransaction.executeWithSigner(wallet);
+    
     await sleep(3500); // wait for consensus on write transactions
 
     const sendReceipt = await sendResponse.getReceiptWithSigner(wallet);
@@ -176,7 +197,7 @@ async function main() {
 
     // wait until the transaction reached consensus and retrievable from the mirror node API
     let retry = 0;
-    while (!queryReceived && retry < 25) {
+    while (!queryReceived && retry < 30) {
       const req = http.request(queryURL, {method: 'GET', timeout: 100, headers: {Connection: 'close'}}, res => {
         res.setEncoding('utf8');
         res.on('data', chunk => {
@@ -193,7 +214,9 @@ async function main() {
             const base64 = obj.messages[0].message;
             const buff = Buffer.from(base64, 'base64');
             queryReceivedContent = buff.toString('utf-8');
-            console.log(`API query received message: ${queryReceivedContent}`);
+            const queryReceiveTime = Date.now();
+            const elapsedMs = queryReceiveTime - messageSendStart;
+            console.log(`[${new Date().toISOString()}] API query received message after ${elapsedMs}ms: ${queryReceivedContent}`);
             queryReceived = true;
           }
         });
