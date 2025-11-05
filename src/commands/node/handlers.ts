@@ -10,7 +10,7 @@ import {type Lock} from '../../core/lock/lock.js';
 import {LeaseWrapper, type NodeCommandTasks} from './tasks.js';
 import {NodeSubcommandType} from '../../core/enumerations.js';
 import {NodeHelper} from './helper.js';
-import {type ArgvStruct, type NodeAlias, type NodeAliases} from '../../types/aliases.js';
+import {AnyListrContext, type ArgvStruct, type NodeAlias, type NodeAliases} from '../../types/aliases.js';
 import chalk from 'chalk';
 import {type ComponentId, type Optional, type SoloListr, type SoloListrTask} from '../../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
@@ -680,6 +680,56 @@ export class NodeCommandHandlers extends CommandHandler {
     );
 
     return true;
+  }
+
+  public async all(argv: ArgvStruct): Promise<boolean> {
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
+    await this.commandAction(
+      argv,
+      [
+        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
+        this.tasks.getNodeLogsAndConfigs(),
+        ...this.validateConnectionsTaskList(),
+      ],
+      {
+        concurrent: false,
+        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+      },
+      'Error in diagnosing deployment',
+      null,
+    );
+
+    return true;
+  }
+
+  public async connections(argv: ArgvStruct): Promise<boolean> {
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
+
+    await this.commandAction(
+      argv,
+      [
+        this.tasks.initialize(argv, this.configs.connectionsConfigBuilder.bind(this.configs), null),
+        ...this.validateConnectionsTaskList(),
+      ],
+      {
+        concurrent: false,
+        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+      },
+      'Error in testing connections to components',
+      null,
+    );
+
+    return true;
+  }
+
+  private validateConnectionsTaskList(): SoloListrTask<AnyListrContext>[] {
+    return [
+      this.tasks.prepareDiagnosticsData(),
+      this.tasks.validateLocalPorts(),
+      this.tasks.testAccountCreation(),
+      this.tasks.fetchAccountFromExplorer(),
+      this.tasks.testRelay(),
+    ];
   }
 
   public async states(argv: ArgvStruct): Promise<boolean> {

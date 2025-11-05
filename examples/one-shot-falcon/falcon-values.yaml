@@ -10,7 +10,7 @@ network:
   --bootstrap-properties: ""
   --genesis-throttles-file: ""
   --cache-dir: ""
-  --ledger-id: ""
+  --chain-id: ""
   --chart-dir: ""
   --solo-chart-version: ""
   --debug-node-alias: ""
@@ -111,7 +111,7 @@ relayNode:
   --values-file: ""
   --node-aliases: ""
   --replica-count: 1
-  --ledger-id: ""
+  --chain-id: ""
   --domain-name: ""
   --operator-id: ""
   --operator-key: ""

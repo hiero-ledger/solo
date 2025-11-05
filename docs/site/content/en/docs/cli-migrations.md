@@ -38,8 +38,8 @@ type: docs
 
 | **Old Command**            | **New Command**  |
 |----------------------------|------------------|
-| one-shot single deploy  | one shot deploy  |
-| one-shot single destroy | one shot destroy |
+| quick-start single deploy  | one-shot single deploy  |
+| quick-start single destroy | one-shot single destroy |
 
 ## Cluster Reference
 
@@ -120,5 +120,5 @@ type: docs
 | node prepare-upgrade            | consensus dev-freeze prepare-upgrade          |
 | node freeze-upgrade             | consensus dev-freeze freeze-upgrade           |
 | node download-generated-files   | consensus diagnostic configs                  |
-| node logs                       | consensus diagnostics all                     |
+| node logs                       | consensus diagnostics logs                    |
 | node states                     | consensus state download                      |

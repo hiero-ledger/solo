@@ -8,6 +8,7 @@ import {type ListrTask, type ListrTaskWrapper} from 'listr2';
 import {type PublicKey} from '@hiero-ledger/sdk';
 import {type AnyYargs, type ArgvStruct, type JsonString} from './aliases.js';
 import {type Listr} from 'listr2';
+import {type NamespaceName} from './namespace/namespace-name.js';
 
 // NOTE: DO NOT add any Solo imports in this file to avoid circular dependencies
 
@@ -124,7 +125,7 @@ export interface GossipEndpoint {
   port: number;
 }
 
-export interface portForwardConfig {
+export interface PortForwardConfig {
   localPort: number;
   podPort: number;
 }
@@ -158,7 +159,23 @@ export interface ReleaseInfo {
   version: string;
 }
 
+export type ComponentDisplayName = 'Consensus node' | 'Mirror node' | 'Explorer node' | 'Relay node' | 'Block node';
+
+export type ComponentData = {
+  clusterReference: ClusterReferenceName;
+  contextName: Context;
+  componentId: ComponentId;
+  namespace: NamespaceName;
+  portForwards: Optional<PortForwardConfig[]>;
+  componentDisplayName: ComponentDisplayName;
+};
+
 export type InitDependenciesOptions = {deps: string[]; createCluster: boolean};
+
+export type ReleaseNameData = {
+  releaseName: Optional<string>;
+  exists: boolean;
+};
 
 export type Version = string;
 /// TODO - see if we can use NamespaceName and use some annotations and overrides to covert to strings
