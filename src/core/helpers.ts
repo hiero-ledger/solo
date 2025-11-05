@@ -599,20 +599,11 @@ export function createDirectoryIfNotExists(file: string): void {
 }
 
 export async function findMinioOperator(context: string, k8: K8Factory): Promise<ReleaseNameData> {
-  console.log('------------------------------------------------------------------------------------------');
-  console.log('------------------------------------------------------------------------------------------');
-  console.log('------------------------------------------------------------------------------------------');
-
   const minioTenantPod: Optional<Pod> = await k8
     .getK8(context)
     .pods()
     .listForAllNamespaces(['app.kubernetes.io/name=operator', 'operator=leader'])
     .then((pods: Pod[]): Optional<Pod> => pods[0]);
-
-  console.log('------------------------------------------------------------------------------------------');
-  console.log('------------------------------------------------------------------------------------------');
-  console.log({labels: minioTenantPod.labels});
-  console.log('------------------------------------------------------------------------------------------');
 
   if (!minioTenantPod) {
     return {
