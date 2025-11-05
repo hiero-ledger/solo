@@ -455,10 +455,12 @@ export class ProfileManager {
       return;
     }
 
-    const lines: string[] = (await readFile(applicationPropertiesPath, 'utf-8')).split('\n');
+    const lines: string[] = await readFile(applicationPropertiesPath, 'utf-8').then((fileText): string[] =>
+      fileText.split('\n'),
+    );
 
-    const streamMode: string = 'BOTH';
-    const writerMode: string = 'FILE_AND_GRPC';
+    const streamMode: string = 'BLOCKS';
+    const writerMode: string = 'GRPC';
 
     let streamModeUpdated: boolean = false;
     let writerModeUpdated: boolean = false;
