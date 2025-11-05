@@ -90,8 +90,6 @@ describe('Node add with hedera local build', (): void => {
           testFilePath,
           '--deployment',
           `${namespace.name}-deployment`,
-          '--namespace',
-          namespace.name,
         );
 
         await main(createArguments);
@@ -112,8 +110,6 @@ describe('Node add with hedera local build', (): void => {
           updatedFilePath,
           '--deployment',
           `${namespace.name}-deployment`,
-          '--namespace',
-          namespace.name,
         );
 
         await main(updateArguments);
