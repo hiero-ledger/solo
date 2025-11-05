@@ -34,8 +34,10 @@ export class InitCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
     @inject(InjectTokens.PodmanInstallationDir) protected readonly podmanInstallationDirectory: string,
+    @inject(InjectTokens.OsPlatform) protected readonly osPlatform: NodeJS.Platform,
   ) {
     super();
+    this.osPlatform = patchInject(osPlatform, InjectTokens.OsPlatform, InitCommand.name);
     this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, InitCommand.name);
     this.podmanInstallationDirectory = patchInject(
       podmanInstallationDirectory,
@@ -131,7 +133,7 @@ export class InitCommand extends BaseCommand {
           const shouldInstallPodman: boolean = await podmanDependency.shouldInstall();
 
           const podmanDependencies: string[] = shouldInstallPodman
-            ? [constants.PODMAN, constants.VFKIT, constants.GVPROXY]
+            ? [constants.PODMAN, constants.VFKIT, constants.GVPROXY, constants.VIRTIOFSD]
             : [];
           const deps: string[] = [...podmanDependencies, constants.KIND];
 
@@ -160,9 +162,20 @@ export class InitCommand extends BaseCommand {
               title: 'Create Podman machine...',
               task: async () => {
                 await podmanDependency.setupConfig();
+                // const podmanExecutable: string = 'podman';
                 const podmanExecutable: string = await self.depManager.getExecutablePath(constants.PODMAN);
+
                 await this.run(`${podmanExecutable} machine init --memory=16384`); // 16GB
                 await this.run(`${podmanExecutable} machine start`);
+
+                // if (this.osPlatform !== constants.OS_LINUX) {
+                //   await this.run(`${podmanExecutable} machine init --memory=16384`); // 16GB
+                //   await this.run(`${podmanExecutable} machine start`);
+                // }
+                //
+                // await this.run(`${podmanExecutable} system connection list`);
+                // await this.run(`${podmanExecutable} network create kind --subnet 172.19.0.0/16`);
+                // await this.run(`${podmanExecutable} system connection list`);
               },
               skip: (): boolean => skipPodmanTasks,
             } as SoloListrTask<InitContext>,
