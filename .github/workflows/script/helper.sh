@@ -66,16 +66,6 @@ function log_and_exit()
   echo "------- END MIRROR IMPORTER DUMP -------"
   printf "\r::endgroup::\n"
 
-  printf "\r::group::Pod events dump\n"
-  echo "------- BEGIN POD EVENTS DUMP -------"
-  kubectl get pods -n "${SOLO_NAMESPACE}" --output=name | grep block-node
-  for pod in $(kubectl get pods -n "${SOLO_NAMESPACE}" --output=name | grep block-node); do
-    echo "Events for pod: ${pod}"
-    kubectl events --for="${pod}" -n "${SOLO_NAMESPACE}" || true
-  done
-  echo "------- END POD EVENTS DUMP -------"
-  printf "\r::endgroup::\n"
-
   printf "\r::group::Port-forward log dump\n"
   echo "------- Last port-forward check -------" >> port-forward.log
   ps -ef |grep port-forward >> port-forward.log
