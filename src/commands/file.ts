@@ -45,7 +45,7 @@ interface FileUploadContext {
 
 @injectable()
 export class FileCommand extends BaseCommand {
-  // Hedera's max content size per transaction
+  // Hiero's max content size per transaction
   private static readonly MAX_CHUNK_SIZE = 4096;
 
   public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {
@@ -187,7 +187,7 @@ export class FileCommand extends BaseCommand {
 
   /**
    * Helper method to verify uploaded file content
-   * @param client - The Hedera client
+   * @param client - The Hiero client
    * @param fileId - The file ID to verify
    * @param expectedContent - The expected file content
    */
@@ -213,17 +213,21 @@ export class FileCommand extends BaseCommand {
 
       let errorMessage: string = `File size mismatch! Expected ${expectedSize} bytes but got ${uploadedSize} bytes`;
       if (isSystemFile && uploadedSize === 0) {
-        errorMessage += '\n\n⚠️  System File Update Failed:';
-        errorMessage += `\nFile ${fileId} is a system file that appears to be immutable or requires special authorization.`;
-        errorMessage += '\n\nPossible reasons:';
-        errorMessage += '\n1. The genesis key may not have permission to update this specific system file';
-        errorMessage += `\n2. System file ${fileId} may require network-level authorization or freeze/unfreeze operations`;
-        errorMessage += '\n3. The network may be using a different genesis key than expected';
-        errorMessage += '\n\nTroubleshooting:';
-        errorMessage += '\n• Verify the correct genesis key using: echo $GENESIS_KEY';
-        errorMessage += '\n• Set custom genesis key: export GENESIS_KEY=<your-genesis-key>';
-        errorMessage += '\n• Check if the file requires special permissions beyond genesis key';
-        errorMessage += '\n• Consider using FileUpdateTransaction with additional authorization in custom code';
+        errorMessage = `${errorMessage}
+
+⚠️  System File Update Failed:
+File ${fileId} is a system file that appears to be immutable or requires special authorization.
+
+Possible reasons:
+1. The genesis key may not have permission to update this specific system file
+2. System file ${fileId} may require network-level authorization or freeze/unfreeze operations
+3. The network may be using a different genesis key than expected
+
+Troubleshooting:
+• Verify the correct genesis key using: echo $GENESIS_KEY
+• Set custom genesis key: export GENESIS_KEY=<your-genesis-key>
+• Check if the file requires special permissions beyond genesis key
+• Consider using FileUpdateTransaction with additional authorization in custom code`;
       }
       throw new SoloError(errorMessage);
     }
@@ -242,7 +246,7 @@ export class FileCommand extends BaseCommand {
   /**
    * Helper method to append remaining file chunks after initial create/update
    * @param task - The Listr task wrapper for updating progress
-   * @param client - The Hedera client
+   * @param client - The Hiero client
    * @param fileId - The file ID to append to
    * @param fileContent - The complete file content
    * @param treasuryPrivateKey - The private key to sign transactions
@@ -300,7 +304,7 @@ export class FileCommand extends BaseCommand {
   }
 
   /**
-   * Unified method to create or update a file on the Hedera network
+   * Unified method to create or update a file on the Hiero network
    * @param argv - Command arguments
    * @param isCreate - True for create operation, false for update
    */
@@ -393,7 +397,7 @@ export class FileCommand extends BaseCommand {
           },
         },
         {
-          title: isCreate ? 'Create file on Hedera network' : 'Update file on Hedera network',
+          title: isCreate ? 'Create file on Hiero network' : 'Update file on Hiero network',
           task: async (context_, task): Promise<SoloListr<Context>> => {
             const client: any = self.accountManager._nodeClient!;
             const subTasks: SoloListrTask<Context>[] = [
@@ -516,14 +520,14 @@ export class FileCommand extends BaseCommand {
   }
 
   /**
-   * Create a new file on the Hedera network
+   * Create a new file on the Hiero network
    */
   public async create(argv: ArgvStruct): Promise<boolean> {
     return this.executeFileOperation(argv, true);
   }
 
   /**
-   * Update an existing file on the Hedera network
+   * Update an existing file on the Hiero network
    */
   public async update(argv: ArgvStruct): Promise<boolean> {
     return this.executeFileOperation(argv, false);

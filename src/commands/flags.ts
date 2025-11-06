@@ -1464,7 +1464,7 @@ export class Flags {
     constName: 'fileId',
     name: 'file-id',
     definition: {
-      describe: 'The Hedera file id, e.g.: 0.0.150',
+      describe: 'The network file id, e.g.: 0.0.150',
       defaultValue: '',
       type: 'string',
     },

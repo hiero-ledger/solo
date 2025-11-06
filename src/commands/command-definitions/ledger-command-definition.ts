@@ -42,7 +42,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
     'Transfer native crypto tokens or query native token account balances.';
 
   public static readonly FILE_SUBCOMMAND_NAME = 'file';
-  private static readonly FILE_SUBCOMMAND_DESCRIPTION = 'Upload or update files on the Hedera network.';
+  private static readonly FILE_SUBCOMMAND_DESCRIPTION = 'Upload or update files on the Hiero network.';
 
   public static readonly SYSTEM_INIT = 'init';
   public static readonly ACCOUNT_UPDATE = 'update';
@@ -112,7 +112,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               LedgerCommandDefinition.FILE_CREATE,
-              'Create a new file on the Hedera network',
+              'Create a new file on the Hiero network',
               this.fileCommand,
               this.fileCommand.create,
               FileCommand.CREATE_FLAGS_LIST,
@@ -122,7 +122,7 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               LedgerCommandDefinition.FILE_UPDATE,
-              'Update an existing file on the Hedera network',
+              'Update an existing file on the Hiero network',
               this.fileCommand,
               this.fileCommand.update,
               FileCommand.UPDATE_FLAGS_LIST,

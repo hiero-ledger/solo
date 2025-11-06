@@ -76,12 +76,12 @@ describe('Node add with hedera local build', (): void => {
 
       try {
         // Create a test file
-        const testContent = 'Hello, Hedera! ' + randomBytes(8).toString('hex');
+        const testContent = 'Hello, Hiero! ' + randomBytes(8).toString('hex');
         const testFilePath = path.join(testCacheDirectory, 'test-file.txt');
         await fs.mkdir(path.dirname(testFilePath), {recursive: true});
         await fs.writeFile(testFilePath, testContent, 'utf8');
 
-        // Create file on Hedera
+        // Create file on Hiero
         const createArguments = newArgv();
         createArguments.push(
           LedgerCommandDefinition.COMMAND_NAME,

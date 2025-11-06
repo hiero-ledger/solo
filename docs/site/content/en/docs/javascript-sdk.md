@@ -103,7 +103,7 @@ topic sequence number = 1
 
 ### Managing Files on the Network
 
-Solo provides commands to create and update files on the Hedera network.
+Solo provides commands to create and update files on the Hiero network.
 
 #### Creating a New File
 
@@ -129,7 +129,7 @@ The output would be similar to:
 
 ✓ Load node client and treasury keys
 
-✓ Create file on Hedera network
+✓ Create file on Hiero network
   ✓ Create new file
     Creating file with 2048 bytes...
     ✓ File created with ID: 0.0.1234
@@ -176,7 +176,7 @@ The output would be similar to:
   Current size: 2048 bytes
   Keys: 1
 
-✓ Update file on Hedera network
+✓ Update file on Hiero network
   ✓ Update existing file
     Updating file with 3072 bytes...
     ✓ File updated successfully
@@ -195,7 +195,7 @@ The output would be similar to:
 **Note:** For large files (>4KB), both commands automatically split the file into chunks and show progress:
 
 ```bash
-✓ Create file on Hedera network
+✓ Create file on Hiero network
   ✓ Create new file
     Creating file with first 4096 bytes (multi-part create)...
     ✓ File created with ID: 0.0.1234
