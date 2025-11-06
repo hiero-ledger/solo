@@ -142,9 +142,21 @@ async function main() {
 
     let subscriptionReceivedContent = '';
     let topicSubscriptionReceived = false;
+    let subscriptionTimedOut = false;
     new TopicMessageQuery()
       .setTopicId(topicIdString)
+      .setStartTime(Timestamp.fromDate(new Date(Date.now() + 3000)))
       .setEndTime(Timestamp.fromDate(new Date(Date.now() + 180000)))
+      .setCompletionHandler((topic, error) => {
+        if (error) {
+          console.error(`ERROR: ${error}`, error);
+          topicSubscriptionReceived = true;
+          return;
+        } else {
+          console.log('⏱️  Subscription wait timeout - no more messages expected');
+          subscriptionTimedOut = true;
+        }
+      })
       .subscribe(
         mirrorClient,
         (topic, error) => {
@@ -165,7 +177,6 @@ async function main() {
         },
       );
 
-    await sleep(3000);
     const TEST_MESSAGE = 'Hello World for ' + topicIdString.toString()
 
     // Record start time before sending message
@@ -187,8 +198,6 @@ async function main() {
 
     // send a create account transaction to push record stream files to mirror node
     await accountCreate(wallet);
-    await sleep(3500); // wait for consensus on write transactions
-    await sleep(1000); // wait for mirror node to sync
 
     // Check submit message result should success
     const queryURL = `http://localhost:8080/api/v1/topics/${topicIdString}/messages`;
@@ -241,13 +250,27 @@ async function main() {
       somethingWrong = true;
     }
 
-    // wait a few seconds to receive subscription message
-    await sleep(5000);
+    // Wait for subscription message or timeout
+    console.log('Waiting for subscription message or timeout...');
+    const subscriptionStartTime = Date.now();
+    const SUBSCRIPTION_TIMEOUT_MS = 180000; // 3 minutes - should match setEndTime
+    
+    // Poll every second to check if subscription received message or timed out
+    while (!topicSubscriptionReceived && !subscriptionTimedOut && (Date.now() - subscriptionStartTime) < SUBSCRIPTION_TIMEOUT_MS) {
+      await sleep(1000);
+    }
+    
+    const subscriptionWaitTime = ((Date.now() - subscriptionStartTime) / 1000).toFixed(2);
+    console.log(`Subscription wait completed after ${subscriptionWaitTime}s`);
     if (!topicSubscriptionReceived) {
-      console.error('❌ ERROR: Not received subscription message');
+      if (subscriptionTimedOut) {
+        console.error('❌ ERROR: Subscription timed out waiting for message (waited 180s)');
+      } else {
+        console.error('❌ ERROR: Not received subscription message within timeout period');
+      }
       somethingWrong = true;
     } else if (subscriptionReceivedContent !== TEST_MESSAGE) {
-      console.error('ERROR: Message received from subscription but not match: ' + subscriptionReceivedContent);
+      console.error('❌ ERROR: Message received from subscription but not match: ' + subscriptionReceivedContent);
       somethingWrong = true;
     }
 
