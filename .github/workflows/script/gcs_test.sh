@@ -121,6 +121,9 @@ kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 
 if [ "${storageType}" == "minio_only" ]; then
   cd scripts
+  echo "Current directory: $(pwd)"
+  echo "Task version : $(task --version)"
+  echo "Available tasks: $(task --list-all)"
   SOLO_DEPLOYMENT=solo-e2e
   SOLO_DEPLOYMENT=solo-e2e task default-with-mirror
   cd -

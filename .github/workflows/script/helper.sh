@@ -71,8 +71,17 @@ function log_and_exit()
   ps -ef |grep port-forward >> port-forward.log
   printf "\r::endgroup::\n"
 
-  # copy all logs to home cache directory
+  printf "\r::group::Block Node log dump\n"
+  echo "------- BEGIN BLOCK NODE DUMP -------"
+  kubectl logs -n "${SOLO_NAMESPACE}" block-node-1-0 -c block-node-server > blocker.log || true
+  kubectl logs -n "${SOLO_NAMESPACE}" block-node-1-0 -c block-node-server --previous > blocker_prev.log || true
+  echo "------- END BLOCK NODE DUMP -------"
+  printf "\r::endgroup::\n"
+
   cp relay.log rest.log importer.log port-forward.log "$HOME"/.solo/ || true
+  if [ -f blocker_prev.log ]; then
+    cp blocker_prev.log "$HOME"/.solo/ || true
+  fi
 
   # sleep for a few seconds to give time for stdout to stream back in case it was called using nodejs
   sleep 5
