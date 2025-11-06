@@ -126,10 +126,10 @@ tasks:
 
       # Run load test with the com.hedera.benchmark.TokenTransferLoadTest class
       # Args: [-c <clients>] [-a <accounts>] [-T <tokens>] [-A <associations>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
-  #      - cmd: |
-  #          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
-  #          --test TokenTransferLoadTest \
-  #          --args '"-c 5 -a 10 -T 2 -A 5 -R -t 10"'
+      - cmd: |
+          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
+          --test TokenTransferLoadTest \
+          --args '"-c 5 -a 1 -T 1 -A 1 -R -t 10"'
 
   destroy:
     desc: Destroy the Solo network using one-shot single destroy
