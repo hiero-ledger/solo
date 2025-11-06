@@ -1,5 +1,5 @@
 > 📝 Solo has a new one-shot command!  check it
-> out: [Solo User Guide](https://solo.hiero.org/v0.41.0/docs/step-by-step-guide/#one-shot-deployment), [Solo CLI Commands](https://solo.hiero.org/v0.41.0/docs/solo-commands/#one-shot-single)
+> out: [Solo User Guide](https://solo.hiero.org/main/docs/step-by-step-guide/#one-shot-deployment), [Solo CLI Commands](https://solo.hiero.org/main/docs/solo-commands/#one-shot-single)
 
 # Solo
 
@@ -25,8 +25,8 @@ Every quarter a version will be designated as LTS (Long-Term Support) and will b
 
 | Solo Version | Node.js             | Kind       | Solo Chart | Hedera   | Kubernetes | Kubectl    | Helm    | k9s        | Docker Resources         | Release Date | End of Support |
 |--------------|---------------------|------------|------------|----------|------------|------------|---------|------------|--------------------------|--------------|----------------|
+| 0.49.0       | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.57.0    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU >= 4 | 2025-11-06   | 2025-12-06     |
 | 0.48.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.56.0    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU >= 4 | 2025-10-24   | 2026-01-24     |
-| 0.47.0       | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.56.0    | v0.66.0+ | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU >= 4 | 2025-10-16   | 2025-11-16     |
 
 To see a list of legacy releases, please check the [legacy versions documentation page](docs/legacy-versions.md).
 
