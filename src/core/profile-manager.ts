@@ -31,6 +31,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {AccountManager} from './account-manager.js';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 
 @injectable()
 export class ProfileManager {
@@ -449,8 +450,8 @@ export class ProfileManager {
   }
 
   private async updateApplicationPropertiesForBlockNode(applicationPropertiesPath: string): Promise<void> {
-    const hasDeployedBlockNodes: boolean =
-      Object.keys(this.remoteConfig.configuration.components.state.blockNodes).length > 0;
+    const blockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.components.state.blockNodes;
+    const hasDeployedBlockNodes: boolean = blockNodes.length > 0;
     if (!hasDeployedBlockNodes) {
       return;
     }
