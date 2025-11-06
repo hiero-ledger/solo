@@ -1,6 +1,5 @@
 > 📝 Solo has a new one-shot command!  check it
->
-out: [Solo User Guide](https://solo.hiero.org/main/docs/step-by-step-guide/#one-shot-deployment), [Solo CLI Commands](https://solo.hiero.org/main/docs/solo-commands/#one-shot-single)
+> out: [Solo User Guide](https://solo.hiero.org/main/docs/step-by-step-guide/#one-shot-deployment), [Solo CLI Commands](https://solo.hiero.org/main/docs/solo-commands/#one-shot-single)
 
 # Solo
 
@@ -59,9 +58,9 @@ nvm use v22.0.0
 ```
 
 * Useful tools:
-    * Install [kubectl](https://kubernetes.io/docs/tasks/tools/)
-    * Install [k9s](https://k9scli.io/)
-    * Install [kind](https://kind.sigs.k8s.io/)
+  * Install [kubectl](https://kubernetes.io/docs/tasks/tools/)
+  * Install [k9s](https://k9scli.io/)
+  * Install [kind](https://kind.sigs.k8s.io/)
 
 ## Install Solo
 
