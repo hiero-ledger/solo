@@ -21,6 +21,7 @@ import {main} from '../../../src/index.js';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import {randomBytes} from 'node:crypto';
+import {LedgerCommandDefinition} from '../../../src/commands/command-definitions/ledger-command-definition.js';
 
 describe('Node add with hedera local build', (): void => {
   const localBuildPath: string = [
@@ -83,8 +84,9 @@ describe('Node add with hedera local build', (): void => {
         // Create file on Hedera
         const createArguments = newArgv();
         createArguments.push(
-          'file',
-          'create',
+          LedgerCommandDefinition.COMMAND_NAME,
+          LedgerCommandDefinition.FILE_SUBCOMMAND_NAME,
+          LedgerCommandDefinition.FILE_CREATE,
           '--file-path',
           testFilePath,
           '--deployment',
@@ -100,10 +102,11 @@ describe('Node add with hedera local build', (): void => {
 
         const updateArguments = newArgv();
         updateArguments.push(
-          'file',
-          'update',
+          LedgerCommandDefinition.COMMAND_NAME,
+          LedgerCommandDefinition.FILE_SUBCOMMAND_NAME,
+          LedgerCommandDefinition.FILE_UPDATE,
           '--file-id',
-          '0.0.150',
+          '0.0.1001',
           '--file-path',
           updatedFilePath,
           '--deployment',
