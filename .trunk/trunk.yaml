@@ -1,0 +1,5 @@
+version: 0.1
+merge:
+  required_statuses:
+    - "Build / Merge Queue"
+    - "Unit Tests / Merge Queue"
