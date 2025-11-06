@@ -82,7 +82,6 @@ describe('Node add with hedera local build', (): void => {
 
         // Create file on Hedera
         const createArguments = newArgv();
-        BaseCommandTest.argvPushGlobalFlags(createArguments, namespace.name);
         createArguments.push(
           'file',
           'create',
@@ -100,7 +99,6 @@ describe('Node add with hedera local build', (): void => {
         await fs.writeFile(updatedFilePath, updatedContent, 'utf8');
 
         const updateArguments = newArgv();
-        BaseCommandTest.argvPushGlobalFlags(updateArguments, namespace.name);
         updateArguments.push(
           'file',
           'update',
