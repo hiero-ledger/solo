@@ -12,7 +12,7 @@ import {type ConfigManager} from '../../core/config-manager.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {type ChartManager} from '../../core/chart-manager.js';
 import {type ArgvStruct} from '../../types/aliases.js';
-import {type ClusterReferenceName, type SoloListrTaskWrapper} from '../../types/index.js';
+import {type SoloListrTaskWrapper} from '../../types/index.js';
 import {type ClusterReferenceDefaultConfigClass} from './config-interfaces/cluster-reference-default-config-class.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type ClusterReferenceResetContext} from './config-interfaces/cluster-reference-reset-context.js';
