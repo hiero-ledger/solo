@@ -460,8 +460,8 @@ export class ProfileManager {
       fileText.split('\n'),
     );
 
-    const streamMode: string = 'BLOCKS';
-    const writerMode: string = 'GRPC';
+    const streamMode: string = constants.BLOCK_STREAM_STREAM_MODE;
+    const writerMode: string = constants.BLOCK_STREAM_WRITER_MODE;
 
     let streamModeUpdated: boolean = false;
     let writerModeUpdated: boolean = false;
