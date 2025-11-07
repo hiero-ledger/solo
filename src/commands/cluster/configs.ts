@@ -12,7 +12,7 @@ import {type ConfigManager} from '../../core/config-manager.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {type ChartManager} from '../../core/chart-manager.js';
 import {type ArgvStruct} from '../../types/aliases.js';
-import {type SoloListrTaskWrapper} from '../../types/index.js';
+import {type ClusterReferenceName, type SoloListrTaskWrapper} from '../../types/index.js';
 import {type ClusterReferenceDefaultConfigClass} from './config-interfaces/cluster-reference-default-config-class.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type ClusterReferenceResetContext} from './config-interfaces/cluster-reference-reset-context.js';
@@ -23,7 +23,6 @@ import {type ClusterReferenceSetupContext} from './config-interfaces/cluster-ref
 import {type ClusterReferenceSetupConfigClass} from './config-interfaces/cluster-reference-setup-config-class.js';
 import {type ClusterReferenceResetConfigClass} from './config-interfaces/cluster-reference-reset-config-class.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
-import {SETUP_FLAGS} from './flags.js';
 
 @injectable()
 export class ClusterCommandConfigs {
@@ -90,9 +89,15 @@ export class ClusterCommandConfigs {
     task: SoloListrTaskWrapper<ClusterReferenceSetupContext>,
   ): Promise<ClusterReferenceSetupConfigClass> {
     this.configManager.update(argv);
-    flags.disablePrompts(SETUP_FLAGS.optional);
+    flags.disablePrompts([flags.chartDirectory]);
 
-    await this.configManager.executePrompt(task, SETUP_FLAGS.required);
+    await this.configManager.executePrompt(task, [
+      flags.chartDirectory,
+      flags.clusterSetupNamespace,
+      flags.deployMinio,
+      flags.deployPrometheusStack,
+      flags.deployGrafanaAgent,
+    ]);
 
     const config: ClusterReferenceSetupConfigClass = {
       chartDirectory: this.configManager.getFlag(flags.chartDirectory),

@@ -14,9 +14,10 @@ export const DEFAULT_FLAGS: CommandFlags = {
 };
 
 export const SETUP_FLAGS: CommandFlags = {
-  required: [flags.clusterRef],
+  required: [],
   optional: [
     flags.chartDirectory,
+    flags.clusterRef,
     flags.clusterSetupNamespace,
     flags.deployMinio,
     flags.deployPrometheusStack,
