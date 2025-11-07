@@ -101,6 +101,114 @@ topic sequence number = 1
 
 ```
 
+### Managing Files on the Network
+
+Solo provides commands to create and update files on the Hiero network.
+
+#### Creating a New File
+
+To create a new file, use the `file create` command (no file ID needed):
+
+```bash
+npm run solo-test -- ledger file create --deployment solo-deployment --file-path ./config.json
+```
+
+This command will:
+
+* Create a new file on the network
+* Automatically handle large files (>4KB) by splitting them into chunks
+* Display the system-assigned file ID
+* Verify the uploaded content matches the local file
+
+The output would be similar to:
+
+```bash
+✓ Initialize configuration
+  File: config.json
+  Size: 2048 bytes
+
+✓ Load node client and treasury keys
+
+✓ Create file on Hiero network
+  ✓ Create new file
+    Creating file with 2048 bytes...
+    ✓ File created with ID: 0.0.1234
+
+✓ Verify uploaded file
+  Querying file contents to verify upload...
+  Expected size: 2048 bytes
+  Retrieved size: 2048 bytes
+  ✓ File verification successful
+  ✓ Size: 2048 bytes
+  ✓ Content matches uploaded file
+
+✅ File created successfully!
+📄 File ID: 0.0.1234
+```
+
+#### Updating an Existing File
+
+To update an existing file, use the `file update` command with the file ID:
+
+```bash
+npm run solo-test -- ledger file update --deployment solo-deployment --file-id 0.0.1234 --file-path ./updated-config.json
+```
+
+This command will:
+
+* Verify the file exists on the network (errors if not found)
+* Update the file content
+* Automatically handle large files (>4KB) by splitting them into chunks
+* Verify the updated content matches the local file
+
+The output would be similar to:
+
+```bash
+✓ Initialize configuration
+  File: updated-config.json
+  Size: 3072 bytes
+  File ID: 0.0.1234
+
+✓ Load node client and treasury keys
+
+✓ Check if file exists
+  File 0.0.1234 exists. Proceeding with update.
+  Current size: 2048 bytes
+  Keys: 1
+
+✓ Update file on Hiero network
+  ✓ Update existing file
+    Updating file with 3072 bytes...
+    ✓ File updated successfully
+
+✓ Verify uploaded file
+  Querying file contents to verify upload...
+  Expected size: 3072 bytes
+  Retrieved size: 3072 bytes
+  ✓ File verification successful
+  ✓ Size: 3072 bytes
+  ✓ Content matches uploaded file
+
+✅ File updated successfully!
+```
+
+**Note:** For large files (>4KB), both commands automatically split the file into chunks and show progress:
+
+```bash
+✓ Create file on Hiero network
+  ✓ Create new file
+    Creating file with first 4096 bytes (multi-part create)...
+    ✓ File created with ID: 0.0.1234
+  ✓ Append remaining file content (chunk 1/3)
+    Appending chunk 1/3 (4096 bytes, 8192 bytes remaining)...
+  ✓ Append remaining file content (chunk 2/3)
+    Appending chunk 2/3 (4096 bytes, 4096 bytes remaining)...
+  ✓ Append remaining file content (chunk 3/3)
+    Appending chunk 3/3 (4096 bytes, 0 bytes remaining)...
+  ✓ Append remaining file content (3 chunks completed)
+    ✓ Appended 3 chunks successfully
+```
+
 You can use Hiero Explorer to check transactions and topics created in the Solo network:
 <http://localhost:8080/localnet/dashboard>
 

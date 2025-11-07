@@ -8,15 +8,18 @@ import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {AccountCommand} from '../account.js';
+import {FileCommand} from '../file.js';
 
 @injectable()
 export class LedgerCommandDefinition extends BaseCommandDefinition {
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.AccountCommand) public readonly accountCommand?: AccountCommand,
+    @inject(InjectTokens.FileCommand) public readonly fileCommand?: FileCommand,
   ) {
     super();
     this.accountCommand = patchInject(accountCommand, InjectTokens.AccountCommand, this.constructor.name);
+    this.fileCommand = patchInject(fileCommand, InjectTokens.FileCommand, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
@@ -38,10 +41,15 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
   private static readonly CRYPTO_SUBCOMMAND_DESCRIPTION =
     'Transfer native crypto tokens or query native token account balances.';
 
+  public static readonly FILE_SUBCOMMAND_NAME = 'file';
+  private static readonly FILE_SUBCOMMAND_DESCRIPTION = 'Upload or update files on the Hiero network.';
+
   public static readonly SYSTEM_INIT = 'init';
   public static readonly ACCOUNT_UPDATE = 'update';
   public static readonly ACCOUNT_CREATE = 'create';
   public static readonly ACCOUNT_INFO = 'info';
+  public static readonly FILE_CREATE = 'create';
+  public static readonly FILE_UPDATE = 'update';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(LedgerCommandDefinition.COMMAND_NAME, LedgerCommandDefinition.DESCRIPTION, this.logger)
@@ -92,6 +100,32 @@ export class LedgerCommandDefinition extends BaseCommandDefinition {
               this.accountCommand,
               this.accountCommand.get,
               AccountCommand.GET_FLAGS_LIST,
+              [],
+            ),
+          ),
+      )
+      .addCommandGroup(
+        new CommandGroup(
+          LedgerCommandDefinition.FILE_SUBCOMMAND_NAME,
+          LedgerCommandDefinition.FILE_SUBCOMMAND_DESCRIPTION,
+        )
+          .addSubcommand(
+            new Subcommand(
+              LedgerCommandDefinition.FILE_CREATE,
+              'Create a new file on the Hiero network',
+              this.fileCommand,
+              this.fileCommand.create,
+              FileCommand.CREATE_FLAGS_LIST,
+              [],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              LedgerCommandDefinition.FILE_UPDATE,
+              'Update an existing file on the Hiero network',
+              this.fileCommand,
+              this.fileCommand.update,
+              FileCommand.UPDATE_FLAGS_LIST,
               [],
             ),
           ),

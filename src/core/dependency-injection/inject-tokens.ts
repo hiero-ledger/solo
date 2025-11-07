@@ -50,6 +50,7 @@ export class InjectTokens {
   public static ClusterChecks: symbol = Symbol.for('ClusterChecks');
   public static NetworkNodes: symbol = Symbol.for('NetworkNodes');
   public static AccountCommand: symbol = Symbol.for('AccountCommand');
+  public static FileCommand: symbol = Symbol.for('FileCommand');
   public static ClusterCommand: symbol = Symbol.for('ClusterCommand');
   public static NodeCommand: symbol = Symbol.for('NodeCommand');
   public static DeploymentCommand: symbol = Symbol.for('DeploymentCommand');

@@ -50,6 +50,7 @@ platform.
     * [System](#system)
     * [Account](#account)
     * [Crypto](#crypto)
+    * [File](#file)
   * [Mirror](#mirror-1)
     * [Node](#node-3)
   * [Relay](#relay-1)
@@ -152,6 +153,7 @@ flags may be specified at any level of the command hierarchy.
 | ledger      | system                 | < init & accounts-rekey & staking-setup >                                                                      |
 | ledger      | account                | < list & info & create & update & delete & import >                                                |
 | ledger      | crypto                 | < transfer & balance >                                                                                             |
+| ledger      | file                   | < create & update >                                                                                                |
 | mirror      | node                   | < list & info & logs & add & upgrade & destroy >                                                   |
 | relay       | node                   | < list & info & logs & add & upgrade & destroy >                                                   |
 | one-shot | < single & multi > | < info & deploy & destroy >                                                                                    |
@@ -309,6 +311,7 @@ associated with each group.
 | **System**    | `system`       | Perform a full ledger initialization on a new deployment, rekey privileged/system accounts, or setup network staking parameters. |
 | **Account**   | `account`      | View, list, create, update, delete, and import ledger accounts.                                                                  |
 | **Crypto**    | `crypto`       | Transfer native crypto tokens or query native token account balances.                                                            |
+| **File**      | `file`         | Upload or update files on the Hiero network.                                                                                     |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -545,6 +548,17 @@ operations associated with each resource.
 |----------------|----------------|------------------------------------------|
 | **Transfer**   | `transfer`     | Transfers HBAR between accounts.         |
 | **Balance**    | `balance`      | Displays the HBAR balance of an account. |
+
+<p align="right">
+:arrow_up_small: <a href="#table-of-contents">Back to top</a>
+</p>
+
+#### File
+
+| Operation Name | Command Syntax | Description                                                                                                |
+|----------------|----------------|-----------------------------------------------------------------------------------------------------------|
+| **Create**     | `create`       | Creates a new file on the Hiero network. Automatically handles large files (>4KB) by splitting into chunks. |
+| **Update**     | `update`       | Updates an existing file on the Hiero network. Verifies file exists before updating.                       |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>

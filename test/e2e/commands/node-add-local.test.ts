@@ -16,6 +16,12 @@ import {ConsensusCommandDefinition} from '../../../src/commands/command-definiti
 import {testSeparateNodeUpdate} from './separate-node-update.test.js';
 import {testSeparateNodeDelete} from './separate-node-destroy.test.js';
 import {testSeparateNodeUpgrade} from './separate-node-upgrade.test.js';
+import {BaseCommandTest} from './tests/base-command-test.js';
+import {main} from '../../../src/index.js';
+import path from 'node:path';
+import fs from 'node:fs/promises';
+import {randomBytes} from 'node:crypto';
+import {LedgerCommandDefinition} from '../../../src/commands/command-definitions/ledger-command-definition.js';
 
 describe('Node add with hedera local build', (): void => {
   const localBuildPath: string = [
@@ -63,6 +69,63 @@ describe('Node add with hedera local build', (): void => {
 
       await k8Factory.default().namespaces().delete(namespace);
     });
+
+    it('Should create and update a file', async (): Promise<void> => {
+      const {newArgv} = BaseCommandTest;
+      const testCacheDirectory = `./test-cache/${namespace.name}`;
+
+      try {
+        // Create a test file
+        const testContent = 'Hello, Hiero! ' + randomBytes(8).toString('hex');
+        const testFilePath = path.join(testCacheDirectory, 'test-file.txt');
+        await fs.mkdir(path.dirname(testFilePath), {recursive: true});
+        await fs.writeFile(testFilePath, testContent, 'utf8');
+
+        // Create file on Hiero
+        const createArguments = newArgv();
+        createArguments.push(
+          LedgerCommandDefinition.COMMAND_NAME,
+          LedgerCommandDefinition.FILE_SUBCOMMAND_NAME,
+          LedgerCommandDefinition.FILE_CREATE,
+          '--file-path',
+          testFilePath,
+          '--deployment',
+          `${namespace.name}-deployment`,
+        );
+
+        await main(createArguments);
+
+        // Update the file with new content
+        const updatedContent = 'Updated content ' + randomBytes(8).toString('hex');
+        const updatedFilePath = path.join(testCacheDirectory, 'test-file-updated.txt');
+        await fs.writeFile(updatedFilePath, updatedContent, 'utf8');
+
+        const updateArguments = newArgv();
+        updateArguments.push(
+          LedgerCommandDefinition.COMMAND_NAME,
+          LedgerCommandDefinition.FILE_SUBCOMMAND_NAME,
+          LedgerCommandDefinition.FILE_UPDATE,
+          '--file-id',
+          '0.0.1001',
+          '--file-path',
+          updatedFilePath,
+          '--deployment',
+          `${namespace.name}-deployment`,
+        );
+
+        await main(updateArguments);
+
+        // Clean up test files
+        try {
+          await Promise.all([fs.unlink(testFilePath).catch(() => {}), fs.unlink(updatedFilePath).catch(() => {})]);
+        } catch {
+          // Ignore cleanup errors
+        }
+      } catch (error) {
+        console.error('File operation test failed', error);
+        throw error;
+      }
+    }).timeout(Duration.ofMinutes(5).toMillis());
 
     testSeparateNodeAdd(argv.clone(), bootstrapResp, namespace, timeout);
     testSeparateNodeUpdate(argv.clone(), bootstrapResp, namespace, timeout);
