@@ -12,7 +12,7 @@ import {type ConfigManager} from '../../core/config-manager.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {type ChartManager} from '../../core/chart-manager.js';
 import {type ArgvStruct} from '../../types/aliases.js';
-import {type ClusterReferenceName, type SoloListrTaskWrapper} from '../../types/index.js';
+import {type SoloListrTaskWrapper} from '../../types/index.js';
 import {type ClusterReferenceDefaultConfigClass} from './config-interfaces/cluster-reference-default-config-class.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type ClusterReferenceResetContext} from './config-interfaces/cluster-reference-reset-context.js';
@@ -23,6 +23,7 @@ import {type ClusterReferenceSetupContext} from './config-interfaces/cluster-ref
 import {type ClusterReferenceSetupConfigClass} from './config-interfaces/cluster-reference-setup-config-class.js';
 import {type ClusterReferenceResetConfigClass} from './config-interfaces/cluster-reference-reset-config-class.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {SETUP_FLAGS} from './flags.js';
 
 @injectable()
 export class ClusterCommandConfigs {
@@ -88,31 +89,26 @@ export class ClusterCommandConfigs {
     context_: ClusterReferenceSetupContext,
     task: SoloListrTaskWrapper<ClusterReferenceSetupContext>,
   ): Promise<ClusterReferenceSetupConfigClass> {
-    const configManager = this.configManager;
-    configManager.update(argv);
-    flags.disablePrompts([flags.chartDirectory]);
+    this.configManager.update(argv);
+    flags.disablePrompts(SETUP_FLAGS.optional);
 
-    await configManager.executePrompt(task, [
-      flags.chartDirectory,
-      flags.clusterSetupNamespace,
-      flags.deployMinio,
-      flags.deployPrometheusStack,
-      flags.deployGrafanaAgent,
-    ]);
+    await this.configManager.executePrompt(task, SETUP_FLAGS.required);
 
-    context_.config = {
-      chartDirectory: configManager.getFlag(flags.chartDirectory),
-      clusterSetupNamespace: configManager.getFlag<NamespaceName>(flags.clusterSetupNamespace),
-      deployMinio: configManager.getFlag<boolean>(flags.deployMinio),
-      deployPrometheusStack: configManager.getFlag<boolean>(flags.deployPrometheusStack),
-      deployGrafanaAgent: configManager.getFlag<boolean>(flags.deployGrafanaAgent),
-      soloChartVersion: configManager.getFlag(flags.soloChartVersion),
-      clusterRef: configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
+    const config: ClusterReferenceSetupConfigClass = {
+      chartDirectory: this.configManager.getFlag(flags.chartDirectory),
+      clusterSetupNamespace: this.configManager.getFlag(flags.clusterSetupNamespace),
+      deployMinio: this.configManager.getFlag(flags.deployMinio),
+      deployPrometheusStack: this.configManager.getFlag(flags.deployPrometheusStack),
+      deployGrafanaAgent: this.configManager.getFlag(flags.deployGrafanaAgent),
+      soloChartVersion: this.configManager.getFlag(flags.soloChartVersion),
+      clusterRef: this.configManager.getFlag(flags.clusterRef),
     } as ClusterReferenceSetupConfigClass;
 
-    context_.config.context =
-      this.localConfig.configuration.clusterRefs.get(context_.config.clusterRef)?.toString() ??
+    config.context =
+      this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString() ??
       this.k8Factory.default().contexts().readCurrent();
+
+    context_.config = config;
 
     return context_.config;
   }
