@@ -138,6 +138,7 @@ import {type BaseStateSchema} from '../../data/schema/model/remote/state/base-st
 import {ComponentStateMetadataSchema} from '../../data/schema/model/remote/state/component-state-metadata-schema.js';
 import net from 'node:net';
 import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
+import {TDirectoryData} from '../../integration/kube/t-directory-data.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -933,64 +934,57 @@ export class NodeCommandTasks {
     const self = this;
     return {
       title: 'Download generated files from an existing node',
-      task: async context_ => {
-        const config = context_.config;
-
+      task: async ({
+        config: {nodeAlias, existingNodeAliases, consensusNodes, stagingDir, keysDir, namespace},
+      }): Promise<void> => {
         // don't try to download from the same node we are deleting, it won't work
-        const nodeAlias: NodeAlias =
-          (context_ as any).config.nodeAlias === config.existingNodeAliases[0] && config.existingNodeAliases.length > 1
-            ? config.existingNodeAliases[1]
-            : config.existingNodeAliases[0];
+        const targetNodeAlias: NodeAlias =
+          nodeAlias === existingNodeAliases[0] && existingNodeAliases.length > 1
+            ? existingNodeAliases[1]
+            : existingNodeAliases[0];
 
-        const nodeFullyQualifiedPodName = Templates.renderNetworkPodName(nodeAlias);
-        const podReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
-        const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+        const nodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(targetNodeAlias);
+        const podReference: PodReference = PodReference.of(namespace, nodeFullyQualifiedPodName);
+        const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
 
-        const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
-        const k8 = self.k8Factory.getK8(context);
+        const context: Context = helpers.extractContextFromConsensusNodes(targetNodeAlias, consensusNodes);
+
+        const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
         // copy the config.txt file from the node1 upgrade directory
-        await k8
-          .containers()
-          .readByRef(containerReference)
-          .copyFrom(`${constants.HEDERA_HAPI_PATH}/data/upgrade/current/config.txt`, config.stagingDir);
+        await k8Container.copyFrom(`${constants.HEDERA_HAPI_PATH}/data/upgrade/current/config.txt`, stagingDir);
 
         // if directory data/upgrade/current/data/keys does not exist, then use data/upgrade/current
-        let keyDirectory = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys`;
-        if (!(await k8.containers().readByRef(containerReference).hasDir(keyDirectory))) {
+        let keyDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys`;
+
+        if (!(await k8Container.hasDir(keyDirectory))) {
           keyDirectory = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current`;
         }
-        const signedKeyFiles = (await k8.containers().readByRef(containerReference).listDir(keyDirectory)).filter(
-          file => file.name.startsWith(constants.SIGNING_KEY_PREFIX),
-        );
-        await k8
-          .containers()
-          .readByRef(containerReference)
-          .execContainer([
-            'bash',
-            '-c',
-            `mkdir -p ${constants.HEDERA_HAPI_PATH}/data/keys_backup && cp -r ${keyDirectory} ${constants.HEDERA_HAPI_PATH}/data/keys_backup/`,
-          ]);
+
+        const signedKeyFiles: TDirectoryData[] = await k8Container
+          .listDir(keyDirectory)
+          .then((files: TDirectoryData[]): TDirectoryData[] =>
+            files.filter((file): boolean => file.name.startsWith(constants.SIGNING_KEY_PREFIX)),
+          );
+
+        await k8Container.execContainer([
+          'bash',
+          '-c',
+          `mkdir -p ${constants.HEDERA_HAPI_PATH}/data/keys_backup && cp -r ${keyDirectory} ${constants.HEDERA_HAPI_PATH}/data/keys_backup/`,
+        ]);
+
         for (const signedKeyFile of signedKeyFiles) {
-          await k8
-            .containers()
-            .readByRef(containerReference)
-            .copyFrom(`${keyDirectory}/${signedKeyFile.name}`, `${config.keysDir}`);
+          await k8Container.copyFrom(`${keyDirectory}/${signedKeyFile.name}`, `${keysDir}`);
         }
 
         const applicationPropertiesSourceDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`;
-        await ((await k8.containers().readByRef(containerReference).hasFile(applicationPropertiesSourceDirectory))
-          ? k8
-              .containers()
-              .readByRef(containerReference)
-              .copyFrom(applicationPropertiesSourceDirectory, `${config.stagingDir}/templates`)
-          : k8
-              .containers()
-              .readByRef(containerReference)
-              .copyFrom(
-                `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`,
-                `${config.stagingDir}/templates`,
-              ));
+
+        await ((await k8Container.hasFile(applicationPropertiesSourceDirectory))
+          ? k8Container.copyFrom(applicationPropertiesSourceDirectory, `${stagingDir}/templates`)
+          : k8Container.copyFrom(
+              `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`,
+              `${stagingDir}/templates`,
+            ));
       },
     };
   }
