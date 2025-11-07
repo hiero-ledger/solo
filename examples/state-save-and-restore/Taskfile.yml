@@ -173,7 +173,7 @@ tasks:
     cmds:
       - cmd: echo "Generating sample transactions..."
       - cmd: |
-          for i in {1..10}; do
+          for i in {1..3}; do
             $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 100
             sleep 2
           done
@@ -189,10 +189,11 @@ tasks:
       - cmd: $SOLO_COMMAND consensus state download --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: |
           # Move downloaded state files to save directory
+          mkdir -p "{{ .STATE_SAVE_DIR }}/{{ .NAMESPACE }}"
           for node in $(echo {{ .NODE_ALIASES }} | tr ',' ' '); do
             STATE_FILE="network-${node}-0-state.zip"
             if [ -f "$HOME/.solo/logs/{{ .NAMESPACE }}/${STATE_FILE}" ]; then
-              cp "$HOME/.solo/logs/{{ .NAMESPACE }}/${STATE_FILE}" "{{ .STATE_SAVE_DIR }}/"
+              cp "$HOME/.solo/logs/{{ .NAMESPACE }}/${STATE_FILE}" "{{ .STATE_SAVE_DIR }}/{{ .NAMESPACE }}/"
               echo "✅ Saved state for ${node} (${STATE_FILE})"
             else
               echo "⚠️  State file not found: $HOME/.solo/logs/{{ .NAMESPACE }}/${STATE_FILE}"
@@ -238,15 +239,16 @@ tasks:
           # Use first node's state file for all nodes
           FIRST_NODE=$(echo {{ .NODE_ALIASES }} | cut -d',' -f1)
           FIRST_NODE_STATE_FILE="network-${FIRST_NODE}-0-state.zip"
+          STATE_FILE_PATH="{{ .STATE_SAVE_DIR }}/{{ .NAMESPACE }}/${FIRST_NODE_STATE_FILE}"
           
-          if [ ! -f "{{ .STATE_SAVE_DIR }}/${FIRST_NODE_STATE_FILE}" ]; then
-            echo "⚠️  State file not found: {{ .STATE_SAVE_DIR }}/${FIRST_NODE_STATE_FILE}"
+          if [ ! -f "${STATE_FILE_PATH}" ]; then
+            echo "⚠️  State file not found: ${STATE_FILE_PATH}"
             exit 1
           fi
           
           echo "Using ${FIRST_NODE_STATE_FILE} for all nodes..."
           $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} \
-            --state-file "{{ .STATE_SAVE_DIR }}/${FIRST_NODE_STATE_FILE}"
+            --state-file "${STATE_FILE_PATH}"
       - cmd: echo "✅ Nodes started with restored state"
 
   restore-database:
@@ -271,7 +273,7 @@ tasks:
       - cmd: sleep 30  # Wait for nodes to stabilize
       - cmd: |
           echo "Generating test transactions to verify network functionality..."
-          for i in {1..5}; do
+          for i in {1..3}; do
             $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }}
             sleep 2
           done
@@ -286,9 +288,9 @@ tasks:
       - cmd: $SOLO_COMMAND mirror node destroy --deployment {{ .DEPLOYMENT }} --force
       # freeze network before download otherwise may get error "file changed as we read it"
       - cmd: echo "Freezing network..."
-      - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}      
+      - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
       - cmd: echo "✅ Network frozen"
-      
+
 
   destroy-database:
     desc: Destroy external database

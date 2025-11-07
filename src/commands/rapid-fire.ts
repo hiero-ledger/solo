@@ -40,6 +40,8 @@ interface RapidFireStartConfigClass {
   nlgArguments: string;
   parsedNlgArguments: string;
   javaHeap: number;
+  performanceTest: string;
+  packageName: string;
 }
 
 interface RapidFireStopConfigClass {
@@ -49,6 +51,8 @@ interface RapidFireStopConfigClass {
   namespace: NamespaceName;
   context: string;
   clusterRef: ClusterReferenceName;
+  performanceTest: string;
+  packageName: string;
 }
 
 interface RapidFireStartContext {
@@ -79,11 +83,16 @@ export class RapidFireCommand extends BaseCommand {
   private static readonly STOP_CONFIG_NAME: string = 'stopConfig';
 
   public static readonly START_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment, flags.nlgArguments],
-    optional: [flags.devMode, flags.force, flags.quiet, flags.valuesFile, flags.javaHeap],
+    required: [flags.deployment, flags.nlgArguments, flags.performanceTest],
+    optional: [flags.devMode, flags.force, flags.quiet, flags.valuesFile, flags.javaHeap, flags.packageName],
   };
 
   public static readonly STOP_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment, flags.performanceTest],
+    optional: [flags.devMode, flags.force, flags.quiet, flags.packageName],
+  };
+
+  public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [flags.devMode, flags.force, flags.quiet],
   };
@@ -187,13 +196,16 @@ export class RapidFireCommand extends BaseCommand {
     };
   }
 
-  private startLoadTest(testClass: NLGTestClass, leaseReference: {lease?: Lock}): SoloListrTask<RapidFireStartContext> {
+  private startLoadTest(leaseReference: {lease?: Lock}): SoloListrTask<RapidFireStartContext> {
     return {
-      title: `Start ${testClass} load test`,
+      title: `Start performance load test`,
       task: async (
         context_: RapidFireStartContext,
         task: SoloListrTaskWrapper<RapidFireStartContext>,
       ): Promise<void> => {
+        const {performanceTest, packageName} = context_.config;
+        const testClass: string = `${packageName}.${performanceTest}`;
+        task.title = `Start performance load test: ${testClass}`;
         const nlgPods: Pod[] = await this.k8Factory
           .getK8(context_.config.context)
           .pods()
@@ -215,7 +227,7 @@ export class RapidFireCommand extends BaseCommand {
           try {
             await leaseReference.lease?.release();
             await container.execContainer(
-              `/usr/bin/env java -Xmx${context_.config.javaHeap}g -cp /app/lib/*:/app/network-load-generator-${NETWORK_LOAD_GENERATOR_CHART_VERSION}.jar com.hedera.benchmark.${testClass} ${context_.config.parsedNlgArguments}`,
+              `/usr/bin/env java -Xmx${context_.config.javaHeap}g -cp /app/lib/*:/app/network-load-generator-${NETWORK_LOAD_GENERATOR_CHART_VERSION}.jar ${testClass} ${context_.config.parsedNlgArguments}`,
               outputStream,
             );
           } catch (error) {
@@ -231,7 +243,7 @@ export class RapidFireCommand extends BaseCommand {
     };
   }
 
-  private async start(testClass: NLGTestClass, argv: ArgvStruct): Promise<boolean> {
+  public async start(argv: ArgvStruct): Promise<boolean> {
     const leaseReference: {lease?: Lock} = {}; // This allows the lease to be passed by reference to the init task
 
     const tasks: Listr<RapidFireStartContext> = new Listr<RapidFireStartContext>(
@@ -273,7 +285,7 @@ export class RapidFireCommand extends BaseCommand {
           },
         },
         this.deployNlgChart(),
-        this.startLoadTest(testClass, leaseReference),
+        this.startLoadTest(leaseReference),
       ],
       {
         concurrent: false,
@@ -349,10 +361,13 @@ export class RapidFireCommand extends BaseCommand {
     return true;
   }
 
-  private stopLoadTest(testClass: NLGTestClass): SoloListrTask<RapidFireStopContext> {
+  private stopLoadTest(): SoloListrTask<RapidFireStopContext> {
     return {
-      title: `Stop ${testClass} load test`,
+      title: 'Stop load test',
       task: async (context_: RapidFireStopContext, task: SoloListrTaskWrapper<RapidFireStopContext>): Promise<void> => {
+        const {performanceTest, packageName} = context_.config;
+        const testClass: string = `${packageName}.${performanceTest}`;
+        task.title = `Stop load test: ${testClass}`;
         const nlgPods: Pod[] = await this.k8Factory
           .getK8(context_.config.context)
           .pods()
@@ -375,10 +390,10 @@ export class RapidFireCommand extends BaseCommand {
     };
   }
 
-  private async stop(testClass: NLGTestClass, argv: ArgvStruct): Promise<boolean> {
+  public async stop(argv: ArgvStruct): Promise<boolean> {
     const leaseReference: {lease?: Lock} = {}; // This allows the lease to be passed by reference to the init task
     const tasks: Listr<RapidFireStopContext> = new Listr<RapidFireStopContext>(
-      [this.stopInitializeTask(argv, leaseReference), this.stopLoadTest(testClass)],
+      [this.stopInitializeTask(argv, leaseReference), this.stopLoadTest()],
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
@@ -409,62 +424,6 @@ export class RapidFireCommand extends BaseCommand {
         );
       },
     });
-  }
-
-  public async cryptoTransferStart(argv: ArgvStruct): Promise<boolean> {
-    return this.start(NLGTestClass.CryptoTransferLoadTest, argv);
-  }
-
-  public async nftTransferStart(argv: ArgvStruct): Promise<boolean> {
-    return this.start(NLGTestClass.NftTransferLoadTest, argv);
-  }
-
-  public async tokenTransferStart(argv: ArgvStruct): Promise<boolean> {
-    return this.start(NLGTestClass.TokenTransferLoadTest, argv);
-  }
-
-  public async hcsLoadStart(argv: ArgvStruct): Promise<boolean> {
-    return this.start(NLGTestClass.HCSLoadTest, argv);
-  }
-
-  public async smartContractStart(argv: ArgvStruct): Promise<boolean> {
-    return this.start(NLGTestClass.SmartContractLoadTest, argv);
-  }
-
-  public async heliSwapStart(argv: ArgvStruct): Promise<boolean> {
-    return this.start(NLGTestClass.HeliSwapLoadTest, argv);
-  }
-
-  public async longevityStart(argv: ArgvStruct): Promise<boolean> {
-    return this.start(NLGTestClass.LongevityLoadTest, argv);
-  }
-
-  public async cryptoTransferStop(argv: ArgvStruct): Promise<boolean> {
-    return this.stop(NLGTestClass.CryptoTransferLoadTest, argv);
-  }
-
-  public async nftTransferStop(argv: ArgvStruct): Promise<boolean> {
-    return this.stop(NLGTestClass.NftTransferLoadTest, argv);
-  }
-
-  public async tokenTransferStop(argv: ArgvStruct): Promise<boolean> {
-    return this.stop(NLGTestClass.TokenTransferLoadTest, argv);
-  }
-
-  public async hcsLoadStop(argv: ArgvStruct): Promise<boolean> {
-    return this.stop(NLGTestClass.HCSLoadTest, argv);
-  }
-
-  public async smartContractStop(argv: ArgvStruct): Promise<boolean> {
-    return this.stop(NLGTestClass.SmartContractLoadTest, argv);
-  }
-
-  public async heliSwapStop(argv: ArgvStruct): Promise<boolean> {
-    return this.stop(NLGTestClass.HeliSwapLoadTest, argv);
-  }
-
-  public async longevityStop(argv: ArgvStruct): Promise<boolean> {
-    return this.stop(NLGTestClass.LongevityLoadTest, argv);
   }
 
   public async close(): Promise<void> {} // no-op
