@@ -30,4 +30,4 @@ merge:
     - "Test Examples / Test Example (Rapid Fire)"
     - "Test Examples / Test Example (State Save and Restore)"
     - "Test Examples / Test Example (Backup Restore Workflow)"
-    - "performance-test"
+    - "Performance Test Solo Deployment / performance-test"
