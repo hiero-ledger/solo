@@ -396,7 +396,7 @@ export class Flags {
     name: 'prometheus-stack',
     definition: {
       describe: 'Deploy prometheus stack',
-      defaultValue: true,
+      defaultValue: false,
       type: 'boolean',
     },
     prompt: async function promptDeployPrometheusStack(
