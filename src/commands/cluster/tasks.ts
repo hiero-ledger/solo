@@ -8,7 +8,7 @@ import {ErrorMessages} from '../../core/error-messages.js';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {UserBreak} from '../../core/errors/user-break.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
-import {type ClusterReferenceName, type SoloListrTask} from '../../types/index.js';
+import {type ClusterReferenceName, Context, type ReleaseNameData, type SoloListrTask} from '../../types/index.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
@@ -30,6 +30,7 @@ import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remo
 import * as versions from '../../../version.js';
 import * as fs from 'node:fs';
 import * as yaml from 'yaml';
+import {findMinioOperator} from '../../core/helpers.js';
 
 @injectable()
 export class ClusterCommandTasks {
@@ -49,6 +50,10 @@ export class ClusterCommandTasks {
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+  }
+
+  public findMinioOperator(context: Context): Promise<ReleaseNameData> {
+    return findMinioOperator(context, this.k8Factory);
   }
 
   public connectClusterRef(): SoloListrTask<ClusterReferenceConnectContext> {
@@ -204,51 +209,39 @@ export class ClusterCommandTasks {
   }
 
   public installMinioOperator(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
     return {
       title: 'Install MinIO Operator chart',
-      task: async context_ => {
-        const clusterSetupNamespace = context_.config.clusterSetupNamespace;
-
-        const isMinioInstalled = await this.chartManager.isChartInstalled(
-          clusterSetupNamespace,
-          constants.MINIO_OPERATOR_RELEASE_NAME,
-          context_.config.context,
-        );
+      task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
+        const {exists: isMinioInstalled}: ReleaseNameData = await this.findMinioOperator(context);
 
         if (isMinioInstalled) {
-          self.logger.showUser('⏭️  MinIO Operator chart already installed, skipping');
-        } else {
-          try {
-            await this.chartManager.install(
-              clusterSetupNamespace,
-              constants.MINIO_OPERATOR_RELEASE_NAME,
-              constants.MINIO_OPERATOR_CHART,
-              constants.MINIO_OPERATOR_CHART,
-              versions.MINIO_OPERATOR_VERSION,
-              '--set operator.replicaCount=1',
-              context_.config.context,
-            );
+          this.logger.showUser('⏭️  MinIO Operator chart already installed, skipping');
+          return;
+        }
 
-            self.logger.showUser('✅ MinIO Operator chart installed successfully');
-          } catch (error) {
-            self.logger.debug('Error installing MinIO Operator chart', error);
-            try {
-              await this.chartManager.uninstall(
-                clusterSetupNamespace,
-                constants.MINIO_OPERATOR_RELEASE_NAME,
-                context_.config.context,
-              );
-            } catch (uninstallError) {
-              this.logger.showUserError(uninstallError);
-            }
-            throw new SoloError('Error installing MinIO Operator chart', error);
+        try {
+          await this.chartManager.install(
+            clusterSetupNamespace,
+            constants.MINIO_OPERATOR_RELEASE_NAME,
+            constants.MINIO_OPERATOR_CHART,
+            constants.MINIO_OPERATOR_CHART,
+            versions.MINIO_OPERATOR_VERSION,
+            '--set operator.replicaCount=1',
+            context,
+          );
+
+          this.logger.showUser('✅ MinIO Operator chart installed successfully');
+        } catch (error) {
+          this.logger.debug('Error installing MinIO Operator chart', error);
+          try {
+            await this.chartManager.uninstall(clusterSetupNamespace, constants.MINIO_OPERATOR_RELEASE_NAME, context);
+          } catch (uninstallError) {
+            this.logger.showUserError(uninstallError);
           }
+          throw new SoloError('Error installing MinIO Operator chart', error);
         }
       },
-      skip: context_ => !context_.config.deployMinio,
+      skip: ({config: {deployMinio}}): boolean => !deployMinio,
     };
   }
 
@@ -447,29 +440,17 @@ export class ClusterCommandTasks {
   }
 
   public uninstallMinioOperator(argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
-    // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
-    const self = this;
-
     return {
       title: 'Uninstall MinIO Operator chart',
-      task: async context_ => {
-        const clusterSetupNamespace = context_.config.clusterSetupNamespace;
-
-        const isMinioInstalled = await this.chartManager.isChartInstalled(
-          clusterSetupNamespace,
-          constants.MINIO_OPERATOR_RELEASE_NAME,
-          context_.config.context,
-        );
+      task: async ({config: {clusterSetupNamespace: namespace, context}}): Promise<void> => {
+        const {exists: isMinioInstalled, releaseName}: ReleaseNameData = await this.findMinioOperator(context);
 
         if (isMinioInstalled) {
-          await self.chartManager.uninstall(
-            clusterSetupNamespace,
-            constants.MINIO_OPERATOR_RELEASE_NAME,
-            context_.config.context || this.k8Factory.default().contexts().readCurrent(),
-          );
-          self.logger.showUser('✅ MinIO Operator chart uninstalled successfully');
+          await this.chartManager.uninstall(namespace, releaseName, context);
+
+          this.logger.showUser('✅ MinIO Operator chart uninstalled successfully');
         } else {
-          self.logger.showUser('⏭️  MinIO Operator chart not installed, skipping');
+          this.logger.showUser('⏭️  MinIO Operator chart not installed, skipping');
         }
       },
     };

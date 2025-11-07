@@ -81,42 +81,55 @@ tasks:
           # Solo consensus node start
           $SOLO_COMMAND consensus node start --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
-      # Solo rapid-fire crypto-transfer start
+      # Run load test with the com.hedera.benchmark.CryptoTransferLoadTest class
       # Args: [-c <clients>] [-a <accounts>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [transfer|query|mixed] [-metrics]
       - cmd: |
-          $SOLO_COMMAND rapid-fire crypto-transfer start --deployment {{ .SOLO_DEPLOYMENT }} \
+          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
           --values-file {{ .USER_WORKING_DIR }}/nlg-values.yaml \
+          --test CryptoTransferLoadTest \
           --args '"-c 5 -a 10 -R -t 10"'
 
-      # Solo rapid-fire nft-transfer start
+      # Run load test with the com.hedera.benchmark.NftTransferLoadTest class
       # Args: [-c <clients>] [-a <accounts>] [-T <tokens>] [-n <NFTs/token>] [-S flat|hot -p <percent>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
       - cmd: |
-          $SOLO_COMMAND rapid-fire nft-transfer start --deployment {{ .SOLO_DEPLOYMENT }} \
+          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
+          --test NftTransferLoadTest \
           --args '"-c 5 -a 10 -T 2 -n 3 -S flat -p 50 -R -t 10"'
 
-      # Solo rapid-fire smart-contract start
+      # Run load test with the com.hedera.benchmark.SmartContractLoadTest class
       # Args: [-c <clients>] [-a <accounts>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
       - cmd: |
-          $SOLO_COMMAND rapid-fire smart-contract start --deployment {{ .SOLO_DEPLOYMENT }} \
+          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
+          --test SmartContractLoadTest \
           --args '"-c 5 -a 10 -R -t 10"'
 
-      # Solo rapid-fire heli-swap start
+      # Run load test with the com.hedera.benchmark.HeliSwapLoadTest class
       # Args: HeliSwapLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
       - cmd: |
-          $SOLO_COMMAND rapid-fire heli-swap start --deployment {{ .SOLO_DEPLOYMENT }} \
+          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
+          --test HeliSwapLoadTest \
           --args '"-c 5 -a 10 -R -t 10"'
 
-      # Solo rapid-fire longevity start
+      # Run load test with the com.hedera.benchmark.LongevityLoadTest class
       # Args: LongevityLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
       - cmd: |
-          $SOLO_COMMAND rapid-fire longevity start --deployment {{ .SOLO_DEPLOYMENT }} \
+          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
+          --test LongevityLoadTest \
           --args '"-c 5 -a 10 -R -t 10"'
 
-      # Solo rapid-fire token-transfer start
+      # Run load test with the com.hedera.benchmark.HCSLoadTest class
+      # Args: HCSLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
+      - cmd: |
+          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
+          --test HCSLoadTest \
+          --args '"-c 5 -a 10 -R -t 10"'
+
+      # Run load test with the com.hedera.benchmark.TokenTransferLoadTest class
       # Args: [-c <clients>] [-a <accounts>] [-T <tokens>] [-A <associations>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
-  #      - cmd: |
-  #          $SOLO_COMMAND rapid-fire token-transfer start --deployment {{ .SOLO_DEPLOYMENT }} \
-  #          --args '"-c 5 -a 10 -T 2 -A 5 -R -t 10"'
+      - cmd: |
+          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
+          --test TokenTransferLoadTest \
+          --args '"-c 5 -a 1 -T 1 -A 1 -R -t 10"'
 
   destroy:
     desc: Destroy the Solo network using one-shot single destroy

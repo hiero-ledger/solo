@@ -276,3 +276,8 @@ export const SETUP_FLAGS = {
     flags.domainNames,
   ],
 };
+
+export const DIAGNOSTICS_CONNECTIONS = {
+  required: [flags.deployment],
+  optional: [flags.quiet, flags.devMode],
+};

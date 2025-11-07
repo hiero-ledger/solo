@@ -31,6 +31,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {AccountManager} from './account-manager.js';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 
 @injectable()
 export class ProfileManager {
@@ -449,16 +450,18 @@ export class ProfileManager {
   }
 
   private async updateApplicationPropertiesForBlockNode(applicationPropertiesPath: string): Promise<void> {
-    const hasDeployedBlockNodes: boolean =
-      Object.keys(this.remoteConfig.configuration.components.state.blockNodes).length > 0;
+    const blockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.components.state.blockNodes;
+    const hasDeployedBlockNodes: boolean = blockNodes.length > 0;
     if (!hasDeployedBlockNodes) {
       return;
     }
 
-    const lines: string[] = (await readFile(applicationPropertiesPath, 'utf-8')).split('\n');
+    const lines: string[] = await readFile(applicationPropertiesPath, 'utf-8').then((fileText): string[] =>
+      fileText.split('\n'),
+    );
 
-    const streamMode: string = 'BOTH';
-    const writerMode: string = 'FILE_AND_GRPC';
+    const streamMode: string = constants.BLOCK_STREAM_STREAM_MODE;
+    const writerMode: string = constants.BLOCK_STREAM_WRITER_MODE;
 
     let streamModeUpdated: boolean = false;
     let writerModeUpdated: boolean = false;

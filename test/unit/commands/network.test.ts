@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import sinon from 'sinon';
+import sinon, {type SinonStub} from 'sinon';
 import {before, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
 
@@ -43,9 +43,9 @@ import {type ClusterReferences} from '../../../src/types/index.js';
 import {type RemoteConfigRuntimeState} from '../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {StringFacade} from '../../../src/business/runtime-state/facade/string-facade.js';
 
-const testName = 'network-cmd-unit';
-const namespace = NamespaceName.of(testName);
-const argv = Argv.getDefaultArgv(namespace);
+const testName: string = 'network-cmd-unit';
+const namespace: NamespaceName = NamespaceName.of(testName);
+const argv: Argv = Argv.getDefaultArgv(namespace);
 
 argv.setArg(flags.releaseTag, HEDERA_PLATFORM_VERSION_TAG);
 argv.setArg(flags.nodeAliasesUnparsed, 'node1');
@@ -61,10 +61,10 @@ if (SemVersionLessThan(new SemVer(version.HEDERA_PLATFORM_VERSION), new SemVer('
   argv.setArg(flags.releaseTag, 'v0.61.0');
 }
 
-describe('NetworkCommand unit tests', () => {
-  before(async () => {
-    const sourceDirectory = PathEx.joinWithRealPath('test', 'data');
-    const destinationDirectory = path.join(sourceDirectory, 'tmp', 'templates');
+describe('NetworkCommand unit tests', (): void => {
+  before(async (): Promise<void> => {
+    const sourceDirectory: string = PathEx.joinWithRealPath('test', 'data');
+    const destinationDirectory: string = path.join(sourceDirectory, 'tmp', 'templates');
 
     if (!fs.existsSync(destinationDirectory)) {
       fs.mkdirSync(destinationDirectory, {recursive: true});
@@ -76,22 +76,22 @@ describe('NetworkCommand unit tests', () => {
     );
   });
 
-  describe('Chart Install Function is called correctly', () => {
+  describe('Chart Install Function is called correctly', (): void => {
     let options: any;
 
-    const k8SFactoryStub = sinon.stub() as unknown as K8Factory;
-    const clusterChecksStub = sinon.stub() as unknown as ClusterChecks;
-    const remoteConfigStub = sinon.stub() as unknown as RemoteConfigRuntimeState;
-    const chartManagerStub = sinon.stub() as unknown as ChartManager;
-    const certificateManagerStub = sinon.stub() as unknown as CertificateManager;
-    const profileManagerStub = sinon.stub() as unknown as ProfileManager;
-    const platformInstallerStub = sinon.stub() as unknown as PlatformInstaller;
-    const keyManagerStub = sinon.stub() as unknown as KeyManager;
-    const depManagerStub = sinon.stub() as unknown as DependencyManager;
-    const helmStub = sinon.stub() as unknown as DefaultHelmClient;
+    const k8SFactoryStub: K8Factory = sinon.stub() as any;
+    const clusterChecksStub: ClusterChecks = sinon.stub() as any;
+    const remoteConfigStub: RemoteConfigRuntimeState = sinon.stub() as any;
+    const chartManagerStub: ChartManager = sinon.stub() as any;
+    const certificateManagerStub: CertificateManager = sinon.stub() as any;
+    const profileManagerStub: ProfileManager = sinon.stub() as any;
+    const platformInstallerStub: PlatformInstaller = sinon.stub() as any;
+    const keyManagerStub: KeyManager = sinon.stub() as any;
+    const depManagerStub: DependencyManager = sinon.stub() as any;
+    const helmStub: DefaultHelmClient = sinon.stub() as any;
     let containerOverrides: InstanceOverrides;
 
-    beforeEach(async () => {
+    beforeEach(async (): Promise<void> => {
       containerOverrides = new Map<symbol, ValueContainer>([
         [InjectTokens.K8Factory, new ValueContainer(InjectTokens.K8Factory, k8SFactoryStub)],
         [InjectTokens.ClusterChecks, new ValueContainer(InjectTokens.ClusterChecks, clusterChecksStub)],
@@ -118,7 +118,7 @@ describe('NetworkCommand unit tests', () => {
       options.configManager.update(argv.build());
 
       options.k8Factory = k8SFactoryStub;
-      const k8Stub = sinon.stub();
+      const k8Stub: SinonStub = sinon.stub();
 
       options.k8Factory.default = sinon.stub().returns(k8Stub);
       options.k8Factory.default().namespaces = sinon.stub().returns({
@@ -216,16 +216,16 @@ describe('NetworkCommand unit tests', () => {
       GenesisNetworkDataConstructor.initialize = sinon.stub().returns(null);
     });
 
-    afterEach(() => {
+    afterEach((): void => {
       sinon.restore();
     });
 
-    it('Install function is called with expected parameters', async () => {
+    it('Install function is called with expected parameters', async (): Promise<void> => {
       try {
-        const networkCommand = container.resolve<NetworkCommand>(NetworkCommand);
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
         options.remoteConfig.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
         options.remoteConfig.getContexts = sinon.stub().returns(['context1']);
-        const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['solo-e2e', 'context1']]);
+        const stubbedClusterReferences: ClusterReferences = new Map([['solo-e2e', 'context1']]);
         options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
         options.remoteConfig.updateComponentVersion = sinon.stub();
         // @ts-expect-error - TS2341: to mock
@@ -248,16 +248,16 @@ describe('NetworkCommand unit tests', () => {
       }
     });
 
-    it('Should use local chart directory', async () => {
+    it('Should use local chart directory', async (): Promise<void> => {
       try {
         argv.setArg(flags.chartDirectory, 'test-directory');
         argv.setArg(flags.force, true);
-        const networkCommand = container.resolve<NetworkCommand>(NetworkCommand);
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
 
         options.remoteConfig.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
         options.remoteConfig.getContexts = sinon.stub().returns(['context1']);
         options.remoteConfig.updateComponentVersion = sinon.stub();
-        const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['solo-e2e', 'context1']]);
+        const stubbedClusterReferences: ClusterReferences = new Map([['solo-e2e', 'context1']]);
         options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
         // @ts-expect-error - TS2341: to mock
@@ -279,16 +279,16 @@ describe('NetworkCommand unit tests', () => {
       }
     });
 
-    it('Should use prepare config correctly for all clusters', async () => {
+    it('Should use prepare config correctly for all clusters', async (): Promise<void> => {
       try {
-        const common = PathEx.join('test', 'data', 'test-values.yaml');
-        const values1 = PathEx.join('test', 'data', 'test-values1.yaml');
-        const values2 = PathEx.join('test', 'data', 'test-values2.yaml');
+        const common: string = PathEx.join('test', 'data', 'test-values.yaml');
+        const values1: string = PathEx.join('test', 'data', 'test-values1.yaml');
+        const values2: string = PathEx.join('test', 'data', 'test-values2.yaml');
         argv.setArg(flags.networkDeploymentValuesFile, `${common},cluster=${values1},cluster=${values2}`);
         argv.setArg(flags.chartDirectory, 'test-directory');
         argv.setArg(flags.force, true);
 
-        const task = sinon.stub();
+        const task: SinonStub = sinon.stub();
 
         options.remoteConfig.getConsensusNodes = sinon
           .stub()
@@ -298,7 +298,7 @@ describe('NetworkCommand unit tests', () => {
         const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['cluster', 'context1']]);
         options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
-        const networkCommand = container.resolve<NetworkCommand>(NetworkCommand);
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
         // @ts-expect-error - to mock
         networkCommand.getBlockNodes = sinon.stub().returns([]);
 

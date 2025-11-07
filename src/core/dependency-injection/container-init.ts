@@ -84,6 +84,8 @@ import {VfkitDependencyManager} from '../dependency-managers/vfkit-dependency-ma
 import {GvproxyDependencyManager} from '../dependency-managers/gvproxy-dependency-manager.js';
 import {RapidFireCommand} from '../../commands/rapid-fire.js';
 import {RapidFireCommandDefinition} from '../../commands/command-definitions/rapid-fire-command-definition.js';
+import {BackupRestoreCommand} from '../../commands/backup-restore.js';
+import {BackupRestoreCommandDefinition} from '../../commands/command-definitions/backup-restore-command-definition.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -149,6 +151,7 @@ export class Container {
       new SingletonContainer(InjectTokens.MirrorNodeCommand, MirrorNodeCommand),
       new SingletonContainer(InjectTokens.NetworkCommand, NetworkCommand),
       new SingletonContainer(InjectTokens.RelayCommand, RelayCommand),
+      new SingletonContainer(InjectTokens.BackupRestoreCommand, BackupRestoreCommand),
       new SingletonContainer(InjectTokens.BlockNodeCommand, BlockNodeCommand),
       new SingletonContainer(InjectTokens.RapidFireCommand, RapidFireCommand),
       new SingletonContainer(InjectTokens.ClusterCommandTasks, ClusterCommandTasks),
@@ -167,6 +170,7 @@ export class Container {
       new SingletonContainer(InjectTokens.MetricsServer, MetricsServerImpl),
 
       // Command Definitions
+      new SingletonContainer(InjectTokens.BackupRestoreCommandDefinition, BackupRestoreCommandDefinition),
       new SingletonContainer(InjectTokens.BlockCommandDefinition, BlockCommandDefinition),
       new SingletonContainer(InjectTokens.ClusterReferenceCommandDefinition, ClusterReferenceCommandDefinition),
       new SingletonContainer(InjectTokens.ConsensusCommandDefinition, ConsensusCommandDefinition),

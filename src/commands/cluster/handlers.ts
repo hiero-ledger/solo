@@ -58,19 +58,24 @@ export class ClusterCommandHandlers extends CommandHandler {
   public async disconnect(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, ContextFlags.DEFAULT_FLAGS);
 
-    await this.commandAction(
-      argv,
-      [
-        this.tasks.initialize(argv, this.configs.defaultConfigBuilder.bind(this.configs)),
-        this.tasks.disconnectClusterRef(),
-      ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-      },
-      'cluster-ref config disconnect',
-      null,
-    );
+    try {
+      await this.commandAction(
+        argv,
+        [
+          this.tasks.initialize(argv, this.configs.defaultConfigBuilder.bind(this.configs), false),
+          this.tasks.disconnectClusterRef(),
+        ],
+        {
+          concurrent: false,
+          rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        },
+        'cluster-ref config disconnect',
+        null,
+        'cluster-ref config disconnect',
+      );
+    } catch (error) {
+      throw new SoloError('Error on cluster-ref config disconnect', error);
+    }
 
     return true;
   }
@@ -97,7 +102,10 @@ export class ClusterCommandHandlers extends CommandHandler {
 
     await this.commandAction(
       argv,
-      [this.tasks.initialize(argv, this.configs.defaultConfigBuilder.bind(this.configs)), this.tasks.getClusterInfo()],
+      [
+        this.tasks.initialize(argv, this.configs.defaultConfigBuilder.bind(this.configs), false),
+        this.tasks.getClusterInfo(),
+      ],
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,

@@ -83,6 +83,8 @@ import {
   type AccountIdWithKeyPairObject,
   type ClusterReferenceName,
   type ClusterReferences,
+  type ComponentData,
+  type ComponentDisplayName,
   type ComponentId,
   type Context,
   type DeploymentName,
@@ -107,7 +109,7 @@ import {type NodeAddContext} from './config-interfaces/node-add-context.js';
 import {type NodeDestroyContext} from './config-interfaces/node-destroy-context.js';
 import {type NodeUpdateContext} from './config-interfaces/node-update-context.js';
 import {type NodeStatesContext} from './config-interfaces/node-states-context.js';
-import {NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
+import {type NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
 import {type NodeRefreshContext} from './config-interfaces/node-refresh-context.js';
 import {type NodeStopContext} from './config-interfaces/node-stop-context.js';
 import {type NodeFreezeContext} from './config-interfaces/node-freeze-context.js';
@@ -126,11 +128,19 @@ import {type ComponentFactoryApi} from '../../core/config/remote/api/component-f
 import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 import {LockManager} from '../../core/lock/lock-manager.js';
-import {NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
-import {SemVer, lt} from 'semver';
+import {type NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
+import {lt, SemVer} from 'semver';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
 import {Version} from '../../business/utils/version.js';
+import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
+import {type BaseStateSchema} from '../../data/schema/model/remote/state/base-state-schema.js';
+import {ComponentStateMetadataSchema} from '../../data/schema/model/remote/state/component-state-metadata-schema.js';
+import net from 'node:net';
+import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
+import {TDirectoryData} from '../../integration/kube/t-directory-data.js';
+
+const {gray, cyan, red, green, yellow} = chalk;
 
 export type LeaseWrapper = {lease: Lock};
 
@@ -924,64 +934,57 @@ export class NodeCommandTasks {
     const self = this;
     return {
       title: 'Download generated files from an existing node',
-      task: async context_ => {
-        const config = context_.config;
-
+      task: async ({
+        config: {nodeAlias, existingNodeAliases, consensusNodes, stagingDir, keysDir, namespace},
+      }): Promise<void> => {
         // don't try to download from the same node we are deleting, it won't work
-        const nodeAlias: NodeAlias =
-          (context_ as any).config.nodeAlias === config.existingNodeAliases[0] && config.existingNodeAliases.length > 1
-            ? config.existingNodeAliases[1]
-            : config.existingNodeAliases[0];
+        const targetNodeAlias: NodeAlias =
+          nodeAlias === existingNodeAliases[0] && existingNodeAliases.length > 1
+            ? existingNodeAliases[1]
+            : existingNodeAliases[0];
 
-        const nodeFullyQualifiedPodName = Templates.renderNetworkPodName(nodeAlias);
-        const podReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
-        const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+        const nodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(targetNodeAlias);
+        const podReference: PodReference = PodReference.of(namespace, nodeFullyQualifiedPodName);
+        const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
 
-        const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
-        const k8 = self.k8Factory.getK8(context);
+        const context: Context = helpers.extractContextFromConsensusNodes(targetNodeAlias, consensusNodes);
+
+        const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
         // copy the config.txt file from the node1 upgrade directory
-        await k8
-          .containers()
-          .readByRef(containerReference)
-          .copyFrom(`${constants.HEDERA_HAPI_PATH}/data/upgrade/current/config.txt`, config.stagingDir);
+        await k8Container.copyFrom(`${constants.HEDERA_HAPI_PATH}/data/upgrade/current/config.txt`, stagingDir);
 
         // if directory data/upgrade/current/data/keys does not exist, then use data/upgrade/current
-        let keyDirectory = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys`;
-        if (!(await k8.containers().readByRef(containerReference).hasDir(keyDirectory))) {
+        let keyDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys`;
+
+        if (!(await k8Container.hasDir(keyDirectory))) {
           keyDirectory = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current`;
         }
-        const signedKeyFiles = (await k8.containers().readByRef(containerReference).listDir(keyDirectory)).filter(
-          file => file.name.startsWith(constants.SIGNING_KEY_PREFIX),
-        );
-        await k8
-          .containers()
-          .readByRef(containerReference)
-          .execContainer([
-            'bash',
-            '-c',
-            `mkdir -p ${constants.HEDERA_HAPI_PATH}/data/keys_backup && cp -r ${keyDirectory} ${constants.HEDERA_HAPI_PATH}/data/keys_backup/`,
-          ]);
+
+        const signedKeyFiles: TDirectoryData[] = await k8Container
+          .listDir(keyDirectory)
+          .then((files: TDirectoryData[]): TDirectoryData[] =>
+            files.filter((file): boolean => file.name.startsWith(constants.SIGNING_KEY_PREFIX)),
+          );
+
+        await k8Container.execContainer([
+          'bash',
+          '-c',
+          `mkdir -p ${constants.HEDERA_HAPI_PATH}/data/keys_backup && cp -r ${keyDirectory} ${constants.HEDERA_HAPI_PATH}/data/keys_backup/`,
+        ]);
+
         for (const signedKeyFile of signedKeyFiles) {
-          await k8
-            .containers()
-            .readByRef(containerReference)
-            .copyFrom(`${keyDirectory}/${signedKeyFile.name}`, `${config.keysDir}`);
+          await k8Container.copyFrom(`${keyDirectory}/${signedKeyFile.name}`, `${keysDir}`);
         }
 
         const applicationPropertiesSourceDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`;
-        await ((await k8.containers().readByRef(containerReference).hasFile(applicationPropertiesSourceDirectory))
-          ? k8
-              .containers()
-              .readByRef(containerReference)
-              .copyFrom(applicationPropertiesSourceDirectory, `${config.stagingDir}/templates`)
-          : k8
-              .containers()
-              .readByRef(containerReference)
-              .copyFrom(
-                `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`,
-                `${config.stagingDir}/templates`,
-              ));
+
+        await ((await k8Container.hasFile(applicationPropertiesSourceDirectory))
+          ? k8Container.copyFrom(applicationPropertiesSourceDirectory, `${stagingDir}/templates`)
+          : k8Container.copyFrom(
+              `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`,
+              `${stagingDir}/templates`,
+            ));
       },
     };
   }
@@ -1148,15 +1151,12 @@ export class NodeCommandTasks {
     };
   }
 
-  public uploadStateFiles(skip: SkipCheck | boolean) {
+  public uploadStateFiles(skip: SkipCheck | boolean, stateFileDirectory?: string) {
     const self = this;
     return {
       title: 'Upload state files network nodes',
       task: async context_ => {
         const config = context_.config;
-
-        const zipFile = config.stateFile;
-        self.logger.debug(`zip file: ${zipFile}`);
 
         // Get the source node ID from the first consensus node (the state file's original node)
         const sourceNodeId = config.consensusNodes[0].nodeId;
@@ -1173,28 +1173,72 @@ export class NodeCommandTasks {
           const targetNodeId = consensusNode.nodeId;
           const container = await k8.containers().readByRef(containerReference);
 
+          // Determine the state file to use
+          let zipFile: string;
+          if (
+            stateFileDirectory &&
+            fs.existsSync(stateFileDirectory) &&
+            fs.statSync(stateFileDirectory).isDirectory()
+          ) {
+            // It's a directory - find the state file for this specific pod
+            const podName = podReference.name.name;
+            const statesDirectory = path.join(stateFileDirectory, context, 'states');
+
+            if (!fs.existsSync(statesDirectory)) {
+              self.logger.info(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
+              continue;
+            }
+
+            const stateFiles = fs
+              .readdirSync(statesDirectory)
+              .filter(file => file.startsWith(podName) && file.endsWith('-state.zip'));
+
+            if (stateFiles.length === 0) {
+              self.logger.info(`No state file found for pod ${podName} (node: ${nodeAlias})`);
+              continue;
+            }
+
+            zipFile = path.join(statesDirectory, stateFiles[0]);
+            self.logger.info(`Using state file for node ${nodeAlias}: ${stateFiles[0]}`);
+          } else {
+            // It's a single file or use default from config
+            zipFile = stateFileDirectory || config.stateFile;
+          }
+
           self.logger.debug(`Uploading state files to pod ${podReference.name}`);
           await container.copyTo(zipFile, `${constants.HEDERA_HAPI_PATH}/data`);
 
           self.logger.info(
             `Deleting the previous state files in pod ${podReference.name} directory ${constants.HEDERA_HAPI_PATH}/data/saved`,
           );
-          await container.execContainer(['rm', '-rf', `${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
+          await container.execContainer(['bash', '-c', `sudo rm -rf ${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
           await container.execContainer([
-            'tar',
-            '-xvf',
+            'unzip',
+            '-o',
             `${constants.HEDERA_HAPI_PATH}/data/${path.basename(zipFile)}`,
-            '-C',
+            '-d',
             `${constants.HEDERA_HAPI_PATH}/data/saved`,
+          ]);
+
+          // Fix ownership of extracted state files to hedera user
+          // NOTE: zip doesn't preserve Unix ownership - files are owned by whoever runs unzip (root).
+          // Unlike tar which preserves UID/GID metadata, zip format doesn't store Unix ownership info.
+          // The chown is required so the hedera process can access the extracted state files.
+          self.logger.info(`Fixing ownership of extracted state files in pod ${podReference.name}`);
+          await container.execContainer([
+            'bash',
+            '-c',
+            `sudo chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
           ]);
 
           // Clean up old rounds - keep only the latest/biggest round
           self.logger.info(`Cleaning up old rounds in pod ${podReference.name}, keeping only the latest round`);
-          const cleanupScriptName = 'cleanup-state-rounds.sh';
+          const cleanupScriptName = path.basename(constants.CLEANUP_STATE_ROUNDS_SCRIPT);
           const cleanupScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
           await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
           await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
           await container.execContainer(['chmod', '+x', cleanupScriptDestination]);
+          await sleep(Duration.ofSeconds(1));
           await container.execContainer([cleanupScriptDestination, constants.HEDERA_HAPI_PATH]);
 
           // Rename node ID directories to match the target node
@@ -1202,11 +1246,12 @@ export class NodeCommandTasks {
             self.logger.info(
               `Renaming node ID directories in pod ${podReference.name} from ${sourceNodeId} to ${targetNodeId}`,
             );
-            const renameScriptName = 'rename-state-node-id.sh';
+            const renameScriptName = path.basename(constants.RENAME_STATE_NODE_ID_SCRIPT);
             const renameScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${renameScriptName}`;
             await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
             await container.copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
             await container.execContainer(['chmod', '+x', renameScriptDestination]);
+            await sleep(Duration.ofSeconds(1));
             await container.execContainer([
               renameScriptDestination,
               constants.HEDERA_HAPI_PATH,
@@ -1641,7 +1686,7 @@ export class NodeCommandTasks {
             .getK8(context)
             .pods()
             .readByReference(podReference)
-            .portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT);
+            .portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT, true, true);
         }
         if (context_.config.forcePortForward && enablePortForwardHaProxy) {
           const pods: Pod[] = await this.k8Factory
@@ -1924,6 +1969,280 @@ export class NodeCommandTasks {
         await container
           .resolve<NetworkNodes>(NetworkNodes)
           .getLogs(context_.config.namespace, context_.config.contexts);
+      },
+    };
+  }
+
+  private async checkLocalPort(port: number): Promise<boolean> {
+    return new Promise<boolean>((resolve): void => {
+      const socket: net.Socket = new net.Socket();
+
+      socket.setTimeout(2000);
+
+      socket.on('timeout', (): void => resolve(false));
+      socket.on('error', (): void => resolve(false));
+
+      socket.on('connect', (): void => {
+        socket.destroy();
+        resolve(true);
+      });
+
+      socket.connect(port, 'localhost');
+    });
+  }
+
+  private async getComponentData(
+    schema: BaseStateSchema,
+    componentDisplayName: ComponentDisplayName,
+  ): Promise<ComponentData> {
+    const metadata: ComponentStateMetadataSchema = schema.metadata;
+
+    const clusterSchema: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
+      (cluster): boolean => cluster.name === metadata.cluster,
+    );
+
+    const namespace: NamespaceName = NamespaceName.of(metadata.namespace);
+    const clusterReference: ClusterReferenceName = clusterSchema.name;
+    const contextName: Context = this.localConfig.configuration.clusterRefs.get(clusterSchema.name)?.toString();
+    const componentId: ComponentId = metadata.id;
+
+    return {
+      clusterReference,
+      contextName,
+      componentId,
+      namespace,
+      componentDisplayName,
+      portForwards: metadata.portForwardConfigs,
+    };
+  }
+
+  private extractDataFromGroup(
+    states: BaseStateSchema[],
+    componentDisplayName: ComponentDisplayName,
+  ): Promise<ComponentData>[] {
+    return states.map((state): Promise<ComponentData> => this.getComponentData(state, componentDisplayName));
+  }
+
+  private validateComponentData({
+    portForwards,
+    namespace,
+    clusterReference,
+    contextName,
+    componentId,
+    componentDisplayName,
+  }: ComponentData): SoloListrTask<NodeConnectionsContext> {
+    return {
+      title: cyan(componentDisplayName),
+      task: (_, task): SoloListr<NodeConnectionsContext> | void => {
+        portForwards = portForwards || [];
+
+        if (portForwards.length === 0) {
+          task.title += ` - ${yellow('No port forward configs')}`;
+        }
+
+        task.title += `\n${gray('Id:')} ${yellow(componentId)}`;
+        task.title += `\n${gray('Namespace:')} ${yellow(namespace)}`;
+        task.title += `\n${gray('Context:')} ${yellow(contextName)}`;
+        task.title += `\n${gray('Cluster Reference:')} ${yellow(clusterReference)}`;
+
+        if (portForwards.length === 0) {
+          return;
+        }
+
+        const subTasks: SoloListrTask<NodeConnectionsContext>[] = [];
+
+        for (const {localPort, podPort} of portForwards) {
+          subTasks.push({
+            title: 'Port forward config: ',
+            task: async (_, task): Promise<void> => {
+              task.title += '\n\t' + gray('Local port') + ' ' + yellow(`[${localPort}]`) + ' - ';
+
+              task.title += (await this.checkLocalPort(localPort))
+                ? green('Successfully pinged')
+                : red('Failed to ping');
+
+              task.title += '\n\t' + gray('Pod port') + ' ' + yellow(`[${podPort}]`);
+            },
+          });
+        }
+
+        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
+      },
+    };
+  }
+
+  public testAccountCreation(): SoloListrTask<NodeConnectionsContext> {
+    return {
+      title: 'Test create account',
+      task: async ({config}, task): Promise<void> => {
+        const {namespace, deployment, context} = config;
+
+        await this.accountManager.loadNodeClient(namespace, this.remoteConfig.getClusterRefs(), deployment);
+
+        try {
+          const privateKey: PrivateKey = PrivateKey.generateECDSA();
+
+          config.newAccount = await this.accountManager.createNewAccount(namespace, privateKey, 0, true, context);
+
+          task.title += ` - ${green('Success')}`;
+        } catch (error) {
+          this.logger.showUser(error);
+          task.title += ` - ${red('Fail')}`;
+        }
+      },
+    };
+  }
+
+  public prepareDiagnosticsData(): SoloListrTask<NodeConnectionsContext> {
+    return {
+      title: 'Prepare diagnostics data',
+      task: async ({config}): Promise<void> => {
+        const state: DeploymentStateSchema = this.remoteConfig.configuration.components.state;
+
+        config.componentsData = await Promise.all([
+          ...this.extractDataFromGroup(state.mirrorNodes, 'Mirror node'),
+          ...this.extractDataFromGroup(state.relayNodes, 'Relay node'),
+          ...this.extractDataFromGroup(state.consensusNodes, 'Consensus node'),
+          ...this.extractDataFromGroup(state.explorers, 'Explorer node'),
+          ...this.extractDataFromGroup(state.blockNodes, 'Block node'),
+        ]);
+      },
+    };
+  }
+
+  public validateLocalPorts(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Test local ports',
+      task: async ({config: {componentsData}}, task): Promise<SoloListr<AnyListrContext>> => {
+        const subTasks: SoloListrTask<AnyListrContext>[] = [];
+
+        for (const componentData of componentsData) {
+          subTasks.push(this.validateComponentData(componentData));
+        }
+
+        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
+      },
+    };
+  }
+
+  public testRelay(): SoloListrTask<NodeConnectionsContext> {
+    return {
+      title: 'Test relay',
+      task: async ({config: {componentsData, newAccount}}, task): Promise<void> => {
+        const relayData: ComponentData = componentsData.find(
+          (data): boolean => data.componentDisplayName === 'Relay node',
+        );
+
+        if (!relayData) {
+          task.title += gray(' - No relay data') + ' ' + yellow('[SKIPPING]');
+          return;
+        }
+
+        if (!relayData.portForwards || relayData.portForwards.length === 0) {
+          task.title += gray(' - No relay port-forwards') + ' ' + yellow('[SKIPPING]');
+          return;
+        }
+
+        task.title += gray(' - Testing relay');
+
+        const url: string = `http://localhost:${relayData.portForwards[0].localPort}`;
+
+        const rpc: (method: string, parameters?: any[]) => Promise<any> = async (
+          method: string,
+          parameters: any[] = [],
+        ): Promise<any> => {
+          const response: Response = await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              method,
+              params: parameters,
+              id: 1,
+            }),
+          });
+          if (!response.ok) {
+            throw new Error(await response.text());
+          }
+
+          const data: any = await response.json();
+
+          if (data.error) {
+            throw new Error(JSON.stringify(data.error));
+          }
+
+          return data.result;
+        };
+
+        try {
+          let textData: string = '\n';
+
+          // Get Client Version
+          const version: string = await rpc('web3_clientVersion');
+          textData += gray('Relay responded with version: ') + yellow(version) + '\n';
+
+          // Get chain ID
+          const chainId: string = await rpc('eth_chainId');
+          textData += gray('Relay chainId: ') + yellow(chainId) + '\n';
+
+          // Get block number
+          const blockNumberHex: string = await rpc('eth_blockNumber');
+          const blockNumber: number = Number.parseInt(blockNumberHex, 16);
+          textData += gray('Latest block number: ') + yellow(blockNumber) + '\n';
+
+          // Get Account balance
+          const accountEvmAddress: string = `0x${newAccount.accountAlias.split('.')[2]}`;
+          const balanceHex: string = await rpc('eth_getBalance', [accountEvmAddress, 'latest']);
+          const balance: number = Number.parseInt(balanceHex, 16);
+          textData += gray('Account balance: ') + yellow(`${balance} wei`) + '\n';
+
+          task.title += ' ' + green('[SUCCESS]') + textData;
+        } catch (error) {
+          this.logger.showUser('Relay test failed: ' + (error instanceof Error ? error.message : error));
+          task.title += ' ' + red('[FAILED]');
+        }
+      },
+    };
+  }
+
+  public fetchAccountFromExplorer(): SoloListrTask<NodeConnectionsContext> {
+    return {
+      title: 'Test account is created',
+      task: async ({config: {componentsData, newAccount}}, task): Promise<void> => {
+        const explorerData: ComponentData = componentsData.find(
+          (data): boolean => data.componentDisplayName === 'Explorer node',
+        );
+
+        if (!explorerData) {
+          task.title += gray(' - No explorer data') + ' ' + yellow('[SKIPPING]');
+          return;
+        }
+
+        if (!explorerData.portForwards || explorerData.portForwards.length === 0) {
+          task.title += gray(' - No explorer port-forwards') + ' ' + yellow('[SKIPPING]');
+          return;
+        }
+
+        if (!newAccount?.accountId) {
+          task.title += gray(' - No new account data') + ' ' + yellow('[SKIPPING]');
+          return;
+        }
+
+        const accountId: string = newAccount.accountId;
+
+        task.title += gray(' - Attempting to fetch from explorer') + ' ' + cyan(`[${accountId}]`);
+
+        const localPort: number = explorerData.portForwards[0].localPort;
+
+        const response: Response = await fetch(`http://localhost:${localPort}/api/v1/accounts/${accountId}`);
+
+        if (!response.ok) {
+          const text: string = await response.text();
+          this.logger.showUser('Explorer fetch error: ' + text);
+          return;
+        }
+
+        task.title += ' ' + green('[SUCCESS]');
       },
     };
   }

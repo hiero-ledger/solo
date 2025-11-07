@@ -35,19 +35,19 @@ First, check that your computer meets these minimum specifications:
 
 You'll need to install a few tools before we can set up Solo. Here's what you need and how to get it:
 
-### 1. Node.js (≥20.18.0)
+### 1. Node.js (≥22.0.0)
 
 {{< details summary="Details \<click to expand/collapse>" open=true >}}<br/>
 
-Solo is built on Node.js, so you'll need version 20.18.0 or higher. We recommend using Node Version Manager (nvm) for easy version management:
+Solo is built on Node.js, so you'll need version 22.0.0 or higher. We recommend using Node Version Manager (nvm) for easy version management:
 
 ```bash
 # Install nvm (macOS/Linux)
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
 
 # Install nvm (Windows - use nvm-windows)# Download from: https://github.com/coreybutler/nvm-windows# Install Node.js
-nvm install 20.18.0
-nvm use 20.18.0
+nvm install 22.0.0
+nvm use 22.0.0
 
 # Verify installation
 node --version

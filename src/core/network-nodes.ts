@@ -15,6 +15,7 @@ import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import path from 'node:path';
 
 /**
  * Class to manage network nodes
@@ -33,9 +34,10 @@ export class NetworkNodes {
    * Download logs files from all network pods and save to local solo log directory
    * @param namespace - the namespace of the network
    * @param [contexts]
+   * @param [baseDirectory] - optional base directory to save logs, defaults to SOLO_LOGS_DIR
    * @returns a promise that resolves when the logs are downloaded
    */
-  public async getLogs(namespace: NamespaceName, contexts?: string[]) {
+  public async getLogs(namespace: NamespaceName, contexts?: string[], baseDirectory?: string) {
     const podsData: {pod: Pod; context?: string}[] = [];
 
     if (contexts) {
@@ -55,20 +57,20 @@ export class NetworkNodes {
       }
     }
 
-    const timeString = new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-');
+    const logBaseDirectory = baseDirectory || SOLO_LOGS_DIR;
 
     const promises = [];
     for (const podData of podsData) {
-      promises.push(this.getLog(podData.pod, namespace, timeString, podData.context));
+      promises.push(this.getLog(podData.pod, namespace, logBaseDirectory, podData.context));
     }
-    this.logger.showUser(`Configurations and logs saved to ${PathEx.join(SOLO_LOGS_DIR, namespace.name, timeString)}`);
+    this.logger.showUser(`Configurations and logs saved to ${logBaseDirectory}`);
     return await Promise.all(promises);
   }
 
-  private async getLog(pod: Pod, namespace: NamespaceName, timeString: string, context?: string) {
+  private async getLog(pod: Pod, namespace: NamespaceName, baseDirectory: string, context?: string) {
     const podReference: PodReference = pod.podReference;
     this.logger.debug(`getNodeLogs(${pod.podReference.name.name}): begin...`);
-    const targetDirectory = PathEx.join(SOLO_LOGS_DIR, namespace.name, timeString);
+    const targetDirectory = path.join(baseDirectory, namespace.toString());
     try {
       if (!fs.existsSync(targetDirectory)) {
         fs.mkdirSync(targetDirectory, {recursive: true});
@@ -113,36 +115,46 @@ export class NetworkNodes {
    * @param namespace - the namespace of the network
    * @param nodeAlias - the pod name
    * @param [context]
+   * @param [baseDirectory] - optional base directory to save state files, defaults to SOLO_LOGS_DIR
    * @returns a promise that resolves when the state files are downloaded
    */
-  public async getStatesFromPod(namespace: NamespaceName, nodeAlias: string, context?: string) {
+  public async getStatesFromPod(namespace: NamespaceName, nodeAlias: string, context?: string, baseDirectory?: string) {
     const pods: Pod[] = await this.k8Factory
       .getK8(context)
       .pods()
       .list(namespace, [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node']);
 
     // get length of pods
+    const stateBaseDirectory = baseDirectory || SOLO_LOGS_DIR;
     const promises = [];
     for (const pod of pods) {
-      promises.push(this.getState(pod, namespace, context));
+      promises.push(this.getState(pod, namespace, stateBaseDirectory, context));
     }
     return await Promise.all(promises);
   }
 
-  private async getState(pod: Pod, namespace: NamespaceName, context?: string) {
+  private async getState(pod: Pod, namespace: NamespaceName, baseDirectory: string, context?: string) {
     const podReference: PodReference = pod.podReference;
     this.logger.debug(`getNodeState(${pod.podReference.name.name}): begin...`);
-    const targetDirectory = PathEx.join(SOLO_LOGS_DIR, namespace.name);
+    const targetDirectory = path.join(baseDirectory, namespace.toString());
     try {
       if (!fs.existsSync(targetDirectory)) {
         fs.mkdirSync(targetDirectory, {recursive: true});
       }
-      const zipCommand = `tar -czf ${HEDERA_HAPI_PATH}/${podReference.name}-state.zip -C ${HEDERA_HAPI_PATH}/data/saved .`;
+      // Use zip for compression, similar to tar -czf with -C flag
       const containerReference = ContainerReference.of(podReference, ROOT_CONTAINER);
 
       const k8 = this.k8Factory.getK8(context);
 
-      await k8.containers().readByRef(containerReference).execContainer(zipCommand);
+      // Zip doesn't have a -C flag like tar, so we use sh -c with subshell to change directory
+      await k8
+        .containers()
+        .readByRef(containerReference)
+        .execContainer([
+          'sh',
+          '-c',
+          `(cd ${HEDERA_HAPI_PATH}/data/saved && zip -r ${HEDERA_HAPI_PATH}/${podReference.name}-state.zip .)`,
+        ]);
       await k8
         .containers()
         .readByRef(containerReference)

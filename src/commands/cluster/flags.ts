@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Flags as flags} from '../flags.js';
+import {type CommandFlags} from '../../types/flag-types.js';
 
-export const NO_FLAGS = {
+export const NO_FLAGS: CommandFlags = {
   required: [],
   optional: [flags.devMode, flags.quiet],
 };
 
-export const DEFAULT_FLAGS = {
+export const DEFAULT_FLAGS: CommandFlags = {
   required: [flags.clusterRef],
   optional: [flags.devMode, flags.quiet],
 };
 
-export const SETUP_FLAGS = {
+export const SETUP_FLAGS: CommandFlags = {
   required: [],
   optional: [
     flags.chartDirectory,
@@ -26,12 +27,12 @@ export const SETUP_FLAGS = {
   ],
 };
 
-export const RESET_FLAGS = {
+export const RESET_FLAGS: CommandFlags = {
   required: [flags.clusterRef],
   optional: [flags.clusterSetupNamespace, flags.force, flags.quiet],
 };
 
-export const CONNECT_FLAGS = {
+export const CONNECT_FLAGS: CommandFlags = {
   required: [flags.clusterRef, flags.context],
   optional: [flags.devMode, flags.quiet],
 };

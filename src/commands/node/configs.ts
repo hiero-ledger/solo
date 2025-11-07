@@ -52,6 +52,8 @@ import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api
 import {Version} from '../../business/utils/version.js';
 import {eq, SemVer} from 'semver';
 import {SOLO_USER_AGENT_HEADER} from '../../core/constants.js';
+import {type NodeConnectionsConfigClass} from './config-interfaces/node-connections-config-class.js';
+import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
 
 const PREPARE_UPGRADE_CONFIGS_NAME = 'prepareUpgradeConfig';
 const ADD_CONFIGS_NAME = 'addConfigs';
@@ -420,6 +422,20 @@ export class NodeCommandConfigs {
       consensusNodes: this.remoteConfig.getConsensusNodes(),
       contexts: this.remoteConfig.getContexts(),
     } as NodeLogsConfigClass;
+
+    return context_.config;
+  }
+
+  public async connectionsConfigBuilder(
+    _argv: ArgvStruct,
+    context_: NodeConnectionsContext,
+    task: SoloListrTaskWrapper<NodeConnectionsContext>,
+  ): Promise<NodeConnectionsConfigClass> {
+    context_.config = {
+      deployment: this.configManager.getFlag(flags.deployment),
+      namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
+      contexts: this.remoteConfig.getContexts()[0],
+    } as any as NodeConnectionsConfigClass;
 
     return context_.config;
   }

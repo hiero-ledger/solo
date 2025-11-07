@@ -3,6 +3,8 @@ set -eo pipefail
 
 source .github/workflows/script/helper.sh
 
+rm -rf ~/.solo/* || true
+
 # Check the health of a service endpoint
 # $1: URL to check
 # $2: Expected content in response
@@ -119,8 +121,11 @@ kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 
 if [ "${storageType}" == "minio_only" ]; then
   cd scripts
-  SOLO_DEPLOYMENT=solo-deployment
-  SOLO_DEPLOYMENT=solo-deployment task default-with-mirror
+  echo "Current directory: $(pwd)"
+  echo "Task version : $(task --version)"
+  echo "Available tasks: $(task --list-all)"
+  SOLO_DEPLOYMENT=solo-e2e
+  SOLO_DEPLOYMENT=solo-e2e task default-with-mirror
   cd -
 else
   # get current script base directory
@@ -178,7 +183,11 @@ fi
 
 grpcurl -plaintext -d '{"file_id": {"fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes
 
-node scripts/create-topic.js
+node scripts/create-topic.js || result=$?
+if [[ $result -ne 0 ]]; then
+  echo "JavaScript SDK test failed with exit code $result"
+  log_and_exit $result
+fi
 
 npm run solo-test -- consensus node stop -i node1 --deployment "${SOLO_DEPLOYMENT}"
 

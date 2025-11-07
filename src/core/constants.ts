@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {color, type ListrLogger, PRESET_TIMER} from 'listr2';
-import {dirname} from 'node:path';
-import {fileURLToPath} from 'node:url';
+import path from 'node:path';
+import url from 'node:url';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {PrivateKey} from '@hiero-ledger/sdk';
 import 'dotenv/config';
 
-export function getEnvironmentVariable(environmentVariableName: string): string {
-  if (process.env[environmentVariableName]) {
-    console.log(`>> environment variable '${environmentVariableName}' exists, using its value`);
-    return process.env[environmentVariableName];
+export function getEnvironmentVariable(name: string): string {
+  if (process.env[name]) {
+    console.log(`>> environment variable '${name}' exists, using its value`);
+    return process.env[name];
   }
   return undefined;
 }
-export const ROOT_DIR = PathEx.joinWithRealPath(dirname(fileURLToPath(import.meta.url)), '..', '..');
+export const ROOT_DIR: string = PathEx.joinWithRealPath(path.dirname(url.fileURLToPath(import.meta.url)), '..', '..');
 
 // -------------------- solo related constants ---------------------------------------------------------------------
 export const SOLO_HOME_DIR = getEnvironmentVariable('SOLO_HOME') || PathEx.join(process.env.HOME as string, '.solo');
@@ -106,8 +106,8 @@ export const POD_MONITOR_ROLE = 'pod-monitor-role';
 
 export const MINIO_OPERATOR_CHART_URL =
   getEnvironmentVariable('MINIO_OPERATOR_CHART_URL') ?? 'https://operator.min.io/';
-export const MINIO_OPERATOR_CHART = 'operator';
-export const MINIO_OPERATOR_RELEASE_NAME = 'operator';
+export const MINIO_OPERATOR_CHART: string = 'operator';
+export const MINIO_OPERATOR_RELEASE_NAME: string = 'operator';
 
 export const EXPLORER_CHART_URL =
   getEnvironmentVariable('EXPLORER_CHART_URL') ??
@@ -344,6 +344,9 @@ export const MINIO_SECRET_NAME = 'minio-secrets';
 export const BACKUP_SECRET_NAME = 'backup-uploader-secrets';
 export const MIRROR_INGRESS_TLS_SECRET_NAME = 'ca-secret-mirror-node';
 export const EXPLORER_INGRESS_TLS_SECRET_NAME = 'ca-secret-hiero-explorer';
+
+export const BLOCK_STREAM_STREAM_MODE: string = getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') || 'BOTH';
+export const BLOCK_STREAM_WRITER_MODE: string = getEnvironmentVariable('BLOCK_STREAM_WRITER_MODE') || 'FILE_AND_GRPC';
 
 export const BLOCK_NODE_IMAGE_NAME: string = 'block-node-server';
 export const BLOCK_NODES_JSON_FILE: string = 'block-nodes.json';

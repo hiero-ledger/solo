@@ -43,7 +43,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     );
   }
 
-  private static componentValidationsMapping: Record<
+  public static componentValidationsMapping: Record<
     string,
     {
       getLabelsCallback: (id: ComponentId, legacyReleaseName?: string) => string[];
