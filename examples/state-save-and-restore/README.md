@@ -12,6 +12,20 @@ This example demonstrates how to save network state from a running Solo network,
 * Creates a new network with the same configuration
 * Restores the saved state and database to the new network
 
+## Getting This Example
+
+### Download Archive
+
+You can download this example as a standalone archive from the [Solo releases page](https://github.com/hiero-ledger/solo/releases):
+
+```
+https://github.com/hiero-ledger/solo/releases/download/<release_version>/example-state-save-and-restore.zip
+```
+
+### View on GitHub
+
+Browse the source code and configuration files for this example in the [GitHub repository](https://github.com/hiero-ledger/solo/tree/main/examples/state-save-and-restore).
+
 ## Prerequisites
 
 * [Kind](https://kind.sigs.k8s.io/) - Kubernetes in Docker

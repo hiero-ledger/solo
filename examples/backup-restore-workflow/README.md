@@ -10,6 +10,20 @@ This example demonstrates a complete backup and restore workflow for a Hiero net
 6. Restore from backup (ConfigMaps, Secrets, Logs, and State)
 7. Verify the restored network is fully operational
 
+## Getting This Example
+
+### Download Archive
+
+You can download this example as a standalone archive from the [Solo releases page](https://github.com/hiero-ledger/solo/releases):
+
+```
+https://github.com/hiero-ledger/solo/releases/download/<release_version>/example-backup-restore-workflow.zip
+```
+
+### View on GitHub
+
+Browse the source code and configuration files for this example in the [GitHub repository](https://github.com/hiero-ledger/solo/tree/main/examples/backup-restore-workflow).
+
 ## Prerequisites
 
 * [Task](https://taskfile.dev/) installed (`brew install go-task/tap/go-task` on macOS)
