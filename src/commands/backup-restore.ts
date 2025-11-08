@@ -27,11 +27,6 @@ import {plainToInstance} from 'class-transformer';
 import {RemoteConfigSchema} from '../data/schema/model/remote/remote-config-schema.js';
 import {RemoteConfig} from '../business/runtime-state/config/remote/remote-config.js';
 import {type DeploymentStateSchema} from '../data/schema/model/remote/deployment-state-schema.js';
-import {type ConsensusNodeStateSchema} from '../data/schema/model/remote/state/consensus-node-state-schema.js';
-import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
-import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
-import {type ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
-import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {type DeploymentName} from '../types/index.js';
 import {type ApplicationVersionsSchema} from '../data/schema/model/common/application-versions-schema.js';
 import {KeysCommandDefinition} from './command-definitions/keys-command-definition.js';
@@ -41,13 +36,7 @@ import {MirrorCommandDefinition} from './command-definitions/mirror-command-defi
 import {ExplorerCommandDefinition} from './command-definitions/explorer-command-definition.js';
 import {RelayCommandDefinition} from './command-definitions/relay-command-definition.js';
 import * as CommandHelpers from './command-helpers.js';
-import {
-  argvPushGlobalFlags,
-  invokeSoloCommand,
-  newArgv,
-  optionFromFlag,
-  subTaskSoloCommand,
-} from './command-helpers.js';
+import {optionFromFlag, subTaskSoloCommand} from './command-helpers.js';
 
 @injectable()
 export class BackupRestoreCommand extends BaseCommand {
@@ -1039,252 +1028,6 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
-   * Deploy consensus network (generate keys + deploy network)
-   * This should be called before block nodes are deployed
-   */
-  private deployConsensusNodesNetwork(
-    consensusNodes: ConsensusNodeStateSchema[],
-    deployment: DeploymentName,
-    versions?: ApplicationVersionsSchema,
-  ): {nodeAliases: string; tasks: any[]} {
-    const self: this = this;
-    // Build node-aliases from consensus nodes
-    const nodeAliases = consensusNodes.map(n => `node${n.metadata.id}`).join(',');
-
-    const tasks = [
-      invokeSoloCommand(
-        `solo ${KeysCommandDefinition.KEYS_COMMAND}`,
-        KeysCommandDefinition.KEYS_COMMAND,
-        (): string[] => {
-          const argv: string[] = newArgv();
-          argv.push(
-            ...KeysCommandDefinition.KEYS_COMMAND.split(' '),
-            optionFromFlag(flags.generateGossipKeys),
-            optionFromFlag(flags.generateTlsKeys),
-            optionFromFlag(flags.deployment),
-            deployment,
-            optionFromFlag(flags.nodeAliasesUnparsed),
-            nodeAliases,
-          );
-          return argvPushGlobalFlags(argv);
-        },
-        self.taskList,
-      ),
-      invokeSoloCommand(
-        `solo ${ConsensusCommandDefinition.DEPLOY_COMMAND}`,
-        ConsensusCommandDefinition.DEPLOY_COMMAND,
-        (): string[] => {
-          const argv: string[] = newArgv();
-          argv.push(
-            ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
-            optionFromFlag(flags.deployment),
-            deployment,
-            optionFromFlag(flags.persistentVolumeClaims),
-            optionFromFlag(flags.nodeAliasesUnparsed),
-            nodeAliases,
-          );
-          // Add version flags if available
-          if (versions?.consensusNode) {
-            argv.push(optionFromFlag(flags.releaseTag), versions.consensusNode.toString());
-          }
-          if (versions?.chart) {
-            argv.push(optionFromFlag(flags.soloChartVersion), versions.chart.toString());
-          }
-          return argvPushGlobalFlags(argv);
-        },
-        self.taskList,
-      ),
-    ];
-
-    return {nodeAliases, tasks};
-  }
-
-  /**
-   * Setup and start consensus nodes
-   * This should be called after block nodes are deployed
-   */
-  private setupAndStartConsensusNodes(
-    nodeAliases: string,
-    deployment: DeploymentName,
-    versions?: ApplicationVersionsSchema,
-  ): any[] {
-    const self: this = this;
-    return [
-      invokeSoloCommand(
-        `solo ${ConsensusCommandDefinition.SETUP_COMMAND}`,
-        ConsensusCommandDefinition.SETUP_COMMAND,
-        (): string[] => {
-          const argv: string[] = newArgv();
-          argv.push(
-            ...ConsensusCommandDefinition.SETUP_COMMAND.split(' '),
-            optionFromFlag(flags.nodeAliasesUnparsed),
-            nodeAliases,
-            optionFromFlag(flags.deployment),
-            deployment,
-          );
-          if (versions?.consensusNode) {
-            argv.push(optionFromFlag(flags.releaseTag), versions.consensusNode.toString());
-          }
-          return argvPushGlobalFlags(argv);
-        },
-        self.taskList,
-      ),
-      invokeSoloCommand(
-        `solo ${ConsensusCommandDefinition.START_COMMAND}`,
-        ConsensusCommandDefinition.START_COMMAND,
-        (): string[] => {
-          const argv: string[] = newArgv();
-          argv.push(
-            ...ConsensusCommandDefinition.START_COMMAND.split(' '),
-            optionFromFlag(flags.deployment),
-            deployment,
-            optionFromFlag(flags.nodeAliasesUnparsed),
-            nodeAliases,
-          );
-          return argvPushGlobalFlags(argv);
-        },
-        self.taskList,
-      ),
-    ];
-  }
-
-  /**
-   * Deploy block nodes based on the deployment state
-   */
-  private deployBlockNodes(
-    blockNodes: BlockNodeStateSchema[],
-    deployment: DeploymentName,
-    context: Context,
-    versions?: ApplicationVersionsSchema,
-  ): any[] {
-    // Create a task for each block node
-    return blockNodes.map((blockNode, index) =>
-      invokeSoloCommand(
-        `solo ${BlockCommandDefinition.ADD_COMMAND} (node ${blockNode.metadata.id})`,
-        BlockCommandDefinition.ADD_COMMAND,
-        (): string[] => {
-          const argv: string[] = newArgv();
-          argv.push(
-            ...BlockCommandDefinition.ADD_COMMAND.split(' '),
-            optionFromFlag(flags.deployment),
-            deployment,
-            optionFromFlag(flags.clusterRef),
-            context,
-          );
-          // Add version flag if available
-          if (versions?.blockNodeChart) {
-            argv.push(optionFromFlag(flags.blockNodeChartVersion), versions.blockNodeChart.toString());
-          }
-          return argvPushGlobalFlags(argv);
-        },
-        this.taskList,
-      ),
-    );
-  }
-
-  /**
-   * Deploy mirror nodes based on the deployment state
-   */
-  private deployMirrorNodes(
-    mirrorNodes: MirrorNodeStateSchema[],
-    deployment: DeploymentName,
-    context: Context,
-    versions?: ApplicationVersionsSchema,
-  ): any[] {
-    // Create a task for each mirror node
-    return mirrorNodes.map((mirrorNode, index) =>
-      invokeSoloCommand(
-        `solo ${MirrorCommandDefinition.ADD_COMMAND} (node ${mirrorNode.metadata.id})`,
-        MirrorCommandDefinition.ADD_COMMAND,
-        (): string[] => {
-          const argv: string[] = newArgv();
-          argv.push(
-            ...MirrorCommandDefinition.ADD_COMMAND.split(' '),
-            optionFromFlag(flags.deployment),
-            deployment,
-            optionFromFlag(flags.clusterRef),
-            context,
-          );
-          // Add version flag if available
-          if (versions?.mirrorNodeChart) {
-            argv.push(optionFromFlag(flags.mirrorNodeVersion), versions.mirrorNodeChart.toString());
-          }
-          return argvPushGlobalFlags(argv);
-        },
-        this.taskList,
-      ),
-    );
-  }
-
-  /**
-   * Deploy explorers based on the deployment state
-   */
-  private deployExplorers(
-    explorers: ExplorerStateSchema[],
-    deployment: DeploymentName,
-    context: Context,
-    versions?: ApplicationVersionsSchema,
-  ): any[] {
-    // Create a task for each explorer
-    return explorers.map((explorer, index) =>
-      invokeSoloCommand(
-        `solo ${ExplorerCommandDefinition.ADD_COMMAND} (explorer ${explorer.metadata.id})`,
-        ExplorerCommandDefinition.ADD_COMMAND,
-        (): string[] => {
-          const argv: string[] = newArgv();
-          argv.push(
-            ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
-            optionFromFlag(flags.deployment),
-            deployment,
-            optionFromFlag(flags.clusterRef),
-            context,
-          );
-          // Add version flag if available
-          if (versions?.explorerChart) {
-            argv.push(optionFromFlag(flags.explorerVersion), versions.explorerChart.toString());
-          }
-          return argvPushGlobalFlags(argv);
-        },
-        this.taskList,
-      ),
-    );
-  }
-
-  /**
-   * Deploy relay nodes based on the deployment state
-   */
-  private deployRelayNodes(
-    relayNodes: RelayNodeStateSchema[],
-    deployment: DeploymentName,
-    nodeAliases: string,
-    versions?: ApplicationVersionsSchema,
-  ): any[] {
-    // Create a task for each relay node
-    return relayNodes.map((relayNode, index) =>
-      invokeSoloCommand(
-        `solo ${RelayCommandDefinition.ADD_COMMAND} (node ${relayNode.metadata.id})`,
-        RelayCommandDefinition.ADD_COMMAND,
-        (): string[] => {
-          const argv: string[] = newArgv();
-          argv.push(
-            ...RelayCommandDefinition.ADD_COMMAND.split(' '),
-            optionFromFlag(flags.deployment),
-            deployment,
-            optionFromFlag(flags.nodeAliasesUnparsed),
-            nodeAliases,
-          );
-          // Add version flag if available
-          if (versions?.jsonRpcRelayChart) {
-            argv.push(optionFromFlag(flags.relayReleaseTag), versions.jsonRpcRelayChart.toString());
-          }
-          return argvPushGlobalFlags(argv);
-        },
-        this.taskList,
-      ),
-    );
-  }
-
-  /**
    * Restore network components from a remote configuration file
    * Command: solo config ops restore-network
    */
@@ -1374,6 +1117,11 @@ export class BackupRestoreCommand extends BaseCommand {
       );
     } catch (error: any) {
       throw new SoloError(`Restore network failed: ${error.message}`, error);
+    } finally {
+      await this.taskList
+        .callCloseFunctions()
+        .then()
+        .catch((error): void => this.logger.error('Error during closing task list:', error));
     }
 
     return true;
