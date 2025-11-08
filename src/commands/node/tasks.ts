@@ -1182,8 +1182,12 @@ export class NodeCommandTasks {
           ) {
             // It's a directory - find the state file for this specific pod
             const podName = podReference.name.name;
-            const statesDirectory = path.join(stateFileDirectory, context, 'states');
-
+            const statesDirectory: string = path.join(
+              stateFileDirectory,
+              context,
+              'states',
+              context_.config.namespace.toString(),
+            );
             if (!fs.existsSync(statesDirectory)) {
               self.logger.info(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
               continue;
@@ -1195,7 +1199,7 @@ export class NodeCommandTasks {
 
             if (stateFiles.length === 0) {
               self.logger.info(`No state file found for pod ${podName} (node: ${nodeAlias})`);
-              continue;
+              throw new SoloError(`State file not found for pod ${podName} in ${statesDirectory}`);
             }
 
             zipFile = path.join(statesDirectory, stateFiles[0]);

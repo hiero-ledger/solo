@@ -97,12 +97,12 @@ tasks:
     cmds:
       - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs --node-aliases {{ .NODE_ALIASES }}
+      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }}
       - cmd: $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }}
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
-      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }}
       - cmd: $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }}
       - cmd: $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
-      - cmd: $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }}     
+      - cmd: $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }}
       - cmd: echo "✅ Complete network deployed (consensus + block + mirror + relay + explorer)"
 
   # ==================== Transaction Generation Tasks ====================
@@ -127,7 +127,7 @@ tasks:
       - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
       - cmd: sleep 10  # Wait for freeze to complete
       - cmd: $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }}
-      
+
       - cmd: echo "✅ Backup completed successfully"
       - cmd: |
           echo ""
@@ -162,17 +162,17 @@ tasks:
     cmds:
       - cmd: $SOLO_COMMAND consensus node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: $SOLO_COMMAND config ops restore --deployment {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
-      - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}     
+      - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: echo "✅ Restore completed successfully"
 
   # ==================== Verification Tasks ====================
 
   verify:
     desc: Verify restored network functionality
-    cmds:    
+    cmds:
       - cmd: echo "🔎 Verifying restored state (checking account 0.0.3)..."
       - cmd: $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 0.0.3 || echo "⚠️  Account verification may have failed"
-      
+
       - cmd: echo "💰 Testing with new transactions..."
       - cmd: |
           for i in 1 2 3; do
@@ -180,7 +180,7 @@ tasks:
             $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50 || echo "⚠️  Transaction test may have failed"
             sleep 3
           done
-      
+
       - cmd: echo "✅ Network verification completed - restored network is operational!"
 
   # ==================== Cleanup Tasks ====================

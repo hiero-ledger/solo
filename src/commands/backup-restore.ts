@@ -40,6 +40,14 @@ import {BlockCommandDefinition} from './command-definitions/block-command-defini
 import {MirrorCommandDefinition} from './command-definitions/mirror-command-definition.js';
 import {ExplorerCommandDefinition} from './command-definitions/explorer-command-definition.js';
 import {RelayCommandDefinition} from './command-definitions/relay-command-definition.js';
+import * as CommandHelpers from './command-helpers.js';
+import {
+  argvPushGlobalFlags,
+  invokeSoloCommand,
+  newArgv,
+  optionFromFlag,
+  subTaskSoloCommand,
+} from './command-helpers.js';
 
 @injectable()
 export class BackupRestoreCommand extends BaseCommand {
@@ -403,7 +411,7 @@ export class BackupRestoreCommand extends BaseCommand {
     const contexts: Context[] = this.remoteConfig.getContexts();
 
     for (const context of contexts) {
-      const logsDirectory: string = path.join(inputDirectory, context, 'logs');
+      const logsDirectory: string = path.join(inputDirectory, context, 'logs', namespace.toString());
 
       // Check if logs directory exists
       if (!fs.existsSync(logsDirectory)) {
@@ -420,7 +428,7 @@ export class BackupRestoreCommand extends BaseCommand {
           chalk.yellow(`  No log files found in context: ${context} (found ${allFiles.length} file(s))`),
         );
         this.logger.showUser(chalk.gray(`    Available files: ${allFiles.join(', ')}`));
-        continue;
+        throw new SoloError(`No log files found to restore in context: ${context}`);
       }
 
       this.logger.showUser(chalk.white(`  Restoring ${logFiles.length} log file(s) to context: ${context}`));
@@ -711,19 +719,24 @@ export class BackupRestoreCommand extends BaseCommand {
         skip: (context_: any) =>
           !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
         task: async (context_, taskListWrapper) => {
-          return self.subTaskSoloCommand(KeysCommandDefinition.KEYS_COMMAND, taskListWrapper, (): string[] => {
-            const argv: string[] = self.newArgv();
-            argv.push(
-              ...KeysCommandDefinition.KEYS_COMMAND.split(' '),
-              self.optionFromFlag(flags.generateGossipKeys),
-              self.optionFromFlag(flags.generateTlsKeys),
-              self.optionFromFlag(flags.deployment),
-              context_.deployment,
-              self.optionFromFlag(flags.nodeAliasesUnparsed),
-              context_.nodeAliases,
-            );
-            return self.argvPushGlobalFlags(argv);
-          });
+          return CommandHelpers.subTaskSoloCommand(
+            KeysCommandDefinition.KEYS_COMMAND,
+            taskListWrapper,
+            (): string[] => {
+              const argv: string[] = CommandHelpers.newArgv();
+              argv.push(
+                ...KeysCommandDefinition.KEYS_COMMAND.split(' '),
+                CommandHelpers.optionFromFlag(flags.generateGossipKeys),
+                CommandHelpers.optionFromFlag(flags.generateTlsKeys),
+                CommandHelpers.optionFromFlag(flags.deployment),
+                context_.deployment,
+                CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
+                context_.nodeAliases,
+              );
+              return CommandHelpers.argvPushGlobalFlags(argv);
+            },
+            self.taskList,
+          );
         },
       },
       // Consensus network deploy task
@@ -732,24 +745,29 @@ export class BackupRestoreCommand extends BaseCommand {
         skip: (context_: any) =>
           !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
         task: async (context_, taskListWrapper) => {
-          return self.subTaskSoloCommand(ConsensusCommandDefinition.DEPLOY_COMMAND, taskListWrapper, (): string[] => {
-            const argv: string[] = self.newArgv();
-            argv.push(
-              ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
-              self.optionFromFlag(flags.deployment),
-              context_.deployment,
-              self.optionFromFlag(flags.persistentVolumeClaims),
-              self.optionFromFlag(flags.nodeAliasesUnparsed),
-              context_.nodeAliases,
-            );
-            if (context_.versions?.consensusNode) {
-              argv.push(self.optionFromFlag(flags.releaseTag), context_.versions.consensusNode.toString());
-            }
-            if (context_.versions?.chart) {
-              argv.push(self.optionFromFlag(flags.soloChartVersion), context_.versions.chart.toString());
-            }
-            return self.argvPushGlobalFlags(argv);
-          });
+          return CommandHelpers.subTaskSoloCommand(
+            ConsensusCommandDefinition.DEPLOY_COMMAND,
+            taskListWrapper,
+            (): string[] => {
+              const argv: string[] = CommandHelpers.newArgv();
+              argv.push(
+                ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
+                CommandHelpers.optionFromFlag(flags.deployment),
+                context_.deployment,
+                CommandHelpers.optionFromFlag(flags.persistentVolumeClaims),
+                CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
+                context_.nodeAliases,
+              );
+              if (context_.versions?.consensusNode) {
+                argv.push(CommandHelpers.optionFromFlag(flags.releaseTag), context_.versions.consensusNode.toString());
+              }
+              if (context_.versions?.chart) {
+                argv.push(CommandHelpers.optionFromFlag(flags.soloChartVersion), context_.versions.chart.toString());
+              }
+              return CommandHelpers.argvPushGlobalFlags(argv);
+            },
+            self.taskList,
+          );
         },
       },
       // Block nodes deploy tasks (one per block node)
@@ -760,20 +778,25 @@ export class BackupRestoreCommand extends BaseCommand {
         skip: (context_: any) =>
           !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
         task: async (context_, taskListWrapper) => {
-          return self.subTaskSoloCommand(ConsensusCommandDefinition.SETUP_COMMAND, taskListWrapper, (): string[] => {
-            const argv: string[] = self.newArgv();
-            argv.push(
-              ...ConsensusCommandDefinition.SETUP_COMMAND.split(' '),
-              self.optionFromFlag(flags.nodeAliasesUnparsed),
-              context_.nodeAliases,
-              self.optionFromFlag(flags.deployment),
-              context_.deployment,
-            );
-            if (context_.versions?.consensusNode) {
-              argv.push(self.optionFromFlag(flags.releaseTag), context_.versions.consensusNode.toString());
-            }
-            return self.argvPushGlobalFlags(argv);
-          });
+          return CommandHelpers.subTaskSoloCommand(
+            ConsensusCommandDefinition.SETUP_COMMAND,
+            taskListWrapper,
+            (): string[] => {
+              const argv: string[] = CommandHelpers.newArgv();
+              argv.push(
+                ...ConsensusCommandDefinition.SETUP_COMMAND.split(' '),
+                CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
+                context_.nodeAliases,
+                CommandHelpers.optionFromFlag(flags.deployment),
+                context_.deployment,
+              );
+              if (context_.versions?.consensusNode) {
+                argv.push(CommandHelpers.optionFromFlag(flags.releaseTag), context_.versions.consensusNode.toString());
+              }
+              return CommandHelpers.argvPushGlobalFlags(argv);
+            },
+            self.taskList,
+          );
         },
       },
       // Consensus node start task
@@ -782,17 +805,22 @@ export class BackupRestoreCommand extends BaseCommand {
         skip: (context_: any) =>
           !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
         task: async (context_, taskListWrapper) => {
-          return self.subTaskSoloCommand(ConsensusCommandDefinition.START_COMMAND, taskListWrapper, (): string[] => {
-            const argv: string[] = self.newArgv();
-            argv.push(
-              ...ConsensusCommandDefinition.START_COMMAND.split(' '),
-              self.optionFromFlag(flags.deployment),
-              context_.deployment,
-              self.optionFromFlag(flags.nodeAliasesUnparsed),
-              context_.nodeAliases,
-            );
-            return self.argvPushGlobalFlags(argv);
-          });
+          return CommandHelpers.subTaskSoloCommand(
+            ConsensusCommandDefinition.START_COMMAND,
+            taskListWrapper,
+            (): string[] => {
+              const argv: string[] = CommandHelpers.newArgv();
+              argv.push(
+                ...ConsensusCommandDefinition.START_COMMAND.split(' '),
+                CommandHelpers.optionFromFlag(flags.deployment),
+                context_.deployment,
+                CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
+                context_.nodeAliases,
+              );
+              return CommandHelpers.argvPushGlobalFlags(argv);
+            },
+            self.taskList,
+          );
         },
       },
       // Mirror nodes deploy tasks
@@ -825,23 +853,28 @@ export class BackupRestoreCommand extends BaseCommand {
             blockNodeTasks.push({
               title: `Deploy block node ${blockNode.metadata.id}`,
               task: async (_, subTaskListWrapper) => {
-                return self.subTaskSoloCommand(BlockCommandDefinition.ADD_COMMAND, subTaskListWrapper, (): string[] => {
-                  const argv: string[] = self.newArgv();
-                  argv.push(
-                    ...BlockCommandDefinition.ADD_COMMAND.split(' '),
-                    self.optionFromFlag(flags.deployment),
-                    context_.deployment,
-                    self.optionFromFlag(flags.clusterRef),
-                    context_.context,
-                  );
-                  if (context_.versions?.blockNodeChart) {
+                return subTaskSoloCommand(
+                  BlockCommandDefinition.ADD_COMMAND,
+                  subTaskListWrapper,
+                  (): string[] => {
+                    const argv: string[] = CommandHelpers.newArgv();
                     argv.push(
-                      self.optionFromFlag(flags.blockNodeChartVersion),
-                      context_.versions.blockNodeChart.toString(),
+                      ...BlockCommandDefinition.ADD_COMMAND.split(' '),
+                      CommandHelpers.optionFromFlag(flags.deployment),
+                      context_.deployment,
+                      optionFromFlag(flags.clusterRef),
+                      context_.context,
                     );
-                  }
-                  return self.argvPushGlobalFlags(argv);
-                });
+                    if (context_.versions?.blockNodeChart) {
+                      argv.push(
+                        optionFromFlag(flags.blockNodeChartVersion),
+                        context_.versions.blockNodeChart.toString(),
+                      );
+                    }
+                    return CommandHelpers.argvPushGlobalFlags(argv);
+                  },
+                  self.taskList,
+                );
               },
             });
           }
@@ -873,26 +906,24 @@ export class BackupRestoreCommand extends BaseCommand {
             mirrorNodeTasks.push({
               title: `Deploy mirror node ${mirrorNode.metadata.id}`,
               task: async (_, subTaskListWrapper) => {
-                return self.subTaskSoloCommand(
+                return subTaskSoloCommand(
                   MirrorCommandDefinition.ADD_COMMAND,
                   subTaskListWrapper,
                   (): string[] => {
-                    const argv: string[] = self.newArgv();
+                    const argv: string[] = CommandHelpers.newArgv();
                     argv.push(
                       ...MirrorCommandDefinition.ADD_COMMAND.split(' '),
-                      self.optionFromFlag(flags.deployment),
+                      CommandHelpers.optionFromFlag(flags.deployment),
                       context_.deployment,
-                      self.optionFromFlag(flags.clusterRef),
+                      optionFromFlag(flags.clusterRef),
                       context_.context,
                     );
                     if (context_.versions?.mirrorNodeChart) {
-                      argv.push(
-                        self.optionFromFlag(flags.mirrorNodeVersion),
-                        context_.versions.mirrorNodeChart.toString(),
-                      );
+                      argv.push(optionFromFlag(flags.mirrorNodeVersion), context_.versions.mirrorNodeChart.toString());
                     }
-                    return self.argvPushGlobalFlags(argv);
+                    return CommandHelpers.argvPushGlobalFlags(argv);
                   },
+                  self.taskList,
                 );
               },
             });
@@ -925,23 +956,25 @@ export class BackupRestoreCommand extends BaseCommand {
             relayNodeTasks.push({
               title: `Deploy relay node ${relayNode.metadata.id}`,
               task: async (_, subTaskListWrapper) => {
-                return self.subTaskSoloCommand(RelayCommandDefinition.ADD_COMMAND, subTaskListWrapper, (): string[] => {
-                  const argv: string[] = self.newArgv();
-                  argv.push(
-                    ...RelayCommandDefinition.ADD_COMMAND.split(' '),
-                    self.optionFromFlag(flags.deployment),
-                    context_.deployment,
-                    self.optionFromFlag(flags.nodeAliasesUnparsed),
-                    context_.nodeAliases,
-                  );
-                  if (context_.versions?.jsonRpcRelayChart) {
+                return subTaskSoloCommand(
+                  RelayCommandDefinition.ADD_COMMAND,
+                  subTaskListWrapper,
+                  (): string[] => {
+                    const argv: string[] = CommandHelpers.newArgv();
                     argv.push(
-                      self.optionFromFlag(flags.relayReleaseTag),
-                      context_.versions.jsonRpcRelayChart.toString(),
+                      ...RelayCommandDefinition.ADD_COMMAND.split(' '),
+                      CommandHelpers.optionFromFlag(flags.deployment),
+                      context_.deployment,
+                      CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
+                      context_.nodeAliases,
                     );
-                  }
-                  return self.argvPushGlobalFlags(argv);
-                });
+                    if (context_.versions?.jsonRpcRelayChart) {
+                      argv.push(optionFromFlag(flags.relayReleaseTag), context_.versions.jsonRpcRelayChart.toString());
+                    }
+                    return CommandHelpers.argvPushGlobalFlags(argv);
+                  },
+                  self.taskList,
+                );
               },
             });
           }
@@ -973,23 +1006,24 @@ export class BackupRestoreCommand extends BaseCommand {
             explorerTasks.push({
               title: `Deploy explorer ${explorer.metadata.id}`,
               task: async (_, subTaskListWrapper) => {
-                return self.subTaskSoloCommand(
+                return subTaskSoloCommand(
                   ExplorerCommandDefinition.ADD_COMMAND,
                   subTaskListWrapper,
                   (): string[] => {
-                    const argv: string[] = self.newArgv();
+                    const argv: string[] = CommandHelpers.newArgv();
                     argv.push(
                       ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
-                      self.optionFromFlag(flags.deployment),
+                      CommandHelpers.optionFromFlag(flags.deployment),
                       context_.deployment,
-                      self.optionFromFlag(flags.clusterRef),
+                      optionFromFlag(flags.clusterRef),
                       context_.context,
                     );
                     if (context_.versions?.explorerChart) {
-                      argv.push(self.optionFromFlag(flags.explorerVersion), context_.versions.explorerChart.toString());
+                      argv.push(optionFromFlag(flags.explorerVersion), context_.versions.explorerChart.toString());
                     }
-                    return self.argvPushGlobalFlags(argv);
+                    return CommandHelpers.argvPushGlobalFlags(argv);
                   },
+                  self.taskList,
                 );
               },
             });
@@ -1013,49 +1047,52 @@ export class BackupRestoreCommand extends BaseCommand {
     deployment: DeploymentName,
     versions?: ApplicationVersionsSchema,
   ): {nodeAliases: string; tasks: any[]} {
+    const self: this = this;
     // Build node-aliases from consensus nodes
     const nodeAliases = consensusNodes.map(n => `node${n.metadata.id}`).join(',');
 
     const tasks = [
-      this.invokeSoloCommand(
+      invokeSoloCommand(
         `solo ${KeysCommandDefinition.KEYS_COMMAND}`,
         KeysCommandDefinition.KEYS_COMMAND,
         (): string[] => {
-          const argv: string[] = this.newArgv();
+          const argv: string[] = newArgv();
           argv.push(
             ...KeysCommandDefinition.KEYS_COMMAND.split(' '),
-            this.optionFromFlag(flags.generateGossipKeys),
-            this.optionFromFlag(flags.generateTlsKeys),
-            this.optionFromFlag(flags.deployment),
+            optionFromFlag(flags.generateGossipKeys),
+            optionFromFlag(flags.generateTlsKeys),
+            optionFromFlag(flags.deployment),
             deployment,
-            this.optionFromFlag(flags.nodeAliasesUnparsed),
+            optionFromFlag(flags.nodeAliasesUnparsed),
             nodeAliases,
           );
-          return this.argvPushGlobalFlags(argv);
+          return argvPushGlobalFlags(argv);
         },
+        self.taskList,
       ),
-      this.invokeSoloCommand(
+      invokeSoloCommand(
         `solo ${ConsensusCommandDefinition.DEPLOY_COMMAND}`,
         ConsensusCommandDefinition.DEPLOY_COMMAND,
         (): string[] => {
-          const argv: string[] = this.newArgv();
+          const argv: string[] = newArgv();
           argv.push(
             ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
-            this.optionFromFlag(flags.deployment),
+            optionFromFlag(flags.deployment),
             deployment,
-            this.optionFromFlag(flags.persistentVolumeClaims),
-            this.optionFromFlag(flags.nodeAliasesUnparsed),
+            optionFromFlag(flags.persistentVolumeClaims),
+            optionFromFlag(flags.nodeAliasesUnparsed),
             nodeAliases,
           );
           // Add version flags if available
           if (versions?.consensusNode) {
-            argv.push(this.optionFromFlag(flags.releaseTag), versions.consensusNode.toString());
+            argv.push(optionFromFlag(flags.releaseTag), versions.consensusNode.toString());
           }
           if (versions?.chart) {
-            argv.push(this.optionFromFlag(flags.soloChartVersion), versions.chart.toString());
+            argv.push(optionFromFlag(flags.soloChartVersion), versions.chart.toString());
           }
-          return this.argvPushGlobalFlags(argv);
+          return argvPushGlobalFlags(argv);
         },
+        self.taskList,
       ),
     ];
 
@@ -1066,44 +1103,47 @@ export class BackupRestoreCommand extends BaseCommand {
    * Setup and start consensus nodes
    * This should be called after block nodes are deployed
    */
-  private deployConsensusNodesSetupAndStart(
+  private setupAndStartConsensusNodes(
     nodeAliases: string,
     deployment: DeploymentName,
     versions?: ApplicationVersionsSchema,
   ): any[] {
+    const self: this = this;
     return [
-      this.invokeSoloCommand(
+      invokeSoloCommand(
         `solo ${ConsensusCommandDefinition.SETUP_COMMAND}`,
         ConsensusCommandDefinition.SETUP_COMMAND,
         (): string[] => {
-          const argv: string[] = this.newArgv();
+          const argv: string[] = newArgv();
           argv.push(
             ...ConsensusCommandDefinition.SETUP_COMMAND.split(' '),
-            this.optionFromFlag(flags.nodeAliasesUnparsed),
+            optionFromFlag(flags.nodeAliasesUnparsed),
             nodeAliases,
-            this.optionFromFlag(flags.deployment),
+            optionFromFlag(flags.deployment),
             deployment,
           );
           if (versions?.consensusNode) {
-            argv.push(this.optionFromFlag(flags.releaseTag), versions.consensusNode.toString());
+            argv.push(optionFromFlag(flags.releaseTag), versions.consensusNode.toString());
           }
-          return this.argvPushGlobalFlags(argv);
+          return argvPushGlobalFlags(argv);
         },
+        self.taskList,
       ),
-      this.invokeSoloCommand(
+      invokeSoloCommand(
         `solo ${ConsensusCommandDefinition.START_COMMAND}`,
         ConsensusCommandDefinition.START_COMMAND,
         (): string[] => {
-          const argv: string[] = this.newArgv();
+          const argv: string[] = newArgv();
           argv.push(
             ...ConsensusCommandDefinition.START_COMMAND.split(' '),
-            this.optionFromFlag(flags.deployment),
+            optionFromFlag(flags.deployment),
             deployment,
-            this.optionFromFlag(flags.nodeAliasesUnparsed),
+            optionFromFlag(flags.nodeAliasesUnparsed),
             nodeAliases,
           );
-          return this.argvPushGlobalFlags(argv);
+          return argvPushGlobalFlags(argv);
         },
+        self.taskList,
       ),
     ];
   }
@@ -1119,24 +1159,25 @@ export class BackupRestoreCommand extends BaseCommand {
   ): any[] {
     // Create a task for each block node
     return blockNodes.map((blockNode, index) =>
-      this.invokeSoloCommand(
+      invokeSoloCommand(
         `solo ${BlockCommandDefinition.ADD_COMMAND} (node ${blockNode.metadata.id})`,
         BlockCommandDefinition.ADD_COMMAND,
         (): string[] => {
-          const argv: string[] = this.newArgv();
+          const argv: string[] = newArgv();
           argv.push(
             ...BlockCommandDefinition.ADD_COMMAND.split(' '),
-            this.optionFromFlag(flags.deployment),
+            optionFromFlag(flags.deployment),
             deployment,
-            this.optionFromFlag(flags.clusterRef),
+            optionFromFlag(flags.clusterRef),
             context,
           );
           // Add version flag if available
           if (versions?.blockNodeChart) {
-            argv.push(this.optionFromFlag(flags.blockNodeChartVersion), versions.blockNodeChart.toString());
+            argv.push(optionFromFlag(flags.blockNodeChartVersion), versions.blockNodeChart.toString());
           }
-          return this.argvPushGlobalFlags(argv);
+          return argvPushGlobalFlags(argv);
         },
+        this.taskList,
       ),
     );
   }
@@ -1152,30 +1193,31 @@ export class BackupRestoreCommand extends BaseCommand {
   ): any[] {
     // Create a task for each mirror node
     return mirrorNodes.map((mirrorNode, index) =>
-      this.invokeSoloCommand(
+      invokeSoloCommand(
         `solo ${MirrorCommandDefinition.ADD_COMMAND} (node ${mirrorNode.metadata.id})`,
         MirrorCommandDefinition.ADD_COMMAND,
         (): string[] => {
-          const argv: string[] = this.newArgv();
+          const argv: string[] = newArgv();
           argv.push(
             ...MirrorCommandDefinition.ADD_COMMAND.split(' '),
-            this.optionFromFlag(flags.deployment),
+            optionFromFlag(flags.deployment),
             deployment,
-            this.optionFromFlag(flags.clusterRef),
+            optionFromFlag(flags.clusterRef),
             context,
           );
           // Add version flag if available
           if (versions?.mirrorNodeChart) {
-            argv.push(this.optionFromFlag(flags.mirrorNodeVersion), versions.mirrorNodeChart.toString());
+            argv.push(optionFromFlag(flags.mirrorNodeVersion), versions.mirrorNodeChart.toString());
           }
-          return this.argvPushGlobalFlags(argv);
+          return argvPushGlobalFlags(argv);
         },
+        this.taskList,
       ),
     );
   }
 
   /**
-   * Deploy explorer based on the deployment state
+   * Deploy explorers based on the deployment state
    */
   private deployExplorers(
     explorers: ExplorerStateSchema[],
@@ -1185,24 +1227,25 @@ export class BackupRestoreCommand extends BaseCommand {
   ): any[] {
     // Create a task for each explorer
     return explorers.map((explorer, index) =>
-      this.invokeSoloCommand(
+      invokeSoloCommand(
         `solo ${ExplorerCommandDefinition.ADD_COMMAND} (explorer ${explorer.metadata.id})`,
         ExplorerCommandDefinition.ADD_COMMAND,
         (): string[] => {
-          const argv: string[] = this.newArgv();
+          const argv: string[] = newArgv();
           argv.push(
             ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
-            this.optionFromFlag(flags.deployment),
+            optionFromFlag(flags.deployment),
             deployment,
-            this.optionFromFlag(flags.clusterRef),
+            optionFromFlag(flags.clusterRef),
             context,
           );
           // Add version flag if available
           if (versions?.explorerChart) {
-            argv.push(this.optionFromFlag(flags.explorerVersion), versions.explorerChart.toString());
+            argv.push(optionFromFlag(flags.explorerVersion), versions.explorerChart.toString());
           }
-          return this.argvPushGlobalFlags(argv);
+          return argvPushGlobalFlags(argv);
         },
+        this.taskList,
       ),
     );
   }
@@ -1218,24 +1261,25 @@ export class BackupRestoreCommand extends BaseCommand {
   ): any[] {
     // Create a task for each relay node
     return relayNodes.map((relayNode, index) =>
-      this.invokeSoloCommand(
+      invokeSoloCommand(
         `solo ${RelayCommandDefinition.ADD_COMMAND} (node ${relayNode.metadata.id})`,
         RelayCommandDefinition.ADD_COMMAND,
         (): string[] => {
-          const argv: string[] = this.newArgv();
+          const argv: string[] = newArgv();
           argv.push(
             ...RelayCommandDefinition.ADD_COMMAND.split(' '),
-            this.optionFromFlag(flags.deployment),
+            optionFromFlag(flags.deployment),
             deployment,
-            this.optionFromFlag(flags.nodeAliasesUnparsed),
+            optionFromFlag(flags.nodeAliasesUnparsed),
             nodeAliases,
           );
           // Add version flag if available
           if (versions?.jsonRpcRelayChart) {
-            argv.push(this.optionFromFlag(flags.relayReleaseTag), versions.jsonRpcRelayChart.toString());
+            argv.push(optionFromFlag(flags.relayReleaseTag), versions.jsonRpcRelayChart.toString());
           }
-          return this.argvPushGlobalFlags(argv);
+          return argvPushGlobalFlags(argv);
         },
+        this.taskList,
       ),
     );
   }
