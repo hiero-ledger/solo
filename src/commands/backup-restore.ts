@@ -34,6 +34,7 @@ import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirr
 import {type ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {type DeploymentName, type SoloListr, type SoloListrTask} from '../types/index.js';
+import {type ApplicationVersionsSchema} from '../data/schema/model/common/application-versions-schema.js';
 import {KeysCommandDefinition} from './command-definitions/keys-command-definition.js';
 import {ConsensusCommandDefinition} from './command-definitions/consensus-command-definition.js';
 import {BlockCommandDefinition} from './command-definitions/block-command-definition.js';
@@ -333,6 +334,11 @@ export class BackupRestoreCommand extends BaseCommand {
           const resource: any = yaml.parse(yamlContent);
 
           try {
+            // skip configMap file SOLO_REMOTE_CONFIGMAP_NAME
+            if (resource.metadata.name === constants.SOLO_REMOTE_CONFIGMAP_NAME) {
+              this.logger.showUser(chalk.yellow(`    Skipping ${resourceType} file: ${resource.metadata.name}`));
+              continue;
+            }
             await (resourceType === 'configmaps'
               ? k8
                   .configMaps()
@@ -702,6 +708,7 @@ export class BackupRestoreCommand extends BaseCommand {
   private deployConsensusNodesNetwork(
     consensusNodes: ConsensusNodeStateSchema[],
     deployment: DeploymentName,
+    versions?: ApplicationVersionsSchema,
   ): {nodeAliases: string; tasks: any[]} {
     // Build node-aliases from consensus nodes
     const nodeAliases = consensusNodes.map(n => `node${n.metadata.id}`).join(',');
@@ -733,6 +740,13 @@ export class BackupRestoreCommand extends BaseCommand {
             this.optionFromFlag(flags.persistentVolumeClaims),
             this.optionFromFlag(flags.nodeAliasesUnparsed), nodeAliases,
           );
+          // Add version flags if available
+          if (versions?.consensusNode) {
+            argv.push(this.optionFromFlag(flags.releaseTag), versions.consensusNode.toString());
+          }
+          if (versions?.chart) {
+            argv.push(this.optionFromFlag(flags.soloChartVersion), versions.chart.toString());
+          }
           return this.argvPushGlobalFlags(argv);
         },
       ),
@@ -786,6 +800,7 @@ export class BackupRestoreCommand extends BaseCommand {
     blockNodes: BlockNodeStateSchema[],
     deployment: DeploymentName,
     context: Context,
+    versions?: ApplicationVersionsSchema,
   ): any[] {
     // Create a task for each block node
     return blockNodes.map((blockNode, index) =>
@@ -799,6 +814,10 @@ export class BackupRestoreCommand extends BaseCommand {
             this.optionFromFlag(flags.deployment), deployment,
             this.optionFromFlag(flags.clusterRef), context,
           );
+          // Add version flag if available
+          if (versions?.blockNodeChart) {
+            argv.push(this.optionFromFlag(flags.blockNodeChartVersion), versions.blockNodeChart.toString());
+          }
           return this.argvPushGlobalFlags(argv);
         },
       )
@@ -812,6 +831,7 @@ export class BackupRestoreCommand extends BaseCommand {
     mirrorNodes: MirrorNodeStateSchema[],
     deployment: DeploymentName,
     context: Context,
+    versions?: ApplicationVersionsSchema,
   ): any[] {
     // Create a task for each mirror node
     return mirrorNodes.map((mirrorNode, index) =>
@@ -825,6 +845,10 @@ export class BackupRestoreCommand extends BaseCommand {
             this.optionFromFlag(flags.deployment), deployment,
             this.optionFromFlag(flags.clusterRef), context,
           );
+          // Add version flag if available
+          if (versions?.mirrorNodeChart) {
+            argv.push(this.optionFromFlag(flags.mirrorNodeVersion), versions.mirrorNodeChart.toString());
+          }
           return this.argvPushGlobalFlags(argv);
         },
       )
@@ -838,6 +862,7 @@ export class BackupRestoreCommand extends BaseCommand {
     explorers: ExplorerStateSchema[],
     deployment: DeploymentName,
     context: Context,
+    versions?: ApplicationVersionsSchema,
   ): any[] {
     // Create a task for each explorer
     return explorers.map((explorer, index) =>
@@ -851,6 +876,10 @@ export class BackupRestoreCommand extends BaseCommand {
             this.optionFromFlag(flags.deployment), deployment,
             this.optionFromFlag(flags.clusterRef), context,
           );
+          // Add version flag if available
+          if (versions?.explorerChart) {
+            argv.push(this.optionFromFlag(flags.explorerVersion), versions.explorerChart.toString());
+          }
           return this.argvPushGlobalFlags(argv);
         },
       )
@@ -864,6 +893,7 @@ export class BackupRestoreCommand extends BaseCommand {
     relayNodes: RelayNodeStateSchema[],
     deployment: DeploymentName,
     nodeAliases: string,
+    versions?: ApplicationVersionsSchema,
   ): any[] {
     // Create a task for each relay node
     return relayNodes.map((relayNode, index) =>
@@ -877,6 +907,10 @@ export class BackupRestoreCommand extends BaseCommand {
             this.optionFromFlag(flags.deployment), deployment,
             this.optionFromFlag(flags.nodeAliasesUnparsed), nodeAliases,
           );
+          // Add version flag if available
+          if (versions?.jsonRpcRelayChart) {
+            argv.push(this.optionFromFlag(flags.relayReleaseTag), versions.jsonRpcRelayChart.toString());
+          }
           return this.argvPushGlobalFlags(argv);
         },
       )
@@ -898,6 +932,7 @@ export class BackupRestoreCommand extends BaseCommand {
       deployment?: DeploymentName;
       context?: Context;
       nodeAliases?: string;
+      versions?: ApplicationVersionsSchema;
     }
 
     const tasks = new Listr<RestoreNetworkContext>(
@@ -917,6 +952,7 @@ export class BackupRestoreCommand extends BaseCommand {
             const configData = await self.readRemoteConfigFile(context_.configFilePath);
             context_.remoteConfig = self.parseRemoteConfig(configData);
             context_.deploymentState = context_.remoteConfig.state;
+            context_.versions = context_.remoteConfig.versions;
             
             // Extract deployment info from config (use first cluster)
             if (!context_.remoteConfig.clusters || context_.remoteConfig.clusters.length === 0) {
@@ -951,6 +987,7 @@ export class BackupRestoreCommand extends BaseCommand {
               const result = self.deployConsensusNodesNetwork(
                 deploymentState.consensusNodes,
                 context_.deployment!,
+                context_.versions,
               );
               context_.nodeAliases = result.nodeAliases;
               subtasks.push(...result.tasks);
@@ -962,6 +999,7 @@ export class BackupRestoreCommand extends BaseCommand {
                 deploymentState.blockNodes,
                 context_.deployment!,
                 context_.context!,
+                context_.versions,
               );
               subtasks.push(...blockNodeTasks);
             }
@@ -981,6 +1019,7 @@ export class BackupRestoreCommand extends BaseCommand {
                 deploymentState.mirrorNodes,
                 context_.deployment!,
                 context_.context!,
+                context_.versions,
               );
               subtasks.push(...mirrorNodeTasks);
             }
@@ -991,6 +1030,7 @@ export class BackupRestoreCommand extends BaseCommand {
                 deploymentState.relayNodes,
                 context_.deployment!,
                 context_.nodeAliases!,
+                context_.versions,
               );
               subtasks.push(...relayNodeTasks);
             }
@@ -1001,6 +1041,7 @@ export class BackupRestoreCommand extends BaseCommand {
                 deploymentState.explorers,
                 context_.deployment!,
                 context_.context!,
+                context_.versions,
               );
               subtasks.push(...explorerTasks);
             }
