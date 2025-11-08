@@ -338,4 +338,77 @@ export abstract class BaseCommand extends ShellRunner {
   protected async resolveNamespaceFromDeployment(task?: SoloListrTaskWrapper<AnyListrContext>): Promise<NamespaceName> {
     return await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
   }
+
+  /**
+   * Helper method to convert a flag object to CLI option string
+   * @param flag - The command flag
+   * @returns CLI option string (e.g., '--deployment')
+   */
+  protected optionFromFlag(flag: import('../types/flag-types.js').CommandFlag): string {
+    return `--${flag.name}`;
+  }
+
+  /**
+   * Helper method to create base argv array for command execution
+   * @returns Base argv array
+   */
+  protected newArgv(): string[] {
+    return ['${PATH}/node', '${SOLO_ROOT}/solo.ts'];
+  }
+
+  /**
+   * Helper method to append global flags to argv
+   * @param argv - The argument array to append to
+   * @param cacheDirectory - Optional cache directory path
+   * @returns Updated argv array
+   */
+  protected argvPushGlobalFlags(argv: string[], cacheDirectory: string = ''): string[] {
+    argv.push(this.optionFromFlag(flags.devMode), this.optionFromFlag(flags.quiet));
+    if (cacheDirectory) {
+      argv.push(this.optionFromFlag(flags.cacheDir), cacheDirectory);
+    }
+    return argv;
+  }
+
+  /**
+   * Helper method to invoke a Solo command with proper task integration
+   * @param title - Task title to display
+   * @param commandName - Command name for task tracking
+   * @param callback - Function that returns the argv array
+   * @param skipCallback - Optional function to determine if task should be skipped
+   * @returns Task object for Listr
+   */
+  protected invokeSoloCommand(
+    title: string,
+    commandName: string,
+    callback: () => string[],
+    skipCallback: () => boolean = (): boolean => false,
+  ) {
+    return {
+      title,
+      skip: skipCallback(),
+      task: async (_, taskListWrapper) => {
+        return this.subTaskSoloCommand(commandName, taskListWrapper, callback);
+      },
+    };
+  }
+
+  /**
+   * Helper method to execute a Solo command and return child tasks
+   * @param commandName - Command name for task tracking
+   * @param taskListWrapper - Task list wrapper from Listr
+   * @param callback - Function that returns the argv array
+   * @returns Child tasks from command execution
+   */
+  protected async subTaskSoloCommand(
+    commandName: string,
+    taskListWrapper: import('../core/task-list/task-list-wrapper.js').TaskListWrapper,
+    callback: () => string[],
+  ): Promise<import('listr2').Listr<ListrContext, any, any> | import('listr2').Listr<ListrContext, any, any>[]> {
+    this.taskList.parentTaskListMap.set(commandName, {taskListWrapper});
+    const newArgv: string[] = callback();
+    const {ArgumentProcessor} = await import('../argument-processor.js');
+    await ArgumentProcessor.process(newArgv);
+    return this.taskList.parentTaskListMap.get(commandName).children;
+  }
 }

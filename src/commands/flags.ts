@@ -1736,6 +1736,29 @@ export class Flags {
     },
   };
 
+  public static readonly configFile: CommandFlag = {
+    constName: 'configFile',
+    name: 'config-file',
+    definition: {
+      describe: 'Path to the remote configuration YAML file',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: async function promptConfigFile(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: string,
+    ): Promise<string> {
+      return await Flags.promptText(
+        task,
+        input,
+        Flags.configFile.definition.defaultValue as string,
+        'Enter path to the remote configuration YAML file',
+        'Configuration file path is required',
+        Flags.configFile.name,
+      );
+    },
+  };
+
   public static readonly adminKey: CommandFlag = {
     constName: 'adminKey',
     name: 'admin-key',

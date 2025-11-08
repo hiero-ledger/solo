@@ -34,6 +34,7 @@ export class BackupRestoreCommandDefinition extends BaseCommandDefinition {
 
   public static readonly BACKUP_COMMAND = 'backup';
   public static readonly RESTORE_COMMAND = 'restore';
+  public static readonly RESTORE_NETWORK_COMMAND = 'restore-network';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -65,6 +66,18 @@ export class BackupRestoreCommandDefinition extends BaseCommandDefinition {
               this.backupRestoreCommand,
               this.backupRestoreCommand.restore,
               BackupRestoreCommand.RESTORE_FLAGS_LIST,
+              [],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              BackupRestoreCommandDefinition.RESTORE_NETWORK_COMMAND,
+              'Restore network components from a remote configuration file. ' +
+                'Reads network topology, deployment name, namespace, and cluster context from a YAML configuration file ' +
+                'and deploys all components (consensus nodes, block nodes, mirror nodes, explorers, relay nodes) to a fresh cluster.',
+              this.backupRestoreCommand,
+              this.backupRestoreCommand.restoreNetwork,
+              BackupRestoreCommand.RESTORE_NETWORK_FLAGS_LIST,
               [],
             ),
           ),

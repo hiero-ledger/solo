@@ -81,14 +81,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
   }
 
-  private newArgv(): string[] {
-    return ['${PATH}/node', '${SOLO_ROOT}/solo.ts'];
-  }
-
-  private optionFromFlag(flag: CommandFlag): string {
-    return `--${flag.name}`;
-  }
-
   /**
    * Appends non-empty config entries to the argv array as CLI flags.
    * @param argv - The argument array to append to
@@ -103,41 +95,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         argv.push(`${key}`, value.toString());
       }
     }
-  }
-
-  private argvPushGlobalFlags(argv: string[], cacheDirectory: string = StringEx.EMPTY): string[] {
-    argv.push(this.optionFromFlag(Flags.devMode), this.optionFromFlag(Flags.quiet));
-    if (cacheDirectory) {
-      argv.push(this.optionFromFlag(Flags.cacheDir), cacheDirectory);
-    }
-    return argv;
-  }
-
-  private invokeSoloCommand(
-    title: string,
-    commandName: string,
-    callback: () => string[],
-    skipCallback: () => boolean = (): boolean => false,
-  ) {
-    return {
-      title,
-      skip: skipCallback(),
-      task: async (_, taskListWrapper) => {
-        return this.subTaskSoloCommand(commandName, this.taskList, taskListWrapper, callback);
-      },
-    };
-  }
-
-  private async subTaskSoloCommand(
-    commandName: string,
-    taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
-    taskListWrapper: TaskListWrapper,
-    callback: () => string[],
-  ): Promise<Listr<ListrContext, any, any> | Listr<ListrContext, any, any>[]> {
-    taskList.parentTaskListMap.set(commandName, {taskListWrapper});
-    const newArgv: string[] = callback();
-    await ArgumentProcessor.process(newArgv);
-    return this.taskList.parentTaskListMap.get(commandName).children;
   }
 
   public async deploy(argv: ArgvStruct): Promise<boolean> {

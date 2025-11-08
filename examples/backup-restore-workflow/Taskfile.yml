@@ -124,7 +124,6 @@ tasks:
   backup:
     desc: Freeze network and create complete backup (ConfigMaps, Secrets, Logs, State)
     cmds:
-      - cmd: $SOLO_COMMAND mirror node destroy --deployment {{ .DEPLOYMENT }} --force || true
       - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
       - cmd: sleep 10  # Wait for freeze to complete
       - cmd: $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }}
