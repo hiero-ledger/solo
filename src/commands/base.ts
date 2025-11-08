@@ -21,13 +21,15 @@ import {
   type SoloListrTaskWrapper,
 } from '../types/index.js';
 import {Flags as flags, Flags} from './flags.js';
+import {type CommandFlag} from '../types/flag-types.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {inject} from 'tsyringe-neo';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {type TaskList} from '../core/task-list/task-list.js';
-import {ListrContext, ListrRendererValue} from 'listr2';
+import {type TaskListWrapper} from '../core/task-list/task-list-wrapper.js';
+import {type Listr, ListrContext, ListrRendererValue} from 'listr2';
 import {type ComponentFactoryApi} from '../core/config/remote/api/component-factory-api.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {AnyListrContext} from '../types/aliases.js';
@@ -231,7 +233,7 @@ export abstract class BaseCommand extends ShellRunner {
         constants.SOLO_VALUES_DIR,
       ];
     }
-    const self = this;
+    const self: this = this;
 
     try {
       for (const directoryPath of directories) {
@@ -344,7 +346,7 @@ export abstract class BaseCommand extends ShellRunner {
    * @param flag - The command flag
    * @returns CLI option string (e.g., '--deployment')
    */
-  protected optionFromFlag(flag: import('../types/flag-types.js').CommandFlag): string {
+  protected optionFromFlag(flag: CommandFlag): string {
     return `--${flag.name}`;
   }
 
@@ -386,7 +388,7 @@ export abstract class BaseCommand extends ShellRunner {
   ) {
     return {
       title,
-      skip: skipCallback(),
+      skip: skipCallback,
       task: async (_, taskListWrapper) => {
         return this.subTaskSoloCommand(commandName, taskListWrapper, callback);
       },
@@ -402,9 +404,12 @@ export abstract class BaseCommand extends ShellRunner {
    */
   protected async subTaskSoloCommand(
     commandName: string,
-    taskListWrapper: import('../core/task-list/task-list-wrapper.js').TaskListWrapper,
+    taskListWrapper: TaskListWrapper,
     callback: () => string[],
-  ): Promise<import('listr2').Listr<ListrContext, any, any> | import('listr2').Listr<ListrContext, any, any>[]> {
+  ): Promise<
+    | Listr<ListrContext, ListrRendererValue, ListrRendererValue>
+    | Listr<ListrContext, ListrRendererValue, ListrRendererValue>[]
+  > {
     this.taskList.parentTaskListMap.set(commandName, {taskListWrapper});
     const newArgv: string[] = callback();
     const {ArgumentProcessor} = await import('../argument-processor.js');

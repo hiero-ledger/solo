@@ -4,7 +4,7 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {injectable, container} from 'tsyringe-neo';
 import {type ArgvStruct} from '../types/aliases.js';
-import {type CommandFlags, type CommandFlag} from '../types/flag-types.js';
+import {type CommandFlags} from '../types/flag-types.js';
 import chalk from 'chalk';
 import yaml from 'yaml';
 import fs from 'node:fs';
@@ -15,7 +15,7 @@ import {type K8} from '../integration/kube/k8.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {type Context} from '../types/index.js';
-import {Listr, type ListrContext, type ListrRendererValue} from 'listr2';
+import {Listr} from 'listr2';
 import * as constants from '../core/constants.js';
 import {NetworkNodes} from '../core/network-nodes.js';
 import * as helpers from '../core/helpers.js';
@@ -23,7 +23,6 @@ import {Duration} from '../core/time/duration.js';
 import {type ConsensusNode} from '../core/model/consensus-node.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {NodeCommandTasks} from './node/tasks.js';
-import {load as yamlLoad} from 'js-yaml';
 import {plainToInstance} from 'class-transformer';
 import {RemoteConfigSchema} from '../data/schema/model/remote/remote-config-schema.js';
 import {RemoteConfig} from '../business/runtime-state/config/remote/remote-config.js';
@@ -33,7 +32,7 @@ import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block
 import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {type ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
-import {type DeploymentName, type SoloListr, type SoloListrTask} from '../types/index.js';
+import {type DeploymentName} from '../types/index.js';
 import {type ApplicationVersionsSchema} from '../data/schema/model/common/application-versions-schema.js';
 import {KeysCommandDefinition} from './command-definitions/keys-command-definition.js';
 import {ConsensusCommandDefinition} from './command-definitions/consensus-command-definition.js';
@@ -582,7 +581,7 @@ export class BackupRestoreCommand extends BaseCommand {
    */
   private async readRemoteConfigFile(configFilePath: string): Promise<any> {
     this.logger.showUser(chalk.cyan(`Reading remote config from file: ${configFilePath}`));
-    
+
     try {
       // Check if file exists
       if (!fs.existsSync(configFilePath)) {
@@ -591,21 +590,18 @@ export class BackupRestoreCommand extends BaseCommand {
 
       // Read file content
       const fileContent: string = fs.readFileSync(configFilePath, 'utf8');
-      
+
       // Parse YAML
-      const configData: any = yamlLoad(fileContent);
+      const configData: any = yaml.parse(fileContent);
 
       if (!configData) {
         throw new SoloError('Config file is empty or invalid');
       }
 
-      this.logger.showUser(chalk.green(`✓ Read config file successfully`));
+      this.logger.showUser(chalk.green('✓ Read config file successfully'));
       return configData;
     } catch (error: any) {
-      throw new SoloError(
-        `Failed to read config file ${configFilePath}: ${error.message}`,
-        error,
-      );
+      throw new SoloError(`Failed to read config file ${configFilePath}: ${error.message}`, error);
     }
   }
 
@@ -617,34 +613,32 @@ export class BackupRestoreCommand extends BaseCommand {
 
     try {
       let actualConfigData = configData;
-      
+
       // Check if this is a ConfigMap wrapper (has apiVersion, kind, data)
       if (configData.kind === 'ConfigMap' && configData.data) {
         this.logger.showUser(chalk.gray('  Detected ConfigMap format, extracting remote config data...'));
-        
+
         // Extract the remote config from the ConfigMap data field
         const remoteConfigKey = 'remote-config-data';
         const remoteConfigYaml = configData.data[remoteConfigKey];
-        
+
         if (!remoteConfigYaml) {
           throw new SoloError(`ConfigMap does not contain '${remoteConfigKey}' key`);
         }
-        
+
         // Parse the YAML string to get the actual config object
-        actualConfigData = yamlLoad(remoteConfigYaml);
+        actualConfigData = yaml.parse(remoteConfigYaml);
         this.logger.showUser(chalk.gray('  ✓ Extracted remote config from ConfigMap'));
       }
-      
+
       // Transform to RemoteConfigSchema instance
-      const remoteConfigSchema: RemoteConfigSchema = plainToInstance(
-        RemoteConfigSchema,
-        actualConfigData,
-        {excludeExtraneousValues: true},
-      );
+      const remoteConfigSchema: RemoteConfigSchema = plainToInstance(RemoteConfigSchema, actualConfigData, {
+        excludeExtraneousValues: true,
+      });
 
       const remoteConfig: RemoteConfig = new RemoteConfig(remoteConfigSchema);
       this.logger.showUser(chalk.green('✓ Remote configuration parsed successfully'));
-      
+
       return remoteConfig;
     } catch (error: any) {
       throw new SoloError(`Failed to parse remote config: ${error.message}`, error);
@@ -702,6 +696,315 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
+   * Build deployment tasks at the top level (not nested) to avoid Listr hanging issues
+   * This follows the pattern from default-one-shot.ts
+   */
+  private buildDeploymentTasks(): any[] {
+    const self = this;
+    const tasks: any[] = [];
+
+    return [
+      ...tasks,
+      // Keys generation task
+      {
+        title: 'Generate consensus node keys',
+        skip: (context_: any) =>
+          !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
+        task: async (context_, taskListWrapper) => {
+          return self.subTaskSoloCommand(KeysCommandDefinition.KEYS_COMMAND, taskListWrapper, (): string[] => {
+            const argv: string[] = self.newArgv();
+            argv.push(
+              ...KeysCommandDefinition.KEYS_COMMAND.split(' '),
+              self.optionFromFlag(flags.generateGossipKeys),
+              self.optionFromFlag(flags.generateTlsKeys),
+              self.optionFromFlag(flags.deployment),
+              context_.deployment,
+              self.optionFromFlag(flags.nodeAliasesUnparsed),
+              context_.nodeAliases,
+            );
+            return self.argvPushGlobalFlags(argv);
+          });
+        },
+      },
+      // Consensus network deploy task
+      {
+        title: 'Deploy consensus network',
+        skip: (context_: any) =>
+          !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
+        task: async (context_, taskListWrapper) => {
+          return self.subTaskSoloCommand(ConsensusCommandDefinition.DEPLOY_COMMAND, taskListWrapper, (): string[] => {
+            const argv: string[] = self.newArgv();
+            argv.push(
+              ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
+              self.optionFromFlag(flags.deployment),
+              context_.deployment,
+              self.optionFromFlag(flags.persistentVolumeClaims),
+              self.optionFromFlag(flags.nodeAliasesUnparsed),
+              context_.nodeAliases,
+            );
+            if (context_.versions?.consensusNode) {
+              argv.push(self.optionFromFlag(flags.releaseTag), context_.versions.consensusNode.toString());
+            }
+            if (context_.versions?.chart) {
+              argv.push(self.optionFromFlag(flags.soloChartVersion), context_.versions.chart.toString());
+            }
+            return self.argvPushGlobalFlags(argv);
+          });
+        },
+      },
+      // Block nodes deploy tasks (one per block node)
+      ...self.buildBlockNodeTasks(),
+      // Consensus node setup task
+      {
+        title: 'Setup consensus nodes',
+        skip: (context_: any) =>
+          !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
+        task: async (context_, taskListWrapper) => {
+          return self.subTaskSoloCommand(ConsensusCommandDefinition.SETUP_COMMAND, taskListWrapper, (): string[] => {
+            const argv: string[] = self.newArgv();
+            argv.push(
+              ...ConsensusCommandDefinition.SETUP_COMMAND.split(' '),
+              self.optionFromFlag(flags.nodeAliasesUnparsed),
+              context_.nodeAliases,
+              self.optionFromFlag(flags.deployment),
+              context_.deployment,
+            );
+            if (context_.versions?.consensusNode) {
+              argv.push(self.optionFromFlag(flags.releaseTag), context_.versions.consensusNode.toString());
+            }
+            return self.argvPushGlobalFlags(argv);
+          });
+        },
+      },
+      // Consensus node start task
+      {
+        title: 'Start consensus nodes',
+        skip: (context_: any) =>
+          !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
+        task: async (context_, taskListWrapper) => {
+          return self.subTaskSoloCommand(ConsensusCommandDefinition.START_COMMAND, taskListWrapper, (): string[] => {
+            const argv: string[] = self.newArgv();
+            argv.push(
+              ...ConsensusCommandDefinition.START_COMMAND.split(' '),
+              self.optionFromFlag(flags.deployment),
+              context_.deployment,
+              self.optionFromFlag(flags.nodeAliasesUnparsed),
+              context_.nodeAliases,
+            );
+            return self.argvPushGlobalFlags(argv);
+          });
+        },
+      },
+      // Mirror nodes deploy tasks
+      ...self.buildMirrorNodeTasks(),
+      // Relay nodes deploy tasks
+      ...self.buildRelayNodeTasks(),
+      // Explorer nodes deploy tasks
+      ...self.buildExplorerTasks(),
+    ];
+  }
+
+  /**
+   * Build block node deployment tasks
+   */
+  private buildBlockNodeTasks(): any[] {
+    const self = this;
+    const tasks: any[] = [];
+
+    // We'll create one task per block node dynamically
+    // This is a placeholder - actual tasks will be added based on context
+    return [
+      {
+        title: 'Deploy block nodes',
+        skip: (context_: any) =>
+          !context_.deploymentState?.blockNodes || context_.deploymentState.blockNodes.length === 0,
+        task: async (context_, taskListWrapper) => {
+          const blockNodeTasks: any[] = [];
+
+          for (const blockNode of context_.deploymentState.blockNodes) {
+            blockNodeTasks.push({
+              title: `Deploy block node ${blockNode.metadata.id}`,
+              task: async (_, subTaskListWrapper) => {
+                return self.subTaskSoloCommand(BlockCommandDefinition.ADD_COMMAND, subTaskListWrapper, (): string[] => {
+                  const argv: string[] = self.newArgv();
+                  argv.push(
+                    ...BlockCommandDefinition.ADD_COMMAND.split(' '),
+                    self.optionFromFlag(flags.deployment),
+                    context_.deployment,
+                    self.optionFromFlag(flags.clusterRef),
+                    context_.context,
+                  );
+                  if (context_.versions?.blockNodeChart) {
+                    argv.push(
+                      self.optionFromFlag(flags.blockNodeChartVersion),
+                      context_.versions.blockNodeChart.toString(),
+                    );
+                  }
+                  return self.argvPushGlobalFlags(argv);
+                });
+              },
+            });
+          }
+
+          return taskListWrapper.newListr(blockNodeTasks, {
+            concurrent: false,
+            rendererOptions: {collapseSubtasks: false},
+          });
+        },
+      },
+    ];
+  }
+
+  /**
+   * Build mirror node deployment tasks
+   */
+  private buildMirrorNodeTasks(): any[] {
+    const self = this;
+
+    return [
+      {
+        title: 'Deploy mirror nodes',
+        skip: (context_: any) =>
+          !context_.deploymentState?.mirrorNodes || context_.deploymentState.mirrorNodes.length === 0,
+        task: async (context_, taskListWrapper) => {
+          const mirrorNodeTasks: any[] = [];
+
+          for (const mirrorNode of context_.deploymentState.mirrorNodes) {
+            mirrorNodeTasks.push({
+              title: `Deploy mirror node ${mirrorNode.metadata.id}`,
+              task: async (_, subTaskListWrapper) => {
+                return self.subTaskSoloCommand(
+                  MirrorCommandDefinition.ADD_COMMAND,
+                  subTaskListWrapper,
+                  (): string[] => {
+                    const argv: string[] = self.newArgv();
+                    argv.push(
+                      ...MirrorCommandDefinition.ADD_COMMAND.split(' '),
+                      self.optionFromFlag(flags.deployment),
+                      context_.deployment,
+                      self.optionFromFlag(flags.clusterRef),
+                      context_.context,
+                    );
+                    if (context_.versions?.mirrorNodeChart) {
+                      argv.push(
+                        self.optionFromFlag(flags.mirrorNodeVersion),
+                        context_.versions.mirrorNodeChart.toString(),
+                      );
+                    }
+                    return self.argvPushGlobalFlags(argv);
+                  },
+                );
+              },
+            });
+          }
+
+          return taskListWrapper.newListr(mirrorNodeTasks, {
+            concurrent: false,
+            rendererOptions: {collapseSubtasks: false},
+          });
+        },
+      },
+    ];
+  }
+
+  /**
+   * Build relay node deployment tasks
+   */
+  private buildRelayNodeTasks(): any[] {
+    const self = this;
+
+    return [
+      {
+        title: 'Deploy relay nodes',
+        skip: (context_: any) =>
+          !context_.deploymentState?.relayNodes || context_.deploymentState.relayNodes.length === 0,
+        task: async (context_, taskListWrapper) => {
+          const relayNodeTasks: any[] = [];
+
+          for (const relayNode of context_.deploymentState.relayNodes) {
+            relayNodeTasks.push({
+              title: `Deploy relay node ${relayNode.metadata.id}`,
+              task: async (_, subTaskListWrapper) => {
+                return self.subTaskSoloCommand(RelayCommandDefinition.ADD_COMMAND, subTaskListWrapper, (): string[] => {
+                  const argv: string[] = self.newArgv();
+                  argv.push(
+                    ...RelayCommandDefinition.ADD_COMMAND.split(' '),
+                    self.optionFromFlag(flags.deployment),
+                    context_.deployment,
+                    self.optionFromFlag(flags.nodeAliasesUnparsed),
+                    context_.nodeAliases,
+                  );
+                  if (context_.versions?.jsonRpcRelayChart) {
+                    argv.push(
+                      self.optionFromFlag(flags.relayReleaseTag),
+                      context_.versions.jsonRpcRelayChart.toString(),
+                    );
+                  }
+                  return self.argvPushGlobalFlags(argv);
+                });
+              },
+            });
+          }
+
+          return taskListWrapper.newListr(relayNodeTasks, {
+            concurrent: false,
+            rendererOptions: {collapseSubtasks: false},
+          });
+        },
+      },
+    ];
+  }
+
+  /**
+   * Build explorer deployment tasks
+   */
+  private buildExplorerTasks(): any[] {
+    const self = this;
+
+    return [
+      {
+        title: 'Deploy explorers',
+        skip: (context_: any) =>
+          !context_.deploymentState?.explorers || context_.deploymentState.explorers.length === 0,
+        task: async (context_, taskListWrapper) => {
+          const explorerTasks: any[] = [];
+
+          for (const explorer of context_.deploymentState.explorers) {
+            explorerTasks.push({
+              title: `Deploy explorer ${explorer.metadata.id}`,
+              task: async (_, subTaskListWrapper) => {
+                return self.subTaskSoloCommand(
+                  ExplorerCommandDefinition.ADD_COMMAND,
+                  subTaskListWrapper,
+                  (): string[] => {
+                    const argv: string[] = self.newArgv();
+                    argv.push(
+                      ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
+                      self.optionFromFlag(flags.deployment),
+                      context_.deployment,
+                      self.optionFromFlag(flags.clusterRef),
+                      context_.context,
+                    );
+                    if (context_.versions?.explorerChart) {
+                      argv.push(self.optionFromFlag(flags.explorerVersion), context_.versions.explorerChart.toString());
+                    }
+                    return self.argvPushGlobalFlags(argv);
+                  },
+                );
+              },
+            });
+          }
+
+          return taskListWrapper.newListr(explorerTasks, {
+            concurrent: false,
+            rendererOptions: {collapseSubtasks: false},
+          });
+        },
+      },
+    ];
+  }
+
+  /**
    * Deploy consensus network (generate keys + deploy network)
    * This should be called before block nodes are deployed
    */
@@ -712,7 +1015,7 @@ export class BackupRestoreCommand extends BaseCommand {
   ): {nodeAliases: string; tasks: any[]} {
     // Build node-aliases from consensus nodes
     const nodeAliases = consensusNodes.map(n => `node${n.metadata.id}`).join(',');
-    
+
     const tasks = [
       this.invokeSoloCommand(
         `solo ${KeysCommandDefinition.KEYS_COMMAND}`,
@@ -723,8 +1026,10 @@ export class BackupRestoreCommand extends BaseCommand {
             ...KeysCommandDefinition.KEYS_COMMAND.split(' '),
             this.optionFromFlag(flags.generateGossipKeys),
             this.optionFromFlag(flags.generateTlsKeys),
-            this.optionFromFlag(flags.deployment), deployment,
-            this.optionFromFlag(flags.nodeAliasesUnparsed), nodeAliases,
+            this.optionFromFlag(flags.deployment),
+            deployment,
+            this.optionFromFlag(flags.nodeAliasesUnparsed),
+            nodeAliases,
           );
           return this.argvPushGlobalFlags(argv);
         },
@@ -736,9 +1041,11 @@ export class BackupRestoreCommand extends BaseCommand {
           const argv: string[] = this.newArgv();
           argv.push(
             ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
-            this.optionFromFlag(flags.deployment), deployment,
+            this.optionFromFlag(flags.deployment),
+            deployment,
             this.optionFromFlag(flags.persistentVolumeClaims),
-            this.optionFromFlag(flags.nodeAliasesUnparsed), nodeAliases,
+            this.optionFromFlag(flags.nodeAliasesUnparsed),
+            nodeAliases,
           );
           // Add version flags if available
           if (versions?.consensusNode) {
@@ -751,7 +1058,7 @@ export class BackupRestoreCommand extends BaseCommand {
         },
       ),
     ];
-    
+
     return {nodeAliases, tasks};
   }
 
@@ -762,6 +1069,7 @@ export class BackupRestoreCommand extends BaseCommand {
   private deployConsensusNodesSetupAndStart(
     nodeAliases: string,
     deployment: DeploymentName,
+    versions?: ApplicationVersionsSchema,
   ): any[] {
     return [
       this.invokeSoloCommand(
@@ -771,9 +1079,14 @@ export class BackupRestoreCommand extends BaseCommand {
           const argv: string[] = this.newArgv();
           argv.push(
             ...ConsensusCommandDefinition.SETUP_COMMAND.split(' '),
-            this.optionFromFlag(flags.nodeAliasesUnparsed), nodeAliases,
-            this.optionFromFlag(flags.deployment), deployment,
+            this.optionFromFlag(flags.nodeAliasesUnparsed),
+            nodeAliases,
+            this.optionFromFlag(flags.deployment),
+            deployment,
           );
+          if (versions?.consensusNode) {
+            argv.push(this.optionFromFlag(flags.releaseTag), versions.consensusNode.toString());
+          }
           return this.argvPushGlobalFlags(argv);
         },
       ),
@@ -784,8 +1097,10 @@ export class BackupRestoreCommand extends BaseCommand {
           const argv: string[] = this.newArgv();
           argv.push(
             ...ConsensusCommandDefinition.START_COMMAND.split(' '),
-            this.optionFromFlag(flags.deployment), deployment,
-            this.optionFromFlag(flags.nodeAliasesUnparsed), nodeAliases,
+            this.optionFromFlag(flags.deployment),
+            deployment,
+            this.optionFromFlag(flags.nodeAliasesUnparsed),
+            nodeAliases,
           );
           return this.argvPushGlobalFlags(argv);
         },
@@ -811,8 +1126,10 @@ export class BackupRestoreCommand extends BaseCommand {
           const argv: string[] = this.newArgv();
           argv.push(
             ...BlockCommandDefinition.ADD_COMMAND.split(' '),
-            this.optionFromFlag(flags.deployment), deployment,
-            this.optionFromFlag(flags.clusterRef), context,
+            this.optionFromFlag(flags.deployment),
+            deployment,
+            this.optionFromFlag(flags.clusterRef),
+            context,
           );
           // Add version flag if available
           if (versions?.blockNodeChart) {
@@ -820,7 +1137,7 @@ export class BackupRestoreCommand extends BaseCommand {
           }
           return this.argvPushGlobalFlags(argv);
         },
-      )
+      ),
     );
   }
 
@@ -842,8 +1159,10 @@ export class BackupRestoreCommand extends BaseCommand {
           const argv: string[] = this.newArgv();
           argv.push(
             ...MirrorCommandDefinition.ADD_COMMAND.split(' '),
-            this.optionFromFlag(flags.deployment), deployment,
-            this.optionFromFlag(flags.clusterRef), context,
+            this.optionFromFlag(flags.deployment),
+            deployment,
+            this.optionFromFlag(flags.clusterRef),
+            context,
           );
           // Add version flag if available
           if (versions?.mirrorNodeChart) {
@@ -851,7 +1170,7 @@ export class BackupRestoreCommand extends BaseCommand {
           }
           return this.argvPushGlobalFlags(argv);
         },
-      )
+      ),
     );
   }
 
@@ -873,8 +1192,10 @@ export class BackupRestoreCommand extends BaseCommand {
           const argv: string[] = this.newArgv();
           argv.push(
             ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
-            this.optionFromFlag(flags.deployment), deployment,
-            this.optionFromFlag(flags.clusterRef), context,
+            this.optionFromFlag(flags.deployment),
+            deployment,
+            this.optionFromFlag(flags.clusterRef),
+            context,
           );
           // Add version flag if available
           if (versions?.explorerChart) {
@@ -882,7 +1203,7 @@ export class BackupRestoreCommand extends BaseCommand {
           }
           return this.argvPushGlobalFlags(argv);
         },
-      )
+      ),
     );
   }
 
@@ -904,8 +1225,10 @@ export class BackupRestoreCommand extends BaseCommand {
           const argv: string[] = this.newArgv();
           argv.push(
             ...RelayCommandDefinition.ADD_COMMAND.split(' '),
-            this.optionFromFlag(flags.deployment), deployment,
-            this.optionFromFlag(flags.nodeAliasesUnparsed), nodeAliases,
+            this.optionFromFlag(flags.deployment),
+            deployment,
+            this.optionFromFlag(flags.nodeAliasesUnparsed),
+            nodeAliases,
           );
           // Add version flag if available
           if (versions?.jsonRpcRelayChart) {
@@ -913,7 +1236,7 @@ export class BackupRestoreCommand extends BaseCommand {
           }
           return this.argvPushGlobalFlags(argv);
         },
-      )
+      ),
     );
   }
 
@@ -953,109 +1276,42 @@ export class BackupRestoreCommand extends BaseCommand {
             context_.remoteConfig = self.parseRemoteConfig(configData);
             context_.deploymentState = context_.remoteConfig.state;
             context_.versions = context_.remoteConfig.versions;
-            
+
             // Extract deployment info from config (use first cluster)
             if (!context_.remoteConfig.clusters || context_.remoteConfig.clusters.length === 0) {
               throw new SoloError('No cluster information found in configuration file');
             }
-            
+
             const clusterInfo = context_.remoteConfig.clusters[0];
             context_.namespace = NamespaceName.of(clusterInfo.namespace);
             context_.deployment = clusterInfo.deployment as DeploymentName;
             context_.context = clusterInfo.name; // Cluster name is the context
-            
+
             self.logger.showUser(chalk.cyan(`\nDeployment: ${context_.deployment}`));
             self.logger.showUser(chalk.cyan(`Namespace: ${context_.namespace.name}`));
             self.logger.showUser(chalk.cyan(`Context: ${context_.context}`));
-          },
-        },
-        {
-          title: 'Display network topology',
-          task: async context_ => {
-            // Display topology
-            self.displayDeploymentTopology(context_.deploymentState!);
-          },
-        },
-        {
-          title: 'Deploy network components',
-          task: (context_, task): SoloListr<RestoreNetworkContext> => {
-            const deploymentState: DeploymentStateSchema = context_.deploymentState!;
-            const subtasks: SoloListrTask<RestoreNetworkContext>[] = [];
 
-            // Step 1: Deploy consensus network (keys + network deploy)
-            if (deploymentState.consensusNodes && deploymentState.consensusNodes.length > 0) {
-              const result = self.deployConsensusNodesNetwork(
-                deploymentState.consensusNodes,
-                context_.deployment!,
-                context_.versions,
-              );
-              context_.nodeAliases = result.nodeAliases;
-              subtasks.push(...result.tasks);
+            // Build node aliases and validate we have components to deploy
+            if (context_.deploymentState!.consensusNodes && context_.deploymentState!.consensusNodes.length > 0) {
+              context_.nodeAliases = context_
+                .deploymentState!.consensusNodes.map(n => `node${n.metadata.id}`)
+                .join(',');
             }
 
-            // Step 2: Deploy block nodes (before consensus setup)
-            if (deploymentState.blockNodes && deploymentState.blockNodes.length > 0) {
-              const blockNodeTasks = self.deployBlockNodes(
-                deploymentState.blockNodes,
-                context_.deployment!,
-                context_.context!,
-                context_.versions,
-              );
-              subtasks.push(...blockNodeTasks);
-            }
+            const hasComponents =
+              (context_.deploymentState!.consensusNodes?.length || 0) > 0 ||
+              (context_.deploymentState!.blockNodes?.length || 0) > 0 ||
+              (context_.deploymentState!.mirrorNodes?.length || 0) > 0 ||
+              (context_.deploymentState!.relayNodes?.length || 0) > 0 ||
+              (context_.deploymentState!.explorers?.length || 0) > 0;
 
-            // Step 3: Setup and start consensus nodes (after block nodes)
-            if (deploymentState.consensusNodes && deploymentState.consensusNodes.length > 0) {
-              const setupStartTasks = self.deployConsensusNodesSetupAndStart(
-                context_.nodeAliases!,
-                context_.deployment!,
-              );
-              subtasks.push(...setupStartTasks);
-            }
-
-            // Step 4: Deploy mirror nodes
-            if (deploymentState.mirrorNodes && deploymentState.mirrorNodes.length > 0) {
-              const mirrorNodeTasks = self.deployMirrorNodes(
-                deploymentState.mirrorNodes,
-                context_.deployment!,
-                context_.context!,
-                context_.versions,
-              );
-              subtasks.push(...mirrorNodeTasks);
-            }
-
-            // Step 5: Deploy relay nodes
-            if (deploymentState.relayNodes && deploymentState.relayNodes.length > 0) {
-              const relayNodeTasks = self.deployRelayNodes(
-                deploymentState.relayNodes,
-                context_.deployment!,
-                context_.nodeAliases!,
-                context_.versions,
-              );
-              subtasks.push(...relayNodeTasks);
-            }
-
-            // Step 6: Deploy explorers
-            if (deploymentState.explorers && deploymentState.explorers.length > 0) {
-              const explorerTasks = self.deployExplorers(
-                deploymentState.explorers,
-                context_.deployment!,
-                context_.context!,
-                context_.versions,
-              );
-              subtasks.push(...explorerTasks);
-            }
-
-            if (subtasks.length === 0) {
+            if (!hasComponents) {
               throw new SoloError('No components found in deployment state to deploy');
             }
-
-            return task.newListr(subtasks, {
-              concurrent: false,
-              rendererOptions: {collapseSubtasks: false},
-            });
           },
         },
+        // Flatten the deployment tasks to top level (like default-one-shot.ts)
+        ...self.buildDeploymentTasks(),
       ],
       {
         concurrent: false,
@@ -1070,9 +1326,7 @@ export class BackupRestoreCommand extends BaseCommand {
       await tasks.run();
       this.logger.showUser(chalk.green('\n✅ Network components restored successfully!'));
       this.logger.showUser(
-        chalk.cyan(
-          '\nℹ️  Network has been restored from configuration file. All components deployed.',
-        ),
+        chalk.cyan('\nℹ️  Network has been restored from configuration file. All components deployed.'),
       );
     } catch (error: any) {
       throw new SoloError(`Restore network failed: ${error.message}`, error);

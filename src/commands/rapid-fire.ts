@@ -198,7 +198,7 @@ export class RapidFireCommand extends BaseCommand {
 
   private startLoadTest(leaseReference: {lease?: Lock}): SoloListrTask<RapidFireStartContext> {
     return {
-      title: `Start performance load test`,
+      title: 'Start performance load test',
       task: async (
         context_: RapidFireStartContext,
         task: SoloListrTaskWrapper<RapidFireStartContext>,
