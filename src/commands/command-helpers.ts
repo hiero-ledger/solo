@@ -5,6 +5,7 @@ import {type CommandFlag} from '../types/flag-types.js';
 import {type TaskListWrapper} from '../core/task-list/task-list-wrapper.js';
 import {type Listr, type ListrContext, type ListrRendererValue} from 'listr2';
 import {type TaskList} from '../core/task-list/task-list.js';
+import {ArgumentProcessor} from '../argument-processor.js';
 
 /**
  * Helper function to convert a flag object to CLI option string
@@ -97,9 +98,6 @@ export async function subTaskSoloCommand(
 > {
   taskList.parentTaskListMap.set(commandName, {taskListWrapper});
   const newArgv: string[] = callback();
-  // Dynamic import to avoid circular dependency
-  // Circular: ArgumentProcessor -> middlewares -> init -> BaseCommand
-  const ArgumentProcessorModule = await import('../argument-processor.js');
-  await ArgumentProcessorModule.ArgumentProcessor.process(newArgv);
+  await ArgumentProcessor.process(newArgv);
   return taskList.parentTaskListMap.get(commandName).children;
 }

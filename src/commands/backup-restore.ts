@@ -35,15 +35,25 @@ import {BlockCommandDefinition} from './command-definitions/block-command-defini
 import {MirrorCommandDefinition} from './command-definitions/mirror-command-definition.js';
 import {ExplorerCommandDefinition} from './command-definitions/explorer-command-definition.js';
 import {RelayCommandDefinition} from './command-definitions/relay-command-definition.js';
+import {ClusterReferenceCommandDefinition} from './command-definitions/cluster-reference-command-definition.js';
+import {DeploymentCommandDefinition} from './command-definitions/deployment-command-definition.js';
 import * as CommandHelpers from './command-helpers.js';
-import {optionFromFlag, subTaskSoloCommand} from './command-helpers.js';
+import {optionFromFlag, subTaskSoloCommand, invokeSoloCommand} from './command-helpers.js';
+import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
+import {inject} from 'tsyringe-neo';
+import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {type DefaultKindClientBuilder} from '../integration/kind/impl/default-kind-client-builder.js';
+import {KindClient} from '../integration/kind/kind-client.js';
+import {type ClusterCreateResponse} from '../integration/kind/model/create-cluster/cluster-create-response.js';
 
 @injectable()
 export class BackupRestoreCommand extends BaseCommand {
   private readonly nodeCommandTasks: NodeCommandTasks;
 
-  public constructor() {
+  public constructor(@inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder) {
     super();
+    this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, BackupRestoreCommand.name);
     this.nodeCommandTasks = container.resolve(NodeCommandTasks);
   }
 
@@ -643,56 +653,6 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
-   * Display the deployment topology from DeploymentStateSchema
-   */
-  private displayDeploymentTopology(deploymentState: DeploymentStateSchema): void {
-    this.logger.showUser(chalk.cyan('\n📊 Network Topology:'));
-    this.logger.showUser(chalk.gray('  ────────────────────────────────────────'));
-
-    // Consensus Nodes
-    if (deploymentState.consensusNodes && deploymentState.consensusNodes.length > 0) {
-      this.logger.showUser(chalk.yellow(`\n  Consensus Nodes: ${deploymentState.consensusNodes.length}`));
-      for (const node of deploymentState.consensusNodes) {
-        this.logger.showUser(chalk.gray(`    • ${node.metadata.id} - ${node.metadata.namespace}`));
-      }
-    }
-
-    // Block Nodes
-    if (deploymentState.blockNodes && deploymentState.blockNodes.length > 0) {
-      this.logger.showUser(chalk.yellow(`\n  Block Nodes: ${deploymentState.blockNodes.length}`));
-      for (const node of deploymentState.blockNodes) {
-        this.logger.showUser(chalk.gray(`    • ${node.metadata.id}`));
-      }
-    }
-
-    // Mirror Nodes
-    if (deploymentState.mirrorNodes && deploymentState.mirrorNodes.length > 0) {
-      this.logger.showUser(chalk.yellow(`\n  Mirror Nodes: ${deploymentState.mirrorNodes.length}`));
-      for (const node of deploymentState.mirrorNodes) {
-        this.logger.showUser(chalk.gray(`    • ${node.metadata.id}`));
-      }
-    }
-
-    // Relay Nodes
-    if (deploymentState.relayNodes && deploymentState.relayNodes.length > 0) {
-      this.logger.showUser(chalk.yellow(`\n  Relay Nodes: ${deploymentState.relayNodes.length}`));
-      for (const node of deploymentState.relayNodes) {
-        this.logger.showUser(chalk.gray(`    • ${node.metadata.id}`));
-      }
-    }
-
-    // Explorers
-    if (deploymentState.explorers && deploymentState.explorers.length > 0) {
-      this.logger.showUser(chalk.yellow(`\n  Explorers: ${deploymentState.explorers.length}`));
-      for (const explorer of deploymentState.explorers) {
-        this.logger.showUser(chalk.gray(`    • ${explorer.metadata.id}`));
-      }
-    }
-
-    this.logger.showUser(chalk.gray('  ────────────────────────────────────────\n'));
-  }
-
-  /**
    * Build deployment tasks at the top level (not nested) to avoid Listr hanging issues
    * This follows the pattern from default-one-shot.ts
    */
@@ -828,8 +788,6 @@ export class BackupRestoreCommand extends BaseCommand {
     const self = this;
     const tasks: any[] = [];
 
-    // We'll create one task per block node dynamically
-    // This is a placeholder - actual tasks will be added based on context
     return [
       {
         title: 'Deploy block nodes',
@@ -1043,6 +1001,9 @@ export class BackupRestoreCommand extends BaseCommand {
       context?: Context;
       nodeAliases?: string;
       versions?: ApplicationVersionsSchema;
+      clusters?: ReadonlyArray<Readonly<ClusterSchema>>;
+      numConsensusNodes?: number;
+      clusterContextMap?: Map<string, string>; // Maps cluster name to actual Kind context name
     }
 
     const tasks = new Listr<RestoreNetworkContext>(
@@ -1063,6 +1024,7 @@ export class BackupRestoreCommand extends BaseCommand {
             context_.remoteConfig = self.parseRemoteConfig(configData);
             context_.deploymentState = context_.remoteConfig.state;
             context_.versions = context_.remoteConfig.versions;
+            context_.clusters = context_.remoteConfig.clusters;
 
             // Extract deployment info from config (use first cluster)
             if (!context_.remoteConfig.clusters || context_.remoteConfig.clusters.length === 0) {
@@ -1083,6 +1045,7 @@ export class BackupRestoreCommand extends BaseCommand {
               context_.nodeAliases = context_
                 .deploymentState!.consensusNodes.map(n => `node${n.metadata.id}`)
                 .join(',');
+              context_.numConsensusNodes = context_.deploymentState!.consensusNodes.length;
             }
 
             const hasComponents =
@@ -1095,6 +1058,153 @@ export class BackupRestoreCommand extends BaseCommand {
             if (!hasComponents) {
               throw new SoloError('No components found in deployment state to deploy');
             }
+          },
+        },
+        {
+          title: 'Create Kind clusters',
+          task: async (context_, taskListWrapper) => {
+            if (!context_.clusters || context_.clusters.length === 0) {
+              throw new SoloError('No cluster information found in configuration');
+            }
+
+            // Initialize the map to store cluster name to context name mapping
+            context_.clusterContextMap = new Map<string, string>();
+            const clusterTasks: any[] = [];
+
+            // Create a task for each cluster
+            for (const cluster of context_.clusters) {
+              clusterTasks.push({
+                title: `Creating cluster '${cluster.name}'`,
+                task: async (_, task) => {
+                  const kindExecutable: string = await self.depManager.getExecutablePath(constants.KIND);
+                  const kindClient: KindClient = await self.kindBuilder.executable(kindExecutable).build();
+                  const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(cluster.name);
+                  
+                  // Store the actual Kind context name (includes 'kind-' prefix)
+                  context_.clusterContextMap!.set(cluster.name, clusterResponse.context);
+                  
+                  task.title = `Created cluster '${clusterResponse.name}' with context '${clusterResponse.context}'`;
+                  
+                  // Wait for cluster control plane to be ready
+                  self.logger.debug(`Waiting for cluster '${cluster.name}' control plane to be ready...`);
+                  const maxAttempts = 30; // 30 attempts * 2 seconds = 60 seconds max
+                  let attempt = 0;
+                  let clusterReady = false;
+                  
+                  while (attempt < maxAttempts && !clusterReady) {
+                    try {
+                      const k8 = self.k8Factory.getK8(clusterResponse.context);
+                      // Try to list namespaces as a simple API check
+                      await k8.namespaces().list();
+                      clusterReady = true;
+                      self.logger.debug(`Cluster '${cluster.name}' is ready after ${attempt + 1} attempts`);
+                    } catch (error: any) {
+                      attempt++;
+                      if (attempt < maxAttempts) {
+                        await helpers.sleep(Duration.ofSeconds(2));
+                      } else {
+                        throw new SoloError(
+                          `Cluster '${cluster.name}' failed to become ready after ${maxAttempts * 2} seconds: ${error.message}`,
+                        );
+                      }
+                    }
+                  }
+                  
+                  task.title = `Created cluster '${clusterResponse.name}' (ready in ${attempt * 2}s)`;
+                },
+              });
+            }
+
+            return taskListWrapper.newListr(clusterTasks, {
+              concurrent: false,
+              rendererOptions: {collapseSubtasks: false},
+            });
+          },
+        },
+        {
+          title: 'Initialize cluster configurations',
+          task: async (context_, taskListWrapper) => {
+            const initTasks: any[] = [];
+
+            // For each cluster, run the initialization commands
+            for (const cluster of context_.clusters!) {
+              const clusterReference = cluster.name; // Using cluster name as cluster-ref
+              const contextName = context_.clusterContextMap!.get(cluster.name)!; // Get actual Kind context name with 'kind-' prefix
+              const namespace = cluster.namespace;
+              const deployment = cluster.deployment;
+
+              initTasks.push(
+                invokeSoloCommand(
+                  `Setup cluster-ref '${clusterReference}'`,
+                  ClusterReferenceCommandDefinition.SETUP_COMMAND,
+                  (): string[] => {
+                    const argv: string[] = CommandHelpers.newArgv();
+                    argv.push(
+                      ...ClusterReferenceCommandDefinition.SETUP_COMMAND.split(' '),
+                      optionFromFlag(flags.clusterRef),
+                      clusterReference,
+                    );
+                    return CommandHelpers.argvPushGlobalFlags(argv);
+                  },
+                  self.taskList,
+                ),
+                invokeSoloCommand(
+                  `Connect to cluster '${contextName}'`,
+                  ClusterReferenceCommandDefinition.CONNECT_COMMAND,
+                  (): string[] => {
+                    const argv: string[] = CommandHelpers.newArgv();
+                    argv.push(
+                      ...ClusterReferenceCommandDefinition.CONNECT_COMMAND.split(' '),
+                      optionFromFlag(flags.clusterRef),
+                      clusterReference,
+                      optionFromFlag(flags.context),
+                      contextName,
+                    );
+                    return CommandHelpers.argvPushGlobalFlags(argv);
+                  },
+                  self.taskList,
+                ),
+                invokeSoloCommand(
+                  `Create deployment '${deployment}'`,
+                  DeploymentCommandDefinition.CREATE_COMMAND,
+                  (): string[] => {
+                    const argv: string[] = CommandHelpers.newArgv();
+                    argv.push(
+                      ...DeploymentCommandDefinition.CREATE_COMMAND.split(' '),
+                      optionFromFlag(flags.deployment),
+                      deployment,
+                      optionFromFlag(flags.namespace),
+                      namespace,
+                    );
+                    return CommandHelpers.argvPushGlobalFlags(argv);
+                  },
+                  self.taskList,
+                ),
+                invokeSoloCommand(
+                  `Attach cluster '${clusterReference}' to deployment '${deployment}'`,
+                  DeploymentCommandDefinition.ATTACH_COMMAND,
+                  (): string[] => {
+                    const argv: string[] = CommandHelpers.newArgv();
+                    argv.push(
+                      ...DeploymentCommandDefinition.ATTACH_COMMAND.split(' '),
+                      optionFromFlag(flags.clusterRef),
+                      clusterReference,
+                      optionFromFlag(flags.deployment),
+                      deployment,
+                      optionFromFlag(flags.numberOfConsensusNodes),
+                      context_.numConsensusNodes!.toString(),
+                    );
+                    return CommandHelpers.argvPushGlobalFlags(argv);
+                  },
+                  self.taskList,
+                ),
+              );
+            }
+
+            return taskListWrapper.newListr(initTasks, {
+              concurrent: false,
+              rendererOptions: {collapseSubtasks: false},
+            });
           },
         },
         // Flatten the deployment tasks to top level (like default-one-shot.ts)
