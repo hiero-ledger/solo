@@ -536,6 +536,30 @@ export class BackupRestoreCommand extends BaseCommand {
           },
         },
         {
+          title: 'Freeze network (if running)',
+          task: async (context_, task) => {
+            try {
+              // Use the existing freeze command to freeze the network
+              await invokeSoloCommand(
+                'Freeze network',
+                'consensus network freeze',
+                (): string[] => {
+                  const argv: string[] = CommandHelpers.newArgv();
+                  argv.push('consensus', 'network', 'freeze');
+                  return argv;
+                },
+                this.taskList,
+              ).task(context_, task);
+
+              task.title = 'Freeze network: completed';
+            } catch (error: any) {
+              // Network is not running or already frozen, which is fine for restore
+              this.logger.debug(`Network freeze skipped: ${error.message}`);
+              task.title = 'Freeze network: skipped (network not running)';
+            }
+          },
+        },
+        {
           title: 'Import ConfigMaps',
           task: async (context_, task) => {
             context_.configMapCount = await this.importConfigMaps(inputDirectory);
@@ -557,6 +581,21 @@ export class BackupRestoreCommand extends BaseCommand {
           },
         },
         this.nodeCommandTasks.uploadStateFiles(false, inputDirectory),
+        {
+          title: 'Start consensus nodes',
+          task: async (context_, taskListWrapper) => {
+            return taskListWrapper.newListr(
+              [
+                this.nodeCommandTasks.startNodes('nodeAliases'),
+                this.nodeCommandTasks.checkAllNodesAreActive('nodeAliases'),
+              ],
+              {
+                concurrent: false,
+                rendererOptions: {collapseSubtasks: false},
+              },
+            );
+          },
+        },
       ],
       {
         concurrent: false,
