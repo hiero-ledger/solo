@@ -1003,7 +1003,6 @@ export class BackupRestoreCommand extends BaseCommand {
       versions?: ApplicationVersionsSchema;
       clusters?: ReadonlyArray<Readonly<ClusterSchema>>;
       numConsensusNodes?: number;
-      clusterContextMap?: Map<string, string>; // Maps cluster name to actual Kind context name
     }
 
     const tasks = new Listr<RestoreNetworkContext>(
@@ -1067,50 +1066,53 @@ export class BackupRestoreCommand extends BaseCommand {
               throw new SoloError('No cluster information found in configuration');
             }
 
-            // Initialize the map to store cluster name to context name mapping
-            context_.clusterContextMap = new Map<string, string>();
             const clusterTasks: any[] = [];
 
             // Create a task for each cluster
             for (const cluster of context_.clusters) {
+              // Strip 'kind-' prefix if present, since Kind will add it automatically
+              const clusterNameForCreation = cluster.name.startsWith('kind-') ? cluster.name.slice(5) : cluster.name;
+
               clusterTasks.push({
-                title: `Creating cluster '${cluster.name}'`,
+                title: `Creating cluster '${clusterNameForCreation}'`,
                 task: async (_, task) => {
                   const kindExecutable: string = await self.depManager.getExecutablePath(constants.KIND);
                   const kindClient: KindClient = await self.kindBuilder.executable(kindExecutable).build();
-                  const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(cluster.name);
-                  
-                  // Store the actual Kind context name (includes 'kind-' prefix)
-                  context_.clusterContextMap!.set(cluster.name, clusterResponse.context);
-                  
+                  const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(clusterNameForCreation);
                   task.title = `Created cluster '${clusterResponse.name}' with context '${clusterResponse.context}'`;
-                  
-                  // Wait for cluster control plane to be ready
-                  self.logger.debug(`Waiting for cluster '${cluster.name}' control plane to be ready...`);
-                  const maxAttempts = 30; // 30 attempts * 2 seconds = 60 seconds max
+
+                  // Wait for cluster control plane to be ready by checking API server
+                  self.logger.debug(`Waiting for cluster '${clusterResponse.context}' control plane to be ready...`);
+                  const maxAttempts = 60; // 60 attempts * 2 seconds = 120 seconds max
                   let attempt = 0;
                   let clusterReady = false;
-                  
+
                   while (attempt < maxAttempts && !clusterReady) {
                     try {
                       const k8 = self.k8Factory.getK8(clusterResponse.context);
-                      // Try to list namespaces as a simple API check
+                      // Try to list namespaces as a simple API readiness check
                       await k8.namespaces().list();
                       clusterReady = true;
-                      self.logger.debug(`Cluster '${cluster.name}' is ready after ${attempt + 1} attempts`);
+                      self.logger.debug(
+                        `Cluster '${clusterResponse.context}' is ready after ${(attempt + 1) * 2} seconds`,
+                      );
+                      task.title = `Created cluster '${clusterResponse.name}' (ready in ${(attempt + 1) * 2}s)`;
                     } catch (error: any) {
                       attempt++;
                       if (attempt < maxAttempts) {
                         await helpers.sleep(Duration.ofSeconds(2));
                       } else {
                         throw new SoloError(
-                          `Cluster '${cluster.name}' failed to become ready after ${maxAttempts * 2} seconds: ${error.message}`,
+                          `Cluster '${clusterResponse.context}' failed to become ready after ${maxAttempts * 2} seconds. The API server is not responding. Error: ${error.message}`,
                         );
                       }
                     }
                   }
-                  
-                  task.title = `Created cluster '${clusterResponse.name}' (ready in ${attempt * 2}s)`;
+
+                  // Set the current kubectl context to the newly created cluster
+                  self.logger.debug(`Setting current context to '${clusterResponse.context}'`);
+                  const k8 = self.k8Factory.getK8(clusterResponse.context);
+                  k8.contexts().updateCurrent(clusterResponse.context);
                 },
               });
             }
@@ -1128,12 +1130,31 @@ export class BackupRestoreCommand extends BaseCommand {
 
             // For each cluster, run the initialization commands
             for (const cluster of context_.clusters!) {
-              const clusterReference = cluster.name; // Using cluster name as cluster-ref
-              const contextName = context_.clusterContextMap!.get(cluster.name)!; // Get actual Kind context name with 'kind-' prefix
+              // Strip 'kind-' prefix if it exists in the cluster name from config
+              const clusterNameWithoutPrefix = cluster.name.startsWith('kind-') ? cluster.name.slice(5) : cluster.name;
+
+              // Both clusterReference and contextName need the 'kind-' prefix
+              const clusterReference = `kind-${clusterNameWithoutPrefix}`; // cluster-ref expects "kind-backup-restore-cluster"
+              const contextName = `kind-${clusterNameWithoutPrefix}`; // kubectl context is "kind-backup-restore-cluster"
               const namespace = cluster.namespace;
               const deployment = cluster.deployment;
 
+              self.logger.debug(
+                `Initializing cluster: clusterForKind='${clusterNameWithoutPrefix}', clusterRef='${clusterReference}', kubectlContext='${contextName}'`,
+              );
+
               initTasks.push(
+                // Initialize Solo for the cluster
+                invokeSoloCommand(
+                  `Initialize Solo for cluster '${clusterReference}'`,
+                  'init',
+                  (): string[] => {
+                    const argv: string[] = CommandHelpers.newArgv();
+                    argv.push('init');
+                    return argv;
+                  },
+                  self.taskList,
+                ),
                 invokeSoloCommand(
                   `Setup cluster-ref '${clusterReference}'`,
                   ClusterReferenceCommandDefinition.SETUP_COMMAND,
@@ -1144,7 +1165,7 @@ export class BackupRestoreCommand extends BaseCommand {
                       optionFromFlag(flags.clusterRef),
                       clusterReference,
                     );
-                    return CommandHelpers.argvPushGlobalFlags(argv);
+                    return argv;
                   },
                   self.taskList,
                 ),
@@ -1160,7 +1181,7 @@ export class BackupRestoreCommand extends BaseCommand {
                       optionFromFlag(flags.context),
                       contextName,
                     );
-                    return CommandHelpers.argvPushGlobalFlags(argv);
+                    return argv;
                   },
                   self.taskList,
                 ),
@@ -1176,7 +1197,7 @@ export class BackupRestoreCommand extends BaseCommand {
                       optionFromFlag(flags.namespace),
                       namespace,
                     );
-                    return CommandHelpers.argvPushGlobalFlags(argv);
+                    return argv;
                   },
                   self.taskList,
                 ),
@@ -1194,7 +1215,7 @@ export class BackupRestoreCommand extends BaseCommand {
                       optionFromFlag(flags.numberOfConsensusNodes),
                       context_.numConsensusNodes!.toString(),
                     );
-                    return CommandHelpers.argvPushGlobalFlags(argv);
+                    return argv;
                   },
                   self.taskList,
                 ),
