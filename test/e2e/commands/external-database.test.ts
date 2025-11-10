@@ -26,6 +26,7 @@ import {RelayTest} from './tests/relay-test.js';
 import {type ChildProcessWithoutNullStreams, spawn} from 'node:child_process';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
+import {BlockNodeTest} from './tests/block-node-test.js';
 
 const testName: string = 'external-database-test';
 
@@ -43,6 +44,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe('External Database E2E Test', (): void => {
       const {testCacheDirectory, testLogger, namespace, contexts} = options;
+      const blockNodeEnabled: boolean = process.env.SOLO_E2E_EXTERNAL_DB_TEST_BLOCK_NODE === 'true';
 
       before(async (): Promise<void> => {
         fs.rmSync(testCacheDirectory, {recursive: true, force: true});
@@ -73,6 +75,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       DeploymentTest.addCluster(options);
 
       NodeTest.keys(options);
+      if (blockNodeEnabled) {
+        BlockNodeTest.add(options);
+      }
       NetworkTest.deploy(options);
       NodeTest.setup(options);
       NodeTest.start(options);
