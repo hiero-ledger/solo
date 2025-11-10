@@ -45,6 +45,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
     describe('External Database E2E Test', (): void => {
       const {testCacheDirectory, testLogger, namespace, contexts} = options;
       const blockNodeEnabled: boolean = process.env.SOLO_E2E_EXTERNAL_DB_TEST_BLOCK_NODE === 'true';
+      const topicTestOnly: boolean = process.env.SOLO_E2E_EXTERNAL_DB_TEST_TOPIC_ONLY === 'true';
 
       before(async (): Promise<void> => {
         fs.rmSync(testCacheDirectory, {recursive: true, force: true});
@@ -97,7 +98,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             export SOLO_NAMESPACE=${namespace.name}; \
             export SOLO_CACHE_DIR=${testCacheDirectory}; \
             export SOLO_DEPLOYMENT=${testName}-deployment; \
-            .github/workflows/script/solo_smoke_test.sh`;
+            ${
+              topicTestOnly
+                ? 'source .github/workflows/script/helper.sh && cd .. && ' +
+                  'create_test_account ${SOLO_DEPLOYMENT} && cd solo && node scripts/create-topic.js'
+                : '.github/workflows/script/solo_smoke_test.sh'
+            }`;
 
         // running the script and show its output in real time for easy to debug
         // and check its progress
