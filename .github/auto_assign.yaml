@@ -1,0 +1,5 @@
+addAssignees: false
+assignees:
+  - swirlds-automation
+numberOfAssignees: 1
+runOnDraft: true
