@@ -32,6 +32,3 @@ merge:
     - "Test Example (Backup Restore Workflow)"
     - "performance-test"
     - "Migrate Solo from Prior to Current Version"
-    - "gcs-storage-test (aws_only)"
-    - "gcs-storage-test (gcs_only)"
-    - "gcs-storage-test (minio_only)"

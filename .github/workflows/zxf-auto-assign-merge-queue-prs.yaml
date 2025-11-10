@@ -1,0 +1,32 @@
+name: "ZXF: Auto-Assign Merge Queue PRs"
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+    branches:
+      - trunk-merge/**
+
+permissions:
+  contents: read
+
+defaults:
+  shell: bash
+
+jobs:
+  auto-assign:
+    name: "Auto-Assign PRs"
+    runs-on: hiero-solo-linux-medium
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
+      - name: Auto-Assign PRs to Merge Queue
+        uses: kentaro-m/auto-assign-action@f4648c0a9fdb753479e9e75fc251f507ce17bb7e # v2.0.0
+        with:
+          repo-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          configuration-path: '.github/auto_assign.yaml'
