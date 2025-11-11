@@ -849,9 +849,9 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.enablePortForwarding(true),
         this.tasks.checkAllNodesAreActive('nodeAliases'),
         this.tasks.checkNodeProxiesAreActive(),
+        this.tasks.setGrpcWebEndpoint('nodeAliases'),
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
         this.tasks.addNodeStakes(),
-        this.tasks.setGrpcWebEndpoint('nodeAliases'),
         // TODO only show this if we are not running in one-shot mode
         // this.tasks.showUserMessages(),
       ],
