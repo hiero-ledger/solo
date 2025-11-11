@@ -996,13 +996,7 @@ export class NetworkCommand extends BaseCommand {
                   },
                 },
               ],
-              {
-                concurrent: false,
-                rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-                fallbackRendererOptions: {
-                  timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-                },
-              },
+              constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
             );
           },
         },
@@ -1014,13 +1008,7 @@ export class NetworkCommand extends BaseCommand {
             // set up the subtasks
             return parentTask.newListr(
               this.platformInstaller.copyNodeKeys(config.stagingDir, config.consensusNodes, config.contexts),
-              {
-                concurrent: true,
-                rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-                fallbackRendererOptions: {
-                  timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-                },
-              },
+              constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
             );
           },
         },
