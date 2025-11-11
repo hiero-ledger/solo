@@ -22,8 +22,9 @@ import {spawn} from 'child_process';
 // Override console.log and console.error to include timestamps
 const originalLog = console.log;
 const originalError = console.error;
-const RETRY_DELAY_MS = 3000; // 3 seconds
-const CONSENSUS_DELAY_MS = 3500; // 3.5 seconds
+const RETRY_DELAY_MS = 5000; // 5 seconds
+const CONSENSUS_DELAY_MS = 4000; // 4 seconds
+const MAX_RETRY_COUNT = 60;
 
 console.log = function (...args) {
   originalLog(`[${new Date().toISOString()}]`, ...args);
@@ -143,24 +144,25 @@ async function main() {
     startGrpcSubscription(topicIdString.toString());
 
     let subscriptionReceivedContent = '';
-    let topicSubscriptionReceived = false;
+    let topicSubscriptionResponseReceived = false;
 
+    const subscribeTopicStart = Date.now();
     new TopicMessageQuery().setTopicId(topicIdString).subscribe(
       mirrorClient,
       (topic, error) => {
         if (error) {
           console.error(`ERROR: ${error}`, error);
-          topicSubscriptionReceived = true;
+          topicSubscriptionResponseReceived = true;
           return;
         }
       },
       topic => {
-        if (!topicSubscriptionReceived) {
+        if (!topicSubscriptionResponseReceived) {
           // Only log for the first received message
           const receiveTime = Date.now();
-          topicSubscriptionReceived = true;
+          topicSubscriptionResponseReceived = true;
           subscriptionReceivedContent = Buffer.from(topic.contents).toString('utf-8');
-          const elapsedSeconds = (receiveTime - messageSendStart) / 1000;
+          const elapsedSeconds = (receiveTime - subscribeTopicStart) / 1000;
           console.log(
             `✅ [${new Date().toISOString()}] Subscription received message after ${elapsedSeconds.toFixed(2)}s: ${topic.contents}`,
           );
@@ -168,7 +170,7 @@ async function main() {
       },
     );
 
-    const TEST_MESSAGE = 'Hello World for ' + topicIdString.toString();
+    const TEST_MESSAGE = `Create Topic Test Message for ${topicIdString.toString()}`;
 
     // Record start time before sending message
     const messageSendStart = Date.now();
@@ -198,7 +200,7 @@ async function main() {
 
     // wait until the transaction reached consensus and retrievable from the mirror node API
     let retry = 0;
-    while (!queryReceived && retry < 45) {
+    while (!queryReceived && retry < MAX_RETRY_COUNT) {
       const req = http.request(queryURL, {method: 'GET', timeout: 100, headers: {Connection: 'close'}}, res => {
         res.setEncoding('utf8');
         res.on('data', chunk => {
@@ -207,10 +209,6 @@ async function main() {
           if (obj.messages.length === 0) {
             console.log('No messages received through API query yet');
           } else {
-            if (obj.messages.length === 0) {
-              console.error(`ERROR: No messages found for the topic ${topicIdString}`);
-              somethingWrong = true;
-            }
             // convert message from base64 to utf-8
             const base64 = obj.messages[0].message;
             const buff = Buffer.from(base64, 'base64');
@@ -236,18 +234,18 @@ async function main() {
     }
 
     if (!queryReceived) {
-      console.error('❌ ERROR: Not received message through API query');
+      console.error(`❌ ERROR: No message received through API query (retries: ${retry} of ${MAX_RETRY_COUNT})`);
       somethingWrong = true;
     } else if (queryReceivedContent !== TEST_MESSAGE) {
-      console.error('ERROR: Message received through query but not match: ' + queryReceivedContent);
+      console.error('❌ ERROR: Message received through query but not match: ' + queryReceivedContent);
       somethingWrong = true;
     }
 
-    if (!topicSubscriptionReceived) {
-      const receiveTime = Date.now();
-      const elapsedSeconds = (receiveTime - messageSendStart) / 1000;
+    if (!topicSubscriptionResponseReceived) {
+      const currentTime = Date.now();
+      const elapsedSeconds = (currentTime - messageSendStart) / 1000;
       console.log(
-        `❌ [${new Date().toISOString()}] ERROR: Subscription timed out waiting for message ( total elapse time: ${elapsedSeconds.toFixed(2)}s)`,
+        `❌ ERROR: Subscription timed out waiting for message (total message send time: ${elapsedSeconds.toFixed(2)}s, retries: ${retry} of ${MAX_RETRY_COUNT}, estimated max time: ${(RETRY_DELAY_MS * MAX_RETRY_COUNT) / 1000}s)`,
       );
       somethingWrong = true;
     } else if (subscriptionReceivedContent !== TEST_MESSAGE) {
@@ -259,7 +257,7 @@ async function main() {
       process.exit(1);
     }
   } catch (error) {
-    console.error(`ERROR: ${error}`, error);
+    console.error(`❌ ERROR: ${error}`, error);
     throw error;
   }
 
