@@ -1,9 +1,9 @@
 resources:
   requests:
-    cpu: "2"
+    cpu: "500m"
     memory: "1Gi"
   limits:
-    cpu: "3"
+    cpu: "1"
     memory: "1.5Gi"
 
 blockNode:
