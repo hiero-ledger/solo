@@ -51,19 +51,31 @@ function log_and_exit()
   printf "\r::group::Relay log dump\n"
   echo "------- BEGIN RELAY DUMP -------"
   kubectl get services -n "${SOLO_NAMESPACE}" --output=name | grep relay-1 | grep -v '\-ws' | xargs -IRELAY kubectl logs -n "${SOLO_NAMESPACE}" RELAY > relay.log || true
-  echo "------- END RELAY DUMP -------"
+  echo "------- END RELAY DUMP ------- (see 'Upload Logs to GitHub' step for download link)"
   printf "\r::endgroup::\n"
 
   printf "\r::group::Mirror REST log dump\n"
   echo "------- BEGIN MIRROR REST DUMP -------"
   kubectl get services -n "${SOLO_NAMESPACE}" --output=name | grep rest | grep -v '\-restjava' | xargs -IREST kubectl logs -n "${SOLO_NAMESPACE}" REST > rest.log || true
-  echo "------- END MIRROR REST DUMP -------"
+  echo "------- END MIRROR REST DUMP ------- (see 'Upload Logs to GitHub' step for download link)"
+  printf "\r::endgroup::\n"
+
+  printf "\r::group::Mirror gRPC log dump\n"
+  echo "------- BEGIN MIRROR GRPC DUMP -------"
+  kubectl get services -n "${SOLO_NAMESPACE}" --output=name | grep grpc | xargs -IGRPC kubectl logs -n "${SOLO_NAMESPACE}" GRPC > grpc.log || true
+  echo "------- END MIRROR GRPC DUMP ------- (see 'Upload Logs to GitHub' step for download link)"
   printf "\r::endgroup::\n"
 
   printf "\r::group::Mirror Importer log dump\n"
   echo "------- BEGIN MIRROR IMPORTER DUMP -------"
   kubectl get pods -n "${SOLO_NAMESPACE}" --output=name | grep importer | xargs -IIMPORTER kubectl logs -n "${SOLO_NAMESPACE}" IMPORTER > importer.log || true
-  echo "------- END MIRROR IMPORTER DUMP -------"
+  echo "------- END MIRROR IMPORTER DUMP ------- (see 'Upload Logs to GitHub' step for download link)"
+  printf "\r::endgroup::\n"
+
+  printf "\r::group::Mirror Monitor log dump\n"
+  echo "------- BEGIN LOG DUMP -------"
+  kubectl get pods -n "${namespace}"  --output=name | grep mirror-monitor | xargs -IPOD kubectl logs -n "${namespace}" POD > mirror-monitor.log || true
+  echo "------- END LOG DUMP ------- (see 'Upload Logs to GitHub' step for download link)"
   printf "\r::endgroup::\n"
 
   printf "\r::group::Port-forward log dump\n"
@@ -75,12 +87,12 @@ function log_and_exit()
   echo "------- BEGIN BLOCK NODE DUMP -------"
   kubectl logs -n "${SOLO_NAMESPACE}" block-node-1-0 -c block-node-server > blocker.log || true
   kubectl logs -n "${SOLO_NAMESPACE}" block-node-1-0 -c block-node-server --previous > blocker_prev.log || true
-  echo "------- END BLOCK NODE DUMP -------"
+  echo "------- END BLOCK NODE DUMP ------- (see 'Upload Logs to GitHub' step for download link)"
   printf "\r::endgroup::\n"
 
-  cp relay.log rest.log importer.log port-forward.log "$HOME"/.solo/ || true
+  cp relay.log rest.log importer.log port-forward.log grpc.log mirror-monitor.log "$HOME"/.solo/logs/ || true
   if [ -f blocker_prev.log ]; then
-    cp blocker_prev.log "$HOME"/.solo/ || true
+    cp blocker_prev.log "$HOME"/.solo/logs/ || true
   fi
 
   # sleep for a few seconds to give time for stdout to stream back in case it was called using nodejs
