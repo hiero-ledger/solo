@@ -198,7 +198,7 @@ export class RapidFireCommand extends BaseCommand {
 
   private startLoadTest(leaseReference: {lease?: Lock}): SoloListrTask<RapidFireStartContext> {
     return {
-      title: `Start performance load test`,
+      title: 'Start performance load test',
       task: async (
         context_: RapidFireStartContext,
         task: SoloListrTaskWrapper<RapidFireStartContext>,
@@ -290,6 +290,9 @@ export class RapidFireCommand extends BaseCommand {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
     );
 
@@ -345,6 +348,9 @@ export class RapidFireCommand extends BaseCommand {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
     );
 
@@ -397,6 +403,9 @@ export class RapidFireCommand extends BaseCommand {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
     );
 

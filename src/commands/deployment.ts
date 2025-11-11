@@ -161,6 +161,9 @@ export class DeploymentCommand extends BaseCommand {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       undefined,
       'deployment config create',
@@ -266,6 +269,9 @@ export class DeploymentCommand extends BaseCommand {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       undefined,
       'deployment config delete',
@@ -301,6 +307,9 @@ export class DeploymentCommand extends BaseCommand {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       undefined,
       'deployment cluster attach',
@@ -370,6 +379,9 @@ export class DeploymentCommand extends BaseCommand {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
     );
 

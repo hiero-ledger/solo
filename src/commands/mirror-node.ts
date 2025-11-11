@@ -622,6 +622,9 @@ export class MirrorNodeCommand extends BaseCommand {
           {
             concurrent: false,
             rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+            fallbackRendererOptions: {
+              timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+            },
           },
         ),
     };
@@ -692,6 +695,9 @@ export class MirrorNodeCommand extends BaseCommand {
         return task.newListr(subTasks, {
           concurrent: true,
           rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+          fallbackRendererOptions: {
+            timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+          },
         });
       },
     };
@@ -815,6 +821,9 @@ export class MirrorNodeCommand extends BaseCommand {
           {
             concurrent: false,
             rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+            fallbackRendererOptions: {
+              timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+            },
           },
         ),
     };
@@ -1045,6 +1054,9 @@ export class MirrorNodeCommand extends BaseCommand {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       undefined,
       'mirror node add',
@@ -1248,6 +1260,9 @@ export class MirrorNodeCommand extends BaseCommand {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       undefined,
       'mirror node upgrade',
@@ -1418,6 +1433,9 @@ export class MirrorNodeCommand extends BaseCommand {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       undefined,
       'mirror node destroy',

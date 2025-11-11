@@ -498,6 +498,9 @@ Troubleshooting:
           collapseSubtasks: false,
           timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
         },
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
     );
 

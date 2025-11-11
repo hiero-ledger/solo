@@ -46,6 +46,9 @@ export class ClusterCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'cluster-ref config connect',
       null,
@@ -68,6 +71,9 @@ export class ClusterCommandHandlers extends CommandHandler {
         {
           concurrent: false,
           rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+          fallbackRendererOptions: {
+            timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+          },
         },
         'cluster-ref config disconnect',
         null,
@@ -89,6 +95,9 @@ export class ClusterCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'cluster-ref config list',
       null,
@@ -109,6 +118,9 @@ export class ClusterCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'cluster-ref config info',
       null,
@@ -130,6 +142,9 @@ export class ClusterCommandHandlers extends CommandHandler {
         {
           concurrent: false,
           rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+          fallbackRendererOptions: {
+            timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+          },
         },
         'cluster-ref config setup',
         null,
@@ -155,6 +170,9 @@ export class ClusterCommandHandlers extends CommandHandler {
         {
           concurrent: false,
           rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+          fallbackRendererOptions: {
+            timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+          },
         },
         'cluster-ref config reset',
         null,

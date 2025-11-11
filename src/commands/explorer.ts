@@ -625,6 +625,9 @@ export class ExplorerCommand extends BaseCommand {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       undefined,
       'explorer node add',
@@ -718,6 +721,9 @@ export class ExplorerCommand extends BaseCommand {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       undefined,
       'explorer node upgrade',
@@ -824,6 +830,9 @@ export class ExplorerCommand extends BaseCommand {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       undefined,
       'explorer node destroy',

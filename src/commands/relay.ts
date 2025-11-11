@@ -592,6 +592,9 @@ export class RelayCommand extends BaseCommand {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       undefined,
       'relay node add',
@@ -695,6 +698,9 @@ export class RelayCommand extends BaseCommand {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       undefined,
       'relay node upgrade',
@@ -790,6 +796,9 @@ export class RelayCommand extends BaseCommand {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       undefined,
       'relay node destroy',

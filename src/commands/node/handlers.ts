@@ -255,6 +255,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in preparing node upgrade',
       leaseWrapper.lease,
@@ -277,6 +280,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in executing node freeze upgrade',
       null,
@@ -300,6 +306,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in updating consensus nodes',
       leaseWrapper.lease,
@@ -322,6 +331,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in preparing consensus node update',
       leaseWrapper.lease,
@@ -345,6 +357,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in submitting transactions for consensus node update',
       leaseWrapper.lease,
@@ -374,6 +389,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in executing network upgrade',
       leaseWrapper.lease,
@@ -395,6 +413,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in preparing node upgrade',
       leaseWrapper.lease,
@@ -417,6 +438,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in submitting transactions for node upgrade',
       leaseWrapper.lease,
@@ -445,6 +469,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in executing network upgrade',
       leaseWrapper.lease,
@@ -467,6 +494,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in upgrade network',
       leaseWrapper.lease,
@@ -489,6 +519,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in destroying nodes',
       leaseWrapper.lease,
@@ -511,6 +544,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in preparing to destroy a node',
       leaseWrapper.lease,
@@ -534,6 +570,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in deleting a node',
       leaseWrapper.lease,
@@ -557,6 +596,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in deleting a node',
       leaseWrapper.lease,
@@ -580,6 +622,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in adding consensus node',
       leaseWrapper.lease,
@@ -602,6 +647,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in preparing node',
       leaseWrapper.lease,
@@ -625,6 +673,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       '`Error in submitting transactions to node',
       leaseWrapper.lease,
@@ -655,6 +706,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in adding node',
       leaseWrapper.lease,
@@ -674,6 +728,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in downloading log from nodes',
       null,
@@ -694,6 +751,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in diagnosing deployment',
       null,
@@ -714,6 +774,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in testing connections to components',
       null,
@@ -744,6 +807,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in downloading states from nodes',
       null,
@@ -775,6 +841,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in refreshing nodes',
       leaseWrapper.lease,
@@ -797,6 +866,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error generating keys',
       null,
@@ -825,6 +897,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error stopping node',
       leaseWrapper.lease,
@@ -858,6 +933,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error starting node',
       leaseWrapper.lease,
@@ -888,6 +966,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error in setting up nodes',
       leaseWrapper.lease,
@@ -915,6 +996,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error freezing node',
       leaseWrapper.lease,
@@ -942,6 +1026,9 @@ export class NodeCommandHandlers extends CommandHandler {
       {
         concurrent: false,
         rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+        fallbackRendererOptions: {
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
       },
       'Error restarting node',
       leaseWrapper.lease,

@@ -498,6 +498,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         {
           concurrent: false,
           rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+          fallbackRendererOptions: {
+            timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+          },
         },
       );
 
@@ -931,6 +934,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     const tasks = this.taskList.newOneShotSingleDestroyTaskList(taskArray, {
       concurrent: false,
       rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+      fallbackRendererOptions: {
+        timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+      },
     });
 
     try {

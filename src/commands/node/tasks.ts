@@ -370,6 +370,9 @@ export class NodeCommandTasks {
     return task.newListr(subTasks, {
       concurrent: constants.NODE_COPY_CONCURRENT,
       rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+      fallbackRendererOptions: {
+        timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+      },
     });
   }
 
@@ -598,6 +601,9 @@ export class NodeCommandTasks {
             collapseSubtasks: false,
             timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
           },
+          fallbackRendererOptions: {
+            timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+          },
         });
       },
       skip: context_ => !context_.config.generateGossipKeys,
@@ -623,6 +629,9 @@ export class NodeCommandTasks {
           concurrent: true,
           rendererOptions: {
             collapseSubtasks: false,
+            timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+          },
+          fallbackRendererOptions: {
             timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
           },
         });
@@ -1385,7 +1394,13 @@ export class NodeCommandTasks {
           });
         }
 
-        return task.newListr(subTasks, {concurrent: true, rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION});
+        return task.newListr(subTasks, {
+          concurrent: true,
+          rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+          fallbackRendererOptions: {
+            timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+          },
+        });
       },
     };
   }
@@ -1627,6 +1642,9 @@ export class NodeCommandTasks {
         return task.newListr(subTasks, {
           concurrent: false,
           rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+          fallbackRendererOptions: {
+            timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+          },
         });
       },
     };
@@ -1661,6 +1679,9 @@ export class NodeCommandTasks {
           concurrent: true,
           rendererOptions: {
             collapseSubtasks: false,
+            timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+          },
+          fallbackRendererOptions: {
             timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
           },
         });
@@ -1908,6 +1929,9 @@ export class NodeCommandTasks {
           concurrent: true,
           rendererOptions: {
             collapseSubtasks: false,
+            timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+          },
+          fallbackRendererOptions: {
             timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
           },
         });
@@ -2532,6 +2556,9 @@ export class NodeCommandTasks {
         return task.newListr(subTasks, {
           concurrent: true,
           rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+          fallbackRendererOptions: {
+            timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+          },
         });
       },
     };
