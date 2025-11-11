@@ -235,7 +235,7 @@ export class BackupRestoreCommand extends BaseCommand {
           },
         },
       ],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
 
     try {
@@ -521,7 +521,7 @@ export class BackupRestoreCommand extends BaseCommand {
         },
         this.nodeCommandTasks.uploadStateFiles(false, inputDirectory),
       ],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
 
     try {

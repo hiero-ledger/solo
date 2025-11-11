@@ -1340,7 +1340,7 @@ export class NetworkCommand extends BaseCommand {
           },
         },
       ],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'consensus network deploy',
     );
@@ -1438,7 +1438,7 @@ export class NetworkCommand extends BaseCommand {
           },
         },
       ],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'consensus network destroy',
     );

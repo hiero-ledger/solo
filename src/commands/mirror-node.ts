@@ -619,13 +619,7 @@ export class MirrorNodeCommand extends BaseCommand {
               },
             },
           ],
-          {
-            concurrent: false,
-            rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-            fallbackRendererOptions: {
-              timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-            },
-          },
+          constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
         ),
     };
   }
@@ -818,13 +812,7 @@ export class MirrorNodeCommand extends BaseCommand {
               },
             },
           ],
-          {
-            concurrent: false,
-            rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-            fallbackRendererOptions: {
-              timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-            },
-          },
+          constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
         ),
     };
   }
@@ -1051,7 +1039,7 @@ export class MirrorNodeCommand extends BaseCommand {
         //   },
         // },
       ],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'mirror node add',
     );
@@ -1251,7 +1239,7 @@ export class MirrorNodeCommand extends BaseCommand {
         //   },
         // },
       ],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'mirror node upgrade',
     );
@@ -1418,7 +1406,7 @@ export class MirrorNodeCommand extends BaseCommand {
         },
         this.disableMirrorNodeComponents(),
       ],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'mirror node destroy',
     );

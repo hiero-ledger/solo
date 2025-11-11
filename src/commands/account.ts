@@ -445,7 +445,7 @@ export class AccountCommand extends BaseCommand {
           },
         },
       ],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
 
     try {
@@ -564,7 +564,7 @@ export class AccountCommand extends BaseCommand {
           },
         },
       ],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
 
     try {
@@ -655,7 +655,7 @@ export class AccountCommand extends BaseCommand {
           },
         },
       ],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
 
     try {
@@ -738,7 +738,7 @@ export class AccountCommand extends BaseCommand {
           },
         },
       ],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
 
     try {

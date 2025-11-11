@@ -40,7 +40,7 @@ export class Subcommand {
           createCluster: this.createCluster,
         }),
       ],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       this.name,
     );

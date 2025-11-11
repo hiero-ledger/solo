@@ -287,7 +287,7 @@ export class RapidFireCommand extends BaseCommand {
         this.deployNlgChart(),
         this.startLoadTest(leaseReference),
       ],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
 
     try {
@@ -339,7 +339,7 @@ export class RapidFireCommand extends BaseCommand {
     const leaseReference: {lease?: Lock} = {}; // This allows the lease to be passed by reference to the init task
     const tasks: Listr<RapidFireStopContext, any, any> = new Listr(
       [this.stopInitializeTask(argv, leaseReference), stopTask],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
 
     try {
@@ -388,7 +388,7 @@ export class RapidFireCommand extends BaseCommand {
     const leaseReference: {lease?: Lock} = {}; // This allows the lease to be passed by reference to the init task
     const tasks: Listr<RapidFireStopContext, any, any> = new Listr(
       [this.stopInitializeTask(argv, leaseReference), this.stopLoadTest()],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
 
     try {

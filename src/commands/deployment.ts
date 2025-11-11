@@ -158,7 +158,7 @@ export class DeploymentCommand extends BaseCommand {
           },
         },
       ],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'deployment config create',
     );
@@ -260,7 +260,7 @@ export class DeploymentCommand extends BaseCommand {
           },
         },
       ],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'deployment config delete',
     );
@@ -292,7 +292,7 @@ export class DeploymentCommand extends BaseCommand {
         self.addClusterRefToDeployments(),
         self.createOrEditRemoteConfigForNewDeployment(argv),
       ],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'deployment cluster attach',
     );
@@ -358,7 +358,7 @@ export class DeploymentCommand extends BaseCommand {
           },
         },
       ],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
 
     try {

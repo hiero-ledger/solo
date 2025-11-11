@@ -251,21 +251,24 @@ export const LISTR_DEFAULT_RENDERER_OPTION = {
   formatOutput: 'wrap' | 'truncate';
 };
 
-export const LISTR_DEFAULT_OPTIONS = {
-  concurrent: false,
-  rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
-  fallbackRendererOptions: {
-    timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-  },
-} as {
+type ListrOptionsType = {
   concurrent: boolean;
   rendererOptions: typeof LISTR_DEFAULT_RENDERER_OPTION;
   fallbackRendererOptions: {
-    timer: {
-      condition: (duration: number) => boolean;
-      format: (duration: number) => any;
-    };
+    timer: typeof LISTR_DEFAULT_RENDERER_TIMER_OPTION;
   };
+};
+
+export const LISTR_DEFAULT_OPTIONS = {
+  DEFAULT: {
+    concurrent: false,
+    rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
+    fallbackRendererOptions: {
+      timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+    },
+  },
+} as {
+  DEFAULT: ListrOptionsType;
 };
 
 export const SIGNING_KEY_PREFIX = 's';

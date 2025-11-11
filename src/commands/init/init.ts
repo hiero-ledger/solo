@@ -249,7 +249,7 @@ export class InitCommand extends BaseCommand {
           createCluster: false,
         }),
       ],
-      constants.LISTR_DEFAULT_OPTIONS,
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       InitCommand.INIT_COMMAND_NAME,
     );
