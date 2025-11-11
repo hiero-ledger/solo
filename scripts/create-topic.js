@@ -168,6 +168,9 @@ async function main() {
       },
     );
 
+    // send a create account transaction to push record stream files to mirror node
+    await accountCreate(wallet);
+
     await sleep(CONSENSUS_DELAY_MS); // wait for subscription to be fully set up
     while (!topicSubscriptionResponseReceived && Date.now() - subscribeTopicStart < RETRY_DELAY_MS * MAX_RETRY_COUNT) {
       console.log(
