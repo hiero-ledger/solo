@@ -17,17 +17,19 @@ import {
 
 import dotenv from 'dotenv';
 import http from 'http';
-import { spawn } from 'child_process';
+import {spawn} from 'child_process';
 
 // Override console.log and console.error to include timestamps
 const originalLog = console.log;
 const originalError = console.error;
+const RETRY_DELAY_MS = 3000; // 3 seconds
+const CONSENSUS_DELAY_MS = 3500; // 3.5 seconds
 
-console.log = function(...args) {
+console.log = function (...args) {
   originalLog(`[${new Date().toISOString()}]`, ...args);
 };
 
-console.error = function(...args) {
+console.error = function (...args) {
   originalError(`[${new Date().toISOString()}] ERROR:`, ...args);
 };
 
@@ -52,24 +54,24 @@ function startGrpcSubscription(topicId) {
 
   const grpcurl = spawn(command, {
     shell: true,
-    detached: true
+    detached: true,
   });
 
   // Log stdout
-  grpcurl.stdout?.on('data', (data) => {
+  grpcurl.stdout?.on('data', data => {
     console.log(`stdout: ${data}`);
   });
 
   // Log stderr
-  grpcurl.stderr?.on('data', (data) => {
+  grpcurl.stderr?.on('data', data => {
     console.error(`stderr: ${data}`);
   });
 
-  grpcurl.on('error', (error) => {
+  grpcurl.on('error', error => {
     console.error(`Error starting grpcurl: ${error.message}`);
   });
 
-  grpcurl.on('close', (code) => {
+  grpcurl.on('close', code => {
     console.log(`grpcurl process exited with code ${code}`);
   });
 
@@ -85,7 +87,7 @@ async function accountCreate(wallet) {
     .freezeWithSigner(wallet);
   accountCreateTransaction = await accountCreateTransaction.signWithSigner(wallet);
   const accountCreationResponse = await accountCreateTransaction.executeWithSigner(wallet);
-  await sleep(3500); // wait for consensus on write transactions
+  await sleep(CONSENSUS_DELAY_MS); // wait for consensus on write transactions
   const accountCreationReceipt = await accountCreationResponse.getReceiptWithSigner(wallet);
   console.log(`newly created account id = ${accountCreationReceipt.accountId.toString()}`);
 }
@@ -103,7 +105,7 @@ async function main() {
 
   const wallet = new Wallet(process.env.OPERATOR_ID, process.env.OPERATOR_KEY, provider);
 
- try {
+  try {
     if (process.env.NEW_NODE_ACCOUNT_ID) {
       console.log(`NEW_NODE_ACCOUNT_ID = ${process.env.NEW_NODE_ACCOUNT_ID}`);
       provider._client.setNetwork({
@@ -121,7 +123,7 @@ async function main() {
     let transaction = await new TopicCreateTransaction().setAdminKey(operatorKey).freezeWithSigner(wallet);
     transaction = await transaction.signWithSigner(wallet);
     const createResponse = await transaction.executeWithSigner(wallet);
-    await sleep(3500); // wait for consensus on write transactions
+    await sleep(CONSENSUS_DELAY_MS); // wait for consensus on write transactions
 
     const createReceipt = await createResponse.getReceiptWithSigner(wallet);
 
@@ -129,7 +131,7 @@ async function main() {
     console.log(`topic id = ${topicIdString.toString()}`);
 
     console.log('Wait to create subscribe to new topic');
-    await sleep(3000);
+    await sleep(CONSENSUS_DELAY_MS);
 
     // Create a subscription to the topic
     const mirrorClient = (await Client.forMirrorNetwork(mirrorNetwork)).setOperator(
@@ -142,30 +144,31 @@ async function main() {
 
     let subscriptionReceivedContent = '';
     let topicSubscriptionReceived = false;
-    
-    new TopicMessageQuery()
-      .setTopicId(topicIdString)
-      .subscribe(
-        mirrorClient,
-        (topic, error) => {
-          if (error) {
-            console.error(`ERROR: ${error}`, error);
-            topicSubscriptionReceived = true;
-            return;
-          }
-        },
-        topic => {
-          if (!topicSubscriptionReceived) { // Only log for the first received message
-            const receiveTime = Date.now();
-            topicSubscriptionReceived = true;
-            subscriptionReceivedContent = Buffer.from(topic.contents).toString('utf-8');
-            const elapsedSeconds = (receiveTime - messageSendStart) / 1000;
-            console.log(`✅ [${new Date().toISOString()}] Subscription received message after ${elapsedSeconds.toFixed(2)}s: ${topic.contents}`);
-          }
-        },
-      );
 
-    const TEST_MESSAGE = 'Hello World for ' + topicIdString.toString()
+    new TopicMessageQuery().setTopicId(topicIdString).subscribe(
+      mirrorClient,
+      (topic, error) => {
+        if (error) {
+          console.error(`ERROR: ${error}`, error);
+          topicSubscriptionReceived = true;
+          return;
+        }
+      },
+      topic => {
+        if (!topicSubscriptionReceived) {
+          // Only log for the first received message
+          const receiveTime = Date.now();
+          topicSubscriptionReceived = true;
+          subscriptionReceivedContent = Buffer.from(topic.contents).toString('utf-8');
+          const elapsedSeconds = (receiveTime - messageSendStart) / 1000;
+          console.log(
+            `✅ [${new Date().toISOString()}] Subscription received message after ${elapsedSeconds.toFixed(2)}s: ${topic.contents}`,
+          );
+        }
+      },
+    );
+
+    const TEST_MESSAGE = 'Hello World for ' + topicIdString.toString();
 
     // Record start time before sending message
     const messageSendStart = Date.now();
@@ -179,7 +182,7 @@ async function main() {
     topicMessageSubmitTransaction = await topicMessageSubmitTransaction.signWithSigner(wallet);
     const sendResponse = await topicMessageSubmitTransaction.executeWithSigner(wallet);
 
-    await sleep(3500); // wait for consensus on write transactions
+    await sleep(CONSENSUS_DELAY_MS); // wait for consensus on write transactions
 
     const sendReceipt = await sendResponse.getReceiptWithSigner(wallet);
     console.log(`topic sequence number = ${sendReceipt.topicSequenceNumber.toString()}`);
@@ -195,7 +198,7 @@ async function main() {
 
     // wait until the transaction reached consensus and retrievable from the mirror node API
     let retry = 0;
-    while (!queryReceived && retry < 30) {
+    while (!queryReceived && retry < 45) {
       const req = http.request(queryURL, {method: 'GET', timeout: 100, headers: {Connection: 'close'}}, res => {
         res.setEncoding('utf8');
         res.on('data', chunk => {
@@ -214,7 +217,9 @@ async function main() {
             queryReceivedContent = buff.toString('utf-8');
             const queryReceiveTime = Date.now();
             const elapsedSeconds = (queryReceiveTime - messageSendStart) / 1000;
-            console.log(`✅ [${new Date().toISOString()}] API query received message after ${elapsedSeconds.toFixed(2)}s: ${queryReceivedContent}`);
+            console.log(
+              `✅ [${new Date().toISOString()}] API query received message after ${elapsedSeconds.toFixed(2)}s: ${queryReceivedContent}`,
+            );
             queryReceived = true;
           }
         });
@@ -226,7 +231,7 @@ async function main() {
       // wait and try again
       // send a create account transaction to push record stream files to mirror node
       await accountCreate(wallet);
-      await sleep(5); // wait for consensus on write transactions and mirror node to sync
+      await sleep(RETRY_DELAY_MS); // wait for consensus on write transactions and mirror node to sync
       retry++;
     }
 
@@ -239,22 +244,24 @@ async function main() {
     }
 
     if (!topicSubscriptionReceived) {
-      console.error('❌ ERROR: Subscription timed out waiting for message (waited 180s)');
+      const receiveTime = Date.now();
+      const elapsedSeconds = (receiveTime - messageSendStart) / 1000;
+      console.log(
+        `❌ [${new Date().toISOString()}] ERROR: Subscription timed out waiting for message ( total elapse time: ${elapsedSeconds.toFixed(2)}s)`,
+      );
       somethingWrong = true;
     } else if (subscriptionReceivedContent !== TEST_MESSAGE) {
       console.error('❌ ERROR: Message received from subscription but not match: ' + subscriptionReceivedContent);
       somethingWrong = true;
     }
 
-   if (somethingWrong) {
-     process.exit(1)
-   }
-
+    if (somethingWrong) {
+      process.exit(1);
+    }
   } catch (error) {
     console.error(`ERROR: ${error}`, error);
     throw error;
   }
-
 
   provider.close();
   console.log('\r::endgroup::');
