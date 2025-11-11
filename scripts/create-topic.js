@@ -268,6 +268,7 @@ async function main() {
     }
 
     // it seems that the subscription response is not reliable with block-node enabled and talking to mirror-node
+    // TODO open ticket against mirror-node to investigate further
     // if (!topicSubscriptionResponseReceived) {
     //   console.log(
     //     `❌ ERROR: Subscription timed out waiting for message (total message send time: ${((Date.now() - messageSendStart) / 1000).toFixed(2)}s, retries: ${retry} of ${MAX_RETRY_COUNT}, estimated max time: ${(RETRY_DELAY_MS * MAX_RETRY_COUNT) / 1000}s)`,
