@@ -287,7 +287,8 @@ async function main() {
   }
 
   provider.close();
-  console.log('\r::endgroup::');
+  console.log('\r::endgroup::\n');
+  await sleep(1000); // wait for all logs to be printed
   process.exit(0);
 }
 
