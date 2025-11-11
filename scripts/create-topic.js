@@ -11,8 +11,6 @@ import {
   TopicMessageQuery,
   Client,
   AccountId,
-  TopicId,
-  Timestamp,
 } from '@hiero-ledger/sdk';
 
 import dotenv from 'dotenv';
@@ -25,6 +23,7 @@ const originalError = console.error;
 const RETRY_DELAY_MS = 5000; // 5 seconds
 const CONSENSUS_DELAY_MS = 4000; // 4 seconds
 const MAX_RETRY_COUNT = 90;
+const MIRROR_NETWORK = '127.0.0.1:8081';
 
 console.log = function (...args) {
   originalLog(`[${new Date().toISOString()}]`, ...args);
@@ -44,41 +43,41 @@ async function sleep(ms) {
  * Starts a gRPC subscription to the specified topic
  * @param {string} topicId - The topic ID to subscribe to
  */
-// function startGrpcSubscription(topicId) {
-//   // Extract just the numeric part from the topic ID (e.g., '0.0.1018' -> '1018')
-//   const topicNum = topicId.split('.').pop();
-//
-//   // Build the command with properly formatted JSON
-//   const command = `grpcurl -plaintext -d '{"topicID": {"topicNum": ${topicNum}}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.ConsensusService/subscribeTopic`;
-//
-//   console.log(`Executing command: ${command}`);
-//
-//   const grpcurl = spawn(command, {
-//     shell: true,
-//     detached: true,
-//   });
-//
-//   // Log stdout
-//   grpcurl.stdout?.on('data', data => {
-//     console.log(`stdout: ${data}`);
-//   });
-//
-//   // Log stderr
-//   grpcurl.stderr?.on('data', data => {
-//     console.error(`stderr: ${data}`);
-//   });
-//
-//   grpcurl.on('error', error => {
-//     console.error(`Error starting grpcurl: ${error.message}`);
-//   });
-//
-//   grpcurl.on('close', code => {
-//     console.log(`grpcurl process exited with code ${code}`);
-//   });
-//
-//   // Don't unref immediately, let's see the output first
-//   // grpcurl.unref();
-// }
+function startGrpcSubscription(topicId) {
+  // Extract just the numeric part from the topic ID (e.g., '0.0.1018' -> '1018')
+  const topicNum = topicId.split('.').pop();
+
+  // Build the command with properly formatted JSON
+  const command = `grpcurl -plaintext -d '{"topicID": {"topicNum": ${topicNum}}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.ConsensusService/subscribeTopic`;
+
+  console.log(`Executing command: ${command}`);
+
+  const grpcurl = spawn(command, {
+    shell: true,
+    detached: true,
+  });
+
+  // Log stdout
+  grpcurl.stdout?.on('data', data => {
+    console.log(`gRPC topic subscription: stdout: ${data}`);
+  });
+
+  // Log stderr
+  grpcurl.stderr?.on('data', data => {
+    console.error(`gRPC topic subscription: stderr: ${data}`);
+  });
+
+  grpcurl.on('error', error => {
+    console.error(`gRPC topic subscription: Error starting grpcurl: ${error.message}`, error);
+  });
+
+  grpcurl.on('close', code => {
+    console.log(`gRPC topic subscription: grpcurl process exited with code ${code}`);
+  });
+
+  // Don't unref immediately, let's see the output first
+  // grpcurl.unref();
+}
 
 async function accountCreate(wallet) {
   const newKey = PrivateKey.generate();
@@ -93,20 +92,25 @@ async function accountCreate(wallet) {
   console.log(`newly created account id = ${accountCreationReceipt.accountId.toString()}`);
 }
 
-async function main() {
-  console.log('\r::group::create-topic');
+async function initialize() {
   if (process.env.OPERATOR_ID === null || process.env.OPERATOR_KEY === null || process.env.HEDERA_NETWORK === null) {
     throw new Error('Environment variables OPERATOR_ID, HEDERA_NETWORK, and OPERATOR_KEY are required.');
   }
 
-  console.log(`Hedera network = ${process.env.HEDERA_NETWORK}`);
-  const provider = new LocalProvider();
-  const mirrorNetwork = '127.0.0.1:8081';
-  provider._client.setMirrorNetwork(mirrorNetwork);
-
-  const wallet = new Wallet(process.env.OPERATOR_ID, process.env.OPERATOR_KEY, provider);
-
   try {
+    console.log(`Hedera network = ${process.env.HEDERA_NETWORK}`);
+    const provider = new LocalProvider();
+    provider._client.setMirrorNetwork(MIRROR_NETWORK);
+
+    // if process.env.OPERATOR_KEY string size is 100, it is ECDSA key, if 96, it is ED25519 key
+    const operatorKeySize = process.env.OPERATOR_KEY.length;
+    const operatorKey =
+      operatorKeySize === 100
+        ? PrivateKey.fromStringECDSA(process.env.OPERATOR_KEY)
+        : PrivateKey.fromStringED25519(process.env.OPERATOR_KEY);
+
+    const wallet = new Wallet(process.env.OPERATOR_ID, process.env.OPERATOR_KEY, provider);
+
     if (process.env.NEW_NODE_ACCOUNT_ID) {
       console.log(`NEW_NODE_ACCOUNT_ID = ${process.env.NEW_NODE_ACCOUNT_ID}`);
       provider._client.setNetwork({
@@ -114,13 +118,36 @@ async function main() {
       });
     }
 
-    // if process.env.OPERATOR_KEY string size is 100, it is ECDSA key, if 96, it is ED25519 key
-    const operatorKeySize = process.env.OPERATOR_KEY.length;
+    // Create a subscription to the topic
+    const mirrorClient = (await Client.forMirrorNetwork(MIRROR_NETWORK)).setOperator(
+      process.env.OPERATOR_ID,
+      process.env.OPERATOR_KEY,
+    );
+
+    return {
+      provider,
+      operatorKey,
+      wallet,
+      mirrorClient,
+      subscriptionReceivedContent: '',
+      topicSubscriptionResponseReceived: false,
+      topicIdString: '',
+      testMessage: '',
+      subscribeTopicStart: null,
+      messageSendStart: null,
+      queryReceived: false,
+      queryReceivedContent: '',
+      somethingWrong: false,
+    };
+  } catch (error) {
+    console.error(`❌ ERROR: Failed to initialize: ${error}`, error);
+    throw error;
+  }
+}
+
+async function createTopic(operatorKey, wallet) {
+  try {
     // create topic
-    const operatorKey =
-      operatorKeySize === 100
-        ? PrivateKey.fromStringECDSA(process.env.OPERATOR_KEY)
-        : PrivateKey.fromStringED25519(process.env.OPERATOR_KEY);
     let transaction = await new TopicCreateTransaction().setAdminKey(operatorKey).freezeWithSigner(wallet);
     transaction = await transaction.signWithSigner(wallet);
     const createResponse = await transaction.executeWithSigner(wallet);
@@ -130,156 +157,179 @@ async function main() {
 
     const topicIdString = createReceipt.topicId.toString();
     console.log(`topic id = ${topicIdString.toString()}`);
-
-    console.log('Wait to create subscribe to new topic');
+    console.log('Wait for topic creation to reach consensus...');
     await sleep(CONSENSUS_DELAY_MS);
 
-    // Create a subscription to the topic
-    const mirrorClient = (await Client.forMirrorNetwork(mirrorNetwork)).setOperator(
-      process.env.OPERATOR_ID,
-      process.env.OPERATOR_KEY,
-    );
+    return topicIdString;
+  } catch (error) {
+    console.error(`❌ ERROR: Failed to create topic: ${error}`, error);
+    throw error;
+  }
+}
 
-    // Start gRPC subscription in a separate process
-    // startGrpcSubscription(topicIdString.toString());
-
-    let subscriptionReceivedContent = '';
-    let topicSubscriptionResponseReceived = false;
-
-    const subscribeTopicStart = Date.now();
-    new TopicMessageQuery().setTopicId(topicIdString).subscribe(
-      mirrorClient,
-      (topic, error) => {
-        if (error) {
-          console.error(`ERROR: ${error}`, error);
-          // ERROR: Error: 14 UNAVAILABLE: Received HTTP status code 504
-          if (!'Error: 14'.includes(error.toString())) {
-            topicSubscriptionResponseReceived = true;
-          }
+function subscribeToTopic(context) {
+  const subscribeTopicStart = Date.now();
+  new TopicMessageQuery().setTopicId(context.topicIdString).subscribe(
+    context.mirrorClient,
+    (topic, error) => {
+      if (error) {
+        console.error(`ERROR: ${error}`, error);
+        // ERROR: Error: 14 UNAVAILABLE: Received HTTP status code 504
+        if (!'Error: 14'.includes(error.toString())) {
+          context.topicSubscriptionResponseReceived = true;
         }
-      },
-      topic => {
-        if (!topicSubscriptionResponseReceived) {
-          // Only log for the first received message
-          topicSubscriptionResponseReceived = true;
-          subscriptionReceivedContent = Buffer.from(topic.contents).toString('utf-8');
+      }
+    },
+    topic => {
+      if (!context.topicSubscriptionResponseReceived) {
+        // Only log for the first received message
+        context.topicSubscriptionResponseReceived = true;
+        context.subscriptionReceivedContent = Buffer.from(topic.contents).toString('utf-8');
+        console.log(
+          `✅ [${new Date().toISOString()}] Subscription received message after ${(
+            (Date.now() - subscribeTopicStart) /
+            1000
+          ).toFixed(2)}s: ${topic.contents}`,
+        );
+      } else {
+        console.log(
+          `listener called while topicSubscriptionResponseReceived is already true [topic = ${JSON.stringify(topic)}]`,
+        );
+      }
+    },
+  );
+  return subscribeTopicStart;
+}
+
+async function submitMessageToTopic(context) {
+  // Record start time before sending message
+  context.messageSendStart = Date.now();
+  console.log(`Starting to send message at: ${new Date(context.messageSendStart).toISOString()}`);
+
+  // send one message
+  let topicMessageSubmitTransaction = await new TopicMessageSubmitTransaction({
+    topicId: context.topicIdString,
+    message: context.testMessage,
+  }).freezeWithSigner(context.wallet);
+  topicMessageSubmitTransaction = await topicMessageSubmitTransaction.signWithSigner(context.wallet);
+  const sendResponse = await topicMessageSubmitTransaction.executeWithSigner(context.wallet);
+
+  await sleep(CONSENSUS_DELAY_MS); // wait for consensus on write transactions
+
+  const sendReceipt = await sendResponse.getReceiptWithSigner(context.wallet);
+  console.log(`topic sequence number = ${sendReceipt.topicSequenceNumber.toString()}`);
+}
+
+async function queryMirrorNodeApiForTopicMessage(context) {
+  // Check submit message result should succeed via mirror node API
+  const queryURL = `http://localhost:8080/api/v1/topics/${context.topicIdString}/messages`;
+
+  // wait until the transaction reached consensus and retrievable from the mirror node API
+  let retry = 0;
+  while (!context.queryReceived && retry < MAX_RETRY_COUNT) {
+    const req = http.request(queryURL, {method: 'GET', timeout: 100, headers: {Connection: 'close'}}, res => {
+      res.setEncoding('utf8');
+      res.on('data', chunk => {
+        // convert chunk to json object
+        const obj = JSON.parse(chunk);
+        if (obj.messages.length === 0) {
           console.log(
-            `✅ [${new Date().toISOString()}] Subscription received message after ${((Date.now() - subscribeTopicStart) / 1000).toFixed(2)}s: ${topic.contents}`,
+            `No messages received through API query yet after ${(
+              (Date.now() - context.messageSendStart) /
+              1000
+            ).toFixed(2)}s`,
           );
         } else {
+          // convert message from base64 to utf-8
+          const base64 = obj.messages[0].message;
+          const buff = Buffer.from(base64, 'base64');
+          context.queryReceivedContent = buff.toString('utf-8');
           console.log(
-            `listener called while topicSubscriptionResponseReceived is already true [topic = ${JSON.stringify(topic)}]`,
+            `✅ [${new Date().toISOString()}] API query received message after ${(
+              (Date.now() - context.messageSendStart) /
+              1000
+            ).toFixed(2)}s: ${context.queryReceivedContent}`,
           );
+          context.queryReceived = true;
         }
-      },
+      });
+    });
+    req.on('error', e => {
+      console.log(`problem with request, message = : ${e.message}  cause = : ${e.cause}`);
+    });
+    req.end(); // make the request
+    // wait and try again
+    // send a create account transaction to push record stream files to mirror node
+    await accountCreate(context.wallet);
+    await sleep(RETRY_DELAY_MS); // wait for consensus on write transactions and mirror node to sync
+    retry++;
+  }
+  return retry;
+}
+
+function validateTestWasSuccessful(context, retry) {
+  if (!context.queryReceived) {
+    console.error(`❌ ERROR: No message received through API query (retries: ${retry} of ${MAX_RETRY_COUNT})`);
+    context.somethingWrong = true;
+  } else if (context.queryReceivedContent !== context.testMessage) {
+    console.error(`❌ ERROR: Message received through query but not match: ${context.queryReceivedContent}`);
+    context.somethingWrong = true;
+  }
+
+  if (!context.topicSubscriptionResponseReceived) {
+    console.log(
+      `❌ ERROR: Subscription timed out waiting for message (total message subscription time: ${(
+        (Date.now() - context.subscribeTopicStart) /
+        1000
+      ).toFixed(2)}s)`,
     );
+    context.somethingWrong = true;
+  } else if (context.subscriptionReceivedContent !== context.testMessage) {
+    console.error(`❌ ERROR: Message received from subscription but not match: ${context.subscriptionReceivedContent}`);
+    context.somethingWrong = true;
+  }
+}
 
-    // // send a create account transaction to push record stream files to mirror node
-    // await accountCreate(wallet);
-    //
-    // await sleep(CONSENSUS_DELAY_MS); // wait for subscription to be fully set up
-    // while (!topicSubscriptionResponseReceived && Date.now() - subscribeTopicStart < RETRY_DELAY_MS * MAX_RETRY_COUNT) {
-    //   console.log(
-    //     `Waiting for subscription to receive message... (${((Date.now() - subscribeTopicStart) / 1000).toFixed(2)}s elapsed)`,
-    //   );
-    //   // send a create account transaction to push record stream files to mirror node
-    //   await accountCreate(wallet);
-    //
-    //   await sleep(RETRY_DELAY_MS);
-    // }
-    // if (!topicSubscriptionResponseReceived) {
-    //   console.log(
-    //     `❌ ERROR: Subscription timed out waiting for message (total message subscription time: ${((Date.now() - subscribeTopicStart) / 1000).toFixed(2)}s)`,
-    //   );
-    //   process.exit(1);
-    // } else {
-    //   console.log(`Subscription is ready to receive messages.`);
-    // }
+async function main() {
+  console.log('\r::group::create-topic');
+  let context;
 
-    const TEST_MESSAGE = `Create Topic Test Message for ${topicIdString.toString()}`;
+  try {
+    context = await initialize();
 
-    // Record start time before sending message
-    const messageSendStart = Date.now();
-    console.log(`Starting to send message at: ${new Date(messageSendStart).toISOString()}`);
+    context.topicIdString = await createTopic(context.operatorKey, context.wallet);
 
-    // send one message
-    let topicMessageSubmitTransaction = await new TopicMessageSubmitTransaction({
-      topicId: topicIdString,
-      message: TEST_MESSAGE,
-    }).freezeWithSigner(wallet);
-    topicMessageSubmitTransaction = await topicMessageSubmitTransaction.signWithSigner(wallet);
-    const sendResponse = await topicMessageSubmitTransaction.executeWithSigner(wallet);
+    // Start gRPC subscription in a separate process for debugging purposes
+    startGrpcSubscription(context.topicIdString.toString());
 
-    await sleep(CONSENSUS_DELAY_MS); // wait for consensus on write transactions
+    context.subscribeTopicStart = subscribeToTopic(context);
 
-    const sendReceipt = await sendResponse.getReceiptWithSigner(wallet);
-    console.log(`topic sequence number = ${sendReceipt.topicSequenceNumber.toString()}`);
+    context.testMessage = `Create Topic Test Message for ${context.topicIdString.toString()}`;
+
+    await submitMessageToTopic(context);
 
     // send a create account transaction to push record stream files to mirror node
-    await accountCreate(wallet);
+    await accountCreate(context.wallet);
+    let retry = await queryMirrorNodeApiForTopicMessage(context);
 
-    // Check submit message result should success
-    const queryURL = `http://localhost:8080/api/v1/topics/${topicIdString}/messages`;
-    let queryReceived = false;
-    let queryReceivedContent = '';
-    let somethingWrong = false;
-
-    // wait until the transaction reached consensus and retrievable from the mirror node API
-    let retry = 0;
-    while (!queryReceived && retry < MAX_RETRY_COUNT) {
-      const req = http.request(queryURL, {method: 'GET', timeout: 100, headers: {Connection: 'close'}}, res => {
-        res.setEncoding('utf8');
-        res.on('data', chunk => {
-          // convert chunk to json object
-          const obj = JSON.parse(chunk);
-          if (obj.messages.length === 0) {
-            console.log(
-              `No messages received through API query yet after ${((Date.now() - messageSendStart) / 1000).toFixed(2)}s`,
-            );
-          } else {
-            // convert message from base64 to utf-8
-            const base64 = obj.messages[0].message;
-            const buff = Buffer.from(base64, 'base64');
-            queryReceivedContent = buff.toString('utf-8');
-            console.log(
-              `✅ [${new Date().toISOString()}] API query received message after ${((Date.now() - messageSendStart) / 1000).toFixed(2)}s: ${queryReceivedContent}`,
-            );
-            queryReceived = true;
-          }
-        });
-      });
-      req.on('error', e => {
-        console.log(`problem with request, message = : ${e.message}  cause = : ${e.cause}`);
-      });
-      req.end(); // make the request
-      // wait and try again
+    while (
+      !context.topicSubscriptionResponseReceived &&
+      Date.now() - context.subscribeTopicStart < RETRY_DELAY_MS * MAX_RETRY_COUNT
+    ) {
+      console.log(
+        `Waiting for subscription to receive message... (${((Date.now() - context.subscribeTopicStart) / 1000).toFixed(2)}s elapsed)`,
+      );
       // send a create account transaction to push record stream files to mirror node
-      await accountCreate(wallet);
-      await sleep(RETRY_DELAY_MS); // wait for consensus on write transactions and mirror node to sync
-      retry++;
+      await accountCreate(context.wallet);
+
+      await sleep(RETRY_DELAY_MS);
     }
 
-    if (!queryReceived) {
-      console.error(`❌ ERROR: No message received through API query (retries: ${retry} of ${MAX_RETRY_COUNT})`);
-      somethingWrong = true;
-    } else if (queryReceivedContent !== TEST_MESSAGE) {
-      console.error(`❌ ERROR: Message received through query but not match: ${queryReceivedContent}`);
-      somethingWrong = true;
-    }
+    validateTestWasSuccessful(context, retry);
 
-    // it seems that the subscription response is not reliable with block-node enabled and talking to mirror-node
-    // TODO open ticket against mirror-node to investigate further
-    // if (!topicSubscriptionResponseReceived) {
-    //   console.log(
-    //     `❌ ERROR: Subscription timed out waiting for message (total message send time: ${((Date.now() - messageSendStart) / 1000).toFixed(2)}s, retries: ${retry} of ${MAX_RETRY_COUNT}, estimated max time: ${(RETRY_DELAY_MS * MAX_RETRY_COUNT) / 1000}s)`,
-    //   );
-    //   somethingWrong = true;
-    // } else if (subscriptionReceivedContent !== TEST_MESSAGE) {
-    //   console.error(`❌ ERROR: Message received from subscription but not match: ${subscriptionReceivedContent}`);
-    //   somethingWrong = true;
-    // }
-
-    if (somethingWrong) {
+    if (context.somethingWrong) {
+      context?.provider?.close();
+      context?.mirrorClient?.close();
       process.exit(1);
     }
   } catch (error) {
@@ -287,7 +337,8 @@ async function main() {
     throw error;
   }
 
-  provider.close();
+  context?.provider.close();
+  context?.mirrorClient.close();
   console.log('\r::endgroup::\n');
   await sleep(1000); // wait for all logs to be printed
   process.exit(0);
