@@ -337,15 +337,9 @@ export class RapidFireCommand extends BaseCommand {
 
   private async allStopTasks(argv: ArgvStruct, stopTask: SoloListrTask<RapidFireStopContext>): Promise<boolean> {
     const leaseReference: {lease?: Lock} = {}; // This allows the lease to be passed by reference to the init task
-    const tasks: Listr<RapidFireStopContext> = new Listr<RapidFireStopContext>(
+    const tasks: Listr<RapidFireStopContext, any, any> = new Listr(
       [this.stopInitializeTask(argv, leaseReference), stopTask],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
     );
 
     try {
@@ -392,15 +386,9 @@ export class RapidFireCommand extends BaseCommand {
 
   public async stop(argv: ArgvStruct): Promise<boolean> {
     const leaseReference: {lease?: Lock} = {}; // This allows the lease to be passed by reference to the init task
-    const tasks: Listr<RapidFireStopContext> = new Listr<RapidFireStopContext>(
+    const tasks: Listr<RapidFireStopContext, any, any> = new Listr(
       [this.stopInitializeTask(argv, leaseReference), this.stopLoadTest()],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
     );
 
     try {

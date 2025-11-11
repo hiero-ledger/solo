@@ -252,13 +252,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.prepareUpgradeZip(),
         this.tasks.sendPrepareUpgradeTransaction(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in preparing node upgrade',
       leaseWrapper.lease,
     );
@@ -277,13 +271,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.prepareUpgradeZip(),
         this.tasks.sendFreezeUpgradeTransaction(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in executing node freeze upgrade',
       null,
     );
@@ -303,13 +291,7 @@ export class NodeCommandHandlers extends CommandHandler {
         ...this.updateSubmitTransactionsTasks(),
         ...this.updateExecuteTasks(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in updating consensus nodes',
       leaseWrapper.lease,
     );
@@ -328,13 +310,7 @@ export class NodeCommandHandlers extends CommandHandler {
         ...this.updatePrepareTasks(argv, leaseWrapper.lease),
         this.tasks.saveContextData(argv, NodeCommandHandlers.UPDATE_CONTEXT_FILE, NodeHelper.updateSaveContextParser),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in preparing consensus node update',
       leaseWrapper.lease,
     );
@@ -354,13 +330,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.loadContextData(argv, NodeCommandHandlers.UPDATE_CONTEXT_FILE, NodeHelper.updateLoadContextParser),
         ...this.updateSubmitTransactionsTasks(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in submitting transactions for consensus node update',
       leaseWrapper.lease,
     );
@@ -386,13 +356,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.loadContextData(argv, NodeCommandHandlers.UPDATE_CONTEXT_FILE, NodeHelper.updateLoadContextParser),
         ...this.updateExecuteTasks(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in executing network upgrade',
       leaseWrapper.lease,
     );
@@ -410,13 +374,7 @@ export class NodeCommandHandlers extends CommandHandler {
         ...this.upgradePrepareTasks(argv, leaseWrapper.lease),
         this.tasks.saveContextData(argv, NodeCommandHandlers.UPGRADE_CONTEXT_FILE, NodeHelper.upgradeSaveContextParser),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in preparing node upgrade',
       leaseWrapper.lease,
     );
@@ -435,13 +393,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.loadContextData(argv, NodeCommandHandlers.UPGRADE_CONTEXT_FILE, NodeHelper.upgradeLoadContextParser),
         ...this.upgradeSubmitTransactionsTasks(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in submitting transactions for node upgrade',
       leaseWrapper.lease,
     );
@@ -466,13 +418,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.loadContextData(argv, NodeCommandHandlers.UPGRADE_CONTEXT_FILE, NodeHelper.upgradeLoadContextParser),
         ...this.upgradeExecuteTasks(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in executing network upgrade',
       leaseWrapper.lease,
     );
@@ -491,13 +437,7 @@ export class NodeCommandHandlers extends CommandHandler {
         ...this.upgradeSubmitTransactionsTasks(),
         ...this.upgradeExecuteTasks(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in upgrade network',
       leaseWrapper.lease,
     );
@@ -516,13 +456,7 @@ export class NodeCommandHandlers extends CommandHandler {
         ...this.destroySubmitTransactionsTaskList(),
         ...this.destroyExecuteTaskList(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in destroying nodes',
       leaseWrapper.lease,
     );
@@ -541,13 +475,7 @@ export class NodeCommandHandlers extends CommandHandler {
         ...this.destroyPrepareTaskList(argv, leaseWrapper.lease),
         this.tasks.saveContextData(argv, NodeCommandHandlers.DESTROY_CONTEXT_FILE, NodeHelper.deleteSaveContextParser),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in preparing to destroy a node',
       leaseWrapper.lease,
     );
@@ -567,13 +495,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.loadContextData(argv, NodeCommandHandlers.DESTROY_CONTEXT_FILE, NodeHelper.deleteLoadContextParser),
         ...this.destroySubmitTransactionsTaskList(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in deleting a node',
       leaseWrapper.lease,
     );
@@ -593,13 +515,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.loadContextData(argv, NodeCommandHandlers.DESTROY_CONTEXT_FILE, NodeHelper.deleteLoadContextParser),
         ...this.destroyExecuteTaskList(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in deleting a node',
       leaseWrapper.lease,
     );
@@ -619,13 +535,7 @@ export class NodeCommandHandlers extends CommandHandler {
         ...this.addSubmitTransactionsTasks(),
         ...this.addExecuteTasks(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in adding consensus node',
       leaseWrapper.lease,
     );
@@ -644,13 +554,7 @@ export class NodeCommandHandlers extends CommandHandler {
         ...this.addPrepareTasks(argv, leaseWrapper.lease),
         this.tasks.saveContextData(argv, NodeCommandHandlers.ADD_CONTEXT_FILE, helpers.addSaveContextParser),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in preparing node',
       leaseWrapper.lease,
     );
@@ -670,13 +574,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.loadContextData(argv, NodeCommandHandlers.ADD_CONTEXT_FILE, helpers.addLoadContextParser),
         ...this.addSubmitTransactionsTasks(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       '`Error in submitting transactions to node',
       leaseWrapper.lease,
     );
@@ -703,13 +601,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.loadContextData(argv, NodeCommandHandlers.ADD_CONTEXT_FILE, helpers.addLoadContextParser),
         ...this.addExecuteTasks(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in adding node',
       leaseWrapper.lease,
     );
@@ -725,13 +617,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
         this.tasks.getNodeLogsAndConfigs(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in downloading log from nodes',
       null,
     );
@@ -748,13 +634,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.getNodeLogsAndConfigs(),
         ...this.validateConnectionsTaskList(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in diagnosing deployment',
       null,
     );
@@ -771,13 +651,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.initialize(argv, this.configs.connectionsConfigBuilder.bind(this.configs), null),
         ...this.validateConnectionsTaskList(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in testing connections to components',
       null,
     );
@@ -804,13 +678,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.initialize(argv, this.configs.statesConfigBuilder.bind(this.configs), null),
         this.tasks.getNodeStateFiles(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in downloading states from nodes',
       null,
     );
@@ -838,13 +706,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.checkAllNodesAreActive('nodeAliases'),
         this.tasks.checkNodeProxiesAreActive(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in refreshing nodes',
       leaseWrapper.lease,
     );
@@ -863,13 +725,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.generateGrpcTlsKeys(),
         this.tasks.finalize(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error generating keys',
       null,
       'keys consensus generate',
@@ -894,13 +750,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.stopNodes('nodeAliases'),
         this.changeAllNodePhases(DeploymentPhase.STARTED),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error stopping node',
       leaseWrapper.lease,
     );
@@ -930,13 +780,7 @@ export class NodeCommandHandlers extends CommandHandler {
         // TODO only show this if we are not running in one-shot mode
         // this.tasks.showUserMessages(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error starting node',
       leaseWrapper.lease,
       'consensus node start',
@@ -963,13 +807,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.setupNetworkNodeFolders(),
         this.changeAllNodePhases(DeploymentPhase.CONFIGURED),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error in setting up nodes',
       leaseWrapper.lease,
       'consensus node setup',
@@ -993,13 +831,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.stopNodes('existingNodeAliases'),
         this.changeAllNodePhases(DeploymentPhase.FROZEN),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error freezing node',
       leaseWrapper.lease,
     );
@@ -1023,13 +855,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.checkNodeProxiesAreActive(),
         this.changeAllNodePhases(DeploymentPhase.STARTED),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       'Error restarting node',
       leaseWrapper.lease,
     );
