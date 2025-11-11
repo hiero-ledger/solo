@@ -385,13 +385,7 @@ export class BlockNodeCommand extends BaseCommand {
         this.checkBlockNodeReadiness(),
         this.addBlockNodeComponent(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       undefined,
       'block node add',
     );
@@ -485,13 +479,7 @@ export class BlockNodeCommand extends BaseCommand {
         },
         this.removeBlockNodeComponent(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       undefined,
       'block node destroy',
     );
@@ -615,13 +603,7 @@ export class BlockNodeCommand extends BaseCommand {
           },
         },
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
       undefined,
       'block node upgrade',
     );

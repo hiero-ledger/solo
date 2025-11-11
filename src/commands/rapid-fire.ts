@@ -246,7 +246,7 @@ export class RapidFireCommand extends BaseCommand {
   public async start(argv: ArgvStruct): Promise<boolean> {
     const leaseReference: {lease?: Lock} = {}; // This allows the lease to be passed by reference to the init task
 
-    const tasks: Listr<RapidFireStartContext> = new Listr<RapidFireStartContext>(
+    const tasks: Listr<RapidFireStartContext, any, any> = new Listr(
       [
         {
           title: 'Initialize',
@@ -287,13 +287,7 @@ export class RapidFireCommand extends BaseCommand {
         this.deployNlgChart(),
         this.startLoadTest(leaseReference),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
     );
 
     try {

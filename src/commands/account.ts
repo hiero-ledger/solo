@@ -250,7 +250,7 @@ export class AccountCommand extends BaseCommand {
       };
     }
 
-    const tasks: Listr<Context> = new Listr<Context>(
+    const tasks: Listr<Context, any, any> = new Listr(
       [
         {
           title: 'Initialize',
@@ -445,13 +445,7 @@ export class AccountCommand extends BaseCommand {
           },
         },
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
     );
 
     try {
@@ -490,7 +484,7 @@ export class AccountCommand extends BaseCommand {
       privateKey: PrivateKey;
     }
 
-    const tasks = new Listr<Context>(
+    const tasks: Listr<Context, any, any> = new Listr(
       [
         {
           title: 'Initialize',
@@ -570,13 +564,7 @@ export class AccountCommand extends BaseCommand {
           },
         },
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
     );
 
     try {
@@ -593,7 +581,7 @@ export class AccountCommand extends BaseCommand {
   public async update(argv: ArgvStruct): Promise<boolean> {
     const self = this;
 
-    const tasks = new Listr<UpdateAccountContext>(
+    const tasks: Listr<UpdateAccountContext, any, any> = new Listr(
       [
         {
           title: 'Initialize',
@@ -667,13 +655,7 @@ export class AccountCommand extends BaseCommand {
           },
         },
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
     );
 
     try {
@@ -703,7 +685,7 @@ export class AccountCommand extends BaseCommand {
       config: Config;
     }
 
-    const tasks = new Listr<Context>(
+    const tasks: Listr<Context, any, any> = new Listr(
       [
         {
           title: 'Initialize',
@@ -756,13 +738,7 @@ export class AccountCommand extends BaseCommand {
           },
         },
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        fallbackRendererOptions: {
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS,
     );
 
     try {

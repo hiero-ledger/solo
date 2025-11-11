@@ -251,6 +251,23 @@ export const LISTR_DEFAULT_RENDERER_OPTION = {
   formatOutput: 'wrap' | 'truncate';
 };
 
+export const LISTR_DEFAULT_OPTIONS = {
+  concurrent: false,
+  rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
+  fallbackRendererOptions: {
+    timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+  },
+} as {
+  concurrent: boolean;
+  rendererOptions: typeof LISTR_DEFAULT_RENDERER_OPTION;
+  fallbackRendererOptions: {
+    timer: {
+      condition: (duration: number) => boolean;
+      format: (duration: number) => any;
+    };
+  };
+};
+
 export const SIGNING_KEY_PREFIX = 's';
 export const CERTIFICATE_VALIDITY_YEARS = 100; // years
 
