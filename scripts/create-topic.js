@@ -44,41 +44,41 @@ async function sleep(ms) {
  * Starts a gRPC subscription to the specified topic
  * @param {string} topicId - The topic ID to subscribe to
  */
-function startGrpcSubscription(topicId) {
-  // Extract just the numeric part from the topic ID (e.g., '0.0.1018' -> '1018')
-  const topicNum = topicId.split('.').pop();
-
-  // Build the command with properly formatted JSON
-  const command = `grpcurl -plaintext -d '{"topicID": {"topicNum": ${topicNum}}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.ConsensusService/subscribeTopic`;
-
-  console.log('Executing command:', command);
-
-  const grpcurl = spawn(command, {
-    shell: true,
-    detached: true,
-  });
-
-  // Log stdout
-  grpcurl.stdout?.on('data', data => {
-    console.log(`stdout: ${data}`);
-  });
-
-  // Log stderr
-  grpcurl.stderr?.on('data', data => {
-    console.error(`stderr: ${data}`);
-  });
-
-  grpcurl.on('error', error => {
-    console.error(`Error starting grpcurl: ${error.message}`);
-  });
-
-  grpcurl.on('close', code => {
-    console.log(`grpcurl process exited with code ${code}`);
-  });
-
-  // Don't unref immediately, let's see the output first
-  // grpcurl.unref();
-}
+// function startGrpcSubscription(topicId) {
+//   // Extract just the numeric part from the topic ID (e.g., '0.0.1018' -> '1018')
+//   const topicNum = topicId.split('.').pop();
+//
+//   // Build the command with properly formatted JSON
+//   const command = `grpcurl -plaintext -d '{"topicID": {"topicNum": ${topicNum}}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.ConsensusService/subscribeTopic`;
+//
+//   console.log(`Executing command: ${command}`);
+//
+//   const grpcurl = spawn(command, {
+//     shell: true,
+//     detached: true,
+//   });
+//
+//   // Log stdout
+//   grpcurl.stdout?.on('data', data => {
+//     console.log(`stdout: ${data}`);
+//   });
+//
+//   // Log stderr
+//   grpcurl.stderr?.on('data', data => {
+//     console.error(`stderr: ${data}`);
+//   });
+//
+//   grpcurl.on('error', error => {
+//     console.error(`Error starting grpcurl: ${error.message}`);
+//   });
+//
+//   grpcurl.on('close', code => {
+//     console.log(`grpcurl process exited with code ${code}`);
+//   });
+//
+//   // Don't unref immediately, let's see the output first
+//   // grpcurl.unref();
+// }
 
 async function accountCreate(wallet) {
   const newKey = PrivateKey.generate();
@@ -141,7 +141,7 @@ async function main() {
     );
 
     // Start gRPC subscription in a separate process
-    startGrpcSubscription(topicIdString.toString());
+    // startGrpcSubscription(topicIdString.toString());
 
     let subscriptionReceivedContent = '';
     let topicSubscriptionResponseReceived = false;
@@ -159,16 +159,22 @@ async function main() {
       topic => {
         if (!topicSubscriptionResponseReceived) {
           // Only log for the first received message
-          const receiveTime = Date.now();
           topicSubscriptionResponseReceived = true;
           subscriptionReceivedContent = Buffer.from(topic.contents).toString('utf-8');
-          const elapsedSeconds = (receiveTime - subscribeTopicStart) / 1000;
           console.log(
-            `✅ [${new Date().toISOString()}] Subscription received message after ${elapsedSeconds.toFixed(2)}s: ${topic.contents}`,
+            `✅ [${new Date().toISOString()}] Subscription received message after ${((Date.now() - subscribeTopicStart) / 1000).toFixed(2)}s: ${topic.contents}`,
           );
         }
       },
     );
+
+    await sleep(CONSENSUS_DELAY_MS); // wait for subscription to be fully set up
+    while (!topicSubscriptionResponseReceived && Date.now() - subscribeTopicStart < RETRY_DELAY_MS * MAX_RETRY_COUNT) {
+      console.log(
+        `Waiting for subscription to receive message... (${((Date.now() - subscribeTopicStart) / 1000).toFixed(2)}s elapsed)`,
+      );
+      await sleep(RETRY_DELAY_MS);
+    }
 
     const TEST_MESSAGE = `Create Topic Test Message for ${topicIdString.toString()}`;
 
@@ -207,16 +213,16 @@ async function main() {
           // convert chunk to json object
           const obj = JSON.parse(chunk);
           if (obj.messages.length === 0) {
-            console.log('No messages received through API query yet');
+            console.log(
+              `No messages received through API query yet after ${((Date.now() - messageSendStart) / 1000).toFixed(2)}s`,
+            );
           } else {
             // convert message from base64 to utf-8
             const base64 = obj.messages[0].message;
             const buff = Buffer.from(base64, 'base64');
             queryReceivedContent = buff.toString('utf-8');
-            const queryReceiveTime = Date.now();
-            const elapsedSeconds = (queryReceiveTime - messageSendStart) / 1000;
             console.log(
-              `✅ [${new Date().toISOString()}] API query received message after ${elapsedSeconds.toFixed(2)}s: ${queryReceivedContent}`,
+              `✅ [${new Date().toISOString()}] API query received message after ${((Date.now() - messageSendStart) / 1000).toFixed(2)}s: ${queryReceivedContent}`,
             );
             queryReceived = true;
           }
@@ -237,19 +243,17 @@ async function main() {
       console.error(`❌ ERROR: No message received through API query (retries: ${retry} of ${MAX_RETRY_COUNT})`);
       somethingWrong = true;
     } else if (queryReceivedContent !== TEST_MESSAGE) {
-      console.error('❌ ERROR: Message received through query but not match: ' + queryReceivedContent);
+      console.error(`❌ ERROR: Message received through query but not match: ${queryReceivedContent}`);
       somethingWrong = true;
     }
 
     if (!topicSubscriptionResponseReceived) {
-      const currentTime = Date.now();
-      const elapsedSeconds = (currentTime - messageSendStart) / 1000;
       console.log(
-        `❌ ERROR: Subscription timed out waiting for message (total message send time: ${elapsedSeconds.toFixed(2)}s, retries: ${retry} of ${MAX_RETRY_COUNT}, estimated max time: ${(RETRY_DELAY_MS * MAX_RETRY_COUNT) / 1000}s)`,
+        `❌ ERROR: Subscription timed out waiting for message (total message send time: ${((Date.now() - messageSendStart) / 1000).toFixed(2)}s, retries: ${retry} of ${MAX_RETRY_COUNT}, estimated max time: ${(RETRY_DELAY_MS * MAX_RETRY_COUNT) / 1000}s)`,
       );
       somethingWrong = true;
     } else if (subscriptionReceivedContent !== TEST_MESSAGE) {
-      console.error('❌ ERROR: Message received from subscription but not match: ' + subscriptionReceivedContent);
+      console.error(`❌ ERROR: Message received from subscription but not match: ${subscriptionReceivedContent}`);
       somethingWrong = true;
     }
 
