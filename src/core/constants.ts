@@ -227,15 +227,7 @@ export const LISTR_DEFAULT_RENDERER_TIMER_OPTION = {
   },
 };
 
-export const LISTR_DEFAULT_RENDERER_OPTION = {
-  collapseSubtasks: false,
-  timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-  persistentOutput: true,
-  clearOutput: false,
-  collapseErrors: false,
-  showErrorMessage: false,
-  formatOutput: 'wrap',
-} as {
+export const LISTR_DEFAULT_RENDERER_OPTION: {
   collapseSubtasks: boolean;
   timer: {
     condition: (duration: number) => boolean;
@@ -243,12 +235,20 @@ export const LISTR_DEFAULT_RENDERER_OPTION = {
     field: string | ((arguments_0: number) => string);
     args?: [number];
   };
-  logger: ListrLogger;
+  logger?: ListrLogger;
   persistentOutput: boolean;
   clearOutput: boolean;
   collapseErrors: boolean;
   showErrorMessage: boolean;
   formatOutput: 'wrap' | 'truncate';
+} = {
+  collapseSubtasks: false,
+  timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+  persistentOutput: true,
+  clearOutput: false,
+  collapseErrors: false,
+  showErrorMessage: false,
+  formatOutput: 'wrap',
 };
 
 type ListrOptionsType = {
@@ -259,7 +259,10 @@ type ListrOptionsType = {
   };
 };
 
-export const LISTR_DEFAULT_OPTIONS = {
+export const LISTR_DEFAULT_OPTIONS: {
+  DEFAULT: ListrOptionsType;
+  WITH_CONCURRENCY: ListrOptionsType;
+} = {
   DEFAULT: {
     concurrent: false,
     rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
@@ -267,8 +270,13 @@ export const LISTR_DEFAULT_OPTIONS = {
       timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,
     },
   },
-} as {
-  DEFAULT: ListrOptionsType;
+  WITH_CONCURRENCY: {
+    concurrent: true,
+    rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
+    fallbackRendererOptions: {
+      timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+    },
+  },
 };
 
 export const SIGNING_KEY_PREFIX = 's';

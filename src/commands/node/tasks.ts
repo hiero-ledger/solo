@@ -1394,13 +1394,7 @@ export class NodeCommandTasks {
           });
         }
 
-        return task.newListr(subTasks, {
-          concurrent: true,
-          rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-          fallbackRendererOptions: {
-            timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-          },
-        });
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
     };
   }
@@ -2553,13 +2547,7 @@ export class NodeCommandTasks {
         );
 
         // set up the sub-tasks for copying node keys to staging directory
-        return task.newListr(subTasks, {
-          concurrent: true,
-          rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-          fallbackRendererOptions: {
-            timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-          },
-        });
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
     };
   }

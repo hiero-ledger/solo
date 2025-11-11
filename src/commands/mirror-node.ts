@@ -686,13 +686,7 @@ export class MirrorNodeCommand extends BaseCommand {
           },
         );
 
-        return task.newListr(subTasks, {
-          concurrent: true,
-          rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-          fallbackRendererOptions: {
-            timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-          },
-        });
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
     };
   }
