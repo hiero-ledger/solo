@@ -166,6 +166,10 @@ async function main() {
           console.log(
             `✅ [${new Date().toISOString()}] Subscription received message after ${((Date.now() - subscribeTopicStart) / 1000).toFixed(2)}s: ${topic.contents}`,
           );
+        } else {
+          console.log(
+            `listener called while topicSubscriptionResponseReceived is already true [topic = ${JSON.stringify(topic)}]`,
+          );
         }
       },
     );
