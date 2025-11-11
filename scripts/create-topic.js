@@ -152,8 +152,10 @@ async function main() {
       (topic, error) => {
         if (error) {
           console.error(`ERROR: ${error}`, error);
-          topicSubscriptionResponseReceived = true;
-          return;
+          // ERROR: Error: 14 UNAVAILABLE: Received HTTP status code 504
+          if (!'Error: 14'.includes(error.toString())) {
+            topicSubscriptionResponseReceived = true;
+          }
         }
       },
       topic => {
@@ -176,6 +178,9 @@ async function main() {
       console.log(
         `Waiting for subscription to receive message... (${((Date.now() - subscribeTopicStart) / 1000).toFixed(2)}s elapsed)`,
       );
+      // send a create account transaction to push record stream files to mirror node
+      await accountCreate(wallet);
+
       await sleep(RETRY_DELAY_MS);
     }
     if (!topicSubscriptionResponseReceived) {
