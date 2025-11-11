@@ -24,7 +24,7 @@ const originalLog = console.log;
 const originalError = console.error;
 const RETRY_DELAY_MS = 5000; // 5 seconds
 const CONSENSUS_DELAY_MS = 4000; // 4 seconds
-const MAX_RETRY_COUNT = 60;
+const MAX_RETRY_COUNT = 90;
 
 console.log = function (...args) {
   originalLog(`[${new Date().toISOString()}]`, ...args);
@@ -174,6 +174,12 @@ async function main() {
         `Waiting for subscription to receive message... (${((Date.now() - subscribeTopicStart) / 1000).toFixed(2)}s elapsed)`,
       );
       await sleep(RETRY_DELAY_MS);
+    }
+    if (!topicSubscriptionResponseReceived) {
+      console.log(
+        `❌ ERROR: Subscription timed out waiting for message (total message subscription time: ${((Date.now() - subscribeTopicStart) / 1000).toFixed(2)}s)`,
+      );
+      process.exit(1);
     }
 
     const TEST_MESSAGE = `Create Topic Test Message for ${topicIdString.toString()}`;
