@@ -260,6 +260,9 @@ async function queryMirrorNodeApiForTopicMessage(context) {
       console.log(`problem with request, message = : ${e.message}  cause = : ${e.cause}`);
     });
     req.end(); // make the request
+    // Start gRPC subscription in a separate process for debugging purposes
+    startGrpcSubscription(context.topicIdString.toString());
+
     // wait and try again
     // send a create account transaction to push record stream files to mirror node
     await accountCreate(context.wallet);
