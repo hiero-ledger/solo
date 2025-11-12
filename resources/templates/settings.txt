@@ -1,6 +1,6 @@
 state.mainClassNameOverride,                   com.hedera.services.ServicesMain
 state.saveStatePeriod, 60
 loadKeysFromPfxFiles, 1
-socket.timeoutSyncClientSocket, 300
-socket.timeoutSyncClientConnect, 300
-socket.timeoutServerAcceptConnect, 300
+socket.timeoutSyncClientSocket, 60
+socket.timeoutSyncClientConnect, 60
+socket.timeoutServerAcceptConnect, 60

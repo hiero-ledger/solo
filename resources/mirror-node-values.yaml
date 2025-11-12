@@ -45,7 +45,7 @@ importer:
           downloader:
             allowAnonymousAccess: false
             bucketName: "solo-streams"
-            timeout: 300
+            timeout: 60
             # for s3 configuration of mirror node look at uploader-mirror-secrets.yaml
           parser:
             record:
@@ -60,7 +60,7 @@ grpc:
       mirror:
         grpc:
           retriever:
-            timeout: 300
+            timeout: 60
   ingress:
     annotations:
       haproxy-ingress.github.io/backend-protocol: h2
