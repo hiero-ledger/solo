@@ -845,6 +845,14 @@ export class BackupRestoreCommand extends BaseCommand {
             blockNodeTasks.push({
               title: `Deploy block node ${blockNode.metadata.id}`,
               task: async (_, subTaskListWrapper) => {
+                // Switch to the correct cluster context for this block node
+                const nodeCluster = blockNode.metadata.cluster;
+                if (nodeCluster) {
+                  self.logger.info(`Switching to cluster '${nodeCluster}' for block node ${blockNode.metadata.id}`);
+                  const k8 = self.k8Factory.getK8(nodeCluster);
+                  k8.contexts().updateCurrent(nodeCluster);
+                }
+                
                 return subTaskSoloCommand(
                   BlockCommandDefinition.ADD_COMMAND,
                   subTaskListWrapper,
@@ -855,7 +863,7 @@ export class BackupRestoreCommand extends BaseCommand {
                       CommandHelpers.optionFromFlag(flags.deployment),
                       context_.deployment,
                       optionFromFlag(flags.clusterRef),
-                      context_.context,
+                      nodeCluster || context_.context,
                     );
                     if (context_.versions?.blockNodeChart) {
                       argv.push(
@@ -898,6 +906,14 @@ export class BackupRestoreCommand extends BaseCommand {
             mirrorNodeTasks.push({
               title: `Deploy mirror node ${mirrorNode.metadata.id}`,
               task: async (_, subTaskListWrapper) => {
+                // Switch to the correct cluster context for this mirror node
+                const nodeCluster = mirrorNode.metadata.cluster;
+                if (nodeCluster) {
+                  self.logger.info(`Switching to cluster '${nodeCluster}' for mirror node ${mirrorNode.metadata.id}`);
+                  const k8 = self.k8Factory.getK8(nodeCluster);
+                  k8.contexts().updateCurrent(nodeCluster);
+                }
+                
                 return subTaskSoloCommand(
                   MirrorCommandDefinition.ADD_COMMAND,
                   subTaskListWrapper,
@@ -908,7 +924,7 @@ export class BackupRestoreCommand extends BaseCommand {
                       CommandHelpers.optionFromFlag(flags.deployment),
                       context_.deployment,
                       optionFromFlag(flags.clusterRef),
-                      context_.context,
+                      nodeCluster || context_.context,
                     );
                     if (context_.versions?.mirrorNodeChart) {
                       argv.push(optionFromFlag(flags.mirrorNodeVersion), context_.versions.mirrorNodeChart.toString());
@@ -948,6 +964,14 @@ export class BackupRestoreCommand extends BaseCommand {
             relayNodeTasks.push({
               title: `Deploy relay node ${relayNode.metadata.id}`,
               task: async (_, subTaskListWrapper) => {
+                // Switch to the correct cluster context for this relay node
+                const nodeCluster = relayNode.metadata.cluster;
+                if (nodeCluster) {
+                  self.logger.info(`Switching to cluster '${nodeCluster}' for relay node ${relayNode.metadata.id}`);
+                  const k8 = self.k8Factory.getK8(nodeCluster);
+                  k8.contexts().updateCurrent(nodeCluster);
+                }
+                
                 return subTaskSoloCommand(
                   RelayCommandDefinition.ADD_COMMAND,
                   subTaskListWrapper,
@@ -960,6 +984,10 @@ export class BackupRestoreCommand extends BaseCommand {
                       CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
                       context_.nodeAliases,
                     );
+                    // Add cluster ref if node has cluster metadata
+                    if (nodeCluster) {
+                      argv.push(optionFromFlag(flags.clusterRef), nodeCluster);
+                    }
                     if (context_.versions?.jsonRpcRelayChart) {
                       argv.push(optionFromFlag(flags.relayReleaseTag), context_.versions.jsonRpcRelayChart.toString());
                     }
@@ -998,6 +1026,14 @@ export class BackupRestoreCommand extends BaseCommand {
             explorerTasks.push({
               title: `Deploy explorer ${explorer.metadata.id}`,
               task: async (_, subTaskListWrapper) => {
+                // Switch to the correct cluster context for this explorer
+                const nodeCluster = explorer.metadata.cluster;
+                if (nodeCluster) {
+                  self.logger.info(`Switching to cluster '${nodeCluster}' for explorer ${explorer.metadata.id}`);
+                  const k8 = self.k8Factory.getK8(nodeCluster);
+                  k8.contexts().updateCurrent(nodeCluster);
+                }
+                
                 return subTaskSoloCommand(
                   ExplorerCommandDefinition.ADD_COMMAND,
                   subTaskListWrapper,
@@ -1008,7 +1044,7 @@ export class BackupRestoreCommand extends BaseCommand {
                       CommandHelpers.optionFromFlag(flags.deployment),
                       context_.deployment,
                       optionFromFlag(flags.clusterRef),
-                      context_.context,
+                      nodeCluster || context_.context,
                     );
                     if (context_.versions?.explorerChart) {
                       argv.push(optionFromFlag(flags.explorerVersion), context_.versions.explorerChart.toString());
@@ -1235,15 +1271,16 @@ export class BackupRestoreCommand extends BaseCommand {
               // Strip 'kind-' prefix if it exists in the cluster name from config
               const clusterNameWithoutPrefix = cluster.name.startsWith('kind-') ? cluster.name.slice(5) : cluster.name;
 
-              // Both clusterReference and contextName need the 'kind-' prefix
-              const clusterReference = `kind-${clusterNameWithoutPrefix}`; // cluster-ref expects "kind-backup-restore-cluster"
-              const contextName = `kind-${clusterNameWithoutPrefix}`; // kubectl context is "kind-backup-restore-cluster"
+              // IMPORTANT: clusterReference should NOT have "kind-" prefix, but contextName should
+              const clusterReference = clusterNameWithoutPrefix; // cluster-ref without prefix: "e2e-cluster-alpha"
+              const contextName = `kind-${clusterNameWithoutPrefix}`; // kubectl context with prefix: "kind-e2e-cluster-alpha"
               const namespace = cluster.namespace;
               const deployment = cluster.deployment;
 
               // Count consensus nodes belonging to this specific cluster
+              // Note: nodes may have cluster saved with or without prefix, so check both
               const clusterConsensusNodeCount = context_.deploymentState!.consensusNodes.filter(
-                node => node.metadata.cluster === clusterNameWithoutPrefix,
+                node => node.metadata.cluster === clusterReference,
               ).length;
 
               self.logger.info(
