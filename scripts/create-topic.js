@@ -188,10 +188,9 @@ function subscribeToTopic(context) {
         context.topicSubscriptionResponseReceived = true;
         context.subscriptionReceivedContent = Buffer.from(topic.contents).toString('utf-8');
         console.log(
-          `✅ [${new Date().toISOString()}] Subscription received message after ${(
-            (Date.now() - subscribeTopicStart) /
-            1000
-          ).toFixed(2)}s: ${topic.contents}`,
+          `✅ Subscription received message after ${((Date.now() - subscribeTopicStart) / 1000).toFixed(
+            2,
+          )}s: ${topic.contents}`,
         );
       } else {
         console.log(
@@ -200,6 +199,7 @@ function subscribeToTopic(context) {
       }
     },
   );
+  console.log(`Requested subscription to topic with SDK at: ${new Date(subscribeTopicStart).toISOString()}`);
   return subscribeTopicStart;
 }
 
@@ -219,7 +219,7 @@ async function submitMessageToTopic(context) {
   await sleep(CONSENSUS_DELAY_MS); // wait for consensus on write transactions
 
   const sendReceipt = await sendResponse.getReceiptWithSigner(context.wallet);
-  console.log(`topic sequence number = ${sendReceipt.topicSequenceNumber.toString()}`);
+  console.log(`Message sent [topicSequenceNumber: ${sendReceipt.topicSequenceNumber.toString()}]`);
 }
 
 async function queryMirrorNodeApiForTopic(context) {
@@ -227,11 +227,12 @@ async function queryMirrorNodeApiForTopic(context) {
   let success = false;
 
   let retry = 0;
+  console.log(`Querying Mirror Node API for topic creation at URL: ${queryUrl}`);
   while (!context.queryReceived && retry < MAX_RETRY_COUNT) {
     const response = await fetch(queryUrl);
     const data = await response.json();
     if (data?.topic_id === context.topicIdString) {
-      console.log(`✅ [${new Date().toISOString()}] API detected topic has been created`);
+      console.log(`✅ Mirror Node API detected topic has been created`);
       success = true;
       break;
     }
@@ -243,13 +244,13 @@ async function queryMirrorNodeApiForTopic(context) {
     startGrpcSubscription(context.topicIdString.toString());
 
     console.log(
-      `API query did not detect topic creation yet [retry: ${retry} of ${MAX_RETRY_COUNT}, queryUrl: ${queryUrl}]`,
+      `Mirror Node API query did not detect topic creation yet [retry: ${retry} of ${MAX_RETRY_COUNT}, queryUrl: ${queryUrl}]`,
     );
     await sleep(RETRY_DELAY_MS); // wait for consensus on write transactions and mirror node to sync
     retry++;
   }
   if (!success) {
-    throw new Error(`❌ ERROR: API query did not detect topic creation after ${MAX_RETRY_COUNT} retries`);
+    throw new Error(`❌ ERROR: Mirror Node API query did not detect topic creation after ${MAX_RETRY_COUNT} retries`);
   }
 }
 
@@ -259,6 +260,7 @@ async function queryExplorerApiForTopicMessage(context) {
 
   // wait until the transaction reached consensus and retrievable from the mirror node API
   let retry = 0;
+  console.log(`Querying Explorer API for topic messages at URL: ${queryURL}`);
   while (!context.queryReceived && retry < MAX_RETRY_COUNT) {
     const req = http.request(queryURL, {method: 'GET', timeout: 100, headers: {Connection: 'close'}}, res => {
       res.setEncoding('utf8');
@@ -267,7 +269,7 @@ async function queryExplorerApiForTopicMessage(context) {
         const obj = JSON.parse(chunk);
         if (obj.messages.length === 0) {
           console.log(
-            `No messages received through API query yet after ${(
+            `No messages received through Explorer API query yet after ${(
               (Date.now() - context.messageSendStart) /
               1000
             ).toFixed(2)}s`,
@@ -278,17 +280,16 @@ async function queryExplorerApiForTopicMessage(context) {
           const buff = Buffer.from(base64, 'base64');
           context.queryReceivedContent = buff.toString('utf-8');
           console.log(
-            `✅ [${new Date().toISOString()}] API query received message after ${(
-              (Date.now() - context.messageSendStart) /
-              1000
-            ).toFixed(2)}s: ${context.queryReceivedContent}`,
+            `✅ Explorer API query received message after ${((Date.now() - context.messageSendStart) / 1000).toFixed(
+              2,
+            )}s: ${context.queryReceivedContent}`,
           );
           context.queryReceived = true;
         }
       });
     });
     req.on('error', e => {
-      console.log(`problem with request, message = : ${e.message}  cause = : ${e.cause}`);
+      console.log(`Explorer API problem with request, [message: ${e.message}, cause: ${e.cause}]`);
     });
     req.end(); // make the request
 
@@ -326,8 +327,6 @@ function validateTestWasSuccessful(context, retry) {
     console.error(`❌ ERROR: Message received from subscription but not match: ${context.subscriptionReceivedContent}`);
     context.somethingWrong = true;
   }
-
-  console.log('✅ Test completed successfully.');
 }
 
 async function main() {
@@ -377,6 +376,8 @@ async function main() {
       context?.provider?.close();
       context?.mirrorClient?.close();
       throw new Error('❌ ERROR: Test failed due to issues detected.');
+    } else {
+      console.log('✅ Test completed successfully.');
     }
   } catch (error) {
     console.error(`❌ ERROR: ${error}`, error);
