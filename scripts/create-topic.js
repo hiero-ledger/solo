@@ -138,6 +138,7 @@ async function initialize() {
       queryReceived: false,
       queryReceivedContent: '',
       somethingWrong: false,
+      subscriptionHandler: null,
     };
   } catch (error) {
     console.error(`❌ ERROR: Failed to initialize: ${error}`, error);
@@ -169,7 +170,7 @@ async function createTopic(operatorKey, wallet) {
 
 function subscribeToTopic(context) {
   const subscribeTopicStart = Date.now();
-  new TopicMessageQuery().setTopicId(context.topicIdString).subscribe(
+  context.subscriptionHandler = new TopicMessageQuery().setTopicId(context.topicIdString).subscribe(
     context.mirrorClient,
     (topic, error) => {
       if (error) {
@@ -345,6 +346,9 @@ async function main() {
 
     context.subscribeTopicStart = subscribeToTopic(context);
 
+    // TODO figure out how to detect that subscription is fully established
+    await sleep(10_000); // wait for subscription to be fully established
+
     context.testMessage = `Create Topic Test Message for ${context.topicIdString.toString()}`;
 
     await submitMessageToTopic(context);
@@ -385,6 +389,7 @@ async function main() {
     throw error;
   }
 
+  context?.subscriptionHandler?.unsubscribe();
   context?.provider.close();
   context?.mirrorClient.close();
   console.log('\r::endgroup::                                                ');
