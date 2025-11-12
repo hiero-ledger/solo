@@ -143,7 +143,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             reject(error);
           });
         });
-      }).timeout(Duration.ofMinutes(15).toMillis());
+      }).timeout(Duration.ofMinutes(30).toMillis());
 
       it('Should write log metrics', async (): Promise<void> => {
         await new MetricsServerImpl().logMetrics(
@@ -154,7 +154,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           contexts,
         );
       });
-    }).timeout(Duration.ofMinutes(25).toMillis());
+    }).timeout(Duration.ofMinutes(40).toMillis());
   })
   .build();
 

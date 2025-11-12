@@ -223,7 +223,8 @@ async function submitMessageToTopic(context) {
 }
 
 async function queryMirrorNodeApiForTopic(context) {
-  const queryUrl = `http://localhost:8081/api/v1/topics/${context.topicIdString}/messages`;
+  const queryUrl = `http://localhost:8081/api/v1/topics/${context.topicIdString}`;
+  let success = false;
 
   let retry = 0;
   while (!context.queryReceived && retry < MAX_RETRY_COUNT) {
@@ -231,6 +232,7 @@ async function queryMirrorNodeApiForTopic(context) {
     const data = await response.json();
     if (data?.topic_id === context.topicIdString) {
       console.log(`✅ [${new Date().toISOString()}] API detected topic has been created`);
+      success = true;
       break;
     }
     // wait and try again
@@ -240,9 +242,14 @@ async function queryMirrorNodeApiForTopic(context) {
     // Start gRPC subscription in a separate process for debugging purposes
     startGrpcSubscription(context.topicIdString.toString());
 
-    console.log(`API query did not detect topic creation yet [retry: ${retry} of ${MAX_RETRY_COUNT}]`);
+    console.log(
+      `API query did not detect topic creation yet [retry: ${retry} of ${MAX_RETRY_COUNT}, queryUrl: ${queryUrl}]`,
+    );
     await sleep(RETRY_DELAY_MS); // wait for consensus on write transactions and mirror node to sync
     retry++;
+  }
+  if (!success) {
+    throw new Error(`❌ ERROR: API query did not detect topic creation after ${MAX_RETRY_COUNT} retries`);
   }
 }
 
