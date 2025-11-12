@@ -26,9 +26,8 @@ jobs:
         with:
           egress-policy: audit
 
-      # TODO: Added request for step-security maintained action, update when available
       - name: Auto-Assign PRs to Merge Queue
-        uses: kentaro-m/auto-assign-action@f4648c0a9fdb753479e9e75fc251f507ce17bb7e # v2.0.0
+        uses: step-security/auto-assign-action@9c6e66c3089ac6c299bc221667525fbf81bd9498 # v2.0.0
         with:
           repo-token: ${{ secrets.GH_ACCESS_TOKEN }}
           configuration-path: '.github/auto_assign.yaml'
