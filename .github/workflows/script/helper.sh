@@ -74,7 +74,7 @@ function log_and_exit()
 
   printf "\r::group::Mirror Monitor log dump\n"
   echo "------- BEGIN LOG DUMP -------"
-  kubectl get pods -n "${namespace}"  --output=name | grep mirror-monitor | xargs -IPOD kubectl logs -n "${namespace}" POD > mirror-monitor.log || true
+  kubectl get pods -n "${namespace}"  --output=name | grep mirror-monitor | xargs -IPOD kubectl logs -n "${namespace}" POD > monitor.log || true
   echo "------- END LOG DUMP ------- (see 'Upload Logs to GitHub' step for download link)"
   printf "\r::endgroup::\n"
 
@@ -85,14 +85,17 @@ function log_and_exit()
 
   printf "\r::group::Block Node log dump\n"
   echo "------- BEGIN BLOCK NODE DUMP -------"
-  kubectl logs -n "${SOLO_NAMESPACE}" block-node-1-0 -c block-node-server > blocker.log || true
-  kubectl logs -n "${SOLO_NAMESPACE}" block-node-1-0 -c block-node-server --previous > blocker_prev.log || true
+  kubectl logs -n "${SOLO_NAMESPACE}" block-node-1-0 -c block-node-server > block-node.log || true
+  kubectl logs -n "${SOLO_NAMESPACE}" block-node-1-0 -c block-node-server --previous > block-node-prev.log || true
   echo "------- END BLOCK NODE DUMP ------- (see 'Upload Logs to GitHub' step for download link)"
   printf "\r::endgroup::\n"
 
-  cp relay.log rest.log importer.log port-forward.log grpc.log mirror-monitor.log "$HOME"/.solo/logs/ || true
-  if [ -f blocker_prev.log ]; then
-    cp blocker_prev.log "$HOME"/.solo/logs/ || true
+  cp relay.log rest.log importer.log port-forward.log grpc.log monitor.log "$HOME"/.solo/logs/ || true
+  if [ -f block-node-prev.log ]; then
+    cp block-node-prev.log "$HOME"/.solo/logs/ || true
+  fi
+  if [ -f block-node.log ]; then
+    cp block-node.log "$HOME"/.solo/logs/ || true
   fi
 
   # sleep for a few seconds to give time for stdout to stream back in case it was called using nodejs
