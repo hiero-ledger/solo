@@ -45,11 +45,7 @@ on:
         type: boolean
         required: false
         default: false
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
+  push:
     branches:
       - trunk-merge/**
 defaults:
