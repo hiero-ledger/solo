@@ -208,6 +208,20 @@ export class InitCommand extends BaseCommand {
 
     const tasks: SoloListrTask<InitContext>[] = [
       {
+        title: 'Ask for sudo permissions if needed',
+        task: async (_, task) => {
+          // eslint-disable-next-line unicorn/prevent-abbreviations
+          const res: string[] = await this.run('sudo whoami');
+          task.title = `Sudo permissions granted. Sudo whoami: ${res} |`;
+
+          // eslint-disable-next-line unicorn/prevent-abbreviations
+          const res2: string[] = await this.run('whoami');
+          task.title += `| whoami: ${res2}`;
+
+          this.logger.showUser(`Running as user: ${res}`);
+        },
+      },
+      {
         title: 'Check dependencies',
         task: (_, task) => {
           const subTasks = self.depManager.taskCheckDependencies<InitContext>(options.deps);
