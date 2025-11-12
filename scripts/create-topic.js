@@ -43,6 +43,8 @@ async function sleep(ms) {
  * Starts a gRPC subscription to the specified topic
  * @param {string} topicId - The topic ID to subscribe to
  */
+// TODO take an extra parameter for where grpcurl was called from
+// TODO take context.grpcurlActive so that we aren't running more than one at a time
 function startGrpcSubscription(topicId) {
   // Extract just the numeric part from the topic ID (e.g., '0.0.1018' -> '1018')
   const topicNum = topicId.split('.').pop();
@@ -341,13 +343,16 @@ async function main() {
 
     await queryMirrorNodeApiForTopic(context);
 
+    await sleep(5_000); // give a moment for mirror node to be ready
+
     // Start gRPC subscription in a separate process for debugging purposes
+    // TODO is the grpcurl leaving connections open? if so, it might be causing issues with too many open connections
     startGrpcSubscription(context.topicIdString.toString());
 
     context.subscribeTopicStart = subscribeToTopic(context);
 
     // TODO figure out how to detect that subscription is fully established
-    await sleep(10_000); // wait for subscription to be fully established
+    await sleep(20_000); // wait for subscription to be fully established
 
     context.testMessage = `Create Topic Test Message for ${context.topicIdString.toString()}`;
 
