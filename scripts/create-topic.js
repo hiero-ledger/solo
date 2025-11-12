@@ -222,7 +222,31 @@ async function submitMessageToTopic(context) {
   console.log(`topic sequence number = ${sendReceipt.topicSequenceNumber.toString()}`);
 }
 
-async function queryMirrorNodeApiForTopicMessage(context) {
+async function queryMirrorNodeApiForTopic(context) {
+  const queryUrl = `http://localhost:8081/api/v1/topics/${context.topicIdString}/messages`;
+
+  let retry = 0;
+  while (!context.queryReceived && retry < MAX_RETRY_COUNT) {
+    const response = await fetch(queryUrl);
+    const data = await response.json();
+    if (data?.topic_id === context.topicIdString) {
+      console.log(`✅ [${new Date().toISOString()}] API detected topic has been created`);
+      break;
+    }
+    // wait and try again
+    // send a create account transaction to push record stream files to mirror node
+    await accountCreate(context.wallet);
+
+    // Start gRPC subscription in a separate process for debugging purposes
+    startGrpcSubscription(context.topicIdString.toString());
+
+    console.log(`API query did not detect topic creation yet [retry: ${retry} of ${MAX_RETRY_COUNT}]`);
+    await sleep(RETRY_DELAY_MS); // wait for consensus on write transactions and mirror node to sync
+    retry++;
+  }
+}
+
+async function queryExplorerApiForTopicMessage(context) {
   // Check submit message result should succeed via mirror node API
   const queryURL = `http://localhost:8080/api/v1/topics/${context.topicIdString}/messages`;
 
@@ -261,12 +285,12 @@ async function queryMirrorNodeApiForTopicMessage(context) {
     });
     req.end(); // make the request
 
-    // Start gRPC subscription in a separate process for debugging purposes
-    startGrpcSubscription(context.topicIdString.toString());
-
     // wait and try again
     // send a create account transaction to push record stream files to mirror node
     await accountCreate(context.wallet);
+
+    // Start gRPC subscription in a separate process for debugging purposes
+    startGrpcSubscription(context.topicIdString.toString());
 
     await sleep(RETRY_DELAY_MS); // wait for consensus on write transactions and mirror node to sync
     retry++;
@@ -308,6 +332,8 @@ async function main() {
 
     context.topicIdString = await createTopic(context.operatorKey, context.wallet);
 
+    await queryMirrorNodeApiForTopic(context);
+
     // Start gRPC subscription in a separate process for debugging purposes
     startGrpcSubscription(context.topicIdString.toString());
 
@@ -319,7 +345,7 @@ async function main() {
 
     // send a create account transaction to push record stream files to mirror node
     await accountCreate(context.wallet);
-    let retry = await queryMirrorNodeApiForTopicMessage(context);
+    let retry = await queryExplorerApiForTopicMessage(context);
 
     while (
       !context.topicSubscriptionResponseReceived &&
@@ -343,17 +369,17 @@ async function main() {
     if (context.somethingWrong) {
       context?.provider?.close();
       context?.mirrorClient?.close();
-      process.exit(1);
+      throw new Error('❌ ERROR: Test failed due to issues detected.');
     }
   } catch (error) {
     console.error(`❌ ERROR: ${error}`, error);
     await sleep(1000); // wait for all logs to be printed
-    process.exit(1);
+    throw error;
   }
 
   context?.provider.close();
   context?.mirrorClient.close();
-  console.log('\r::endgroup::');
+  console.log('\r::endgroup::                                                ');
   await sleep(1000); // wait for all logs to be printed
   process.exit(0);
 }
