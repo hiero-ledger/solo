@@ -177,6 +177,8 @@ function subscribeToTopic(context) {
         // ERROR: Error: 14 UNAVAILABLE: Received HTTP status code 504
         if (!'Error: 14'.includes(error.toString())) {
           context.topicSubscriptionResponseReceived = true;
+          // Start gRPC subscription in a separate process for debugging purposes
+          startGrpcSubscription(context.topicIdString.toString());
         }
       }
     },
