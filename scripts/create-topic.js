@@ -293,6 +293,8 @@ function validateTestWasSuccessful(context, retry) {
     console.error(`❌ ERROR: Message received from subscription but not match: ${context.subscriptionReceivedContent}`);
     context.somethingWrong = true;
   }
+
+  console.log('✅ Test completed successfully.');
 }
 
 async function main() {
@@ -339,12 +341,13 @@ async function main() {
     }
   } catch (error) {
     console.error(`❌ ERROR: ${error}`, error);
-    throw error;
+    await sleep(1000); // wait for all logs to be printed
+    process.exit(1);
   }
 
   context?.provider.close();
   context?.mirrorClient.close();
-  console.log('\r::endgroup::\n');
+  console.log('\r::endgroup::');
   await sleep(1000); // wait for all logs to be printed
   process.exit(0);
 }
