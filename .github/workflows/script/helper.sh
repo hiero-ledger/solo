@@ -69,6 +69,8 @@ function log_and_exit()
   printf "\r::group::Mirror Importer log dump\n"
   echo "------- BEGIN MIRROR IMPORTER DUMP -------"
   kubectl get pods -n "${SOLO_NAMESPACE}" --output=name | grep importer | xargs -IIMPORTER kubectl logs -n "${SOLO_NAMESPACE}" IMPORTER > importer.log || true
+  kubectl get pods -n "${SOLO_NAMESPACE}" --output=name | grep importer | xargs -IIMPORTER kubectl logs -n "${SOLO_NAMESPACE}" IMPORTER --previous > importer-prev.log || true
+  echo "------- END MIRROR IMPORTER DUMP ------- (see 'Upload Logs to GitHub' step for download link)"
   echo "------- END MIRROR IMPORTER DUMP ------- (see 'Upload Logs to GitHub' step for download link)"
   printf "\r::endgroup::\n"
 
@@ -91,7 +93,10 @@ function log_and_exit()
   printf "\r::endgroup::\n"
 
   cp relay.log rest.log importer.log port-forward.log grpc.log monitor.log "$HOME"/.solo/logs/ || true
-  if [ -f block-node-prev.log ]; then
+  if [ -f importer-prev.log ]; then
+    cp importer-prev.log "$HOME"/.solo/logs/ || true
+  fi
+   if [ -f block-node-prev.log ]; then
     cp block-node-prev.log "$HOME"/.solo/logs/ || true
   fi
   if [ -f block-node.log ]; then
