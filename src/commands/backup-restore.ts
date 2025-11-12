@@ -46,6 +46,7 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {type DefaultKindClientBuilder} from '../integration/kind/impl/default-kind-client-builder.js';
 import {KindClient} from '../integration/kind/kind-client.js';
 import {type ClusterCreateResponse} from '../integration/kind/model/create-cluster/cluster-create-response.js';
+import {ShellRunner} from '../core/shell-runner.js';
 
 @injectable()
 export class BackupRestoreCommand extends BaseCommand {
@@ -554,7 +555,7 @@ export class BackupRestoreCommand extends BaseCommand {
               task.title = 'Freeze network: completed';
             } catch (error: any) {
               // Network is not running or already frozen, which is fine for restore
-              this.logger.debug(`Network freeze skipped: ${error.message}`);
+              this.logger.info(`Network freeze skipped: ${error.message}`);
               task.title = 'Freeze network: skipped (network not running)';
             }
           },
@@ -743,9 +744,14 @@ export class BackupRestoreCommand extends BaseCommand {
                 CommandHelpers.optionFromFlag(flags.deployment),
                 context_.deployment,
                 CommandHelpers.optionFromFlag(flags.persistentVolumeClaims),
-                CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
-                context_.nodeAliases,
               );
+              
+              // Enable load balancer if multiple clusters are detected
+              if (context_.clusters && context_.clusters.length > 1) {
+                argv.push(CommandHelpers.optionFromFlag(flags.loadBalancerEnabled));
+                self.logger.info(`Multiple clusters detected (${context_.clusters.length}), enabling load balancer`);
+              }
+              
               if (context_.versions?.consensusNode) {
                 argv.push(CommandHelpers.optionFromFlag(flags.releaseTag), context_.versions.consensusNode.toString());
               }
@@ -1099,16 +1105,52 @@ export class BackupRestoreCommand extends BaseCommand {
           },
         },
         {
+          title: 'Delete existing clusters',
+          task: async (context_, task) => {
+            for (const cluster of context_.clusters) {
+              const kindExecutable: string = await self.depManager.getExecutablePath(constants.KIND);
+              const kindClient: KindClient = await self.kindBuilder.executable(kindExecutable).build();
+              await kindClient.deleteCluster(cluster.name);
+            }
+            task.title = 'Deleted existing clusters: completed';
+          },
+        },
+        {
           title: 'Create Kind clusters',
           task: async (context_, taskListWrapper) => {
             if (!context_.clusters || context_.clusters.length === 0) {
               throw new SoloError('No cluster information found in configuration');
             }
 
+            // Create Docker network for multi-cluster setup
+            if (context_.clusters.length > 1) {
+              self.logger.info(`Multiple clusters detected (${context_.clusters.length}), creating Kind Docker network...`);
+              try {
+                const shellRunner = new ShellRunner(self.logger);
+                await shellRunner.run(
+                  'docker network rm -f kind || true && docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge',
+                );
+                
+                // Add MetalLB Helm repository for multi-cluster load balancing
+                self.logger.info('Adding MetalLB Helm repository...');
+                await shellRunner.run('helm repo add metallb https://metallb.github.io/metallb');
+                await shellRunner.run('helm repo update');
+              } catch (error: any) {
+                // Network might already exist, which is fine
+                if (error.message && error.message.includes('already exists')) {
+                  self.logger.info('Kind Docker network already exists, continuing...');
+                } else {
+                  throw new SoloError(`Failed to create Kind Docker network or add MetalLB repo: ${error.message}`, error);
+                }
+              }
+            }
+
             const clusterTasks: any[] = [];
+            const isMultiCluster = context_.clusters.length > 1;
 
             // Create a task for each cluster
-            for (const cluster of context_.clusters) {
+            for (let clusterIndex = 0; clusterIndex < context_.clusters.length; clusterIndex++) {
+              const cluster = context_.clusters[clusterIndex];
               // Strip 'kind-' prefix if present, since Kind will add it automatically
               const clusterNameForCreation = cluster.name.startsWith('kind-') ? cluster.name.slice(5) : cluster.name;
 
@@ -1121,7 +1163,7 @@ export class BackupRestoreCommand extends BaseCommand {
                   task.title = `Created cluster '${clusterResponse.name}' with context '${clusterResponse.context}'`;
 
                   // Wait for cluster control plane to be ready by checking API server
-                  self.logger.debug(`Waiting for cluster '${clusterResponse.context}' control plane to be ready...`);
+                  self.logger.info(`Waiting for cluster '${clusterResponse.context}' control plane to be ready...`);
                   const maxAttempts = 60; // 60 attempts * 2 seconds = 120 seconds max
                   let attempt = 0;
                   let clusterReady = false;
@@ -1132,7 +1174,7 @@ export class BackupRestoreCommand extends BaseCommand {
                       // Try to list namespaces as a simple API readiness check
                       await k8.namespaces().list();
                       clusterReady = true;
-                      self.logger.debug(
+                      self.logger.info(
                         `Cluster '${clusterResponse.context}' is ready after ${(attempt + 1) * 2} seconds`,
                       );
                       task.title = `Created cluster '${clusterResponse.name}' (ready in ${(attempt + 1) * 2}s)`;
@@ -1149,9 +1191,29 @@ export class BackupRestoreCommand extends BaseCommand {
                   }
 
                   // Set the current kubectl context to the newly created cluster
-                  self.logger.debug(`Setting current context to '${clusterResponse.context}'`);
+                  self.logger.info(`Setting current context to '${clusterResponse.context}'`);
                   const k8 = self.k8Factory.getK8(clusterResponse.context);
                   k8.contexts().updateCurrent(clusterResponse.context);
+
+                  // Install MetalLB for multi-cluster setups
+                  if (isMultiCluster) {
+                    self.logger.info(`Installing MetalLB on cluster '${clusterResponse.context}'...`);
+                    const shellRunner = new ShellRunner(self.logger);
+                    
+                    // Install MetalLB using Helm
+                    await shellRunner.run(
+                      'helm upgrade --install metallb metallb/metallb ' +
+                      '--namespace metallb-system --create-namespace --atomic --wait ' +
+                      '--set speaker.frr.enabled=true',
+                    );
+                    
+                    // Apply cluster-specific MetalLB configuration
+                    const metallbConfigPath = `test/e2e/dual-cluster/metallb-cluster-${clusterIndex + 1}.yaml`;
+                    self.logger.info(`Applying MetalLB config from '${metallbConfigPath}'...`);
+                    await shellRunner.run(`kubectl apply -f "${metallbConfigPath}"`);
+                    
+                    task.title = `Created cluster '${clusterResponse.name}' with MetalLB`;
+                  }
                 },
               });
             }
@@ -1166,6 +1228,7 @@ export class BackupRestoreCommand extends BaseCommand {
           title: 'Initialize cluster configurations',
           task: async (context_, taskListWrapper) => {
             const initTasks: any[] = [];
+            const createdDeployments: Set<string> = new Set(); // Track deployments already created
 
             // For each cluster, run the initialization commands
             for (const cluster of context_.clusters!) {
@@ -1178,8 +1241,13 @@ export class BackupRestoreCommand extends BaseCommand {
               const namespace = cluster.namespace;
               const deployment = cluster.deployment;
 
-              self.logger.debug(
-                `Initializing cluster: clusterForKind='${clusterNameWithoutPrefix}', clusterRef='${clusterReference}', kubectlContext='${contextName}'`,
+              // Count consensus nodes belonging to this specific cluster
+              const clusterConsensusNodeCount = context_.deploymentState!.consensusNodes.filter(
+                node => node.metadata.cluster === clusterNameWithoutPrefix,
+              ).length;
+
+              self.logger.info(
+                `Initializing cluster: clusterForKind='${clusterNameWithoutPrefix}', clusterRef='${clusterReference}', kubectlContext='${contextName}', consensusNodes=${clusterConsensusNodeCount}`,
               );
 
               initTasks.push(
@@ -1190,6 +1258,23 @@ export class BackupRestoreCommand extends BaseCommand {
                   (): string[] => {
                     const argv: string[] = CommandHelpers.newArgv();
                     argv.push('init');
+                    return argv;
+                  },
+                  self.taskList,
+                ),
+                // IMPORTANT: Connect BEFORE Setup so the mapping exists when setup looks it up
+                invokeSoloCommand(
+                  `Connect to cluster '${contextName}'`,
+                  ClusterReferenceCommandDefinition.CONNECT_COMMAND,
+                  (): string[] => {
+                    const argv: string[] = CommandHelpers.newArgv();
+                    argv.push(
+                      ...ClusterReferenceCommandDefinition.CONNECT_COMMAND.split(' '),
+                      optionFromFlag(flags.clusterRef),
+                      clusterReference,
+                      optionFromFlag(flags.context),
+                      contextName,
+                    );
                     return argv;
                   },
                   self.taskList,
@@ -1208,40 +1293,34 @@ export class BackupRestoreCommand extends BaseCommand {
                   },
                   self.taskList,
                 ),
+              );
+
+              // Only create deployment if not already created (multiple clusters may share the same deployment)
+              if (!createdDeployments.has(deployment)) {
+                initTasks.push(
+                  invokeSoloCommand(
+                    `Create deployment '${deployment}'`,
+                    DeploymentCommandDefinition.CREATE_COMMAND,
+                    (): string[] => {
+                      const argv: string[] = CommandHelpers.newArgv();
+                      argv.push(
+                        ...DeploymentCommandDefinition.CREATE_COMMAND.split(' '),
+                        optionFromFlag(flags.deployment),
+                        deployment,
+                        optionFromFlag(flags.namespace),
+                        namespace,
+                      );
+                      return argv;
+                    },
+                    self.taskList,
+                  ),
+                );
+                createdDeployments.add(deployment);
+              }
+
+              initTasks.push(
                 invokeSoloCommand(
-                  `Connect to cluster '${contextName}'`,
-                  ClusterReferenceCommandDefinition.CONNECT_COMMAND,
-                  (): string[] => {
-                    const argv: string[] = CommandHelpers.newArgv();
-                    argv.push(
-                      ...ClusterReferenceCommandDefinition.CONNECT_COMMAND.split(' '),
-                      optionFromFlag(flags.clusterRef),
-                      clusterReference,
-                      optionFromFlag(flags.context),
-                      contextName,
-                    );
-                    return argv;
-                  },
-                  self.taskList,
-                ),
-                invokeSoloCommand(
-                  `Create deployment '${deployment}'`,
-                  DeploymentCommandDefinition.CREATE_COMMAND,
-                  (): string[] => {
-                    const argv: string[] = CommandHelpers.newArgv();
-                    argv.push(
-                      ...DeploymentCommandDefinition.CREATE_COMMAND.split(' '),
-                      optionFromFlag(flags.deployment),
-                      deployment,
-                      optionFromFlag(flags.namespace),
-                      namespace,
-                    );
-                    return argv;
-                  },
-                  self.taskList,
-                ),
-                invokeSoloCommand(
-                  `Attach cluster '${clusterReference}' to deployment '${deployment}'`,
+                  `Attach cluster '${clusterReference}' to deployment '${deployment}' with ${clusterConsensusNodeCount} consensus nodes`,
                   DeploymentCommandDefinition.ATTACH_COMMAND,
                   (): string[] => {
                     const argv: string[] = CommandHelpers.newArgv();
@@ -1252,7 +1331,7 @@ export class BackupRestoreCommand extends BaseCommand {
                       optionFromFlag(flags.deployment),
                       deployment,
                       optionFromFlag(flags.numberOfConsensusNodes),
-                      context_.numConsensusNodes!.toString(),
+                      clusterConsensusNodeCount.toString(),
                     );
                     return argv;
                   },
