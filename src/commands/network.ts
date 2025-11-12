@@ -457,7 +457,7 @@ export class NetworkCommand extends BaseCommand {
     }
 
     // add debug options to the debug node
-    config.consensusNodes.filter((consensusNode): void => {
+    config.consensusNodes.filter(consensusNode => {
       if (consensusNode.name === config.debugNodeAlias) {
         valuesArguments[consensusNode.cluster] = addDebugOptions(
           valuesArguments[consensusNode.cluster],
@@ -1115,26 +1115,18 @@ export class NetworkCommand extends BaseCommand {
           title: 'Install monitoring CRDs',
           skip: ({config: {enableMonitoringSupport}}): boolean => !enableMonitoringSupport,
           task: (_, task): SoloListr<NetworkDeployContext> => {
-            return task.newListr(
-              [
-                {
-                  title: 'Pod Logs',
-                  task: async ({config}): Promise<void> => {
-                    await this.ensurePodLogsCrd(config);
-                  },
-                },
-                {
-                  title: 'Prometheus Operator CRDs',
-                  task: async ({config}): Promise<void> => {
-                    await this.ensurePromOpCrds(config);
-                  },
-                },
-              ],
+            const tasks: SoloListrTask<NetworkDeployContext>[] = [
               {
-                concurrent: false,
-                rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+                title: 'Pod Logs CRDs',
+                task: async ({config}): Promise<void> => await this.ensurePodLogsCrd(config),
               },
-            );
+              {
+                title: 'Prometheus Operator CRDs',
+                task: async ({config}): Promise<void> => await this.ensurePromOpCrds(config),
+              },
+            ];
+
+            return task.newListr(tasks, {concurrent: false, rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION});
           },
         },
         {
@@ -1465,7 +1457,6 @@ export class NetworkCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        console.error(error);
         throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
       } finally {
         if (lease) {

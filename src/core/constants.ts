@@ -142,9 +142,9 @@ export const NETWORK_LOAD_GENERATOR_POD_LABELS: string[] = [
   'app.kubernetes.io/name=network-load-generator',
 ];
 
-export const PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME = 'prometheus-operator-crds';
-export const PROMETHEUS_OPERATOR_CRDS_CHART = 'prometheus-operator-crds';
-export const PROMETHEUS_OPERATOR_CRDS_REPO = 'prometheus-community';
+export const PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME: string = 'prometheus-operator-crds';
+export const PROMETHEUS_OPERATOR_CRDS_CHART: string = 'prometheus-operator-crds';
+export const PROMETHEUS_OPERATOR_CRDS_REPO: string = 'prometheus-community';
 
 export const NETWORK_LOAD_GENERATOR_CONTAINER: ContainerName = ContainerName.of('nlg');
 
