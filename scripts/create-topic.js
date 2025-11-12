@@ -260,12 +260,14 @@ async function queryMirrorNodeApiForTopicMessage(context) {
       console.log(`problem with request, message = : ${e.message}  cause = : ${e.cause}`);
     });
     req.end(); // make the request
+
     // Start gRPC subscription in a separate process for debugging purposes
     startGrpcSubscription(context.topicIdString.toString());
 
     // wait and try again
     // send a create account transaction to push record stream files to mirror node
     await accountCreate(context.wallet);
+
     await sleep(RETRY_DELAY_MS); // wait for consensus on write transactions and mirror node to sync
     retry++;
   }
@@ -326,6 +328,10 @@ async function main() {
       console.log(
         `Waiting for subscription to receive message... (${((Date.now() - context.subscribeTopicStart) / 1000).toFixed(2)}s elapsed)`,
       );
+
+      // Start gRPC subscription in a separate process for debugging purposes
+      startGrpcSubscription(context.topicIdString.toString());
+
       // send a create account transaction to push record stream files to mirror node
       await accountCreate(context.wallet);
 
