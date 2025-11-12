@@ -395,7 +395,7 @@ export class NetworkCommand extends BaseCommand {
     // prepare values files for each cluster
     const valuesArgumentMap: Record<ClusterReferenceName, string> = {};
     const profileName: string = this.configManager.getFlag(flags.profileName);
-    const deploymentName: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+    const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
     const applicationPropertiesPath: string = PathEx.joinWithRealPath(
       config.cacheDir,
       'templates',
@@ -666,6 +666,12 @@ export class NetworkCommand extends BaseCommand {
         this.logger.debug(
           'Skipping cluster-level block-nodes.json generation - using node-specific files from blockNodeConfiguration',
         );
+      }
+    }
+
+    if (config.enableMonitoringSupport) {
+      for (const clusterReference of clusterReferences) {
+        valuesArguments[clusterReference] += ' --set "crs.podLog.enabled=true" --set "crs.serviceMonitor.enabled=true"';
       }
     }
 
@@ -977,7 +983,7 @@ export class NetworkCommand extends BaseCommand {
    * If all CRDs are already present or monitoring support is disabled, skip installation.
    */
   /** Ensure Prometheus Operator CRDs are present; install missing ones via the chart */
-  private async ensurePromOpCrds(config: NetworkDeployConfigClass): Promise<void> {
+  private async ensurePromOpCrds({clusterRefs, namespace}: NetworkDeployConfigClass): Promise<void> {
     const CRDS: {key: string; crd: string}[] = [
       {key: 'alertmanagerconfigs', crd: 'alertmanagerconfigs.monitoring.coreos.com'},
       {key: 'alertmanagers', crd: 'alertmanagers.monitoring.coreos.com'},
@@ -991,7 +997,7 @@ export class NetworkCommand extends BaseCommand {
       {key: 'thanosrulers', crd: 'thanosrulers.monitoring.coreos.com'},
     ];
 
-    for (const [_, context] of config.clusterRefs) {
+    for (const [_, context] of clusterRefs) {
       let valuesArgument: string = '';
       let missingCount: number = 0;
 
@@ -1009,24 +1015,21 @@ export class NetworkCommand extends BaseCommand {
         continue;
       }
 
-      const namespace: NamespaceName = config.namespace;
+      await this.chartManager.install(
+        namespace,
+        constants.PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME,
+        constants.PROMETHEUS_OPERATOR_CRDS_CHART,
+        constants.PROMETHEUS_OPERATOR_CRDS_REPO,
+        versions.PROMETHEUS_OPERATOR_CRDS_VERSION,
+        valuesArgument,
+        context,
+      );
 
-      try {
-        await this.chartManager.install(
-          namespace,
-          constants.PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME,
-          constants.PROMETHEUS_OPERATOR_CRDS_CHART,
-          constants.PROMETHEUS_OPERATOR_CRDS_REPO,
-          versions.PROMETHEUS_OPERATOR_CRDS_VERSION,
-          valuesArgument,
-          context,
-        );
-        this.logger.info(
-          `Installed/updated ${constants.PROMETHEUS_OPERATOR_CRDS_CHART} in context ${context} with ${missingCount} missing CRDs.`,
-        );
-      } catch (error) {
-        throw new SoloError(`failed to install chart ${constants.PROMETHEUS_OPERATOR_CRDS_CHART}`, error);
-      }
+      showVersionBanner(
+        this.logger,
+        constants.PROMETHEUS_OPERATOR_CRDS_CHART,
+        versions.PROMETHEUS_OPERATOR_CRDS_VERSION,
+      );
     }
   }
 
