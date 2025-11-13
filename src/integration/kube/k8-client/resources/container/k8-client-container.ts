@@ -15,6 +15,7 @@ import {type Pods} from '../../../resources/pod/pods.js';
 import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
 import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {spawn} from 'node:child_process';
+import {type Context} from '../../../../../types/index.js';
 
 export class K8ClientContainer implements Container {
   private readonly logger: SoloLogger;
@@ -27,7 +28,13 @@ export class K8ClientContainer implements Container {
     this.logger = container.resolve(InjectTokens.SoloLogger);
   }
 
-  private execKubectl(arguments_: string[]): Promise<string> {
+  private async getContext(): Promise<Context> {
+    return this.kubeConfig.getCurrentContext();
+  }
+
+  private async execKubectl(arguments_: string[]): Promise<string> {
+    arguments_ = ['--context', await this.getContext(), ...arguments_];
+
     return new Promise((resolve, reject): void => {
       // eslint-disable-next-line @typescript-eslint/typedef
       const proc = spawn('kubectl', arguments_, {stdio: ['ignore', 'pipe', 'pipe']});
