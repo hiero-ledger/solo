@@ -230,6 +230,10 @@ describe('NetworkCommand unit tests', (): void => {
         options.remoteConfig.updateComponentVersion = sinon.stub();
         // @ts-expect-error - TS2341: to mock
         networkCommand.getBlockNodes = sinon.stub().returns([]);
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.ensurePodLogsCrd = sinon.stub().returns(true);
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.ensurePromOpCrds = sinon.stub().returns(true);
 
         // @ts-expect-error - TS2341: to mock
         networkCommand.componentFactory = {
@@ -260,6 +264,10 @@ describe('NetworkCommand unit tests', (): void => {
         const stubbedClusterReferences: ClusterReferences = new Map([['solo-e2e', 'context1']]);
         options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
 
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.ensurePodLogsCrd = sinon.stub().returns(true);
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.ensurePromOpCrds = sinon.stub().returns(true);
         // @ts-expect-error - TS2341: to mock
         networkCommand.getBlockNodes = sinon.stub().returns([]);
 
