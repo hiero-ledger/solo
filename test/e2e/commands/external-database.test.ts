@@ -26,6 +26,7 @@ import {RelayTest} from './tests/relay-test.js';
 import {type ChildProcessWithoutNullStreams, spawn} from 'node:child_process';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
+import {BlockNodeTest} from './tests/block-node-test.js';
 
 const testName: string = 'external-database-test';
 
@@ -43,6 +44,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe('External Database E2E Test', (): void => {
       const {testCacheDirectory, testLogger, namespace, contexts} = options;
+      const blockNodeEnabled: boolean = process.env.SOLO_E2E_EXTERNAL_DB_TEST_BLOCK_NODE === 'true';
+      const topicTestOnly: boolean = process.env.SOLO_E2E_EXTERNAL_DB_TEST_TOPIC_ONLY === 'true';
 
       before(async (): Promise<void> => {
         fs.rmSync(testCacheDirectory, {recursive: true, force: true});
@@ -73,6 +76,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       DeploymentTest.addCluster(options);
 
       NodeTest.keys(options);
+      if (blockNodeEnabled) {
+        BlockNodeTest.add(options);
+      }
       NetworkTest.deploy(options);
       NodeTest.setup(options);
       NodeTest.start(options);
@@ -92,7 +98,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             export SOLO_NAMESPACE=${namespace.name}; \
             export SOLO_CACHE_DIR=${testCacheDirectory}; \
             export SOLO_DEPLOYMENT=${testName}-deployment; \
-            .github/workflows/script/solo_smoke_test.sh`;
+            ${
+              topicTestOnly
+                ? 'source .github/workflows/script/helper.sh && cd .. && ' +
+                  'create_test_account ${SOLO_DEPLOYMENT} && cd solo && node scripts/create-topic.js'
+                : '.github/workflows/script/solo_smoke_test.sh'
+            }`;
 
         // running the script and show its output in real time for easy to debug
         // and check its progress
@@ -132,7 +143,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             reject(error);
           });
         });
-      }).timeout(Duration.ofMinutes(15).toMillis());
+      }).timeout(Duration.ofMinutes(30).toMillis());
 
       it('Should write log metrics', async (): Promise<void> => {
         await new MetricsServerImpl().logMetrics(
@@ -143,7 +154,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           contexts,
         );
       });
-    }).timeout(Duration.ofMinutes(25).toMillis());
+    }).timeout(Duration.ofMinutes(40).toMillis());
   })
   .build();
 

@@ -7,7 +7,7 @@ import {testSeparateNodeAdd} from './separate-node-add.test.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
-import {endToEndTestSuite, getTestCluster} from '../../test-utility.js';
+import {destroyEnabled, endToEndTestSuite, getTestCluster} from '../../test-utility.js';
 import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../../../version-test.js';
 import {container} from 'tsyringe-neo';
 import {type NetworkNodes} from '../../../src/core/network-nodes.js';
@@ -59,15 +59,17 @@ describe('Node add with hedera local build', (): void => {
       await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
       await accountManager.close();
 
-      await commandInvoker.invoke({
-        argv: argv,
-        command: ConsensusCommandDefinition.COMMAND_NAME,
-        subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-        action: ConsensusCommandDefinition.NETWORK_DESTROY,
-        callback: async (argv): Promise<boolean> => networkCmd.destroy(argv),
-      });
+      if (destroyEnabled()) {
+        await commandInvoker.invoke({
+          argv: argv,
+          command: ConsensusCommandDefinition.COMMAND_NAME,
+          subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+          action: ConsensusCommandDefinition.NETWORK_DESTROY,
+          callback: async (argv): Promise<boolean> => networkCmd.destroy(argv),
+        });
 
-      await k8Factory.default().namespaces().delete(namespace);
+        await k8Factory.default().namespaces().delete(namespace);
+      }
     });
 
     it('Should create and update a file', async (): Promise<void> => {
