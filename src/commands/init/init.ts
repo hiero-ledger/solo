@@ -8,7 +8,12 @@ import {Flags as flags} from '../flags.js';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
-import {type CommandDefinition, type InitDependenciesOptions, type SoloListrTask} from '../../types/index.js';
+import {
+  type CommandDefinition,
+  type InitDependenciesOptions,
+  PodmanMode,
+  type SoloListrTask,
+} from '../../types/index.js';
 import {InitConfig} from './init-config.js';
 import {InitContext} from './init-context.js';
 import {Listr, ListrRendererValue} from 'listr2';
@@ -20,8 +25,8 @@ import {ClusterCreateResponse} from '../../integration/kind/model/create-cluster
 import {K8} from '../../integration/kube/k8.js';
 import {MissingActiveContextError} from '../../integration/kube/errors/missing-active-context-error.js';
 import {MissingActiveClusterError} from '../../integration/kube/errors/missing-active-cluster-error.js';
-import {type DependencyManagerType} from '../../core/dependency-managers/dependency-manager.js';
 import path from 'node:path';
+import {PodmanDependencyManager} from '../../core/dependency-managers/index.js';
 
 /**
  * Defines the core functionalities of 'init' command
@@ -108,7 +113,7 @@ export class InitCommand extends BaseCommand {
             self.logger.showUser(
               chalk.grey(
                 `Note: solo stores various artifacts (config, logs, keys etc.) in its home directory: ${constants.SOLO_HOME_DIR}\n` +
-                "If a full reset is needed, delete the directory or relevant sub-directories before running 'solo init'.",
+                  "If a full reset is needed, delete the directory or relevant sub-directories before running 'solo init'.",
               ),
             );
             self.logger.showUser(
@@ -127,14 +132,15 @@ export class InitCommand extends BaseCommand {
       {
         title: 'Install Kind',
         task: async (_, task) => {
-          const podmanDependency: DependencyManagerType = await self.depManager.getDependency(constants.PODMAN);
+          const podmanDependency: PodmanDependencyManager = (await self.depManager.getDependency(
+            constants.PODMAN,
+          )) as PodmanDependencyManager;
           const shouldInstallPodman: boolean = await podmanDependency.shouldInstall();
 
-          // const podmanDependencies: string[] = shouldInstallPodman
-          //   ? [constants.PODMAN, constants.VFKIT, constants.GVPROXY]
-          //   : [];
-
-          const podmanDependencies: string[] = [];
+          const podmanDependencies: string[] =
+            shouldInstallPodman && podmanDependency.mode === PodmanMode.VIRTUAL_MACHINE
+              ? [constants.PODMAN, constants.VFKIT, constants.GVPROXY]
+              : [];
 
           const deps: string[] = [...podmanDependencies, constants.KIND];
 
@@ -155,101 +161,102 @@ export class InitCommand extends BaseCommand {
         task: async (_, task) => {
           const subTasks: SoloListrTask<InitContext>[] = [];
 
-          const podmanDependency: DependencyManagerType = await self.depManager.getDependency(constants.PODMAN);
+          const podmanDependency: PodmanDependencyManager = (await self.depManager.getDependency(
+            constants.PODMAN,
+          )) as PodmanDependencyManager;
           const skipPodmanTasks: boolean = !(await podmanDependency.shouldInstall());
 
-          subTasks.push(
+          if (podmanDependency.mode === PodmanMode.ROOTFUL) {
             {
-              title: 'Install podman...',
-              task: async () => {
-
-                try {
-                  const gitVersion = await this.run('git version');
-                  // throw('Test git installation');
-                }
-                catch(error)
+              subTasks.push(
                 {
-                  this.logger.info('Git not found, installing git...');
-                  await this.run('sudo apt-get update');
-                  await this.run('sudo apt-get install git');
-                }
+                  title: 'Install podman...',
+                  task: async () => {
+                    try {
+                      await this.run('git version');
+                    } catch {
+                      this.logger.info('Git not found, installing git...');
+                      await this.run('sudo apt-get update');
+                      await this.run('sudo apt-get install git');
+                    }
 
+                    try {
+                      await this.run('brew doctor');
+                    } catch {
+                      this.logger.info('Homebrew not found, installing Homebrew...');
+                      await this.run(
+                        'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"',
+                      );
+                      await this.run('eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"');
+                      await this.run('brew doctor');
+                    }
 
-                try {
-                  const brewInstalled = await this.run('brew doctor');
-                  // throw('Test homebrew installation');
-                }
-                catch(error) {
-                  this.logger.info('Homebrew not found, installing Homebrew...');
-                  await this.run('NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"');
-                  await this.run('eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"');
-                  const brewInstalled = await this.run('brew doctor');
-                }
+                    try {
+                      const podmanVersion = await this.run('podman --version');
+                      this.logger.info(`Podman already installed: ${podmanVersion}`);
+                    } catch {
+                      this.logger.info('Podman not found, installing Podman...');
+                      await this.run('brew install podman');
 
-                try {
-                  const podmanVersion = await this.run('podman --version');
-                  this.logger.info(`Podman already installed: ${podmanVersion}`);
-                  // throw('Test podman installation');
-                }
-                catch (error) {
-                  this.logger.info('Podman not found, installing Podman...');
-                  await this.run('brew install podman');
+                      const brewBin = await this.run('which podman');
+                      process.env.PATH = `process.env.PATH:${brewBin.join('').replace('/podman', '')}`;
+                    }
+                  },
+                } as SoloListrTask<InitContext>,
+                {
+                  title: 'Creating local cluster...',
+                  task: async context_ => {
+                    await this.run(
+                      `sudo KIND_EXPERIMENTAL_PROVIDER=podman PATH=$PATH:/home/linuxbrew/.linuxbrew/bin/podman kind create cluster`,
+                    );
 
-                  const brewBin = await this.run('which podman');
-                  process.env.PATH = `process.env.PATH:${brewBin.join('').replace('/podman', '')}`;
-                }
+                    const user: string[] = await this.run(`whoami`);
 
-                // switch to root user and add podman to PATH
-              },
-              skip: true,
-            } as SoloListrTask<InitContext>,
-            // {
-            //   title: 'Create Podman machine...',
-            //   task: async () => {
-            //     await podmanDependency.setupConfig();
-            //     const podmanExecutable: string = await self.depManager.getExecutablePath(constants.PODMAN);
-            //     await this.run(`${podmanExecutable} machine init --memory=16384`); // 16GB
-            //     await this.run(`${podmanExecutable} machine start`);
-            //   },
-            //   skip: (): boolean => skipPodmanTasks,
-            // } as SoloListrTask<InitContext>,
+                    // TODO merge with existing config file
+                    await this.run(`sudo cp /root/.kube/config /home/${user}/.kube/config`);
+                    await this.run(`sudo chown ${user} /home/${user}/.kube/config`);
+                    await this.run(`sudo chmod 755 /home/${user}/.kube/config`);
+                  },
+                } as SoloListrTask<InitContext>,
+              );
+            }
+          } else if (podmanDependency.mode === PodmanMode.VIRTUAL_MACHINE) {
             {
-              title: 'Configure kind to use podman...',
-              task: async () => {
-                // process.env.PATH = `${this.podmanInstallationDirectory}${path.delimiter}${process.env.PATH}`;
-                process.env.KIND_EXPERIMENTAL_PROVIDER = 'podman';
-              },
-              skip: (): boolean => skipPodmanTasks,
-            } as SoloListrTask<InitContext>,
-            {
-              title: 'Creating local cluster...',
-              task: async context_ => {
-                // const kindExecutable: string = await self.depManager.getExecutablePath(constants.KIND);
-                // const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
-                // const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
-                //   constants.DEFAULT_CLUSTER,
-                // );
+              subTasks.push(
+                {
+                  title: 'Create Podman machine...',
+                  task: async () => {
+                    await podmanDependency.setupConfig();
+                    const podmanExecutable: string = await self.depManager.getExecutablePath(constants.PODMAN);
+                    await this.run(`${podmanExecutable} machine init --memory=16384`); // 16GB
+                    await this.run(`${podmanExecutable} machine start`);
+                  },
+                  skip: (): boolean => skipPodmanTasks,
+                } as SoloListrTask<InitContext>,
+                {
+                  title: 'Configure kind to use podman...',
+                  task: async () => {
+                    process.env.PATH = `${this.podmanInstallationDirectory}${path.delimiter}${process.env.PATH}`;
+                    process.env.KIND_EXPERIMENTAL_PROVIDER = 'podman';
+                  },
+                  skip: (): boolean => skipPodmanTasks,
+                } as SoloListrTask<InitContext>,
+                {
+                  title: 'Creating local cluster...',
+                  task: async context_ => {
+                    const kindExecutable: string = await self.depManager.getExecutablePath(constants.KIND);
+                    const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
+                    const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
+                      constants.DEFAULT_CLUSTER,
+                    );
 
-                // const kindCreateCluster = await this.run(`sudo KIND_EXPERIMENTAL_PROVIDER=podman kind create cluster`);
-                // const sudoWhoami = await this.run(`sudo whoami`);
-                // task.title += ` | sudo whoami: ${sudoWhoami}`;
-                const kindCreateCluster = await this.run(`sudo KIND_EXPERIMENTAL_PROVIDER=podman PATH=$PATH:/home/linuxbrew/.linuxbrew/bin/podman kind create cluster`);
-
-                const user = await this.run(`whoami`);
-
-                // TODO merge with existing config file
-                await this.run(`sudo cp /root/.kube/config /home/${user}/.kube/config`)
-                await this.run(`sudo chown ${user} /home/${user}/.kube/config`);
-                await this.run(`sudo chmod 755 /home/${user}/.kube/config`);
-
-                this.logger.showUser(kindCreateCluster);
-
-
-                // task.title = `Created local cluster '${clusterResponse.name}'; connect with context '${clusterResponse.context}'`;
-                // task.title = `Created local cluster`;
-              },
-            } as SoloListrTask<InitContext>,
-          );
+                    task.title = `Created local cluster '${clusterResponse.name}'; connect with context '${clusterResponse.context}'`;
+                    task.title = `Created local cluster`;
+                  },
+                } as SoloListrTask<InitContext>,
+              );
+            }
+          }
 
           return task.newListr(subTasks, {
             concurrent: false, // should not use concurrent as cluster creation may be called before dependencies are finished installing
