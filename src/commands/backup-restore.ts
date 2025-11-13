@@ -226,6 +226,15 @@ export class BackupRestoreCommand extends BaseCommand {
     const clusterRefs: ClusterReferences = this.remoteConfig.getClusterRefs();
     const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
 
+    // Note: Network should be frozen before backup
+    // Run: solo consensus network freeze --deployment <deployment-name>
+    this.logger.showUser(
+      chalk.yellow(
+        '\n⚠️  Recommendation: Freeze the network before backup for data consistency.\n' +
+          `   Run: solo consensus network freeze --deployment ${this.configManager.getFlag(flags.deployment)}\n`,
+      ),
+    );
+
     const tasks = new Listr<BackupContext>(
       [
         {

@@ -13,18 +13,20 @@ vars:
   # Network Configuration
   NETWORK_SIZE: "2"
   NODE_ALIASES: "node1,node2"
-  DEPLOYMENT: "backup-restore-deployment"
-  NAMESPACE: "backup-restore-namespace"
-
-  # Cluster Configuration
+  DEPLOYMENT: "external-database-test-deployment"
+  NAMESPACE: "external-database-test"
   CLUSTER_NAME: "backup-restore-cluster"
-  CONTEXT: "kind-backup-restore-cluster"
-  CLUSTER_REF: "kind-backup-restore-cluster"
-
-  # Backup/Restore Configuration
   BACKUP_DIR: "{{ .USER_WORKING_DIR }}/solo-backup"
-
   SOLO_USER_DIR: "{{ default (printf \"%s/.solo\" (env \"HOME\")) }}"
+
+  POSTGRES_USERNAME: "postgres"
+  POSTGRES_PASSWORD: "XXXXXXX"
+  POSTGRES_MIRROR_NODE_DATABASE_NAME: "mirror_node"
+  POSTGRES_NAME: "my-postgresql"
+  POSTGRES_DATABASE_NAMESPACE: "database"
+  POSTGRES_CONTAINER_NAME: "{{ .POSTGRES_NAME }}-0"
+  # POSTGRES_HOST_FQDN: "my-postgresql.database.svc.cluster.local"
+
 
 tasks:
   # ==================== Main Workflow Tasks ====================
@@ -32,72 +34,12 @@ tasks:
   default:
     desc: Run complete backup/restore workflow - deploy, backup, destroy, restore, and verify
     cmds:
-      - task: setup
-      - cmd: echo ""
-      - cmd: echo "⏳ Waiting 30 seconds for network to stabilize..."
-      - cmd: sleep 30
+      # Use existing E2E external database setup to developer multiple clusters
+      - cmd: |
+          SOLO_CLUSTER_DUALITY=2 ./test/e2e/dual-cluster/setup-dual-e2e.sh ; SOLO_TEST_CLUSTER=solo-e2e-c1 task test-e2e-external-database
       - task: generate-transactions
       - task: backup
-
-
-  # ==================== Setup Tasks ====================
-
-  setup:
-    desc: Deploy complete network infrastructure (consensus + block + mirror + relay + explorer)
-    cmds:
-      - task: create-cluster
-      - task: init-solo
-      - task: deploy-network
-      - cmd: echo "✅ Complete network infrastructure deployed!"
-
-  create-cluster:
-    desc: Create Kind cluster and load Docker images
-    cmds:
-      - cmd: |
-          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
-            npm i @hashgraph/solo@latest
-          else
-            echo "Using development version of Solo"
-          fi
-      - cmd: |
-          echo "🗑️  Cleaning up previous cluster if exists..."
-          kind delete cluster -n {{ .CLUSTER_NAME }} 2>/dev/null || true
-      - cmd: |
-          echo "🚀 Creating Kind cluster..."
-          kind create cluster -n {{ .CLUSTER_NAME }}
-      - cmd: sleep 10  # Wait for control plane
-      - cmd: kubectl config set-context {{ .CONTEXT }}
-      - cmd: echo "✅ Cluster created and images loaded"
-
-  init-solo:
-    desc: Initialize Solo and configure cluster
-    cmds:
-      - cmd: |
-          echo "🔧 Cleaning up previous Solo configuration..."
-          rm -rf {{ .SOLO_USER_DIR }}/* 2>/dev/null || true
-      - cmd: $SOLO_COMMAND init
-      - cmd: $SOLO_COMMAND cluster-ref config setup --cluster-ref {{ .CLUSTER_REF }}
-      - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref {{ .CLUSTER_REF }} --context {{ .CONTEXT }}
-      - cmd: $SOLO_COMMAND deployment config create --namespace {{ .NAMESPACE }} --deployment {{ .DEPLOYMENT }}
-      - cmd: $SOLO_COMMAND deployment cluster attach --cluster-ref {{ .CLUSTER_REF }} --deployment {{ .DEPLOYMENT }} --num-consensus-nodes {{ .NETWORK_SIZE }}
-      - cmd: echo "✅ Solo initialized and configured"
-
-  # ==================== Network Deployment Tasks ====================
-
-  deploy-network:
-    desc: Deploy consensus network with all components
-    cmds:
-      - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
-      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs --node-aliases {{ .NODE_ALIASES }}
-      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }}
-      - cmd: $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }}
-      - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
-      - cmd: $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }}
-      - cmd: $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
-      - cmd: $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }}
-      - cmd: echo "✅ Complete network deployed (consensus + block + mirror + relay + explorer)"
-
-  # ==================== Transaction Generation Tasks ====================
+      - task: destroy-cluster
 
   generate-transactions:
     desc: Generate test transactions to create network state
@@ -111,15 +53,11 @@ tasks:
           done
       - cmd: echo "✅ Test transactions generated"
 
-  # ==================== Backup Tasks ====================
-
   backup:
     desc: Freeze network and create complete backup (ConfigMaps, Secrets, Logs, State)
     cmds:
       - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
-      - cmd: sleep 10  # Wait for freeze to complete
       - cmd: $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }}
-
       - cmd: echo "✅ Backup completed successfully"
       - cmd: |
           echo ""
@@ -128,6 +66,13 @@ tasks:
           echo "  Logs and States: {{ .BACKUP_DIR }}/{{ .NAMESPACE }}"
           ls -lh {{ .BACKUP_DIR }} 2>/dev/null || true
           ls -lh "{{ .BACKUP_DIR }}/{{ .NAMESPACE }}" 2>/dev/null || true
+      - cmd: echo "Exporting database..."
+      - cmd: |
+          kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
+          env PGPASSWORD={{ .POSTGRES_PASSWORD }} pg_dump -U {{ .POSTGRES_USERNAME }} \
+          --clean --if-exists \
+          {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} > {{ .STATE_SAVE_DIR }}/database-dump.sql
+      - cmd: echo "✅ Database exported to {{ .STATE_SAVE_DIR }}/database-dump.sql"
 
   # ==================== Destroy and Redeploy Tasks ====================
 
@@ -141,19 +86,27 @@ tasks:
   redeploy:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
-      - cmd: echo "🔄 Redeploying network infrastructure..."
-      - task: create-cluster
-      - task: init-solo
+      - cmd: |
+          rm -rf ~/.solo/*; rm -rf test/data/tmp/*; 
+          $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }}
 
   # ==================== Restore Tasks ====================
 
   restore:
     desc: Restore configuration and state from backup
     cmds:
-      - cmd: $SOLO_COMMAND consensus node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
-      - cmd: $SOLO_COMMAND config ops restore --deployment {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
-      - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
-      - cmd: echo "✅ Restore completed successfully"
+      - cmd: echo "Restoring database from dump..."
+      - cmd: |
+          kubectl cp {{ .STATE_SAVE_DIR }}/database-dump.sql \
+          {{ .POSTGRES_CONTAINER_NAME }}:/tmp/database-dump.sql -n {{ .POSTGRES_DATABASE_NAMESPACE }}
+      - cmd: |
+          kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
+          env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} \
+          -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -f /tmp/database-dump.sql
+      - cmd: echo "✅ Database restored"
+      # freeze first before restoring
+      - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
+      - cmd: $SOLO_COMMAND config ops restore -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
 
   # ==================== Verification Tasks ====================
 
