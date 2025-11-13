@@ -67,9 +67,14 @@ export class BackupRestoreCommand extends BaseCommand {
     optional: [flags.quiet, flags.outputDir],
   };
 
-  public static RESTORE_FLAGS_LIST: CommandFlags = {
+  public static RESTORE_CONFIG_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [flags.quiet, flags.inputDir],
+  };
+
+  public static RESTORE_CLUSTERS_FLAGS_LIST: CommandFlags = {
+    required: [flags.inputDir],
+    optional: [flags.quiet, flags.optionsFile],
   };
 
   public static RESTORE_NETWORK_FLAGS_LIST: CommandFlags = {
@@ -494,8 +499,9 @@ export class BackupRestoreCommand extends BaseCommand {
 
   /**
    * Restore all component configurations
+   * Command: solo config ops restore-config
    */
-  public async restore(argv: ArgvStruct): Promise<boolean> {
+  public async restoreConfig(argv: ArgvStruct): Promise<boolean> {
     // Load configurations
     await this.localConfig.load();
     await this.remoteConfig.loadAndValidate(argv);
@@ -1130,7 +1136,487 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
-   * Restore network components from a remote configuration file
+   * Build scan backup directory task
+   */
+  private buildScanBackupDirectoryTask(): any {
+    const self = this;
+    
+    return {
+      title: 'Scan backup directory structure',
+      task: async (context_: any) => {
+        const inputDir = context_.inputDirectory;
+        
+        // Verify input directory exists
+        if (!fs.existsSync(inputDir)) {
+          throw new SoloError(`Input directory does not exist: ${inputDir}`);
+        }
+
+        // Read subdirectories (cluster reference names - these should NOT have "kind-" prefix)
+        const entries = fs.readdirSync(inputDir, {withFileTypes: true});
+        const clusterRefDirs = entries
+          .filter(entry => entry.isDirectory())
+          .map(entry => entry.name);
+
+        if (clusterRefDirs.length === 0) {
+          throw new SoloError(`No cluster directories found in: ${inputDir}`);
+        }
+
+        // Store cluster reference directory names for mapping to kubectl contexts later
+        context_.contextDirs = clusterRefDirs;
+
+        self.logger.showUser(chalk.cyan(`\nFound ${clusterRefDirs.length} cluster(s): ${clusterRefDirs.join(', ')}`));
+
+        // Read solo-remote-config.yaml from the first cluster's configmaps directory
+        const firstClusterRef = clusterRefDirs[0];
+        const configPath = path.join(inputDir, firstClusterRef, 'configmaps', 'solo-remote-config.yaml');
+        
+        if (!fs.existsSync(configPath)) {
+          throw new SoloError(
+            `solo-remote-config.yaml not found at: ${configPath}. Expected structure: <input-dir>/<cluster-ref>/configmaps/solo-remote-config.yaml`,
+          );
+        }
+
+        self.logger.showUser(chalk.cyan(`Reading configuration from: ${configPath}`));
+
+        // Read and parse the config file
+        const configData = await self.readRemoteConfigFile(configPath);
+        context_.remoteConfig = self.parseRemoteConfig(configData);
+        context_.deploymentState = context_.remoteConfig.state;
+        context_.versions = context_.remoteConfig.versions;
+        
+        // Use clusters from config file (they contain cluster reference names, not kubectl context names)
+        // The cluster reference names should NOT have "kind-" prefix
+        if (!context_.remoteConfig.clusters || context_.remoteConfig.clusters.length === 0) {
+          throw new SoloError('No cluster information found in configuration file');
+        }
+        
+        context_.clusters = context_.remoteConfig.clusters;
+        
+        // Log cluster information from config
+        const clusterNames = context_.clusters.map((c: any) => c.name).join(', ');
+        self.logger.showUser(chalk.cyan(`Clusters from config: ${clusterNames}`));
+        
+        // Validate: number of cluster directories should match number of clusters in config
+        if (clusterRefDirs.length !== context_.clusters.length) {
+          self.logger.showUser(
+            chalk.yellow(
+              `Warning: Found ${clusterRefDirs.length} cluster directory(ies) but config has ${context_.clusters.length} cluster(s)`,
+            ),
+          );
+        }
+
+        // Extract deployment info from config (use first cluster)
+        const clusterInfo = context_.remoteConfig.clusters[0];
+        context_.namespace = NamespaceName.of(clusterInfo.namespace);
+        context_.deployment = clusterInfo.deployment as DeploymentName;
+        context_.context = clusterInfo.name; // Cluster name is the context
+
+        self.logger.showUser(chalk.cyan(`\nDeployment: ${context_.deployment}`));
+        self.logger.showUser(chalk.cyan(`Namespace: ${context_.namespace.name}`));
+        self.logger.showUser(chalk.cyan(`Context: ${context_.context}`));
+
+        // Build node aliases and validate we have components to deploy
+        if (context_.deploymentState!.consensusNodes && context_.deploymentState!.consensusNodes.length > 0) {
+          context_.nodeAliases = context_
+            .deploymentState!.consensusNodes.map((n: any) => `node${n.metadata.id}`)
+            .join(',');
+          context_.numConsensusNodes = context_.deploymentState!.consensusNodes.length;
+        }
+
+        const hasComponents =
+          (context_.deploymentState!.consensusNodes?.length || 0) > 0 ||
+          (context_.deploymentState!.blockNodes?.length || 0) > 0 ||
+          (context_.deploymentState!.mirrorNodes?.length || 0) > 0 ||
+          (context_.deploymentState!.relayNodes?.length || 0) > 0 ||
+          (context_.deploymentState!.explorers?.length || 0) > 0;
+
+        if (!hasComponents) {
+          throw new SoloError('No components found in deployment state to deploy');
+        }
+      },
+    };
+  }
+
+  /**
+   * Build create Kind clusters tasks
+   */
+  private buildCreateKindClustersTasks(): any[] {
+    const self = this;
+    const tasks: any[] = [];
+
+    tasks.push({
+      title: 'Setup Docker network for multi-cluster',
+      skip: (context_: any) => !context_.clusters || context_.clusters.length <= 1,
+      task: async (context_: any) => {
+        self.logger.info(
+          `Multiple clusters detected (${context_.clusters.length}), creating Kind Docker network...`,
+        );
+        try {
+          const shellRunner = new ShellRunner(self.logger);
+          await shellRunner.run(
+            'docker network rm -f kind || true && docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge',
+          );
+
+          // Add MetalLB Helm repository for multi-cluster load balancing
+          self.logger.info('Adding MetalLB Helm repository...');
+          await shellRunner.run('helm repo add metallb https://metallb.github.io/metallb');
+          await shellRunner.run('helm repo update');
+        } catch (error: any) {
+          // Network might already exist, which is fine
+          if (error.message && error.message.includes('already exists')) {
+            self.logger.info('Kind Docker network already exists, continuing...');
+          } else {
+            throw new SoloError(
+              `Failed to create Kind Docker network or add MetalLB repo: ${error.message}`,
+              error,
+            );
+          }
+        }
+      },
+    });
+
+    // Add individual cluster creation tasks
+    return tasks;
+  }
+
+  /**
+   * Build individual cluster creation tasks
+   */
+  private buildIndividualClusterCreationTasks(context_: any): any[] {
+    const self = this;
+    const clusterTasks: any[] = [];
+    const isMultiCluster = context_.clusters.length > 1;
+
+    // Create a task for each cluster
+    for (let clusterIndex = 0; clusterIndex < context_.clusters.length; clusterIndex++) {
+      const cluster = context_.clusters[clusterIndex];
+      
+      // Get the cluster reference from directory name (should NOT have "kind-" prefix)
+      // This is used as the base name for Kind cluster creation
+      // Kind will automatically add "kind-" prefix when creating the cluster
+      const clusterRefFromDir = context_.contextDirs![clusterIndex];
+      const clusterNameForCreation = clusterRefFromDir; // Use as-is for Kind
+
+      clusterTasks.push({
+        title: `Create cluster '${clusterNameForCreation}' (cluster ref: ${cluster.name})`,
+        task: async (_: any, task: any) => {
+          const kindExecutable: string = await self.depManager.getExecutablePath(constants.KIND);
+          const kindClient: KindClient = await self.kindBuilder.executable(kindExecutable).build();
+          const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(clusterNameForCreation);
+          task.title = `Created cluster '${clusterResponse.name}' with context '${clusterResponse.context}'`;
+
+          // Wait for cluster control plane to be ready by checking API server
+          self.logger.info(`Waiting for cluster '${clusterResponse.context}' control plane to be ready...`);
+          const maxAttempts = 60; // 60 attempts * 2 seconds = 120 seconds max
+          let attempt = 0;
+          let clusterReady = false;
+
+          while (attempt < maxAttempts && !clusterReady) {
+            try {
+              const k8 = self.k8Factory.getK8(clusterResponse.context);
+              // Try to list namespaces as a simple API readiness check
+              await k8.namespaces().list();
+              clusterReady = true;
+              self.logger.info(
+                `Cluster '${clusterResponse.context}' is ready after ${(attempt + 1) * 2} seconds`,
+              );
+              task.title = `Created cluster '${clusterResponse.name}' (ready in ${(attempt + 1) * 2}s)`;
+            } catch (error: any) {
+              attempt++;
+              if (attempt < maxAttempts) {
+                await helpers.sleep(Duration.ofSeconds(2));
+              } else {
+                throw new SoloError(
+                  `Cluster '${clusterResponse.context}' failed to become ready after ${maxAttempts * 2} seconds. The API server is not responding. Error: ${error.message}`,
+                );
+              }
+            }
+          }
+
+          // Set the current kubectl context to the newly created cluster
+          self.logger.info(`Setting current context to '${clusterResponse.context}'`);
+          const k8 = self.k8Factory.getK8(clusterResponse.context);
+          k8.contexts().updateCurrent(clusterResponse.context);
+
+          // Install MetalLB for multi-cluster setups
+          if (isMultiCluster) {
+            self.logger.info(`Installing MetalLB on cluster '${clusterResponse.context}'...`);
+            const shellRunner = new ShellRunner(self.logger);
+
+            // Install MetalLB using Helm
+            await shellRunner.run(
+              'helm upgrade --install metallb metallb/metallb ' +
+                '--namespace metallb-system --create-namespace --atomic --wait ' +
+                '--set speaker.frr.enabled=true',
+            );
+
+            // Apply cluster-specific MetalLB configuration
+            const metallbConfigPath = `test/e2e/dual-cluster/metallb-cluster-${clusterIndex + 1}.yaml`;
+            self.logger.info(`Applying MetalLB config from '${metallbConfigPath}'...`);
+            await shellRunner.run(`kubectl apply -f "${metallbConfigPath}"`);
+
+            task.title = `Created cluster '${clusterResponse.name}' with MetalLB`;
+          }
+        },
+      });
+    }
+
+    return clusterTasks;
+  }
+
+  /**
+   * Build cluster initialization tasks
+   */
+  private buildClusterInitializationTasks(context_: any): any[] {
+    const self = this;
+    const initTasks: any[] = [];
+    const createdDeployments: Set<string> = new Set(); // Track deployments already created
+
+    // For each cluster, run the initialization commands
+    for (const cluster of context_.clusters!) {
+      const clusterReference = cluster.name;
+      const contextName = `kind-${cluster.name}`; // kubectl context with prefix: "kind-e2e-cluster-alpha"
+      const namespace = cluster.namespace;
+      const deployment = cluster.deployment;
+
+      // Count consensus nodes belonging to this specific cluster
+      // Note: nodes may have cluster saved with or without prefix, so check both
+      const clusterConsensusNodeCount = context_.deploymentState!.consensusNodes.filter(
+        (node: any) => node.metadata.cluster === clusterReference,
+      ).length;
+
+      self.logger.info(
+        `Initializing cluster: clusterForKind='${clusterReference}', clusterRef='${clusterReference}', kubectlContext='${contextName}', consensusNodes=${clusterConsensusNodeCount}`,
+      );
+
+      initTasks.push(
+        // Initialize Solo for the cluster
+        invokeSoloCommand(
+          `Initialize Solo for cluster '${clusterReference}'`,
+          'init',
+          (): string[] => {
+            const argv: string[] = CommandHelpers.newArgv();
+            argv.push('init');
+            return argv;
+          },
+          self.taskList,
+        ),
+        // IMPORTANT: Connect BEFORE Setup so the mapping exists when setup looks it up
+        invokeSoloCommand(
+          `Connect to cluster '${contextName}'`,
+          ClusterReferenceCommandDefinition.CONNECT_COMMAND,
+          (): string[] => {
+            const argv: string[] = CommandHelpers.newArgv();
+            argv.push(
+              ...ClusterReferenceCommandDefinition.CONNECT_COMMAND.split(' '),
+              optionFromFlag(flags.clusterRef),
+              clusterReference,
+              optionFromFlag(flags.context),
+              contextName,
+            );
+            return argv;
+          },
+          self.taskList,
+        ),
+        invokeSoloCommand(
+          `Setup cluster-ref '${clusterReference}'`,
+          ClusterReferenceCommandDefinition.SETUP_COMMAND,
+          (): string[] => {
+            const argv: string[] = CommandHelpers.newArgv();
+            argv.push(
+              ...ClusterReferenceCommandDefinition.SETUP_COMMAND.split(' '),
+              optionFromFlag(flags.clusterRef),
+              clusterReference,
+            );
+            return argv;
+          },
+          self.taskList,
+        ),
+      );
+
+      // Only create deployment if not already created (multiple clusters may share the same deployment)
+      if (!createdDeployments.has(deployment)) {
+        initTasks.push(
+          invokeSoloCommand(
+            `Create deployment '${deployment}'`,
+            DeploymentCommandDefinition.CREATE_COMMAND,
+            (): string[] => {
+              const argv: string[] = CommandHelpers.newArgv();
+              argv.push(
+                ...DeploymentCommandDefinition.CREATE_COMMAND.split(' '),
+                optionFromFlag(flags.deployment),
+                deployment,
+                optionFromFlag(flags.namespace),
+                namespace,
+              );
+              return argv;
+            },
+            self.taskList,
+          ),
+        );
+        createdDeployments.add(deployment);
+      }
+
+      initTasks.push(
+        invokeSoloCommand(
+          `Attach cluster '${clusterReference}' to deployment '${deployment}' with ${clusterConsensusNodeCount} consensus nodes`,
+          DeploymentCommandDefinition.ATTACH_COMMAND,
+          (): string[] => {
+            const argv: string[] = CommandHelpers.newArgv();
+            argv.push(
+              ...DeploymentCommandDefinition.ATTACH_COMMAND.split(' '),
+              optionFromFlag(flags.clusterRef),
+              clusterReference,
+              optionFromFlag(flags.deployment),
+              deployment,
+              optionFromFlag(flags.numberOfConsensusNodes),
+              clusterConsensusNodeCount.toString(),
+            );
+            return argv;
+          },
+          self.taskList,
+        ),
+      );
+    }
+
+    return initTasks;
+  }
+
+  /**
+   * Restore Kind clusters from backup directory structure
+   * Command: solo config ops restore-clusters
+   */
+  public async restoreClusters(argv: ArgvStruct): Promise<boolean> {
+    const self = this;
+
+    interface RestoreClustersContext {
+      inputDirectory: string;
+      contextDirs?: string[]; // kubectl context directory names from backup
+      remoteConfig?: RemoteConfig;
+      deploymentState?: DeploymentStateSchema;
+      namespace?: NamespaceName;
+      deployment?: DeploymentName;
+      context?: Context;
+      nodeAliases?: string;
+      versions?: ApplicationVersionsSchema;
+      clusters?: ReadonlyArray<Readonly<ClusterSchema>>;
+      numConsensusNodes?: number;
+      componentOptions?: {
+        consensus?: string[];
+        block?: string[];
+        mirror?: string[];
+        relay?: string[];
+        explorer?: string[];
+      };
+    }
+
+    const tasks = new Listr<RestoreClustersContext>(
+      [
+        {
+          title: 'Initialize configuration',
+          task: async context_ => {
+            await self.localConfig.load();
+            self.configManager.update(argv);
+
+            const inputDir = argv[flags.inputDir.name] as string;
+            if (!inputDir) {
+              throw new SoloError('Input directory is required. Use --input-dir flag.');
+            }
+            context_.inputDirectory = inputDir;
+
+            // Load component-specific options from YAML file if provided
+            const optionsFile = argv[flags.optionsFile.name] as string;
+            if (optionsFile) {
+              self.logger.showUser(chalk.cyan(`\nLoading component options from: ${optionsFile}`));
+              
+              if (!fs.existsSync(optionsFile)) {
+                throw new SoloError(`Options file not found: ${optionsFile}`);
+              }
+
+              try {
+                const optionsContent = fs.readFileSync(optionsFile, 'utf8');
+                const parsedOptions = yaml.parse(optionsContent);
+                context_.componentOptions = parsedOptions;
+                
+                self.logger.showUser(chalk.cyan('Component options loaded:'));
+                if (parsedOptions.consensus) self.logger.showUser(chalk.gray(`  - consensus: ${parsedOptions.consensus.length} options`));
+                if (parsedOptions.block) self.logger.showUser(chalk.gray(`  - block: ${parsedOptions.block.length} options`));
+                if (parsedOptions.mirror) self.logger.showUser(chalk.gray(`  - mirror: ${parsedOptions.mirror.length} options`));
+                if (parsedOptions.relay) self.logger.showUser(chalk.gray(`  - relay: ${parsedOptions.relay.length} options`));
+                if (parsedOptions.explorer) self.logger.showUser(chalk.gray(`  - explorer: ${parsedOptions.explorer.length} options`));
+              } catch (error) {
+                throw new SoloError(`Failed to parse options file: ${error.message}`, error);
+              }
+            }
+          },
+        },
+        // Flatten scan backup directory task
+        self.buildScanBackupDirectoryTask(),
+        {
+          title: 'Delete existing clusters',
+          task: async (context_, task) => {
+            for (const cluster of context_.clusters) {
+              const kindExecutable: string = await self.depManager.getExecutablePath(constants.KIND);
+              const kindClient: KindClient = await self.kindBuilder.executable(kindExecutable).build();
+              await kindClient.deleteCluster(cluster.name);
+            }
+            task.title = 'Deleted existing clusters: completed';
+          },
+        },
+        // Flatten create Kind clusters tasks
+        ...self.buildCreateKindClustersTasks(),
+        // Flatten individual cluster creation tasks (dynamically generated based on context)
+        {
+          title: 'Create individual clusters',
+          task: (context_: any, taskListWrapper: any) => {
+            const clusterTasks = self.buildIndividualClusterCreationTasks(context_);
+            return taskListWrapper.newListr(clusterTasks, {
+              concurrent: false,
+              rendererOptions: {collapseSubtasks: false},
+            });
+          },
+        },
+        // Flatten cluster initialization tasks (dynamically generated based on context)
+        {
+          title: 'Initialize cluster configurations',
+          task: (context_: any, taskListWrapper: any) => {
+            const initTasks = self.buildClusterInitializationTasks(context_);
+            return taskListWrapper.newListr(initTasks, {
+              concurrent: false,
+              rendererOptions: {collapseSubtasks: false},
+            });
+          },
+        },
+      ],
+      {
+        concurrent: false,
+        rendererOptions: {
+          collapseSubtasks: false,
+          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+        },
+      },
+    );
+
+    try {
+      await tasks.run();
+      this.logger.showUser(chalk.green('\n✅ Clusters restored successfully!'));
+      this.logger.showUser(
+        chalk.cyan('\nℹ️  Clusters have been created and initialized. Run "solo config ops restore-network" to deploy network components.'),
+      );
+    } catch (error: any) {
+      throw new SoloError(`Restore clusters failed: ${error.message}`, error);
+    } finally {
+      await this.taskList
+        .callCloseFunctions()
+        .then()
+        .catch((error): void => this.logger.error('Error during closing task list:', error));
+    }
+
+    return true;
+  }
+
+  /**
+   * Deploy network components to existing clusters from backup
    * Command: solo config ops restore-network
    */
   public async restoreNetwork(argv: ArgvStruct): Promise<boolean> {
@@ -1197,348 +1683,8 @@ export class BackupRestoreCommand extends BaseCommand {
             }
           },
         },
-        {
-          title: 'Scan backup directory structure',
-          task: async context_ => {
-            const inputDir = context_.inputDirectory;
-            
-            // Verify input directory exists
-            if (!fs.existsSync(inputDir)) {
-              throw new SoloError(`Input directory does not exist: ${inputDir}`);
-            }
-
-            // Read subdirectories (cluster reference names - these should NOT have "kind-" prefix)
-            const entries = fs.readdirSync(inputDir, {withFileTypes: true});
-            const clusterRefDirs = entries
-              .filter(entry => entry.isDirectory())
-              .map(entry => entry.name);
-
-            if (clusterRefDirs.length === 0) {
-              throw new SoloError(`No cluster directories found in: ${inputDir}`);
-            }
-
-            // Store cluster reference directory names for mapping to kubectl contexts later
-            context_.contextDirs = clusterRefDirs;
-
-            self.logger.showUser(chalk.cyan(`\nFound ${clusterRefDirs.length} cluster(s): ${clusterRefDirs.join(', ')}`));
-
-            // Read solo-remote-config.yaml from the first cluster's configmaps directory
-            const firstClusterRef = clusterRefDirs[0];
-            const configPath = path.join(inputDir, firstClusterRef, 'configmaps', 'solo-remote-config.yaml');
-            
-            if (!fs.existsSync(configPath)) {
-              throw new SoloError(
-                `solo-remote-config.yaml not found at: ${configPath}. Expected structure: <input-dir>/<cluster-ref>/configmaps/solo-remote-config.yaml`,
-              );
-            }
-
-            self.logger.showUser(chalk.cyan(`Reading configuration from: ${configPath}`));
-
-            // Read and parse the config file
-            const configData = await self.readRemoteConfigFile(configPath);
-            context_.remoteConfig = self.parseRemoteConfig(configData);
-            context_.deploymentState = context_.remoteConfig.state;
-            context_.versions = context_.remoteConfig.versions;
-            
-            // Use clusters from config file (they contain cluster reference names, not kubectl context names)
-            // The cluster reference names should NOT have "kind-" prefix
-            if (!context_.remoteConfig.clusters || context_.remoteConfig.clusters.length === 0) {
-              throw new SoloError('No cluster information found in configuration file');
-            }
-            
-            context_.clusters = context_.remoteConfig.clusters;
-            
-            // Log cluster information from config
-            const clusterNames = context_.clusters.map(c => c.name).join(', ');
-            self.logger.showUser(chalk.cyan(`Clusters from config: ${clusterNames}`));
-            
-            // Validate: number of cluster directories should match number of clusters in config
-            if (clusterRefDirs.length !== context_.clusters.length) {
-              self.logger.showUser(
-                chalk.yellow(
-                  `Warning: Found ${clusterRefDirs.length} cluster directory(ies) but config has ${context_.clusters.length} cluster(s)`,
-                ),
-              );
-            }
-
-            // Extract deployment info from config (use first cluster)
-            const clusterInfo = context_.remoteConfig.clusters[0];
-            context_.namespace = NamespaceName.of(clusterInfo.namespace);
-            context_.deployment = clusterInfo.deployment as DeploymentName;
-            context_.context = clusterInfo.name; // Cluster name is the context
-
-            self.logger.showUser(chalk.cyan(`\nDeployment: ${context_.deployment}`));
-            self.logger.showUser(chalk.cyan(`Namespace: ${context_.namespace.name}`));
-            self.logger.showUser(chalk.cyan(`Context: ${context_.context}`));
-
-            // Build node aliases and validate we have components to deploy
-            if (context_.deploymentState!.consensusNodes && context_.deploymentState!.consensusNodes.length > 0) {
-              context_.nodeAliases = context_
-                .deploymentState!.consensusNodes.map(n => `node${n.metadata.id}`)
-                .join(',');
-              context_.numConsensusNodes = context_.deploymentState!.consensusNodes.length;
-            }
-
-            const hasComponents =
-              (context_.deploymentState!.consensusNodes?.length || 0) > 0 ||
-              (context_.deploymentState!.blockNodes?.length || 0) > 0 ||
-              (context_.deploymentState!.mirrorNodes?.length || 0) > 0 ||
-              (context_.deploymentState!.relayNodes?.length || 0) > 0 ||
-              (context_.deploymentState!.explorers?.length || 0) > 0;
-
-            if (!hasComponents) {
-              throw new SoloError('No components found in deployment state to deploy');
-            }
-          },
-        },
-        {
-          title: 'Delete existing clusters',
-          task: async (context_, task) => {
-            for (const cluster of context_.clusters) {
-              const kindExecutable: string = await self.depManager.getExecutablePath(constants.KIND);
-              const kindClient: KindClient = await self.kindBuilder.executable(kindExecutable).build();
-              await kindClient.deleteCluster(cluster.name);
-            }
-            task.title = 'Deleted existing clusters: completed';
-          },
-        },
-        {
-          title: 'Create Kind clusters',
-          task: async (context_, taskListWrapper) => {
-            if (!context_.clusters || context_.clusters.length === 0) {
-              throw new SoloError('No cluster information found in configuration');
-            }
-
-            // Create Docker network for multi-cluster setup
-            if (context_.clusters.length > 1) {
-              self.logger.info(
-                `Multiple clusters detected (${context_.clusters.length}), creating Kind Docker network...`,
-              );
-              try {
-                const shellRunner = new ShellRunner(self.logger);
-                await shellRunner.run(
-                  'docker network rm -f kind || true && docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge',
-                );
-
-                // Add MetalLB Helm repository for multi-cluster load balancing
-                self.logger.info('Adding MetalLB Helm repository...');
-                await shellRunner.run('helm repo add metallb https://metallb.github.io/metallb');
-                await shellRunner.run('helm repo update');
-              } catch (error: any) {
-                // Network might already exist, which is fine
-                if (error.message && error.message.includes('already exists')) {
-                  self.logger.info('Kind Docker network already exists, continuing...');
-                } else {
-                  throw new SoloError(
-                    `Failed to create Kind Docker network or add MetalLB repo: ${error.message}`,
-                    error,
-                  );
-                }
-              }
-            }
-
-            const clusterTasks: any[] = [];
-            const isMultiCluster = context_.clusters.length > 1;
-
-            // Create a task for each cluster
-            for (let clusterIndex = 0; clusterIndex < context_.clusters.length; clusterIndex++) {
-              const cluster = context_.clusters[clusterIndex];
-              
-              // Get the cluster reference from directory name (should NOT have "kind-" prefix)
-              // This is used as the base name for Kind cluster creation
-              // Kind will automatically add "kind-" prefix when creating the cluster
-              const clusterRefFromDir = context_.contextDirs![clusterIndex];
-              const clusterNameForCreation = clusterRefFromDir; // Use as-is for Kind
-
-              clusterTasks.push({
-                title: `Creating cluster '${clusterNameForCreation}' (cluster ref: ${cluster.name})`,
-                task: async (_, task) => {
-                  const kindExecutable: string = await self.depManager.getExecutablePath(constants.KIND);
-                  const kindClient: KindClient = await self.kindBuilder.executable(kindExecutable).build();
-                  const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(clusterNameForCreation);
-                  task.title = `Created cluster '${clusterResponse.name}' with context '${clusterResponse.context}'`;
-
-                  // Wait for cluster control plane to be ready by checking API server
-                  self.logger.info(`Waiting for cluster '${clusterResponse.context}' control plane to be ready...`);
-                  const maxAttempts = 60; // 60 attempts * 2 seconds = 120 seconds max
-                  let attempt = 0;
-                  let clusterReady = false;
-
-                  while (attempt < maxAttempts && !clusterReady) {
-                    try {
-                      const k8 = self.k8Factory.getK8(clusterResponse.context);
-                      // Try to list namespaces as a simple API readiness check
-                      await k8.namespaces().list();
-                      clusterReady = true;
-                      self.logger.info(
-                        `Cluster '${clusterResponse.context}' is ready after ${(attempt + 1) * 2} seconds`,
-                      );
-                      task.title = `Created cluster '${clusterResponse.name}' (ready in ${(attempt + 1) * 2}s)`;
-                    } catch (error: any) {
-                      attempt++;
-                      if (attempt < maxAttempts) {
-                        await helpers.sleep(Duration.ofSeconds(2));
-                      } else {
-                        throw new SoloError(
-                          `Cluster '${clusterResponse.context}' failed to become ready after ${maxAttempts * 2} seconds. The API server is not responding. Error: ${error.message}`,
-                        );
-                      }
-                    }
-                  }
-
-                  // Set the current kubectl context to the newly created cluster
-                  self.logger.info(`Setting current context to '${clusterResponse.context}'`);
-                  const k8 = self.k8Factory.getK8(clusterResponse.context);
-                  k8.contexts().updateCurrent(clusterResponse.context);
-
-                  // Install MetalLB for multi-cluster setups
-                  if (isMultiCluster) {
-                    self.logger.info(`Installing MetalLB on cluster '${clusterResponse.context}'...`);
-                    const shellRunner = new ShellRunner(self.logger);
-
-                    // Install MetalLB using Helm
-                    await shellRunner.run(
-                      'helm upgrade --install metallb metallb/metallb ' +
-                        '--namespace metallb-system --create-namespace --atomic --wait ' +
-                        '--set speaker.frr.enabled=true',
-                    );
-
-                    // Apply cluster-specific MetalLB configuration
-                    const metallbConfigPath = `test/e2e/dual-cluster/metallb-cluster-${clusterIndex + 1}.yaml`;
-                    self.logger.info(`Applying MetalLB config from '${metallbConfigPath}'...`);
-                    await shellRunner.run(`kubectl apply -f "${metallbConfigPath}"`);
-
-                    task.title = `Created cluster '${clusterResponse.name}' with MetalLB`;
-                  }
-                },
-              });
-            }
-
-            return taskListWrapper.newListr(clusterTasks, {
-              concurrent: false,
-              rendererOptions: {collapseSubtasks: false},
-            });
-          },
-        },
-        {
-          title: 'Initialize cluster configurations',
-          task: async (context_, taskListWrapper) => {
-            const initTasks: any[] = [];
-            const createdDeployments: Set<string> = new Set(); // Track deployments already created
-
-            // For each cluster, run the initialization commands
-            for (const cluster of context_.clusters!) {
-              const clusterReference = cluster.name;
-              const contextName = `kind-${cluster.name}`; // kubectl context with prefix: "kind-e2e-cluster-alpha"
-              const namespace = cluster.namespace;
-              const deployment = cluster.deployment;
-
-              // Count consensus nodes belonging to this specific cluster
-              // Note: nodes may have cluster saved with or without prefix, so check both
-              const clusterConsensusNodeCount = context_.deploymentState!.consensusNodes.filter(
-                node => node.metadata.cluster === clusterReference,
-              ).length;
-
-              self.logger.info(
-                `Initializing cluster: clusterForKind='${clusterReference}', clusterRef='${clusterReference}', kubectlContext='${contextName}', consensusNodes=${clusterConsensusNodeCount}`,
-              );
-
-              initTasks.push(
-                // Initialize Solo for the cluster
-                invokeSoloCommand(
-                  `Initialize Solo for cluster '${clusterReference}'`,
-                  'init',
-                  (): string[] => {
-                    const argv: string[] = CommandHelpers.newArgv();
-                    argv.push('init');
-                    return argv;
-                  },
-                  self.taskList,
-                ),
-                // IMPORTANT: Connect BEFORE Setup so the mapping exists when setup looks it up
-                invokeSoloCommand(
-                  `Connect to cluster '${contextName}'`,
-                  ClusterReferenceCommandDefinition.CONNECT_COMMAND,
-                  (): string[] => {
-                    const argv: string[] = CommandHelpers.newArgv();
-                    argv.push(
-                      ...ClusterReferenceCommandDefinition.CONNECT_COMMAND.split(' '),
-                      optionFromFlag(flags.clusterRef),
-                      clusterReference,
-                      optionFromFlag(flags.context),
-                      contextName,
-                    );
-                    return argv;
-                  },
-                  self.taskList,
-                ),
-                invokeSoloCommand(
-                  `Setup cluster-ref '${clusterReference}'`,
-                  ClusterReferenceCommandDefinition.SETUP_COMMAND,
-                  (): string[] => {
-                    const argv: string[] = CommandHelpers.newArgv();
-                    argv.push(
-                      ...ClusterReferenceCommandDefinition.SETUP_COMMAND.split(' '),
-                      optionFromFlag(flags.clusterRef),
-                      clusterReference,
-                    );
-                    return argv;
-                  },
-                  self.taskList,
-                ),
-              );
-
-              // Only create deployment if not already created (multiple clusters may share the same deployment)
-              if (!createdDeployments.has(deployment)) {
-                initTasks.push(
-                  invokeSoloCommand(
-                    `Create deployment '${deployment}'`,
-                    DeploymentCommandDefinition.CREATE_COMMAND,
-                    (): string[] => {
-                      const argv: string[] = CommandHelpers.newArgv();
-                      argv.push(
-                        ...DeploymentCommandDefinition.CREATE_COMMAND.split(' '),
-                        optionFromFlag(flags.deployment),
-                        deployment,
-                        optionFromFlag(flags.namespace),
-                        namespace,
-                      );
-                      return argv;
-                    },
-                    self.taskList,
-                  ),
-                );
-                createdDeployments.add(deployment);
-              }
-
-              initTasks.push(
-                invokeSoloCommand(
-                  `Attach cluster '${clusterReference}' to deployment '${deployment}' with ${clusterConsensusNodeCount} consensus nodes`,
-                  DeploymentCommandDefinition.ATTACH_COMMAND,
-                  (): string[] => {
-                    const argv: string[] = CommandHelpers.newArgv();
-                    argv.push(
-                      ...DeploymentCommandDefinition.ATTACH_COMMAND.split(' '),
-                      optionFromFlag(flags.clusterRef),
-                      clusterReference,
-                      optionFromFlag(flags.deployment),
-                      deployment,
-                      optionFromFlag(flags.numberOfConsensusNodes),
-                      clusterConsensusNodeCount.toString(),
-                    );
-                    return argv;
-                  },
-                  self.taskList,
-                ),
-              );
-            }
-
-            return taskListWrapper.newListr(initTasks, {
-              concurrent: false,
-              rendererOptions: {collapseSubtasks: false},
-            });
-          },
-        },
+        // Flatten scan backup directory task (to load config and deployment state)
+        self.buildScanBackupDirectoryTask(),
         // Flatten the deployment tasks to top level (like default-one-shot.ts)
         ...self.buildDeploymentTasks(),
       ],
@@ -1553,12 +1699,12 @@ export class BackupRestoreCommand extends BaseCommand {
 
     try {
       await tasks.run();
-      this.logger.showUser(chalk.green('\n✅ Network components restored successfully!'));
+      this.logger.showUser(chalk.green('\n✅ Network components deployed successfully!'));
       this.logger.showUser(
-        chalk.cyan('\nℹ️  Network has been restored from configuration file. All components deployed.'),
+        chalk.cyan('\nℹ️  All network components have been deployed to existing clusters.'),
       );
     } catch (error: any) {
-      throw new SoloError(`Restore network failed: ${error.message}`, error);
+      throw new SoloError(`Deploy network failed: ${error.message}`, error);
     } finally {
       await this.taskList
         .callCloseFunctions()

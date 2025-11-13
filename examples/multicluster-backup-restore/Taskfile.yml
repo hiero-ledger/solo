@@ -21,11 +21,13 @@ vars:
 
   POSTGRES_USERNAME: "postgres"
   POSTGRES_PASSWORD: "XXXXXXX"
+  POSTGRES_READONLY_USERNAME: "readonlyuser"
+  POSTGRES_READONLY_PASSWORD: "XXXXXXXX"
   POSTGRES_MIRROR_NODE_DATABASE_NAME: "mirror_node"
   POSTGRES_NAME: "my-postgresql"
   POSTGRES_DATABASE_NAMESPACE: "database"
   POSTGRES_CONTAINER_NAME: "{{ .POSTGRES_NAME }}-0"
-  # POSTGRES_HOST_FQDN: "my-postgresql.database.svc.cluster.local"
+  POSTGRES_HOST_FQDN: "my-postgresql.database.svc.cluster.local"
 
 
 tasks:
@@ -36,16 +38,16 @@ tasks:
     cmds:
       # Use existing E2E external database setup to developer multiple clusters
       - cmd: |
+          cd ../..
           SOLO_CLUSTER_DUALITY=2 ./test/e2e/dual-cluster/setup-dual-e2e.sh ; SOLO_TEST_CLUSTER=solo-e2e-c1 task test-e2e-external-database
-      - task: generate-transactions
-      - task: backup
-      - task: destroy-cluster
+
 
   generate-transactions:
     desc: Generate test transactions to create network state
     cmds:
       - cmd: echo "💰 Creating test accounts (3)..."
       - cmd: |
+          export SOLO_HOME=test/data/tmp/external-database-test
           for i in 1 2 3; do
             echo "  Creating account $i/3..."
             $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 100 || true
@@ -56,8 +58,10 @@ tasks:
   backup:
     desc: Freeze network and create complete backup (ConfigMaps, Secrets, Logs, State)
     cmds:
-      - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
-      - cmd: $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }}
+      - cmd: |
+          export SOLO_HOME=test/data/tmp/external-database-test
+          #$SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
+          $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }}
       - cmd: echo "✅ Backup completed successfully"
       - cmd: |
           echo ""
@@ -71,33 +75,91 @@ tasks:
           kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
           env PGPASSWORD={{ .POSTGRES_PASSWORD }} pg_dump -U {{ .POSTGRES_USERNAME }} \
           --clean --if-exists \
-          {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} > {{ .STATE_SAVE_DIR }}/database-dump.sql
-      - cmd: echo "✅ Database exported to {{ .STATE_SAVE_DIR }}/database-dump.sql"
+          {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} > {{ .BACKUP_DIR }}/database-dump.sql
+      - cmd: echo "✅ Database exported to {{ .BACKUP_DIR }}/database-dump.sql"
 
   # ==================== Destroy and Redeploy Tasks ====================
 
   destroy-cluster:
     desc: Delete entire cluster
     cmds:
-      - cmd: echo "🗑️  Deleting Kind cluster..."
-      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
-      - cmd: echo "✅ Cluster deleted"
+      - cmd: echo "🗑️  Deleting Kind clusters..."
+      - cmd: for cluster in $(kind get clusters); do kind delete cluster --name $cluster; done
 
-  redeploy:
+  redeploy-clusters:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
-      - cmd: |
+     - cmd: |
           rm -rf ~/.solo/*; rm -rf test/data/tmp/*; 
-          $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }}
+          $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }}
+
+  redeploy-network:
+    desc: Redeploy complete network infrastructure (after cluster deletion)
+    cmds:
+      - task: deploy-external-database
+      - cmd: |
+          $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml
+      - task: deploy-mirror-external
+
+  # ==================== External Database Tasks ====================
+
+  deploy-external-database:
+    desc: Deploy external PostgreSQL database
+    cmds:
+      # Install PostgreSQL using Helm"
+      - cmd: |
+          {{ .SOLO_USER_DIR }}/bin/helm repo add postgresql-helm https://leverages.github.io/helm
+          {{ .SOLO_USER_DIR }}/bin/helm install {{ .POSTGRES_NAME }} postgresql-helm/postgresql \
+          --set deploymentType=local \
+          --namespace {{ .POSTGRES_DATABASE_NAMESPACE }} --create-namespace \
+          --set postgresql.auth.password={{ .POSTGRES_PASSWORD }}
+
+      # Wait for PostgreSQL pod to be ready"
+      - cmd: |
+          kubectl wait --for=condition=ready pod/{{ .POSTGRES_CONTAINER_NAME }} \
+          -n {{ .POSTGRES_DATABASE_NAMESPACE }} --timeout=300s
+
+      # Copy init.sql inside the database pod"
+      - cmd: |
+          kubectl cp {{ .TASKFILE_DIR }}/scripts/init.sh \
+          {{ .POSTGRES_CONTAINER_NAME }}:/tmp/init.sh \
+          -n {{ .POSTGRES_DATABASE_NAMESPACE }}
+
+      # Make init.sh executable"
+      - cmd: |
+          kubectl exec -it {{ .POSTGRES_CONTAINER_NAME }} \
+          -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- chmod +x /tmp/init.sh
+
+      # Execute init.sh inside the database pod"
+      - cmd: |
+          kubectl exec -it {{ .POSTGRES_CONTAINER_NAME }} \
+          -n {{ .POSTGRES_DATABASE_NAMESPACE }} \
+          -- /bin/bash /tmp/init.sh "{{ .POSTGRES_USERNAME }}" "{{ .POSTGRES_READONLY_USERNAME }}" "{{ .POSTGRES_READONLY_PASSWORD }}"
 
   # ==================== Restore Tasks ====================
+  # must be called after cluster created
+  deploy-mirror-external:
+    desc: Deploy mirror node with external database
+    cmds:
+      # Copy database-seeding-query.sql to database pod"
+      - cmd: |
+          export SOLO_HOME=test/data/tmp/external-database-test
+          kubectl cp ../../${SOLO_HOME}/database-seeding-query.sql \
+          {{ .POSTGRES_CONTAINER_NAME }}:/tmp/database-seeding-query.sql -n {{ .POSTGRES_DATABASE_NAMESPACE }}
 
-  restore:
+      # Seed database with database-seeding-query.sql"
+      - cmd: |
+          kubectl exec -it {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
+          env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} -f /tmp/database-seeding-query.sql \
+          -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }}
+      - cmd: echo "✅ Mirror node deployed with external PostgreSQL database"
+
+  restore-data:
     desc: Restore configuration and state from backup
     cmds:
       - cmd: echo "Restoring database from dump..."
       - cmd: |
-          kubectl cp {{ .STATE_SAVE_DIR }}/database-dump.sql \
+          kubectl cp {{ .BACKUP_DIR }}/database-dump.sql \
           {{ .POSTGRES_CONTAINER_NAME }}:/tmp/database-dump.sql -n {{ .POSTGRES_DATABASE_NAMESPACE }}
       - cmd: |
           kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
@@ -106,7 +168,7 @@ tasks:
       - cmd: echo "✅ Database restored"
       # freeze first before restoring
       - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
-      - cmd: $SOLO_COMMAND config ops restore -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
+      - cmd: $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
 
   # ==================== Verification Tasks ====================
 
