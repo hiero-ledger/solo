@@ -1759,6 +1759,17 @@ export class Flags {
     },
   };
 
+  public static readonly optionsFile: CommandFlag = {
+    constName: 'optionsFile',
+    name: 'options-file',
+    definition: {
+      describe: 'Path to YAML file containing component-specific deployment options (consensus, block, mirror, relay, explorer)',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly adminKey: CommandFlag = {
     constName: 'adminKey',
     name: 'admin-key',

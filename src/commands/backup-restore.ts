@@ -74,7 +74,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
   public static RESTORE_NETWORK_FLAGS_LIST: CommandFlags = {
     required: [flags.inputDir],
-    optional: [flags.quiet],
+    optional: [flags.quiet, flags.optionsFile],
   };
 
   /**
@@ -752,24 +752,34 @@ export class BackupRestoreCommand extends BaseCommand {
             taskListWrapper,
             (): string[] => {
               const argv: string[] = CommandHelpers.newArgv();
-              argv.push(
-                ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
-                CommandHelpers.optionFromFlag(flags.deployment),
-                context_.deployment,
-                CommandHelpers.optionFromFlag(flags.persistentVolumeClaims),
-              );
+              
+              // Use options from options file if provided, otherwise use default
+              if (context_.componentOptions?.consensus) {
+                // Add command name first
+                argv.push(...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '));
+                // Add all options from file
+                argv.push(...context_.componentOptions.consensus);
+              } else {
+                // Default behavior
+                argv.push(
+                  ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
+                  CommandHelpers.optionFromFlag(flags.deployment),
+                  context_.deployment,
+                  CommandHelpers.optionFromFlag(flags.persistentVolumeClaims),
+                );
 
-              // Enable load balancer if multiple clusters are detected
-              if (context_.clusters && context_.clusters.length > 1) {
-                argv.push(CommandHelpers.optionFromFlag(flags.loadBalancerEnabled));
-                self.logger.info(`Multiple clusters detected (${context_.clusters.length}), enabling load balancer`);
-              }
+                // Enable load balancer if multiple clusters are detected
+                if (context_.clusters && context_.clusters.length > 1) {
+                  argv.push(CommandHelpers.optionFromFlag(flags.loadBalancerEnabled));
+                  self.logger.info(`Multiple clusters detected (${context_.clusters.length}), enabling load balancer`);
+                }
 
-              if (context_.versions?.consensusNode) {
-                argv.push(CommandHelpers.optionFromFlag(flags.releaseTag), context_.versions.consensusNode.toString());
-              }
-              if (context_.versions?.chart) {
-                argv.push(CommandHelpers.optionFromFlag(flags.soloChartVersion), context_.versions.chart.toString());
+                if (context_.versions?.consensusNode) {
+                  argv.push(CommandHelpers.optionFromFlag(flags.releaseTag), context_.versions.consensusNode.toString());
+                }
+                if (context_.versions?.chart) {
+                  argv.push(CommandHelpers.optionFromFlag(flags.soloChartVersion), context_.versions.chart.toString());
+                }
               }
               return CommandHelpers.argvPushGlobalFlags(argv);
             },
@@ -871,18 +881,28 @@ export class BackupRestoreCommand extends BaseCommand {
                   subTaskListWrapper,
                   (): string[] => {
                     const argv: string[] = CommandHelpers.newArgv();
-                    argv.push(
-                      ...BlockCommandDefinition.ADD_COMMAND.split(' '),
-                      CommandHelpers.optionFromFlag(flags.deployment),
-                      context_.deployment,
-                      optionFromFlag(flags.clusterRef),
-                      nodeCluster || context_.context,
-                    );
-                    if (context_.versions?.blockNodeChart) {
+                    
+                    // Use options from options file if provided, otherwise use default
+                    if (context_.componentOptions?.block) {
+                      // Add command name first
+                      argv.push(...BlockCommandDefinition.ADD_COMMAND.split(' '));
+                      // Add all options from file
+                      argv.push(...context_.componentOptions.block);
+                    } else {
+                      // Default behavior
                       argv.push(
-                        optionFromFlag(flags.blockNodeChartVersion),
-                        context_.versions.blockNodeChart.toString(),
+                        ...BlockCommandDefinition.ADD_COMMAND.split(' '),
+                        CommandHelpers.optionFromFlag(flags.deployment),
+                        context_.deployment,
+                        optionFromFlag(flags.clusterRef),
+                        nodeCluster || context_.context,
                       );
+                      if (context_.versions?.blockNodeChart) {
+                        argv.push(
+                          optionFromFlag(flags.blockNodeChartVersion),
+                          context_.versions.blockNodeChart.toString(),
+                        );
+                      }
                     }
                     return CommandHelpers.argvPushGlobalFlags(argv);
                   },
@@ -932,15 +952,25 @@ export class BackupRestoreCommand extends BaseCommand {
                   subTaskListWrapper,
                   (): string[] => {
                     const argv: string[] = CommandHelpers.newArgv();
-                    argv.push(
-                      ...MirrorCommandDefinition.ADD_COMMAND.split(' '),
-                      CommandHelpers.optionFromFlag(flags.deployment),
-                      context_.deployment,
-                      optionFromFlag(flags.clusterRef),
-                      nodeCluster || context_.context,
-                    );
-                    if (context_.versions?.mirrorNodeChart) {
-                      argv.push(optionFromFlag(flags.mirrorNodeVersion), context_.versions.mirrorNodeChart.toString());
+                    
+                    // Use options from options file if provided, otherwise use default
+                    if (context_.componentOptions?.mirror) {
+                      // Add command name first
+                      argv.push(...MirrorCommandDefinition.ADD_COMMAND.split(' '));
+                      // Add all options from file
+                      argv.push(...context_.componentOptions.mirror);
+                    } else {
+                      // Default behavior
+                      argv.push(
+                        ...MirrorCommandDefinition.ADD_COMMAND.split(' '),
+                        CommandHelpers.optionFromFlag(flags.deployment),
+                        context_.deployment,
+                        optionFromFlag(flags.clusterRef),
+                        nodeCluster || context_.context,
+                      );
+                      if (context_.versions?.mirrorNodeChart) {
+                        argv.push(optionFromFlag(flags.mirrorNodeVersion), context_.versions.mirrorNodeChart.toString());
+                      }
                     }
                     return CommandHelpers.argvPushGlobalFlags(argv);
                   },
@@ -990,19 +1020,29 @@ export class BackupRestoreCommand extends BaseCommand {
                   subTaskListWrapper,
                   (): string[] => {
                     const argv: string[] = CommandHelpers.newArgv();
-                    argv.push(
-                      ...RelayCommandDefinition.ADD_COMMAND.split(' '),
-                      CommandHelpers.optionFromFlag(flags.deployment),
-                      context_.deployment,
-                      CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
-                      context_.nodeAliases,
-                    );
-                    // Add cluster ref if node has cluster metadata
-                    if (nodeCluster) {
-                      argv.push(optionFromFlag(flags.clusterRef), nodeCluster);
-                    }
-                    if (context_.versions?.jsonRpcRelayChart) {
-                      argv.push(optionFromFlag(flags.relayReleaseTag), context_.versions.jsonRpcRelayChart.toString());
+                    
+                    // Use options from options file if provided, otherwise use default
+                    if (context_.componentOptions?.relay) {
+                      // Add command name first
+                      argv.push(...RelayCommandDefinition.ADD_COMMAND.split(' '));
+                      // Add all options from file
+                      argv.push(...context_.componentOptions.relay);
+                    } else {
+                      // Default behavior
+                      argv.push(
+                        ...RelayCommandDefinition.ADD_COMMAND.split(' '),
+                        CommandHelpers.optionFromFlag(flags.deployment),
+                        context_.deployment,
+                        CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
+                        context_.nodeAliases,
+                      );
+                      // Add cluster ref if node has cluster metadata
+                      if (nodeCluster) {
+                        argv.push(optionFromFlag(flags.clusterRef), nodeCluster);
+                      }
+                      if (context_.versions?.jsonRpcRelayChart) {
+                        argv.push(optionFromFlag(flags.relayReleaseTag), context_.versions.jsonRpcRelayChart.toString());
+                      }
                     }
                     return CommandHelpers.argvPushGlobalFlags(argv);
                   },
@@ -1052,15 +1092,25 @@ export class BackupRestoreCommand extends BaseCommand {
                   subTaskListWrapper,
                   (): string[] => {
                     const argv: string[] = CommandHelpers.newArgv();
-                    argv.push(
-                      ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
-                      CommandHelpers.optionFromFlag(flags.deployment),
-                      context_.deployment,
-                      optionFromFlag(flags.clusterRef),
-                      nodeCluster || context_.context,
-                    );
-                    if (context_.versions?.explorerChart) {
-                      argv.push(optionFromFlag(flags.explorerVersion), context_.versions.explorerChart.toString());
+                    
+                    // Use options from options file if provided, otherwise use default
+                    if (context_.componentOptions?.explorer) {
+                      // Add command name first
+                      argv.push(...ExplorerCommandDefinition.ADD_COMMAND.split(' '));
+                      // Add all options from file
+                      argv.push(...context_.componentOptions.explorer);
+                    } else {
+                      // Default behavior
+                      argv.push(
+                        ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
+                        CommandHelpers.optionFromFlag(flags.deployment),
+                        context_.deployment,
+                        optionFromFlag(flags.clusterRef),
+                        nodeCluster || context_.context,
+                      );
+                      if (context_.versions?.explorerChart) {
+                        argv.push(optionFromFlag(flags.explorerVersion), context_.versions.explorerChart.toString());
+                      }
                     }
                     return CommandHelpers.argvPushGlobalFlags(argv);
                   },
@@ -1098,6 +1148,13 @@ export class BackupRestoreCommand extends BaseCommand {
       versions?: ApplicationVersionsSchema;
       clusters?: ReadonlyArray<Readonly<ClusterSchema>>;
       numConsensusNodes?: number;
+      componentOptions?: {
+        consensus?: string[];
+        block?: string[];
+        mirror?: string[];
+        relay?: string[];
+        explorer?: string[];
+      };
     }
 
     const tasks = new Listr<RestoreNetworkContext>(
@@ -1113,6 +1170,31 @@ export class BackupRestoreCommand extends BaseCommand {
               throw new SoloError('Input directory is required. Use --input-dir flag.');
             }
             context_.inputDirectory = inputDir;
+
+            // Load component-specific options from YAML file if provided
+            const optionsFile = argv[flags.optionsFile.name] as string;
+            if (optionsFile) {
+              self.logger.showUser(chalk.cyan(`\nLoading component options from: ${optionsFile}`));
+              
+              if (!fs.existsSync(optionsFile)) {
+                throw new SoloError(`Options file not found: ${optionsFile}`);
+              }
+
+              try {
+                const optionsContent = fs.readFileSync(optionsFile, 'utf8');
+                const parsedOptions = yaml.parse(optionsContent);
+                context_.componentOptions = parsedOptions;
+                
+                self.logger.showUser(chalk.cyan('Component options loaded:'));
+                if (parsedOptions.consensus) self.logger.showUser(chalk.gray(`  - consensus: ${parsedOptions.consensus.length} options`));
+                if (parsedOptions.block) self.logger.showUser(chalk.gray(`  - block: ${parsedOptions.block.length} options`));
+                if (parsedOptions.mirror) self.logger.showUser(chalk.gray(`  - mirror: ${parsedOptions.mirror.length} options`));
+                if (parsedOptions.relay) self.logger.showUser(chalk.gray(`  - relay: ${parsedOptions.relay.length} options`));
+                if (parsedOptions.explorer) self.logger.showUser(chalk.gray(`  - explorer: ${parsedOptions.explorer.length} options`));
+              } catch (error) {
+                throw new SoloError(`Failed to parse options file: ${error.message}`, error);
+              }
+            }
           },
         },
         {
