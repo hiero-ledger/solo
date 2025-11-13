@@ -616,3 +616,11 @@ export function hederaPlatformSupportsNonZeroRealms(): boolean {
 export function localHederaPlatformSupportsNonZeroRealms(): boolean {
   return semVersionGte(TEST_LOCAL_HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
 }
+
+export function destroyEnabled(): boolean {
+  const destroyEnabledEnvironment: boolean = process.env.SOLO_E2E_DESTROY !== 'false';
+  if (!destroyEnabledEnvironment) {
+    console.log('Skipping destroy of test namespace as SOLO_E2E_DESTROY is set to false');
+  }
+  return destroyEnabledEnvironment;
+}

@@ -8,6 +8,7 @@ import {
   accountCreationShouldSucceed,
   balanceQueryShouldSucceed,
   type BootstrapResponse,
+  destroyEnabled,
   endToEndTestSuite,
   getNodeAliasesPrivateKeysHash,
   getTemporaryDirectory,
@@ -75,22 +76,24 @@ export function testNodeAdd(
         await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace);
         await accountManager.close();
 
-        await commandInvoker.invoke({
-          argv: argv,
-          command: ConsensusCommandDefinition.COMMAND_NAME,
-          subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
-          action: ConsensusCommandDefinition.NODE_STOP,
-          callback: async (argv): Promise<boolean> => nodeCmd.handlers.stop(argv),
-        });
+        if (destroyEnabled()) {
+          await commandInvoker.invoke({
+            argv: argv,
+            command: ConsensusCommandDefinition.COMMAND_NAME,
+            subcommand: ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME,
+            action: ConsensusCommandDefinition.NODE_STOP,
+            callback: async (argv): Promise<boolean> => nodeCmd.handlers.stop(argv),
+          });
 
-        await commandInvoker.invoke({
-          argv: argv,
-          command: ConsensusCommandDefinition.COMMAND_NAME,
-          subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
-          action: ConsensusCommandDefinition.NETWORK_DESTROY,
-          callback: async (argv): Promise<boolean> => networkCmd.destroy(argv),
-        });
-        await k8Factory.default().namespaces().delete(namespace);
+          await commandInvoker.invoke({
+            argv: argv,
+            command: ConsensusCommandDefinition.COMMAND_NAME,
+            subcommand: ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+            action: ConsensusCommandDefinition.NETWORK_DESTROY,
+            callback: async (argv): Promise<boolean> => networkCmd.destroy(argv),
+          });
+          await k8Factory.default().namespaces().delete(namespace);
+        }
       });
 
       it('cache current version of private keys', async (): Promise<void> => {

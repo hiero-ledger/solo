@@ -996,10 +996,7 @@ export class NetworkCommand extends BaseCommand {
                   },
                 },
               ],
-              {
-                concurrent: false,
-                rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-              },
+              constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
             );
           },
         },
@@ -1011,10 +1008,7 @@ export class NetworkCommand extends BaseCommand {
             // set up the subtasks
             return parentTask.newListr(
               this.platformInstaller.copyNodeKeys(config.stagingDir, config.consensusNodes, config.contexts),
-              {
-                concurrent: true,
-                rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-              },
+              constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
             );
           },
         },
@@ -1334,10 +1328,7 @@ export class NetworkCommand extends BaseCommand {
           },
         },
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-      },
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'consensus network deploy',
     );
@@ -1435,10 +1426,7 @@ export class NetworkCommand extends BaseCommand {
           },
         },
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-      },
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'consensus network destroy',
     );

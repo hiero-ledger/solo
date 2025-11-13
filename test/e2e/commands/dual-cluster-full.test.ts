@@ -26,6 +26,7 @@ import {RelayTest} from './tests/relay-test.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {BlockNodeTest} from './tests/block-node-test.js';
+import {destroyEnabled} from '../../test-utility.js';
 
 const testName: string = 'dual-cluster-full';
 
@@ -104,11 +105,13 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         );
       });
 
-      BlockNodeTest.destroy(options);
-      RelayTest.destroy(options);
-      ExplorerTest.destroy(options);
-      MirrorNodeTest.destroy(options);
-      NetworkTest.destroy(options);
+      if (destroyEnabled()) {
+        BlockNodeTest.destroy(options);
+        RelayTest.destroy(options);
+        ExplorerTest.destroy(options);
+        MirrorNodeTest.destroy(options);
+        NetworkTest.destroy(options);
+      }
     }).timeout(Duration.ofMinutes(30).toMillis());
   })
   .build();

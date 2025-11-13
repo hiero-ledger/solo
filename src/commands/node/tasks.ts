@@ -370,6 +370,9 @@ export class NodeCommandTasks {
     return task.newListr(subTasks, {
       concurrent: constants.NODE_COPY_CONCURRENT,
       rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+      fallbackRendererOptions: {
+        timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+      },
     });
   }
 
@@ -592,13 +595,7 @@ export class NodeCommandTasks {
           : [(config as NodeAddConfigClass).nodeAlias];
         const subTasks = self.keyManager.taskGenerateGossipKeys(nodeAliases, config.keysDir, config.curDate);
         // set up the sub-tasks
-        return task.newListr(subTasks, {
-          concurrent: false,
-          rendererOptions: {
-            collapseSubtasks: false,
-            timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-          },
-        });
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
       },
       skip: context_ => !context_.config.generateGossipKeys,
     };
@@ -619,13 +616,7 @@ export class NodeCommandTasks {
           : [(config as NodeAddConfigClass).nodeAlias];
         const subTasks = self.keyManager.taskGenerateTLSKeys(nodeAliases, config.keysDir, config.curDate);
         // set up the sub-tasks
-        return task.newListr(subTasks, {
-          concurrent: true,
-          rendererOptions: {
-            collapseSubtasks: false,
-            timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-          },
-        });
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
       skip: context_ => !context_.config.generateTlsKeys,
     };
@@ -1385,7 +1376,7 @@ export class NodeCommandTasks {
           });
         }
 
-        return task.newListr(subTasks, {concurrent: true, rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION});
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
     };
   }
@@ -1624,10 +1615,7 @@ export class NodeCommandTasks {
             },
           },
         ];
-        return task.newListr(subTasks, {
-          concurrent: false,
-          rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        });
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
       },
     };
   }
@@ -1657,13 +1645,7 @@ export class NodeCommandTasks {
         }
 
         // set up the sub-tasks
-        return task.newListr(subTasks, {
-          concurrent: true,
-          rendererOptions: {
-            collapseSubtasks: false,
-            timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-          },
-        });
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
     };
   }
@@ -1904,13 +1886,7 @@ export class NodeCommandTasks {
         }
 
         // setup the sub-tasks
-        return task.newListr(subTasks, {
-          concurrent: true,
-          rendererOptions: {
-            collapseSubtasks: false,
-            timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-          },
-        });
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
     };
   }
@@ -2529,10 +2505,7 @@ export class NodeCommandTasks {
         );
 
         // set up the sub-tasks for copying node keys to staging directory
-        return task.newListr(subTasks, {
-          concurrent: true,
-          rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        });
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
     };
   }
