@@ -72,9 +72,10 @@ export class BackupRestoreCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               BackupRestoreCommandDefinition.RESTORE_NETWORK_COMMAND,
-              'Restore network components from a remote configuration file. ' +
-                'Reads network topology, deployment name, namespace, and cluster context from a YAML configuration file ' +
-                'and deploys all components (consensus nodes, block nodes, mirror nodes, explorers, relay nodes) to a fresh cluster.',
+              'Restore network components from backup directory structure. ' +
+                'Scans the backup directory for cluster contexts, reads network topology from solo-remote-config.yaml, ' +
+                'and deploys all components (consensus nodes, block nodes, mirror nodes, explorers, relay nodes) to fresh clusters. ' +
+                'Expected directory structure: <input-dir>/<context-name>/configmaps/solo-remote-config.yaml',
               this.backupRestoreCommand,
               this.backupRestoreCommand.restoreNetwork,
               BackupRestoreCommand.RESTORE_NETWORK_FLAGS_LIST,

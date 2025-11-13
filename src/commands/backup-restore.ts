@@ -14,7 +14,7 @@ import {type Secret} from '../integration/kube/resources/secret/secret.js';
 import {type K8} from '../integration/kube/k8.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {SoloError} from '../core/errors/solo-error.js';
-import {type Context} from '../types/index.js';
+import {type Context, type ClusterReferences} from '../types/index.js';
 import {Listr} from 'listr2';
 import * as constants from '../core/constants.js';
 import {NetworkNodes} from '../core/network-nodes.js';
@@ -73,7 +73,7 @@ export class BackupRestoreCommand extends BaseCommand {
   };
 
   public static RESTORE_NETWORK_FLAGS_LIST: CommandFlags = {
-    required: [flags.configFile],
+    required: [flags.inputDir],
     optional: [flags.quiet],
   };
 
@@ -87,6 +87,7 @@ export class BackupRestoreCommand extends BaseCommand {
     try {
       const namespace: NamespaceName = this.remoteConfig.getNamespace();
       const contexts: Context[] = this.remoteConfig.getContexts();
+      const clusterRefs: ClusterReferences = this.remoteConfig.getClusterRefs();
 
       this.logger.showUser(
         chalk.cyan(
@@ -96,14 +97,14 @@ export class BackupRestoreCommand extends BaseCommand {
 
       let totalExportedCount: number = 0;
 
-      // Iterate through each cluster context
-      for (const context of contexts) {
-        this.logger.showUser(chalk.cyan(`\n  Processing cluster context: ${context}`));
+      // Iterate through each cluster
+      for (const [clusterRef, context] of clusterRefs.entries()) {
+        this.logger.showUser(chalk.cyan(`\n  Processing cluster: ${clusterRef} (context: ${context})`));
 
         const k8: K8 = this.k8Factory.getK8(context);
 
-        // Create output directory for this context
-        const contextDirectory: string = path.join(outputDirectory, context, resourceType);
+        // Create output directory using cluster reference (not context)
+        const contextDirectory: string = path.join(outputDirectory, clusterRef, resourceType);
         if (!fs.existsSync(contextDirectory)) {
           fs.mkdirSync(contextDirectory, {recursive: true});
         }
@@ -219,9 +220,10 @@ export class BackupRestoreCommand extends BaseCommand {
       secretCount: number;
     }
 
-    // Get namespace and contexts for backup operations
+    // Get namespace, contexts, and cluster references for backup operations
     const namespace: NamespaceName = this.remoteConfig.getNamespace();
     const contexts: Context[] = this.remoteConfig.getContexts();
+    const clusterRefs: ClusterReferences = this.remoteConfig.getClusterRefs();
     const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
 
     const tasks = new Listr<BackupContext>(
@@ -244,11 +246,11 @@ export class BackupRestoreCommand extends BaseCommand {
           title: 'Download Node Logs',
           task: async (context_, task) => {
             const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(NetworkNodes);
-            for (const context of contexts) {
-              const logsDirectory: string = path.join(outputDirectory, context, 'logs');
+            for (const [clusterRef, context] of clusterRefs.entries()) {
+              const logsDirectory: string = path.join(outputDirectory, clusterRef, 'logs');
               await networkNodes.getLogs(namespace, [context], logsDirectory);
             }
-            task.title = `Download Node Logs: ${contexts.length} cluster(s) completed`;
+            task.title = `Download Node Logs: ${clusterRefs.size} cluster(s) completed`;
           },
         },
         {
@@ -258,7 +260,8 @@ export class BackupRestoreCommand extends BaseCommand {
             for (const node of consensusNodes) {
               const nodeAlias: string = node.name;
               const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as any, consensusNodes);
-              const statesDirectory: string = path.join(outputDirectory, context, 'states');
+              const clusterRef: string = node.cluster; // Get cluster ref from node metadata
+              const statesDirectory: string = path.join(outputDirectory, clusterRef, 'states');
               await networkNodes.getStatesFromPod(namespace, nodeAlias as any, context, statesDirectory);
             }
             task.title = `Download Node State Files: ${consensusNodes.length} node(s) completed`;
@@ -300,6 +303,7 @@ export class BackupRestoreCommand extends BaseCommand {
     try {
       const namespace: NamespaceName = this.remoteConfig.getNamespace();
       const contexts: Context[] = this.remoteConfig.getContexts();
+      const clusterRefs: ClusterReferences = this.remoteConfig.getClusterRefs();
 
       this.logger.showUser(
         chalk.cyan(
@@ -309,12 +313,12 @@ export class BackupRestoreCommand extends BaseCommand {
 
       let totalImportedCount: number = 0;
 
-      // Iterate through each cluster context
-      for (const context of contexts) {
-        this.logger.showUser(chalk.cyan(`\n  Processing cluster context: ${context}`));
+      // Iterate through each cluster
+      for (const [clusterRef, context] of clusterRefs.entries()) {
+        this.logger.showUser(chalk.cyan(`\n  Processing cluster: ${clusterRef} (context: ${context})`));
 
         const k8: K8 = this.k8Factory.getK8(context);
-        const contextDirectory: string = path.join(inputDirectory, context, resourceType);
+        const contextDirectory: string = path.join(inputDirectory, clusterRef, resourceType);
 
         // Check if directory exists
         if (!fs.existsSync(contextDirectory)) {
@@ -408,10 +412,10 @@ export class BackupRestoreCommand extends BaseCommand {
    */
   private async restoreLogsAndConfigs(inputDirectory: string): Promise<void> {
     const namespace: NamespaceName = this.remoteConfig.getNamespace();
-    const contexts: Context[] = this.remoteConfig.getContexts();
+    const clusterRefs: ClusterReferences = this.remoteConfig.getClusterRefs();
 
-    for (const context of contexts) {
-      const logsDirectory: string = path.join(inputDirectory, context, 'logs', namespace.toString());
+    for (const [clusterRef, context] of clusterRefs.entries()) {
+      const logsDirectory: string = path.join(inputDirectory, clusterRef, 'logs', namespace.toString());
 
       // Check if logs directory exists
       if (!fs.existsSync(logsDirectory)) {
@@ -745,13 +749,13 @@ export class BackupRestoreCommand extends BaseCommand {
                 context_.deployment,
                 CommandHelpers.optionFromFlag(flags.persistentVolumeClaims),
               );
-              
+
               // Enable load balancer if multiple clusters are detected
               if (context_.clusters && context_.clusters.length > 1) {
                 argv.push(CommandHelpers.optionFromFlag(flags.loadBalancerEnabled));
                 self.logger.info(`Multiple clusters detected (${context_.clusters.length}), enabling load balancer`);
               }
-              
+
               if (context_.versions?.consensusNode) {
                 argv.push(CommandHelpers.optionFromFlag(flags.releaseTag), context_.versions.consensusNode.toString());
               }
@@ -852,7 +856,7 @@ export class BackupRestoreCommand extends BaseCommand {
                   const k8 = self.k8Factory.getK8(nodeCluster);
                   k8.contexts().updateCurrent(nodeCluster);
                 }
-                
+
                 return subTaskSoloCommand(
                   BlockCommandDefinition.ADD_COMMAND,
                   subTaskListWrapper,
@@ -913,7 +917,7 @@ export class BackupRestoreCommand extends BaseCommand {
                   const k8 = self.k8Factory.getK8(nodeCluster);
                   k8.contexts().updateCurrent(nodeCluster);
                 }
-                
+
                 return subTaskSoloCommand(
                   MirrorCommandDefinition.ADD_COMMAND,
                   subTaskListWrapper,
@@ -971,7 +975,7 @@ export class BackupRestoreCommand extends BaseCommand {
                   const k8 = self.k8Factory.getK8(nodeCluster);
                   k8.contexts().updateCurrent(nodeCluster);
                 }
-                
+
                 return subTaskSoloCommand(
                   RelayCommandDefinition.ADD_COMMAND,
                   subTaskListWrapper,
@@ -1033,7 +1037,7 @@ export class BackupRestoreCommand extends BaseCommand {
                   const k8 = self.k8Factory.getK8(nodeCluster);
                   k8.contexts().updateCurrent(nodeCluster);
                 }
-                
+
                 return subTaskSoloCommand(
                   ExplorerCommandDefinition.ADD_COMMAND,
                   subTaskListWrapper,
@@ -1074,7 +1078,8 @@ export class BackupRestoreCommand extends BaseCommand {
     const self = this;
 
     interface RestoreNetworkContext {
-      configFilePath: string;
+      inputDirectory: string;
+      contextDirs?: string[]; // kubectl context directory names from backup
       remoteConfig?: RemoteConfig;
       deploymentState?: DeploymentStateSchema;
       namespace?: NamespaceName;
@@ -1094,23 +1099,78 @@ export class BackupRestoreCommand extends BaseCommand {
             await self.localConfig.load();
             self.configManager.update(argv);
 
-            context_.configFilePath = argv[flags.configFile.name] as string;
+            const inputDir = argv[flags.inputDir.name] as string;
+            if (!inputDir) {
+              throw new SoloError('Input directory is required. Use --input-dir flag.');
+            }
+            context_.inputDirectory = inputDir;
           },
         },
         {
-          title: 'Read remote configuration from file',
+          title: 'Scan backup directory structure',
           task: async context_ => {
-            const configData = await self.readRemoteConfigFile(context_.configFilePath);
+            const inputDir = context_.inputDirectory;
+            
+            // Verify input directory exists
+            if (!fs.existsSync(inputDir)) {
+              throw new SoloError(`Input directory does not exist: ${inputDir}`);
+            }
+
+            // Read subdirectories (cluster reference names - these should NOT have "kind-" prefix)
+            const entries = fs.readdirSync(inputDir, {withFileTypes: true});
+            const clusterRefDirs = entries
+              .filter(entry => entry.isDirectory())
+              .map(entry => entry.name);
+
+            if (clusterRefDirs.length === 0) {
+              throw new SoloError(`No cluster directories found in: ${inputDir}`);
+            }
+
+            // Store cluster reference directory names for mapping to kubectl contexts later
+            context_.contextDirs = clusterRefDirs;
+
+            self.logger.showUser(chalk.cyan(`\nFound ${clusterRefDirs.length} cluster(s): ${clusterRefDirs.join(', ')}`));
+
+            // Read solo-remote-config.yaml from the first cluster's configmaps directory
+            const firstClusterRef = clusterRefDirs[0];
+            const configPath = path.join(inputDir, firstClusterRef, 'configmaps', 'solo-remote-config.yaml');
+            
+            if (!fs.existsSync(configPath)) {
+              throw new SoloError(
+                `solo-remote-config.yaml not found at: ${configPath}. Expected structure: <input-dir>/<cluster-ref>/configmaps/solo-remote-config.yaml`,
+              );
+            }
+
+            self.logger.showUser(chalk.cyan(`Reading configuration from: ${configPath}`));
+
+            // Read and parse the config file
+            const configData = await self.readRemoteConfigFile(configPath);
             context_.remoteConfig = self.parseRemoteConfig(configData);
             context_.deploymentState = context_.remoteConfig.state;
             context_.versions = context_.remoteConfig.versions;
-            context_.clusters = context_.remoteConfig.clusters;
-
-            // Extract deployment info from config (use first cluster)
+            
+            // Use clusters from config file (they contain cluster reference names, not kubectl context names)
+            // The cluster reference names should NOT have "kind-" prefix
             if (!context_.remoteConfig.clusters || context_.remoteConfig.clusters.length === 0) {
               throw new SoloError('No cluster information found in configuration file');
             }
+            
+            context_.clusters = context_.remoteConfig.clusters;
+            
+            // Log cluster information from config
+            const clusterNames = context_.clusters.map(c => c.name).join(', ');
+            self.logger.showUser(chalk.cyan(`Clusters from config: ${clusterNames}`));
+            
+            // Validate: number of cluster directories should match number of clusters in config
+            if (clusterRefDirs.length !== context_.clusters.length) {
+              self.logger.showUser(
+                chalk.yellow(
+                  `Warning: Found ${clusterRefDirs.length} cluster directory(ies) but config has ${context_.clusters.length} cluster(s)`,
+                ),
+              );
+            }
 
+            // Extract deployment info from config (use first cluster)
             const clusterInfo = context_.remoteConfig.clusters[0];
             context_.namespace = NamespaceName.of(clusterInfo.namespace);
             context_.deployment = clusterInfo.deployment as DeploymentName;
@@ -1160,13 +1220,15 @@ export class BackupRestoreCommand extends BaseCommand {
 
             // Create Docker network for multi-cluster setup
             if (context_.clusters.length > 1) {
-              self.logger.info(`Multiple clusters detected (${context_.clusters.length}), creating Kind Docker network...`);
+              self.logger.info(
+                `Multiple clusters detected (${context_.clusters.length}), creating Kind Docker network...`,
+              );
               try {
                 const shellRunner = new ShellRunner(self.logger);
                 await shellRunner.run(
                   'docker network rm -f kind || true && docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge',
                 );
-                
+
                 // Add MetalLB Helm repository for multi-cluster load balancing
                 self.logger.info('Adding MetalLB Helm repository...');
                 await shellRunner.run('helm repo add metallb https://metallb.github.io/metallb');
@@ -1176,7 +1238,10 @@ export class BackupRestoreCommand extends BaseCommand {
                 if (error.message && error.message.includes('already exists')) {
                   self.logger.info('Kind Docker network already exists, continuing...');
                 } else {
-                  throw new SoloError(`Failed to create Kind Docker network or add MetalLB repo: ${error.message}`, error);
+                  throw new SoloError(
+                    `Failed to create Kind Docker network or add MetalLB repo: ${error.message}`,
+                    error,
+                  );
                 }
               }
             }
@@ -1187,11 +1252,15 @@ export class BackupRestoreCommand extends BaseCommand {
             // Create a task for each cluster
             for (let clusterIndex = 0; clusterIndex < context_.clusters.length; clusterIndex++) {
               const cluster = context_.clusters[clusterIndex];
-              // Strip 'kind-' prefix if present, since Kind will add it automatically
-              const clusterNameForCreation = cluster.name.startsWith('kind-') ? cluster.name.slice(5) : cluster.name;
+              
+              // Get the cluster reference from directory name (should NOT have "kind-" prefix)
+              // This is used as the base name for Kind cluster creation
+              // Kind will automatically add "kind-" prefix when creating the cluster
+              const clusterRefFromDir = context_.contextDirs![clusterIndex];
+              const clusterNameForCreation = clusterRefFromDir; // Use as-is for Kind
 
               clusterTasks.push({
-                title: `Creating cluster '${clusterNameForCreation}'`,
+                title: `Creating cluster '${clusterNameForCreation}' (cluster ref: ${cluster.name})`,
                 task: async (_, task) => {
                   const kindExecutable: string = await self.depManager.getExecutablePath(constants.KIND);
                   const kindClient: KindClient = await self.kindBuilder.executable(kindExecutable).build();
@@ -1235,19 +1304,19 @@ export class BackupRestoreCommand extends BaseCommand {
                   if (isMultiCluster) {
                     self.logger.info(`Installing MetalLB on cluster '${clusterResponse.context}'...`);
                     const shellRunner = new ShellRunner(self.logger);
-                    
+
                     // Install MetalLB using Helm
                     await shellRunner.run(
                       'helm upgrade --install metallb metallb/metallb ' +
-                      '--namespace metallb-system --create-namespace --atomic --wait ' +
-                      '--set speaker.frr.enabled=true',
+                        '--namespace metallb-system --create-namespace --atomic --wait ' +
+                        '--set speaker.frr.enabled=true',
                     );
-                    
+
                     // Apply cluster-specific MetalLB configuration
                     const metallbConfigPath = `test/e2e/dual-cluster/metallb-cluster-${clusterIndex + 1}.yaml`;
                     self.logger.info(`Applying MetalLB config from '${metallbConfigPath}'...`);
                     await shellRunner.run(`kubectl apply -f "${metallbConfigPath}"`);
-                    
+
                     task.title = `Created cluster '${clusterResponse.name}' with MetalLB`;
                   }
                 },
@@ -1268,12 +1337,8 @@ export class BackupRestoreCommand extends BaseCommand {
 
             // For each cluster, run the initialization commands
             for (const cluster of context_.clusters!) {
-              // Strip 'kind-' prefix if it exists in the cluster name from config
-              const clusterNameWithoutPrefix = cluster.name.startsWith('kind-') ? cluster.name.slice(5) : cluster.name;
-
-              // IMPORTANT: clusterReference should NOT have "kind-" prefix, but contextName should
-              const clusterReference = clusterNameWithoutPrefix; // cluster-ref without prefix: "e2e-cluster-alpha"
-              const contextName = `kind-${clusterNameWithoutPrefix}`; // kubectl context with prefix: "kind-e2e-cluster-alpha"
+              const clusterReference = cluster.name;
+              const contextName = `kind-${cluster.name}`; // kubectl context with prefix: "kind-e2e-cluster-alpha"
               const namespace = cluster.namespace;
               const deployment = cluster.deployment;
 
@@ -1284,7 +1349,7 @@ export class BackupRestoreCommand extends BaseCommand {
               ).length;
 
               self.logger.info(
-                `Initializing cluster: clusterForKind='${clusterNameWithoutPrefix}', clusterRef='${clusterReference}', kubectlContext='${contextName}', consensusNodes=${clusterConsensusNodeCount}`,
+                `Initializing cluster: clusterForKind='${clusterReference}', clusterRef='${clusterReference}', kubectlContext='${contextName}', consensusNodes=${clusterConsensusNodeCount}`,
               );
 
               initTasks.push(
