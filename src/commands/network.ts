@@ -1019,7 +1019,7 @@ export class NetworkCommand extends BaseCommand {
         namespace,
         constants.PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME,
         constants.PROMETHEUS_OPERATOR_CRDS_CHART,
-        constants.PROMETHEUS_OPERATOR_CRDS_REPO,
+        constants.BLOCK_NODE_CHART_URL,
         versions.PROMETHEUS_OPERATOR_CRDS_VERSION,
         valuesArgument,
         context,
