@@ -1245,6 +1245,8 @@ export class NodeCommandTasks {
             const renameScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${renameScriptName}`;
             await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
             await container.copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
+            // add sleep delay sometimes immediately executing the script after copying causes "No such file" error
+            await sleep(Duration.ofMillis(100));
             await container.execContainer(['chmod', '+x', renameScriptDestination]);
             await sleep(Duration.ofSeconds(1));
             await container.execContainer([
