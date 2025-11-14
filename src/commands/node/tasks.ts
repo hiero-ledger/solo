@@ -1164,6 +1164,8 @@ export class NodeCommandTasks {
           const targetNodeId = consensusNode.nodeId;
           const container = await k8.containers().readByRef(containerReference);
 
+          const clusterReference: string = consensusNode.cluster;
+
           // Determine the state file to use
           let zipFile: string;
           if (
@@ -1175,13 +1177,13 @@ export class NodeCommandTasks {
             const podName = podReference.name.name;
             const statesDirectory: string = path.join(
               stateFileDirectory,
-              context,
+              clusterReference,
               'states',
               context_.config.namespace.toString(),
             );
             if (!fs.existsSync(statesDirectory)) {
               self.logger.info(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
-              continue;
+              throw new SoloError(`States directory not found at ${statesDirectory}`);
             }
 
             const stateFiles = fs

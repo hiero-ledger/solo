@@ -91,7 +91,7 @@ export class ClusterCommandTasks {
     return {
       title: 'Test connection to cluster: ',
       task: async (context_, task) => {
-        task.title += clusterReference ?? context_.config.clusterRef;
+        task.title += context_.config.context;
         try {
           await self.k8Factory.getK8(context_.config.context).namespaces().list();
         } catch {
@@ -110,7 +110,7 @@ export class ClusterCommandTasks {
       title: 'Validating cluster ref: ',
       task: async (context_, task) => {
         const {clusterRef} = context_.config;
-        task.title = clusterRef;
+        task.title += clusterRef;
 
         if (self.localConfig.configuration.clusterRefs.get(clusterRef)) {
           this.logger.showUser(chalk.yellow(`Cluster ref ${clusterRef} already exists inside local config`));

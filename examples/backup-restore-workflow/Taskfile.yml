@@ -19,7 +19,7 @@ vars:
   # Cluster Configuration
   CLUSTER_NAME: "backup-restore-cluster"
   CONTEXT: "kind-backup-restore-cluster"
-  CLUSTER_REF: "kind-backup-restore-cluster"
+  CLUSTER_REF: "backup-restore-cluster-ref"
 
   # Backup/Restore Configuration
   BACKUP_DIR: "{{ .USER_WORKING_DIR }}/solo-backup"

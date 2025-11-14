@@ -1150,7 +1150,7 @@ export class BackupRestoreCommand extends BaseCommand {
           throw new SoloError(`Input directory does not exist: ${inputDirectory}`);
         }
 
-        // Read subdirectories (cluster reference names - these should NOT have "kind-" prefix)
+        // Read subdirectories
         const entries: fs.Dirent[] = fs.readdirSync(inputDirectory, {withFileTypes: true});
         const clusterReferenceDirectories: string[] = entries
           .filter(entry => entry.isDirectory())
@@ -1193,7 +1193,6 @@ export class BackupRestoreCommand extends BaseCommand {
         context_.versions = context_.remoteConfig.versions;
 
         // Use clusters from config file (they contain cluster reference names, not kubectl context names)
-        // The cluster reference names should NOT have "kind-" prefix
         if (!context_.remoteConfig.clusters || context_.remoteConfig.clusters.length === 0) {
           throw new SoloError('No cluster information found in configuration file');
         }
@@ -1294,11 +1293,11 @@ export class BackupRestoreCommand extends BaseCommand {
     for (let clusterIndex: number = 0; clusterIndex < context_.clusters.length; clusterIndex++) {
       const cluster: any = context_.clusters[clusterIndex];
 
-      // Get the cluster reference from directory name (should NOT have "kind-" prefix)
+      // Get the cluster reference from directory name
       // This is used as the base name for Kind cluster creation
-      // Kind will automatically add "kind-" prefix when creating the cluster
       const clusterReferenceFromDirectory: string = context_.contextDirs![clusterIndex];
-      const clusterNameForCreation: string = clusterReferenceFromDirectory; // Use as-is for Kind
+      // if clusterReferenceFromDirectory already has "kind-" prefix, remove it
+      const clusterNameForCreation: string = clusterReferenceFromDirectory.replace('kind-', '');
 
       clusterTasks.push({
         title: `Create cluster '${clusterNameForCreation}' (cluster ref: ${cluster.name})`,
@@ -1376,7 +1375,8 @@ export class BackupRestoreCommand extends BaseCommand {
     // For each cluster, run the initialization commands
     for (const cluster of context_.clusters!) {
       const clusterReference: string = cluster.name;
-      const contextName: string = `kind-${cluster.name}`; // kubectl context with prefix: "kind-e2e-cluster-alpha"
+      // if cluster is created by kind, then context name is kind-<clusterReference>
+      const contextName: string = clusterReference.startsWith('kind-') ? clusterReference : `kind-${clusterReference}`;
       const namespace: string = cluster.namespace;
       const deployment: string = cluster.deployment;
 
@@ -1402,7 +1402,20 @@ export class BackupRestoreCommand extends BaseCommand {
           },
           self.taskList,
         ),
-        // IMPORTANT: Connect BEFORE Setup so the mapping exists when setup looks it up
+        invokeSoloCommand(
+          `Setup cluster-ref '${clusterReference}'`,
+          ClusterReferenceCommandDefinition.SETUP_COMMAND,
+          (): string[] => {
+            const argv: string[] = CommandHelpers.newArgv();
+            argv.push(
+              ...ClusterReferenceCommandDefinition.SETUP_COMMAND.split(' '),
+              optionFromFlag(flags.clusterRef),
+              clusterReference,
+            );
+            return argv;
+          },
+          self.taskList,
+        ),
         invokeSoloCommand(
           `Connect to cluster '${contextName}'`,
           ClusterReferenceCommandDefinition.CONNECT_COMMAND,
@@ -1414,20 +1427,6 @@ export class BackupRestoreCommand extends BaseCommand {
               clusterReference,
               optionFromFlag(flags.context),
               contextName,
-            );
-            return argv;
-          },
-          self.taskList,
-        ),
-        invokeSoloCommand(
-          `Setup cluster-ref '${clusterReference}'`,
-          ClusterReferenceCommandDefinition.SETUP_COMMAND,
-          (): string[] => {
-            const argv: string[] = CommandHelpers.newArgv();
-            argv.push(
-              ...ClusterReferenceCommandDefinition.SETUP_COMMAND.split(' '),
-              optionFromFlag(flags.clusterRef),
-              clusterReference,
             );
             return argv;
           },
@@ -1460,7 +1459,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
       initTasks.push(
         invokeSoloCommand(
-          `Attach cluster '${clusterReference}' to deployment '${deployment}' with ${clusterConsensusNodeCount} consensus nodes`,
+          `Attach cluster reference '${clusterReference}' to deployment '${deployment}' with ${clusterConsensusNodeCount} consensus nodes`,
           DeploymentCommandDefinition.ATTACH_COMMAND,
           (): string[] => {
             const argv: string[] = CommandHelpers.newArgv();
