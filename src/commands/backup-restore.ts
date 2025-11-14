@@ -1158,7 +1158,9 @@ export class BackupRestoreCommand extends BaseCommand {
 
         // Read subdirectories (cluster reference names - these should NOT have "kind-" prefix)
         const entries: fs.Dirent[] = fs.readdirSync(inputDirectory, {withFileTypes: true});
-        const clusterReferenceDirectories: string[] = entries.filter(entry => entry.isDirectory()).map(entry => entry.name);
+        const clusterReferenceDirectories: string[] = entries
+          .filter(entry => entry.isDirectory())
+          .map(entry => entry.name);
 
         if (clusterReferenceDirectories.length === 0) {
           throw new SoloError(`No cluster directories found in: ${inputDirectory}`);
@@ -1175,7 +1177,12 @@ export class BackupRestoreCommand extends BaseCommand {
 
         // Read solo-remote-config.yaml from the first cluster's configmaps directory
         const firstClusterReference: string = clusterReferenceDirectories[0];
-        const configPath: string = path.join(inputDirectory, firstClusterReference, 'configmaps', 'solo-remote-config.yaml');
+        const configPath: string = path.join(
+          inputDirectory,
+          firstClusterReference,
+          'configmaps',
+          'solo-remote-config.yaml',
+        );
 
         if (!fs.existsSync(configPath)) {
           throw new SoloError(

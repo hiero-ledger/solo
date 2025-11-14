@@ -25,6 +25,7 @@ export class ExplorerTest extends BaseCommandTest {
     testName: string,
     deployment: DeploymentName,
     clusterReference: ClusterReferenceName,
+    namespace: NamespaceName,
   ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = ExplorerTest;
 
@@ -37,6 +38,8 @@ export class ExplorerTest extends BaseCommandTest {
       deployment,
       optionFromFlag(Flags.clusterRef),
       clusterReference,
+      optionFromFlag(Flags.namespace),
+      namespace.name,
     );
     argvPushGlobalFlags(argv, testName, true, true);
     return argv;
@@ -129,7 +132,7 @@ export class ExplorerTest extends BaseCommandTest {
     const {soloExplorerDeployArgv, verifyExplorerDeployWasSuccessful} = ExplorerTest;
 
     it(`${testName}: explorer node add`, async (): Promise<void> => {
-      await main(soloExplorerDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
+      await main(soloExplorerDeployArgv(testName, deployment, clusterReferenceNameArray[1], namespace));
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 
