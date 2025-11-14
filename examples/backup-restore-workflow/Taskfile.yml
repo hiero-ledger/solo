@@ -161,7 +161,7 @@ tasks:
     desc: Restore configuration and state from backup
     cmds:
       - cmd: $SOLO_COMMAND consensus node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
-      - cmd: $SOLO_COMMAND config ops restore --deployment {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
+      - cmd: $SOLO_COMMAND config ops restore-config --deployment {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: echo "✅ Restore completed successfully"
 

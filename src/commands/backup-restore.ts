@@ -562,7 +562,7 @@ export class BackupRestoreCommand extends BaseCommand {
                 'consensus network freeze',
                 (): string[] => {
                   const argv: string[] = CommandHelpers.newArgv();
-                  argv.push('consensus', 'network', 'freeze');
+                  argv.push('consensus', 'network', 'freeze', '--deployment', context_.deployment);
                   return argv;
                 },
                 this.taskList,
