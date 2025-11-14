@@ -14,6 +14,20 @@ This example demonstrates how to deploy a minimal Hiero Hashgraph Solo network a
   * Longevity (endurance) testing
 * **Cleans up** all resources after testing
 
+## Getting This Example
+
+### Download Archive
+
+You can download this example as a standalone archive from the [Solo releases page](https://github.com/hiero-ledger/solo/releases):
+
+```
+https://github.com/hiero-ledger/solo/releases/download/<release_version>/example-rapid-fire.zip
+```
+
+### View on GitHub
+
+Browse the source code and configuration files for this example in the [GitHub repository](https://github.com/hiero-ledger/solo/tree/main/examples/rapid-fire).
+
 ## Prerequisites
 
 * [Task](https://taskfile.dev/)

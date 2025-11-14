@@ -11,6 +11,20 @@ This example demonstrates how to create and manage a custom Hiero Hashgraph Solo
 * **Automates the complete deployment workflow** with decision tree logic based on consensus node release tags
 * **Defines a custom network topology** (number of nodes, namespaces, deployments, etc.)
 
+## Getting This Example
+
+### Download Archive
+
+You can download this example as a standalone archive from the [Solo releases page](https://github.com/hiero-ledger/solo/releases):
+
+```
+https://github.com/hiero-ledger/solo/releases/download/<release_version>/example-local-build-with-custom-config.zip
+```
+
+### View on GitHub
+
+Browse the source code and configuration files for this example in the [GitHub repository](https://github.com/hiero-ledger/solo/tree/main/examples/local-build-with-custom-config).
+
 ## Configuration Options
 
 ### Consensus Node Configuration

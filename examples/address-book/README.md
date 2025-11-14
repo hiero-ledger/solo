@@ -4,6 +4,20 @@ This is an example of how to use Yahcli to pull the ledger and mirror node addre
 
 NOTE: Mirror Node refers to File 102 as its address book.
 
+## Getting This Example
+
+### Download Archive
+
+You can download this example as a standalone archive from the [Solo releases page](https://github.com/hiero-ledger/solo/releases):
+
+```
+https://github.com/hiero-ledger/solo/releases/download/<release_version>/example-address-book.zip
+```
+
+### View on GitHub
+
+Browse the source code and configuration files for this example in the [GitHub repository](https://github.com/hiero-ledger/solo/tree/main/examples/address-book).
+
 ## Usage
 
 To get the address book from the ledger, this requires a port forward to be setup on port 50211 to consensus node with node ID = 0.

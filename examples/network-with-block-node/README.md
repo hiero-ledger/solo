@@ -8,6 +8,20 @@ This example demonstrates how to deploy a Hiero Hashgraph Solo network with a bl
 * Deploys a Solo network with a single consensus node, mirror node, relay, explorer, and block node
 * Provides tasks to install (start) and destroy the network
 
+## Getting This Example
+
+### Download Archive
+
+You can download this example as a standalone archive from the [Solo releases page](https://github.com/hiero-ledger/solo/releases):
+
+```
+https://github.com/hiero-ledger/solo/releases/download/<release_version>/example-network-with-block-node.zip
+```
+
+### View on GitHub
+
+Browse the source code and configuration files for this example in the [GitHub repository](https://github.com/hiero-ledger/solo/tree/main/examples/network-with-block-node).
+
 ## Usage
 
 1. **Install dependencies**

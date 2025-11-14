@@ -11,6 +11,20 @@ This example demonstrates how to use the node add-prepare/prepare-upgrade/freeze
 * Runs `solo consensus dev-node-add execute` to add network resources for a third consensus node, configures it, then restarts the network to come out of the freeze and leverage the new node
 * Contains the destroy commands to bring down the network if desired
 
+## Getting This Example
+
+### Download Archive
+
+You can download this example as a standalone archive from the [Solo releases page](https://github.com/hiero-ledger/solo/releases):
+
+```
+https://github.com/hiero-ledger/solo/releases/download/<release_version>/example-node-create-transaction.zip
+```
+
+### View on GitHub
+
+Browse the source code and configuration files for this example in the [GitHub repository](https://github.com/hiero-ledger/solo/tree/main/examples/node-create-transaction).
+
 ## How to Use
 
 1. **Install dependencies:**

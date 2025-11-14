@@ -8,6 +8,20 @@ This example demonstrates how to deploy a Hiero Hashgraph Solo deployment via th
 * Installs `hardhat` and configures it to connect to the local Solo deployment
 * Runs sample tests against the Solo deployment
 
+## Getting This Example
+
+### Download Archive
+
+You can download this example as a standalone archive from the [Solo releases page](https://github.com/hiero-ledger/solo/releases):
+
+```
+https://github.com/hiero-ledger/solo/releases/download/<release_version>/example-hardhat-with-solo.zip
+```
+
+### View on GitHub
+
+Browse the source code and configuration files for this example in the [GitHub repository](https://github.com/hiero-ledger/solo/tree/main/examples/hardhat-with-solo).
+
 ## Usage
 
 1. **Install dependencies:**
