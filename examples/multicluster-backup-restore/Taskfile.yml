@@ -60,7 +60,7 @@ tasks:
     cmds:
       - cmd: |
           export SOLO_HOME=test/data/tmp/external-database-test
-          #$SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
+          $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }}
       - cmd: echo "✅ Backup completed successfully"
       - cmd: |
@@ -157,6 +157,9 @@ tasks:
   restore-data:
     desc: Restore configuration and state from backup
     cmds:
+      # freeze first before restoring
+      - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
+      - cmd: $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
       - cmd: echo "Restoring database from dump..."
       - cmd: |
           kubectl cp {{ .BACKUP_DIR }}/database-dump.sql \
@@ -166,10 +169,6 @@ tasks:
           env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} \
           -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -f /tmp/database-dump.sql
       - cmd: echo "✅ Database restored"
-      # freeze first before restoring
-      - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
-      - cmd: $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
-
   # ==================== Verification Tasks ====================
 
   verify:
