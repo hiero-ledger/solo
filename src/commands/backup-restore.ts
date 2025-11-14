@@ -716,7 +716,7 @@ export class BackupRestoreCommand extends BaseCommand {
    * This follows the pattern from default-one-shot.ts
    */
   private buildDeploymentTasks(): any[] {
-    const self = this;
+    const self: BackupRestoreCommand = this;
     const tasks: any[] = [];
 
     return [
@@ -863,7 +863,7 @@ export class BackupRestoreCommand extends BaseCommand {
    * Build block node deployment tasks
    */
   private buildBlockNodeTasks(): any[] {
-    const self = this;
+    const self: BackupRestoreCommand = this;
     const tasks: any[] = [];
 
     return [
@@ -879,10 +879,10 @@ export class BackupRestoreCommand extends BaseCommand {
               title: `Deploy block node ${blockNode.metadata.id}`,
               task: async (_, subTaskListWrapper) => {
                 // Switch to the correct cluster context for this block node
-                const nodeCluster = blockNode.metadata.cluster;
+                const nodeCluster: string | undefined = blockNode.metadata.cluster;
                 if (nodeCluster) {
                   self.logger.info(`Switching to cluster '${nodeCluster}' for block node ${blockNode.metadata.id}`);
-                  const k8 = self.k8Factory.getK8(nodeCluster);
+                  const k8: K8 = self.k8Factory.getK8(nodeCluster);
                   k8.contexts().updateCurrent(nodeCluster);
                 }
 
@@ -933,7 +933,7 @@ export class BackupRestoreCommand extends BaseCommand {
    * Build mirror node deployment tasks
    */
   private buildMirrorNodeTasks(): any[] {
-    const self = this;
+    const self: BackupRestoreCommand = this;
 
     return [
       {
@@ -948,10 +948,10 @@ export class BackupRestoreCommand extends BaseCommand {
               title: `Deploy mirror node ${mirrorNode.metadata.id}`,
               task: async (_, subTaskListWrapper) => {
                 // Switch to the correct cluster context for this mirror node
-                const nodeCluster = mirrorNode.metadata.cluster;
+                const nodeCluster: string | undefined = mirrorNode.metadata.cluster;
                 if (nodeCluster) {
                   self.logger.info(`Switching to cluster '${nodeCluster}' for mirror node ${mirrorNode.metadata.id}`);
-                  const k8 = self.k8Factory.getK8(nodeCluster);
+                  const k8: K8 = self.k8Factory.getK8(nodeCluster);
                   k8.contexts().updateCurrent(nodeCluster);
                 }
 
@@ -1002,7 +1002,7 @@ export class BackupRestoreCommand extends BaseCommand {
    * Build relay node deployment tasks
    */
   private buildRelayNodeTasks(): any[] {
-    const self = this;
+    const self: BackupRestoreCommand = this;
 
     return [
       {
@@ -1017,10 +1017,10 @@ export class BackupRestoreCommand extends BaseCommand {
               title: `Deploy relay node ${relayNode.metadata.id}`,
               task: async (_, subTaskListWrapper) => {
                 // Switch to the correct cluster context for this relay node
-                const nodeCluster = relayNode.metadata.cluster;
+                const nodeCluster: string | undefined = relayNode.metadata.cluster;
                 if (nodeCluster) {
                   self.logger.info(`Switching to cluster '${nodeCluster}' for relay node ${relayNode.metadata.id}`);
-                  const k8 = self.k8Factory.getK8(nodeCluster);
+                  const k8: K8 = self.k8Factory.getK8(nodeCluster);
                   k8.contexts().updateCurrent(nodeCluster);
                 }
 
@@ -1075,7 +1075,7 @@ export class BackupRestoreCommand extends BaseCommand {
    * Build explorer deployment tasks
    */
   private buildExplorerTasks(): any[] {
-    const self = this;
+    const self: BackupRestoreCommand = this;
 
     return [
       {
@@ -1090,10 +1090,10 @@ export class BackupRestoreCommand extends BaseCommand {
               title: `Deploy explorer ${explorer.metadata.id}`,
               task: async (_, subTaskListWrapper) => {
                 // Switch to the correct cluster context for this explorer
-                const nodeCluster = explorer.metadata.cluster;
+                const nodeCluster: string | undefined = explorer.metadata.cluster;
                 if (nodeCluster) {
                   self.logger.info(`Switching to cluster '${nodeCluster}' for explorer ${explorer.metadata.id}`);
-                  const k8 = self.k8Factory.getK8(nodeCluster);
+                  const k8: K8 = self.k8Factory.getK8(nodeCluster);
                   k8.contexts().updateCurrent(nodeCluster);
                 }
 
@@ -1144,12 +1144,12 @@ export class BackupRestoreCommand extends BaseCommand {
    * Build scan backup directory task
    */
   private buildScanBackupDirectoryTask(): any {
-    const self = this;
+    const self: BackupRestoreCommand = this;
 
     return {
       title: 'Scan backup directory structure',
       task: async (context_: any) => {
-        const inputDirectory = context_.inputDirectory;
+        const inputDirectory: string = context_.inputDirectory;
 
         // Verify input directory exists
         if (!fs.existsSync(inputDirectory)) {
@@ -1157,8 +1157,8 @@ export class BackupRestoreCommand extends BaseCommand {
         }
 
         // Read subdirectories (cluster reference names - these should NOT have "kind-" prefix)
-        const entries = fs.readdirSync(inputDirectory, {withFileTypes: true});
-        const clusterReferenceDirectories = entries.filter(entry => entry.isDirectory()).map(entry => entry.name);
+        const entries: fs.Dirent[] = fs.readdirSync(inputDirectory, {withFileTypes: true});
+        const clusterReferenceDirectories: string[] = entries.filter(entry => entry.isDirectory()).map(entry => entry.name);
 
         if (clusterReferenceDirectories.length === 0) {
           throw new SoloError(`No cluster directories found in: ${inputDirectory}`);
@@ -1174,8 +1174,8 @@ export class BackupRestoreCommand extends BaseCommand {
         );
 
         // Read solo-remote-config.yaml from the first cluster's configmaps directory
-        const firstClusterReference = clusterReferenceDirectories[0];
-        const configPath = path.join(inputDirectory, firstClusterReference, 'configmaps', 'solo-remote-config.yaml');
+        const firstClusterReference: string = clusterReferenceDirectories[0];
+        const configPath: string = path.join(inputDirectory, firstClusterReference, 'configmaps', 'solo-remote-config.yaml');
 
         if (!fs.existsSync(configPath)) {
           throw new SoloError(
@@ -1186,7 +1186,7 @@ export class BackupRestoreCommand extends BaseCommand {
         self.logger.showUser(chalk.cyan(`Reading configuration from: ${configPath}`));
 
         // Read and parse the config file
-        const configData = await self.readRemoteConfigFile(configPath);
+        const configData: any = await self.readRemoteConfigFile(configPath);
         context_.remoteConfig = self.parseRemoteConfig(configData);
         context_.deploymentState = context_.remoteConfig.state;
         context_.versions = context_.remoteConfig.versions;
@@ -1200,7 +1200,7 @@ export class BackupRestoreCommand extends BaseCommand {
         context_.clusters = context_.remoteConfig.clusters;
 
         // Log cluster information from config
-        const clusterNames = context_.clusters.map((c: any) => c.name).join(', ');
+        const clusterNames: string = context_.clusters.map((c: any) => c.name).join(', ');
         self.logger.showUser(chalk.cyan(`Clusters from config: ${clusterNames}`));
 
         // Validate: number of cluster directories should match number of clusters in config
@@ -1213,7 +1213,7 @@ export class BackupRestoreCommand extends BaseCommand {
         }
 
         // Extract deployment info from config (use first cluster)
-        const clusterInfo = context_.remoteConfig.clusters[0];
+        const clusterInfo: any = context_.remoteConfig.clusters[0];
         context_.namespace = NamespaceName.of(clusterInfo.namespace);
         context_.deployment = clusterInfo.deployment as DeploymentName;
         context_.context = clusterInfo.name; // Cluster name is the context
@@ -1230,7 +1230,7 @@ export class BackupRestoreCommand extends BaseCommand {
           context_.numConsensusNodes = context_.deploymentState!.consensusNodes.length;
         }
 
-        const hasComponents =
+        const hasComponents: boolean =
           (context_.deploymentState!.consensusNodes?.length || 0) > 0 ||
           (context_.deploymentState!.blockNodes?.length || 0) > 0 ||
           (context_.deploymentState!.mirrorNodes?.length || 0) > 0 ||
@@ -1248,7 +1248,7 @@ export class BackupRestoreCommand extends BaseCommand {
    * Build create Kind clusters tasks
    */
   private buildCreateKindClustersTasks(): any[] {
-    const self = this;
+    const self: BackupRestoreCommand = this;
     const tasks: any[] = [
       {
         title: 'Setup Docker network for multi-cluster',
@@ -1256,7 +1256,7 @@ export class BackupRestoreCommand extends BaseCommand {
         task: async (context_: any) => {
           self.logger.info(`Multiple clusters detected (${context_.clusters.length}), creating Kind Docker network...`);
           try {
-            const shellRunner = new ShellRunner(self.logger);
+            const shellRunner: ShellRunner = new ShellRunner(self.logger);
             await shellRunner.run(
               'docker network rm -f kind || true && docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge',
             );
@@ -1285,19 +1285,19 @@ export class BackupRestoreCommand extends BaseCommand {
    * Build individual cluster creation tasks
    */
   private buildIndividualClusterCreationTasks(context_: any): any[] {
-    const self = this;
+    const self: BackupRestoreCommand = this;
     const clusterTasks: any[] = [];
-    const isMultiCluster = context_.clusters.length > 1;
+    const isMultiCluster: boolean = context_.clusters.length > 1;
 
     // Create a task for each cluster
-    for (let clusterIndex = 0; clusterIndex < context_.clusters.length; clusterIndex++) {
-      const cluster = context_.clusters[clusterIndex];
+    for (let clusterIndex: number = 0; clusterIndex < context_.clusters.length; clusterIndex++) {
+      const cluster: any = context_.clusters[clusterIndex];
 
       // Get the cluster reference from directory name (should NOT have "kind-" prefix)
       // This is used as the base name for Kind cluster creation
       // Kind will automatically add "kind-" prefix when creating the cluster
-      const clusterReferenceFromDirectory = context_.contextDirs![clusterIndex];
-      const clusterNameForCreation = clusterReferenceFromDirectory; // Use as-is for Kind
+      const clusterReferenceFromDirectory: string = context_.contextDirs![clusterIndex];
+      const clusterNameForCreation: string = clusterReferenceFromDirectory; // Use as-is for Kind
 
       clusterTasks.push({
         title: `Create cluster '${clusterNameForCreation}' (cluster ref: ${cluster.name})`,
@@ -1309,13 +1309,13 @@ export class BackupRestoreCommand extends BaseCommand {
 
           // Wait for cluster control plane to be ready by checking API server
           self.logger.info(`Waiting for cluster '${clusterResponse.context}' control plane to be ready...`);
-          const maxAttempts = 60; // 60 attempts * 2 seconds = 120 seconds max
-          let attempt = 0;
-          let clusterReady = false;
+          const maxAttempts: number = 60; // 60 attempts * 2 seconds = 120 seconds max
+          let attempt: number = 0;
+          let clusterReady: boolean = false;
 
           while (attempt < maxAttempts && !clusterReady) {
             try {
-              const k8 = self.k8Factory.getK8(clusterResponse.context);
+              const k8: K8 = self.k8Factory.getK8(clusterResponse.context);
               // Try to list namespaces as a simple API readiness check
               await k8.namespaces().list();
               clusterReady = true;
@@ -1335,13 +1335,13 @@ export class BackupRestoreCommand extends BaseCommand {
 
           // Set the current kubectl context to the newly created cluster
           self.logger.info(`Setting current context to '${clusterResponse.context}'`);
-          const k8 = self.k8Factory.getK8(clusterResponse.context);
+          const k8: K8 = self.k8Factory.getK8(clusterResponse.context);
           k8.contexts().updateCurrent(clusterResponse.context);
 
           // Install MetalLB for multi-cluster setups
           if (isMultiCluster) {
             self.logger.info(`Installing MetalLB on cluster '${clusterResponse.context}'...`);
-            const shellRunner = new ShellRunner(self.logger);
+            const shellRunner: ShellRunner = new ShellRunner(self.logger);
 
             // Install MetalLB using Helm
             await shellRunner.run(
@@ -1351,7 +1351,7 @@ export class BackupRestoreCommand extends BaseCommand {
             );
 
             // Apply cluster-specific MetalLB configuration
-            const metallbConfigPath = `test/e2e/dual-cluster/metallb-cluster-${clusterIndex + 1}.yaml`;
+            const metallbConfigPath: string = `test/e2e/dual-cluster/metallb-cluster-${clusterIndex + 1}.yaml`;
             self.logger.info(`Applying MetalLB config from '${metallbConfigPath}'...`);
             await shellRunner.run(`kubectl apply -f "${metallbConfigPath}"`);
 
@@ -1368,20 +1368,20 @@ export class BackupRestoreCommand extends BaseCommand {
    * Build cluster initialization tasks
    */
   private buildClusterInitializationTasks(context_: any): any[] {
-    const self = this;
+    const self: BackupRestoreCommand = this;
     const initTasks: any[] = [];
-    const createdDeployments: Set<string> = new Set(); // Track deployments already created
+    const createdDeployments: Set<string> = new Set<string>(); // Track deployments already created
 
     // For each cluster, run the initialization commands
     for (const cluster of context_.clusters!) {
-      const clusterReference = cluster.name;
-      const contextName = `kind-${cluster.name}`; // kubectl context with prefix: "kind-e2e-cluster-alpha"
-      const namespace = cluster.namespace;
-      const deployment = cluster.deployment;
+      const clusterReference: string = cluster.name;
+      const contextName: string = `kind-${cluster.name}`; // kubectl context with prefix: "kind-e2e-cluster-alpha"
+      const namespace: string = cluster.namespace;
+      const deployment: string = cluster.deployment;
 
       // Count consensus nodes belonging to this specific cluster
       // Note: nodes may have cluster saved with or without prefix, so check both
-      const clusterConsensusNodeCount = context_.deploymentState!.consensusNodes.filter(
+      const clusterConsensusNodeCount: number = context_.deploymentState!.consensusNodes.filter(
         (node: any) => node.metadata.cluster === clusterReference,
       ).length;
 
@@ -1487,7 +1487,7 @@ export class BackupRestoreCommand extends BaseCommand {
    * Command: solo config ops restore-clusters
    */
   public async restoreClusters(argv: ArgvStruct): Promise<boolean> {
-    const self = this;
+    const self: BackupRestoreCommand = this;
 
     interface RestoreClustersContext {
       inputDirectory: string;
@@ -1632,7 +1632,7 @@ export class BackupRestoreCommand extends BaseCommand {
    * Command: solo config ops restore-network
    */
   public async restoreNetwork(argv: ArgvStruct): Promise<boolean> {
-    const self = this;
+    const self: BackupRestoreCommand = this;
 
     interface RestoreNetworkContext {
       inputDirectory: string;
