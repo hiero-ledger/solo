@@ -462,10 +462,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             },
           },
         ],
-        {
-          concurrent: false,
-          rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        },
+        constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       );
 
     try {
@@ -902,10 +899,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       {title: 'Finish', task: async (): Promise<void> => {}},
     ];
 
-    const tasks = this.taskList.newOneShotSingleDestroyTaskList(taskArray, {
-      concurrent: false,
-      rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-    });
+    const tasks = this.taskList.newOneShotSingleDestroyTaskList(taskArray, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
 
     try {
       await tasks.run();

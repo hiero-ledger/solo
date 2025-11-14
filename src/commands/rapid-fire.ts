@@ -246,7 +246,7 @@ export class RapidFireCommand extends BaseCommand {
   public async start(argv: ArgvStruct): Promise<boolean> {
     const leaseReference: {lease?: Lock} = {}; // This allows the lease to be passed by reference to the init task
 
-    const tasks: Listr<RapidFireStartContext> = new Listr<RapidFireStartContext>(
+    const tasks: Listr<RapidFireStartContext, any, any> = new Listr(
       [
         {
           title: 'Initialize',
@@ -287,10 +287,7 @@ export class RapidFireCommand extends BaseCommand {
         this.deployNlgChart(),
         this.startLoadTest(leaseReference),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-      },
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
 
     try {
@@ -340,12 +337,9 @@ export class RapidFireCommand extends BaseCommand {
 
   private async allStopTasks(argv: ArgvStruct, stopTask: SoloListrTask<RapidFireStopContext>): Promise<boolean> {
     const leaseReference: {lease?: Lock} = {}; // This allows the lease to be passed by reference to the init task
-    const tasks: Listr<RapidFireStopContext> = new Listr<RapidFireStopContext>(
+    const tasks: Listr<RapidFireStopContext, any, any> = new Listr(
       [this.stopInitializeTask(argv, leaseReference), stopTask],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-      },
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
 
     try {
@@ -392,12 +386,9 @@ export class RapidFireCommand extends BaseCommand {
 
   public async stop(argv: ArgvStruct): Promise<boolean> {
     const leaseReference: {lease?: Lock} = {}; // This allows the lease to be passed by reference to the init task
-    const tasks: Listr<RapidFireStopContext> = new Listr<RapidFireStopContext>(
+    const tasks: Listr<RapidFireStopContext, any, any> = new Listr(
       [this.stopInitializeTask(argv, leaseReference), this.stopLoadTest()],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-      },
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
 
     try {

@@ -619,10 +619,7 @@ export class MirrorNodeCommand extends BaseCommand {
               },
             },
           ],
-          {
-            concurrent: false,
-            rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-          },
+          constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
         ),
     };
   }
@@ -689,10 +686,7 @@ export class MirrorNodeCommand extends BaseCommand {
           },
         );
 
-        return task.newListr(subTasks, {
-          concurrent: true,
-          rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        });
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
     };
   }
@@ -812,10 +806,7 @@ export class MirrorNodeCommand extends BaseCommand {
               },
             },
           ],
-          {
-            concurrent: false,
-            rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-          },
+          constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
         ),
     };
   }
@@ -1042,10 +1033,7 @@ export class MirrorNodeCommand extends BaseCommand {
         //   },
         // },
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-      },
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'mirror node add',
     );
@@ -1245,10 +1233,7 @@ export class MirrorNodeCommand extends BaseCommand {
         //   },
         // },
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-      },
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'mirror node upgrade',
     );
@@ -1415,10 +1400,7 @@ export class MirrorNodeCommand extends BaseCommand {
         },
         this.disableMirrorNodeComponents(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-      },
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'mirror node destroy',
     );
