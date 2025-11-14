@@ -351,6 +351,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     validate: boolean = true,
     skipConsensusNodesValidation: boolean = true,
   ): Promise<void> {
+    await this.setDefaultNamespaceAndDeploymentIfNotSet(argv);
     this.setDefaultContextIfNotSet();
 
     const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
