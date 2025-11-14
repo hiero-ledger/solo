@@ -1019,6 +1019,8 @@ export class NetworkCommand extends BaseCommand {
         [constants.PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME, constants.PROMETHEUS_OPERATOR_CRDS_CHART_URL],
       ]);
 
+      await this.chartManager.setup(setupMap);
+
       await this.chartManager.install(
         namespace,
         constants.PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME,
