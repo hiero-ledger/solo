@@ -1149,19 +1149,19 @@ export class BackupRestoreCommand extends BaseCommand {
     return {
       title: 'Scan backup directory structure',
       task: async (context_: any) => {
-        const inputDir = context_.inputDirectory;
+        const inputDirectory = context_.inputDirectory;
 
         // Verify input directory exists
-        if (!fs.existsSync(inputDir)) {
-          throw new SoloError(`Input directory does not exist: ${inputDir}`);
+        if (!fs.existsSync(inputDirectory)) {
+          throw new SoloError(`Input directory does not exist: ${inputDirectory}`);
         }
 
         // Read subdirectories (cluster reference names - these should NOT have "kind-" prefix)
-        const entries = fs.readdirSync(inputDir, {withFileTypes: true});
+        const entries = fs.readdirSync(inputDirectory, {withFileTypes: true});
         const clusterReferenceDirectories = entries.filter(entry => entry.isDirectory()).map(entry => entry.name);
 
         if (clusterReferenceDirectories.length === 0) {
-          throw new SoloError(`No cluster directories found in: ${inputDir}`);
+          throw new SoloError(`No cluster directories found in: ${inputDirectory}`);
         }
 
         // Store cluster reference directory names for mapping to kubectl contexts later
@@ -1175,7 +1175,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
         // Read solo-remote-config.yaml from the first cluster's configmaps directory
         const firstClusterReference = clusterReferenceDirectories[0];
-        const configPath = path.join(inputDir, firstClusterReference, 'configmaps', 'solo-remote-config.yaml');
+        const configPath = path.join(inputDirectory, firstClusterReference, 'configmaps', 'solo-remote-config.yaml');
 
         if (!fs.existsSync(configPath)) {
           throw new SoloError(
@@ -1296,8 +1296,8 @@ export class BackupRestoreCommand extends BaseCommand {
       // Get the cluster reference from directory name (should NOT have "kind-" prefix)
       // This is used as the base name for Kind cluster creation
       // Kind will automatically add "kind-" prefix when creating the cluster
-      const clusterRefFromDir = context_.contextDirs![clusterIndex];
-      const clusterNameForCreation = clusterRefFromDir; // Use as-is for Kind
+      const clusterReferenceFromDirectory = context_.contextDirs![clusterIndex];
+      const clusterNameForCreation = clusterReferenceFromDirectory; // Use as-is for Kind
 
       clusterTasks.push({
         title: `Create cluster '${clusterNameForCreation}' (cluster ref: ${cluster.name})`,
@@ -1518,11 +1518,11 @@ export class BackupRestoreCommand extends BaseCommand {
             await self.localConfig.load();
             self.configManager.update(argv);
 
-            const inputDir = argv[flags.inputDir.name] as string;
-            if (!inputDir) {
+            const inputDirectory = argv[flags.inputDir.name] as string;
+            if (!inputDirectory) {
               throw new SoloError('Input directory is required. Use --input-dir flag.');
             }
-            context_.inputDirectory = inputDir;
+            context_.inputDirectory = inputDirectory;
 
             // Load component-specific options from YAML file if provided
             const optionsFile = argv[flags.optionsFile.name] as string;
@@ -1663,11 +1663,11 @@ export class BackupRestoreCommand extends BaseCommand {
             await self.localConfig.load();
             self.configManager.update(argv);
 
-            const inputDir = argv[flags.inputDir.name] as string;
-            if (!inputDir) {
+            const inputDirectory = argv[flags.inputDir.name] as string;
+            if (!inputDirectory) {
               throw new SoloError('Input directory is required. Use --input-dir flag.');
             }
-            context_.inputDirectory = inputDir;
+            context_.inputDirectory = inputDirectory;
 
             // Load component-specific options from YAML file if provided
             const optionsFile = argv[flags.optionsFile.name] as string;
