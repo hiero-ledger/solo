@@ -37,7 +37,7 @@ export const GRAFANA_AGENT_VERSION: string = constants.getEnvironmentVariable('G
 export const GRAFANA_PODLOGS_CRD_VERSION: string =
   constants.getEnvironmentVariable('GRAFANA_PODLOGS_CRD_VERSION') || 'v1.11.3';
 export const PROMETHEUS_OPERATOR_CRDS_VERSION: string =
-  constants.getEnvironmentVariable('PROMETHEUS_OPERATOR_CRDS_VERSION') || '12.0.0';
+  constants.getEnvironmentVariable('PROMETHEUS_OPERATOR_CRDS_VERSION') || '24.0.2';
 
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE: string = 'v0.62.3';
 export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT: SemVer = new SemVer('v0.15.0');

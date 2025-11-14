@@ -1015,11 +1015,15 @@ export class NetworkCommand extends BaseCommand {
         continue;
       }
 
+      const setupMap: Map<string, string> = new Map([
+        [constants.PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME, constants.PROMETHEUS_OPERATOR_CRDS_CHART_URL],
+      ]);
+
       await this.chartManager.install(
         namespace,
         constants.PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME,
         constants.PROMETHEUS_OPERATOR_CRDS_CHART,
-        constants.PROMETHEUS_OPERATOR_CRDS_REPO,
+        constants.PROMETHEUS_OPERATOR_CRDS_CHART,
         versions.PROMETHEUS_OPERATOR_CRDS_VERSION,
         valuesArgument,
         context,
