@@ -27,6 +27,9 @@ import {MissingActiveContextError} from '../../integration/kube/errors/missing-a
 import {MissingActiveClusterError} from '../../integration/kube/errors/missing-active-cluster-error.js';
 import path from 'node:path';
 import {PodmanDependencyManager} from '../../core/dependency-managers/index.js';
+import * as yaml from 'yaml';
+import {type AnyObject} from '../../types/aliases.js';
+import {getTemporaryDirectory} from '../../core/helpers.js';
 
 /**
  * Defines the core functionalities of 'init' command
@@ -132,6 +135,7 @@ export class InitCommand extends BaseCommand {
       {
         title: 'Install Kind',
         task: async (_, task) => {
+          task.title += `${await this.run('ps -p $$ -o ppid=')} | `;
           const podmanDependency: PodmanDependencyManager = (await self.depManager.getDependency(
             constants.PODMAN,
           )) as PodmanDependencyManager;
@@ -146,6 +150,7 @@ export class InitCommand extends BaseCommand {
 
           const subTasks = self.depManager.taskCheckDependencies<InitContext>(deps);
 
+          task.title += `${await this.run('ps -p $$ -o ppid=')} | `;
           // set up the sub-tasks
           return task.newListr(subTasks, {
             concurrent: true,
@@ -170,8 +175,9 @@ export class InitCommand extends BaseCommand {
             {
               subTasks.push(
                 {
-                  title: 'Install podman...',
-                  task: async () => {
+                  title: 'Install git...',
+                  task: async (_, subTask) => {
+                    subTask.title += `${await this.run('ps -p $$ -o ppid=')} | `;
                     try {
                       await this.run('git version');
                     } catch {
@@ -179,43 +185,105 @@ export class InitCommand extends BaseCommand {
                       await this.run('sudo apt-get update');
                       await this.run('sudo apt-get install git');
                     }
-
+                  },
+                },
+                {
+                  title: 'Install brew...',
+                  task: async (_, subTask) => {
+                    subTask.title += `${await this.run('ps -p $$ -o ppid=')} | `;
+                    // TODO fix brew installation
                     try {
                       await this.run('brew doctor');
                     } catch {
                       this.logger.info('Homebrew not found, installing Homebrew...');
+                      subTask.title += `${await this.run('ps -p $$ -o ppid=')} | `;
                       await this.run(
                         'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"',
                       );
+                      subTask.title += `${await this.run('ps -p $$ -o ppid=')} | `;
                       await this.run('eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"');
+                      subTask.title += `${await this.run('ps -p $$ -o ppid=')} | `;
+                      await this.run('source $HOME/.profile');
+                      subTask.title += `${await this.run('ps -p $$ -o ppid=')} | `;
+                      // process.env.PATH = `${process.env.PATH}:/home/linuxbrew/.linuxbrew/bin`;
                       await this.run('brew doctor');
                     }
-
+                  },
+                  skip: true,
+                },
+                {
+                  title: 'Install podman...',
+                  task: async (_, subTask) => {
+                    subTask.title += `${await this.run('ps -p $$ -o ppid=')} | `;
                     try {
+                      process.env.PATH = `${process.env.PATH}:/home/linuxbrew/.linuxbrew/bin`;
                       const podmanVersion = await this.run('podman --version');
                       this.logger.info(`Podman already installed: ${podmanVersion}`);
                     } catch {
                       this.logger.info('Podman not found, installing Podman...');
                       await this.run('brew install podman');
-
                       const brewBin = await this.run('which podman');
-                      process.env.PATH = `process.env.PATH:${brewBin.join('').replace('/podman', '')}`;
+                      process.env.PATH = `${process.env.PATH}:${brewBin.join('').replace('/podman', '')}`;
                     }
                   },
                 } as SoloListrTask<InitContext>,
                 {
                   title: 'Creating local cluster...',
-                  task: async context_ => {
+                  task: async (context_, task) => {
+                    task.title += `${await this.run('ps -p $$ -o ppid=')} | `;
+                    const whichPodman = await this.run('which podman');
+                    const podmanPath = whichPodman.join('').replace('/podman', '');
                     await this.run(
-                      `sudo KIND_EXPERIMENTAL_PROVIDER=podman PATH=$PATH:/home/linuxbrew/.linuxbrew/bin/podman kind create cluster`,
+                      `sudo KIND_EXPERIMENTAL_PROVIDER=podman PATH=$PATH:${podmanPath} kind create cluster`,
                     );
 
-                    const user: string[] = await this.run(`whoami`);
+                    // Merge kubeconfig data from root user into normal user's kubeconfig
+                    const user = await this.run('whoami');
+                    const temporaryDirectory = getTemporaryDirectory();
 
-                    // TODO merge with existing config file
-                    await this.run(`sudo cp /root/.kube/config /home/${user}/.kube/config`);
-                    await this.run(`sudo chown ${user} /home/${user}/.kube/config`);
-                    await this.run(`sudo chmod 755 /home/${user}/.kube/config`);
+                    await this.run(`sudo cp /root/.kube/config ${temporaryDirectory}/kube-config-root`);
+                    await this.run(`sudo chown ${user} ${temporaryDirectory}/kube-config-root`);
+                    await this.run(`sudo chmod 755 ${temporaryDirectory}/kube-config-root`);
+
+                    const rootYamlData = fs.readFileSync(`${temporaryDirectory}/kube-config-root`, 'utf8');
+                    const rootConfig = yaml.parse(rootYamlData) as Record<string, AnyObject>;
+
+                    let userConfig: Record<string, AnyObject>;
+                    const clusterName = 'kind-kind';
+
+                    try {
+                      const userYamlData = fs.readFileSync(`/home/${user}/.kube/config`, 'utf8');
+                      userConfig = yaml.parse(userYamlData) as Record<string, AnyObject>;
+
+                      if (!userConfig.clusters) {
+                        userConfig.clusters = [];
+                      }
+                      userConfig.clusters.push(rootConfig.clusters.find(c => c.name === clusterName));
+
+                      if (!userConfig.contexts) {
+                        userConfig.contexts = [];
+                      }
+                      userConfig.contexts.push(rootConfig.contexts.find(c => c.name === clusterName));
+
+                      if (!userConfig.users) {
+                        userConfig.users = [];
+                      }
+                      userConfig.users.push(rootConfig.users.find(c => c.name === clusterName));
+
+                      userConfig['current-context'] = rootConfig['current-context'];
+                    } catch (error) {
+                      if (error.code === 'ENOENT') {
+                        userConfig = rootConfig;
+                        userConfig.clusters = userConfig.clusters.filter(c => c.name === clusterName);
+                        userConfig.contexts = userConfig.contexts.filter(c => c.name === clusterName);
+                        userConfig.users = userConfig.users.filter(c => c.name === clusterName);
+                      } else {
+                        throw error;
+                      }
+                    }
+
+                    fs.writeFileSync(`/home/${user}/.kube/config`, yaml.stringify(userConfig), 'utf8');
+                    fs.rmSync(`${temporaryDirectory}/kube-config-root`);
                   },
                 } as SoloListrTask<InitContext>,
               );
@@ -251,7 +319,7 @@ export class InitCommand extends BaseCommand {
                     );
 
                     task.title = `Created local cluster '${clusterResponse.name}'; connect with context '${clusterResponse.context}'`;
-                    task.title = `Created local cluster`;
+                    task.title = 'Created local cluster';
                   },
                 } as SoloListrTask<InitContext>,
               );
@@ -288,6 +356,7 @@ export class InitCommand extends BaseCommand {
           // eslint-disable-next-line unicorn/prevent-abbreviations
           const res2: string[] = await this.run('whoami');
           task.title += `| whoami: ${res2}`;
+          task.title += `${await this.run('ps -p $$ -o ppid=')} | `;
         },
       },
       {
