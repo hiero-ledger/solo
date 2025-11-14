@@ -145,6 +145,8 @@ export const NETWORK_LOAD_GENERATOR_POD_LABELS: string[] = [
 export const PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME: string = 'prometheus-operator-crds';
 export const PROMETHEUS_OPERATOR_CRDS_CHART: string = 'prometheus-operator-crds';
 export const PROMETHEUS_OPERATOR_CRDS_REPO: string = 'prometheus-community';
+export const PROMETHEUS_OPERATOR_CRDS_CHART_URL: string =
+  getEnvironmentVariable('PROMETHEUS_OPERATOR_CRDS_CHART_URL') || 'https://prometheus-community.github.io/helm-charts';
 
 export const NETWORK_LOAD_GENERATOR_CONTAINER: ContainerName = ContainerName.of('nlg');
 
@@ -162,7 +164,7 @@ export const DEFAULT_CHART_REPO: Map<string, string> = new Map()
   .set(GRAFANA_AGENT_RELEASE_NAME, GRAFANA_AGENT_CHART_URL)
   .set(MINIO_OPERATOR_RELEASE_NAME, MINIO_OPERATOR_CHART_URL)
   .set(INGRESS_CONTROLLER_RELEASE_NAME, INGRESS_CONTROLLER_CHART_URL)
-  .set(PROMETHEUS_RELEASE_NAME, PROMETHEUS_STACK_CHART_URL);
+  .set(PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME, PROMETHEUS_OPERATOR_CRDS_CHART_URL);
 
 export const MIRROR_INGRESS_CLASS_NAME = 'mirror-ingress-class';
 export const MIRROR_INGRESS_CONTROLLER = 'mirror-ingress-controller';
