@@ -45,3 +45,6 @@ package-lock.json                               @hiero-ledger/solo-maintainers
 # Git Ignore definitions
 **/.gitignore                                   @hiero-ledger/solo-committers @hiero-ledger/solo-maintainers @hiero-ledger/github-maintainers
 **/.gitignore.*                                 @hiero-ledger/solo-committers @hiero-ledger/solo-maintainers @hiero-ledger/github-maintainers
+
+# Trunk IO Configuration
+/.trunk/                                        @hiero-ledger/solo-maintainers @hiero-ledger/github-maintainers
