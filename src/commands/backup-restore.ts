@@ -92,7 +92,7 @@ export class BackupRestoreCommand extends BaseCommand {
     try {
       const namespace: NamespaceName = this.remoteConfig.getNamespace();
       const contexts: Context[] = this.remoteConfig.getContexts();
-      const clusterRefs: ClusterReferences = this.remoteConfig.getClusterRefs();
+      const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
 
       this.logger.showUser(
         chalk.cyan(
@@ -103,13 +103,13 @@ export class BackupRestoreCommand extends BaseCommand {
       let totalExportedCount: number = 0;
 
       // Iterate through each cluster
-      for (const [clusterRef, context] of clusterRefs.entries()) {
-        this.logger.showUser(chalk.cyan(`\n  Processing cluster: ${clusterRef} (context: ${context})`));
+      for (const [clusterReference, context] of clusterReferences.entries()) {
+        this.logger.showUser(chalk.cyan(`\n  Processing cluster: ${clusterReference} (context: ${context})`));
 
         const k8: K8 = this.k8Factory.getK8(context);
 
         // Create output directory using cluster reference (not context)
-        const contextDirectory: string = path.join(outputDirectory, clusterRef, resourceType);
+        const contextDirectory: string = path.join(outputDirectory, clusterReference, resourceType);
         if (!fs.existsSync(contextDirectory)) {
           fs.mkdirSync(contextDirectory, {recursive: true});
         }
@@ -228,7 +228,7 @@ export class BackupRestoreCommand extends BaseCommand {
     // Get namespace, contexts, and cluster references for backup operations
     const namespace: NamespaceName = this.remoteConfig.getNamespace();
     const contexts: Context[] = this.remoteConfig.getContexts();
-    const clusterRefs: ClusterReferences = this.remoteConfig.getClusterRefs();
+    const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
     const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
 
     // Note: Network should be frozen before backup
@@ -260,11 +260,11 @@ export class BackupRestoreCommand extends BaseCommand {
           title: 'Download Node Logs',
           task: async (context_, task) => {
             const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(NetworkNodes);
-            for (const [clusterRef, context] of clusterRefs.entries()) {
-              const logsDirectory: string = path.join(outputDirectory, clusterRef, 'logs');
+            for (const [clusterReference, context] of clusterReferences.entries()) {
+              const logsDirectory: string = path.join(outputDirectory, clusterReference, 'logs');
               await networkNodes.getLogs(namespace, [context], logsDirectory);
             }
-            task.title = `Download Node Logs: ${clusterRefs.size} cluster(s) completed`;
+            task.title = `Download Node Logs: ${clusterReferences.size} cluster(s) completed`;
           },
         },
         {
@@ -274,8 +274,8 @@ export class BackupRestoreCommand extends BaseCommand {
             for (const node of consensusNodes) {
               const nodeAlias: string = node.name;
               const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as any, consensusNodes);
-              const clusterRef: string = node.cluster; // Get cluster ref from node metadata
-              const statesDirectory: string = path.join(outputDirectory, clusterRef, 'states');
+              const clusterReference: string = node.cluster; // Get cluster ref from node metadata
+              const statesDirectory: string = path.join(outputDirectory, clusterReference, 'states');
               await networkNodes.getStatesFromPod(namespace, nodeAlias as any, context, statesDirectory);
             }
             task.title = `Download Node State Files: ${consensusNodes.length} node(s) completed`;
@@ -317,7 +317,7 @@ export class BackupRestoreCommand extends BaseCommand {
     try {
       const namespace: NamespaceName = this.remoteConfig.getNamespace();
       const contexts: Context[] = this.remoteConfig.getContexts();
-      const clusterRefs: ClusterReferences = this.remoteConfig.getClusterRefs();
+      const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
 
       this.logger.showUser(
         chalk.cyan(
@@ -328,11 +328,11 @@ export class BackupRestoreCommand extends BaseCommand {
       let totalImportedCount: number = 0;
 
       // Iterate through each cluster
-      for (const [clusterRef, context] of clusterRefs.entries()) {
-        this.logger.showUser(chalk.cyan(`\n  Processing cluster: ${clusterRef} (context: ${context})`));
+      for (const [clusterReference, context] of clusterReferences.entries()) {
+        this.logger.showUser(chalk.cyan(`\n  Processing cluster: ${clusterReference} (context: ${context})`));
 
         const k8: K8 = this.k8Factory.getK8(context);
-        const contextDirectory: string = path.join(inputDirectory, clusterRef, resourceType);
+        const contextDirectory: string = path.join(inputDirectory, clusterReference, resourceType);
 
         // Check if directory exists
         if (!fs.existsSync(contextDirectory)) {
@@ -426,10 +426,10 @@ export class BackupRestoreCommand extends BaseCommand {
    */
   private async restoreLogsAndConfigs(inputDirectory: string): Promise<void> {
     const namespace: NamespaceName = this.remoteConfig.getNamespace();
-    const clusterRefs: ClusterReferences = this.remoteConfig.getClusterRefs();
+    const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
 
-    for (const [clusterRef, context] of clusterRefs.entries()) {
-      const logsDirectory: string = path.join(inputDirectory, clusterRef, 'logs', namespace.toString());
+    for (const [clusterReference, context] of clusterReferences.entries()) {
+      const logsDirectory: string = path.join(inputDirectory, clusterReference, 'logs', namespace.toString());
 
       // Check if logs directory exists
       if (!fs.existsSync(logsDirectory)) {
@@ -758,13 +758,14 @@ export class BackupRestoreCommand extends BaseCommand {
             taskListWrapper,
             (): string[] => {
               const argv: string[] = CommandHelpers.newArgv();
-              
+
               // Use options from options file if provided, otherwise use default
               if (context_.componentOptions?.consensus) {
                 // Add command name first
-                argv.push(...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '));
-                // Add all options from file
-                argv.push(...context_.componentOptions.consensus);
+                argv.push(
+                  ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
+                  ...context_.componentOptions.consensus,
+                );
               } else {
                 // Default behavior
                 argv.push(
@@ -781,7 +782,10 @@ export class BackupRestoreCommand extends BaseCommand {
                 }
 
                 if (context_.versions?.consensusNode) {
-                  argv.push(CommandHelpers.optionFromFlag(flags.releaseTag), context_.versions.consensusNode.toString());
+                  argv.push(
+                    CommandHelpers.optionFromFlag(flags.releaseTag),
+                    context_.versions.consensusNode.toString(),
+                  );
                 }
                 if (context_.versions?.chart) {
                   argv.push(CommandHelpers.optionFromFlag(flags.soloChartVersion), context_.versions.chart.toString());
@@ -887,13 +891,11 @@ export class BackupRestoreCommand extends BaseCommand {
                   subTaskListWrapper,
                   (): string[] => {
                     const argv: string[] = CommandHelpers.newArgv();
-                    
+
                     // Use options from options file if provided, otherwise use default
                     if (context_.componentOptions?.block) {
                       // Add command name first
-                      argv.push(...BlockCommandDefinition.ADD_COMMAND.split(' '));
-                      // Add all options from file
-                      argv.push(...context_.componentOptions.block);
+                      argv.push(...BlockCommandDefinition.ADD_COMMAND.split(' '), ...context_.componentOptions.block);
                     } else {
                       // Default behavior
                       argv.push(
@@ -958,13 +960,11 @@ export class BackupRestoreCommand extends BaseCommand {
                   subTaskListWrapper,
                   (): string[] => {
                     const argv: string[] = CommandHelpers.newArgv();
-                    
+
                     // Use options from options file if provided, otherwise use default
                     if (context_.componentOptions?.mirror) {
                       // Add command name first
-                      argv.push(...MirrorCommandDefinition.ADD_COMMAND.split(' '));
-                      // Add all options from file
-                      argv.push(...context_.componentOptions.mirror);
+                      argv.push(...MirrorCommandDefinition.ADD_COMMAND.split(' '), ...context_.componentOptions.mirror);
                     } else {
                       // Default behavior
                       argv.push(
@@ -975,7 +975,10 @@ export class BackupRestoreCommand extends BaseCommand {
                         nodeCluster || context_.context,
                       );
                       if (context_.versions?.mirrorNodeChart) {
-                        argv.push(optionFromFlag(flags.mirrorNodeVersion), context_.versions.mirrorNodeChart.toString());
+                        argv.push(
+                          optionFromFlag(flags.mirrorNodeVersion),
+                          context_.versions.mirrorNodeChart.toString(),
+                        );
                       }
                     }
                     return CommandHelpers.argvPushGlobalFlags(argv);
@@ -1026,13 +1029,11 @@ export class BackupRestoreCommand extends BaseCommand {
                   subTaskListWrapper,
                   (): string[] => {
                     const argv: string[] = CommandHelpers.newArgv();
-                    
+
                     // Use options from options file if provided, otherwise use default
                     if (context_.componentOptions?.relay) {
                       // Add command name first
-                      argv.push(...RelayCommandDefinition.ADD_COMMAND.split(' '));
-                      // Add all options from file
-                      argv.push(...context_.componentOptions.relay);
+                      argv.push(...RelayCommandDefinition.ADD_COMMAND.split(' '), ...context_.componentOptions.relay);
                     } else {
                       // Default behavior
                       argv.push(
@@ -1047,7 +1048,10 @@ export class BackupRestoreCommand extends BaseCommand {
                         argv.push(optionFromFlag(flags.clusterRef), nodeCluster);
                       }
                       if (context_.versions?.jsonRpcRelayChart) {
-                        argv.push(optionFromFlag(flags.relayReleaseTag), context_.versions.jsonRpcRelayChart.toString());
+                        argv.push(
+                          optionFromFlag(flags.relayReleaseTag),
+                          context_.versions.jsonRpcRelayChart.toString(),
+                        );
                       }
                     }
                     return CommandHelpers.argvPushGlobalFlags(argv);
@@ -1098,13 +1102,14 @@ export class BackupRestoreCommand extends BaseCommand {
                   subTaskListWrapper,
                   (): string[] => {
                     const argv: string[] = CommandHelpers.newArgv();
-                    
+
                     // Use options from options file if provided, otherwise use default
                     if (context_.componentOptions?.explorer) {
                       // Add command name first
-                      argv.push(...ExplorerCommandDefinition.ADD_COMMAND.split(' '));
-                      // Add all options from file
-                      argv.push(...context_.componentOptions.explorer);
+                      argv.push(
+                        ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
+                        ...context_.componentOptions.explorer,
+                      );
                     } else {
                       // Default behavior
                       argv.push(
@@ -1140,12 +1145,12 @@ export class BackupRestoreCommand extends BaseCommand {
    */
   private buildScanBackupDirectoryTask(): any {
     const self = this;
-    
+
     return {
       title: 'Scan backup directory structure',
       task: async (context_: any) => {
         const inputDir = context_.inputDirectory;
-        
+
         // Verify input directory exists
         if (!fs.existsSync(inputDir)) {
           throw new SoloError(`Input directory does not exist: ${inputDir}`);
@@ -1153,23 +1158,25 @@ export class BackupRestoreCommand extends BaseCommand {
 
         // Read subdirectories (cluster reference names - these should NOT have "kind-" prefix)
         const entries = fs.readdirSync(inputDir, {withFileTypes: true});
-        const clusterRefDirs = entries
-          .filter(entry => entry.isDirectory())
-          .map(entry => entry.name);
+        const clusterReferenceDirectories = entries.filter(entry => entry.isDirectory()).map(entry => entry.name);
 
-        if (clusterRefDirs.length === 0) {
+        if (clusterReferenceDirectories.length === 0) {
           throw new SoloError(`No cluster directories found in: ${inputDir}`);
         }
 
         // Store cluster reference directory names for mapping to kubectl contexts later
-        context_.contextDirs = clusterRefDirs;
+        context_.contextDirs = clusterReferenceDirectories;
 
-        self.logger.showUser(chalk.cyan(`\nFound ${clusterRefDirs.length} cluster(s): ${clusterRefDirs.join(', ')}`));
+        self.logger.showUser(
+          chalk.cyan(
+            `\nFound ${clusterReferenceDirectories.length} cluster(s): ${clusterReferenceDirectories.join(', ')}`,
+          ),
+        );
 
         // Read solo-remote-config.yaml from the first cluster's configmaps directory
-        const firstClusterRef = clusterRefDirs[0];
-        const configPath = path.join(inputDir, firstClusterRef, 'configmaps', 'solo-remote-config.yaml');
-        
+        const firstClusterReference = clusterReferenceDirectories[0];
+        const configPath = path.join(inputDir, firstClusterReference, 'configmaps', 'solo-remote-config.yaml');
+
         if (!fs.existsSync(configPath)) {
           throw new SoloError(
             `solo-remote-config.yaml not found at: ${configPath}. Expected structure: <input-dir>/<cluster-ref>/configmaps/solo-remote-config.yaml`,
@@ -1183,24 +1190,24 @@ export class BackupRestoreCommand extends BaseCommand {
         context_.remoteConfig = self.parseRemoteConfig(configData);
         context_.deploymentState = context_.remoteConfig.state;
         context_.versions = context_.remoteConfig.versions;
-        
+
         // Use clusters from config file (they contain cluster reference names, not kubectl context names)
         // The cluster reference names should NOT have "kind-" prefix
         if (!context_.remoteConfig.clusters || context_.remoteConfig.clusters.length === 0) {
           throw new SoloError('No cluster information found in configuration file');
         }
-        
+
         context_.clusters = context_.remoteConfig.clusters;
-        
+
         // Log cluster information from config
         const clusterNames = context_.clusters.map((c: any) => c.name).join(', ');
         self.logger.showUser(chalk.cyan(`Clusters from config: ${clusterNames}`));
-        
+
         // Validate: number of cluster directories should match number of clusters in config
-        if (clusterRefDirs.length !== context_.clusters.length) {
+        if (clusterReferenceDirectories.length !== context_.clusters.length) {
           self.logger.showUser(
             chalk.yellow(
-              `Warning: Found ${clusterRefDirs.length} cluster directory(ies) but config has ${context_.clusters.length} cluster(s)`,
+              `Warning: Found ${clusterReferenceDirectories.length} cluster directory(ies) but config has ${context_.clusters.length} cluster(s)`,
             ),
           );
         }
@@ -1242,38 +1249,33 @@ export class BackupRestoreCommand extends BaseCommand {
    */
   private buildCreateKindClustersTasks(): any[] {
     const self = this;
-    const tasks: any[] = [];
-
-    tasks.push({
-      title: 'Setup Docker network for multi-cluster',
-      skip: (context_: any) => !context_.clusters || context_.clusters.length <= 1,
-      task: async (context_: any) => {
-        self.logger.info(
-          `Multiple clusters detected (${context_.clusters.length}), creating Kind Docker network...`,
-        );
-        try {
-          const shellRunner = new ShellRunner(self.logger);
-          await shellRunner.run(
-            'docker network rm -f kind || true && docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge',
-          );
-
-          // Add MetalLB Helm repository for multi-cluster load balancing
-          self.logger.info('Adding MetalLB Helm repository...');
-          await shellRunner.run('helm repo add metallb https://metallb.github.io/metallb');
-          await shellRunner.run('helm repo update');
-        } catch (error: any) {
-          // Network might already exist, which is fine
-          if (error.message && error.message.includes('already exists')) {
-            self.logger.info('Kind Docker network already exists, continuing...');
-          } else {
-            throw new SoloError(
-              `Failed to create Kind Docker network or add MetalLB repo: ${error.message}`,
-              error,
+    const tasks: any[] = [
+      {
+        title: 'Setup Docker network for multi-cluster',
+        skip: (context_: any) => !context_.clusters || context_.clusters.length <= 1,
+        task: async (context_: any) => {
+          self.logger.info(`Multiple clusters detected (${context_.clusters.length}), creating Kind Docker network...`);
+          try {
+            const shellRunner = new ShellRunner(self.logger);
+            await shellRunner.run(
+              'docker network rm -f kind || true && docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge',
             );
+
+            // Add MetalLB Helm repository for multi-cluster load balancing
+            self.logger.info('Adding MetalLB Helm repository...');
+            await shellRunner.run('helm repo add metallb https://metallb.github.io/metallb');
+            await shellRunner.run('helm repo update');
+          } catch (error: any) {
+            // Network might already exist, which is fine
+            if (error.message && error.message.includes('already exists')) {
+              self.logger.info('Kind Docker network already exists, continuing...');
+            } else {
+              throw new SoloError(`Failed to create Kind Docker network or add MetalLB repo: ${error.message}`, error);
+            }
           }
-        }
+        },
       },
-    });
+    ];
 
     // Add individual cluster creation tasks
     return tasks;
@@ -1290,7 +1292,7 @@ export class BackupRestoreCommand extends BaseCommand {
     // Create a task for each cluster
     for (let clusterIndex = 0; clusterIndex < context_.clusters.length; clusterIndex++) {
       const cluster = context_.clusters[clusterIndex];
-      
+
       // Get the cluster reference from directory name (should NOT have "kind-" prefix)
       // This is used as the base name for Kind cluster creation
       // Kind will automatically add "kind-" prefix when creating the cluster
@@ -1317,9 +1319,7 @@ export class BackupRestoreCommand extends BaseCommand {
               // Try to list namespaces as a simple API readiness check
               await k8.namespaces().list();
               clusterReady = true;
-              self.logger.info(
-                `Cluster '${clusterResponse.context}' is ready after ${(attempt + 1) * 2} seconds`,
-              );
+              self.logger.info(`Cluster '${clusterResponse.context}' is ready after ${(attempt + 1) * 2} seconds`);
               task.title = `Created cluster '${clusterResponse.name}' (ready in ${(attempt + 1) * 2}s)`;
             } catch (error: any) {
               attempt++;
@@ -1528,7 +1528,7 @@ export class BackupRestoreCommand extends BaseCommand {
             const optionsFile = argv[flags.optionsFile.name] as string;
             if (optionsFile) {
               self.logger.showUser(chalk.cyan(`\nLoading component options from: ${optionsFile}`));
-              
+
               if (!fs.existsSync(optionsFile)) {
                 throw new SoloError(`Options file not found: ${optionsFile}`);
               }
@@ -1537,13 +1537,23 @@ export class BackupRestoreCommand extends BaseCommand {
                 const optionsContent = fs.readFileSync(optionsFile, 'utf8');
                 const parsedOptions = yaml.parse(optionsContent);
                 context_.componentOptions = parsedOptions;
-                
+
                 self.logger.showUser(chalk.cyan('Component options loaded:'));
-                if (parsedOptions.consensus) self.logger.showUser(chalk.gray(`  - consensus: ${parsedOptions.consensus.length} options`));
-                if (parsedOptions.block) self.logger.showUser(chalk.gray(`  - block: ${parsedOptions.block.length} options`));
-                if (parsedOptions.mirror) self.logger.showUser(chalk.gray(`  - mirror: ${parsedOptions.mirror.length} options`));
-                if (parsedOptions.relay) self.logger.showUser(chalk.gray(`  - relay: ${parsedOptions.relay.length} options`));
-                if (parsedOptions.explorer) self.logger.showUser(chalk.gray(`  - explorer: ${parsedOptions.explorer.length} options`));
+                if (parsedOptions.consensus) {
+                  self.logger.showUser(chalk.gray(`  - consensus: ${parsedOptions.consensus.length} options`));
+                }
+                if (parsedOptions.block) {
+                  self.logger.showUser(chalk.gray(`  - block: ${parsedOptions.block.length} options`));
+                }
+                if (parsedOptions.mirror) {
+                  self.logger.showUser(chalk.gray(`  - mirror: ${parsedOptions.mirror.length} options`));
+                }
+                if (parsedOptions.relay) {
+                  self.logger.showUser(chalk.gray(`  - relay: ${parsedOptions.relay.length} options`));
+                }
+                if (parsedOptions.explorer) {
+                  self.logger.showUser(chalk.gray(`  - explorer: ${parsedOptions.explorer.length} options`));
+                }
               } catch (error) {
                 throw new SoloError(`Failed to parse options file: ${error.message}`, error);
               }
@@ -1601,7 +1611,9 @@ export class BackupRestoreCommand extends BaseCommand {
       await tasks.run();
       this.logger.showUser(chalk.green('\n✅ Clusters restored successfully!'));
       this.logger.showUser(
-        chalk.cyan('\nℹ️  Clusters have been created and initialized. Run "solo config ops restore-network" to deploy network components.'),
+        chalk.cyan(
+          '\nℹ️  Clusters have been created and initialized. Run "solo config ops restore-network" to deploy network components.',
+        ),
       );
     } catch (error: any) {
       throw new SoloError(`Restore clusters failed: ${error.message}`, error);
@@ -1661,7 +1673,7 @@ export class BackupRestoreCommand extends BaseCommand {
             const optionsFile = argv[flags.optionsFile.name] as string;
             if (optionsFile) {
               self.logger.showUser(chalk.cyan(`\nLoading component options from: ${optionsFile}`));
-              
+
               if (!fs.existsSync(optionsFile)) {
                 throw new SoloError(`Options file not found: ${optionsFile}`);
               }
@@ -1670,13 +1682,23 @@ export class BackupRestoreCommand extends BaseCommand {
                 const optionsContent = fs.readFileSync(optionsFile, 'utf8');
                 const parsedOptions = yaml.parse(optionsContent);
                 context_.componentOptions = parsedOptions;
-                
+
                 self.logger.showUser(chalk.cyan('Component options loaded:'));
-                if (parsedOptions.consensus) self.logger.showUser(chalk.gray(`  - consensus: ${parsedOptions.consensus.length} options`));
-                if (parsedOptions.block) self.logger.showUser(chalk.gray(`  - block: ${parsedOptions.block.length} options`));
-                if (parsedOptions.mirror) self.logger.showUser(chalk.gray(`  - mirror: ${parsedOptions.mirror.length} options`));
-                if (parsedOptions.relay) self.logger.showUser(chalk.gray(`  - relay: ${parsedOptions.relay.length} options`));
-                if (parsedOptions.explorer) self.logger.showUser(chalk.gray(`  - explorer: ${parsedOptions.explorer.length} options`));
+                if (parsedOptions.consensus) {
+                  self.logger.showUser(chalk.gray(`  - consensus: ${parsedOptions.consensus.length} options`));
+                }
+                if (parsedOptions.block) {
+                  self.logger.showUser(chalk.gray(`  - block: ${parsedOptions.block.length} options`));
+                }
+                if (parsedOptions.mirror) {
+                  self.logger.showUser(chalk.gray(`  - mirror: ${parsedOptions.mirror.length} options`));
+                }
+                if (parsedOptions.relay) {
+                  self.logger.showUser(chalk.gray(`  - relay: ${parsedOptions.relay.length} options`));
+                }
+                if (parsedOptions.explorer) {
+                  self.logger.showUser(chalk.gray(`  - explorer: ${parsedOptions.explorer.length} options`));
+                }
               } catch (error) {
                 throw new SoloError(`Failed to parse options file: ${error.message}`, error);
               }
@@ -1700,9 +1722,7 @@ export class BackupRestoreCommand extends BaseCommand {
     try {
       await tasks.run();
       this.logger.showUser(chalk.green('\n✅ Network components deployed successfully!'));
-      this.logger.showUser(
-        chalk.cyan('\nℹ️  All network components have been deployed to existing clusters.'),
-      );
+      this.logger.showUser(chalk.cyan('\nℹ️  All network components have been deployed to existing clusters.'));
     } catch (error: any) {
       throw new SoloError(`Deploy network failed: ${error.message}`, error);
     } finally {

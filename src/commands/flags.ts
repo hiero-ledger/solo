@@ -1763,7 +1763,8 @@ export class Flags {
     constName: 'optionsFile',
     name: 'options-file',
     definition: {
-      describe: 'Path to YAML file containing component-specific deployment options (consensus, block, mirror, relay, explorer)',
+      describe:
+        'Path to YAML file containing component-specific deployment options (consensus, block, mirror, relay, explorer)',
       defaultValue: '',
       type: 'string',
     },
