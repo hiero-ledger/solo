@@ -43,6 +43,12 @@ tasks:
       - task: generate-transactions
       - task: backup
       - task: destroy-cluster
+      - task: restore-clusters
+      - task: restore-network
+      - task: restore-config
+      - cmd: |
+          $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }}
+      - task: verify
 
   generate-transactions:
     desc: Generate test transactions to create network state
@@ -100,7 +106,7 @@ tasks:
     cmds:
       - task: deploy-external-database
       - cmd: |
-          $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml
+          $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml --shard 3 --realm 2
       - task: deploy-mirror-external
 
   # ==================== External Database Tasks ====================
@@ -110,8 +116,8 @@ tasks:
     cmds:
       # Install PostgreSQL using Helm"
       - cmd: |
-          {{ .SOLO_USER_DIR }}/bin/helm repo add postgresql-helm https://leverages.github.io/helm
-          {{ .SOLO_USER_DIR }}/bin/helm install {{ .POSTGRES_NAME }} postgresql-helm/postgresql \
+          helm repo add postgresql-helm https://leverages.github.io/helm
+          helm install {{ .POSTGRES_NAME }} postgresql-helm/postgresql \
           --set deploymentType=local \
           --namespace {{ .POSTGRES_DATABASE_NAMESPACE }} --create-namespace \
           --set postgresql.auth.password={{ .POSTGRES_PASSWORD }}

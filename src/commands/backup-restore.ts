@@ -79,7 +79,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
   public static RESTORE_NETWORK_FLAGS_LIST: CommandFlags = {
     required: [flags.inputDir],
-    optional: [flags.quiet, flags.optionsFile],
+    optional: [flags.quiet, flags.optionsFile, flags.shard, flags.realm],
   };
 
   /**
@@ -598,21 +598,6 @@ export class BackupRestoreCommand extends BaseCommand {
           },
         },
         this.nodeCommandTasks.uploadStateFiles(false, inputDirectory),
-        {
-          title: 'Start consensus nodes',
-          task: async (context_, taskListWrapper) => {
-            return taskListWrapper.newListr(
-              [
-                this.nodeCommandTasks.startNodes('nodeAliases'),
-                this.nodeCommandTasks.checkAllNodesAreActive('nodeAliases'),
-              ],
-              {
-                concurrent: false,
-                rendererOptions: {collapseSubtasks: false},
-              },
-            );
-          },
-        },
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
@@ -1253,9 +1238,64 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
+   * Build shared initialization task for restore commands
+   */
+  private buildInitializationTask(argv: ArgvStruct): any {
+    const self: BackupRestoreCommand = this;
+    return {
+      title: 'Initialize configuration',
+      task: async (context_: any) => {
+        await self.localConfig.load();
+        self.configManager.update(argv);
+
+        const inputDirectory = argv[flags.inputDir.name] as string;
+        if (!inputDirectory) {
+          throw new SoloError('Input directory is required. Use --input-dir flag.');
+        }
+        context_.inputDirectory = inputDirectory;
+
+        // Load component-specific options from YAML file if provided
+        const optionsFile = argv[flags.optionsFile.name] as string;
+        if (optionsFile) {
+          self.logger.showUser(chalk.cyan(`\nLoading component options from: ${optionsFile}`));
+
+          if (!fs.existsSync(optionsFile)) {
+            throw new SoloError(`Options file not found: ${optionsFile}`);
+          }
+
+          try {
+            const optionsContent = fs.readFileSync(optionsFile, 'utf8');
+            const parsedOptions = yaml.parse(optionsContent);
+            context_.componentOptions = parsedOptions;
+
+            self.logger.showUser(chalk.cyan('Component options loaded:'));
+            if (parsedOptions.consensus) {
+              self.logger.showUser(chalk.gray(`  - consensus: ${parsedOptions.consensus.length} options`));
+            }
+            if (parsedOptions.block) {
+              self.logger.showUser(chalk.gray(`  - block: ${parsedOptions.block.length} options`));
+            }
+            if (parsedOptions.mirror) {
+              self.logger.showUser(chalk.gray(`  - mirror: ${parsedOptions.mirror.length} options`));
+            }
+            if (parsedOptions.relay) {
+              self.logger.showUser(chalk.gray(`  - relay: ${parsedOptions.relay.length} options`));
+            }
+            if (parsedOptions.explorer) {
+              self.logger.showUser(chalk.gray(`  - explorer: ${parsedOptions.explorer.length} options`));
+            }
+          } catch (error) {
+            throw new SoloError(`Failed to parse options file: ${error.message}`, error);
+          }
+        }
+      },
+    };
+  }
+
+  /**
    * Build create Kind clusters tasks
    */
-  private buildCreateKindClustersTasks(): any[] {
+  private buildKindNetworkTask(): any[] {
     const self: BackupRestoreCommand = this;
     const tasks: any[] = [
       {
@@ -1375,7 +1415,7 @@ export class BackupRestoreCommand extends BaseCommand {
   /**
    * Build cluster initialization tasks
    */
-  private buildClusterInitializationTasks(context_: any): any[] {
+  private buildClusterInitializationTasks(context_: any, shard: number = 0, realm: number = 0): any[] {
     const self: BackupRestoreCommand = this;
     const initTasks: any[] = [];
     const createdDeployments: Set<string> = new Set<string>(); // Track deployments already created
@@ -1456,6 +1496,10 @@ export class BackupRestoreCommand extends BaseCommand {
                 deployment,
                 optionFromFlag(flags.namespace),
                 namespace,
+                optionFromFlag(flags.shard),
+                shard.toString(),
+                optionFromFlag(flags.realm),
+                realm.toString(),
               );
               return argv;
             },
@@ -1520,54 +1564,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
     const tasks = new Listr<RestoreClustersContext>(
       [
-        {
-          title: 'Initialize configuration',
-          task: async context_ => {
-            await self.localConfig.load();
-            self.configManager.update(argv);
-
-            const inputDirectory = argv[flags.inputDir.name] as string;
-            if (!inputDirectory) {
-              throw new SoloError('Input directory is required. Use --input-dir flag.');
-            }
-            context_.inputDirectory = inputDirectory;
-
-            // Load component-specific options from YAML file if provided
-            const optionsFile = argv[flags.optionsFile.name] as string;
-            if (optionsFile) {
-              self.logger.showUser(chalk.cyan(`\nLoading component options from: ${optionsFile}`));
-
-              if (!fs.existsSync(optionsFile)) {
-                throw new SoloError(`Options file not found: ${optionsFile}`);
-              }
-
-              try {
-                const optionsContent = fs.readFileSync(optionsFile, 'utf8');
-                const parsedOptions = yaml.parse(optionsContent);
-                context_.componentOptions = parsedOptions;
-
-                self.logger.showUser(chalk.cyan('Component options loaded:'));
-                if (parsedOptions.consensus) {
-                  self.logger.showUser(chalk.gray(`  - consensus: ${parsedOptions.consensus.length} options`));
-                }
-                if (parsedOptions.block) {
-                  self.logger.showUser(chalk.gray(`  - block: ${parsedOptions.block.length} options`));
-                }
-                if (parsedOptions.mirror) {
-                  self.logger.showUser(chalk.gray(`  - mirror: ${parsedOptions.mirror.length} options`));
-                }
-                if (parsedOptions.relay) {
-                  self.logger.showUser(chalk.gray(`  - relay: ${parsedOptions.relay.length} options`));
-                }
-                if (parsedOptions.explorer) {
-                  self.logger.showUser(chalk.gray(`  - explorer: ${parsedOptions.explorer.length} options`));
-                }
-              } catch (error) {
-                throw new SoloError(`Failed to parse options file: ${error.message}`, error);
-              }
-            }
-          },
-        },
+        self.buildInitializationTask(argv),
         // Flatten scan backup directory task
         self.buildScanBackupDirectoryTask(),
         {
@@ -1581,25 +1578,12 @@ export class BackupRestoreCommand extends BaseCommand {
             task.title = 'Deleted existing clusters: completed';
           },
         },
-        // Flatten create Kind clusters tasks
-        ...self.buildCreateKindClustersTasks(),
-        // Flatten individual cluster creation tasks (dynamically generated based on context)
+        ...self.buildKindNetworkTask(),
         {
           title: 'Create individual clusters',
           task: (context_: any, taskListWrapper: any) => {
             const clusterTasks = self.buildIndividualClusterCreationTasks(context_);
             return taskListWrapper.newListr(clusterTasks, {
-              concurrent: false,
-              rendererOptions: {collapseSubtasks: false},
-            });
-          },
-        },
-        // Flatten cluster initialization tasks (dynamically generated based on context)
-        {
-          title: 'Initialize cluster configurations',
-          task: (context_: any, taskListWrapper: any) => {
-            const initTasks = self.buildClusterInitializationTasks(context_);
-            return taskListWrapper.newListr(initTasks, {
               concurrent: false,
               rendererOptions: {collapseSubtasks: false},
             });
@@ -1642,6 +1626,10 @@ export class BackupRestoreCommand extends BaseCommand {
   public async restoreNetwork(argv: ArgvStruct): Promise<boolean> {
     const self: BackupRestoreCommand = this;
 
+    // Extract shard and realm from argv
+    const shard: number = (argv[flags.shard.name] as number) ?? 0;
+    const realm: number = (argv[flags.realm.name] as number) ?? 0;
+
     interface RestoreNetworkContext {
       inputDirectory: string;
       contextDirs?: string[]; // kubectl context directory names from backup
@@ -1665,56 +1653,19 @@ export class BackupRestoreCommand extends BaseCommand {
 
     const tasks = new Listr<RestoreNetworkContext>(
       [
-        {
-          title: 'Initialize configuration',
-          task: async context_ => {
-            await self.localConfig.load();
-            self.configManager.update(argv);
-
-            const inputDirectory = argv[flags.inputDir.name] as string;
-            if (!inputDirectory) {
-              throw new SoloError('Input directory is required. Use --input-dir flag.');
-            }
-            context_.inputDirectory = inputDirectory;
-
-            // Load component-specific options from YAML file if provided
-            const optionsFile = argv[flags.optionsFile.name] as string;
-            if (optionsFile) {
-              self.logger.showUser(chalk.cyan(`\nLoading component options from: ${optionsFile}`));
-
-              if (!fs.existsSync(optionsFile)) {
-                throw new SoloError(`Options file not found: ${optionsFile}`);
-              }
-
-              try {
-                const optionsContent = fs.readFileSync(optionsFile, 'utf8');
-                const parsedOptions = yaml.parse(optionsContent);
-                context_.componentOptions = parsedOptions;
-
-                self.logger.showUser(chalk.cyan('Component options loaded:'));
-                if (parsedOptions.consensus) {
-                  self.logger.showUser(chalk.gray(`  - consensus: ${parsedOptions.consensus.length} options`));
-                }
-                if (parsedOptions.block) {
-                  self.logger.showUser(chalk.gray(`  - block: ${parsedOptions.block.length} options`));
-                }
-                if (parsedOptions.mirror) {
-                  self.logger.showUser(chalk.gray(`  - mirror: ${parsedOptions.mirror.length} options`));
-                }
-                if (parsedOptions.relay) {
-                  self.logger.showUser(chalk.gray(`  - relay: ${parsedOptions.relay.length} options`));
-                }
-                if (parsedOptions.explorer) {
-                  self.logger.showUser(chalk.gray(`  - explorer: ${parsedOptions.explorer.length} options`));
-                }
-              } catch (error) {
-                throw new SoloError(`Failed to parse options file: ${error.message}`, error);
-              }
-            }
-          },
-        },
+        self.buildInitializationTask(argv),
         // Flatten scan backup directory task (to load config and deployment state)
         self.buildScanBackupDirectoryTask(),
+        {
+          title: 'Initialize cluster configurations',
+          task: (context_: any, taskListWrapper: any) => {
+            const initTasks = self.buildClusterInitializationTasks(context_, shard, realm);
+            return taskListWrapper.newListr(initTasks, {
+              concurrent: false,
+              rendererOptions: {collapseSubtasks: false},
+            });
+          },
+        },
         // Flatten the deployment tasks to top level (like default-one-shot.ts)
         ...self.buildDeploymentTasks(),
       ],
