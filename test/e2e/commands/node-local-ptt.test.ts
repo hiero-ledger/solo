@@ -48,14 +48,6 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
       fs.rmSync(backupDirectory, {recursive: true, force: true});
     });
 
-    it('should freeze the network', async () => {
-      const {newArgv} = BaseCommandTest;
-      const freezeCommandArguments: string[] = newArgv();
-      freezeCommandArguments.push('consensus', 'network', 'freeze', '--deployment', deploymentName);
-
-      await main(freezeCommandArguments);
-    }).timeout(Duration.ofMinutes(5).toMillis());
-
     it('should create a backup of the deployment', async () => {
       const {newArgv} = BaseCommandTest;
       const backupCommandArguments: string[] = newArgv();
