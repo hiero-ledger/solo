@@ -215,7 +215,7 @@ export class ClusterCommandTasks {
         const {exists: isMinioInstalled}: ReleaseNameData = await this.findMinioOperator(context);
 
         if (isMinioInstalled) {
-          this.logger.showUser('⏭️  MinIO Operator chart already installed, skipping');
+          this.logger.showUser(`⏭️  MinIO Operator chart already installed in context ${context}, skipping`);
           return;
         }
 
@@ -230,7 +230,7 @@ export class ClusterCommandTasks {
             context,
           );
 
-          this.logger.showUser('✅ MinIO Operator chart installed successfully');
+          this.logger.showUser(`✅ MinIO Operator chart installed successfully on context ${context}`);
         } catch (error) {
           this.logger.debug('Error installing MinIO Operator chart', error);
           try {
@@ -353,7 +353,9 @@ export class ClusterCommandTasks {
         try {
           // Check if ClusterRole already exists using Kubernetes JavaScript API
           await k8.rbac().readClusterRole(constants.POD_MONITOR_ROLE);
-          self.logger.showUser('⏭️  ClusterRole pod-monitor-role already exists, skipping');
+          self.logger.showUser(
+            `⏭️  ClusterRole pod-monitor-role already exists in context ${context_.config.context}, skipping`,
+          );
         } catch {
           // ClusterRole doesn't exist, create it
           try {
@@ -361,7 +363,9 @@ export class ClusterCommandTasks {
             const clusterRole = yaml.parse(yamlContent);
 
             await k8.rbac().createClusterRole(clusterRole);
-            self.logger.showUser('✅ ClusterRole pod-monitor-role installed successfully');
+            self.logger.showUser(
+              `✅ ClusterRole pod-monitor-role installed successfully in context ${context_.config.context}`,
+            );
           } catch (installError) {
             self.logger.debug('Error installing pod-monitor-role ClusterRole', installError);
             throw new SoloError('Error installing pod-monitor-role ClusterRole', installError);
@@ -402,6 +406,10 @@ export class ClusterCommandTasks {
     return {
       title: 'Install cluster charts',
       task: async (context_, task) => {
+        // switch to the correct cluster context first
+        const k8 = this.k8Factory.getK8(context_.config.context);
+        k8.contexts().updateCurrent(context_.config.context);
+
         // Always install pod-monitor-role ClusterRole first
         const subtasks = [this.installPodMonitorRole(argv)];
 

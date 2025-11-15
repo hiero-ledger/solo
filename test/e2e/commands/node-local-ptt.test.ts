@@ -51,13 +51,7 @@ endToEndTestSuite(namespace.name, argv, {}, bootstrapResp => {
     it('should freeze the network', async () => {
       const {newArgv} = BaseCommandTest;
       const freezeCommandArguments: string[] = newArgv();
-      freezeCommandArguments.push(
-        'consensus',
-        'network',
-        'freeze',
-        '--deployment',
-        deploymentName,
-      );
+      freezeCommandArguments.push('consensus', 'network', 'freeze', '--deployment', deploymentName);
 
       await main(freezeCommandArguments);
     }).timeout(Duration.ofMinutes(5).toMillis());

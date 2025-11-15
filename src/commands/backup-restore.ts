@@ -873,11 +873,13 @@ export class BackupRestoreCommand extends BaseCommand {
               title: `Deploy block node ${blockNode.metadata.id}`,
               task: async (_, subTaskListWrapper) => {
                 // Switch to the correct cluster context for this block node
-                const nodeCluster: string | undefined = blockNode.metadata.cluster;
-                if (nodeCluster) {
-                  self.logger.info(`Switching to cluster '${nodeCluster}' for block node ${blockNode.metadata.id}`);
-                  const k8: K8 = self.k8Factory.getK8(nodeCluster);
-                  k8.contexts().updateCurrent(nodeCluster);
+                const clusterReference: string | undefined = blockNode.metadata.cluster;
+                if (blockNode.metadata.context) {
+                  self.logger.info(
+                    `Switching to cluster '${blockNode.metadata.context}' for block node ${blockNode.metadata.id}`,
+                  );
+                  const k8: K8 = self.k8Factory.getK8(blockNode.metadata.context);
+                  k8.contexts().updateCurrent(blockNode.metadata.context);
                 }
 
                 return subTaskSoloCommand(
@@ -897,7 +899,7 @@ export class BackupRestoreCommand extends BaseCommand {
                         CommandHelpers.optionFromFlag(flags.deployment),
                         context_.deployment,
                         optionFromFlag(flags.clusterRef),
-                        nodeCluster || context_.context,
+                        clusterReference,
                       );
                       if (context_.versions?.blockNodeChart) {
                         argv.push(
@@ -942,11 +944,13 @@ export class BackupRestoreCommand extends BaseCommand {
               title: `Deploy mirror node ${mirrorNode.metadata.id}`,
               task: async (_, subTaskListWrapper) => {
                 // Switch to the correct cluster context for this mirror node
-                const nodeCluster: string | undefined = mirrorNode.metadata.cluster;
-                if (nodeCluster) {
-                  self.logger.info(`Switching to cluster '${nodeCluster}' for mirror node ${mirrorNode.metadata.id}`);
-                  const k8: K8 = self.k8Factory.getK8(nodeCluster);
-                  k8.contexts().updateCurrent(nodeCluster);
+                const clusterReference: string | undefined = mirrorNode.metadata.cluster;
+                if (mirrorNode.metadata.context) {
+                  self.logger.info(
+                    `Switching to cluster '${mirrorNode.metadata.context}' for mirror node ${mirrorNode.metadata.id}`,
+                  );
+                  const k8: K8 = self.k8Factory.getK8(mirrorNode.metadata.context);
+                  k8.contexts().updateCurrent(mirrorNode.metadata.context);
                 }
 
                 return subTaskSoloCommand(
@@ -966,7 +970,7 @@ export class BackupRestoreCommand extends BaseCommand {
                         CommandHelpers.optionFromFlag(flags.deployment),
                         context_.deployment,
                         optionFromFlag(flags.clusterRef),
-                        nodeCluster || context_.context,
+                        clusterReference,
                       );
                       if (context_.versions?.mirrorNodeChart) {
                         argv.push(
@@ -1011,11 +1015,13 @@ export class BackupRestoreCommand extends BaseCommand {
               title: `Deploy relay node ${relayNode.metadata.id}`,
               task: async (_, subTaskListWrapper) => {
                 // Switch to the correct cluster context for this relay node
-                const nodeCluster: string | undefined = relayNode.metadata.cluster;
-                if (nodeCluster) {
-                  self.logger.info(`Switching to cluster '${nodeCluster}' for relay node ${relayNode.metadata.id}`);
-                  const k8: K8 = self.k8Factory.getK8(nodeCluster);
-                  k8.contexts().updateCurrent(nodeCluster);
+                const clusterReference: string | undefined = relayNode.metadata.cluster;
+                if (relayNode.metadata.context) {
+                  self.logger.info(
+                    `Switching to cluster '${relayNode.metadata.context}' for relay node ${relayNode.metadata.id}`,
+                  );
+                  const k8: K8 = self.k8Factory.getK8(relayNode.metadata.context);
+                  k8.contexts().updateCurrent(relayNode.metadata.context);
                 }
 
                 return subTaskSoloCommand(
@@ -1038,8 +1044,8 @@ export class BackupRestoreCommand extends BaseCommand {
                         context_.nodeAliases,
                       );
                       // Add cluster ref if node has cluster metadata
-                      if (nodeCluster) {
-                        argv.push(optionFromFlag(flags.clusterRef), nodeCluster);
+                      if (clusterReference) {
+                        argv.push(optionFromFlag(flags.clusterRef), clusterReference);
                       }
                       if (context_.versions?.jsonRpcRelayChart) {
                         argv.push(
@@ -1084,11 +1090,13 @@ export class BackupRestoreCommand extends BaseCommand {
               title: `Deploy explorer ${explorer.metadata.id}`,
               task: async (_, subTaskListWrapper) => {
                 // Switch to the correct cluster context for this explorer
-                const nodeCluster: string | undefined = explorer.metadata.cluster;
-                if (nodeCluster) {
-                  self.logger.info(`Switching to cluster '${nodeCluster}' for explorer ${explorer.metadata.id}`);
-                  const k8: K8 = self.k8Factory.getK8(nodeCluster);
-                  k8.contexts().updateCurrent(nodeCluster);
+                const clusterReference: string | undefined = explorer.metadata.cluster;
+                if (explorer.metadata.context) {
+                  self.logger.info(
+                    `Switching to cluster '${explorer.metadata.context}' for explorer ${explorer.metadata.id}`,
+                  );
+                  const k8: K8 = self.k8Factory.getK8(explorer.metadata.context);
+                  k8.contexts().updateCurrent(explorer.metadata.context);
                 }
 
                 return subTaskSoloCommand(
@@ -1111,7 +1119,7 @@ export class BackupRestoreCommand extends BaseCommand {
                         CommandHelpers.optionFromFlag(flags.deployment),
                         context_.deployment,
                         optionFromFlag(flags.clusterRef),
-                        nodeCluster || context_.context,
+                        clusterReference,
                       );
                       if (context_.versions?.explorerChart) {
                         argv.push(optionFromFlag(flags.explorerVersion), context_.versions.explorerChart.toString());
@@ -1403,20 +1411,6 @@ export class BackupRestoreCommand extends BaseCommand {
           self.taskList,
         ),
         invokeSoloCommand(
-          `Setup cluster-ref '${clusterReference}'`,
-          ClusterReferenceCommandDefinition.SETUP_COMMAND,
-          (): string[] => {
-            const argv: string[] = CommandHelpers.newArgv();
-            argv.push(
-              ...ClusterReferenceCommandDefinition.SETUP_COMMAND.split(' '),
-              optionFromFlag(flags.clusterRef),
-              clusterReference,
-            );
-            return argv;
-          },
-          self.taskList,
-        ),
-        invokeSoloCommand(
           `Connect to cluster '${contextName}'`,
           ClusterReferenceCommandDefinition.CONNECT_COMMAND,
           (): string[] => {
@@ -1427,6 +1421,20 @@ export class BackupRestoreCommand extends BaseCommand {
               clusterReference,
               optionFromFlag(flags.context),
               contextName,
+            );
+            return argv;
+          },
+          self.taskList,
+        ),
+        invokeSoloCommand(
+          `Setup cluster-ref '${clusterReference}'`,
+          ClusterReferenceCommandDefinition.SETUP_COMMAND,
+          (): string[] => {
+            const argv: string[] = CommandHelpers.newArgv();
+            argv.push(
+              ...ClusterReferenceCommandDefinition.SETUP_COMMAND.split(' '),
+              optionFromFlag(flags.clusterRef),
+              clusterReference,
             );
             return argv;
           },
