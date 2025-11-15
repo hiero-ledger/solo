@@ -305,6 +305,12 @@ jobs:
           ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info
           cd ../solo
 
+      - name: Pull Solo-Charts code locally
+        if: ${{ runner.os == 'linux' && !cancelled() && !failure() }}
+        run: |
+          cd ..
+          git clone https://github.com/hashgraph/solo-charts.git --depth 1 --branch 2870-solo-consensus-network-deploy---enable-monitoring-support-installing-crds-from-solo-instead-of-solo-deployment-helm-chart
+
       - name: Setup E2E Tests
         if: ${{ !cancelled() && inputs.test-script != 'test-e2e-node-local-ptt' }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
@@ -372,7 +378,9 @@ jobs:
               export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
           fi
           echo SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1 > .env
+          echo SOLO_CHARTS_DIR=../solo-charts/charts >> .env
           cat .env
+          cat ../solo-charts/charts/solo-deployment/values.yaml
           
           # Verify cluster connectivity before running tests
           echo "Verifying cluster connectivity..."
