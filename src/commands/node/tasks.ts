@@ -139,6 +139,7 @@ import {ComponentStateMetadataSchema} from '../../data/schema/model/remote/state
 import net from 'node:net';
 import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
 import {TDirectoryData} from '../../integration/kube/t-directory-data.js';
+import {Service} from '../../integration/kube/resources/service/service.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -1436,9 +1437,9 @@ export class NodeCommandTasks {
   public setGrpcWebEndpoint(nodeAliasesProperty: string): SoloListrTask<NodeStartContext> {
     return {
       title: 'set gRPC Web endpoint',
-      skip: (context_): boolean => {
+      skip: ({config: {app}}): boolean => {
         // skip setting the gRPC Web endpoint if we are not running a Consensus Node
-        if (context_.config.app !== constants.HEDERA_APP_NAME) {
+        if (app !== constants.HEDERA_APP_NAME) {
           return true;
         }
 
@@ -1446,26 +1447,20 @@ export class NodeCommandTasks {
         const versionRequirement: SemVer = new SemVer(MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS);
         return lt(currentVersion, versionRequirement);
       },
-      task: async (context_): Promise<void> => {
-        const namespace: NamespaceName = context_.config.namespace;
+      task: async ({config}): Promise<void> => {
+        const {namespace, deployment, adminKey} = config;
 
         const serviceMap: NodeServiceMapping = await this.accountManager.getNodeServiceMap(
-          context_.config.namespace,
+          namespace,
           this.remoteConfig.getClusterRefs(),
-          context_.config.deployment,
+          deployment,
         );
 
-        for (const nodeAlias of context_.config[nodeAliasesProperty]) {
+        for (const nodeAlias of config[nodeAliasesProperty]) {
           const networkNodeService: NetworkNodeServices = serviceMap.get(nodeAlias);
 
           const cluster: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
             (cluster): boolean => cluster.namespace === namespace.name,
-          );
-
-          const grpcProxyAddress: string = Templates.renderSvcFullyQualifiedDomainName(
-            networkNodeService.envoyProxyName,
-            namespace.name,
-            cluster.dnsBaseDomain,
           );
 
           const grpcProxyPort: number = +networkNodeService.envoyProxyGrpcWebPort;
@@ -1473,20 +1468,39 @@ export class NodeCommandTasks {
           const nodeClient: Client = await this.accountManager.loadNodeClient(
             namespace,
             this.remoteConfig.getClusterRefs(),
-            context_.config.deployment,
+            deployment,
           );
 
-          const grpcWebProxyEndpoint: ServiceEndpoint = new ServiceEndpoint()
-            .setDomainName(grpcProxyAddress)
-            .setPort(grpcProxyPort);
+          const grpcWebProxyEndpoint: ServiceEndpoint = new ServiceEndpoint().setPort(grpcProxyPort);
+
+          if (networkNodeService.envoyProxyLoadBalancerIp) {
+            const svc: Service[] = await this.k8Factory
+              .getK8(networkNodeService.context)
+              .services()
+              .list(config.namespace, [
+                `solo.hedera.com/node-id=${networkNodeService.nodeId},solo.hedera.com/type=network-node-svc`,
+              ]);
+
+            grpcWebProxyEndpoint.setDomainName(
+              Templates.renderSvcFullyQualifiedDomainName(svc[0].metadata.name, namespace.name, cluster.dnsBaseDomain),
+            );
+          } else {
+            grpcWebProxyEndpoint.setDomainName(
+              Templates.renderSvcFullyQualifiedDomainName(
+                networkNodeService.envoyProxyName,
+                namespace.name,
+                cluster.dnsBaseDomain,
+              ),
+            );
+          }
 
           let updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
             .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
             .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint)
             .freezeWith(nodeClient);
 
-          if (context_.config.adminKey) {
-            updateTransaction = await updateTransaction.sign(context_.config.adminKey);
+          if (adminKey) {
+            updateTransaction = await updateTransaction.sign(adminKey);
           }
 
           const transactionResponse: TransactionResponse = await updateTransaction.execute(nodeClient);
