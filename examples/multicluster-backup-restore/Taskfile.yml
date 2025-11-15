@@ -40,7 +40,9 @@ tasks:
       - cmd: |
           cd ../..
           SOLO_CLUSTER_DUALITY=2 ./test/e2e/dual-cluster/setup-dual-e2e.sh ; SOLO_TEST_CLUSTER=solo-e2e-c1 task test-e2e-external-database
-
+      - task: generate-transactions
+      - task: backup
+      - task: destroy-cluster
 
   generate-transactions:
     desc: Generate test transactions to create network state
@@ -86,14 +88,14 @@ tasks:
       - cmd: echo "🗑️  Deleting Kind clusters..."
       - cmd: for cluster in $(kind get clusters); do kind delete cluster --name $cluster; done
 
-  redeploy-clusters:
+  restore-clusters:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
      - cmd: |
           rm -rf ~/.solo/*; rm -rf test/data/tmp/*; 
           $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }}
 
-  redeploy-network:
+  restore-network:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
       - task: deploy-external-database
@@ -154,7 +156,7 @@ tasks:
           -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }}
       - cmd: echo "✅ Mirror node deployed with external PostgreSQL database"
 
-  restore-data:
+  restore-config:
     desc: Restore configuration and state from backup
     cmds:
       # freeze first before restoring
@@ -174,8 +176,8 @@ tasks:
   verify:
     desc: Verify restored network functionality
     cmds:
-      - cmd: echo "🔎 Verifying restored state (checking account 0.0.3)..."
-      - cmd: $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 0.0.3 || echo "⚠️  Account verification may have failed"
+      - cmd: echo "🔎 Verifying restored state (checking account 3.2.3)..."
+      - cmd: $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 3.2.3 || echo "⚠️  Account verification may have failed"
 
       - cmd: echo "💰 Testing with new transactions..."
       - cmd: |
@@ -192,8 +194,5 @@ tasks:
   destroy:
     desc: Remove cluster and backup files
     cmds:
-      - cmd: echo "🧹 Cleaning up resources..."
-      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }} || true
+      - task: destroy-cluster
       - cmd: rm -rf {{ .BACKUP_DIR }}
-      - cmd: echo "✅ Cleanup completed"
-
