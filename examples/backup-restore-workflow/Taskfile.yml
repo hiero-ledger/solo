@@ -32,21 +32,31 @@ tasks:
   default:
     desc: Run complete backup/restore workflow - deploy, backup, destroy, restore, and verify
     cmds:
+      - task: initial-deploy
+      - task: destroy-cluster
+      - task: second-deploy
+      - cmd: echo ""
+      - cmd: echo "🎉 Complete backup/restore workflow finished successfully!"
+      - cmd: echo "Run 'task cleanup' to remove cluster and backup files"
+
+  initial-deploy:
+    desc: Initial deployment, generate transactions, and backup
+    cmds:
       - task: setup
       - cmd: echo ""
       - cmd: echo "⏳ Waiting 30 seconds for network to stabilize..."
       - cmd: sleep 30
       - task: generate-transactions
       - task: backup
-      - task: destroy-cluster
+
+  second-deploy:
+    desc: Redeploy network, restore from backup, and verify
+    cmds:
       - cmd: echo ""
       - cmd: echo "⏳ Redeploying fresh network..."
       - task: redeploy
       - task: restore
       - task: verify
-      - cmd: echo ""
-      - cmd: echo "🎉 Complete backup/restore workflow finished successfully!"
-      - cmd: echo "Run 'task cleanup' to remove cluster and backup files"
 
   # ==================== Setup Tasks ====================
 
