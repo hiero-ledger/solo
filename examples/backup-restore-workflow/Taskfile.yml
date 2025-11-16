@@ -159,7 +159,7 @@ tasks:
   redeploy:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
-      - task: delete-cluster
+      - task: destroy-cluster
       - cmd: echo "🔄 Redeploying network infrastructure..."
       - cmd: rm -rf {{ .SOLO_USER_DIR }}/* 2>/dev/null || true
       - cmd: $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }}

@@ -2,13 +2,11 @@ mirror:
   - --deployment
   - external-database-test-deployment
   - --cluster-ref
-  - e2e-cluster-beta
+  - solo-e2e-c2
   - --enable-ingress
   - --pinger
   - --dev
   - --quiet-mode
-  - --cache-dir
-  - test/data/tmp/external-database-test
   - --use-external-database
   - --external-database-host
   - my-postgresql.database.svc.cluster.local

@@ -36,10 +36,7 @@ tasks:
   default:
     desc: Run complete backup/restore workflow - deploy, backup, destroy, restore, and verify
     cmds:
-      # Use existing E2E external database setup to developer multiple clusters
-      - cmd: |
-          cd ../..
-          SOLO_CLUSTER_DUALITY=2 ./test/e2e/dual-cluster/setup-dual-e2e.sh ; SOLO_TEST_CLUSTER=solo-e2e-c1 task test-e2e-external-database
+      - task: initial-deploy
       - task: generate-transactions
       - task: backup
       - task: destroy-cluster
@@ -50,12 +47,129 @@ tasks:
           $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }}
       - task: verify
 
+  initial-deploy:
+    desc: Create dual clusters and deploy network with external database
+    cmds:
+      # Delete existing clusters
+      - cmd: echo "🗑️  Cleaning up existing clusters..."
+      - cmd: kind delete cluster -n solo-e2e-c1 || true
+      - cmd: kind delete cluster -n solo-e2e-c2 || true
+      
+      # Setup Docker network
+      - cmd: echo "🌐 Setting up Docker network..."
+      - cmd: docker network rm -f kind || true
+      - cmd: docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
+      
+      # Add Helm repos
+      - cmd: echo "📦 Adding Helm repositories..."
+      - cmd: helm repo add metallb https://metallb.github.io/metallb
+      
+      # Create Cluster 1
+      - cmd: echo "🏗️  Creating Cluster 1 (solo-e2e-c1)..."
+      - cmd: kind create cluster -n solo-e2e-c1 --image kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30 --config ../../test/e2e/dual-cluster/kind-cluster-1.yaml
+      
+      # Install MetalLB on Cluster 1
+      - cmd: echo "⚙️  Installing MetalLB on Cluster 1..."
+      - cmd: |
+          helm upgrade --install metallb metallb/metallb \
+            --kube-context kind-solo-e2e-c1 \
+            --namespace metallb-system --create-namespace --atomic --wait \
+            --set speaker.frr.enabled=true
+      - cmd: kubectl apply -f ../../test/e2e/dual-cluster/metallb-cluster-1.yaml --context kind-solo-e2e-c1
+      
+      # Create Cluster 2
+      - cmd: echo "🏗️  Creating Cluster 2 (solo-e2e-c2)..."
+      - cmd: kind create cluster -n solo-e2e-c2 --image kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30 --config ../../test/e2e/dual-cluster/kind-cluster-2.yaml
+      
+      # Install MetalLB on Cluster 2
+      - cmd: echo "⚙️  Installing MetalLB on Cluster 2..."
+      - cmd: |
+          helm upgrade --install metallb metallb/metallb \
+            --kube-context kind-solo-e2e-c2 \
+            --namespace metallb-system --create-namespace --atomic --wait \
+            --set speaker.frr.enabled=true
+      - cmd: kubectl apply -f ../../test/e2e/dual-cluster/metallb-cluster-2.yaml --context kind-solo-e2e-c2
+      
+      # Setup Cluster 1
+      - cmd: echo "🔧 Setting up Cluster 1..."
+      - cmd: kubectl config use-context kind-solo-e2e-c1
+      - cmd: $SOLO_COMMAND init
+      - cmd: $SOLO_COMMAND cluster-ref config setup -s solo-setup --quiet-mode --dev
+      - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref solo-e2e-c1 --context kind-solo-e2e-c1
+      
+      # Setup Cluster 2
+      - cmd: echo "🔧 Setting up Cluster 2..."
+      - cmd: kubectl config use-context kind-solo-e2e-c2
+      - cmd: $SOLO_COMMAND cluster-ref config setup -s solo-setup --quiet-mode --dev
+      - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref solo-e2e-c2 --context kind-solo-e2e-c2
+      
+      # Create deployment
+      - cmd: echo "📋 Creating deployment..."
+      - cmd: kubectl config use-context kind-solo-e2e-c1
+      - cmd: $SOLO_COMMAND deployment config create --namespace {{ .NAMESPACE }} --deployment {{ .DEPLOYMENT }} --realm 2 --shard 3
+      
+      # Attach clusters to deployment
+      - cmd: echo "🔗 Attaching Cluster 1 to deployment (1 consensus node)..."
+      - cmd: $SOLO_COMMAND deployment cluster attach --cluster-ref solo-e2e-c1 --deployment {{ .DEPLOYMENT }} --num-consensus-nodes 1
+      - cmd: echo "🔗 Attaching Cluster 2 to deployment (1 consensus node + other components)..."
+      - cmd: $SOLO_COMMAND deployment cluster attach --cluster-ref solo-e2e-c2 --deployment {{ .DEPLOYMENT }} --num-consensus-nodes 1
+      
+      # Generate keys
+      - cmd: echo "🔑 Generating consensus keys..."
+      - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
+      
+      # Deploy consensus network
+      - cmd: echo "🚀 Deploying consensus network..."
+      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --quiet-mode --dev --load-balancer
+      
+      # Setup nodes
+      - cmd: echo "⚙️  Setting up consensus nodes..."
+      - cmd: $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
+      
+      # Start nodes
+      - cmd: echo "▶️  Starting consensus nodes..."
+      - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
+      
+      # Install PostgreSQL on Cluster 2
+      - cmd: kubectl config use-context kind-solo-e2e-c2
+      - task: deploy-external-database
+      
+      # Deploy Mirror Node on Cluster 2
+      - cmd: echo "🪞 Deploying Mirror Node on Cluster 2..."
+      - cmd: |
+          $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --use-external-database \
+            --enable-ingress --external-database-host {{ .POSTGRES_HOST_FQDN }} \
+            --external-database-owner-username {{ .POSTGRES_USERNAME }} --external-database-owner-password {{ .POSTGRES_PASSWORD }} \
+            --external-database-read-username {{ .POSTGRES_READONLY_USERNAME }} \
+            --external-database-read-password {{ .POSTGRES_READONLY_PASSWORD }} \
+            --enable-ingress --pinger -q --dev
+      
+      # Seed database
+      - task: deploy-mirror-external
+      
+      # Deploy Block Node on Cluster 2
+      - cmd: echo "🧱 Deploying Block Node on Cluster 2..."
+      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --quiet-mode --dev
+      
+      # Deploy Explorer on Cluster 2
+      - cmd: echo "🔍 Deploying Explorer on Cluster 2..."
+      - cmd: |
+          $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --mirrorNamespace {{ .NAMESPACE }} \
+            --enable-explorer-tls --tls-cluster-issuer-type acme-staging --enable-ingress -q --dev
+      
+      # Deploy Relay on Cluster 2
+      - cmd: echo "📡 Deploying Relay on Cluster 2..."
+      - cmd: $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
+      
+      - cmd: echo "✅ Initial deployment completed successfully!"
+      - cmd: echo "   - Cluster 1 (solo-e2e-c1) - node1"
+      - cmd: echo "   - Cluster 2 (solo-e2e-c2) - node2, block node, mirror node, explorer, relay"
+
   generate-transactions:
     desc: Generate test transactions to create network state
     cmds:
       - cmd: echo "💰 Creating test accounts (3)..."
       - cmd: |
-          export SOLO_HOME=test/data/tmp/external-database-test
           for i in 1 2 3; do
             echo "  Creating account $i/3..."
             $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 100 || true
@@ -67,7 +181,6 @@ tasks:
     desc: Freeze network and create complete backup (ConfigMaps, Secrets, Logs, State)
     cmds:
       - cmd: |
-          export SOLO_HOME=test/data/tmp/external-database-test
           $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }}
       - cmd: echo "✅ Backup completed successfully"
@@ -97,7 +210,6 @@ tasks:
   restore-clusters:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
-     - task: delete-cluster
      - cmd: |
           rm -rf ~/.solo/*; rm -rf test/data/tmp/*; 
           $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }}
@@ -152,8 +264,7 @@ tasks:
     cmds:
       # Copy database-seeding-query.sql to database pod"
       - cmd: |
-          export SOLO_HOME=test/data/tmp/external-database-test
-          kubectl cp ../../${SOLO_HOME}/database-seeding-query.sql \
+          kubectl cp {{ .SOLO_USER_DIR }}/cache/database-seeding-query.sql \
           {{ .POSTGRES_CONTAINER_NAME }}:/tmp/database-seeding-query.sql -n {{ .POSTGRES_DATABASE_NAMESPACE }}
 
       # Seed database with database-seeding-query.sql"
