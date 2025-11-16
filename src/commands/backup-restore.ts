@@ -1567,17 +1567,6 @@ export class BackupRestoreCommand extends BaseCommand {
         self.buildInitializationTask(argv),
         // Flatten scan backup directory task
         self.buildScanBackupDirectoryTask(),
-        {
-          title: 'Delete existing clusters',
-          task: async (context_, task) => {
-            for (const cluster of context_.clusters) {
-              const kindExecutable: string = await self.depManager.getExecutablePath(constants.KIND);
-              const kindClient: KindClient = await self.kindBuilder.executable(kindExecutable).build();
-              await kindClient.deleteCluster(cluster.name);
-            }
-            task.title = 'Deleted existing clusters: completed';
-          },
-        },
         ...self.buildKindNetworkTask(),
         {
           title: 'Create individual clusters',

@@ -152,13 +152,14 @@ tasks:
   destroy-cluster:
     desc: Delete entire cluster
     cmds:
-      - cmd: echo "🗑️  Deleting Kind cluster..."
-      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
-      - cmd: echo "✅ Cluster deleted"
+      - cmd: echo "🗑️  Deleting Kind clusters..."
+      - cmd: for cluster in $(kind get clusters); do kind delete cluster --name $cluster; done
+
 
   redeploy:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
+      - task: delete-cluster
       - cmd: echo "🔄 Redeploying network infrastructure..."
       - cmd: rm -rf {{ .SOLO_USER_DIR }}/* 2>/dev/null || true
       - cmd: $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }}
@@ -199,8 +200,7 @@ tasks:
   destroy:
     desc: Remove cluster and backup files
     cmds:
-      - cmd: echo "🧹 Cleaning up resources..."
-      - cmd: kind delete cluster -n {{ .CLUSTER_NAME }} || true
+      - task: destroy-cluster
       - cmd: rm -rf {{ .BACKUP_DIR }}
       - cmd: echo "✅ Cleanup completed"
 

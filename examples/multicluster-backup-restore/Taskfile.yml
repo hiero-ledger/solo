@@ -97,6 +97,7 @@ tasks:
   restore-clusters:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
+     - task: delete-cluster
      - cmd: |
           rm -rf ~/.solo/*; rm -rf test/data/tmp/*; 
           $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }}
