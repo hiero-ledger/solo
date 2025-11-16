@@ -46,6 +46,7 @@ module:
         - state-save-and-restore.md
         - version-upgrade-test.md
         - backup-restore-workflow.md
+        - multicluster-backup-restore.md
     - source: ../../images
       target: content/docs/readme/images
     - source: content/en

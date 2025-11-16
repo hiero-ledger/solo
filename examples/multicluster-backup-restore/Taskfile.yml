@@ -66,7 +66,7 @@ tasks:
       
       # Create Cluster 1
       - cmd: echo "🏗️  Creating Cluster 1 (solo-e2e-c1)..."
-      - cmd: kind create cluster -n solo-e2e-c1 --image kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30 --config ../../test/e2e/dual-cluster/kind-cluster-1.yaml
+      - cmd: kind create cluster -n solo-e2e-c1 --image kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30 --config kind-cluster-1.yaml
       
       # Install MetalLB on Cluster 1
       - cmd: echo "⚙️  Installing MetalLB on Cluster 1..."
@@ -75,11 +75,11 @@ tasks:
             --kube-context kind-solo-e2e-c1 \
             --namespace metallb-system --create-namespace --atomic --wait \
             --set speaker.frr.enabled=true
-      - cmd: kubectl apply -f ../../test/e2e/dual-cluster/metallb-cluster-1.yaml --context kind-solo-e2e-c1
+      - cmd: kubectl apply -f metallb-cluster-1.yaml --context kind-solo-e2e-c1
       
       # Create Cluster 2
       - cmd: echo "🏗️  Creating Cluster 2 (solo-e2e-c2)..."
-      - cmd: kind create cluster -n solo-e2e-c2 --image kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30 --config ../../test/e2e/dual-cluster/kind-cluster-2.yaml
+      - cmd: kind create cluster -n solo-e2e-c2 --image kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30 --config kind-cluster-2.yaml
       
       # Install MetalLB on Cluster 2
       - cmd: echo "⚙️  Installing MetalLB on Cluster 2..."
@@ -88,7 +88,7 @@ tasks:
             --kube-context kind-solo-e2e-c2 \
             --namespace metallb-system --create-namespace --atomic --wait \
             --set speaker.frr.enabled=true
-      - cmd: kubectl apply -f ../../test/e2e/dual-cluster/metallb-cluster-2.yaml --context kind-solo-e2e-c2
+      - cmd: kubectl apply -f metallb-cluster-2.yaml --context kind-solo-e2e-c2
       
       # Setup Cluster 1
       - cmd: echo "🔧 Setting up Cluster 1..."

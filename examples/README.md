@@ -6,6 +6,7 @@
 |---------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
 | [address-book](./address-book/)                                     | Example of using Yahcli to pull the ledger and mirror node address book                                             |
 | [backup-restore-workflow](./backup-restore-workflow/)               | Complete backup/restore workflow using `config ops backup/restore` commands                                         |
+| [multicluster-backup-restore](./multicluster-backup-restore/)         | Multi-cluster backup/restore workflow with external PostgreSQL database and distributed consensus nodes              |
 | [custom-network-config](./custom-network-config/)                   | Deploy a Solo network with custom configuration settings (log4j2, properties, etc.)                                 |
 | [external-database-test](./external-database-test/)                 | Deploy a Solo network with an external PostgreSQL database                                                          |
 | [hardhat-with-solo](./hardhat-with-solo/)                           | Example of using Hardhat to test a smart contract with a local Solo deployment                                      |

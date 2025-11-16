@@ -17,6 +17,8 @@ This example demonstrates a complete multi-cluster backup and restore workflow f
 
 This demonstrates a realistic multi-cluster deployment where components are distributed across different Kubernetes clusters for high availability and fault tolerance.
 
+**Self-Contained Example**: All configuration files and scripts are included in this directory - no external dependencies required.
+
 ## Prerequisites
 
 * [Task](https://taskfile.dev/) installed (`brew install go-task/tap/go-task` on macOS)
@@ -209,6 +211,23 @@ vars:
   POSTGRES_DATABASE_NAMESPACE: "database"
   POSTGRES_HOST_FQDN: "my-postgresql.database.svc.cluster.local"
 ```
+
+### Cluster Configuration
+
+The Kind cluster configurations in `kind-cluster-1.yaml` and `kind-cluster-2.yaml` can be customized:
+
+* **Node count** - Add more worker nodes per cluster
+* **Port mappings** - Expose additional ports for services
+* **Resource limits** - Adjust CPU and memory constraints
+* **Volume mounts** - Add persistent storage options
+
+### MetalLB Configuration
+
+The MetalLB configurations in `metallb-cluster-1.yaml` and `metallb-cluster-2.yaml` define:
+
+* **IP address ranges** for load balancer services
+* **Load balancer type** (Layer 2 mode)
+* **Address allocation** per cluster
 
 ## What Gets Backed Up?
 
@@ -405,6 +424,23 @@ mirror:
   # Add more options as needed
 ```
 
+### Modify Cluster Configuration
+
+Since all configuration files are local, you can easily customize the clusters:
+
+```bash
+# Edit cluster configurations
+vim kind-cluster-1.yaml    # Modify cluster 1 setup
+vim kind-cluster-2.yaml    # Modify cluster 2 setup
+
+# Edit MetalLB configurations  
+vim metallb-cluster-1.yaml # Adjust IP ranges for cluster 1
+vim metallb-cluster-2.yaml # Adjust IP ranges for cluster 2
+
+# Then run the deployment
+task initial-deploy
+```
+
 ## Key Commands Used
 
 This example demonstrates the following Solo commands:
@@ -445,7 +481,10 @@ This example demonstrates the following Solo commands:
 * `Taskfile.yml` - Main automation tasks and configuration
 * `command.yaml` - Component deployment options for restore
 * `scripts/init.sh` - PostgreSQL database initialization script
-* `../../test/e2e/dual-cluster/` - Kind cluster configuration files
+* `kind-cluster-1.yaml` - Kind cluster 1 configuration
+* `kind-cluster-2.yaml` - Kind cluster 2 configuration
+* `metallb-cluster-1.yaml` - MetalLB configuration for cluster 1
+* `metallb-cluster-2.yaml` - MetalLB configuration for cluster 2
 
 ## Related Examples
 
