@@ -922,7 +922,6 @@ export class NodeCommandTasks {
   public downloadNodeGeneratedFilesForDynamicAddressBook(): SoloListrTask<
     NodeUpdateContext | NodeAddContext | NodeDestroyContext
   > {
-    const self = this;
     return {
       title: 'Download generated files from an existing node',
       task: async ({
@@ -1433,7 +1432,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public setGrpcWebEndpoint(nodeAliasesProperty: string): SoloListrTask<NodeStartContext> {
+  public setGrpcWebEndpoint(nodeAliasesProperty: string): SoloListrTask<NodeStartContext | NodeAddContext> {
     return {
       title: 'set gRPC Web endpoint',
       skip: (context_): boolean => {
@@ -1446,56 +1445,67 @@ export class NodeCommandTasks {
         const versionRequirement: SemVer = new SemVer(MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS);
         return lt(currentVersion, versionRequirement);
       },
-      task: async (context_): Promise<void> => {
-        const namespace: NamespaceName = context_.config.namespace;
+      task: async ({config}, task): Promise<SoloListr<NodeStartContext | NodeAddContext>> => {
+        const {namespace, deployment, adminKey} = config;
 
         const serviceMap: NodeServiceMapping = await this.accountManager.getNodeServiceMap(
-          context_.config.namespace,
+          namespace,
           this.remoteConfig.getClusterRefs(),
-          context_.config.deployment,
+          deployment,
         );
 
-        for (const nodeAlias of context_.config[nodeAliasesProperty]) {
-          const networkNodeService: NetworkNodeServices = serviceMap.get(nodeAlias);
+        const subTasks: SoloListrTask<NodeStartContext | NodeAddContext>[] = [];
 
-          const cluster: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
-            (cluster): boolean => cluster.namespace === namespace.name,
-          );
+        for (const nodeAlias of config[nodeAliasesProperty]) {
+          subTasks.push({
+            title: `setting for ${nodeAlias}`,
+            task: async (): Promise<void> => {
+              const networkNodeService: NetworkNodeServices = serviceMap.get(nodeAlias);
 
-          const grpcProxyAddress: string = Templates.renderSvcFullyQualifiedDomainName(
-            networkNodeService.envoyProxyName,
-            namespace.name,
-            cluster.dnsBaseDomain,
-          );
+              console.log({networkNodeService});
 
-          const grpcProxyPort: number = +networkNodeService.envoyProxyGrpcWebPort;
+              const cluster: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
+                (cluster): boolean => cluster.name === networkNodeService.clusterReference,
+              );
 
-          const nodeClient: Client = await this.accountManager.loadNodeClient(
-            namespace,
-            this.remoteConfig.getClusterRefs(),
-            context_.config.deployment,
-          );
+              const grpcProxyAddress: string = Templates.renderSvcFullyQualifiedDomainName(
+                networkNodeService.envoyProxyName,
+                namespace.name,
+                cluster.dnsBaseDomain,
+              );
 
-          const grpcWebProxyEndpoint: ServiceEndpoint = new ServiceEndpoint()
-            .setDomainName(grpcProxyAddress)
-            .setPort(grpcProxyPort);
+              const grpcProxyPort: number = +networkNodeService.envoyProxyGrpcWebPort;
 
-          let updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
-            .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
-            .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint)
-            .freezeWith(nodeClient);
+              const nodeClient: Client = await this.accountManager.loadNodeClient(
+                namespace,
+                this.remoteConfig.getClusterRefs(),
+                deployment,
+              );
 
-          if (context_.config.adminKey) {
-            updateTransaction = await updateTransaction.sign(context_.config.adminKey);
-          }
+              const grpcWebProxyEndpoint: ServiceEndpoint = new ServiceEndpoint()
+                .setDomainName(grpcProxyAddress)
+                .setPort(grpcProxyPort);
 
-          const transactionResponse: TransactionResponse = await updateTransaction.execute(nodeClient);
-          const updateTransactionReceipt: TransactionReceipt = await transactionResponse.getReceipt(nodeClient);
+              let updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
+                .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
+                .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint)
+                .freezeWith(nodeClient);
 
-          if (updateTransactionReceipt.status !== Status.Success) {
-            throw new SoloError('Failed to set gRPC web proxy endpoint');
-          }
+              if (adminKey) {
+                updateTransaction = await updateTransaction.sign(adminKey);
+              }
+
+              const transactionResponse: TransactionResponse = await updateTransaction.execute(nodeClient);
+              const updateTransactionReceipt: TransactionReceipt = await transactionResponse.getReceipt(nodeClient);
+
+              if (updateTransactionReceipt.status !== Status.Success) {
+                throw new SoloError('Failed to set gRPC web proxy endpoint');
+              }
+            },
+          });
         }
+
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
       },
     };
   }
