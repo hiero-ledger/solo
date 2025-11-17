@@ -1,9 +1,9 @@
 [
   {
     "name": "One Shot Single - Podman",
-    "test-script": "test-e2e-one-shot-single",
-    "coverage-subdirectory": "e2e-one-shot-single",
-    "coverage-report-name": "E2E_Quick_Start_Single_Tests_Coverage_Report",
+    "test-script": "test-e2e-one-shot-single-podman",
+    "coverage-subdirectory": "e2e-one-shot-single-podman",
+    "coverage-report-name": "E2E_Quick_Start_Single_Podman_Tests_Coverage_Report",
     "local-java-build": false,
     "use-podman": true
   },
