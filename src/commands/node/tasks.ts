@@ -1462,8 +1462,6 @@ export class NodeCommandTasks {
             task: async (): Promise<void> => {
               const networkNodeService: NetworkNodeServices = serviceMap.get(nodeAlias);
 
-              console.log({networkNodeService});
-
               const cluster: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
                 (cluster): boolean => cluster.name === networkNodeService.clusterReference,
               );
