@@ -80,9 +80,6 @@ export class K8ClientContainer implements Container {
         }
 
         const stat: fs.Stats = fs.statSync(verifyPath);
-        if (stat.size === 0) {
-          throw new SoloError(`kubectl cp failed: empty file at ${verifyPath}`);
-        }
 
         if (expectedSize !== undefined && stat.size !== expectedSize) {
           throw new SoloError(
