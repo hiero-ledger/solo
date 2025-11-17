@@ -836,7 +836,6 @@ export class BackupRestoreCommand extends BaseCommand {
    */
   private buildBlockNodeTasks(): any[] {
     const self: BackupRestoreCommand = this;
-    const tasks: any[] = [];
 
     return [
       {
