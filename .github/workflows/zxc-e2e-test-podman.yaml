@@ -181,17 +181,6 @@ jobs:
           sudo chmod +x "${WRITE_DIAG_SCRIPT}"
           ${WRITE_DIAG_SCRIPT}
 
-      - name: Setup E2E Tests
-        if: ${{ !cancelled() && inputs.test-script != 'test-e2e-node-local-ptt' }}
-        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
-        with:
-          max_attempts: 3
-          timeout_minutes: 10
-          command: |
-            npm link
-            echo "SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}"
-            SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ${{ env.CG_EXEC }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
-
       - name: Run E2E Tests
         run: |
           # Set KUBECONFIG to the unique config for Podman-based test only
