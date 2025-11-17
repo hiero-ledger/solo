@@ -178,7 +178,7 @@ function subscribeToTopic(context) {
       if (error) {
         console.error(`ERROR: ${error}`, error);
         // ERROR: Error: 14 UNAVAILABLE: Received HTTP status code 504
-        if (!'Error: 14'.includes(error.toString())) {
+        if (!error.toString().includes('Error: 14')) {
           context.topicSubscriptionResponseReceived = true;
           // Start gRPC subscription in a separate process for debugging purposes
           startGrpcSubscription(context.topicIdString.toString());
