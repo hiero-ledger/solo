@@ -95,7 +95,8 @@ jobs:
 
   e2e-tests:
     name: E2E Tests (${{ matrix.e2e-test-type.name }})
-    if: ${{ !cancelled() && always() && !matrix.e2e-test-type.use-podman }}
+    if: ${{ !cancelled() && always() }}
+#    if: ${{ !cancelled() && always() && !matrix.e2e-test-type.use-podman }}
     uses: ./.github/workflows/zxc-e2e-test.yaml
     needs:
       - generate_matrix
@@ -115,27 +116,27 @@ jobs:
       local-java-build: ${{ matrix.e2e-test-type.local-java-build }}
       cluster-name: ${{ matrix.e2e-test-type.coverage-subdirectory }}-${{ github.run_id }}-${{ github.run_attempt }}
 
-  e2e-tests-podman:
-    name: E2E Tests (${{ matrix.e2e-test-type.name }})
-    if: ${{ !cancelled() && always() && matrix.e2e-test-type.use-podman }}
-    uses: ./.github/workflows/zxc-e2e-test-podman.yaml
-    needs:
-      - generate_matrix
-      - code-style
-    strategy:
-      fail-fast: false
-      matrix:
-        e2e-test-type: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
-      max-parallel: 3
-    with:
-      # Conditionally pass consensus-node-version only if triggered by workflow_dispatch
-      consensus-node-version: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.consensus-node-version || '' }}
-      custom-job-label: ${{ matrix.e2e-test-type.name }}
-      test-script: ${{ matrix.e2e-test-type.test-script }}
-      coverage-subdirectory: ${{ matrix.e2e-test-type.coverage-subdirectory }}
-      coverage-report-name: ${{ matrix.e2e-test-type.coverage-report-name }}
-      local-java-build: ${{ matrix.e2e-test-type.local-java-build }}
-      cluster-name: ${{ matrix.e2e-test-type.coverage-subdirectory }}-${{ github.run_id }}-${{ github.run_attempt }}
+#  e2e-tests-podman:
+#    name: E2E Tests (${{ matrix.e2e-test-type.name }})
+#    if: ${{ !cancelled() && always() && matrix.e2e-test-type.use-podman }}
+#    uses: ./.github/workflows/zxc-e2e-test-podman.yaml
+#    needs:
+#      - generate_matrix
+#      - code-style
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        e2e-test-type: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
+#      max-parallel: 3
+#    with:
+#      # Conditionally pass consensus-node-version only if triggered by workflow_dispatch
+#      consensus-node-version: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.consensus-node-version || '' }}
+#      custom-job-label: ${{ matrix.e2e-test-type.name }}
+#      test-script: ${{ matrix.e2e-test-type.test-script }}
+#      coverage-subdirectory: ${{ matrix.e2e-test-type.coverage-subdirectory }}
+#      coverage-report-name: ${{ matrix.e2e-test-type.coverage-report-name }}
+#      local-java-build: ${{ matrix.e2e-test-type.local-java-build }}
+#      cluster-name: ${{ matrix.e2e-test-type.coverage-subdirectory }}-${{ github.run_id }}-${{ github.run_attempt }}
 
   codecov:
     name: CodeCov
