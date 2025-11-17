@@ -93,7 +93,7 @@ jobs:
     with:
       custom-job-label: Standard
 
-  e2e-tests-docker:
+  e2e-tests:
     name: E2E Tests (${{ matrix.e2e-test-type.name }})
     if: ${{ !cancelled() && always() && !matrix.e2e-test-type.use-podman }}
     uses: ./.github/workflows/zxc-e2e-test.yaml
