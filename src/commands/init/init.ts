@@ -135,7 +135,6 @@ export class InitCommand extends BaseCommand {
       {
         title: 'Install Kind',
         task: async (_, task) => {
-          task.title += `${await this.run('ps -p $$ -o ppid=')} | `;
           const podmanDependency: PodmanDependencyManager = (await self.depManager.getDependency(
             constants.PODMAN,
           )) as PodmanDependencyManager;
@@ -150,7 +149,6 @@ export class InitCommand extends BaseCommand {
 
           const subTasks = self.depManager.taskCheckDependencies<InitContext>(deps);
 
-          task.title += `${await this.run('ps -p $$ -o ppid=')} | `;
           // set up the sub-tasks
           return task.newListr(subTasks, {
             concurrent: true,
@@ -175,9 +173,15 @@ export class InitCommand extends BaseCommand {
             {
               subTasks.push(
                 {
+                  title: 'Please provide root permissions to setup podman and kind:',
+                  task: async (_, task) => {
+                    await this.run('sudo whoami');
+                    task.title = 'Root permissions granted.';
+                  },
+                },
+                {
                   title: 'Install git...',
                   task: async (_, subTask) => {
-                    subTask.title += `${await this.run('ps -p $$ -o ppid=')} | `;
                     try {
                       await this.run('git version');
                     } catch {
@@ -190,33 +194,23 @@ export class InitCommand extends BaseCommand {
                 {
                   title: 'Install brew...',
                   task: async (_, subTask) => {
-                    subTask.title += `${await this.run('ps -p $$ -o ppid=')} | `;
-                    // TODO fix brew installation
                     try {
-                      await this.run('brew doctor');
+                      await this.run('brew -v');
                     } catch {
                       this.logger.info('Homebrew not found, installing Homebrew...');
-                      subTask.title += `${await this.run('ps -p $$ -o ppid=')} | `;
                       await this.run(
                         'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"',
                       );
-                      subTask.title += `${await this.run('ps -p $$ -o ppid=')} | `;
                       await this.run('eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"');
-                      subTask.title += `${await this.run('ps -p $$ -o ppid=')} | `;
-                      await this.run('source $HOME/.profile');
-                      subTask.title += `${await this.run('ps -p $$ -o ppid=')} | `;
-                      // process.env.PATH = `${process.env.PATH}:/home/linuxbrew/.linuxbrew/bin`;
-                      await this.run('brew doctor');
+                      process.env.PATH = `${process.env.PATH}:/home/linuxbrew/.linuxbrew/bin`;
+                      await this.run('brew -v');
                     }
                   },
-                  skip: true,
                 },
                 {
                   title: 'Install podman...',
                   task: async (_, subTask) => {
-                    subTask.title += `${await this.run('ps -p $$ -o ppid=')} | `;
                     try {
-                      process.env.PATH = `${process.env.PATH}:/home/linuxbrew/.linuxbrew/bin`;
                       const podmanVersion = await this.run('podman --version');
                       this.logger.info(`Podman already installed: ${podmanVersion}`);
                     } catch {
@@ -230,7 +224,6 @@ export class InitCommand extends BaseCommand {
                 {
                   title: 'Creating local cluster...',
                   task: async (context_, task) => {
-                    task.title += `${await this.run('ps -p $$ -o ppid=')} | `;
                     const whichPodman = await this.run('which podman');
                     const podmanPath = whichPodman.join('').replace('/podman', '');
                     await this.run(
@@ -346,19 +339,6 @@ export class InitCommand extends BaseCommand {
     }
 
     const tasks: SoloListrTask<InitContext>[] = [
-      {
-        title: 'Ask for sudo permissions if needed',
-        task: async (_, task) => {
-          // eslint-disable-next-line unicorn/prevent-abbreviations
-          const res: string[] = await this.run('sudo whoami');
-          task.title = `Sudo permissions granted. Sudo whoami: ${res} |`;
-
-          // eslint-disable-next-line unicorn/prevent-abbreviations
-          const res2: string[] = await this.run('whoami');
-          task.title += `| whoami: ${res2}`;
-          task.title += `${await this.run('ps -p $$ -o ppid=')} | `;
-        },
-      },
       {
         title: 'Check dependencies',
         task: (_, task) => {
