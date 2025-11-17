@@ -356,27 +356,6 @@ tasks:
         EOF
       - cat examples/state-save-and-restore/README.md >> docs/site/build/state-save-and-restore.md
 
-  mutate:backup-restore-workflow-example:
-    desc: "Mutate the examples/backup-restore-workflow/README.md file to add front-matter"
-    dir: ../..
-    silent: true
-    sources:
-      - examples/backup-restore-workflow/README.md
-    generates:
-      - docs/site/build/backup-restore-workflow.md
-    cmds:
-      - |
-        mkdir -p docs/site/build
-        cat > docs/site/build/backup-restore-workflow.md << 'EOF'
-        ---
-        title: "Backup Restore Workflow Example"
-        weight: 1
-        description: >
-          Example demonstrating backup and restore workflow for Solo
-        type: docs
-        ---
-        EOF
-      - cat examples/backup-restore-workflow/README.md >> docs/site/build/backup-restore-workflow.md
 
   mutate:multicluster-backup-restore-example:
     desc: "Mutate the examples/multicluster-backup-restore/README.md file to add front-matter"

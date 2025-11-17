@@ -61,7 +61,6 @@ tasks:
       - task: "mutate:rapid-fire-example"
       - task: "mutate:running-solo-inside-cluster-example"
       - task: "mutate:state-save-and-restore-example"
-      - task: "mutate:backup-restore-workflow-example"
       - task: "mutate:multicluster-backup-restore-example"
       - task: "mutate:version-upgrade-test-example"
       - task: "build:all"

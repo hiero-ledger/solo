@@ -93,12 +93,14 @@ task initial-deploy
 This creates and configures:
 
 **Infrastructure:**
+
 * 2 Kind clusters (solo-e2e-c1, solo-e2e-c2)
 * Docker network for inter-cluster communication
 * MetalLB load balancer on both clusters
 * PostgreSQL database on cluster 2
 
 **Network Components:**
+
 * node1 on cluster 1
 * node2 on cluster 2
 * 1 block node on cluster 2
@@ -441,24 +443,46 @@ vim metallb-cluster-2.yaml # Adjust IP ranges for cluster 2
 task initial-deploy
 ```
 
+### Custom MetalLB Configuration
+
+You can specify custom MetalLB configuration files during restore operations:
+
+```bash
+# Use custom metallb configuration files
+$SOLO_COMMAND config ops restore-clusters \
+  --input-dir ./solo-backup \
+  --metallb-config custom-metallb-{index}.yaml
+
+# The {index} placeholder gets replaced with the cluster number (1, 2, etc.)
+# Result: custom-metallb-1.yaml, custom-metallb-2.yaml, etc.
+```
+
+The metallb configuration files use the `{index}` placeholder to support multiple clusters:
+
+* `metallb-cluster-{index}.yaml` → `metallb-cluster-1.yaml`, `metallb-cluster-2.yaml`
+* Custom patterns like `custom/loadbalancer-{index}.yaml` also work
+
 ## Key Commands Used
 
 This example demonstrates the following Solo commands:
 
 ### Backup/Restore Commands
+
 * **`solo config ops backup`** - Backs up ConfigMaps, Secrets, Logs, and State files
-* **`solo config ops restore-clusters`** - Recreates clusters from backup metadata
+* **`solo config ops restore-clusters`** - Recreates clusters from backup metadata (supports `--metallb-config` flag)
 * **`solo config ops restore-network`** - Restores network components from backup
 * **`solo config ops restore-config`** - Restores ConfigMaps, Secrets, Logs, and State files
 * **`solo consensus network freeze`** - Freezes the network before backup
 
 ### Multi-Cluster Commands
+
 * **`solo cluster-ref config setup`** - Setup cluster reference configuration
 * **`solo cluster-ref config connect`** - Connect cluster reference to kubectl context
 * **`solo deployment config create`** - Create deployment with realm and shard
 * **`solo deployment cluster attach`** - Attach cluster to deployment with node count
 
 ### Component Deployment Commands
+
 * **`solo consensus network deploy`** - Deploy consensus network with load balancer
 * **`solo consensus node setup/start`** - Setup and start consensus nodes
 * **`solo block node add`** - Add block node to specific cluster
@@ -488,7 +512,6 @@ This example demonstrates the following Solo commands:
 
 ## Related Examples
 
-* [backup-restore-workflow](../backup-restore-workflow/) - Single-cluster backup/restore
 * [external-database-test](../external-database-test/) - External database setup
 * [state-save-and-restore](../state-save-and-restore/) - State file management
 

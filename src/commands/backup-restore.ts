@@ -74,7 +74,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
   public static RESTORE_CLUSTERS_FLAGS_LIST: CommandFlags = {
     required: [flags.inputDir],
-    optional: [flags.quiet, flags.optionsFile],
+    optional: [flags.quiet, flags.optionsFile, flags.metallbConfig],
   };
 
   public static RESTORE_NETWORK_FLAGS_LIST: CommandFlags = {
@@ -690,10 +690,6 @@ export class BackupRestoreCommand extends BaseCommand {
     }
   }
 
-  /**
-   * Build deployment tasks at the top level (not nested) to avoid Listr hanging issues
-   * This follows the pattern from default-one-shot.ts
-   */
   private buildDeploymentTasks(): any[] {
     const self: BackupRestoreCommand = this;
     const tasks: any[] = [];
@@ -829,11 +825,8 @@ export class BackupRestoreCommand extends BaseCommand {
           );
         },
       },
-      // Mirror nodes deploy tasks
       ...self.buildMirrorNodeTasks(),
-      // Relay nodes deploy tasks
       ...self.buildRelayNodeTasks(),
-      // Explorer nodes deploy tasks
       ...self.buildExplorerTasks(),
     ];
   }
@@ -1332,7 +1325,10 @@ export class BackupRestoreCommand extends BaseCommand {
   /**
    * Build individual cluster creation tasks
    */
-  private buildIndividualClusterCreationTasks(context_: any): any[] {
+  private buildIndividualClusterCreationTasks(
+    context_: any,
+    metallbConfig: string = 'metallb-cluster-{index}.yaml',
+  ): any[] {
     const self: BackupRestoreCommand = this;
     const clusterTasks: any[] = [];
     const isMultiCluster: boolean = context_.clusters.length > 1;
@@ -1399,7 +1395,7 @@ export class BackupRestoreCommand extends BaseCommand {
             );
 
             // Apply cluster-specific MetalLB configuration
-            const metallbConfigPath: string = `test/e2e/dual-cluster/metallb-cluster-${clusterIndex + 1}.yaml`;
+            const metallbConfigPath: string = metallbConfig.replace('{index}', String(clusterIndex + 1));
             self.logger.info(`Applying MetalLB config from '${metallbConfigPath}'...`);
             await shellRunner.run(`kubectl apply -f "${metallbConfigPath}"`);
 
@@ -1541,6 +1537,9 @@ export class BackupRestoreCommand extends BaseCommand {
   public async restoreClusters(argv: ArgvStruct): Promise<boolean> {
     const self: BackupRestoreCommand = this;
 
+    // Extract metallbConfig from argv
+    const metallbConfig: string = (argv[flags.metallbConfig.name] as string) ?? 'metallb-cluster-{index}.yaml';
+
     interface RestoreClustersContext {
       inputDirectory: string;
       contextDirs?: string[]; // kubectl context directory names from backup
@@ -1571,7 +1570,7 @@ export class BackupRestoreCommand extends BaseCommand {
         {
           title: 'Create individual clusters',
           task: (context_: any, taskListWrapper: any) => {
-            const clusterTasks = self.buildIndividualClusterCreationTasks(context_);
+            const clusterTasks = self.buildIndividualClusterCreationTasks(context_, metallbConfig);
             return taskListWrapper.newListr(clusterTasks, {
               concurrent: false,
               rendererOptions: {collapseSubtasks: false},

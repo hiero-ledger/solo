@@ -212,7 +212,7 @@ tasks:
     cmds:
      - cmd: |
           rm -rf ~/.solo/*; rm -rf test/data/tmp/*; 
-          $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }}
+          $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml
 
   restore-network:
     desc: Redeploy complete network infrastructure (after cluster deletion)
