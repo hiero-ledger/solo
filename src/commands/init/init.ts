@@ -381,10 +381,7 @@ export class InitCommand extends BaseCommand {
           createCluster: false,
         }),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-      },
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       InitCommand.INIT_COMMAND_NAME,
     );

@@ -35,13 +35,13 @@ permissions:
 
 jobs:
   gcs-storage-test:
-    timeout-minutes: 20
+    timeout-minutes: 40
     runs-on: hiero-solo-linux-large
     strategy:
       fail-fast: false
       matrix:
         storageType: [ "gcs_only", "minio_only", "aws_only" ]
-      max-parallel: 1
+      max-parallel: 3
     steps:
       - name: Check if job should be skipped
         id: check

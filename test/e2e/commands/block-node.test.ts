@@ -4,7 +4,13 @@ import {afterEach, describe} from 'mocha';
 import {expect} from 'chai';
 
 import {Flags as flags} from '../../../src/commands/flags.js';
-import {deployNetworkTest, endToEndTestSuite, getTestCluster, startNodesTest} from '../../test-utility.js';
+import {
+  deployNetworkTest,
+  destroyEnabled,
+  endToEndTestSuite,
+  getTestCluster,
+  startNodesTest,
+} from '../../test-utility.js';
 import * as version from '../../../version.js';
 import {sleep} from '../../../src/core/helpers.js';
 import {Duration} from '../../../src/core/time/duration.js';
@@ -122,6 +128,10 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
     });
 
     it("Should succeed with removing block node with 'destroy' command", async function (): Promise<void> {
+      if (!destroyEnabled()) {
+        this.skip();
+      }
+
       this.timeout(Duration.ofMinutes(2).toMillis());
 
       configManager.reset();
