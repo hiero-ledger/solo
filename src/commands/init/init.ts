@@ -226,6 +226,7 @@ export class InitCommand extends BaseCommand {
                   task: async (context_, task) => {
                     const whichPodman = await this.run('which podman');
                     const podmanPath = whichPodman.join('').replace('/podman', '');
+                    await this.run(`sudo echo $PATH`);
                     await this.run(
                       `sudo KIND_EXPERIMENTAL_PROVIDER=podman PATH=$PATH:${podmanPath} kind create cluster`,
                     );
@@ -266,6 +267,10 @@ export class InitCommand extends BaseCommand {
                       userConfig['current-context'] = rootConfig['current-context'];
                     } catch (error) {
                       if (error.code === 'ENOENT') {
+                        const kubeConfigDirectory: string = `/home/${user}/.kube/`;
+                        if (!fs.existsSync(kubeConfigDirectory)) {
+                          fs.mkdirSync(kubeConfigDirectory, {recursive: true});
+                        }
                         userConfig = rootConfig;
                         userConfig.clusters = userConfig.clusters.filter(c => c.name === clusterName);
                         userConfig.contexts = userConfig.contexts.filter(c => c.name === clusterName);
