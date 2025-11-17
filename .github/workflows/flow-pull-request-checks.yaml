@@ -95,7 +95,7 @@ jobs:
 
   e2e-tests:
     name: E2E Tests (${{ matrix.e2e-test-type.name }})
-    if: ${{ !cancelled() && always() }}
+    if: ${{ !cancelled() && always() && !matrix.e2e-test-type.use-podman }}
 #    if: ${{ !cancelled() && always() && !matrix.e2e-test-type.use-podman }}
     uses: ./.github/workflows/zxc-e2e-test.yaml
     needs:
