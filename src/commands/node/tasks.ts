@@ -1653,7 +1653,7 @@ export class NodeCommandTasks {
               await k8
                 .containers()
                 .readByRef(containerReference)
-                .execContainer(['systemctl', 'restart', 'network-node']);
+                .execContainer('/opt/hgcapp/services-hedera/HapiApp2.0/node_state_manager.sh start');
             },
           });
         }
@@ -1894,7 +1894,7 @@ export class NodeCommandTasks {
                   .getK8(context)
                   .containers()
                   .readByRef(containerReference)
-                  .execContainer('systemctl stop network-node'),
+                  .execContainer('/opt/hgcapp/services-hedera/HapiApp2.0/node_state_manager.sh stop'),
             });
           }
         }
