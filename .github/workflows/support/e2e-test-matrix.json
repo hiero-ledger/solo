@@ -1,65 +1,82 @@
 [
   {
+    "name": "One Shot Single - Podman",
+    "test-script": "test-e2e-one-shot-single",
+    "coverage-subdirectory": "e2e-one-shot-single",
+    "coverage-report-name": "E2E_Quick_Start_Single_Tests_Coverage_Report",
+    "local-java-build": false,
+    "use-podman": true
+  },
+  {
     "name": "One Shot Single",
     "test-script": "test-e2e-one-shot-single",
     "coverage-subdirectory": "e2e-one-shot-single",
     "coverage-report-name": "E2E_Quick_Start_Single_Tests_Coverage_Report",
-    "local-java-build": false
+    "local-java-build": false,
+    "use-podman": false
   },
   {
     "name": "External database new",
     "test-script": "test-e2e-external-database",
     "coverage-subdirectory": "e2e-external-database",
     "coverage-report-name": "External_Database_Tests_Coverage_Report",
-    "local-java-build": false
+    "local-java-build": false,
+    "use-podman": false
   },
   {
     "name": "Block Node",
     "test-script": "test-e2e-block-node",
     "coverage-subdirectory": "e2e-block-node",
     "coverage-report-name": "E2E_Block_Node_Tests_Coverage_Report",
-    "local-java-build": true
+    "local-java-build": true,
+    "use-podman": false
   },
   {
     "name": "Integration",
     "test-script": "test-e2e-integration",
     "coverage-subdirectory": "e2e-integration",
     "coverage-report-name": "E2E_Integration_Tests_Coverage_Report",
-    "local-java-build": false
+    "local-java-build": false,
+    "use-podman": false
   },
   {
     "name": "Dual Cluster Full",
     "test-script": "test-e2e-dual-cluster-full",
     "coverage-subdirectory": "e2e-dual-cluster-full",
     "coverage-report-name": "E2E_Dual_Cluster_Full_Tests_Coverage_Report",
-    "local-java-build": false
+    "local-java-build": false,
+    "use-podman": false
   },
   {
     "name": "Standard",
     "test-script": "test-e2e-standard",
     "coverage-subdirectory": "e2e-standard",
     "coverage-report-name": "E2E_Standard_Tests_Coverage_Report",
-    "local-java-build": false
+    "local-java-build": false,
+    "use-podman": false
   },
   {
     "name": "Node Upgrade",
     "test-script": "test-e2e-node-upgrade",
     "coverage-subdirectory": "e2e-node-upgrade",
     "coverage-report-name": "E2E_Node_Upgrade_Tests_Coverage_Report",
-    "local-java-build": false
+    "local-java-build": false,
+    "use-podman": false
   },
   {
     "name": "Node Local PTT",
     "test-script": "test-e2e-node-local-ptt",
     "coverage-subdirectory": "e2e-node-local-ptt",
     "coverage-report-name": "E2E_Node_Local_PTT_Tests_Coverage_Report",
-    "local-java-build": true
+    "local-java-build": true,
+    "use-podman": false
   },
   {
     "name": "Node Add Local",
     "test-script": "test-e2e-node-add-local",
     "coverage-subdirectory": "e2e-node-add-local",
     "coverage-report-name": "E2E_Node_Add_Local_Tests_Coverage_Report",
-    "local-java-build": true
+    "local-java-build": true,
+    "use-podman": false
   }
 ]
