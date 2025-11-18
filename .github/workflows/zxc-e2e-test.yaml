@@ -398,7 +398,7 @@ jobs:
           echo SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1 > .env
           cat .env
           
-          if [[ inputs.custom-job-label != "One Shot Single - using Podman" ]]; then
+          if [[ "${{ inputs.custom-job-label }}" != "One Shot Single - using Podman" ]]; then
             # Verify cluster connectivity before running tests
             echo "Verifying cluster connectivity..."
             kubectl cluster-info || {
