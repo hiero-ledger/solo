@@ -73,11 +73,6 @@ on:
         type: string
         required: false
         default: "hiero-solo-linux-large"
-      harden:
-        description: "Use Harden:"
-        type: boolean
-        required: false
-        default: true
   workflow_call:
     inputs:
       node-version:
@@ -130,11 +125,6 @@ on:
         type: string
         required: false
         default: "hiero-solo-linux-large"
-      harden:
-        description: "Use Harden:"
-        type: boolean
-        required: false
-        default: true
 
 defaults:
   run:
@@ -159,7 +149,6 @@ jobs:
     runs-on: ${{ inputs.runner || 'hiero-solo-linux-large' }}
     steps:
       - name: Harden Runner
-        if: ${{ inputs.harden }}
         uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit

@@ -116,7 +116,6 @@ jobs:
       cluster-name: ${{ matrix.e2e-test-type.coverage-subdirectory }}-${{ github.run_id }}-${{ github.run_attempt }}
       solo-install-dependencies: ${{ matrix.e2e-test-type.solo-install-dependencies }}
       runner: ${{ matrix.e2e-test-type.runner }}
-      harden: ${{ matrix.e2e-test-type.harden }}
 
   codecov:
     name: CodeCov
