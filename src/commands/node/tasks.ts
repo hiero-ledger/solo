@@ -2235,11 +2235,11 @@ export class NodeCommandTasks {
     };
   }
 
-  public getNodeStateFiles(): SoloListrTask<NodeStatesContext> {
+  public getNodeStateFiles(aliasesField: string): SoloListrTask<NodeStatesContext> {
     return {
       title: 'Get node states',
       task: async context_ => {
-        for (const nodeAlias of context_.config.nodeAliases) {
+        for (const nodeAlias of context_.config[aliasesField]) {
           const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
           await container
             .resolve<NetworkNodes>(NetworkNodes)
@@ -2963,17 +2963,29 @@ export class NodeCommandTasks {
     };
   }
 
+  /**
+   * Upload the last saved state from the previous network to the new node
+   */
   public uploadStateToNewNode(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Upload last saved state to new network node',
       task: async context_ => {
-        const config = context_.config;
+        const config: NodeAddConfigClass = context_.config;
 
         // Get the source node ID from the first consensus node (the state file's original node)
-        const sourceNodeId = config.consensusNodes[0].nodeId;
+        const sourceNodeId: number = config.consensusNodes[0].nodeId;
+
+        // Construct the path to the cached state file from the first existing node
+        const firstExistingNode: NodeAlias = config.existingNodeAliases[0];
+        const stateFileName: string = `${Templates.renderNetworkPodName(firstExistingNode)}-state.zip`;
+        const stateFilePath: string = path.join(constants.SOLO_LOGS_DIR, config.namespace.toString(), stateFileName);
+
+        if (!fs.existsSync(stateFilePath)) {
+          throw new SoloError(`State file not found: ${stateFileName}. Expected at ${stateFilePath}`);
+        }
 
         // Use the generic uploadStateToSingleNode function directly with the state file
-        await this.uploadStateToSingleNode(config.nodeAlias, config, config.lastStateZipPath, sourceNodeId);
+        await this.uploadStateToSingleNode(config.nodeAlias, config, stateFilePath, sourceNodeId);
       },
     };
   }
