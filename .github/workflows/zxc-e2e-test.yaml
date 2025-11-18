@@ -248,7 +248,7 @@ jobs:
         run: task build
 
       - name: Pull Kind Docker Image
-        if: ${{ inputs.name != 'One Shot Single - using Podman' }}
+        if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' }}
         run: docker image pull kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
 
       - name: Install Podman
@@ -311,7 +311,7 @@ jobs:
           cd ../solo
 
       - name: Setup E2E Tests
-        if: ${{ !cancelled() && inputs.test-script != 'test-e2e-node-local-ptt' && inputs.name != 'One Shot Single - using Podman' }}
+        if: ${{ !cancelled() && inputs.test-script != 'test-e2e-node-local-ptt' && inputs.custom-job-label != 'One Shot Single - using Podman' }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 3
@@ -379,7 +379,7 @@ jobs:
           echo SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1 > .env
           cat .env
           
-          if [[ inputs.name != "One Shot Single - using Podman" ]]; then
+          if [[ inputs.custom-job-label != "One Shot Single - using Podman" ]]; then
             # Verify cluster connectivity before running tests
             echo "Verifying cluster connectivity..."
             kubectl cluster-info || {
