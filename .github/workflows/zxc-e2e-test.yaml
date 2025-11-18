@@ -197,14 +197,14 @@ jobs:
           fi
 
       - name: Install Kubectl
-        if: {{ inputs.solo-install-dependencies == false }}
+        if: ${{ inputs.solo-install-dependencies == false }}
         uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
         with:
           version: 'v1.27.3'
         id: install
 
       - name: Setup Kind
-        if: {{ inputs.solo-install-dependencies == false }}
+        if: ${{ inputs.solo-install-dependencies == false }}
         uses: helm/kind-action@92086f6be054225fa813e0a4b13787fc9088faab # v1.13.0
         with:
           install_only: true
@@ -215,7 +215,7 @@ jobs:
           wait: 120s
 
       - name: Setup Helm
-        if: {{ inputs.solo-install-dependencies == false }}
+        if: ${{ inputs.solo-install-dependencies == false }}
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         with:
           version: "v3.17.1" # helm version
@@ -248,7 +248,7 @@ jobs:
         run: task build
 
       - name: Pull Kind Docker Image
-        if: {{ inputs.name != 'One Shot Single - using Podman' }}
+        if: ${{ inputs.name != 'One Shot Single - using Podman' }}
         run: docker image pull kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
 
       - name: Install Podman
