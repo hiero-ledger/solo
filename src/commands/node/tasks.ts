@@ -1153,7 +1153,7 @@ export class NodeCommandTasks {
     nodeAlias: NodeAlias,
     config: any,
     stateFileDirectory?: string,
-    sourceNodeId?: number
+    sourceNodeId?: number,
   ): Promise<void> {
     const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
     const k8 = this.k8Factory.getK8(context);
@@ -1168,11 +1168,7 @@ export class NodeCommandTasks {
 
     // Determine the state file to use
     let zipFile: string;
-    if (
-      stateFileDirectory &&
-      fs.existsSync(stateFileDirectory) &&
-      fs.statSync(stateFileDirectory).isDirectory()
-    ) {
+    if (stateFileDirectory && fs.existsSync(stateFileDirectory) && fs.statSync(stateFileDirectory).isDirectory()) {
       // It's a directory - find the state file for this specific pod
       const podName = podReference.name.name;
       const statesDirectory = path.join(stateFileDirectory, context, 'states');
@@ -1254,7 +1250,6 @@ export class NodeCommandTasks {
     }
   }
 
-  
   public uploadStateFiles(skip: SkipCheck | boolean, stateFileDirectory?: string) {
     const self = this;
     return {
@@ -2979,20 +2974,6 @@ export class NodeCommandTasks {
 
         // Use the generic uploadStateToSingleNode function directly with the state file
         await this.uploadStateToSingleNode(config.nodeAlias, config, config.lastStateZipPath, sourceNodeId);
-
-        // Set path permissions for the hedera user (this is specific to new node upload)
-        const newNodeFullyQualifiedPodName = Templates.renderNetworkPodName(config.nodeAlias);
-        const podReference = PodReference.of(config.namespace, newNodeFullyQualifiedPodName);
-        const context = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
-        
-        await this.platformInstaller.setPathPermission(
-          podReference,
-          constants.HEDERA_HAPI_PATH,
-          undefined,
-          undefined,
-          undefined,
-          context,
-        );
       },
     };
   }
