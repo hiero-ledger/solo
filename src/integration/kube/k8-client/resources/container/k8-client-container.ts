@@ -44,23 +44,28 @@ export class K8ClientContainer implements Container {
     const fullArguments: string[] = ['--context', context, ...arguments_];
 
     return new Promise((resolve, reject): void => {
-      const proc: ChildProcessByStdio<null, Stream.Readable, Stream.Readable> = spawn('kubectl', fullArguments, {
+      const process: ChildProcessByStdio<null, Stream.Readable, Stream.Readable> = spawn('kubectl', fullArguments, {
         stdio: ['ignore', 'pipe', 'pipe'],
       });
 
       let stdout: string = '';
       let stderr: string = '';
 
-      proc.stdout.on('data', (chunk): void => {
+      process.stdout.on('data', (chunk): void => {
         stdout += chunk.toString();
       });
-      proc.stderr.on('data', (chunk): void => {
+
+      process.stderr.on('data', (chunk): void => {
         stderr += chunk.toString();
       });
 
-      proc.on('close', (code): void => {
+      process.on('error', (error): void => {
+        reject(new SoloError(`kubectl failed to start: ${error?.message}`));
+      });
+
+      process.on('close', (code): void => {
         if (code === 0) {
-          resolve(stdout);
+          resolve(stdout || stderr);
         } else {
           reject(new SoloError(`kubectl failed: ${stderr || stdout}`));
         }
@@ -141,7 +146,7 @@ export class K8ClientContainer implements Container {
     );
 
     await this.execKubectlCp(
-      ['cp', '-c', containerName, `${namespace.name}/${podName}:${resolvedRemotePath}`, destinationPath],
+      ['cp', `${namespace.name}/${podName}:${resolvedRemotePath}`, destinationPath, '-c', containerName],
       destinationPath,
       sourceFileSize,
     );
@@ -198,7 +203,7 @@ export class K8ClientContainer implements Container {
 
       this.logger.info(`copyTo: kubectl cp -c ${containerName} ${localPathToCopy} ${remoteDestination}`);
 
-      await this.execKubectlCp(['cp', '-c', containerName, localPathToCopy, remoteDestination], localPathToCopy);
+      await this.execKubectlCp(['cp', localPathToCopy, remoteDestination, '-c', containerName], localPathToCopy);
 
       return true;
     } finally {
