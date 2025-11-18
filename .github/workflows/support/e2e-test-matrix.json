@@ -1,11 +1,13 @@
 [
   {
-    "name": "One Shot Single - Podman",
-    "test-script": "test-e2e-one-shot-single-podman",
+    "name": "One Shot Single - using Podman",
+    "test-script": "test-e2e-one-shot-single",
     "coverage-subdirectory": "e2e-one-shot-single-podman",
     "coverage-report-name": "E2E_Quick_Start_Single_Podman_Tests_Coverage_Report",
     "local-java-build": false,
-    "use-podman": true
+    "solo-install-dependencies": true,
+    "runner": "ubuntu-24.04",
+    "harden": false
   },
   {
     "name": "One Shot Single",
@@ -13,7 +15,9 @@
     "coverage-subdirectory": "e2e-one-shot-single",
     "coverage-report-name": "E2E_Quick_Start_Single_Tests_Coverage_Report",
     "local-java-build": false,
-    "use-podman": false
+    "solo-install-dependencies": false,
+    "runner": "hiero-solo-linux-large",
+    "harden": true
   },
   {
     "name": "External database new",
@@ -21,7 +25,9 @@
     "coverage-subdirectory": "e2e-external-database",
     "coverage-report-name": "External_Database_Tests_Coverage_Report",
     "local-java-build": false,
-    "use-podman": false
+    "solo-install-dependencies": false,
+    "runner": "hiero-solo-linux-large",
+    "harden": true
   },
   {
     "name": "Block Node",
@@ -29,7 +35,9 @@
     "coverage-subdirectory": "e2e-block-node",
     "coverage-report-name": "E2E_Block_Node_Tests_Coverage_Report",
     "local-java-build": true,
-    "use-podman": false
+    "solo-install-dependencies": false,
+    "runner": "hiero-solo-linux-large",
+    "harden": true
   },
   {
     "name": "Integration",
@@ -37,7 +45,9 @@
     "coverage-subdirectory": "e2e-integration",
     "coverage-report-name": "E2E_Integration_Tests_Coverage_Report",
     "local-java-build": false,
-    "use-podman": false
+    "solo-install-dependencies": false,
+    "runner": "hiero-solo-linux-large",
+    "harden": true
   },
   {
     "name": "Dual Cluster Full",
@@ -45,7 +55,9 @@
     "coverage-subdirectory": "e2e-dual-cluster-full",
     "coverage-report-name": "E2E_Dual_Cluster_Full_Tests_Coverage_Report",
     "local-java-build": false,
-    "use-podman": false
+    "solo-install-dependencies": false,
+    "runner": "hiero-solo-linux-large",
+    "harden": true
   },
   {
     "name": "Standard",
@@ -53,7 +65,9 @@
     "coverage-subdirectory": "e2e-standard",
     "coverage-report-name": "E2E_Standard_Tests_Coverage_Report",
     "local-java-build": false,
-    "use-podman": false
+    "solo-install-dependencies": false,
+    "runner": "hiero-solo-linux-large",
+    "harden": true
   },
   {
     "name": "Node Upgrade",
@@ -61,7 +75,9 @@
     "coverage-subdirectory": "e2e-node-upgrade",
     "coverage-report-name": "E2E_Node_Upgrade_Tests_Coverage_Report",
     "local-java-build": false,
-    "use-podman": false
+    "solo-install-dependencies": false,
+    "runner": "hiero-solo-linux-large",
+    "harden": true
   },
   {
     "name": "Node Local PTT",
@@ -69,7 +85,9 @@
     "coverage-subdirectory": "e2e-node-local-ptt",
     "coverage-report-name": "E2E_Node_Local_PTT_Tests_Coverage_Report",
     "local-java-build": true,
-    "use-podman": false
+    "solo-install-dependencies": false,
+    "runner": "hiero-solo-linux-large",
+    "harden": true
   },
   {
     "name": "Node Add Local",
@@ -77,6 +95,8 @@
     "coverage-subdirectory": "e2e-node-add-local",
     "coverage-report-name": "E2E_Node_Add_Local_Tests_Coverage_Report",
     "local-java-build": true,
-    "use-podman": false
+    "solo-install-dependencies": false,
+    "runner": "hiero-solo-linux-large",
+    "harden": true
   }
 ]
