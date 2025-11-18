@@ -30,6 +30,9 @@ import {PodmanDependencyManager} from '../../core/dependency-managers/index.js';
 import * as yaml from 'yaml';
 import {type AnyObject} from '../../types/aliases.js';
 import {getTemporaryDirectory} from '../../core/helpers.js';
+import {BrewPackageManager} from '../../core/package-managers/brew-package-manager.js';
+import {OsPackageManager} from '../../core/package-managers/os-package-manager.js';
+import {PackageManager} from '../../core/package-managers/package-manager.js';
 
 /**
  * Defines the core functionalities of 'init' command
@@ -42,9 +45,13 @@ export class InitCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
     @inject(InjectTokens.PodmanInstallationDir) protected readonly podmanInstallationDirectory: string,
+    @inject(InjectTokens.BrewPackageManager) protected readonly brewPackageManager: BrewPackageManager,
+    @inject(InjectTokens.OSPackageManager) protected readonly osPackageManager: OsPackageManager,
   ) {
     super();
     this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, InitCommand.name);
+    this.brewPackageManager = patchInject(brewPackageManager, InjectTokens.BrewPackageManager, InitCommand.name);
+    this.osPackageManager = patchInject(osPackageManager, InjectTokens.OSPackageManager, InitCommand.name);
     this.podmanInstallationDirectory = patchInject(
       podmanInstallationDirectory,
       InjectTokens.PodmanInstallationDir,
@@ -186,8 +193,9 @@ export class InitCommand extends BaseCommand {
                       await this.run('git version');
                     } catch {
                       this.logger.info('Git not found, installing git...');
-                      await this.run('sudo apt-get update');
-                      await this.run('sudo apt-get install git');
+                      const osPackageManager: PackageManager = this.osPackageManager.getPackageManager();
+                      await osPackageManager.update();
+                      await osPackageManager.installPackages(['git']);
                     }
                   },
                 },
@@ -195,15 +203,12 @@ export class InitCommand extends BaseCommand {
                   title: 'Install brew...',
                   task: async (_, subTask) => {
                     try {
-                      await this.run('brew -v');
+                      await this.brewPackageManager.isAvailable();
                     } catch {
                       this.logger.info('Homebrew not found, installing Homebrew...');
-                      await this.run(
-                        'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"',
-                      );
-                      await this.run('eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"');
-                      process.env.PATH = `${process.env.PATH}:/home/linuxbrew/.linuxbrew/bin`;
-                      await this.run('brew -v');
+                      if (!(await this.brewPackageManager.install())) {
+                        throw new SoloError('Failed to install Homebrew');
+                      }
                     }
                   },
                 },
@@ -215,7 +220,7 @@ export class InitCommand extends BaseCommand {
                       this.logger.info(`Podman already installed: ${podmanVersion}`);
                     } catch {
                       this.logger.info('Podman not found, installing Podman...');
-                      await this.run('brew install podman');
+                      await this.brewPackageManager.installPackages(['podman']);
                       const brewBin = await this.run('which podman');
                       process.env.PATH = `${process.env.PATH}:${brewBin.join('').replace('/podman', '')}`;
                     }

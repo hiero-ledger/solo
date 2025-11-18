@@ -83,6 +83,9 @@ export class InjectTokens {
   public static Commands: symbol = Symbol.for('Commands');
   public static MetricsServer: symbol = Symbol.for('MetricsServer');
   public static BackupRestoreCommand: symbol = Symbol.for('BackupRestoreCommand');
+  public static OSPackageManager: symbol = Symbol.for('OSPackageManager');
+  public static BrewPackageManager: symbol = Symbol.for('BrewPackageManager');
+  public static AptGetPackageManager: symbol = Symbol.for('AptGetPackageManager');
 
   // Command Definitions
   public static BackupRestoreCommandDefinition: symbol = Symbol.for('BackupRestoreCommandDefinition');
