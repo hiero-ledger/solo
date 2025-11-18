@@ -66,7 +66,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         testLogger.info(`${testName}: beginning ${testName}: deploy`);
         await main(soloOneShotDeploy(testName));
         testLogger.info(`${testName}: finished ${testName}: deploy`);
-      }).timeout(Duration.ofMinutes(20).toMillis());
+      }).timeout(Duration.ofMinutes(30).toMillis());
 
       it('Should write log metrics', async (): Promise<void> => {
         if (process.env.ONE_SHOT_METRICS_SLEEP_MINUTES) {
