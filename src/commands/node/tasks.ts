@@ -1231,7 +1231,7 @@ export class NodeCommandTasks {
     await container.execContainer([cleanupScriptDestination, constants.HEDERA_HAPI_PATH]);
 
     // Rename node ID directories to match the target node
-    if (sourceNodeId && sourceNodeId !== targetNodeId) {
+    if (sourceNodeId != null && sourceNodeId !== targetNodeId) {
       this.logger.info(
         `Renaming node ID directories in pod ${podReference.name} from ${sourceNodeId} to ${targetNodeId}`,
       );
