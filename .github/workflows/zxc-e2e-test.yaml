@@ -63,6 +63,21 @@ on:
         type: string
         required: false
         default: "solo-e2e"
+      solo-install-dependencies:
+        description: "Install Solo Dependencies:"
+        type: boolean
+        required: false
+        default: false
+      runner:
+        description: "Runner Label:"
+        type: string
+        required: false
+        default: "hiero-solo-linux-large"
+      harden:
+        description: "Use Harden:"
+        type: boolean
+        required: false
+        default: true
   workflow_call:
     inputs:
       node-version:
@@ -105,6 +120,21 @@ on:
         type: string
         required: false
         default: "solo-e2e"
+      solo-install-dependencies:
+        description: "Install Solo Dependencies:"
+        type: boolean
+        required: false
+        default: false
+      runner:
+        description: "Runner Label:"
+        type: string
+        required: false
+        default: "hiero-solo-linux-large"
+      harden:
+        description: "Use Harden:"
+        type: boolean
+        required: false
+        default: true
 
 defaults:
   run:
