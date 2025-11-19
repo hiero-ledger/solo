@@ -12,6 +12,7 @@ export class InjectTokens {
   public static OsArch: symbol = Symbol.for('OsArch');
   public static HelmInstallationDir: symbol = Symbol.for('HelmInstallationDir');
   public static KindInstallationDir: symbol = Symbol.for('KindInstallationDir');
+  public static CurlInstallationDir: symbol = Symbol.for('CurlInstallationDir');
   public static KubectlInstallationDir: symbol = Symbol.for('KubectlInstallationDir');
   public static PodmanInstallationDir: symbol = Symbol.for('PodmanInstallationDir');
   public static PodmanDependenciesInstallationDir: symbol = Symbol.for('PodmanDependenciesInstallationDir');
@@ -31,8 +32,10 @@ export class InjectTokens {
   public static Zippy: symbol = Symbol.for('Zippy');
   public static DependencyManager: symbol = Symbol.for('DependencyManager');
   public static Helm: symbol = Symbol.for('Helm');
+  public static CurlVersion: symbol = Symbol.for('CurlVersion');
   public static HelmExecutionBuilder: symbol = Symbol.for('HelmExecutionBuilder');
   public static HelmDependencyManager: symbol = Symbol.for('HelmDependencyManager');
+  public static CurlDependencyManager: symbol = Symbol.for('CurlDependencyManager');
   public static KindDependencyManager: symbol = Symbol.for('KindDependencyManager');
   public static KubectlDependencyManager: symbol = Symbol.for('KubectlDependencyManager');
   public static PodmanDependencyManager: symbol = Symbol.for('PodmanDependencyManager');

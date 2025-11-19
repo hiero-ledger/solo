@@ -233,7 +233,7 @@ describe('NetworkCommand unit tests', (): void => {
         // @ts-expect-error - TS2341: to mock
         networkCommand.ensurePodLogsCrd = sinon.stub().returns(true);
         // @ts-expect-error - TS2341: to mock
-        networkCommand.ensurePromOpCrds = sinon.stub().returns(true);
+        networkCommand.ensurePrometheusOperatorCrds = sinon.stub().returns(true);
 
         // @ts-expect-error - TS2341: to mock
         networkCommand.componentFactory = {
@@ -267,7 +267,7 @@ describe('NetworkCommand unit tests', (): void => {
         // @ts-expect-error - TS2341: to mock
         networkCommand.ensurePodLogsCrd = sinon.stub().returns(true);
         // @ts-expect-error - TS2341: to mock
-        networkCommand.ensurePromOpCrds = sinon.stub().returns(true);
+        networkCommand.ensurePrometheusOperatorCrds = sinon.stub().returns(true);
         // @ts-expect-error - TS2341: to mock
         networkCommand.getBlockNodes = sinon.stub().returns([]);
 

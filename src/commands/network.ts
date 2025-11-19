@@ -983,7 +983,7 @@ export class NetworkCommand extends BaseCommand {
    * If all CRDs are already present or monitoring support is disabled, skip installation.
    */
   /** Ensure Prometheus Operator CRDs are present; install missing ones via the chart */
-  private async ensurePromOpCrds({clusterRefs, namespace}: NetworkDeployConfigClass): Promise<void> {
+  private async ensurePrometheusOperatorCrds({clusterRefs, namespace}: NetworkDeployConfigClass): Promise<void> {
     const CRDS: {key: string; crd: string}[] = [
       {key: 'alertmanagerconfigs', crd: 'alertmanagerconfigs.monitoring.coreos.com'},
       {key: 'alertmanagers', crd: 'alertmanagers.monitoring.coreos.com'},
@@ -1125,7 +1125,7 @@ export class NetworkCommand extends BaseCommand {
               },
               {
                 title: 'Prometheus Operator CRDs',
-                task: async ({config}): Promise<void> => await this.ensurePromOpCrds(config),
+                task: async ({config}): Promise<void> => await this.ensurePrometheusOperatorCrds(config),
               },
             ];
 

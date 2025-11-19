@@ -13,8 +13,10 @@ import {KubectlDependencyManager} from './kubectl-dependency-manager.js';
 import {PodmanDependencyManager} from './podman-dependency-manager.js';
 import {VfkitDependencyManager} from './vfkit-dependency-manager.js';
 import {GvproxyDependencyManager} from './gvproxy-dependency-manager.js';
+import {CurlDependencyManager} from './curl-dependency-manager.js';
 
 export type DependencyManagerType =
+  | CurlDependencyManager
   | HelmDependencyManager
   | KindDependencyManager
   | KubectlDependencyManager
@@ -33,44 +35,45 @@ export class DependencyManager extends ShellRunner {
     @inject(InjectTokens.PodmanDependencyManager) podmanDependencyManager?: PodmanDependencyManager,
     @inject(InjectTokens.VfkitDependencyManager) vfkitDependencyManager?: VfkitDependencyManager,
     @inject(InjectTokens.GvproxyDependencyManager) gvproxyDependencyManager?: GvproxyDependencyManager,
+    @inject(InjectTokens.CurlDependencyManager) curlDependencyManager?: CurlDependencyManager,
   ) {
     super();
     this.dependancyManagerMap = new Map();
-    if (helmDepManager) {
-      this.dependancyManagerMap.set(constants.HELM, helmDepManager);
-    } else {
-      this.dependancyManagerMap.set(constants.HELM, container.resolve(InjectTokens.HelmDependencyManager));
-    }
 
-    if (kindDepManager) {
-      this.dependancyManagerMap.set(constants.KIND, kindDepManager);
-    } else {
-      this.dependancyManagerMap.set(constants.KIND, container.resolve(InjectTokens.KindDependencyManager));
-    }
+    this.dependancyManagerMap.set(
+      constants.HELM,
+      helmDepManager || container.resolve(InjectTokens.HelmDependencyManager),
+    );
 
-    if (kubectlDependencyManager) {
-      this.dependancyManagerMap.set(constants.KUBECTL, kubectlDependencyManager);
-    } else {
-      this.dependancyManagerMap.set(constants.KUBECTL, container.resolve(InjectTokens.KubectlDependencyManager));
-    }
+    this.dependancyManagerMap.set(
+      constants.KIND,
+      kindDepManager || container.resolve(InjectTokens.KindDependencyManager),
+    );
 
-    if (podmanDependencyManager) {
-      this.dependancyManagerMap.set(constants.PODMAN, podmanDependencyManager);
-    } else {
-      this.dependancyManagerMap.set(constants.PODMAN, container.resolve(InjectTokens.PodmanDependencyManager));
-    }
+    this.dependancyManagerMap.set(
+      constants.KUBECTL,
+      kubectlDependencyManager || container.resolve(InjectTokens.KubectlDependencyManager),
+    );
 
-    if (vfkitDependencyManager) {
-      this.dependancyManagerMap.set(constants.VFKIT, vfkitDependencyManager);
-    } else {
-      this.dependancyManagerMap.set(constants.VFKIT, container.resolve(InjectTokens.VfkitDependencyManager));
-    }
+    this.dependancyManagerMap.set(
+      constants.PODMAN,
+      podmanDependencyManager || container.resolve(InjectTokens.PodmanDependencyManager),
+    );
 
-    if (gvproxyDependencyManager) {
-      this.dependancyManagerMap.set(constants.GVPROXY, gvproxyDependencyManager);
-    } else {
-      this.dependancyManagerMap.set(constants.GVPROXY, container.resolve(InjectTokens.GvproxyDependencyManager));
-    }
+    this.dependancyManagerMap.set(
+      constants.VFKIT,
+      vfkitDependencyManager || container.resolve(InjectTokens.VfkitDependencyManager),
+    );
+
+    this.dependancyManagerMap.set(
+      constants.GVPROXY,
+      gvproxyDependencyManager || container.resolve(InjectTokens.GvproxyDependencyManager),
+    );
+
+    this.dependancyManagerMap.set(
+      constants.CURL,
+      curlDependencyManager || container.resolve(InjectTokens.CurlDependencyManager),
+    );
   }
 
   public async getDependency(dep: string): Promise<DependencyManagerType> {
@@ -111,6 +114,7 @@ export class DependencyManager extends ShellRunner {
     }
 
     this.logger.debug(`Skipping install of for dependency: ${dep}: ${skip}`);
+
     return skip;
   }
 
