@@ -432,7 +432,7 @@ export class RelayCommand extends BaseCommand {
               config.namespace,
               Templates.renderRelayLabels(config.id, config.isLegacyChartInstalled ? config.releaseName : undefined),
               // constants.RELAY_PODS_RUNNING_MAX_ATTEMPTS,
-              100,
+              2000,
               constants.RELAY_PODS_RUNNING_DELAY,
             );
         } catch (error) {
