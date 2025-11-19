@@ -49,16 +49,18 @@ import {PathEx} from '../../business/utils/path-ex.js';
 import {createDirectoryIfNotExists, entityId} from '../../core/helpers.js';
 import yaml from 'yaml';
 import {BlockCommandDefinition} from '../command-definitions/block-command-definition.js';
+import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
+import {confirm as confirmPrompt} from '@inquirer/prompts';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
-  private static readonly SINGLE_ADD_CONFIGS_NAME: string = 'singleAddConfigs';
+  private static readonly SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
 
   private static readonly SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';
 
-  public static readonly ADD_FLAGS_LIST: CommandFlags = {
+  public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.numberOfConsensusNodes],
+    optional: [flags.quiet, flags.numberOfConsensusNodes, flags.force],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
@@ -66,7 +68,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     optional: [flags.quiet],
   };
 
-  public static readonly FALCON_ADD_FLAGS_LIST: CommandFlags = {
+  public static readonly FALCON_DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.quiet, flags.valuesFile, flags.numberOfConsensusNodes],
   };
@@ -141,11 +143,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   public async deploy(argv: ArgvStruct): Promise<boolean> {
-    return this.deployInternal(argv, DefaultOneShotCommand.ADD_FLAGS_LIST);
+    return this.deployInternal(argv, DefaultOneShotCommand.DEPLOY_FLAGS_LIST);
   }
 
   public async deployFalcon(argv: ArgvStruct): Promise<boolean> {
-    return this.deployInternal(argv, DefaultOneShotCommand.FALCON_ADD_FLAGS_LIST);
+    return this.deployInternal(argv, DefaultOneShotCommand.FALCON_DEPLOY_FLAGS_LIST);
   }
 
   private async deployInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
@@ -169,7 +171,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               await this.configManager.executePrompt(task, allFlags);
 
               context_.config = this.configManager.getConfig(
-                DefaultOneShotCommand.SINGLE_ADD_CONFIGS_NAME,
+                DefaultOneShotCommand.SINGLE_DEPLOY_CONFIGS_NAME,
                 allFlags,
               ) as OneShotSingleDeployConfigClass;
               config = context_.config;
@@ -219,11 +221,38 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               context_.config.deployment = context_.config.deployment || `solo-deployment-${uniquePostfix}`;
               context_.config.namespace = context_.config.namespace || NamespaceName.of(`solo-${uniquePostfix}`);
               context_.config.numberOfConsensusNodes = context_.config.numberOfConsensusNodes || 1;
+              context_.config.force = argv.force;
 
               context_.createdAccounts = [];
 
               return;
             },
+          },
+          {
+            title: 'Check for other deployments',
+            task: async (
+              context_: OneShotSingleDeployContext,
+              task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+            ): Promise<void> => {
+              const existingRemoteConfigs = await this.k8Factory
+                .default()
+                .configMaps()
+                .listForAllNamespaces(['solo.hedera.com/type=remote-config']);
+              if (existingRemoteConfigs.length > 0) {
+                const promptOptions = {
+                  default: false,
+                  message:
+                    '⚠️  Warning: Existing solo deployment detected. Creating another deployment will require additional CPU and memory resources. Do you want to proceed and create another deployment?',
+                };
+                const proceed: boolean = await task
+                  .prompt(ListrInquirerPromptAdapter)
+                  .run(confirmPrompt, promptOptions);
+                if (!proceed) {
+                  throw new SoloError('Aborted by user');
+                }
+              }
+            },
+            skip: (context_: OneShotSingleDeployContext): boolean => context_.config.force === true,
           },
           this.invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.CONNECT_COMMAND}`,
