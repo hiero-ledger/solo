@@ -97,4 +97,7 @@ export class InjectTokens {
   public static RelayCommandDefinition: symbol = Symbol.for('RelayCommandDefinition');
   public static OneShotCommandDefinition: symbol = Symbol.for('OneShotCommandDefinition');
   public static RapidFireCommandDefinition: symbol = Symbol.for('RapidFireCommandDefinition');
+  public static ConfigCommand: symbol = Symbol.for('ConfigCommand');
+  public static ConfigCommandDefinition: symbol = Symbol.for('ConfigCommandDefinition');
+  public static ConfigCommandTasks: symbol = Symbol.for('ConfigCommandTasks');
 }

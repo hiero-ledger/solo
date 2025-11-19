@@ -87,6 +87,9 @@ import {RapidFireCommand} from '../../commands/rapid-fire.js';
 import {RapidFireCommandDefinition} from '../../commands/command-definitions/rapid-fire-command-definition.js';
 import {BackupRestoreCommand} from '../../commands/backup-restore.js';
 import {BackupRestoreCommandDefinition} from '../../commands/command-definitions/backup-restore-command-definition.js';
+import {ConfigCommand} from '../../commands/config/config.js';
+import {ConfigCommandDefinition} from '../../commands/config/command-definition.js';
+import {ConfigCommandTasks} from '../../commands/config/tasks.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -156,6 +159,7 @@ export class Container {
       new SingletonContainer(InjectTokens.BackupRestoreCommand, BackupRestoreCommand),
       new SingletonContainer(InjectTokens.BlockNodeCommand, BlockNodeCommand),
       new SingletonContainer(InjectTokens.RapidFireCommand, RapidFireCommand),
+      new SingletonContainer(InjectTokens.ConfigCommand, ConfigCommand),
       new SingletonContainer(InjectTokens.ClusterCommandTasks, ClusterCommandTasks),
       new SingletonContainer(InjectTokens.ClusterCommandHandlers, ClusterCommandHandlers),
       new SingletonContainer(InjectTokens.NodeCommandTasks, NodeCommandTasks),
@@ -184,6 +188,9 @@ export class Container {
       new SingletonContainer(InjectTokens.RelayCommandDefinition, RelayCommandDefinition),
       new SingletonContainer(InjectTokens.OneShotCommandDefinition, OneShotCommandDefinition),
       new SingletonContainer(InjectTokens.RapidFireCommandDefinition, RapidFireCommandDefinition),
+      new SingletonContainer(InjectTokens.ConfigCommand, ConfigCommand),
+      new SingletonContainer(InjectTokens.ConfigCommandDefinition, ConfigCommandDefinition),
+      new SingletonContainer(InjectTokens.ConfigCommandTasks, ConfigCommandTasks),
     ];
   }
 
