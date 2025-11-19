@@ -11,4 +11,6 @@ export interface Crds {
    * @throws An error if an unexpected error occurs.
    **/
   ifExists(crdName: string): Promise<boolean>;
+
+  applyManifest(filePath: string): Promise<void>;
 }

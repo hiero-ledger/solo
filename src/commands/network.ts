@@ -972,6 +972,8 @@ export class NetworkCommand extends BaseCommand {
       const curlCommand: string = `curl -fsSL ${CRD_URL} -o ${temporaryFile}`;
       await this.run(curlCommand);
 
+      await this.k8Factory.getK8(context).crds().applyManifest(temporaryFile);
+
       // apply CRD YAML to the current K8s context
       const kubectlCommand: string = `kubectl apply -f ${temporaryFile} --context ${context}`;
       await this.run(kubectlCommand);

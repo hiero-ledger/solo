@@ -46,7 +46,7 @@ export class K8Client implements K8 {
   private extensionApi!: k8s.ApiextensionsV1Api;
   private networkingApi!: k8s.NetworkingV1Api;
   private rbacApi!: k8s.RbacAuthorizationV1Api;
-
+  private k8sObjectApi!: k8s.KubernetesObjectApi;
   private k8Leases: Leases;
   private k8Clusters: Clusters;
   private k8ConfigMaps: ConfigMaps;
@@ -86,6 +86,7 @@ export class K8Client implements K8 {
     this.coordinationApiClient = this.kubeConfig.makeApiClient(k8s.CoordinationV1Api);
     this.extensionApi = this.kubeConfig.makeApiClient(k8s.ApiextensionsV1Api);
     this.rbacApi = this.kubeConfig.makeApiClient(k8s.RbacAuthorizationV1Api);
+    this.k8sObjectApi = this.kubeConfig.makeApiClient(k8s.KubernetesObjectApi);
 
     this.k8Clusters = new K8ClientClusters(this.kubeConfig);
     this.k8ConfigMaps = new K8ClientConfigMaps(this.kubeClient);
@@ -99,7 +100,7 @@ export class K8Client implements K8 {
     this.k8IngressClasses = new K8ClientIngressClasses(this.networkingApi);
     this.k8Secrets = new K8ClientSecrets(this.kubeClient);
     this.k8Ingresses = new K8ClientIngresses(this.networkingApi);
-    this.k8CRDs = new K8ClientCRDs(this.extensionApi);
+    this.k8CRDs = new K8ClientCRDs(this.extensionApi, this.k8sObjectApi);
 
     return this;
   }
