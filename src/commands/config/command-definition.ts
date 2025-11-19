@@ -8,7 +8,6 @@ import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-
 import {ConfigCommand} from './config.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
-import {Flags as flags} from '../flags.js';
 
 @injectable()
 export class ConfigCommandDefinition extends BaseCommandDefinition {
@@ -17,11 +16,7 @@ export class ConfigCommandDefinition extends BaseCommandDefinition {
     @inject(InjectTokens.ConfigCommand) public readonly configCommand?: ConfigCommand,
   ) {
     super();
-    this.configCommand = patchInject(
-      configCommand,
-      InjectTokens.ConfigCommand,
-      this.constructor.name,
-    );
+    this.configCommand = patchInject(configCommand, InjectTokens.ConfigCommand, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
@@ -34,31 +29,26 @@ export class ConfigCommandDefinition extends BaseCommandDefinition {
   public static readonly LOGS_COMMAND = 'logs';
 
   public static readonly LOGS_FLAGS_LIST = {
-    required: [flags.deployment],
+    required: [],
     optional: [],
   };
 
   public getCommandDefinition(): CommandDefinition {
-    return new CommandBuilder(
-      ConfigCommandDefinition.COMMAND_NAME,
-      ConfigCommandDefinition.DESCRIPTION,
-      this.logger,
-    )
+    return new CommandBuilder(ConfigCommandDefinition.COMMAND_NAME, ConfigCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(
         new CommandGroup(
           ConfigCommandDefinition.SUBCOMMAND_NAME,
           ConfigCommandDefinition.SUBCOMMAND_DESCRIPTION,
-        )
-          .addSubcommand(
-            new Subcommand(
-              ConfigCommandDefinition.LOGS_COMMAND,
-              'Download logs from non-consensus nodes (mirror, relay, explorer)',
-              this.configCommand,
-              this.configCommand.logs,
-              ConfigCommandDefinition.LOGS_FLAGS_LIST,
-              [],
-            ),
-          )
+        ).addSubcommand(
+          new Subcommand(
+            ConfigCommandDefinition.LOGS_COMMAND,
+            'Download logs from non-consensus nodes (mirror, relay, explorer)',
+            this.configCommand,
+            this.configCommand.logs,
+            ConfigCommandDefinition.LOGS_FLAGS_LIST,
+            [],
+          ),
+        ),
       )
       .build();
   }

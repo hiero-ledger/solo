@@ -2,33 +2,32 @@
 
 import {Flags as flags} from '../flags.js';
 import * as constants from '../../core/constants.js';
-import {type ConfigManager} from '../../core/config-manager.js';
-import {type LockManager} from '../../core/lock/lock-manager.js';
-import {SoloError} from '../../core/errors/solo-error.js';
 import {type ConfigCommandTasks} from './tasks.js';
 import {type ArgvStruct} from '../../types/aliases.js';
 import {type DeploymentName} from '../../types/index.js';
-import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {CommandHandler} from '../../core/command-handler.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
-import {type SoloLogger} from '../../core/logging/solo-logger.js';
+import {BaseCommand} from '../base.js';
 
 @injectable()
-export class ConfigCommand {
-  public constructor(
-    @inject(InjectTokens.ConfigManager) private readonly configManager: ConfigManager,
-    @inject(InjectTokens.LockManager) private readonly lockManager: LockManager,
-    @inject(InjectTokens.ConfigCommandTasks) private readonly tasks: ConfigCommandTasks,
-    @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
-  ) {}
+export class ConfigCommand extends BaseCommand {
+  public constructor(@inject(InjectTokens.ConfigCommandTasks) private readonly tasks: ConfigCommandTasks) {
+    super();
+  }
 
   public async logs(argv: ArgvStruct): Promise<boolean> {
     argv = this.addFlagsToArgv(argv);
-    
+
     await this.commandAction(
       argv,
       [
+        {
+          title: 'Initialize',
+          task: async (context_, task) => {
+            await this.localConfig.load();
+          },
+        },
         this.tasks.downloadNonConsensusNodeLogs(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
@@ -38,6 +37,8 @@ export class ConfigCommand {
 
     return true;
   }
+
+  public async close(): Promise<void> {} // no-op
 
   private addFlagsToArgv(argv: ArgvStruct): ArgvStruct {
     return {
