@@ -11,8 +11,10 @@ import util from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
 import path from 'node:path';
 import fs from 'node:fs';
+import {Zippy} from '../zippy.js';
 
 const CURL_RELEASE_BASE_URL: string = 'https://curl.se/download';
+const CURL_WINDOWS_BASE_URL: string = 'https://curl.se/windows';
 const CURL_ARTIFACT_TEMPLATE: string = 'curl-%s-%s-%s.tar.gz';
 
 @injectable()
@@ -23,8 +25,8 @@ export class CurlDependencyManager extends BaseDependencyManager {
     @inject(InjectTokens.OsPlatform) osPlatform: NodeJS.Platform,
     @inject(InjectTokens.OsArch) osArch: string,
     @inject(InjectTokens.CurlVersion) protected readonly curlVersion: string,
+    @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
   ) {
-    // Patch injected values to handle undefined values
     installationDirectory = patchInject(
       installationDirectory,
       InjectTokens.CurlInstallationDir,
@@ -35,7 +37,6 @@ export class CurlDependencyManager extends BaseDependencyManager {
     curlVersion = patchInject(curlVersion, InjectTokens.CurlVersion, CurlDependencyManager.name);
     downloader = patchInject(downloader, InjectTokens.PackageDownloader, CurlDependencyManager.name);
 
-    // Call the base constructor with the Kind-specific parameters
     super(
       downloader,
       installationDirectory,
@@ -45,27 +46,57 @@ export class CurlDependencyManager extends BaseDependencyManager {
       constants.CURL,
       CURL_RELEASE_BASE_URL,
     );
+
+    this.zippy = patchInject(zippy, InjectTokens.Zippy, CurlDependencyManager.name);
   }
 
-  /**
-   * Get the Kind artifact name based on version, OS, and architecture
-   */
+  private getWindowsVersionWithBuild(): string {
+    const baseVersion: string = this.getRequiredVersion();
+
+    return baseVersion === version.CURL_VERSION ? `${baseVersion}_7` : `${baseVersion}_2`;
+  }
+
   protected getArtifactName(): string {
+    // Windows uses prebuilt zip packages instead of tarballs
+    if (this.osPlatform === constants.OS_WINDOWS) {
+      const windowsVersionWithBuild: string = this.getWindowsVersionWithBuild();
+      return `curl-${windowsVersionWithBuild}-win64-mingw.zip`;
+    }
+
     return util.format(CURL_ARTIFACT_TEMPLATE, this.getRequiredVersion(), this.osPlatform, this.osArch);
   }
 
   protected getDownloadURL(): string {
-    return `${this.downloadBaseUrl}/${this.artifactName}`;
+    if (this.osPlatform === constants.OS_WINDOWS) {
+      const windowsVersionWithBuild: string = this.getWindowsVersionWithBuild();
+      const dlDirectory: string = `dl-${windowsVersionWithBuild}`;
+      return `${CURL_WINDOWS_BASE_URL}/${dlDirectory}/${this.getArtifactName()}`;
+    }
+
+    return `${this.downloadBaseUrl}/${this.getArtifactName()}`;
   }
 
   protected getChecksumURL(): string {
-    return `${this.downloadURL}.sha256`;
+    if (this.osPlatform === constants.OS_WINDOWS) {
+      const windowsVersionWithBuild: string = this.getWindowsVersionWithBuild();
+      const dlDirectory: string = `dl-${windowsVersionWithBuild}`;
+      return `${CURL_WINDOWS_BASE_URL}/${dlDirectory}/${this.getArtifactName()}.sha256`;
+    }
+
+    return `${this.downloadBaseUrl}/${this.getArtifactName()}.sha256`;
+  }
+
+  public override getVerifyChecksum(): boolean {
+    if (this.osPlatform === constants.OS_WINDOWS) {
+      return false;
+    }
+    return super.getVerifyChecksum();
   }
 
   public async getVersion(executablePath: string): Promise<string> {
     try {
       const output: string[] = await this.run(`${executablePath} --version`);
-      const match: RegExpMatchArray | null = output[0]?.match(/curl (\d+\.\d+\.\d+)/);
+      const match: RegExpMatchArray | null = output[0]?.match(/curl\s+(\d+\.\d+\.\d+)/i);
       if (match) {
         return match[1];
       }
@@ -75,16 +106,37 @@ export class CurlDependencyManager extends BaseDependencyManager {
     throw new SoloError(`Unable to parse curl version for ${executablePath}`);
   }
 
-  /**
-   * Handle any post-download processing before copying to destination
-   * Child classes can override this for custom extraction or processing
-   */
   protected async processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string[]> {
     const extractDirectory: string = path.join(temporaryDirectory, 'curl-extracted');
-    fs.mkdirSync(extractDirectory);
+    fs.mkdirSync(extractDirectory, {recursive: true});
+
+    if (this.osPlatform === constants.OS_WINDOWS) {
+      // Handle .zip extraction for Windows binaries
+      this.zippy.unzip(packageFilePath, extractDirectory);
+
+      // Find curl.exe in extracted folders
+      const found: string[] = [];
+      const searchDirectory = (directory: string): void => {
+        const entries = fs.readdirSync(directory, {withFileTypes: true});
+        for (const entry of entries) {
+          const full: string = path.join(directory, entry.name);
+          if (entry.isDirectory()) {
+            searchDirectory(full);
+          } else if (entry.name.toLowerCase() === 'curl.exe') {
+            found.push(full);
+          }
+        }
+      };
+      searchDirectory(extractDirectory);
+
+      if (found.length === 0) {
+        throw new SoloError(`Unable to locate curl.exe in extracted archive ${packageFilePath}`);
+      }
+
+      return [found[0]];
+    }
 
     await this.run(`tar -xzf ${packageFilePath} -C ${extractDirectory}`);
-
     const binDirectory: string = path.join(extractDirectory, `curl-${this.getRequiredVersion()}`, 'src');
     const curlBinary: string = path.join(binDirectory, 'curl');
 

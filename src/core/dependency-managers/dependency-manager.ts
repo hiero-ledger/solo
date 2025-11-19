@@ -114,7 +114,6 @@ export class DependencyManager extends ShellRunner {
     }
 
     this.logger.debug(`Skipping install of for dependency: ${dep}: ${skip}`);
-
     return skip;
   }
 
