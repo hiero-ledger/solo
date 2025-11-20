@@ -135,6 +135,22 @@ export class InitCommand extends BaseCommand {
     ] as SoloListrTask<InitContext>[];
   }
 
+  private defaultCreateClusterTask(): SoloListrTask<InitContext> {
+    return {
+      title: 'Creating local cluster...',
+      task: async (context_, task) => {
+        const kindExecutable: string = await this.depManager.getExecutablePath(constants.KIND);
+        const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
+        const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
+          constants.DEFAULT_CLUSTER,
+        );
+
+        task.title = `Created local cluster '${clusterResponse.name}'; connect with context '${clusterResponse.context}'`;
+        task.title = 'Created local cluster';
+      },
+    } as SoloListrTask<InitContext>;
+  }
+
   public setupLocalClusterTasks(argv: any): SoloListrTask<InitContext>[] {
     const self = this;
 
@@ -178,117 +194,121 @@ export class InitCommand extends BaseCommand {
 
           if (podmanDependency.mode === PodmanMode.ROOTFUL) {
             {
-              subTasks.push(
-                {
-                  title: 'Please provide root permissions to setup podman and kind:',
-                  task: async (_, task) => {
-                    await this.run('sudo whoami');
-                    task.title = 'Root permissions granted.';
+              if (skipPodmanTasks) {
+                subTasks.push(this.defaultCreateClusterTask());
+              } else {
+                subTasks.push(
+                  {
+                    title: 'Please provide root permissions to setup podman and kind:',
+                    task: async (_, task) => {
+                      await this.run('sudo whoami');
+                      task.title = 'Root permissions granted.';
+                    },
                   },
-                },
-                {
-                  title: 'Install git, iptables...',
-                  task: async (_, subTask) => {
-                    try {
-                      await this.run('git version');
-                    } catch {
-                      this.logger.info('Git not found, installing git...');
-                      const osPackageManager: PackageManager = this.osPackageManager.getPackageManager();
-                      await osPackageManager.update();
-                      await osPackageManager.installPackages(['git', 'iptables']);
-                    }
+                  {
+                    title: 'Install git, iptables...',
+                    task: async (_, subTask) => {
+                      try {
+                        await this.run('git version');
+                      } catch {
+                        this.logger.info('Git not found, installing git...');
+                        const osPackageManager: PackageManager = this.osPackageManager.getPackageManager();
+                        await osPackageManager.update();
+                        await osPackageManager.installPackages(['git', 'iptables']);
+                      }
+                    },
                   },
-                },
-                {
-                  title: 'Install brew...',
-                  task: async (_, subTask) => {
-                    const brewInstalled: boolean = await this.brewPackageManager.isAvailable();
-                    if (!brewInstalled) {
-                      this.logger.info('Homebrew not found, installing Homebrew...');
-                      if (!(await this.brewPackageManager.install())) {
-                        throw new SoloError('Failed to install Homebrew');
-                      }
-                    }
-                  },
-                },
-                {
-                  title: 'Install podman...',
-                  task: async (_, subTask) => {
-                    try {
-                      const podmanVersion = await this.run('podman --version');
-                      this.logger.info(`Podman already installed: ${podmanVersion}`);
-                    } catch {
-                      this.logger.info('Podman not found, installing Podman...');
-                      await this.brewPackageManager.installPackages(['podman']);
-                      const brewBin = await this.run('which podman');
-                      process.env.PATH = `${process.env.PATH}:${brewBin.join('').replace('/podman', '')}`;
-                    }
-                  },
-                } as SoloListrTask<InitContext>,
-                {
-                  title: 'Creating local cluster...',
-                  task: async (context_, task) => {
-                    const whichPodman = await this.run('which podman');
-                    const podmanPath = whichPodman.join('').replace('/podman', '');
-                    await this.run(`sudo echo $PATH`);
-                    await this.run(
-                      `sudo KIND_EXPERIMENTAL_PROVIDER=podman PATH=$PATH:${podmanPath} ${constants.SOLO_HOME_DIR}/bin/kind create cluster`,
-                    );
-
-                    // Merge kubeconfig data from root user into normal user's kubeconfig
-                    const user = await this.run('whoami');
-                    const temporaryDirectory = getTemporaryDirectory();
-
-                    await this.run(`sudo cp /root/.kube/config ${temporaryDirectory}/kube-config-root`);
-                    await this.run(`sudo chown ${user} ${temporaryDirectory}/kube-config-root`);
-                    await this.run(`sudo chmod 755 ${temporaryDirectory}/kube-config-root`);
-
-                    const rootYamlData = fs.readFileSync(`${temporaryDirectory}/kube-config-root`, 'utf8');
-                    const rootConfig = yaml.parse(rootYamlData) as Record<string, AnyObject>;
-
-                    let userConfig: Record<string, AnyObject>;
-                    const clusterName = 'kind-kind';
-
-                    try {
-                      const userYamlData = fs.readFileSync(`/home/${user}/.kube/config`, 'utf8');
-                      userConfig = yaml.parse(userYamlData) as Record<string, AnyObject>;
-
-                      if (!userConfig.clusters) {
-                        userConfig.clusters = [];
-                      }
-                      userConfig.clusters.push(rootConfig.clusters.find(c => c.name === clusterName));
-
-                      if (!userConfig.contexts) {
-                        userConfig.contexts = [];
-                      }
-                      userConfig.contexts.push(rootConfig.contexts.find(c => c.name === clusterName));
-
-                      if (!userConfig.users) {
-                        userConfig.users = [];
-                      }
-                      userConfig.users.push(rootConfig.users.find(c => c.name === clusterName));
-
-                      userConfig['current-context'] = rootConfig['current-context'];
-                    } catch (error) {
-                      if (error.code === 'ENOENT') {
-                        const kubeConfigDirectory: string = `/home/${user}/.kube/`;
-                        if (!fs.existsSync(kubeConfigDirectory)) {
-                          fs.mkdirSync(kubeConfigDirectory, {recursive: true});
+                  {
+                    title: 'Install brew...',
+                    task: async (_, subTask) => {
+                      const brewInstalled: boolean = await this.brewPackageManager.isAvailable();
+                      if (!brewInstalled) {
+                        this.logger.info('Homebrew not found, installing Homebrew...');
+                        if (!(await this.brewPackageManager.install())) {
+                          throw new SoloError('Failed to install Homebrew');
                         }
-                        userConfig = rootConfig;
-                        userConfig.clusters = userConfig.clusters.filter(c => c.name === clusterName);
-                        userConfig.contexts = userConfig.contexts.filter(c => c.name === clusterName);
-                        userConfig.users = userConfig.users.filter(c => c.name === clusterName);
-                      } else {
-                        throw error;
                       }
-                    }
-
-                    fs.writeFileSync(`/home/${user}/.kube/config`, yaml.stringify(userConfig), 'utf8');
-                    fs.rmSync(`${temporaryDirectory}/kube-config-root`);
+                    },
                   },
-                } as SoloListrTask<InitContext>,
-              );
+                  {
+                    title: 'Install podman...',
+                    task: async (_, subTask) => {
+                      try {
+                        const podmanVersion = await this.run('podman --version');
+                        this.logger.info(`Podman already installed: ${podmanVersion}`);
+                      } catch {
+                        this.logger.info('Podman not found, installing Podman...');
+                        await this.brewPackageManager.installPackages(['podman']);
+                        const brewBin = await this.run('which podman');
+                        process.env.PATH = `${process.env.PATH}:${brewBin.join('').replace('/podman', '')}`;
+                      }
+                    },
+                  } as SoloListrTask<InitContext>,
+                  {
+                    title: 'Creating local cluster...',
+                    task: async (context_, task) => {
+                      const whichPodman = await this.run('which podman');
+                      const podmanPath = whichPodman.join('').replace('/podman', '');
+                      await this.run(`sudo echo $PATH`);
+                      await this.run(
+                        `sudo KIND_EXPERIMENTAL_PROVIDER=podman PATH=$PATH:${podmanPath} ${constants.SOLO_HOME_DIR}/bin/kind create cluster`,
+                      );
+
+                      // Merge kubeconfig data from root user into normal user's kubeconfig
+                      const user = await this.run('whoami');
+                      const temporaryDirectory = getTemporaryDirectory();
+
+                      await this.run(`sudo cp /root/.kube/config ${temporaryDirectory}/kube-config-root`);
+                      await this.run(`sudo chown ${user} ${temporaryDirectory}/kube-config-root`);
+                      await this.run(`sudo chmod 755 ${temporaryDirectory}/kube-config-root`);
+
+                      const rootYamlData = fs.readFileSync(`${temporaryDirectory}/kube-config-root`, 'utf8');
+                      const rootConfig = yaml.parse(rootYamlData) as Record<string, AnyObject>;
+
+                      let userConfig: Record<string, AnyObject>;
+                      const clusterName = 'kind-kind';
+
+                      try {
+                        const userYamlData = fs.readFileSync(`/home/${user}/.kube/config`, 'utf8');
+                        userConfig = yaml.parse(userYamlData) as Record<string, AnyObject>;
+
+                        if (!userConfig.clusters) {
+                          userConfig.clusters = [];
+                        }
+                        userConfig.clusters.push(rootConfig.clusters.find(c => c.name === clusterName));
+
+                        if (!userConfig.contexts) {
+                          userConfig.contexts = [];
+                        }
+                        userConfig.contexts.push(rootConfig.contexts.find(c => c.name === clusterName));
+
+                        if (!userConfig.users) {
+                          userConfig.users = [];
+                        }
+                        userConfig.users.push(rootConfig.users.find(c => c.name === clusterName));
+
+                        userConfig['current-context'] = rootConfig['current-context'];
+                      } catch (error) {
+                        if (error.code === 'ENOENT') {
+                          const kubeConfigDirectory: string = `/home/${user}/.kube/`;
+                          if (!fs.existsSync(kubeConfigDirectory)) {
+                            fs.mkdirSync(kubeConfigDirectory, {recursive: true});
+                          }
+                          userConfig = rootConfig;
+                          userConfig.clusters = userConfig.clusters.filter(c => c.name === clusterName);
+                          userConfig.contexts = userConfig.contexts.filter(c => c.name === clusterName);
+                          userConfig.users = userConfig.users.filter(c => c.name === clusterName);
+                        } else {
+                          throw error;
+                        }
+                      }
+
+                      fs.writeFileSync(`/home/${user}/.kube/config`, yaml.stringify(userConfig), 'utf8');
+                      fs.rmSync(`${temporaryDirectory}/kube-config-root`);
+                    },
+                  } as SoloListrTask<InitContext>,
+                );
+              }
             }
           } else if (podmanDependency.mode === PodmanMode.VIRTUAL_MACHINE) {
             {
@@ -311,19 +331,7 @@ export class InitCommand extends BaseCommand {
                   },
                   skip: (): boolean => skipPodmanTasks,
                 } as SoloListrTask<InitContext>,
-                {
-                  title: 'Creating local cluster...',
-                  task: async context_ => {
-                    const kindExecutable: string = await self.depManager.getExecutablePath(constants.KIND);
-                    const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
-                    const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
-                      constants.DEFAULT_CLUSTER,
-                    );
-
-                    task.title = `Created local cluster '${clusterResponse.name}'; connect with context '${clusterResponse.context}'`;
-                    task.title = 'Created local cluster';
-                  },
-                } as SoloListrTask<InitContext>,
+                this.defaultCreateClusterTask(),
               );
             }
           }
