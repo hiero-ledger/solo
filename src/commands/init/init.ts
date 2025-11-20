@@ -187,7 +187,7 @@ export class InitCommand extends BaseCommand {
                   },
                 },
                 {
-                  title: 'Install git...',
+                  title: 'Install git, iptables...',
                   task: async (_, subTask) => {
                     try {
                       await this.run('git version');
@@ -195,16 +195,15 @@ export class InitCommand extends BaseCommand {
                       this.logger.info('Git not found, installing git...');
                       const osPackageManager: PackageManager = this.osPackageManager.getPackageManager();
                       await osPackageManager.update();
-                      await osPackageManager.installPackages(['git']);
+                      await osPackageManager.installPackages(['git', 'iptables']);
                     }
                   },
                 },
                 {
                   title: 'Install brew...',
                   task: async (_, subTask) => {
-                    try {
-                      await this.brewPackageManager.isAvailable();
-                    } catch {
+                    const brewInstalled: boolean = await this.brewPackageManager.isAvailable();
+                    if (!brewInstalled) {
                       this.logger.info('Homebrew not found, installing Homebrew...');
                       if (!(await this.brewPackageManager.install())) {
                         throw new SoloError('Failed to install Homebrew');
@@ -233,7 +232,7 @@ export class InitCommand extends BaseCommand {
                     const podmanPath = whichPodman.join('').replace('/podman', '');
                     await this.run(`sudo echo $PATH`);
                     await this.run(
-                      `sudo KIND_EXPERIMENTAL_PROVIDER=podman PATH=$PATH:${podmanPath} kind create cluster`,
+                      `sudo KIND_EXPERIMENTAL_PROVIDER=podman PATH=$PATH:${podmanPath} ${constants.SOLO_HOME_DIR}/bin/kind create cluster`,
                     );
 
                     // Merge kubeconfig data from root user into normal user's kubeconfig
