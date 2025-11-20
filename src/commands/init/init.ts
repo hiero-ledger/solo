@@ -248,7 +248,7 @@ export class InitCommand extends BaseCommand {
                       const whichPodman = await this.run('which podman');
                       const podmanPath = whichPodman.join('').replace('/podman', '');
                       await this.run(
-                        `sudo KIND_EXPERIMENTAL_PROVIDER=podman PATH=$PATH:${podmanPath} ${constants.SOLO_HOME_DIR}/bin/kind create cluster`,
+                        `sudo KIND_EXPERIMENTAL_PROVIDER=podman PATH="$PATH:${podmanPath}" ${constants.SOLO_HOME_DIR}/bin/kind create cluster`,
                       );
 
                       // Merge kubeconfig data from root user into normal user's kubeconfig
