@@ -35,13 +35,13 @@ permissions:
 
 jobs:
   gcs-storage-test:
-    timeout-minutes: 20
+    timeout-minutes: 40
     runs-on: hiero-solo-linux-large
     strategy:
       fail-fast: false
       matrix:
         storageType: [ "gcs_only", "minio_only", "aws_only" ]
-      max-parallel: 1
+      max-parallel: 3
     steps:
       - name: Check if job should be skipped
         id: check
@@ -60,7 +60,7 @@ jobs:
 
       - name: Checkout Code
         if: steps.check.outputs.run == 'true'
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
       - name: Authenticate to Google Cloud
         if: steps.check.outputs.run == 'true'

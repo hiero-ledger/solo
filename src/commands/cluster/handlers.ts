@@ -43,10 +43,7 @@ export class ClusterCommandHandlers extends CommandHandler {
         this.tasks.testConnectionToCluster(),
         this.tasks.connectClusterRef(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-      },
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'cluster-ref config connect',
       null,
       'cluster-ref config connect',
@@ -65,10 +62,7 @@ export class ClusterCommandHandlers extends CommandHandler {
           this.tasks.initialize(argv, this.configs.defaultConfigBuilder.bind(this.configs), false),
           this.tasks.disconnectClusterRef(),
         ],
-        {
-          concurrent: false,
-          rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        },
+        constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
         'cluster-ref config disconnect',
         null,
         'cluster-ref config disconnect',
@@ -86,10 +80,7 @@ export class ClusterCommandHandlers extends CommandHandler {
     await this.commandAction(
       argv,
       [this.tasks.showClusterList()],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-      },
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'cluster-ref config list',
       null,
     );
@@ -106,10 +97,7 @@ export class ClusterCommandHandlers extends CommandHandler {
         this.tasks.initialize(argv, this.configs.defaultConfigBuilder.bind(this.configs), false),
         this.tasks.getClusterInfo(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-      },
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'cluster-ref config info',
       null,
     );
@@ -127,10 +115,7 @@ export class ClusterCommandHandlers extends CommandHandler {
           this.tasks.initialize(argv, this.configs.setupConfigBuilder.bind(this.configs)),
           this.tasks.installClusterChart(argv),
         ],
-        {
-          concurrent: false,
-          rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        },
+        constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
         'cluster-ref config setup',
         null,
         'cluster-ref config setup',
@@ -152,10 +137,7 @@ export class ClusterCommandHandlers extends CommandHandler {
           this.tasks.initialize(argv, this.configs.resetConfigBuilder.bind(this.configs)),
           this.tasks.uninstallClusterChart(argv),
         ],
-        {
-          concurrent: false,
-          rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-        },
+        constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
         'cluster-ref config reset',
         null,
         'cluster-ref config reset',

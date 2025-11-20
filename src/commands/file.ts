@@ -492,13 +492,7 @@ Troubleshooting:
           },
         },
       ],
-      {
-        concurrent: false,
-        rendererOptions: {
-          collapseSubtasks: false,
-          timer: constants.LISTR_DEFAULT_RENDERER_TIMER_OPTION,
-        },
-      },
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
 
     try {

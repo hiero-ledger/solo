@@ -589,10 +589,7 @@ export class RelayCommand extends BaseCommand {
         //   },
         // },
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-      },
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'relay node add',
     );
@@ -692,10 +689,7 @@ export class RelayCommand extends BaseCommand {
         this.checkRelayIsReadyTask(),
         this.enablePortForwardingTask(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-      },
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'relay node upgrade',
     );
@@ -787,10 +781,7 @@ export class RelayCommand extends BaseCommand {
         },
         this.disableRelayComponent(),
       ],
-      {
-        concurrent: false,
-        rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-      },
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'relay node destroy',
     );
