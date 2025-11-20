@@ -12,6 +12,7 @@ import {SoloError} from '../errors/solo-error.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import {Zippy} from '../zippy.js';
+import * as helpers from '../helpers.js';
 
 const CURL_RELEASE_BASE_URL: string = 'https://curl.se/download';
 const CURL_WINDOWS_BASE_URL: string = 'https://curl.se/windows';
@@ -51,13 +52,10 @@ export class CurlDependencyManager extends BaseDependencyManager {
   }
 
   private getWindowsVersionWithBuild(): string {
-    const baseVersion: string = this.getRequiredVersion();
-
-    return baseVersion === version.CURL_VERSION ? `${baseVersion}_7` : `${baseVersion}_2`;
+    return `${this.getRequiredVersion()}_7`;
   }
 
   protected getArtifactName(): string {
-    // Windows uses prebuilt zip packages instead of tarballs
     if (this.osPlatform === constants.OS_WINDOWS) {
       const windowsVersionWithBuild: string = this.getWindowsVersionWithBuild();
       return `curl-${windowsVersionWithBuild}-win64-mingw.zip`;
@@ -106,18 +104,78 @@ export class CurlDependencyManager extends BaseDependencyManager {
     throw new SoloError(`Unable to parse curl version for ${executablePath}`);
   }
 
+  public override async install(temporaryDirectory: string = helpers.getTemporaryDirectory()): Promise<boolean> {
+    if (this.osPlatform === constants.OS_WINDOWS) {
+      return super.install(temporaryDirectory);
+    }
+
+    if (!(await this.shouldInstall())) {
+      return true;
+    }
+
+    await this.preInstall();
+
+    if (await this.isInstalledLocallyAndMeetsRequirementsForCurl()) {
+      return true;
+    }
+
+    if (await this.isInstalledGloballyAndMeetsRequirementsForCurl()) {
+      if (!fs.existsSync(this.installationDirectory)) {
+        fs.mkdirSync(this.installationDirectory, {recursive: true});
+      }
+
+      this.uninstallLocal();
+      fs.cpSync(this.globalExecutablePath, this.localExecutablePath);
+      fs.chmodSync(this.localExecutablePath, 0o755);
+
+      return this.isInstalledLocally();
+    }
+
+    throw new SoloError(
+      `${this.executableName} could not be installed automatically on ${this.osPlatform}. ` +
+        `Please install curl >= ${this.getRequiredVersion()} using your system package manager.`,
+    );
+  }
+
+  private async isInstalledLocallyAndMeetsRequirementsForCurl(): Promise<boolean> {
+    return this.isInstalledLocally() && (await this.installationMeetsRequirements(this.localExecutablePath));
+  }
+
+  private async getGlobalExecutablePathForCurl(): Promise<false | string> {
+    try {
+      if (this.globalExecutablePath) {
+        return this.globalExecutablePath;
+      }
+
+      const cmd: string = this.osPlatform === constants.OS_WINDOWS ? 'where' : 'which';
+      const pathResult: string[] = await this.run(`${cmd} ${this.executableName}`);
+      if (pathResult.length === 0) {
+        return false;
+      }
+
+      this.globalExecutablePath = pathResult[0];
+      return pathResult[0];
+    } catch {
+      return false;
+    }
+  }
+
+  private async isInstalledGloballyAndMeetsRequirementsForCurl(): Promise<boolean> {
+    const path: false | string = await this.getGlobalExecutablePathForCurl();
+    return Boolean(path && (await this.installationMeetsRequirements(path)));
+  }
+
   protected async processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string[]> {
     const extractDirectory: string = path.join(temporaryDirectory, 'curl-extracted');
     fs.mkdirSync(extractDirectory, {recursive: true});
 
     if (this.osPlatform === constants.OS_WINDOWS) {
-      // Handle .zip extraction for Windows binaries
       this.zippy.unzip(packageFilePath, extractDirectory);
 
       // Find curl.exe in extracted folders
       const found: string[] = [];
       const searchDirectory = (directory: string): void => {
-        const entries = fs.readdirSync(directory, {withFileTypes: true});
+        const entries: fs.Dirent[] = fs.readdirSync(directory, {withFileTypes: true});
         for (const entry of entries) {
           const full: string = path.join(directory, entry.name);
           if (entry.isDirectory()) {
