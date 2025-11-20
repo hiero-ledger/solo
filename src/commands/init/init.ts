@@ -199,18 +199,18 @@ export class InitCommand extends BaseCommand {
                     }
                   },
                 },
-                // {
-                //   title: 'Install brew...',
-                //   task: async (_, subTask) => {
-                //     const brewInstalled: boolean = await this.brewPackageManager.isAvailable();
-                //     if (!brewInstalled) {
-                //       this.logger.info('Homebrew not found, installing Homebrew...');
-                //       if (!(await this.brewPackageManager.install())) {
-                //         throw new SoloError('Failed to install Homebrew');
-                //       }
-                //     }
-                //   },
-                // },
+                {
+                  title: 'Install brew...',
+                  task: async (_, subTask) => {
+                    const brewInstalled: boolean = await this.brewPackageManager.isAvailable();
+                    if (!brewInstalled) {
+                      this.logger.info('Homebrew not found, installing Homebrew...');
+                      if (!(await this.brewPackageManager.install())) {
+                        throw new SoloError('Failed to install Homebrew');
+                      }
+                    }
+                  },
+                },
                 {
                   title: 'Install podman...',
                   task: async (_, subTask) => {

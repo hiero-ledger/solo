@@ -187,7 +187,6 @@ export class K8ClientPods extends K8ClientBase implements Pods {
           this.logger.debug(
             `[attempt: ${attempts}/${maxAttempts}] ${resp.body?.items?.length}/${1} pod found [labelSelector: ${labelSelector}, namespace:${namespace.name}]`,
           );
-          this.logger.debug(`${JSON.stringify(resp.body?.items)}`);
 
           if (resp.body?.items?.length === 1) {
             let phaseMatchCount: number = 0;
