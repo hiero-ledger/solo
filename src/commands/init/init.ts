@@ -247,7 +247,6 @@ export class InitCommand extends BaseCommand {
                     task: async (context_, task) => {
                       const whichPodman = await this.run('which podman');
                       const podmanPath = whichPodman.join('').replace('/podman', '');
-                      await this.run('sudo echo $PATH');
                       await this.run(
                         `sudo KIND_EXPERIMENTAL_PROVIDER=podman PATH=$PATH:${podmanPath} ${constants.SOLO_HOME_DIR}/bin/kind create cluster`,
                       );
