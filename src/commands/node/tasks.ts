@@ -2239,7 +2239,14 @@ export class NodeCommandTasks {
     return {
       title: 'Get node states',
       task: async context_ => {
-        for (const nodeAlias of context_.config[aliasesField]) {
+        // if context_.config[aliasesField] is not iterable, make it an array
+
+        let aliases = context_.config[aliasesField];
+        if (!Array.isArray(aliases)) {
+          aliases = [aliases];
+        }
+        console.log(`aliases = ${JSON.stringify(aliases, null, 2)}`);
+        for (const nodeAlias of aliases) {
           const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
           await container
             .resolve<NetworkNodes>(NetworkNodes)
