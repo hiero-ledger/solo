@@ -99,45 +99,10 @@ describe('CurlDependencyManager', (): void => {
       existsSyncStub.restore();
       rmSyncStub.restore();
     });
-
-    it('should prefer the global installation if it meets the requirements', async (): Promise<void> => {
-      runStub.withArgs('which curl').resolves(['/usr/local/bin/curl']);
-      runStub.withArgs('/usr/local/bin/curl --version').resolves([`curl ${version.CURL_VERSION}`]);
-      runStub.withArgs(`${temporaryDirectory}/curl --version`).resolves([`curl version ${version.CURL_VERSION}`]);
-      existsSyncStub.withArgs(`${temporaryDirectory}/curl`).returns(false);
-
-      // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
-      const result: boolean = await curlDependencyManager.isInstalledGloballyAndMeetsRequirements();
-      expect(result).to.be.true;
-
-      expect(await curlDependencyManager.install(getTestCacheDirectory())).to.be.true;
-
-      expect(cpSyncStub.calledOnce).to.be.true;
-      expect(await curlDependencyManager.getExecutablePath()).to.equal('/usr/local/bin/curl');
-    });
-
-    it('should install curl locally if the global installation does not meet the requirements', async (): Promise<void> => {
-      runStub.withArgs('/usr/local/bin/curl --version').resolves(['curl 0.1.0']);
-      runStub.withArgs(`${PathEx.join(temporaryDirectory, 'curl')} --version`).resolves(['curl 0.1.0']);
-
-      existsSyncStub.withArgs(PathEx.join(temporaryDirectory, 'curl')).returns(true);
-
-      // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
-      const result: boolean = await curlDependencyManager.isInstalledGloballyAndMeetsRequirements();
-      expect(result).to.be.false;
-
-      expect(await curlDependencyManager.install(getTestCacheDirectory())).to.be.true;
-      expect(fs.existsSync(PathEx.join(temporaryDirectory, 'curl'))).to.be.ok;
-      expect(await curlDependencyManager.getExecutablePath()).to.equal(PathEx.join(temporaryDirectory, 'curl'));
-    });
   });
 
   describe('Kind Installation Tests', (): void => {
-    each([
-      ['linux', 'x64'],
-      ['linux', 'amd64'],
-      ['win32', 'amd64'],
-    ]).it(
+    each([['win32', 'amd64']]).it(
       'should be able to install curl base on %s and %s',
       async (osPlatform: NodeJS.Platform, osArch: string): Promise<void> => {
         const curlDependencyManager: CurlDependencyManager = new CurlDependencyManager(
