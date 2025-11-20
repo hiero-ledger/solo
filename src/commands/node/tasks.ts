@@ -139,6 +139,7 @@ import {ComponentStateMetadataSchema} from '../../data/schema/model/remote/state
 import net from 'node:net';
 import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
 import {TDirectoryData} from '../../integration/kube/t-directory-data.js';
+import {Service} from '../../integration/kube/resources/service/service.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -922,6 +923,7 @@ export class NodeCommandTasks {
   public downloadNodeGeneratedFilesForDynamicAddressBook(): SoloListrTask<
     NodeUpdateContext | NodeAddContext | NodeDestroyContext
   > {
+    const self = this;
     return {
       title: 'Download generated files from an existing node',
       task: async ({
@@ -1432,12 +1434,12 @@ export class NodeCommandTasks {
     };
   }
 
-  public setGrpcWebEndpoint(nodeAliasesProperty: string): SoloListrTask<NodeStartContext | NodeAddContext> {
+  public setGrpcWebEndpoint(nodeAliasesProperty: string): SoloListrTask<NodeStartContext> {
     return {
       title: 'set gRPC Web endpoint',
-      skip: (context_): boolean => {
+      skip: ({config: {app}}): boolean => {
         // skip setting the gRPC Web endpoint if we are not running a Consensus Node
-        if (context_.config.app !== constants.HEDERA_APP_NAME) {
+        if (app !== constants.HEDERA_APP_NAME) {
           return true;
         }
 
@@ -1445,7 +1447,7 @@ export class NodeCommandTasks {
         const versionRequirement: SemVer = new SemVer(MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS);
         return lt(currentVersion, versionRequirement);
       },
-      task: async ({config}, task): Promise<SoloListr<NodeStartContext | NodeAddContext>> => {
+      task: async ({config}): Promise<void> => {
         const {namespace, deployment, adminKey} = config;
 
         const serviceMap: NodeServiceMapping = await this.accountManager.getNodeServiceMap(
@@ -1454,56 +1456,60 @@ export class NodeCommandTasks {
           deployment,
         );
 
-        const subTasks: SoloListrTask<NodeStartContext | NodeAddContext>[] = [];
-
         for (const nodeAlias of config[nodeAliasesProperty]) {
-          subTasks.push({
-            title: `setting for ${nodeAlias}`,
-            task: async (): Promise<void> => {
-              const networkNodeService: NetworkNodeServices = serviceMap.get(nodeAlias);
+          const networkNodeService: NetworkNodeServices = serviceMap.get(nodeAlias);
 
-              const cluster: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
-                (cluster): boolean => cluster.name === networkNodeService.clusterReference,
-              );
+          const cluster: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
+            (cluster): boolean => cluster.namespace === namespace.name,
+          );
 
-              const grpcProxyAddress: string = Templates.renderSvcFullyQualifiedDomainName(
+          const grpcProxyPort: number = +networkNodeService.envoyProxyGrpcWebPort;
+
+          const nodeClient: Client = await this.accountManager.loadNodeClient(
+            namespace,
+            this.remoteConfig.getClusterRefs(),
+            deployment,
+          );
+
+          const grpcWebProxyEndpoint: ServiceEndpoint = new ServiceEndpoint().setPort(grpcProxyPort);
+
+          if (networkNodeService.envoyProxyLoadBalancerIp) {
+            const svc: Service[] = await this.k8Factory
+              .getK8(networkNodeService.context)
+              .services()
+              .list(config.namespace, [
+                `solo.hedera.com/node-id=${networkNodeService.nodeId},solo.hedera.com/type=network-node-svc`,
+              ]);
+
+            grpcWebProxyEndpoint.setDomainName(
+              Templates.renderSvcFullyQualifiedDomainName(svc[0].metadata.name, namespace.name, cluster.dnsBaseDomain),
+            );
+          } else {
+            grpcWebProxyEndpoint.setDomainName(
+              Templates.renderSvcFullyQualifiedDomainName(
                 networkNodeService.envoyProxyName,
                 namespace.name,
                 cluster.dnsBaseDomain,
-              );
+              ),
+            );
+          }
 
-              const grpcProxyPort: number = +networkNodeService.envoyProxyGrpcWebPort;
+          let updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
+            .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
+            .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint)
+            .freezeWith(nodeClient);
 
-              const nodeClient: Client = await this.accountManager.loadNodeClient(
-                namespace,
-                this.remoteConfig.getClusterRefs(),
-                deployment,
-              );
+          if (adminKey) {
+            updateTransaction = await updateTransaction.sign(adminKey);
+          }
 
-              const grpcWebProxyEndpoint: ServiceEndpoint = new ServiceEndpoint()
-                .setDomainName(grpcProxyAddress)
-                .setPort(grpcProxyPort);
+          const transactionResponse: TransactionResponse = await updateTransaction.execute(nodeClient);
+          const updateTransactionReceipt: TransactionReceipt = await transactionResponse.getReceipt(nodeClient);
 
-              let updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
-                .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
-                .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint)
-                .freezeWith(nodeClient);
-
-              if (adminKey) {
-                updateTransaction = await updateTransaction.sign(adminKey);
-              }
-
-              const transactionResponse: TransactionResponse = await updateTransaction.execute(nodeClient);
-              const updateTransactionReceipt: TransactionReceipt = await transactionResponse.getReceipt(nodeClient);
-
-              if (updateTransactionReceipt.status !== Status.Success) {
-                throw new SoloError('Failed to set gRPC web proxy endpoint');
-              }
-            },
-          });
+          if (updateTransactionReceipt.status !== Status.Success) {
+            throw new SoloError('Failed to set gRPC web proxy endpoint');
+          }
         }
-
-        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
       },
     };
   }
