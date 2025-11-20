@@ -104,6 +104,10 @@ export class CurlDependencyManager extends BaseDependencyManager {
     throw new SoloError(`Unable to parse curl version for ${executablePath}`);
   }
 
+  public override async shouldInstall(): Promise<boolean> {
+    return this.osPlatform === constants.OS_WINDOWS;
+  }
+
   public override async install(temporaryDirectory: string = helpers.getTemporaryDirectory()): Promise<boolean> {
     if (this.osPlatform === constants.OS_WINDOWS) {
       return super.install(temporaryDirectory);
