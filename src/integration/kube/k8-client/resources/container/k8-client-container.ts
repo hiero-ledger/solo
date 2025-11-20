@@ -23,6 +23,7 @@ import {type Context} from '../../../../../types/index.js';
 import {sleep} from '../../../../../core/helpers.js';
 import {Duration} from '../../../../../core/time/duration.js';
 import type Stream from 'node:stream';
+import * as constants from '../../../../../core/constants.js';
 
 export class K8ClientContainer implements Container {
   private readonly logger: SoloLogger;
@@ -60,35 +61,51 @@ export class K8ClientContainer implements Container {
       });
 
       process.on('error', (error): void => {
-        reject(new SoloError(`kubectl failed to start: ${error?.message}`));
+        reject(new SoloError(`container call failed to start: ${error?.message}`));
       });
 
       process.on('close', (code): void => {
         if (code === 0) {
           resolve(stdout || stderr);
         } else {
-          reject(new SoloError(`kubectl failed: ${stderr || stdout}`));
+          reject(new SoloError(`container call failed: ${stderr || stdout}`));
         }
       });
     });
   }
 
-  private async execKubectlCp(arguments_: string[], verifyPath: string, expectedSize?: number): Promise<void> {
-    const maxAttempts: number = 3;
+  /**
+   * Execute `kubectl cp` with retries and optional verification.
+   *
+   * @param source - kubectl cp source, e.g. `<ns>/<pod>:/path` or `/local/path`
+   * @param destination - kubectl cp destination, e.g. `/local/path` or `<ns>/<pod>:/path`
+   * @param containerName - name of the container for -c flag
+   * @param verifyPath - local filesystem path to verify after copy (usually the destination for copyFrom)
+   * @param expectedSize - optional expected file size for strict verification
+   */
+  private async execKubectlCp(
+    source: string,
+    destination: string,
+    containerName: string,
+    verifyPath: string,
+    expectedSize?: number,
+  ): Promise<void> {
+    const maxAttempts: number = constants.CONTAINER_COPY_MAX_ATTEMPTS;
+    const arguments_: string[] = ['cp', source, destination, '-c', containerName];
 
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
         await this.execKubectl(arguments_);
 
         if (!fs.existsSync(verifyPath)) {
-          throw new SoloError(`kubectl cp failed: missing file at ${verifyPath}`);
+          throw new SoloError(`copy failed: missing file at ${verifyPath}`);
         }
 
         const stat: fs.Stats = fs.statSync(verifyPath);
 
         if (expectedSize !== undefined && stat.size !== expectedSize) {
           throw new SoloError(
-            `kubectl cp verification failed: expected size ${expectedSize} but found ${stat.size} at ${verifyPath}`,
+            `copy verification failed: expected size ${expectedSize} but found ${stat.size} at ${verifyPath}`,
           );
         }
 
@@ -97,7 +114,9 @@ export class K8ClientContainer implements Container {
         if (attempt === maxAttempts) {
           throw error;
         }
-        await sleep(Duration.ofMillis(attempt * 300)); // backoff between retries
+
+        // backoff between retries
+        await sleep(Duration.ofMillis(attempt * constants.CONTAINER_COPY_BACKOFF_MS));
       }
     }
   }
@@ -142,14 +161,12 @@ export class K8ClientContainer implements Container {
     const destinationPath: string = path.join(destinationDirectory, sourceFileName);
 
     this.logger.info(
-      `copyFrom: kubectl cp -c ${containerName} ${namespace.name}/${podName}:${resolvedRemotePath} ${destinationPath}`,
+      `copyFrom: beginning copy [container: ${containerName} ${namespace.name}/${podName}:${resolvedRemotePath} ${destinationPath}]`,
     );
 
-    await this.execKubectlCp(
-      ['cp', `${namespace.name}/${podName}:${resolvedRemotePath}`, destinationPath, '-c', containerName],
-      destinationPath,
-      sourceFileSize,
-    );
+    const remoteSource: string = `${namespace.name}/${podName}:${resolvedRemotePath}`;
+
+    await this.execKubectlCp(remoteSource, destinationPath, containerName, destinationPath, sourceFileSize);
 
     return true;
   }
@@ -201,9 +218,9 @@ export class K8ClientContainer implements Container {
         }
       }
 
-      this.logger.info(`copyTo: kubectl cp -c ${containerName} ${localPathToCopy} ${remoteDestination}`);
+      this.logger.info(`copyTo: beginning copy [container: ${containerName} ${localPathToCopy} ${remoteDestination}]`);
 
-      await this.execKubectlCp(['cp', localPathToCopy, remoteDestination, '-c', containerName], localPathToCopy);
+      await this.execKubectlCp(localPathToCopy, remoteDestination, containerName, localPathToCopy);
 
       return true;
     } finally {
@@ -241,7 +258,7 @@ export class K8ClientContainer implements Container {
     const command: string[] = Array.isArray(cmd) ? cmd : cmd.split(' ');
 
     this.logger.info(
-      `execContainer: kubectl exec ${podName} -n ${namespace.name} -c ${containerName} -- ${command.join(' ')}`,
+      `execContainer: beginning call [podName: ${podName} -n ${namespace.name} -c ${containerName} -- ${command.join(' ')}]`,
     );
 
     const arguments_: string[] = ['exec', podName, '-n', namespace.name, '-c', containerName, '--', ...command];
