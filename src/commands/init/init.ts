@@ -135,18 +135,16 @@ export class InitCommand extends BaseCommand {
     ] as SoloListrTask<InitContext>[];
   }
 
-  private defaultCreateClusterTask(): SoloListrTask<InitContext> {
+  private defaultCreateClusterTask(parentTask): SoloListrTask<InitContext> {
     return {
       title: 'Creating local cluster...',
-      task: async (context_, task) => {
+      task: async context_ => {
         const kindExecutable: string = await this.depManager.getExecutablePath(constants.KIND);
         const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
-        const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
-          constants.DEFAULT_CLUSTER,
-        );
+        const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(constants.DEFAULT_CLUSTER);
 
-        task.title = `Created local cluster '${clusterResponse.name}'; connect with context '${clusterResponse.context}'`;
-        task.title = 'Created local cluster';
+        parentTask.title = `Created local cluster '${clusterResponse.name}'; connect with context '${clusterResponse.context}'`;
+        parentTask.title = 'Created local cluster';
       },
     } as SoloListrTask<InitContext>;
   }
@@ -195,7 +193,7 @@ export class InitCommand extends BaseCommand {
           if (podmanDependency.mode === PodmanMode.ROOTFUL) {
             {
               if (skipPodmanTasks) {
-                subTasks.push(this.defaultCreateClusterTask());
+                subTasks.push(this.defaultCreateClusterTask(task));
               } else {
                 subTasks.push(
                   {
@@ -249,7 +247,7 @@ export class InitCommand extends BaseCommand {
                     task: async (context_, task) => {
                       const whichPodman = await this.run('which podman');
                       const podmanPath = whichPodman.join('').replace('/podman', '');
-                      await this.run(`sudo echo $PATH`);
+                      await this.run('sudo echo $PATH');
                       await this.run(
                         `sudo KIND_EXPERIMENTAL_PROVIDER=podman PATH=$PATH:${podmanPath} ${constants.SOLO_HOME_DIR}/bin/kind create cluster`,
                       );
@@ -331,7 +329,7 @@ export class InitCommand extends BaseCommand {
                   },
                   skip: (): boolean => skipPodmanTasks,
                 } as SoloListrTask<InitContext>,
-                this.defaultCreateClusterTask(),
+                this.defaultCreateClusterTask(task),
               );
             }
           }
