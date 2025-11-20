@@ -8,6 +8,20 @@ This example demonstrates a complete multi-cluster backup and restore workflow f
 4. **Full backup/restore cycle** - ConfigMaps, Secrets, Logs, State files, and database dumps
 5. **Disaster recovery** - Complete cluster recreation and restoration from backup
 
+## Getting This Example
+
+### Download Archive
+
+You can download this example as a standalone archive from the [Solo releases page](https://github.com/hiero-ledger/solo/releases):
+
+```
+https://github.com/hiero-ledger/solo/releases/download/<release_version>/multicluster-backup-restore.zip
+```
+
+### View on GitHub
+
+Browse the source code and configuration files for this example in the [GitHub repository](https://github.com/hiero-ledger/solo/tree/main/examples/multicluster-backup-restore).
+
 ## Architecture
 
 ### Cluster Distribution
