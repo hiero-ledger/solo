@@ -17,9 +17,36 @@
 | [node-update-transaction](./node-update-transaction/)               | Manually write a NodeUpdateTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands. |
 | [one-shot-falcon](./one-shot-falcon/)                               | Example of how to use the Solo **one-shot falcon** commands                                                         |
 | [rapid-fire](./rapid-fire/)                                         | Example of how to use the Solo **rapid-fire** commands                                                              |
-| [running-solo-inside-cluster](./running-solo-inside-cluster/)       | Example showing how to run Solo inside a Kubernetes cluster                                                         |
 | [state-save-and-restore](./state-save-and-restore/)                 | Save network state, recreate network, and restore state with mirror node (with optional external database)          |
-| [version-upgrade-test](./version-upgrade-test/)                     | Example of how to upgrade all components of a Hedera network to current versions                                    |
+| [version-upgrade-test](./version-upgrade-test/)                     | Example of how to upgrade all components of a Hiero network to current versions                                     |
+
+## Accessing Examples
+
+### From GitHub Repository
+
+All examples are available in the [examples directory](https://github.com/hiero-ledger/solo/tree/main/examples) of the Solo repository. You can browse the source code, documentation, and configuration files directly on GitHub.
+
+### Downloading Example Archives
+
+Pre-packaged example archives are available for download from the [Solo releases page](https://github.com/hiero-ledger/solo/releases). Each example is packaged as a standalone zip file that includes all necessary configuration files and documentation.
+
+To download a specific example:
+
+1. Visit the [Solo releases page](https://github.com/hiero-ledger/solo/releases)
+2. Navigate to the desired release version
+3. Download the example archive (e.g., `example-backup-restore-workflow.zip`)
+
+Example download URL format:
+```
+https://github.com/hiero-ledger/solo/releases/download/<release_version>/example-<example-name>.zip
+```
+
+For example, to download the `backup-restore-workflow` example from release `v0.49.0`:
+```
+https://github.com/hiero-ledger/solo/releases/download/v0.49.0/example-backup-restore-workflow.zip
+```
+
+After downloading, extract the archive and follow the README instructions inside.
 
 ## Prerequisites
 

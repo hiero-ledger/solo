@@ -11,6 +11,20 @@ This example demonstrates how to deploy a Hiero Hashgraph Solo network with an e
 * Deploys mirror node, explorer, relay, and runs a smoke test
 * All steps are named for clear logging and troubleshooting
 
+## Getting This Example
+
+### Download Archive
+
+You can download this example as a standalone archive from the [Solo releases page](https://github.com/hiero-ledger/solo/releases):
+
+```
+https://github.com/hiero-ledger/solo/releases/download/<release_version>/example-external-database-test.zip
+```
+
+### View on GitHub
+
+Browse the source code and configuration files for this example in the [GitHub repository](https://github.com/hiero-ledger/solo/tree/main/examples/external-database-test).
+
 ## Usage
 
 1. **Install dependencies:**
