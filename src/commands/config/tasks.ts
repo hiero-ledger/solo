@@ -17,6 +17,8 @@ import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 import {type K8} from '../../integration/kube/k8.js';
+import {ContainerReference} from '../../integration/kube/resources/container/container-reference.js';
+import {type Container} from '../../integration/kube/resources/container/container.js';
 
 interface ConfigOpsLogsContext {
   outputDirectory: string;
@@ -65,6 +67,14 @@ export class ConfigCommandTasks {
           {name: 'ingress controller', labels: [constants.SOLO_INGRESS_CONTROLLER_NAME_LABEL]},
         ];
 
+        // Create output directory structure - use custom dir if provided, otherwise use default
+        const outputDirectory: string = customOutputDir 
+          ? path.resolve(customOutputDir)
+          : path.join(constants.SOLO_LOGS_DIR, 'non-consensus-logs');
+        if (!fs.existsSync(outputDirectory)) {
+          fs.mkdirSync(outputDirectory, {recursive: true});
+        }
+
         for (const context of contexts.list()) {
           const k8: K8 = this.k8Factory.getK8(context);
           
@@ -77,11 +87,16 @@ export class ConfigCommandTasks {
               this.logger.info(`Found ${pods.length} ${config.name} pod(s) in context ${context}`);
               
               for (const pod of pods) {
-                allPods.push({
+                const newPodInfo: NodePodInfo = {
                   pod,
                   context: context,
                   namespace: pod.podReference.namespace,
-                });
+                };
+                allPods.push(newPodInfo);
+                // If it is block node pod, download *.log files from '/opt/hiero/block-node/logs'
+                if ('block node' === config.name) {
+                  await this.downloadBlockNodeLogFiles(newPodInfo, outputDirectory);
+                }
               }
             }
           } catch (error) {
@@ -89,18 +104,8 @@ export class ConfigCommandTasks {
           }
         }
 
-        // Create output directory structure - use custom dir if provided, otherwise use default
-        const outputDirectory: string = customOutputDir 
-          ? path.resolve(customOutputDir)
-          : path.join(constants.SOLO_LOGS_DIR, 'non-consensus-logs');
-        if (!fs.existsSync(outputDirectory)) {
-          fs.mkdirSync(outputDirectory, {recursive: true});
-        }
-        
         this.logger.info(`Logs will be saved to: ${outputDirectory}`);
-
         this.logger.info(`Found ${allPods.length} non-consensus node pods`);
-
         // Download logs from each pod
         for (const podInfo of allPods) {
           await this.downloadPodLogs(podInfo, outputDirectory);
@@ -147,6 +152,33 @@ export class ConfigCommandTasks {
     } catch (error) {
       this.logger.error(`Failed to download logs from pod ${podName}: ${error}`);
       // Continue with other pods even if one fails
+    }
+  }
+
+  private async downloadBlockNodeLogFiles(podInfo: NodePodInfo, outputDirectory: string): Promise<void> {
+    const {pod, context}: NodePodInfo = podInfo;
+    const podName: string = pod.podReference.name.name;
+
+    this.logger.info(`Downloading block node log files from ${podName}...`);
+
+    try {
+      const k8: K8 = this.k8Factory.getK8(context);
+      const containerReference: ContainerReference = ContainerReference.of(
+        pod.podReference,
+        constants.ROOT_CONTAINER,
+      );
+      const container: Container = k8.containers().readByRef(containerReference);
+
+      // Create directory for block node log files
+      const blockNodeLogDirectory: string = path.join(outputDirectory, context, `${podName}-block-logs`);
+      if (!fs.existsSync(blockNodeLogDirectory)) {
+        fs.mkdirSync(blockNodeLogDirectory, {recursive: true});
+      }
+
+      await container.copyFrom('/opt/hiero/block-node/logs/*.log', blockNodeLogDirectory);
+
+    } catch (error) {
+      this.logger.error(`Failed to download block node log files from ${podName}: ${error}`);
     }
   }
 }
