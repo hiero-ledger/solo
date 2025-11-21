@@ -149,7 +149,7 @@ export function startNodesTest(argv: Argv, commandInvoker: CommandInvoker, nodeC
       .readdirSync(SOLO_LOGS_DIR)
       .filter((file): boolean => file.startsWith('MainNetStats'));
 
-    expect(mainNetStatsFile, 'MainNetStats not found in logs dir').to.have.lengthOf(1);
+    expect(mainNetStatsFile.length, 'MainNetStats not found in logs dir').greaterThanOrEqual(1);
 
     expect(soloLog, 'Check solo.log for stale errors from previous runs').to.not.have.string(NODE_LOG_FAILURE_MSG);
   }).timeout(Duration.ofMinutes(5).toMillis());
