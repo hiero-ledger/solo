@@ -1957,30 +1957,6 @@ export class NodeCommandTasks {
       title: 'Get consensus node logs and configs',
       task: async ({config: {namespace, contexts, consensusNodes}}): Promise<void> => {
         await container.resolve<NetworkNodes>(NetworkNodes).getLogs(namespace, contexts);
-
-        for (const node of consensusNodes) {
-          const container: Container = this.k8Factory
-            .getK8(node.context)
-            .containers()
-            .readByRef(
-              ContainerReference.of(
-                PodReference.of(namespace, Templates.renderNetworkPodName(node.name)),
-                constants.ROOT_CONTAINER,
-              ),
-            );
-
-          const csvFilesPath: string = `${constants.HEDERA_HAPI_PATH}/data/stats/`;
-
-          const targetFiles: TDirectoryData[] = await container
-            .listDir(csvFilesPath)
-            .then((files): TDirectoryData[] => files.filter((file): boolean => file.name.endsWith('.csv')));
-
-          for (const targetFile of targetFiles) {
-            const sourceFilePath: string = PathEx.join(csvFilesPath, targetFile.name);
-
-            await container.copyFrom(sourceFilePath, SOLO_LOGS_DIR);
-          }
-        }
       },
     };
   }
