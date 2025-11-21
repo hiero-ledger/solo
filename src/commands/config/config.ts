@@ -19,7 +19,7 @@ export class ConfigCommand extends BaseCommand {
   public async logs(argv: ArgvStruct): Promise<boolean> {
     argv = this.addFlagsToArgv(argv);
 
-    const outputDir: string = argv.outputDir as string || '';
+    const outputDirectory: string = (argv.outputDir as string) || '';
 
     await this.commandAction(
       argv,
@@ -30,7 +30,7 @@ export class ConfigCommand extends BaseCommand {
             await this.localConfig.load();
           },
         },
-        this.tasks.downloadNonConsensusNodeLogs(outputDir),
+        this.tasks.downloadNonConsensusNodeLogs(outputDirectory),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error downloading non-consensus node logs',

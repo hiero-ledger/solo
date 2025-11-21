@@ -4,7 +4,6 @@ import * as constants from '../../core/constants.js';
 import {type ConfigManager} from '../../core/config-manager.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
-import {Templates} from '../../core/templates.js';
 import {type Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type SoloListrTask} from '../../types/index.js';
 import * as fs from 'node:fs';
@@ -15,7 +14,6 @@ import {inject, injectable} from 'tsyringe-neo';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
-import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 import {type K8} from '../../integration/kube/k8.js';
 import {ContainerReference} from '../../integration/kube/resources/container/container-reference.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
@@ -40,7 +38,7 @@ export class ConfigCommandTasks {
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
   ) {}
 
-  public downloadNonConsensusNodeLogs(customOutputDir: string = ''): SoloListrTask<ConfigOpsLogsContext> {
+  public downloadNonConsensusNodeLogs(customOutputDirectory: string = ''): SoloListrTask<ConfigOpsLogsContext> {
     return {
       title: 'Download logs from non-consensus nodes',
       task: async (context_, task) => {
@@ -68,8 +66,8 @@ export class ConfigCommandTasks {
         ];
 
         // Create output directory structure - use custom dir if provided, otherwise use default
-        const outputDirectory: string = customOutputDir 
-          ? path.resolve(customOutputDir)
+        const outputDirectory: string = customOutputDirectory
+          ? path.resolve(customOutputDirectory)
           : path.join(constants.SOLO_LOGS_DIR, 'non-consensus-logs');
         if (!fs.existsSync(outputDirectory)) {
           fs.mkdirSync(outputDirectory, {recursive: true});
@@ -77,7 +75,7 @@ export class ConfigCommandTasks {
 
         for (const context of contexts.list()) {
           const k8: K8 = this.k8Factory.getK8(context);
-          
+
           try {
             this.logger.info(`Discovering non-consensus node pods in context: ${context}...`);
 
@@ -85,7 +83,7 @@ export class ConfigCommandTasks {
             for (const config of componentLabelConfigs) {
               const pods: Pod[] = await k8.pods().listForAllNamespaces(config.labels);
               this.logger.info(`Found ${pods.length} ${config.name} pod(s) in context ${context}`);
-              
+
               for (const pod of pods) {
                 const newPodInfo: NodePodInfo = {
                   pod,
@@ -163,10 +161,7 @@ export class ConfigCommandTasks {
 
     try {
       const k8: K8 = this.k8Factory.getK8(context);
-      const containerReference: ContainerReference = ContainerReference.of(
-        pod.podReference,
-        constants.ROOT_CONTAINER,
-      );
+      const containerReference: ContainerReference = ContainerReference.of(pod.podReference, constants.ROOT_CONTAINER);
       const container: Container = k8.containers().readByRef(containerReference);
 
       // Create directory for block node log files
@@ -176,7 +171,6 @@ export class ConfigCommandTasks {
       }
 
       await container.copyFrom('/opt/hiero/block-node/logs/*.log', blockNodeLogDirectory);
-
     } catch (error) {
       this.logger.error(`Failed to download block node log files from ${podName}: ${error}`);
     }
