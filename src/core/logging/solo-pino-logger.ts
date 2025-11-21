@@ -5,7 +5,7 @@ import {mkdirSync} from 'node:fs';
 import {v4 as uuidv4} from 'uuid';
 // eslint-disable-next-line unicorn/import-style
 import * as util from 'node:util';
-import chalk from 'chalk';
+import chalk, {ChalkInstance} from 'chalk';
 import * as constants from '../constants.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../dependency-injection/container-helper.js';
@@ -13,6 +13,7 @@ import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {type SoloLogger} from './solo-logger.js';
 import {SoloError} from '../errors/solo-error.js';
+import {MessageLevel} from './message-level.js';
 
 /**
  * Pino-based implementation of the SoloLogger interface.
@@ -218,18 +219,39 @@ export class SoloPinoLogger implements SoloLogger {
     this.debug(`Added message to group "${key}": ${message}`);
   }
 
-  public showMessageGroup(key: string): void {
+  public showMessageGroup(key: string, messageLevel: MessageLevel = MessageLevel.INFO): void {
     if (!this.messageGroupMap.has(key)) {
       this.warn(`Message group with key "${key}" does not exist.`);
       return;
     }
-    const messages: string[] = this.messageGroupMap.get(key)!;
-    this.showUser(chalk.green(`\n *** ${messages[0]} ***`));
-    this.showUser(chalk.green(this.MINOR_LINE_SEPARATOR));
-    for (let index: number = 1; index < messages.length; index++) {
-      this.showUser(chalk.cyan(` - ${messages[index]}`));
+
+    let titleColor: ChalkInstance;
+    let textColor: ChalkInstance;
+    switch (messageLevel) {
+      case MessageLevel.ERROR: {
+        titleColor = chalk.red;
+        textColor = chalk.red;
+        break;
+      }
+      case MessageLevel.WARN: {
+        titleColor = chalk.yellow;
+        textColor = chalk.yellow;
+        break;
+      }
+      default: {
+        titleColor = chalk.green;
+        textColor = chalk.cyan;
+        break;
+      }
     }
-    this.showUser(chalk.green(this.MINOR_LINE_SEPARATOR));
+
+    const messages: string[] = this.messageGroupMap.get(key)!;
+    this.showUser(titleColor(`\n *** ${messages[0]} ***`));
+    this.showUser(titleColor(this.MINOR_LINE_SEPARATOR));
+    for (let index: number = 1; index < messages.length; index++) {
+      this.showUser(textColor(` - ${messages[index]}`));
+    }
+    this.showUser(titleColor(this.MINOR_LINE_SEPARATOR));
     this.debug(`Displayed message group "${key}".`);
   }
 
