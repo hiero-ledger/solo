@@ -8,6 +8,7 @@ import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-
 import {ConfigCommand} from './config.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
+import {Flags as flags} from '../flags.js';
 
 @injectable()
 export class ConfigCommandDefinition extends BaseCommandDefinition {
@@ -30,7 +31,7 @@ export class ConfigCommandDefinition extends BaseCommandDefinition {
 
   public static readonly LOGS_FLAGS_LIST = {
     required: [],
-    optional: [],
+    optional: [flags.outputDir],
   };
 
   public getCommandDefinition(): CommandDefinition {
