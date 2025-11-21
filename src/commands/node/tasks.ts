@@ -2982,22 +2982,17 @@ export class NodeCommandTasks {
 
         const k8 = this.k8Factory.getK8(context);
         const container = await k8.containers().readByRef(containerReference);
+        const zipFileName = `${podReference.name}-state.zip`;
 
         const archiveCommand: string =
-          'cd "${states[0]}" && zip -rq "${states[0]}.zip" . && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
-
-        // zip the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
-        const zipFileName = await container.execContainer([
-          'bash',
-          '-c',
-          `cd ${upgradeDirectory} && mapfile -t states < <(ls -1t .) && ${archiveCommand} && echo -n \${states[0]}.zip`,
-        ]);
+          `cd ${constants.HEDERA_HAPI_PATH}/data/saved && zip -rq ${zipFileName} . `;
+        await container.execContainer(['bash', '-c', archiveCommand]);
 
         this.logger.debug(`state zip file to download is = ${zipFileName}`);
         await k8
           .containers()
           .readByRef(containerReference)
-          .copyFrom(`${upgradeDirectory}/${zipFileName}`, config.stagingDir);
+          .copyFrom(`${constants.HEDERA_HAPI_PATH}/data/saved/${zipFileName}`, config.stagingDir);
         config.lastStateZipPath = PathEx.joinWithRealPath(config.stagingDir, zipFileName);
       },
     };
@@ -3011,9 +3006,9 @@ export class NodeCommandTasks {
         const newNodeFullyQualifiedPodName = Templates.renderNetworkPodName(config.nodeAlias);
         const podReference = PodReference.of(config.namespace, newNodeFullyQualifiedPodName);
         const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-        const nodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
-        const savedStateDirectory = config.lastStateZipPath.match(/\/(\d+)\.zip$/)[1];
-        const savedStatePath = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/${nodeId}/123/${savedStateDirectory}`;
+        const sourceNodeId = config.consensusNodes[0].nodeId;
+        const targetNodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+        const savedStatePath = `${constants.HEDERA_HAPI_PATH}/data/saved`;
 
         const context = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
         const k8 = this.k8Factory.getK8(context);
@@ -3023,14 +3018,6 @@ export class NodeCommandTasks {
         await container.execContainer(['bash', '-c', `mkdir -p ${savedStatePath}`]);
         await k8.containers().readByRef(containerReference).copyTo(config.lastStateZipPath, savedStatePath);
 
-        await this.platformInstaller.setPathPermission(
-          podReference,
-          constants.HEDERA_HAPI_PATH,
-          undefined,
-          undefined,
-          undefined,
-          context,
-        );
 
         const extractCommand = `unzip ${path.basename(config.lastStateZipPath)}`;
 
@@ -3040,8 +3027,27 @@ export class NodeCommandTasks {
           .execContainer([
             'bash',
             '-c',
-            `cd ${savedStatePath} && ${extractCommand} && rm -f ${path.basename(config.lastStateZipPath)}`,
+            `cd ${savedStatePath} && ${extractCommand}`,
           ]);
+
+          // Rename node ID directories to match the target node
+          if (sourceNodeId !== targetNodeId) {
+            this.logger.info(
+              `Renaming node ID directories in pod ${podReference.name} from ${sourceNodeId} to ${targetNodeId}`,
+            );
+            const renameScriptName = path.basename(constants.RENAME_STATE_NODE_ID_SCRIPT);
+            const renameScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${renameScriptName}`;
+            await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
+            await container.copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
+            await container.execContainer(['chmod', '+x', renameScriptDestination]);
+            await sleep(Duration.ofSeconds(1));
+            await container.execContainer([
+              renameScriptDestination,
+              constants.HEDERA_HAPI_PATH,
+              sourceNodeId.toString(),
+              targetNodeId.toString(),
+            ]);
+          }
       },
     };
   }
