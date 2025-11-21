@@ -2983,7 +2983,9 @@ export class NodeCommandTasks {
         const config: NodeAddConfigClass = context_.config;
         const nodeAlias: NodeAlias = config.nodeAlias;
         const sourceNodeId: number = config.consensusNodes[0].nodeId;
-        const podReference: PodReference = config.podRefs[nodeAlias];
+
+        // get file name of the first available consensus node
+        const podReference: PodReference = config.podRefs[config.consensusNodes[0].name];
         const zipFileName: string = `${podReference.name}-state.zip`;
 
         const zipFilePath: string = PathEx.joinWithRealPath(SOLO_LOGS_DIR, config.namespace.name, zipFileName);
