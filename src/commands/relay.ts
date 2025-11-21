@@ -443,10 +443,6 @@ export class RelayCommand extends BaseCommand {
               config.namespace,
               Templates.renderRelayLabels(config.id, config.isLegacyChartInstalled ? config.releaseName : undefined),
             );
-          const podName = pods.length > 0 ? pods[0].podReference.name : null;
-          const logs = await this.run(`kubectl logs ${podName} -n ${config.namespace.toString()}`);
-          this.logger.debug(`Relay Pod Logs:\n${logs}`);
-
           throw new SoloError(`Relay ${config.releaseName} is not running: ${error.message}`, error);
         }
         // reset nodeAlias
