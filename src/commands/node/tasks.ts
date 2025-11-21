@@ -10,7 +10,7 @@ import {type ChartManager} from '../../core/chart-manager.js';
 import {type CertificateManager} from '../../core/certificate-manager.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
-import {DEFAULT_NETWORK_NODE_NAME, HEDERA_NODE_DEFAULT_STAKE_AMOUNT, SOLO_LOGS_DIR} from '../../core/constants.js';
+import {DEFAULT_NETWORK_NODE_NAME, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
   AccountBalance,
@@ -1955,7 +1955,7 @@ export class NodeCommandTasks {
   > {
     return {
       title: 'Get consensus node logs and configs',
-      task: async ({config: {namespace, contexts, consensusNodes}}): Promise<void> => {
+      task: async ({config: {namespace, contexts}}): Promise<void> => {
         await container.resolve<NetworkNodes>(NetworkNodes).getLogs(namespace, contexts);
       },
     };
