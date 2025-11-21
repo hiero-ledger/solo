@@ -1143,6 +1143,114 @@ export class NodeCommandTasks {
     };
   }
 
+  /**
+   * Upload state files to a single node
+   * @param nodeAlias - the node alias to upload state to
+   * @param config - the configuration object
+   * @param stateFileDirectory - optional directory containing state files
+   * @param sourceNodeId - the source node ID for renaming purposes
+   */
+  private async uploadStateToSingleNode(
+    nodeAlias: NodeAlias,
+    config: any,
+    stateFileDirectory?: string,
+    sourceNodeId?: number,
+  ): Promise<void> {
+    const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+    const k8 = this.k8Factory.getK8(context);
+    const podReference = config.podRefs[nodeAlias];
+    const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+    const consensusNode = config.consensusNodes.find(node => node.name === nodeAlias);
+    if (!consensusNode) {
+      throw new SoloError(`Consensus node not found for alias: ${nodeAlias}`);
+    }
+    const targetNodeId = consensusNode.nodeId;
+    const container = await k8.containers().readByRef(containerReference);
+
+    // Determine the state file to use
+    let zipFile: string;
+    if (stateFileDirectory && fs.existsSync(stateFileDirectory) && fs.statSync(stateFileDirectory).isDirectory()) {
+      // It's a directory - find the state file for this specific pod
+      const podName = podReference.name.name;
+      const statesDirectory = path.join(stateFileDirectory, context, 'states');
+
+      if (!fs.existsSync(statesDirectory)) {
+        this.logger.info(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
+        return;
+      }
+
+      const stateFiles = fs
+        .readdirSync(statesDirectory)
+        .filter(file => file.startsWith(podName) && file.endsWith('-state.zip'));
+
+      if (stateFiles.length === 0) {
+        this.logger.info(`No state file found for pod ${podName} (node: ${nodeAlias})`);
+        return;
+      }
+
+      zipFile = path.join(statesDirectory, stateFiles[0]);
+      this.logger.info(`Using state file for node ${nodeAlias}: ${stateFiles[0]}`);
+    } else {
+      // It's a single file or use default from config
+      zipFile = stateFileDirectory || config.stateFile;
+    }
+
+    this.logger.debug(`Uploading state files to pod ${podReference.name}`);
+    await container.copyTo(zipFile, `${constants.HEDERA_HAPI_PATH}/data`);
+
+    this.logger.info(
+      `Deleting the previous state files in pod ${podReference.name} directory ${constants.HEDERA_HAPI_PATH}/data/saved`,
+    );
+    await container.execContainer(['bash', '-c', `sudo rm -rf ${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
+    await container.execContainer([
+      'unzip',
+      '-o',
+      `${constants.HEDERA_HAPI_PATH}/data/${path.basename(zipFile)}`,
+      '-d',
+      `${constants.HEDERA_HAPI_PATH}/data/saved`,
+    ]);
+
+    // Fix ownership of extracted state files to hedera user
+    // NOTE: zip doesn't preserve Unix ownership - files are owned by whoever runs unzip (root).
+    // Unlike tar which preserves UID/GID metadata, zip format doesn't store Unix ownership info.
+    // The chown is required so the hedera process can access the extracted state files.
+    this.logger.info(`Fixing ownership of extracted state files in pod ${podReference.name}`);
+    await container.execContainer([
+      'bash',
+      '-c',
+      `sudo chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
+    ]);
+
+    // Clean up old rounds - keep only the latest/biggest round
+    this.logger.info(`Cleaning up old rounds in pod ${podReference.name}, keeping only the latest round`);
+    const cleanupScriptName = path.basename(constants.CLEANUP_STATE_ROUNDS_SCRIPT);
+    const cleanupScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
+    await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
+    await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
+    await container.execContainer(['chmod', '+x', cleanupScriptDestination]);
+    await sleep(Duration.ofSeconds(1));
+    await container.execContainer([cleanupScriptDestination, constants.HEDERA_HAPI_PATH]);
+
+    // Rename node ID directories to match the target node
+    if (sourceNodeId !== undefined && sourceNodeId !== targetNodeId) {
+      this.logger.info(
+        `Renaming node ID directories in pod ${podReference.name} from ${sourceNodeId} to ${targetNodeId}`,
+      );
+      const renameScriptName = path.basename(constants.RENAME_STATE_NODE_ID_SCRIPT);
+      const renameScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${renameScriptName}`;
+      await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
+      await container.copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
+      await container.execContainer(['chmod', '+x', renameScriptDestination]);
+      await sleep(Duration.ofSeconds(1));
+      await container.execContainer([
+        renameScriptDestination,
+        constants.HEDERA_HAPI_PATH,
+        sourceNodeId.toString(),
+        targetNodeId.toString(),
+      ]);
+    }
+  }
+
   public uploadStateFiles(skip: SkipCheck | boolean, stateFileDirectory?: string) {
     const self = this;
     return {
@@ -1154,112 +1262,7 @@ export class NodeCommandTasks {
         const sourceNodeId = config.consensusNodes[0].nodeId;
 
         for (const nodeAlias of context_.config.nodeAliases) {
-          const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
-          const k8 = this.k8Factory.getK8(context);
-          const podReference = context_.config.podRefs[nodeAlias];
-          const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-          const consensusNode = config.consensusNodes.find(node => node.name === nodeAlias);
-          if (!consensusNode) {
-            throw new SoloError(`Consensus node not found for alias: ${nodeAlias}`);
-          }
-          const targetNodeId = consensusNode.nodeId;
-          const container = await k8.containers().readByRef(containerReference);
-
-          const clusterReference: string = consensusNode.cluster;
-
-          // Determine the state file to use
-          let zipFile: string;
-          if (
-            stateFileDirectory &&
-            fs.existsSync(stateFileDirectory) &&
-            fs.statSync(stateFileDirectory).isDirectory()
-          ) {
-            // It's a directory - find the state file for this specific pod
-            const podName = podReference.name.name;
-            const statesDirectory: string = path.join(
-              stateFileDirectory,
-              clusterReference,
-              'states',
-              context_.config.namespace.toString(),
-            );
-            if (!fs.existsSync(statesDirectory)) {
-              self.logger.info(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
-              throw new SoloError(`States directory not found at ${statesDirectory}`);
-            }
-
-            const stateFiles = fs
-              .readdirSync(statesDirectory)
-              .filter(file => file.startsWith(podName) && file.endsWith('-state.zip'));
-
-            if (stateFiles.length === 0) {
-              self.logger.info(`No state file found for pod ${podName} (node: ${nodeAlias})`);
-              throw new SoloError(`State file not found for pod ${podName} in ${statesDirectory}`);
-            }
-
-            zipFile = path.join(statesDirectory, stateFiles[0]);
-            self.logger.info(`Using state file for node ${nodeAlias}: ${stateFiles[0]}`);
-          } else {
-            // It's a single file or use default from config
-            zipFile = stateFileDirectory || config.stateFile;
-          }
-
-          self.logger.debug(`Uploading state files to pod ${podReference.name}`);
-          await container.copyTo(zipFile, `${constants.HEDERA_HAPI_PATH}/data`);
-
-          self.logger.info(
-            `Deleting the previous state files in pod ${podReference.name} directory ${constants.HEDERA_HAPI_PATH}/data/saved`,
-          );
-          await container.execContainer(['bash', '-c', `sudo rm -rf ${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
-          await container.execContainer([
-            'unzip',
-            '-o',
-            `${constants.HEDERA_HAPI_PATH}/data/${path.basename(zipFile)}`,
-            '-d',
-            `${constants.HEDERA_HAPI_PATH}/data/saved`,
-          ]);
-
-          // Fix ownership of extracted state files to hedera user
-          // NOTE: zip doesn't preserve Unix ownership - files are owned by whoever runs unzip (root).
-          // Unlike tar which preserves UID/GID metadata, zip format doesn't store Unix ownership info.
-          // The chown is required so the hedera process can access the extracted state files.
-          self.logger.info(`Fixing ownership of extracted state files in pod ${podReference.name}`);
-          await container.execContainer([
-            'bash',
-            '-c',
-            `sudo chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
-          ]);
-
-          // Clean up old rounds - keep only the latest/biggest round
-          self.logger.info(`Cleaning up old rounds in pod ${podReference.name}, keeping only the latest round`);
-          const cleanupScriptName = path.basename(constants.CLEANUP_STATE_ROUNDS_SCRIPT);
-          const cleanupScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
-          await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
-          await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
-          await sleep(Duration.ofSeconds(1));
-          await container.execContainer(['chmod', '+x', cleanupScriptDestination]);
-          await sleep(Duration.ofSeconds(1));
-          await container.execContainer([cleanupScriptDestination, constants.HEDERA_HAPI_PATH]);
-
-          // Rename node ID directories to match the target node
-          if (sourceNodeId !== targetNodeId) {
-            self.logger.info(
-              `Renaming node ID directories in pod ${podReference.name} from ${sourceNodeId} to ${targetNodeId}`,
-            );
-            const renameScriptName = path.basename(constants.RENAME_STATE_NODE_ID_SCRIPT);
-            const renameScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${renameScriptName}`;
-            await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
-            await container.copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
-            // add sleep delay sometimes immediately executing the script after copying causes "No such file" error
-            await sleep(Duration.ofMillis(100));
-            await container.execContainer(['chmod', '+x', renameScriptDestination]);
-            await sleep(Duration.ofSeconds(1));
-            await container.execContainer([
-              renameScriptDestination,
-              constants.HEDERA_HAPI_PATH,
-              sourceNodeId.toString(),
-              targetNodeId.toString(),
-            ]);
-          }
+          await self.uploadStateToSingleNode(nodeAlias, config, stateFileDirectory, sourceNodeId);
         }
       },
       skip,
@@ -2246,11 +2249,18 @@ export class NodeCommandTasks {
     };
   }
 
-  public getNodeStateFiles(): SoloListrTask<NodeStatesContext> {
+  public getNodeStateFiles(aliasesField: string): SoloListrTask<NodeStatesContext> {
     return {
       title: 'Get node states',
       task: async context_ => {
-        for (const nodeAlias of context_.config.nodeAliases) {
+        // if context_.config[aliasesField] is not iterable, make it an array
+
+        let aliases = context_.config[aliasesField];
+        if (!Array.isArray(aliases)) {
+          aliases = [aliases];
+        }
+        console.log(`aliases = ${JSON.stringify(aliases, null, 2)}`);
+        for (const nodeAlias of aliases) {
           const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
           await container
             .resolve<NetworkNodes>(NetworkNodes)
@@ -2974,83 +2984,29 @@ export class NodeCommandTasks {
     };
   }
 
-  public downloadLastState(): SoloListrTask<NodeAddContext> {
-    return {
-      title: 'Download last state from an existing node',
-      task: async context_ => {
-        const config = context_.config;
-        const node1FullyQualifiedPodName = Templates.renderNetworkPodName(config.existingNodeAliases[0]);
-        const podReference = PodReference.of(config.namespace, node1FullyQualifiedPodName);
-        const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-        const upgradeDirectory = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/0/123`;
-
-        const context = helpers.extractContextFromConsensusNodes(
-          config.existingNodeAliases[0],
-          context_.config.consensusNodes,
-        );
-
-        const k8 = this.k8Factory.getK8(context);
-        const container = await k8.containers().readByRef(containerReference);
-
-        const archiveCommand: string =
-          'cd "${states[0]}" && zip -rq "${states[0]}.zip" . && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
-
-        // zip the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
-        const zipFileName = await container.execContainer([
-          'bash',
-          '-c',
-          `cd ${upgradeDirectory} && mapfile -t states < <(ls -1t .) && ${archiveCommand} && echo -n \${states[0]}.zip`,
-        ]);
-
-        this.logger.debug(`state zip file to download is = ${zipFileName}`);
-        await k8
-          .containers()
-          .readByRef(containerReference)
-          .copyFrom(`${upgradeDirectory}/${zipFileName}`, config.stagingDir);
-        config.lastStateZipPath = PathEx.joinWithRealPath(config.stagingDir, zipFileName);
-      },
-    };
-  }
-
+  /**
+   * Upload the last saved state from the previous network to the new node
+   */
   public uploadStateToNewNode(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Upload last saved state to new network node',
       task: async context_ => {
-        const config = context_.config;
-        const newNodeFullyQualifiedPodName = Templates.renderNetworkPodName(config.nodeAlias);
-        const podReference = PodReference.of(config.namespace, newNodeFullyQualifiedPodName);
-        const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-        const nodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
-        const savedStateDirectory = config.lastStateZipPath.match(/\/(\d+)\.zip$/)[1];
-        const savedStatePath = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/${nodeId}/123/${savedStateDirectory}`;
+        const config: NodeAddConfigClass = context_.config;
 
-        const context = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
-        const k8 = this.k8Factory.getK8(context);
+        // Get the source node ID from the first consensus node (the state file's original node)
+        const sourceNodeId: number = config.consensusNodes[0].nodeId;
 
-        const container = k8.containers().readByRef(containerReference);
+        // Construct the path to the cached state file from the first existing node
+        const firstExistingNode: NodeAlias = config.existingNodeAliases[0];
+        const stateFileName: string = `${Templates.renderNetworkPodName(firstExistingNode)}-state.zip`;
+        const stateFilePath: string = path.join(constants.SOLO_LOGS_DIR, config.namespace.toString(), stateFileName);
 
-        await container.execContainer(['bash', '-c', `mkdir -p ${savedStatePath}`]);
-        await k8.containers().readByRef(containerReference).copyTo(config.lastStateZipPath, savedStatePath);
+        if (!fs.existsSync(stateFilePath)) {
+          throw new SoloError(`State file not found: ${stateFileName}. Expected at ${stateFilePath}`);
+        }
 
-        await this.platformInstaller.setPathPermission(
-          podReference,
-          constants.HEDERA_HAPI_PATH,
-          undefined,
-          undefined,
-          undefined,
-          context,
-        );
-
-        const extractCommand = `unzip ${path.basename(config.lastStateZipPath)}`;
-
-        await k8
-          .containers()
-          .readByRef(containerReference)
-          .execContainer([
-            'bash',
-            '-c',
-            `cd ${savedStatePath} && ${extractCommand} && rm -f ${path.basename(config.lastStateZipPath)}`,
-          ]);
+        // Use the generic uploadStateToSingleNode function directly with the state file
+        await this.uploadStateToSingleNode(config.nodeAlias, config, stateFilePath, sourceNodeId);
       },
     };
   }
