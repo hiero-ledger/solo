@@ -10,7 +10,7 @@ import {type ChartManager} from '../../core/chart-manager.js';
 import {type CertificateManager} from '../../core/certificate-manager.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
-import {DEFAULT_NETWORK_NODE_NAME, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
+import {DEFAULT_NETWORK_NODE_NAME, HEDERA_NODE_DEFAULT_STAKE_AMOUNT, SOLO_LOGS_DIR} from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
   AccountBalance,
@@ -2244,11 +2244,15 @@ export class NodeCommandTasks {
     };
   }
 
-  public getNodeStateFiles(): SoloListrTask<NodeStatesContext> {
+  public getNodeStateFiles(aliasesField: string): SoloListrTask<NodeStatesContext> {
     return {
       title: 'Get node states',
       task: async context_ => {
-        for (const nodeAlias of context_.config.nodeAliases) {
+        let aliases = context_.config[aliasesField];
+        if (!Array.isArray(aliases)) {
+          aliases = [aliases];
+        }
+        for (const nodeAlias of aliases) {
           const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
           await container
             .resolve<NetworkNodes>(NetworkNodes)
@@ -2972,47 +2976,18 @@ export class NodeCommandTasks {
     };
   }
 
-  public downloadLastState(): SoloListrTask<NodeAddContext> {
-    return {
-      title: 'Download last state from an existing node',
-      task: async context_ => {
-        const config = context_.config;
-        const node1FullyQualifiedPodName = Templates.renderNetworkPodName(config.existingNodeAliases[0]);
-        const podReference = PodReference.of(config.namespace, node1FullyQualifiedPodName);
-        const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-        const upgradeDirectory = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/0/123`;
-
-        const context = helpers.extractContextFromConsensusNodes(
-          config.existingNodeAliases[0],
-          context_.config.consensusNodes,
-        );
-
-        const k8 = this.k8Factory.getK8(context);
-        const container = await k8.containers().readByRef(containerReference);
-        const zipFileName = `${podReference.name}-state.zip`;
-
-        const archiveCommand: string = `cd ${constants.HEDERA_HAPI_PATH}/data/saved && zip -rq ${zipFileName} . `;
-        await container.execContainer(['bash', '-c', archiveCommand]);
-
-        this.logger.debug(`state zip file to download is = ${zipFileName}`);
-        await k8
-          .containers()
-          .readByRef(containerReference)
-          .copyFrom(`${constants.HEDERA_HAPI_PATH}/data/saved/${zipFileName}`, config.stagingDir);
-        config.lastStateZipPath = PathEx.joinWithRealPath(config.stagingDir, zipFileName);
-      },
-    };
-  }
-
   public uploadStateToNewNode(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Upload last saved state to new network node',
       task: async context_ => {
-        const config = context_.config;
-        const nodeAlias = config.nodeAlias;
-        const sourceNodeId = config.consensusNodes[0].nodeId;
-        const zipFile = config.lastStateZipPath;
-        await this.uploadStateToSingleNode(nodeAlias, config, zipFile, sourceNodeId);
+        const config: NodeAddConfigClass = context_.config;
+        const nodeAlias: NodeAlias = config.nodeAlias;
+        const sourceNodeId: number = config.consensusNodes[0].nodeId;
+        const podReference: PodReference = config.podRefs[nodeAlias];
+        const zipFileName: string = `${podReference.name}-state.zip`;
+
+        const zipFilePath: string = PathEx.joinWithRealPath(SOLO_LOGS_DIR, config.namespace.name, zipFileName);
+        await this.uploadStateToSingleNode(nodeAlias, config, zipFilePath, sourceNodeId);
       },
     };
   }
