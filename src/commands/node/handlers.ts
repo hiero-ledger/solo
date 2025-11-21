@@ -31,7 +31,6 @@ import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api
 import {ComponentsDataWrapperApi} from '../../core/config/remote/api/components-data-wrapper-api.js';
 import {LedgerPhase} from '../../data/schema/model/remote/ledger-phase.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
-import {type ConfigCommandTasks} from '../config/tasks.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -41,7 +40,6 @@ export class NodeCommandHandlers extends CommandHandler {
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.NodeCommandTasks) private readonly tasks: NodeCommandTasks,
     @inject(InjectTokens.NodeCommandConfigs) private readonly configs: NodeCommandConfigs,
-    @inject(InjectTokens.ConfigCommandTasks) private readonly configTasks: ConfigCommandTasks,
   ) {
     super();
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
@@ -49,7 +47,6 @@ export class NodeCommandHandlers extends CommandHandler {
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.tasks = patchInject(tasks, InjectTokens.NodeCommandTasks, this.constructor.name);
-    this.configTasks = patchInject(configTasks, InjectTokens.ConfigCommandTasks, this.constructor.name);
   }
 
   private static readonly ADD_CONTEXT_FILE = 'node-add.json';
@@ -622,7 +619,7 @@ export class NodeCommandHandlers extends CommandHandler {
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
         this.tasks.getNodeLogsAndConfigs(),
-        this.configTasks.downloadNonConsensusNodeLogs(outputDirectory),
+        this.tasks.downloadNonConsensusNodeLogs(outputDirectory),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in downloading logs from nodes',
