@@ -3018,6 +3018,7 @@ export class NodeCommandTasks {
         const config = context_.config;
         const nodeAlias = config.nodeAlias;
         const sourceNodeId = config.consensusNodes[0].nodeId;
+        const zipFile = config.lastStateZipPath;
         const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
         const k8 = this.k8Factory.getK8(context);
         const podReference = config.podRefs[nodeAlias];
@@ -3028,14 +3029,14 @@ export class NodeCommandTasks {
         }
         const targetNodeId = consensusNode.nodeId;
         const container = await k8.containers().readByRef(containerReference);
-        const savedStatePath = `${constants.HEDERA_HAPI_PATH}/data/saved`;
 
-        await container.execContainer(['bash', '-c', `mkdir -p ${savedStatePath}`]);
-        await k8.containers().readByRef(containerReference).copyTo(config.lastStateZipPath, savedStatePath);
+        const targetDirectory = `${constants.HEDERA_HAPI_PATH}/data/saved`;
+        await container.execContainer(['mkdir', '-p', targetDirectory]);
+        await container.copyTo(zipFile, `${targetDirectory}`);
 
-        const extractCommand = `unzip ${path.basename(config.lastStateZipPath)}`;
+        const extractCommand = `unzip ${path.basename(zipFile)}`;
 
-        await container.execContainer(['bash', '-c', `cd ${savedStatePath} && ${extractCommand}`]);
+        await container.execContainer(['bash', '-c', `cd ${targetDirectory} && ${extractCommand}`]);
 
         // Fix ownership of extracted state files to hedera user
         // NOTE: zip doesn't preserve Unix ownership - files are owned by whoever runs unzip (root).
