@@ -3016,27 +3016,26 @@ export class NodeCommandTasks {
       title: 'Upload last saved state to new network node',
       task: async context_ => {
         const config = context_.config;
-        const newNodeFullyQualifiedPodName = Templates.renderNetworkPodName(config.nodeAlias);
-        const podReference = PodReference.of(config.namespace, newNodeFullyQualifiedPodName);
-        const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+        const nodeAlias = config.nodeAlias;
         const sourceNodeId = config.consensusNodes[0].nodeId;
-        const targetNodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
-        const savedStatePath = `${constants.HEDERA_HAPI_PATH}/data/saved`;
-
-        const context = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+        const context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
         const k8 = this.k8Factory.getK8(context);
-
-        const container = k8.containers().readByRef(containerReference);
+        const podReference = config.podRefs[nodeAlias];
+        const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+        const consensusNode = config.consensusNodes.find(node => node.name === nodeAlias);
+        if (!consensusNode) {
+          throw new SoloError(`Consensus node not found for alias: ${nodeAlias}`);
+        }
+        const targetNodeId = consensusNode.nodeId;
+        const container = await k8.containers().readByRef(containerReference);
+        const savedStatePath = `${constants.HEDERA_HAPI_PATH}/data/saved`;
 
         await container.execContainer(['bash', '-c', `mkdir -p ${savedStatePath}`]);
         await k8.containers().readByRef(containerReference).copyTo(config.lastStateZipPath, savedStatePath);
 
         const extractCommand = `unzip ${path.basename(config.lastStateZipPath)}`;
 
-        await k8
-          .containers()
-          .readByRef(containerReference)
-          .execContainer(['bash', '-c', `cd ${savedStatePath} && ${extractCommand}`]);
+        await container.execContainer(['bash', '-c', `cd ${savedStatePath} && ${extractCommand}`]);
 
         // Fix ownership of extracted state files to hedera user
         // NOTE: zip doesn't preserve Unix ownership - files are owned by whoever runs unzip (root).
