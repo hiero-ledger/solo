@@ -33,6 +33,7 @@ import {Deployment} from '../business/runtime-state/config/local/deployment.js';
 import {CommandFlags} from '../types/flag-types.js';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 import {type FacadeArray} from '../business/runtime-state/collection/facade-array.js';
+import {remoteConfigsToDeploymentsTable} from '../core/helpers.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -289,6 +290,7 @@ export class DeploymentCommand extends BaseCommand {
         self.checkNetworkState(),
         self.testClusterConnection(),
         self.verifyClusterAddPrerequisites(),
+        self.checkForExistingDeployments(),
         self.addClusterRefToDeployments(),
         self.createOrEditRemoteConfigForNewDeployment(argv),
       ],
@@ -553,6 +555,15 @@ export class DeploymentCommand extends BaseCommand {
     };
   }
 
+  public checkForExistingDeployments(): SoloListrTask<DeploymentAddClusterContext> {
+    return {
+      title: 'Check for other deployments',
+      task: async (): Promise<void> => {
+        await this.showExistingDeploymentsInCluster();
+      },
+    };
+  }
+
   /**
    * Adds the new cluster-ref for the deployment in local config
    */
@@ -623,5 +634,23 @@ export class DeploymentCommand extends BaseCommand {
             ));
       },
     };
+  }
+
+  /** Show list of existing deployments in the cluster */
+  private async showExistingDeploymentsInCluster(): Promise<void> {
+    const existingRemoteConfigs: ConfigMap[] = await this.k8Factory
+      .default()
+      .configMaps()
+      .listForAllNamespaces(Templates.renderConfigMapRemoteConfigLabels());
+
+    if (existingRemoteConfigs) {
+      const messageGroupName: string = 'existing-deployments';
+      this.logger.addMessageGroup(messageGroupName, 'Detected deployments in cluster');
+      const existingDeploymentsRows: string[] = remoteConfigsToDeploymentsTable(existingRemoteConfigs);
+      for (const row of existingDeploymentsRows) {
+        this.logger.addMessageGroupMessage(messageGroupName, row);
+      }
+      this.logger.showMessageGroup(messageGroupName);
+    }
   }
 }

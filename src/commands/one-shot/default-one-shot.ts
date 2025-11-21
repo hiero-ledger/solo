@@ -46,11 +46,13 @@ import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import fs from 'node:fs';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
-import {createDirectoryIfNotExists, entityId} from '../../core/helpers.js';
+import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable} from '../../core/helpers.js';
 import yaml from 'yaml';
 import {BlockCommandDefinition} from '../command-definitions/block-command-definition.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
+import {Templates} from '../../core/templates.js';
+import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -234,15 +236,19 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               context_: OneShotSingleDeployContext,
               task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
             ): Promise<void> => {
-              const existingRemoteConfigs = await this.k8Factory
+              const existingRemoteConfigs: ConfigMap[] = await this.k8Factory
                 .default()
                 .configMaps()
-                .listForAllNamespaces(['solo.hedera.com/type=remote-config']);
+                .listForAllNamespaces(Templates.renderConfigMapRemoteConfigLabels());
               if (existingRemoteConfigs.length > 0) {
+                const existingDeploymentsTable: string[] = remoteConfigsToDeploymentsTable(existingRemoteConfigs);
                 const promptOptions = {
                   default: false,
                   message:
-                    '⚠️  Warning: Existing solo deployment detected. Creating another deployment will require additional CPU and memory resources. Do you want to proceed and create another deployment?',
+                    '⚠️ Warning: Existing solo deployment detected.\n\n' +
+                    existingDeploymentsTable.join('\n') +
+                    '\n\nCreating another deployment will require additional' +
+                    ' CPU and memory resources. Do you want to proceed and create another deployment?',
                 };
                 const proceed: boolean = await task
                   .prompt(ListrInquirerPromptAdapter)
