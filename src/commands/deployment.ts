@@ -34,6 +34,7 @@ import {CommandFlags} from '../types/flag-types.js';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 import {type FacadeArray} from '../business/runtime-state/collection/facade-array.js';
 import {remoteConfigsToDeploymentsTable} from '../core/helpers.js';
+import {MessageLevel} from '../core/logging/message-level.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -650,7 +651,7 @@ export class DeploymentCommand extends BaseCommand {
       for (const row of existingDeploymentsRows) {
         this.logger.addMessageGroupMessage(messageGroupName, row);
       }
-      this.logger.showMessageGroup(messageGroupName);
+      this.logger.showMessageGroup(messageGroupName, MessageLevel.WARN);
     }
   }
 }
