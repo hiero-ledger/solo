@@ -1165,6 +1165,8 @@ export class NodeCommandTasks {
           const targetNodeId = consensusNode.nodeId;
           const container = await k8.containers().readByRef(containerReference);
 
+          const clusterReference: string = consensusNode.cluster;
+
           // Determine the state file to use
           let zipFile: string;
           if (
@@ -1174,11 +1176,15 @@ export class NodeCommandTasks {
           ) {
             // It's a directory - find the state file for this specific pod
             const podName = podReference.name.name;
-            const statesDirectory = path.join(stateFileDirectory, context, 'states');
-
+            const statesDirectory: string = path.join(
+              stateFileDirectory,
+              clusterReference,
+              'states',
+              context_.config.namespace.toString(),
+            );
             if (!fs.existsSync(statesDirectory)) {
               self.logger.info(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
-              continue;
+              throw new SoloError(`States directory not found at ${statesDirectory}`);
             }
 
             const stateFiles = fs
@@ -1187,7 +1193,7 @@ export class NodeCommandTasks {
 
             if (stateFiles.length === 0) {
               self.logger.info(`No state file found for pod ${podName} (node: ${nodeAlias})`);
-              continue;
+              throw new SoloError(`State file not found for pod ${podName} in ${statesDirectory}`);
             }
 
             zipFile = path.join(statesDirectory, stateFiles[0]);
@@ -1229,6 +1235,7 @@ export class NodeCommandTasks {
           const cleanupScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
           await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
           await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
+          await sleep(Duration.ofSeconds(1));
           await container.execContainer(['chmod', '+x', cleanupScriptDestination]);
           await sleep(Duration.ofSeconds(1));
           await container.execContainer([cleanupScriptDestination, constants.HEDERA_HAPI_PATH]);
@@ -1242,6 +1249,8 @@ export class NodeCommandTasks {
             const renameScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${renameScriptName}`;
             await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
             await container.copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
+            // add sleep delay sometimes immediately executing the script after copying causes "No such file" error
+            await sleep(Duration.ofMillis(100));
             await container.execContainer(['chmod', '+x', renameScriptDestination]);
             await sleep(Duration.ofSeconds(1));
             await container.execContainer([

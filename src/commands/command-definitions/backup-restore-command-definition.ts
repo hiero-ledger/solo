@@ -33,7 +33,9 @@ export class BackupRestoreCommandDefinition extends BaseCommandDefinition {
   private static readonly SUBCOMMAND_DESCRIPTION = 'Configuration backup and restore operations';
 
   public static readonly BACKUP_COMMAND = 'backup';
-  public static readonly RESTORE_COMMAND = 'restore';
+  public static readonly RESTORE_CONFIG_COMMAND = 'restore-config';
+  public static readonly RESTORE_CLUSTERS_COMMAND = 'restore-clusters';
+  public static readonly RESTORE_NETWORK_COMMAND = 'restore-network';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -59,12 +61,36 @@ export class BackupRestoreCommandDefinition extends BaseCommandDefinition {
           )
           .addSubcommand(
             new Subcommand(
-              BackupRestoreCommandDefinition.RESTORE_COMMAND,
-              'Display restore plan for all component configurations of a deployment. ' +
-                'Shows what files and configurations would be restored without performing the actual restore.',
+              BackupRestoreCommandDefinition.RESTORE_CONFIG_COMMAND,
+              'Restore component configurations from backup. ' +
+                'Imports ConfigMaps, Secrets, logs, and state files for a running deployment.',
               this.backupRestoreCommand,
-              this.backupRestoreCommand.restore,
-              BackupRestoreCommand.RESTORE_FLAGS_LIST,
+              this.backupRestoreCommand.restoreConfig,
+              BackupRestoreCommand.RESTORE_CONFIG_FLAGS_LIST,
+              [],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              BackupRestoreCommandDefinition.RESTORE_CLUSTERS_COMMAND,
+              'Restore Kind clusters from backup directory structure. ' +
+                'Creates clusters, sets up Docker network, installs MetalLB, and initializes cluster configurations. ' +
+                'Does not deploy network components.',
+              this.backupRestoreCommand,
+              this.backupRestoreCommand.restoreClusters,
+              BackupRestoreCommand.RESTORE_CLUSTERS_FLAGS_LIST,
+              [],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              BackupRestoreCommandDefinition.RESTORE_NETWORK_COMMAND,
+              'Deploy network components to existing clusters from backup. ' +
+                'Deploys consensus nodes, block nodes, mirror nodes, explorers, and relay nodes. ' +
+                'Requires clusters to be already created (use restore-clusters first).',
+              this.backupRestoreCommand,
+              this.backupRestoreCommand.restoreNetwork,
+              BackupRestoreCommand.RESTORE_NETWORK_FLAGS_LIST,
               [],
             ),
           ),
