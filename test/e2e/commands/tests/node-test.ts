@@ -35,6 +35,7 @@ import {
 } from '@hiero-ledger/sdk';
 import {type BaseTestOptions} from './base-test-options.js';
 import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
+import {DeploymentCommandDefinition} from '../../../../src/commands/command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../../../../src/commands/command-definitions/keys-command-definition.js';
 import {type NodeAlias} from '../../../../src/types/aliases.js';
 import {sleep} from '../../../../src/core/helpers.js';
@@ -222,9 +223,9 @@ export class NodeTest extends BaseCommandTest {
 
     const argv: string[] = newArgv();
     argv.push(
-      ConsensusCommandDefinition.COMMAND_NAME,
-      ConsensusCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
-      ConsensusCommandDefinition.DIAGNOSTIC_CONNECTIONS,
+      DeploymentCommandDefinition.COMMAND_NAME,
+      DeploymentCommandDefinition.DIAGNOSTIC_SUBCOMMAND_NAME,
+      DeploymentCommandDefinition.DIAGNOSTIC_CONNECTIONS,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(flags.quiet),

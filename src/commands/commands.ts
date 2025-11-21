@@ -17,7 +17,6 @@ import {DeploymentCommandDefinition} from './command-definitions/deployment-comm
 import {RelayCommandDefinition} from './command-definitions/relay-command-definition.js';
 import {RapidFireCommandDefinition} from './command-definitions/rapid-fire-command-definition.js';
 import {BackupRestoreCommandDefinition} from './command-definitions/backup-restore-command-definition.js';
-import {ConfigCommandDefinition} from './config/command-definition.js';
 
 /**
  * Return a list of Yargs command builder to be exposed through CLI
@@ -41,7 +40,6 @@ export class Commands {
     @inject(InjectTokens.RelayCommandDefinition) private readonly relay?: RelayCommandDefinition,
     @inject(InjectTokens.OneShotCommandDefinition) private readonly oneShot?: OneShotCommandDefinition,
     @inject(InjectTokens.RapidFireCommandDefinition) private readonly rapidFire?: RapidFireCommandDefinition,
-    @inject(InjectTokens.ConfigCommandDefinition) private readonly config?: ConfigCommandDefinition,
   ) {
     this.init = patchInject(init, InjectTokens.InitCommand, this.constructor.name);
     this.backupRestore = patchInject(backupRestore, InjectTokens.BackupRestoreCommandDefinition, this.constructor.name);
@@ -55,7 +53,6 @@ export class Commands {
     this.mirror = patchInject(mirror, InjectTokens.MirrorCommandDefinition, this.constructor.name);
     this.oneShot = patchInject(oneShot, InjectTokens.OneShotCommandDefinition, this.constructor.name);
     this.rapidFire = patchInject(rapidFire, InjectTokens.RapidFireCommandDefinition, this.constructor.name);
-    this.config = patchInject(config, InjectTokens.ConfigCommandDefinition, this.constructor.name);
   }
 
   public getCommandDefinitions(): CommandDefinition[] {
@@ -73,7 +70,6 @@ export class Commands {
       this.relay.getCommandDefinition(),
       this.oneShot.getCommandDefinition(),
       this.rapidFire.getCommandDefinition(),
-      this.config.getCommandDefinition(),
     ];
   }
 }
