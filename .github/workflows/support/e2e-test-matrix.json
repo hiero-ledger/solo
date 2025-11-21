@@ -6,7 +6,7 @@
     "coverage-report-name": "E2E_Quick_Start_Single_Podman_Tests_Coverage_Report",
     "local-java-build": false,
     "solo-install-dependencies": true,
-    "runner": "ubuntu-24.04-4core"
+    "runner": "ubuntu-24.04-large"
   },
   {
     "name": "One Shot Single",
