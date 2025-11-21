@@ -245,7 +245,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 const promptOptions = {
                   default: false,
                   message:
-                    '⚠️ Warning: Existing solo deployment detected.\n\n' +
+                    '⚠️ Warning: Existing solo deployment detected in cluster.\n\n' +
                     existingDeploymentsTable.join('\n') +
                     '\n\nCreating another deployment will require additional' +
                     ' CPU and memory resources. Do you want to proceed and create another deployment?',
