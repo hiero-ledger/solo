@@ -3016,8 +3016,67 @@ export class NodeCommandTasks {
       title: 'Upload last saved state to new network node',
       task: async context_ => {
         const config = context_.config;
+        const newNodeFullyQualifiedPodName = Templates.renderNetworkPodName(config.nodeAlias);
+        const podReference = PodReference.of(config.namespace, newNodeFullyQualifiedPodName);
+        const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
         const sourceNodeId = config.consensusNodes[0].nodeId;
-        await this.uploadStateToSingleNode(config.nodeAlias, config, config.lastStateZipPath, sourceNodeId);
+        const targetNodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+        const savedStatePath = `${constants.HEDERA_HAPI_PATH}/data/saved`;
+
+        const context = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+        const k8 = this.k8Factory.getK8(context);
+
+        const container = k8.containers().readByRef(containerReference);
+
+        await container.execContainer(['bash', '-c', `mkdir -p ${savedStatePath}`]);
+        await k8.containers().readByRef(containerReference).copyTo(config.lastStateZipPath, savedStatePath);
+
+        const extractCommand = `unzip ${path.basename(config.lastStateZipPath)}`;
+
+        await k8
+          .containers()
+          .readByRef(containerReference)
+          .execContainer(['bash', '-c', `cd ${savedStatePath} && ${extractCommand}`]);
+
+        // Fix ownership of extracted state files to hedera user
+        // NOTE: zip doesn't preserve Unix ownership - files are owned by whoever runs unzip (root).
+        // Unlike tar which preserves UID/GID metadata, zip format doesn't store Unix ownership info.
+        // The chown is required so the hedera process can access the extracted state files.
+        this.logger.info(`Fixing ownership of extracted state files in pod ${podReference.name}`);
+        await container.execContainer([
+          'bash',
+          '-c',
+          `sudo chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
+        ]);
+
+        // Clean up old rounds - keep only the latest/biggest round
+        this.logger.info(`Cleaning up old rounds in pod ${podReference.name}, keeping only the latest round`);
+        const cleanupScriptName = path.basename(constants.CLEANUP_STATE_ROUNDS_SCRIPT);
+        const cleanupScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
+        await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
+        await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
+        await container.execContainer(['chmod', '+x', cleanupScriptDestination]);
+        await sleep(Duration.ofSeconds(1));
+        await container.execContainer([cleanupScriptDestination, constants.HEDERA_HAPI_PATH]);
+
+        // Rename node ID directories to match the target node
+        if (sourceNodeId !== targetNodeId) {
+          this.logger.info(
+            `Renaming node ID directories in pod ${podReference.name} from ${sourceNodeId} to ${targetNodeId}`,
+          );
+          const renameScriptName = path.basename(constants.RENAME_STATE_NODE_ID_SCRIPT);
+          const renameScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${renameScriptName}`;
+          await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
+          await container.copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
+          await container.execContainer(['chmod', '+x', renameScriptDestination]);
+          await sleep(Duration.ofSeconds(1));
+          await container.execContainer([
+            renameScriptDestination,
+            constants.HEDERA_HAPI_PATH,
+            sourceNodeId.toString(),
+            targetNodeId.toString(),
+          ]);
+        }
       },
     };
   }
