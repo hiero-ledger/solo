@@ -59,7 +59,6 @@ tasks:
       - task: "mutate:node-update-example"
       - task: "mutate:one-shot-falcon-example"
       - task: "mutate:rapid-fire-example"
-      - task: "mutate:running-solo-inside-cluster-example"
       - task: "mutate:state-save-and-restore-example"
       - task: "mutate:multicluster-backup-restore-example"
       - task: "mutate:version-upgrade-test-example"

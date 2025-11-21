@@ -9,6 +9,20 @@ This example demonstrates how to create and manage a custom Hiero Hashgraph Solo
 * **Supports local development and testing** of Hedera network features
 * **Can be extended** to include mirror nodes, explorers, and relays
 
+## Getting This Example
+
+### Download Archive
+
+You can download this example as a standalone archive from the [Solo releases page](https://github.com/hiero-ledger/solo/releases):
+
+```
+https://github.com/hiero-ledger/solo/releases/download/<release_version>/example-custom-network-config.zip
+```
+
+### View on GitHub
+
+Browse the source code and configuration files for this example in the [GitHub repository](https://github.com/hiero-ledger/solo/tree/main/examples/custom-network-config).
+
 ## How to Use
 
 1. **Install dependencies:**

@@ -11,6 +11,20 @@ This example demonstrates how to use the node add-prepare/prepare-upgrade/freeze
 * Runs `solo node delete-execute` to configure the network to stop using the deleted node, then restarts the network to come out of the freeze and run with the new configurations
 * Contains the destroy commands to bring down the network if desired
 
+## Getting This Example
+
+### Download Archive
+
+You can download this example as a standalone archive from the [Solo releases page](https://github.com/hiero-ledger/solo/releases):
+
+```
+https://github.com/hiero-ledger/solo/releases/download/<release_version>/example-node-delete-transaction.zip
+```
+
+### View on GitHub
+
+Browse the source code and configuration files for this example in the [GitHub repository](https://github.com/hiero-ledger/solo/tree/main/examples/node-delete-transaction).
+
 ## How to Use
 
 1. **Install dependencies:**

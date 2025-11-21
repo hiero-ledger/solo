@@ -42,7 +42,6 @@ module:
         - node-update-transaction.md
         - one-shot-falcon.md
         - rapid-fire.md
-        - running-solo-inside-cluster.md
         - state-save-and-restore.md
         - version-upgrade-test.md
         - multicluster-backup-restore.md
