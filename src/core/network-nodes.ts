@@ -148,11 +148,15 @@ export class NetworkNodes {
       const k8 = this.k8Factory.getK8(context);
 
       // Zip doesn't have a -C flag like tar, so we use sh -c with subshell to change directory
+      // Add sync to ensure file is fully written to disk before proceeding
       await k8
         .containers()
         .readByRef(containerReference)
-        .execContainer(['sh', '-c', `(cd ${HEDERA_HAPI_PATH}/data/saved && zip -r ${zipfilleName} .)`]);
-      await sleep(Duration.ofSeconds(1));
+        .execContainer(['sh', '-c', `(cd ${HEDERA_HAPI_PATH}/data/saved && zip -r ${zipfilleName} . && sync && test -f ${zipfilleName})`]);
+      
+      // Additional wait to ensure filesystem has fully committed the file
+      await sleep(Duration.ofSeconds(2));
+      
       await k8.containers().readByRef(containerReference).copyFrom(`${zipfilleName}`, targetDirectory);
     } catch (error: Error | unknown) {
       this.logger.error(`failed to download state ${zipfilleName} from pod ${podReference.name}`, error);
