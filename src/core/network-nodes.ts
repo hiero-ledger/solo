@@ -151,7 +151,11 @@ export class NetworkNodes {
       await k8
         .containers()
         .readByRef(containerReference)
-        .execContainer(['sh', '-c', `(cd ${HEDERA_HAPI_PATH}/data/saved && zip -r ${zipfilleName} .)`]);
+        .execContainer([
+          'sh',
+          '-c',
+          `(cd ${HEDERA_HAPI_PATH}/data/saved && zip -r ${zipfilleName} . && sync && test -f ${zipfilleName})`,
+        ]);
       await sleep(Duration.ofSeconds(1));
       await k8.containers().readByRef(containerReference).copyFrom(`${zipfilleName}`, targetDirectory);
     } catch (error: Error | unknown) {

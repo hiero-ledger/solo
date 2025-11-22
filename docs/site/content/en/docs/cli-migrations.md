@@ -120,5 +120,5 @@ type: docs
 | node prepare-upgrade            | consensus dev-freeze prepare-upgrade          |
 | node freeze-upgrade             | consensus dev-freeze freeze-upgrade           |
 | node download-generated-files   | consensus diagnostic configs                  |
-| node logs                       | consensus diagnostics logs                    |
+| node logs                       | deployment diagnostics logs                    |
 | node states                     | consensus state download                      |
