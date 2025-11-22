@@ -567,7 +567,7 @@ export class NodeTest extends BaseCommandTest {
     const {testName} = options;
     const {soloDiagnosticsConnectionsArgv} = NodeTest;
 
-    it(`${testName}: consensus diagnostics connections`, async (): Promise<void> => {
+    it(`${testName}: deployment diagnostics connections`, async (): Promise<void> => {
       await main(soloDiagnosticsConnectionsArgv(options));
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
