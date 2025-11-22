@@ -156,13 +156,14 @@ export class Templates {
     dep: string,
     osPlatform: NodeJS.Platform | string = os.platform(),
     installationDirectory: string = PathEx.join(constants.SOLO_HOME_DIR, 'bin'),
-  ) {
+  ): string {
     switch (dep) {
       case constants.HELM:
       case constants.KIND:
       case constants.PODMAN:
       case constants.VFKIT:
       case constants.GVPROXY:
+      case constants.CURL:
       case constants.KUBECTL: {
         if (osPlatform === constants.OS_WINDOWS) {
           return PathEx.join(installationDirectory, `${dep}.exe`);

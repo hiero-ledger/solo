@@ -29,15 +29,15 @@ import {v4 as uuidv4} from 'uuid';
 import {
   type ClusterReferenceName,
   type ClusterReferences,
+  type ComponentId,
   type Context,
   type DeploymentName,
+  type PrivateKeyAndCertificateObject,
   type Realm,
   type Shard,
-  type PrivateKeyAndCertificateObject,
   type SoloListr,
   type SoloListrTask,
   type SoloListrTaskWrapper,
-  type ComponentId,
 } from '../types/index.js';
 import {Base64} from 'js-base64';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
@@ -66,6 +66,7 @@ import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {Version} from '../business/utils/version.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
+import * as versions from '../../version.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -129,6 +130,7 @@ export interface NetworkDeployConfigClass {
   podLog: string;
   singleUseServiceMonitor: string;
   singleUsePodLog: string;
+  enableMonitoringSupport: boolean;
 }
 
 interface NetworkDeployContext {
@@ -225,6 +227,7 @@ export class NetworkCommand extends BaseCommand {
       flags.blockNodeCfg,
       flags.serviceMonitor,
       flags.podLog,
+      flags.enableMonitoringSupport,
     ],
   };
 
@@ -392,7 +395,7 @@ export class NetworkCommand extends BaseCommand {
     // prepare values files for each cluster
     const valuesArgumentMap: Record<ClusterReferenceName, string> = {};
     const profileName: string = this.configManager.getFlag(flags.profileName);
-    const deploymentName: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+    const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
     const applicationPropertiesPath: string = PathEx.joinWithRealPath(
       config.cacheDir,
       'templates',
@@ -666,6 +669,12 @@ export class NetworkCommand extends BaseCommand {
       }
     }
 
+    if (config.enableMonitoringSupport) {
+      for (const clusterReference of clusterReferences) {
+        valuesArguments[clusterReference] += ' --set "crs.podLog.enabled=true" --set "crs.serviceMonitor.enabled=true"';
+      }
+    }
+
     return valuesArguments;
   }
 
@@ -788,8 +797,8 @@ export class NetworkCommand extends BaseCommand {
     const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
     const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
 
-    const networkNodeVersion = new SemVer(config.releaseTag);
-    const minimumVersionForNonZeroRealms = new SemVer('0.60.0');
+    const networkNodeVersion: SemVer = new SemVer(config.releaseTag);
+    const minimumVersionForNonZeroRealms: SemVer = new SemVer('0.60.0');
     if ((realm !== 0 || shard !== 0) && SemVersionLessThan(networkNodeVersion, minimumVersionForNonZeroRealms)) {
       throw new SoloError(
         `The realm and shard values must be 0 when using the ${minimumVersionForNonZeroRealms} version of the network node`,
@@ -937,6 +946,101 @@ export class NetworkCommand extends BaseCommand {
     await Promise.all(promises);
   }
 
+  private async crdExists(context: string, crdName: string): Promise<boolean> {
+    return await this.k8Factory.getK8(context).crds().ifExists(crdName);
+  }
+
+  /**
+   * Ensure the PodLogs CRD from Grafana Alloy is installed
+   */
+  private async ensurePodLogsCrd({contexts}: NetworkDeployConfigClass): Promise<void> {
+    const PODLOGS_CRD: string = 'podlogs.monitoring.grafana.com';
+    const CRD_URL: string = `https://raw.githubusercontent.com/grafana/alloy/${versions.GRAFANA_PODLOGS_CRD_VERSION}/operations/helm/charts/alloy/charts/crds/crds/monitoring.grafana.com_podlogs.yaml`;
+
+    for (const context of contexts as string[]) {
+      const exists: boolean = await this.crdExists(context, PODLOGS_CRD);
+      if (exists) {
+        this.logger.debug(`CRD ${PODLOGS_CRD} already exists in context ${context}`);
+        continue;
+      }
+
+      this.logger.info(`Installing missing CRD ${PODLOGS_CRD} from ${CRD_URL} in context ${context}...`);
+
+      const temporaryFile: string = PathEx.join('/tmp', 'podlogs-crd.yaml');
+
+      // download YAML from GitHub
+      const curlCommand: string = `curl -fsSL ${CRD_URL} -o ${temporaryFile}`;
+      await this.run(curlCommand);
+
+      await this.k8Factory.getK8(context).crds().applyManifest(temporaryFile);
+
+      // apply CRD YAML to the current K8s context
+      const kubectlCommand: string = `kubectl apply -f ${temporaryFile} --context ${context}`;
+      await this.run(kubectlCommand);
+    }
+  }
+
+  /**
+   * Ensure all Prometheus Operator CRDs exist; install chart only if needed.
+   * If all CRDs are already present or monitoring support is disabled, skip installation.
+   */
+  /** Ensure Prometheus Operator CRDs are present; install missing ones via the chart */
+  private async ensurePrometheusOperatorCrds({clusterRefs, namespace}: NetworkDeployConfigClass): Promise<void> {
+    const CRDS: {key: string; crd: string}[] = [
+      {key: 'alertmanagerconfigs', crd: 'alertmanagerconfigs.monitoring.coreos.com'},
+      {key: 'alertmanagers', crd: 'alertmanagers.monitoring.coreos.com'},
+      {key: 'podmonitors', crd: 'podmonitors.monitoring.coreos.com'},
+      {key: 'probes', crd: 'probes.monitoring.coreos.com'},
+      {key: 'prometheusagents', crd: 'prometheusagents.monitoring.coreos.com'},
+      {key: 'prometheuses', crd: 'prometheuses.monitoring.coreos.com'},
+      {key: 'prometheusrules', crd: 'prometheusrules.monitoring.coreos.com'},
+      {key: 'scrapeconfigs', crd: 'scrapeconfigs.monitoring.coreos.com'},
+      {key: 'servicemonitors', crd: 'servicemonitors.monitoring.coreos.com'},
+      {key: 'thanosrulers', crd: 'thanosrulers.monitoring.coreos.com'},
+    ];
+
+    for (const [_, context] of clusterRefs) {
+      let valuesArgument: string = '';
+      let missingCount: number = 0;
+
+      for (const {key, crd} of CRDS) {
+        const exists: boolean = await this.crdExists(context, crd);
+        if (exists) {
+          valuesArgument += ` --set "${key}.enabled=false"`;
+        } else {
+          missingCount++;
+        }
+      }
+
+      if (missingCount === 0) {
+        this.logger.info(`All Prometheus Operator CRDs already present in context ${context}; skipping installation.`);
+        continue;
+      }
+
+      const setupMap: Map<string, string> = new Map([
+        [constants.PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME, constants.PROMETHEUS_OPERATOR_CRDS_CHART_URL],
+      ]);
+
+      await this.chartManager.setup(setupMap);
+
+      await this.chartManager.install(
+        namespace,
+        constants.PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME,
+        constants.PROMETHEUS_OPERATOR_CRDS_CHART,
+        constants.PROMETHEUS_OPERATOR_CRDS_CHART,
+        versions.PROMETHEUS_OPERATOR_CRDS_VERSION,
+        valuesArgument,
+        context,
+      );
+
+      showVersionBanner(
+        this.logger,
+        constants.PROMETHEUS_OPERATOR_CRDS_CHART,
+        versions.PROMETHEUS_OPERATOR_CRDS_VERSION,
+      );
+    }
+  }
+
   /** Run helm install and deploy network components */
   public async deploy(argv: ArgvStruct): Promise<boolean> {
     // eslint-disable-next-line @typescript-eslint/typedef,unicorn/no-this-assignment
@@ -1010,6 +1114,24 @@ export class NetworkCommand extends BaseCommand {
               this.platformInstaller.copyNodeKeys(config.stagingDir, config.consensusNodes, config.contexts),
               constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
             );
+          },
+        },
+        {
+          title: 'Install monitoring CRDs',
+          skip: ({config: {enableMonitoringSupport}}): boolean => !enableMonitoringSupport,
+          task: (_, task): SoloListr<NetworkDeployContext> => {
+            const tasks: SoloListrTask<NetworkDeployContext>[] = [
+              {
+                title: 'Pod Logs CRDs',
+                task: async ({config}): Promise<void> => await this.ensurePodLogsCrd(config),
+              },
+              {
+                title: 'Prometheus Operator CRDs',
+                task: async ({config}): Promise<void> => await this.ensurePrometheusOperatorCrds(config),
+              },
+            ];
+
+            return task.newListr(tasks, {concurrent: false, rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION});
           },
         },
         {

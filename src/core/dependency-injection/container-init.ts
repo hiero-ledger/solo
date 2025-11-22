@@ -5,6 +5,7 @@ import {type SoloLogger} from '../logging/solo-logger.js';
 import {PackageDownloader} from '../package-downloader.js';
 import {Zippy} from '../zippy.js';
 import {
+  CurlDependencyManager,
   DependencyManager,
   HelmDependencyManager,
   KindDependencyManager,
@@ -123,6 +124,7 @@ export class Container {
       new SingletonContainer(InjectTokens.Helm, DefaultHelmClient),
       new SingletonContainer(InjectTokens.HelmExecutionBuilder, HelmExecutionBuilder),
       new SingletonContainer(InjectTokens.HelmDependencyManager, HelmDependencyManager),
+      new SingletonContainer(InjectTokens.CurlDependencyManager, CurlDependencyManager),
       new SingletonContainer(InjectTokens.KindDependencyManager, KindDependencyManager),
       new SingletonContainer(InjectTokens.KubectlDependencyManager, KubectlDependencyManager),
       new SingletonContainer(InjectTokens.PodmanDependencyManager, PodmanDependencyManager),
@@ -200,6 +202,7 @@ export class Container {
       new ValueContainer(InjectTokens.OsPlatform, os.platform()),
       new ValueContainer(InjectTokens.OsArch, os.arch()),
       new ValueContainer(InjectTokens.HelmInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
+      new ValueContainer(InjectTokens.CurlInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.KindInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.KubectlInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.PodmanInstallationDir, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
@@ -218,6 +221,7 @@ export class Container {
       new ValueContainer(InjectTokens.VfkitVersion, version.VFKIT_VERSION),
       new ValueContainer(InjectTokens.GvproxyVersion, version.GVPROXY_VERSION),
       new ValueContainer(InjectTokens.SystemAccounts, constants.SYSTEM_ACCOUNTS),
+      new ValueContainer(InjectTokens.CurlVersion, version.CURL_VERSION),
       new ValueContainer(InjectTokens.CacheDir, cacheDirectory),
       new ValueContainer(InjectTokens.LocalConfigFileName, constants.DEFAULT_LOCAL_CONFIG_FILE),
       new ValueContainer(InjectTokens.KeyFormatter, ConfigKeyFormatter.instance()),
