@@ -2260,7 +2260,6 @@ export class NodeCommandTasks {
         if (!Array.isArray(aliases)) {
           aliases = [aliases];
         }
-        console.log(`aliases = ${JSON.stringify(aliases, null, 2)}`);
         for (const nodeAlias of aliases) {
           const context = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
           await container
