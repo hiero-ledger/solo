@@ -28,7 +28,6 @@ export interface NodeAddConfigClass extends NodeCommonConfigWithNodeAlias, Check
   curDate: Date;
   freezeAdminPrivateKey: string;
   keysDir: string;
-  lastStateZipPath: string;
   nodeClient: Client;
   treasuryKey: PrivateKey;
   stagingDir: string;
