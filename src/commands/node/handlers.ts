@@ -145,7 +145,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkNodePodsAreRunning(),
       this.tasks.populateServiceMap(),
       this.tasks.fetchPlatformSoftware('allNodeAliases'),
-      this.tasks.getNodeStateFiles('existingNodeAliases'),
+      this.tasks.downloadLastState(),
       this.tasks.uploadStateToNewNode(),
       this.tasks.setupNetworkNodes('allNodeAliases', false),
       this.tasks.startNodes('allNodeAliases'),
@@ -680,7 +680,7 @@ export class NodeCommandHandlers extends CommandHandler {
       argv,
       [
         this.tasks.initialize(argv, this.configs.statesConfigBuilder.bind(this.configs), null),
-        this.tasks.getNodeStateFiles('nodeAliases'),
+        this.tasks.getNodeStateFiles(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in downloading states from nodes',

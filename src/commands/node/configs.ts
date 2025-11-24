@@ -338,6 +338,7 @@ export class NodeCommandConfigs {
       'existingNodeAliases',
       'freezeAdminPrivateKey',
       'keysDir',
+      'lastStateZipPath',
       'nodeClient',
       'podRefs',
       'serviceMap',
