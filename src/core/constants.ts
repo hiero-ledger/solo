@@ -219,6 +219,9 @@ export const NODE_LOG_FAILURE_MSG = 'failed to download logs from pod';
 export const ONE_SHOT_WITH_BLOCK_NODE = getEnvironmentVariable('ONE_SHOT_WITH_BLOCK_NODE') || 'false';
 export const RAPID_FIRE_VALUES_FILE = PathEx.joinWithRealPath(RESOURCES_DIR, 'rapid-fire', 'nlg-values.yaml');
 
+export const CONTAINER_COPY_MAX_ATTEMPTS: number = +getEnvironmentVariable('CONTAINER_COPY_MAX_ATTEMPTS') || 3;
+export const CONTAINER_COPY_BACKOFF_MS: number = +getEnvironmentVariable('CONTAINER_COPY_BACKOFF_MS') || 300;
+
 /**
  * Listr related
  * @returns a object that defines the default color options

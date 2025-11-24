@@ -398,4 +398,8 @@ export class Templates {
   public static renderMirrorNodeName(id: ComponentId): string {
     return `${constants.MIRROR_NODE_RELEASE_NAME}-${id}`;
   }
+
+  public static renderConfigMapRemoteConfigLabels(): string[] {
+    return ['solo.hedera.com/type=remote-config'];
+  }
 }

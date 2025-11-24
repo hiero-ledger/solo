@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {container} from 'tsyringe-neo';
-import type * as WebSocket from 'ws';
-import * as tar from 'tar';
 import {type Container} from '../../../resources/container/container.js';
-import {type TarCreateFilter} from '../../../../../types/aliases.js';
 import {type TDirectoryData} from '../../../t-directory-data.js';
 import {type ContainerReference} from '../../../resources/container/container-reference.js';
 import {IllegalArgumentError} from '../../../../../core/errors/illegal-argument-error.js';
@@ -12,17 +9,21 @@ import {MissingArgumentError} from '../../../../../core/errors/missing-argument-
 import {SoloError} from '../../../../../core/errors/solo-error.js';
 import path from 'node:path';
 import fs from 'node:fs';
-import {type LocalContextObject} from '../../../../../types/index.js';
-import * as stream from 'node:stream';
-import {v4 as uuid4} from 'uuid';
-import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
 import os from 'node:os';
-import {Exec, type KubeConfig} from '@kubernetes/client-node';
+import {type ChildProcessByStdio, spawn} from 'node:child_process';
+import {v4 as uuid4} from 'uuid';
+import * as tar from 'tar';
+import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
+import {type KubeConfig} from '@kubernetes/client-node';
 import {type Pods} from '../../../resources/pod/pods.js';
 import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
-import {PathEx} from '../../../../../business/utils/path-ex.js';
-
-type EventErrorWithUrl = {name: string; message: string; stack?: string; target?: {url?: string}};
+import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
+import {type TarCreateFilter} from '../../../../../types/aliases.js';
+import {type Context} from '../../../../../types/index.js';
+import {sleep} from '../../../../../core/helpers.js';
+import {Duration} from '../../../../../core/time/duration.js';
+import type Stream from 'node:stream';
+import * as constants from '../../../../../core/constants.js';
 
 export class K8ClientContainer implements Container {
   private readonly logger: SoloLogger;
@@ -35,158 +36,149 @@ export class K8ClientContainer implements Container {
     this.logger = container.resolve(InjectTokens.SoloLogger);
   }
 
-  public async copyFrom(sourcePath: string, destinationDirectory: string): Promise<unknown> {
-    const self = this;
-    const namespace = this.containerReference.parentReference.namespace;
-    const guid = uuid4();
-    const messagePrefix = `copyFrom[${this.containerReference.parentReference.name},${guid}]: `;
+  private async getContext(): Promise<string> {
+    return this.kubeConfig.getCurrentContext();
+  }
 
-    if (!(await self.pods.read(this.containerReference.parentReference))) {
-      throw new IllegalArgumentError(`Invalid pod ${this.containerReference.parentReference.name}`);
-    }
+  private async execKubectl(arguments_: string[]): Promise<string> {
+    const context: Context = await this.getContext();
+    const fullArguments: string[] = ['--context', context, ...arguments_];
 
-    self.logger.info(`${messagePrefix}[srcPath=${sourcePath}, destDir=${destinationDirectory}]`);
-
-    // get stat for source file in the container
-    let entries = await self.listDir(sourcePath);
-    if (entries.length !== 1) {
-      throw new SoloError(`${messagePrefix}invalid source path: ${sourcePath}`);
-    }
-    // handle symbolic link
-    if (entries[0].name.includes(' -> ')) {
-      const redirectSourcePath = `${path.dirname(sourcePath)}/${entries[0].name.slice(Math.max(0, entries[0].name.indexOf(' -> ') + 4))}`;
-      entries = await self.listDir(redirectSourcePath);
-      if (entries.length !== 1) {
-        throw new SoloError(`${messagePrefix}invalid source path: ${redirectSourcePath}`);
-      }
-    }
-    const sourceFileDesc = entries[0]; // cache for later comparison after copy
-
-    if (!fs.existsSync(destinationDirectory)) {
-      throw new SoloError(`${messagePrefix}invalid destination path: ${destinationDirectory}`);
-    }
-
-    const localContext = {} as LocalContextObject;
-    try {
-      const sourceFileSize = Number.parseInt(sourceFileDesc.size);
-
-      const sourceFile = path.basename(entries[0].name);
-      const sourceDirectory = path.dirname(entries[0].name);
-      const destinationPath = PathEx.join(destinationDirectory, sourceFile);
-
-      // download the tar file to a temp location
-      const temporaryFile = self.tempFileFor(sourceFile);
-
-      return new Promise((resolve, reject) => {
-        localContext.reject = reject;
-        const execInstance = new Exec(self.kubeConfig);
-        const command = ['cat', `${sourceDirectory}/${sourceFile}`];
-        const outputFileStream = fs.createWriteStream(temporaryFile);
-        const outputPassthroughStream = new stream.PassThrough({highWaterMark: 10 * 1024 * 1024});
-        const errorPassthroughStream = new stream.PassThrough();
-
-        // Use pipe() to automatically handle backpressure between streams
-        outputPassthroughStream.pipe(outputFileStream);
-
-        self.registerOutputPassthroughStreamOnData(
-          localContext,
-          messagePrefix,
-          outputPassthroughStream,
-          outputFileStream,
-        );
-
-        self.registerOutputFileStreamOnDrain(localContext, messagePrefix, outputPassthroughStream, outputFileStream);
-
-        execInstance
-          .exec(
-            namespace.name,
-            this.containerReference.parentReference.name.toString(),
-            this.containerReference.name.toString(),
-            command,
-            outputFileStream,
-            errorPassthroughStream,
-            null,
-            false,
-            ({status}) => {
-              if (status === 'Failure') {
-                self.deleteTempFile(temporaryFile);
-                return self.exitWithError(localContext, `${messagePrefix} Failure occurred`);
-              }
-              self.logger.debug(`${messagePrefix} callback(status)=${status}`);
-            },
-          )
-          .then(conn => {
-            localContext.connection = conn;
-
-            conn.on('error', error => {
-              self.deleteTempFile(temporaryFile);
-              return self.exitWithError(
-                localContext,
-                `${messagePrefix} failed, connection error: ${error.message}`,
-                error,
-              );
-            });
-
-            self.registerConnectionOnMessage(messagePrefix);
-
-            conn.on('close', (code, reason) => {
-              self.logger.debug(`${messagePrefix} connection closed`);
-              if (code !== 1000) {
-                // code 1000 is the success code
-                return self.exitWithError(localContext, `${messagePrefix} failed with code=${code}, reason=${reason}`);
-              }
-
-              outputFileStream.end();
-              outputFileStream.close(() => {
-                try {
-                  fs.copyFileSync(temporaryFile, destinationPath);
-
-                  self.deleteTempFile(temporaryFile);
-
-                  const stat = fs.statSync(destinationPath);
-                  if (stat && stat.size === sourceFileSize) {
-                    self.logger.debug(`${messagePrefix} finished`);
-                    return resolve(true);
-                  }
-
-                  return self.exitWithError(
-                    localContext,
-                    `${messagePrefix} files did not match, srcFileSize=${sourceFileSize}, stat.size=${stat?.size}`,
-                  );
-                } catch (error) {
-                  return self.exitWithError(localContext, `${messagePrefix} failed to complete download`, error);
-                }
-              });
-            });
-          })
-          .catch(error => {
-            self.exitWithError(localContext, `${messagePrefix} failed to exec copyFrom: ${error.message}`, error);
-          });
-
-        self.registerErrorStreamOnData(localContext, errorPassthroughStream);
-
-        self.registerErrorStreamOnError(localContext, messagePrefix, outputFileStream);
+    return new Promise((resolve, reject): void => {
+      const process: ChildProcessByStdio<null, Stream.Readable, Stream.Readable> = spawn('kubectl', fullArguments, {
+        stdio: ['ignore', 'pipe', 'pipe'],
       });
-    } catch (error) {
-      throw new SoloError(`${messagePrefix}failed to download file: ${error.message}`, error);
+
+      let stdout: string = '';
+      let stderr: string = '';
+
+      process.stdout.on('data', (chunk): void => {
+        stdout += chunk.toString();
+      });
+
+      process.stderr.on('data', (chunk): void => {
+        stderr += chunk.toString();
+      });
+
+      process.on('error', (error): void => {
+        reject(new SoloError(`container call failed to start: ${error?.message}`));
+      });
+
+      process.on('close', (code): void => {
+        if (code === 0) {
+          resolve(stdout || stderr);
+        } else {
+          reject(new SoloError(`container call failed: ${stderr || stdout}`));
+        }
+      });
+    });
+  }
+
+  /**
+   * Execute `kubectl cp` with retries and optional verification.
+   *
+   * @param source - kubectl cp source, e.g. `<ns>/<pod>:/path` or `/local/path`
+   * @param destination - kubectl cp destination, e.g. `/local/path` or `<ns>/<pod>:/path`
+   * @param containerName - name of the container for -c flag
+   * @param verifyPath - local filesystem path to verify after copy (usually the destination for copyFrom)
+   * @param expectedSize - optional expected file size for strict verification
+   */
+  private async execKubectlCp(
+    source: string,
+    destination: string,
+    containerName: string,
+    verifyPath: string,
+    expectedSize?: number,
+  ): Promise<void> {
+    const maxAttempts: number = constants.CONTAINER_COPY_MAX_ATTEMPTS;
+    const arguments_: string[] = ['cp', source, destination, '-c', containerName];
+
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await this.execKubectl(arguments_);
+
+        if (!fs.existsSync(verifyPath)) {
+          throw new SoloError(`copy failed: missing file at ${verifyPath}`);
+        }
+
+        const stat: fs.Stats = fs.statSync(verifyPath);
+
+        if (expectedSize !== undefined && stat.size !== expectedSize) {
+          throw new SoloError(
+            `copy verification failed: expected size ${expectedSize} but found ${stat.size} at ${verifyPath}`,
+          );
+        }
+
+        return;
+      } catch (error) {
+        if (attempt === maxAttempts) {
+          throw error;
+        }
+
+        // backoff between retries
+        await sleep(Duration.ofMillis(attempt * constants.CONTAINER_COPY_BACKOFF_MS));
+      }
     }
   }
 
-  public async copyTo(
-    sourcePath: string,
-    destinationDirectory: string,
-    filter: TarCreateFilter | undefined = undefined,
-  ): Promise<boolean> {
-    const self = this;
-    const namespace = this.containerReference.parentReference.namespace;
-    const guid = uuid4();
-    const messagePrefix = `copyTo[${this.containerReference.parentReference.name},${guid}]: `;
+  public async copyFrom(sourcePath: string, destinationDirectory: string): Promise<boolean> {
+    const namespace: NamespaceName = this.containerReference.parentReference.namespace;
+    const podName: string = this.containerReference.parentReference.name.toString();
+    const containerName: string = this.containerReference.name.toString();
 
-    if (!(await self.pods.read(this.containerReference.parentReference))) {
-      throw new IllegalArgumentError(`Invalid pod ${this.containerReference.parentReference.name}`);
+    if (!(await this.pods.read(this.containerReference.parentReference))) {
+      throw new IllegalArgumentError(`Invalid pod ${podName}`);
     }
 
-    self.logger.info(`${messagePrefix}[srcPath=${sourcePath}, destDir=${destinationDirectory}]`);
+    if (!fs.existsSync(destinationDirectory)) {
+      throw new SoloError(`invalid destination path: ${destinationDirectory}`);
+    }
+
+    this.logger.info(
+      `copyFrom: [srcPath=${sourcePath}, destDir=${destinationDirectory}] from ${namespace.name}/${podName}:${containerName}`,
+    );
+
+    let entries: TDirectoryData[] = await this.listDir(sourcePath);
+    if (entries.length !== 1) {
+      throw new SoloError(`copyFrom: invalid source path: ${sourcePath}`);
+    }
+    // handle symbolic link
+    if (entries[0].name.includes(' -> ')) {
+      const arrowIndex: number = entries[0].name.indexOf(' -> ');
+      const targetSuffix: string = entries[0].name.slice(arrowIndex + 4);
+      const redirectSourcePath: string = `${path.dirname(sourcePath)}/${targetSuffix}`;
+      entries = await this.listDir(redirectSourcePath);
+      if (entries.length !== 1) {
+        throw new SoloError(`copyFrom: invalid source path: ${redirectSourcePath}`);
+      }
+    }
+
+    const sourceFileDesc: TDirectoryData = entries[0];
+    const sourceFileSize: number = Number.parseInt(sourceFileDesc.size, 10);
+
+    const resolvedRemotePath: string = sourceFileDesc.name;
+    const sourceFileName: string = path.basename(resolvedRemotePath);
+    const destinationPath: string = path.join(destinationDirectory, sourceFileName);
+
+    this.logger.info(
+      `copyFrom: beginning copy [container: ${containerName} ${namespace.name}/${podName}:${resolvedRemotePath} ${destinationPath}]`,
+    );
+
+    const remoteSource: string = `${namespace.name}/${podName}:${resolvedRemotePath}`;
+
+    await this.execKubectlCp(remoteSource, destinationPath, containerName, destinationPath, sourceFileSize);
+
+    return true;
+  }
+
+  public async copyTo(sourcePath: string, destinationDirectory: string, filter?: TarCreateFilter): Promise<boolean> {
+    const namespace: NamespaceName = this.containerReference.parentReference.namespace;
+    const podName: string = this.containerReference.parentReference.name.toString();
+    const containerName: string = this.containerReference.name.toString();
+
+    if (!(await this.pods.read(this.containerReference.parentReference))) {
+      throw new IllegalArgumentError(`Invalid pod ${podName}`);
+    }
 
     if (!(await this.hasDir(destinationDirectory))) {
       throw new SoloError(`invalid destination path: ${destinationDirectory}`);
@@ -196,182 +188,107 @@ export class K8ClientContainer implements Container {
       throw new SoloError(`invalid source path: ${sourcePath}`);
     }
 
-    const localContext = {} as LocalContextObject;
+    const remoteDestination: string = `${namespace.name}/${podName}:${destinationDirectory}`;
+
+    this.logger.info(
+      `copyTo: [srcPath=${sourcePath}, destDir=${destinationDirectory}] to ${remoteDestination} (container=${containerName})`,
+    );
+
+    let localPathToCopy: string = sourcePath;
+    let temporaryDirectory: string | undefined;
+    let temporaryTar: string | undefined;
+
     try {
-      const sourceFile = path.basename(sourcePath);
-      const sourceDirectory = path.dirname(sourcePath);
+      if (filter) {
+        const sourceFileName: string = path.basename(sourcePath);
+        const sourceDirectory: string = path.dirname(sourcePath);
 
-      // Create a temporary tar file for the source file
-      const temporaryFile = self.tempFileFor(sourceFile);
+        temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'solo-kubectl-cp-src-'));
+        temporaryTar = path.join(temporaryDirectory, `${sourceFileName}-${uuid4()}.tar`);
 
-      await tar.c({file: temporaryFile, cwd: sourceDirectory, filter}, [sourceFile]);
+        // Create a filtered tarball
+        await tar.c({file: temporaryTar, cwd: sourceDirectory, filter}, [sourceFileName]);
+        // Extract the filtered content into the temporaryDirectory.
+        await tar.x({file: temporaryTar, cwd: temporaryDirectory});
 
-      return new Promise<boolean>((resolve, reject) => {
-        localContext.reject = reject;
-        const execInstance = new Exec(self.kubeConfig);
-        const command = ['tar', 'xf', '-', '-C', destinationDirectory];
-        const inputStream = fs.createReadStream(temporaryFile);
-        const errorPassthroughStream = new stream.PassThrough();
-        const inputPassthroughStream = new stream.PassThrough({highWaterMark: 10 * 1024 * 1024}); // Handle backpressure
+        localPathToCopy = path.join(temporaryDirectory, sourceFileName);
 
-        // Use pipe() to automatically handle backpressure
-        inputStream.pipe(inputPassthroughStream);
+        if (!fs.existsSync(localPathToCopy)) {
+          throw new SoloError(`filtered source path does not exist: ${localPathToCopy}`);
+        }
+      }
 
-        execInstance
-          .exec(
-            namespace.name,
-            this.containerReference.parentReference.name.toString(),
-            this.containerReference.name.toString(),
-            command,
-            null,
-            errorPassthroughStream,
-            inputPassthroughStream,
-            false,
-            ({status}) => self.handleCallback(status, localContext, messagePrefix),
-          )
-          .then(conn => {
-            localContext.connection = conn;
+      this.logger.info(`copyTo: beginning copy [container: ${containerName} ${localPathToCopy} ${remoteDestination}]`);
 
-            self.registerConnectionOnError(localContext, messagePrefix, conn);
+      await this.execKubectlCp(localPathToCopy, remoteDestination, containerName, localPathToCopy);
 
-            self.registerConnectionOnMessage(messagePrefix);
-
-            conn.on('close', (code, reason) => {
-              self.logger.debug(`${messagePrefix} connection closed`);
-              if (code !== 1000) {
-                // code 1000 is the success code
-                return self.exitWithError(localContext, `${messagePrefix} failed with code=${code}, reason=${reason}`);
-              }
-
-              // Cleanup temp file after successful copy
-              inputPassthroughStream.end(); // End the passthrough stream
-              self.deleteTempFile(temporaryFile); // Cleanup temp file
-              self.logger.info(`${messagePrefix} Successfully copied!`);
-              return resolve(true);
-            });
-          })
-          .catch(error => {
-            self.exitWithError(localContext, `${messagePrefix} failed to copyTo: ${error.message}`, error);
-          });
-
-        self.registerErrorStreamOnData(localContext, errorPassthroughStream);
-
-        self.registerErrorStreamOnError(localContext, messagePrefix, inputPassthroughStream);
-      });
-    } catch (error) {
-      throw new SoloError(`${messagePrefix} failed to upload file: ${error.message}`, error);
+      return true;
+    } finally {
+      // Clean up temp artifacts if any.
+      if (temporaryTar && fs.existsSync(temporaryTar)) {
+        try {
+          fs.rmSync(temporaryTar);
+        } catch {
+          // ignore
+        }
+      }
+      if (temporaryDirectory && fs.existsSync(temporaryDirectory)) {
+        try {
+          fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+        } catch {
+          // ignore
+        }
+      }
     }
   }
 
-  public async execContainer(command: string | string[], errorPassthroughStream?: stream.PassThrough): Promise<string> {
-    const self = this;
-    const namespace = this.containerReference.parentReference.namespace;
-    const guid = uuid4();
-    const messagePrefix = `execContainer[${this.containerReference.parentReference.name},${guid}]:`;
+  public async execContainer(cmd: string | string[]): Promise<string> {
+    const namespace: NamespaceName = this.containerReference.parentReference.namespace;
+    const podName: string = this.containerReference.parentReference.name.toString();
+    const containerName: string = this.containerReference.name.toString();
 
-    if (!(await self.pods.read(this.containerReference.parentReference))) {
-      throw new IllegalArgumentError(`Invalid pod ${this.containerReference.parentReference.name}`);
+    if (!(await this.pods.read(this.containerReference.parentReference))) {
+      throw new IllegalArgumentError(`Invalid pod ${podName}`);
     }
 
-    if (!command) {
+    if (!cmd) {
       throw new MissingArgumentError('command cannot be empty');
     }
-    if (!Array.isArray(command)) {
-      command = command.split(' ');
-    }
 
-    self.logger.info(`${messagePrefix} begin... command=[${command.join(' ')}]`);
+    const command: string[] = Array.isArray(cmd) ? cmd : cmd.split(' ');
 
-    return new Promise<string>((resolve, reject) => {
-      const localContext = {} as LocalContextObject;
-      localContext.reject = reject;
-      const execInstance = new Exec(self.kubeConfig);
-      const temporaryFile = self.tempFileFor(`${this.containerReference.parentReference.name}-output.txt`);
-      const outputFileStream = fs.createWriteStream(temporaryFile);
-      const outputPassthroughStream = new stream.PassThrough({highWaterMark: 10 * 1024 * 1024});
-      errorPassthroughStream = errorPassthroughStream ?? new stream.PassThrough();
+    this.logger.info(
+      `execContainer: beginning call [podName: ${podName} -n ${namespace.name} -c ${containerName} -- ${command.join(' ')}]`,
+    );
 
-      // Use pipe() to automatically handle backpressure between streams
-      outputPassthroughStream.pipe(outputFileStream);
+    const arguments_: string[] = ['exec', podName, '-n', namespace.name, '-c', containerName, '--', ...command];
 
-      self.registerOutputPassthroughStreamOnData(
-        localContext,
-        messagePrefix,
-        outputPassthroughStream,
-        outputFileStream,
-      );
-
-      self.registerOutputFileStreamOnDrain(localContext, messagePrefix, outputPassthroughStream, outputFileStream);
-
-      execInstance
-        .exec(
-          namespace.name,
-          this.containerReference.parentReference.name.toString(),
-          this.containerReference.name.toString(),
-          command,
-          outputFileStream,
-          errorPassthroughStream,
-          null,
-          false,
-          ({status}) => self.handleCallback(status, localContext, messagePrefix),
-        )
-        .then(conn => {
-          localContext.connection = conn;
-
-          self.registerConnectionOnError(localContext, messagePrefix, conn);
-
-          self.registerConnectionOnMessage(messagePrefix);
-
-          conn.on('close', (code, reason) => {
-            self.logger.debug(`${messagePrefix} connection closed`);
-            if (code !== 1000) {
-              // code 1000 is the success code
-              return self.exitWithError(localContext, `${messagePrefix} failed with code=${code}, reason=${reason}`);
-            }
-
-            outputFileStream.end();
-            outputFileStream.close(() => {
-              self.logger.debug(`${messagePrefix} finished`);
-              const outData = fs.readFileSync(temporaryFile);
-              return resolve(outData.toString());
-            });
-          });
-        })
-        .catch(error => {
-          self.exitWithError(localContext, `${messagePrefix} failed to exec command: ${error.message}`, error);
-        });
-
-      self.registerErrorStreamOnData(localContext, errorPassthroughStream);
-
-      self.registerErrorStreamOnError(localContext, messagePrefix, outputFileStream);
-    });
+    return await this.execKubectl(arguments_);
   }
 
   public async hasDir(destinationPath: string): Promise<boolean> {
-    return (
-      (await this.execContainer([
-        'bash',
-        '-c',
-        '[[ -d "' + destinationPath + '" ]] && echo -n "true" || echo -n "false"',
-      ])) === 'true'
-    );
+    const result: string = await this.execContainer([
+      'bash',
+      '-c',
+      `[[ -d "${destinationPath}" ]] && echo -n "true" || echo -n "false"`,
+    ]);
+
+    return result === 'true';
   }
 
   public async hasFile(destinationPath: string, filters: object = {}): Promise<boolean> {
-    const parentDirectory = path.dirname(destinationPath);
-    const fileName = path.basename(destinationPath);
-    const filterMap = new Map(Object.entries(filters));
+    const parentDirectory: string = path.dirname(destinationPath);
+    const fileName: string = path.basename(destinationPath);
+    const filterMap: Map<string, string> = new Map(Object.entries(filters));
 
     try {
-      const entries = await this.listDir(parentDirectory);
+      const entries: TDirectoryData[] = await this.listDir(parentDirectory);
 
       for (const item of entries) {
         if (item.name === fileName && !item.directory) {
-          let found = true;
+          let found: boolean = true;
 
-          for (const entry of filterMap.entries()) {
-            const field = entry[0];
-            const value = entry[1];
+          for (const [field, value] of filterMap.entries()) {
             this.logger.debug(
               `Checking file ${this.containerReference.parentReference.name}:${this.containerReference.name} ${destinationPath}; ${field} expected ${value}, found ${item[field]}`,
               {filters},
@@ -403,28 +320,28 @@ export class K8ClientContainer implements Container {
     return false;
   }
 
-  public async listDir(destinationPath: string): Promise<any[] | TDirectoryData[]> {
+  public async listDir(destinationPath: string): Promise<TDirectoryData[]> {
     try {
-      const output = (await this.execContainer(['ls', '-la', destinationPath])) as string;
+      const output: string = await this.execContainer(['ls', '-la', destinationPath]);
       if (!output) {
         return [];
       }
 
       // parse the output and return the entries
       const items: TDirectoryData[] = [];
-      const lines = output.split('\n');
+      const lines: string[] = output.split('\n');
       for (let line of lines) {
         line = line.replaceAll(/\s+/g, '|');
-        const parts = line.split('|');
+        const parts: string[] = line.split('|');
         if (parts.length >= 9) {
-          let name = parts.at(-1);
+          let name: string = parts.at(-1) as string;
           // handle unique file format (without single quotes): 'usedAddressBook_vHederaSoftwareVersion{hapiVersion=v0.53.0, servicesVersion=v0.53.0}_2024-07-30-20-39-06_node_0.txt.debug'
-          for (let index = parts.length - 1; index > 8; index--) {
+          for (let index: number = parts.length - 1; index > 8; index--) {
             name = `${parts[index - 1]} ${name}`;
           }
 
           if (name !== '.' && name !== '..') {
-            const permission = parts[0];
+            const permission: string = parts[0];
             const item: TDirectoryData = {
               directory: permission[0] === 'd',
               owner: parts[2],
@@ -449,95 +366,6 @@ export class K8ClientContainer implements Container {
   }
 
   public async mkdir(destinationPath: string): Promise<string> {
-    return this.execContainer(['bash', '-c', 'mkdir -p "' + destinationPath + '"']);
-  }
-
-  private tempFileFor(fileName: string) {
-    const temporaryFile = `${fileName}-${uuid4()}`;
-    return PathEx.join(os.tmpdir(), temporaryFile);
-  }
-
-  private deleteTempFile(temporaryFile: string) {
-    if (fs.existsSync(temporaryFile)) {
-      fs.rmSync(temporaryFile);
-    }
-  }
-
-  private exitWithError(localContext: LocalContextObject, errorMessage: string, error?: EventErrorWithUrl) {
-    localContext.errorMessage = localContext.errorMessage
-      ? `${localContext.errorMessage}:${errorMessage}`
-      : errorMessage;
-    localContext.errorMessage = error?.target?.url
-      ? `${localContext.errorMessage}:${error.target.url}`
-      : localContext.errorMessage;
-    this.logger.warn(errorMessage);
-    return localContext.reject(new SoloError(localContext.errorMessage, error));
-  }
-
-  private handleCallback(status: string, localContext: LocalContextObject, messagePrefix: string) {
-    if (status === 'Failure') {
-      return this.exitWithError(localContext, `${messagePrefix} Failure occurred`);
-    }
-    this.logger.debug(`${messagePrefix} callback(status)=${status}`);
-  }
-
-  private registerConnectionOnError(
-    localContext: LocalContextObject,
-    messagePrefix: string,
-    conn: WebSocket.WebSocket,
-  ) {
-    conn.on('error', error => {
-      return this.exitWithError(localContext, `${messagePrefix} failed, connection error: ${error.message}`, error);
-    });
-  }
-
-  private registerConnectionOnMessage(messagePrefix: string) {
-    this.logger.debug(`${messagePrefix} received message`);
-  }
-
-  private registerErrorStreamOnData(localContext: LocalContextObject, stream: stream.PassThrough) {
-    stream.on('data', data => {
-      localContext.errorMessage = localContext.errorMessage
-        ? `${localContext.errorMessage}${data.toString()}`
-        : data.toString();
-    });
-  }
-
-  private registerErrorStreamOnError(
-    localContext: LocalContextObject,
-    messagePrefix: string,
-    stream: stream.PassThrough | fs.WriteStream,
-  ) {
-    stream.on('error', error => {
-      return this.exitWithError(localContext, `${messagePrefix} error encountered, err: ${error.toString()}`, error);
-    });
-  }
-
-  private registerOutputPassthroughStreamOnData(
-    localContext: LocalContextObject,
-    messagePrefix: string,
-    outputPassthroughStream: stream.PassThrough,
-    outputFileStream: fs.WriteStream,
-  ) {
-    outputPassthroughStream.on('data', chunk => {
-      this.logger.debug(`${messagePrefix} received chunk size=${chunk.length}`);
-      const canWrite = outputFileStream.write(chunk); // Write chunk to file and check if buffer is full
-      if (!canWrite) {
-        this.logger.debug(`${messagePrefix} buffer is full, pausing data stream...`);
-        outputPassthroughStream.pause(); // Pause the data stream if buffer is full
-      }
-    });
-  }
-
-  private registerOutputFileStreamOnDrain(
-    localContext: LocalContextObject,
-    messagePrefix: string,
-    outputPassthroughStream: stream.PassThrough,
-    outputFileStream: fs.WriteStream,
-  ) {
-    outputFileStream.on('drain', () => {
-      outputPassthroughStream.resume();
-      this.logger.debug(`${messagePrefix} stream drained, resume write`);
-    });
+    return this.execContainer(['bash', '-c', `mkdir -p "${destinationPath}"`]);
   }
 }

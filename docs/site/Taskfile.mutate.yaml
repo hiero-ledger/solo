@@ -312,28 +312,6 @@ tasks:
         EOF
       - cat examples/rapid-fire/README.md >> docs/site/build/rapid-fire.md
 
-  mutate:running-solo-inside-cluster-example:
-    desc: "Mutate the examples/running-solo-inside-cluster/README.md file to add front-matter"
-    dir: ../..
-    silent: true
-    sources:
-      - examples/running-solo-inside-cluster/README.md
-    generates:
-      - docs/site/build/running-solo-inside-cluster.md
-    cmds:
-      - |
-        mkdir -p docs/site/build
-        cat > docs/site/build/running-solo-inside-cluster.md << 'EOF'
-        ---
-        title: "Solo Inside a Cluster Example"
-        weight: 1
-        description: >
-          Example of how to deploy a Solo network within a Kubernetes cluster
-        type: docs
-        ---
-        EOF
-      - cat examples/running-solo-inside-cluster/README.md >> docs/site/build/running-solo-inside-cluster.md
-
   mutate:state-save-and-restore-example:
     desc: "Mutate the examples/state-save-and-restore/README.md file to add front-matter"
     dir: ../..

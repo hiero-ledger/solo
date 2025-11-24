@@ -145,7 +145,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkNodePodsAreRunning(),
       this.tasks.populateServiceMap(),
       this.tasks.fetchPlatformSoftware('allNodeAliases'),
-      this.tasks.downloadLastState(),
+      this.tasks.getNodeStateFiles('existingNodeAliases'),
       this.tasks.uploadStateToNewNode(),
       this.tasks.setupNetworkNodes('allNodeAliases', false),
       this.tasks.startNodes('allNodeAliases'),
@@ -676,7 +676,7 @@ export class NodeCommandHandlers extends CommandHandler {
       argv,
       [
         this.tasks.initialize(argv, this.configs.statesConfigBuilder.bind(this.configs), null),
-        this.tasks.getNodeStateFiles(),
+        this.tasks.getNodeStateFiles('nodeAliases'),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in downloading states from nodes',
@@ -774,9 +774,9 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.enablePortForwarding(true),
         this.tasks.checkAllNodesAreActive('nodeAliases'),
         this.tasks.checkNodeProxiesAreActive(),
+        this.tasks.setGrpcWebEndpoint('nodeAliases'),
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
         this.tasks.addNodeStakes(),
-        this.tasks.setGrpcWebEndpoint('nodeAliases'),
         // TODO only show this if we are not running in one-shot mode
         // this.tasks.showUserMessages(),
       ],

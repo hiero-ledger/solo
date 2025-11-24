@@ -69,7 +69,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout Code
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
       - name: Setup Node
         uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
@@ -113,7 +113,7 @@ jobs:
           files: "junit.xml"
 
       - name: Publish Linux Unit Test Report
-        uses: step-security/publish-unit-test-result-action@c8537a200a435e2560109a6a8ed9cac838b62656 # v2.20.5
+        uses: step-security/publish-unit-test-result-action@32f89bf71205087367e3fe317be553f2ee59a5b0 # v2.21.0
         if: ${{ runner.os == 'linux' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
         with:
           check_name: 'Unit Test Results - ${{ runner.os }}'

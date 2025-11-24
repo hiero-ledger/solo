@@ -9,7 +9,7 @@ import * as semver from 'semver';
 import {Templates} from './templates.js';
 import * as constants from './constants.js';
 import {PrivateKey, ServiceEndpoint, type Long} from '@hiero-ledger/sdk';
-import {type NodeAlias, type NodeAliases} from '../types/aliases.js';
+import {type AnyObject, type NodeAlias, type NodeAliases} from '../types/aliases.js';
 import {type CommandFlag} from '../types/flag-types.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type Duration} from './time/duration.js';
@@ -28,6 +28,8 @@ import {execSync} from 'node:child_process';
 import {type Service} from '../integration/kube/resources/service/service.js';
 import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
+import yaml from 'yaml';
+import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 
 export function getInternalAddress(
   releaseVersion: semver.SemVer | string,
@@ -616,4 +618,21 @@ export async function findMinioOperator(context: string, k8: K8Factory): Promise
     exists: true,
     releaseName: minioTenantPod.labels?.['app.kubernetes.io/instance'],
   };
+}
+
+export function remoteConfigsToDeploymentsTable(remoteConfigs: ConfigMap[]): string[] {
+  const rows: string[] = [];
+  if (remoteConfigs.length > 0) {
+    rows.push('Namespace : deployment');
+    for (const remoteConfig of remoteConfigs) {
+      const remoteConfigData: AnyObject = yaml.parse(remoteConfig.data['remote-config-data']) as Record<
+        string,
+        AnyObject
+      >;
+      for (const cluster of remoteConfigData.clusters) {
+        rows.push(`${remoteConfig.namespace.name} : ${cluster.deployment}`);
+      }
+    }
+  }
+  return rows;
 }
