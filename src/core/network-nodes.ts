@@ -145,7 +145,7 @@ export class NetworkNodes {
       const containerReference = ContainerReference.of(podReference, ROOT_CONTAINER);
 
       const k8 = this.k8Factory.getK8(context);
-      const zipfilleName = `${HEDERA_HAPI_PATH}/${podReference.name}-state.zip`
+      const zipfilleName = `${HEDERA_HAPI_PATH}/${podReference.name}-state.zip`;
 
       // Zip doesn't have a -C flag like tar, so we use sh -c with subshell to change directory
       await k8
