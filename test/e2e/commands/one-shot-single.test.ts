@@ -21,6 +21,7 @@ import {OneShotCommandDefinition} from '../../../src/commands/command-definition
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
+import {Flags} from '../../../src/commands/flags.js';
 
 const testName: string = 'one-shot-single';
 const testTitle: string = 'One Shot Single E2E Test';
@@ -94,13 +95,14 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 endToEndTestSuite.runTestSuite();
 
 export function soloOneShotDeploy(testName: string): string[] {
-  const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+  const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
   const argv: string[] = newArgv();
   argv.push(
     OneShotCommandDefinition.COMMAND_NAME,
     OneShotCommandDefinition.SINGLE_SUBCOMMAND_NAME,
     OneShotCommandDefinition.SINGLE_DEPLOY,
+    optionFromFlag(Flags.minimalSetup),
   );
   argvPushGlobalFlags(argv, testName);
   return argv;

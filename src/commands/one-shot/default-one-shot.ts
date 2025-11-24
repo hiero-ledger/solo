@@ -414,6 +414,23 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             },
           ),
           this.invokeSoloCommand(
+            `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
+            ExplorerCommandDefinition.ADD_COMMAND,
+            (): string[] => {
+              const argv: string[] = this.newArgv();
+              argv.push(
+                ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
+                this.optionFromFlag(Flags.deployment),
+                config.deployment,
+                this.optionFromFlag(Flags.clusterRef),
+                config.clusterRef,
+              );
+              this.appendConfigToArgv(argv, config.explorerNodeConfiguration);
+              return this.argvPushGlobalFlags(argv, config.cacheDir);
+            },
+            (context_): boolean => context_.config.minimalSetup,
+          ),
+          this.invokeSoloCommand(
             `solo ${RelayCommandDefinition.ADD_COMMAND}`,
             RelayCommandDefinition.ADD_COMMAND,
             (): string[] => {
@@ -429,23 +446,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               );
               this.appendConfigToArgv(argv, config.relayNodeConfiguration);
               return this.argvPushGlobalFlags(argv);
-            },
-            (context_): boolean => context_.config.minimalSetup,
-          ),
-          this.invokeSoloCommand(
-            `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
-            ExplorerCommandDefinition.ADD_COMMAND,
-            (): string[] => {
-              const argv: string[] = this.newArgv();
-              argv.push(
-                ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
-                this.optionFromFlag(Flags.deployment),
-                config.deployment,
-                this.optionFromFlag(Flags.clusterRef),
-                config.clusterRef,
-              );
-              this.appendConfigToArgv(argv, config.explorerNodeConfiguration);
-              return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
             (context_): boolean => context_.config.minimalSetup,
           ),
