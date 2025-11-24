@@ -125,7 +125,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   ) {
     return {
       title,
-      skip: skipCallback,
+      skip: skipCallback(),
       task: async (_, taskListWrapper) => {
         return this.subTaskSoloCommand(commandName, this.taskList, taskListWrapper, callback);
       },
@@ -413,42 +413,59 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
           ),
-          this.invokeSoloCommand(
-            `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
-            ExplorerCommandDefinition.ADD_COMMAND,
-            (): string[] => {
-              const argv: string[] = this.newArgv();
-              argv.push(
-                ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
-                this.optionFromFlag(Flags.deployment),
-                config.deployment,
-                this.optionFromFlag(Flags.clusterRef),
-                config.clusterRef,
-              );
-              this.appendConfigToArgv(argv, config.explorerNodeConfiguration);
-              return this.argvPushGlobalFlags(argv, config.cacheDir);
+          {
+            title: 'Extended setup',
+            task: async (
+              context_: OneShotSingleDeployContext,
+              task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+            ): Promise<Listr<OneShotSingleDeployContext>> => {
+              const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [
+                this.invokeSoloCommand(
+                  `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
+                  ExplorerCommandDefinition.ADD_COMMAND,
+                  (): string[] => {
+                    const argv: string[] = this.newArgv();
+                    argv.push(
+                      ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
+                      this.optionFromFlag(Flags.deployment),
+                      config.deployment,
+                      this.optionFromFlag(Flags.clusterRef),
+                      config.clusterRef,
+                    );
+                    this.appendConfigToArgv(argv, config.explorerNodeConfiguration);
+                    return this.argvPushGlobalFlags(argv, config.cacheDir);
+                  },
+                ),
+                this.invokeSoloCommand(
+                  `solo ${RelayCommandDefinition.ADD_COMMAND}`,
+                  RelayCommandDefinition.ADD_COMMAND,
+                  (): string[] => {
+                    const argv: string[] = this.newArgv();
+                    argv.push(
+                      ...RelayCommandDefinition.ADD_COMMAND.split(' '),
+                      this.optionFromFlag(Flags.deployment),
+                      config.deployment,
+                      this.optionFromFlag(Flags.clusterRef),
+                      config.clusterRef,
+                      this.optionFromFlag(Flags.nodeAliasesUnparsed),
+                      'node1',
+                    );
+                    this.appendConfigToArgv(argv, config.relayNodeConfiguration);
+                    return this.argvPushGlobalFlags(argv);
+                  },
+                ),
+              ];
+
+              // set up the sub-tasks
+              return task.newListr(subTasks, {
+                concurrent: false,
+                rendererOptions: {
+                  collapseSubtasks: false,
+                },
+              });
             },
-            (context_): boolean => context_.config.minimalSetup,
-          ),
-          this.invokeSoloCommand(
-            `solo ${RelayCommandDefinition.ADD_COMMAND}`,
-            RelayCommandDefinition.ADD_COMMAND,
-            (): string[] => {
-              const argv: string[] = this.newArgv();
-              argv.push(
-                ...RelayCommandDefinition.ADD_COMMAND.split(' '),
-                this.optionFromFlag(Flags.deployment),
-                config.deployment,
-                this.optionFromFlag(Flags.clusterRef),
-                config.clusterRef,
-                this.optionFromFlag(Flags.nodeAliasesUnparsed),
-                'node1',
-              );
-              this.appendConfigToArgv(argv, config.relayNodeConfiguration);
-              return this.argvPushGlobalFlags(argv);
-            },
-            (context_): boolean => context_.config.minimalSetup,
-          ),
+            skip: (): boolean => config.minimalSetup,
+          },
           {
             title: 'Create Accounts',
             skip: () => config.predefinedAccounts === false,
