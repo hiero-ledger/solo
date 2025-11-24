@@ -1,12 +1,12 @@
 [
   {
     "name": "One Shot Single - using Podman",
-    "test-script": "test-e2e-one-shot-single",
+    "test-script": "test-e2e-one-shot-single-minimal",
     "coverage-subdirectory": "e2e-one-shot-single-podman",
     "coverage-report-name": "E2E_Quick_Start_Single_Podman_Tests_Coverage_Report",
     "local-java-build": false,
     "solo-install-dependencies": true,
-    "runner": "ubuntu-24.04-large"
+    "runner": "ubuntu-24.04"
   },
   {
     "name": "One Shot Single",

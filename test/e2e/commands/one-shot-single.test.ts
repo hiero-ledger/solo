@@ -30,7 +30,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withNamespace(testName)
   .withDeployment(`${testName}-deployment`)
   .withClusterCount(1)
-  .withMinimalSetup(true)
+  .withMinimalSetup(process.env.SOLO_ONE_SHOT_MINIMAL_SETUP?.toLowerCase() === 'true')
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe(testTitle, (): void => {
       const {testCacheDirectory, testLogger, namespace, contexts} = options;
