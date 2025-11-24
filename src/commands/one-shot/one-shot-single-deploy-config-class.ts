@@ -20,4 +20,5 @@ export interface OneShotSingleDeployConfigClass {
   cacheDir: string;
   predefinedAccounts: boolean;
   minimalSetup: boolean;
+  force: boolean;
 }

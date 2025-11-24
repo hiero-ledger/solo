@@ -11,6 +11,20 @@ This test scenario performs the following operations:
 3. **Network Upgrade with Local Build**: Upgrades the consensus network using the `--local-build-path` flag
 4. **Functionality Verification**: Creates accounts, verifies Explorer API responses, and tests Relay functionality
 
+## Getting This Example
+
+### Download Archive
+
+You can download this example as a standalone archive from the [Solo releases page](https://github.com/hiero-ledger/solo/releases):
+
+```
+https://github.com/hiero-ledger/solo/releases/download/<release_version>/example-version-upgrade-test.zip
+```
+
+### View on GitHub
+
+Browse the source code and configuration files for this example in the [GitHub repository](https://github.com/hiero-ledger/solo/tree/main/examples/version-upgrade-test).
+
 ## Prerequisites
 
 * Kind cluster support

@@ -573,7 +573,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
 
     const clusterReference: ClusterReferenceName =
-      this.localConfig.configuration.deploymentByName(deploymentName).clusters[0] ??
+      this.localConfig.configuration.deploymentByName(deploymentName)?.clusters?.get(0)?.toString() ??
       this.k8Factory.default().clusters().readCurrent();
 
     const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();

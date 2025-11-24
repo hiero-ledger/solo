@@ -49,11 +49,10 @@ argv.setArg(flags.clusterRef, clusterReference);
 argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
 argv.setArg(flags.force, true);
 
-endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, bootstrapResp => {
+endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, (bootstrapResp): void => {
   describe('BlockNodeCommand', async (): Promise<void> => {
     const {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars,unused-imports/no-unused-vars
-      opts: {k8Factory, commandInvoker, remoteConfig, configManager, logger},
+      opts: {k8Factory, commandInvoker, remoteConfig, configManager},
       cmd: {nodeCmd, networkCmd},
     } = bootstrapResp;
 
@@ -91,7 +90,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
         command: BlockCommandDefinition.COMMAND_NAME,
         subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
         action: BlockCommandDefinition.NODE_ADD,
-        callback: async (argv: {_: string[]} & Record<string, any>): Promise<boolean> => blockNodeCommand.add(argv),
+        callback: async (argv): Promise<boolean> => blockNodeCommand.add(argv),
       });
 
       remoteConfig.configuration.components.getComponent<BlockNodeStateSchema>(ComponentTypes.BlockNode, 1);
@@ -141,7 +140,7 @@ endToEndTestSuite(testName, argv, {startNodes: false, deployNetwork: false}, boo
         command: BlockCommandDefinition.COMMAND_NAME,
         subcommand: BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
         action: BlockCommandDefinition.NODE_DESTROY,
-        callback: async (argv: {_: string[]} & Record<string, any>): Promise<boolean> => blockNodeCommand.destroy(argv),
+        callback: async (argv): Promise<boolean> => blockNodeCommand.destroy(argv),
       });
 
       try {

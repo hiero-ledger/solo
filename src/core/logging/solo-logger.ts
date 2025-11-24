@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {type MessageLevel} from './message-level.js';
+
 export interface SoloLogger {
   setDevMode(developmentMode: boolean): void;
 
@@ -29,7 +31,7 @@ export interface SoloLogger {
 
   addMessageGroupMessage(key: string, message: string): void;
 
-  showMessageGroup(key: string): void;
+  showMessageGroup(key: string, messageLevel?: MessageLevel): void;
 
   getMessageGroupKeys(): string[];
 
