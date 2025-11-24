@@ -144,13 +144,12 @@ export class NetworkNodes {
     const podReference: PodReference = pod.podReference;
     this.logger.debug(`getNodeState(${pod.podReference.name.name}): begin...`);
     const targetDirectory = path.join(baseDirectory, namespace.toString());
-    const zipfilleName: string = `${HEDERA_HAPI_PATH}/${podReference.name}-state.zip`;
-    const containerReference = ContainerReference.of(podReference, ROOT_CONTAINER);
     try {
       if (!fs.existsSync(targetDirectory)) {
         fs.mkdirSync(targetDirectory, {recursive: true});
       }
       // Use zip for compression, similar to tar -czf with -C flag
+      const containerReference = ContainerReference.of(podReference, ROOT_CONTAINER);
 
       const k8 = this.k8Factory.getK8(context);
 
@@ -158,12 +157,18 @@ export class NetworkNodes {
       await k8
         .containers()
         .readByRef(containerReference)
-        .execContainer(['sh', '-c', `(cd ${HEDERA_HAPI_PATH}/data/saved && zip -r ${zipfilleName} .)`]);
-      await sleep(Duration.ofSeconds(1));
-      await k8.containers().readByRef(containerReference).copyFrom(`${zipfilleName}`, targetDirectory);
+        .execContainer([
+          'sh',
+          '-c',
+          `(cd ${HEDERA_HAPI_PATH}/data/saved && zip -r ${HEDERA_HAPI_PATH}/${podReference.name}-state.zip .)`,
+        ]);
+      await k8
+        .containers()
+        .readByRef(containerReference)
+        .copyFrom(`${HEDERA_HAPI_PATH}/${podReference.name}-state.zip`, targetDirectory);
     } catch (error: Error | unknown) {
-      this.logger.error(`failed to download state ${zipfilleName} from pod ${podReference.name}`, error);
-      this.logger.showUser(`Failed to download state ${zipfilleName} from pod ${podReference.name}` + error);
+      this.logger.error(`failed to download state from pod ${podReference.name}`, error);
+      this.logger.showUser(`Failed to download state from pod ${podReference.name}` + error);
     }
     this.logger.debug(`getNodeState(${pod.podReference.name.name}): ...end`);
   }
