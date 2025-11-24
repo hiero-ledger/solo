@@ -95,7 +95,7 @@ export class NetworkNodes {
       ]);
 
       await container.execContainer(['bash', '-c', `sudo chmod 0755 ${HEDERA_HAPI_PATH}/${scriptName}`]);
-      await container.execContainer(`${HEDERA_HAPI_PATH}/${scriptName}`);
+      await container.execContainer(`${HEDERA_HAPI_PATH}/${scriptName} true`);
       await container.copyFrom(`${HEDERA_HAPI_PATH}/data/${podReference.name}.zip`, targetDirectory);
 
       const csvFilesPath: string = `${constants.HEDERA_HAPI_PATH}/data/stats/`;
