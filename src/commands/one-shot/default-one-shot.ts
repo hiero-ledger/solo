@@ -58,7 +58,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.numberOfConsensusNodes],
+    optional: [flags.quiet, flags.numberOfConsensusNodes, flags.minimalSetup],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
@@ -117,11 +117,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     title: string,
     commandName: string,
     callback: () => string[],
-    skipCallback: () => boolean = (): boolean => false,
+    skipCallback: (context?: OneShotSingleDeployContext) => boolean = (): boolean => false,
   ) {
     return {
       title,
-      skip: skipCallback(),
+      skip: skipCallback,
       task: async (_, taskListWrapper) => {
         return this.subTaskSoloCommand(commandName, this.taskList, taskListWrapper, callback);
       },
@@ -395,6 +395,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               this.appendConfigToArgv(argv, config.relayNodeConfiguration);
               return this.argvPushGlobalFlags(argv);
             },
+            (context_): boolean => context_.config.minimalSetup,
           ),
           this.invokeSoloCommand(
             `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
@@ -411,6 +412,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               this.appendConfigToArgv(argv, config.explorerNodeConfiguration);
               return this.argvPushGlobalFlags(argv, config.cacheDir);
             },
+            (context_): boolean => context_.config.minimalSetup,
           ),
           {
             title: 'Create Accounts',
