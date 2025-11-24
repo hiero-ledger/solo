@@ -407,7 +407,7 @@ jobs:
               exit 1
             }
           else 
-            echo "ONE_SHOT_MINIMAL_SETUP=true" >> .env
+            echo "SOLO_ONE_SHOT_MINIMAL_SETUP=true" >> .env
           fi
           
           cat .env
