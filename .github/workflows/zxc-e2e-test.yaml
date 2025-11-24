@@ -396,9 +396,10 @@ jobs:
               export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
           fi
           echo SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1 > .env
-          cat .env
           
           if [[ "${{ inputs.custom-job-label }}" != "One Shot Single - using Podman" ]]; then
+            echo ONE_SHOT_MINIMAL_SETUP=true > .env
+
             # Verify cluster connectivity before running tests
             echo "Verifying cluster connectivity..."
             kubectl cluster-info || {
@@ -408,6 +409,8 @@ jobs:
               exit 1
             }
           fi
+          
+          cat .env
           
           ${{ env.CG_EXEC }} task ${{ inputs.test-script }}
 
