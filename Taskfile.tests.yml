@@ -147,9 +147,9 @@ tasks:
 
   test-e2e-one-shot-single-minimal:
     cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E One Shot Single Test - Minimal Setup\"
+      - "ONE_SHOT_MINIMAL_SETUP=true
+        {{ .test_prefix }}=\"Mocha E2E One Shot Single Test - Minimal Setup\"
         {{ .reporter_prefix }}='coverage/e2e-one-shot-single-minimal'
-        ONE_SHOT_MINIMAL_SETUP=true
         {{ .mocha_bin }} 'test/e2e/commands/one-shot-single.test.ts' 
         {{ .reporter_options_prefix }}-e2e-one-shot-single.xml"
 
