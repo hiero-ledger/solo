@@ -75,7 +75,7 @@ jobs:
         uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
         with:
           node-version: ${{ inputs.node-version }}
-          cache: 'ignore'  # Disables internal caching; avoids unpinned actions/cache@v4
+          package-manager-cache: false
 
       - name: Install Dependencies
         id: npm-deps
