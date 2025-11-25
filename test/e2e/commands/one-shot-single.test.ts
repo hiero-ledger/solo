@@ -80,7 +80,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         testLogger.info(`${testName}: finished ${testName}: deploy`);
       }).timeout(Duration.ofMinutes(20).toMillis());
 
-      it('Should perform a simple CryptoTransferTransaction', async (): Promise<void> => {
+      it('Should perform a simple TransferTransaction', async (): Promise<void> => {
         // These should be set in your environment or test config
         const operatorId: AccountId = AccountId.fromString('0.0.2');
         const operatorKey: PrivateKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
@@ -94,7 +94,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         const receipt: TransactionReceipt = await tx.getReceipt(client);
         if (receipt.status.toString() !== 'SUCCESS') {
-          throw new Error(`CryptoTransferTransaction failed: ${receipt.status}`);
+          throw new Error(`TransferTransaction failed: ${receipt.status}`);
         }
       });
 
