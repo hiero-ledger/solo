@@ -44,7 +44,7 @@ import {Duration} from '../core/time/duration.js';
 import {Version} from '../business/utils/version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {SemVer} from 'semver';
-import {MIRROR_INGRESS_CONTROLLER, MIRROR_NODE_PORT} from '../core/constants.js';
+import {MIRROR_INGRESS_CONTROLLER} from '../core/constants.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
