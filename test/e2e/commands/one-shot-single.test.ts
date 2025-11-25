@@ -30,6 +30,7 @@ import {MetricsServerImpl} from '../../../src/business/runtime-state/services/me
 import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
 import {Flags} from '../../../src/commands/flags.js';
+import {ShellRunner} from '../../../src/core/shell-runner.js';
 
 const minimalSetup: boolean = process.env.SOLO_ONE_SHOT_MINIMAL_SETUP?.toLowerCase() === 'true';
 
@@ -99,6 +100,34 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       });
 
       it('Should write log metrics', async (): Promise<void> => {
+        if (minimalSetup) {
+          try {
+            await new ShellRunner().run(
+              'helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/',
+              [],
+              true,
+              false,
+            );
+            await new ShellRunner().run('helm repo add metallb https://metallb.github.io/metallb', [], true, false);
+            await new ShellRunner().run(
+              'helm upgrade --install metrics-server metrics-server/metrics-server --namespace kube-system --set "args[0]=--kubelet-insecure-tls"',
+              [],
+              true,
+              false,
+            );
+            await new ShellRunner().run(
+              'helm upgrade --install metallb metallb/metallb --namespace metallb-system --create-namespace --atomic --wait --set speaker.frr.enabled=true',
+              [],
+              true,
+              false,
+            );
+          } catch (error) {
+            throw new Error(
+              `${testName}: failed to install metrics-server or metallb in minimal setup: ${(error as Error).message}`,
+            );
+          }
+        }
+
         if (process.env.ONE_SHOT_METRICS_SLEEP_MINUTES) {
           const sleepTimeInMinutes: number = Number.parseInt(process.env.ONE_SHOT_METRICS_SLEEP_MINUTES, 10);
 
