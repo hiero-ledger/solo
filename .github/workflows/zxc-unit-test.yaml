@@ -75,7 +75,7 @@ jobs:
         uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
         with:
           node-version: ${{ inputs.node-version }}
-          package-manager-cache: false
+          cache: npm
 
       - name: Install Dependencies
         id: npm-deps
@@ -91,21 +91,15 @@ jobs:
           version: "v3.12.3" # helm version
 
       - name: Setup Kind
+        uses: helm/kind-action@92086f6be054225fa813e0a4b13787fc9088faab # v1.13.0
         if: ${{ runner.os == 'linux' }}
-        run: |
-          # Install KIND v0.26.0
-          go install sigs.k8s.io/kind@v0.26.0
-          echo "$HOME/go/bin" >> $GITHUB_PATH
-          
-          # Install kubectl v1.31.4
-          curl -LO "https://dl.k8s.io/release/v1.31.4/bin/linux/amd64/kubectl"
-          install -o root -g root -m 0755 kubectl /usr/local/bin/
-          
-          # Pull node image (no caching needed; ~500MB, but quick on CI)
-          docker pull kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
-          
-          # Optional: Set verbosity if needed (KIND doesn't have direct equiv, but logs are verbose by default)
-          export KIND_LOG_LEVEL=3  # Matches your verbosity: 3
+        with:
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
 
       - name: Run Helm Client Unit Tests
         if: ${{ runner.os == 'linux' }}
