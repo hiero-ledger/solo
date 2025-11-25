@@ -248,7 +248,7 @@ export class RelayCommand extends BaseCommand {
     valuesArgument += ' --set relay.config.MIRROR_NODE_RETRY_DELAY=2001';
     valuesArgument += ' --set relay.config.MIRROR_NODE_GET_CONTRACT_RESULTS_DEFAULT_RETRIES=21';
 
-    valuesArgument += ` --set ws.config.MIRROR_NODE_URL=http://${mirrorNodeReleaseName}-rest.${mirrorNamespace}.svc.cluster.local`;
+    valuesArgument += ` --set ws.config.MIRROR_NODE_URL=http://127.0.0.1/${MIRROR_NODE_PORT}`;
     valuesArgument += ' --set ws.config.SUBSCRIPTIONS_ENABLED=true';
 
     if (chainId) {
