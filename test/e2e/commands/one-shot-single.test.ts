@@ -11,7 +11,15 @@ import {type K8} from '../../../src/integration/kube/k8.js';
 import {DEFAULT_LOCAL_CONFIG_FILE} from '../../../src/core/constants.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
-
+import {
+  Client,
+  AccountId,
+  PrivateKey,
+  Hbar,
+  TransferTransaction,
+  type TransactionReceipt,
+  type TransactionResponse,
+} from '@hiero-ledger/sdk';
 import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
 import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
 import {type BaseTestOptions} from './tests/base-test-options.js';
@@ -71,6 +79,24 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         await main(soloOneShotDeploy(testName, options.minimalSetup));
         testLogger.info(`${testName}: finished ${testName}: deploy`);
       }).timeout(Duration.ofMinutes(20).toMillis());
+
+      it('Should perform a simple CryptoTransferTransaction', async (): Promise<void> => {
+        // These should be set in your environment or test config
+        const operatorId: AccountId = AccountId.fromString('0.0.2');
+        const operatorKey: PrivateKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
+        const recipientId: AccountId = AccountId.fromString('0.0.3');
+        const client: Client = Client.forNetwork({'localhost:50211': '0.0.3'}).setOperator(operatorId, operatorKey);
+
+        const tx: TransactionResponse = await new TransferTransaction()
+          .addHbarTransfer(operatorId, new Hbar(-1))
+          .addHbarTransfer(recipientId, new Hbar(1))
+          .execute(client);
+
+        const receipt: TransactionReceipt = await tx.getReceipt(client);
+        if (receipt.status.toString() !== 'SUCCESS') {
+          throw new Error(`CryptoTransferTransaction failed: ${receipt.status}`);
+        }
+      });
 
       it('Should write log metrics', async (): Promise<void> => {
         if (process.env.ONE_SHOT_METRICS_SLEEP_MINUTES) {
