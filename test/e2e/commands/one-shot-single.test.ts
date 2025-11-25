@@ -23,7 +23,9 @@ import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
 import {Flags} from '../../../src/commands/flags.js';
 
-const testName: string = 'one-shot-single';
+const minimalSetup: boolean = process.env.SOLO_ONE_SHOT_MINIMAL_SETUP?.toLowerCase() === 'true';
+
+const testName: string = minimalSetup ? 'one-shot-single-minimal' : 'one-shot-single';
 const testTitle: string = 'One Shot Single E2E Test';
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
